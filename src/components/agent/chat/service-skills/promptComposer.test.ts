@@ -74,6 +74,8 @@ describe("service skill prompt composer", () => {
     });
 
     expect(prompt).toContain("[技能任务] 每日趋势摘要");
+    expect(prompt).toContain("[执行位置] 客户端执行");
+    expect(prompt).not.toContain("兼容旧目录标记");
     expect(prompt).toContain("- 行业关键词: AI Agent，创作者工具");
     expect(prompt).toContain("[补充要求] 重点关注过去 24 小时的新增热点。");
     expect(prompt).toContain("现在什么最热");

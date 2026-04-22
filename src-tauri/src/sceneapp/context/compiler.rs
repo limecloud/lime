@@ -654,7 +654,7 @@ mod tests {
                 reference_memory_ids: vec!["memory-1".to_string()],
                 slots: BTreeMap::new(),
                 runtime_context: Some(SceneAppRuntimeContext {
-                    cloud_session_ready: true,
+                    directory_session_ready_compat: true,
                     ..SceneAppRuntimeContext::default()
                 }),
             },

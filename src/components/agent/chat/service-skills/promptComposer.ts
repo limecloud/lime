@@ -1,3 +1,7 @@
+import {
+  resolveServiceSkillExecutionLocationPresentation,
+  SERVICE_SKILL_EXECUTION_LOCATION_LABEL,
+} from "@/lib/api/serviceSkills";
 import type {
   ServiceSkillItem,
   ServiceSkillSlotDefinition,
@@ -19,11 +23,6 @@ const RUNNER_LABELS = {
   instant: "一次性交付",
   scheduled: "定时任务",
   managed: "持续跟踪",
-} as const;
-
-const EXECUTION_LOCATION_LABELS = {
-  client_default: "客户端默认执行",
-  cloud_required: "客户端执行（兼容旧目录标记）",
 } as const;
 
 function resolvePromptTemplateKey(
@@ -136,11 +135,14 @@ function buildServiceSkillPromptLines(
   slotValues: ServiceSkillSlotValues,
   userInput?: string,
 ): string[] {
+  const executionLocationLabel =
+    resolveServiceSkillExecutionLocationPresentation(skill.executionLocation)
+      ?.label ?? SERVICE_SKILL_EXECUTION_LOCATION_LABEL;
   const lines: string[] = [
     `[技能任务] ${skill.title}`,
     `[目录来源] ${skill.source === "cloud_catalog" ? "云目录（客户端起步版）" : "本地目录"}`,
     `[任务形态] ${RUNNER_LABELS[skill.runnerType]}`,
-    `[执行位置] ${EXECUTION_LOCATION_LABELS[skill.executionLocation]}`,
+    `[执行位置] ${executionLocationLabel}`,
     `[任务摘要] ${skill.summary}`,
     "[参数]",
   ];

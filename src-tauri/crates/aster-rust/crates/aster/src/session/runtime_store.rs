@@ -351,6 +351,14 @@ impl SessionExecutionGate {
         };
         sessions.contains(session_id)
     }
+
+    pub fn active_session_ids(&self) -> HashSet<String> {
+        let sessions = match self.inner.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        sessions.iter().cloned().collect()
+    }
 }
 
 #[async_trait]

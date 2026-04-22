@@ -1016,7 +1016,7 @@ export function PluginManager({ onNavigate }: PluginManagerProps = {}) {
         badgeText: "检查失败",
         title: "暂时无法确认主程序版本状态",
         summary:
-          "你仍可前往关于页或网页下载页获取在线包与离线包；如果当前网络受限，建议直接走网页下载页。",
+          "你仍可前往关于页或网页下载页获取最新的 Windows setup 安装包。",
       };
     }
 
@@ -1026,7 +1026,7 @@ export function PluginManager({ onNavigate }: PluginManagerProps = {}) {
       badgeText: "已是最新",
       title: "当前主程序版本可继续使用",
       summary:
-        "插件中心负责扩展能力；如果只是需要切换 Windows 在线包 / 离线包，也可以直接从这里进入下载入口。",
+        "插件中心负责扩展能力；如果只是需要重新下载或重装 Windows setup 安装包，也可以直接从这里进入下载入口。",
     };
   }, [
     pluginVersionRequirementNotice,
@@ -1680,15 +1680,11 @@ export function PluginManager({ onNavigate }: PluginManagerProps = {}) {
                     : versionInfo.latest || "当前已是最新"}
                 </div>
                 <div className="rounded-md border border-white/70 bg-white/70 px-2.5 py-1">
-                  默认推荐：online 安装包
-                </div>
-                <div className="rounded-md border border-white/70 bg-white/70 px-2.5 py-1">
-                  备用场景：offline 安装包
+                  安装包类型：Windows setup
                 </div>
               </div>
               <p className="text-xs text-slate-600">
-                默认推荐在线安装包；离线、内网或受限网络环境请改用 offline
-                安装包。
+                Windows 仅保留单一 setup 安装包；需要重装或手动升级时直接使用它即可。
               </p>
               {pluginVersionRequirementNotice && (
                 <div

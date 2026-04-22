@@ -42,7 +42,7 @@ fn sceneapp_type_label(sceneapp_type: &SceneAppType) -> &'static str {
         SceneAppType::LocalInstant => "本地即时",
         SceneAppType::LocalDurable => "本地 durable",
         SceneAppType::BrowserGrounded => "浏览器依赖",
-        SceneAppType::CloudManaged => "目录同步",
+        SceneAppType::DirectorySyncedCompat => "目录同步",
         SceneAppType::Hybrid => "多模态组合",
     }
 }
@@ -64,7 +64,9 @@ fn classify_failure_bucket(
         SceneAppRunStatus::Timeout => Some("dependency_failure"),
         SceneAppRunStatus::Canceled => Some("adoption_failure"),
         SceneAppRunStatus::Error => Some(match descriptor.sceneapp_type {
-            SceneAppType::BrowserGrounded | SceneAppType::CloudManaged => "dependency_failure",
+            SceneAppType::BrowserGrounded | SceneAppType::DirectorySyncedCompat => {
+                "dependency_failure"
+            }
             _ => "runtime_failure",
         }),
         SceneAppRunStatus::Queued | SceneAppRunStatus::Running | SceneAppRunStatus::Success => None,
@@ -186,7 +188,7 @@ fn build_seeded_sceneapp_scorecard(descriptor: &SceneAppDescriptor) -> SceneAppS
                 ),
             ],
         ),
-        SceneAppType::CloudManaged => (
+        SceneAppType::DirectorySyncedCompat => (
             "目录同步型场景仍可能带入历史兼容目录输入，但 current 执行已经回到本地主链，应持续关注目录质量、完成率和单位成功成本。"
                 .to_string(),
             SceneAppRecommendedAction::Launch,

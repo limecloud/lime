@@ -170,6 +170,21 @@
   - `deprecated / dead`：无新增；本轮没有回流旧 remote surface
 - 这一步服务路线图主目标的关系是：先把参考运行时图里“本机跨会话协作”压缩成一条 Lime 能真实交付的 current 路径，不再停留在“只会识别前缀但始终失败”的半成品状态；下一刀应继续判断是否需要把 synthetic local registry 提升成真正的 live registry，以及是否值得单独实现 `bridge:` remote peer transport。
 
+### 继续推进（CCD-007 / live-aware local peer registry 收口）
+
+- 在不新增 socket / remote ingress 的前提下，继续把 synthetic local peer surface 从“只有 recent fallback”收成“live-aware current”：
+  - [runtime_queue.rs](../../src-tauri/crates/aster-rust/crates/aster/src/session/runtime_queue.rs) 现在新增 `list_live_session_ids()`，会把 runtime queue 的 active session 与 queued session 合并成一份最小 live session 视图，避免 `ListPeers` 再逐个 session 猜测 reachability。
+  - [team_tools.rs](../../src-tauri/crates/aster-rust/crates/aster/src/tools/team_tools.rs) 现在会优先返回同一 `working_dir` 下 live 的本机顶层 session；只有 live peers 不足时，才按 `updated_at` 回退到最近 session。因此当前 `ListPeers` 不再只是“历史记录列表”，而是“live-first + recent fallback”的 synthetic local registry。
+- 对照本地参考仓库 [`peerAddress.ts`](../../../../js/claudecode/src/utils/peerAddress.ts)、[`SendMessageTool.ts`](../../../../js/claudecode/src/tools/SendMessageTool/SendMessageTool.ts) 与 [`prompt.ts`](../../../../js/claudecode/src/tools/SendMessageTool/prompt.ts) 后，又把 local peer address 语义重新收口了一次：
+  - [agent_control.rs](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 现在只把显式 `to="uds:<session-id>"` 视为 synthetic local peer address，并仅在这条路径上省略 `summary`、追加 `<cross-session-message from="uds:...">` 包装；不再把 bare local `session_id` 当成 cross-session peer address fallback。
+  - [team_tools.rs](../../src-tauri/crates/aster-rust/crates/aster/src/tools/team_tools.rs) 也同步把工具描述钉回“本机会话请使用 `send_to` 里的 `uds:<session-id>` 地址发送，不要把 `agent_id` 当作 peer address”，避免模型继续沿错误 surface 学习。
+- 这一步后的边界收紧为：
+  - `current`：team peers、live-first 的 synthetic local session peers、显式 `uds:<session-id>` cross-session local dispatch
+  - `current gap`：显式 session registry 持久化、真实 UDS ingress、bare local `session_id` peer address fallback、remote `bridge:` peer identity / ingress
+  - `compat / deprecated / dead`：无新增；本轮没有引入第二套 local peer 路由
+- 这一步服务路线图主目标的关系是：把 `CCD-007` 的最小 local current 从“勉强可用的 recent session fallback”继续收成“live-first 且显式地址面受控”的 current，避免 Lime 在参考运行时明确不存在的 bare session-id 地址面上继续漂移；下一刀若继续推进，应优先判断是否值得把这份 synthetic live registry 升格成显式 session registry / local ingress，而不是直接跨到 `bridge:`。
+- `CCD-007` 至此可以视为已完成：当前 misleading peer surface 已全部收掉，Lime 的 `current` 已明确固定为“team peers + live-first synthetic local peers + 显式 `uds:<session-id>` 地址面”；剩余 `session registry / local ingress / remote bridge ingress` 差距若未来需要推进，应另开 transport / host 专题，而不是继续在 `SendMessage / ListPeers` 当前 surface 上做假对齐。
+
 ### 继续推进（CCD-008 / SkillTool current）
 
 - 继续对照参考运行时后，确认 Lime 在 `skills` 这一层的最大假对齐点其实不是 `WorkflowTool`，而是 [tool.rs](../../src-tauri/crates/aster-rust/crates/aster/src/skills/tool.rs) 里的 `SkillTool`：
@@ -1500,3 +1515,255 @@
   - `cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_load_skills_from_plugin_cache_prefers_manifest_skills_paths_and_legacy_manifest --lib -- --nocapture` 通过（`1 passed`）
   - `cargo test --manifest-path "src-tauri/Cargo.toml" -p lime load_runtime_project_hook_registry_should_include_legacy_manifest_plugin_user_prompt_hooks -- --nocapture` 通过（`1 passed`）
   - `cargo check --manifest-path "src-tauri/Cargo.toml" -p lime --tests` 通过
+
+### 继续推进（CCD-008 / plugin manifest path strictness）
+
+- 继续对照本地参考运行时 [`pluginLoader.ts`](../../../../js/claudecode/src/utils/plugins/pluginLoader.ts) 与 [`schemas.ts`](../../../../js/claudecode/src/utils/plugins/schemas.ts) 后，又确认 plugin loader 还差一层当前真实的 manifest path 约束：
+  - upstream 不是“拿到 manifest 后宽松拼路径再试”
+  - `PluginManifestSchema` 会先把 `manifest.skills` 约束成必须以 `./` 开头的相对路径
+  - `manifest.hooks` 的 path 版本则进一步要求必须是 `./*.json`
+  - `createPluginFromPath(...)` 对 hooks 还保留 strict duplicate 语义：`hooks/hooks.json` 自动加载后，如果 `manifest.hooks` 再指回同一个文件，会记为 duplicate error，而不是静默接受
+- Lime 之前在 [`loader.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/skills/loader.rs) 与 [`runtime_project_hooks.rs`](../../src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs) 虽然已经能读 `manifest.skills` / `manifest.hooks`，但仍有两处比 upstream 更松的行为：
+  - `skills` / `hooks` 路径接受 `"extra-skill"`、`"hooks/extra.json"` 这类不带 `./` 的写法
+  - `manifest.hooks` 指回标准 `hooks/hooks.json` 时只会静默去重，不会显式报告 duplicate
+- 因此这一轮继续把 plugin manifest path current 主链收口到 upstream 当前 loader 语义：
+  - [`claude_plugin_cache.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/claude_plugin_cache.rs) 新增共享 helper：
+    - `load_cached_plugin_manifest_json(...)`
+    - `validate_claude_manifest_relative_path(...)`
+    - `resolve_claude_manifest_relative_path(...)`
+  - 这层 helper 现在会统一：
+    - 只接受 Claude 当前风格的 `./...` manifest 相对路径
+    - 对 hooks path 额外要求 `.json`
+    - 按 Node `path.join(...)` 的当前语义把 `./` 规范掉，避免 Rust `PathBuf` 保留字面 `./` 造成路径表示漂移
+  - [`loader.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/skills/loader.rs) 现在改为：
+    - `manifest.skills` 解析失败、类型不对、路径不带 `./`、或 manifest 自身损坏时，都会显式进入 skipped reason
+    - 一旦 manifest 提供了非法 `skills` 配置，就不再偷偷回退默认 `skills/`
+    - `build_plugin_skill_registry_snapshot_with_context(...)` 也会带出同一套 skipped 信息，方便后续 refresh/current 诊断
+  - [`runtime_project_hooks.rs`](../../src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs) 现在改为：
+    - 先验证 cached plugin manifest，再决定是否继续加载 plugin hooks
+    - `manifest.hooks` path 只认 `./*.json`
+    - 如果 `manifest.hooks` 指回已自动加载的 `hooks/hooks.json`，会显式记录 duplicate skipped reason，对齐 upstream strict 行为
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：plugin skill / plugin hook loader 现在继续共享单一 manifest path 事实源，当前口径已覆盖 `./` 前缀约束、hooks `.json` 约束、`./` 规范化，以及 duplicate hooks file 显式报告
+  - `current gap`：managed plugin policy merge、builtin plugin registry / hooks、push-style plugin settings listener 仍无 honest host；这些差距继续保留为 gap
+  - `compat / deprecated / dead`：无新增；本轮没有为了迁就旧 plugin manifest 写法再补宽松 fallback
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“能加载 plugin manifest，但边界仍比 upstream 松”的半对齐，推进到“manifest path 语义也按 upstream current 收紧”，避免后续实现者继续把宽松路径当成 current 契约。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/claude_plugin_cache.rs"` 通过
+  - `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="/tmp/lime-target-offline" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" load_cached_plugin_manifest_json_should --lib -- --nocapture` 通过（`1 passed`）
+  - `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="/tmp/lime-target-offline" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" validate_claude_manifest_relative_path_should_ --lib -- --nocapture` 通过（`1 passed`）
+  - `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="/tmp/lime-target-offline" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_load_skills_from_plugin_cache --lib -- --nocapture` 通过（`4 passed`）
+  - `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="/tmp/lime-target-offline" cargo test --manifest-path "src-tauri/Cargo.toml" -p lime load_runtime_plugin_hook_registry_should_ -- --nocapture` 通过（`2 passed`）
+  - `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="/tmp/lime-target-offline" cargo test --manifest-path "src-tauri/Cargo.toml" -p lime load_runtime_project_hook_registry_should_include_ -- --nocapture` 通过（`4 passed`）
+
+### 继续推进（CCD-008 / plugin manifest validity gate）
+
+- 继续对照本地参考运行时 [`schemas.ts`](../../../../js/claudecode/src/utils/plugins/schemas.ts) 与 [`pluginLoader.ts`](../../../../js/claudecode/src/utils/plugins/pluginLoader.ts) 后，又确认 Lime 之前还有一层“看起来能跑、其实仍比 upstream 松”的空档：
+  - `load_cached_plugin_manifest_json(...)` 之前只校验“是不是 JSON object”
+  - 这会导致 `manifest.name`、`manifest.commands`、`manifest.agents`、`manifest.outputStyles` 这类字段即使已经偏离 Claude current schema，只要 `skills/hooks` 自己那一小段还能解析，Lime 仍会继续把 plugin 当成可加载
+  - upstream 当前不是按 surface 局部放行，而是先过整份 `PluginManifestSchema`，manifest 任一 current 字段失真，就整份 plugin 失效
+- 因此这一轮继续把 plugin manifest current 主链收口到 upstream 当前 schema gate：
+  - [`claude_plugin_cache.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/claude_plugin_cache.rs) 新增共享 `validate_cached_plugin_manifest_compat(...)`
+  - 这层 helper 现在会统一校验：
+    - `manifest.name`：必填、非空、不能包含空格
+    - `manifest.version` / `manifest.description`：若存在必须为 string
+    - `manifest.skills` / `manifest.outputStyles`：只认 `./...` 的 `string | string[]`
+    - `manifest.agents`：只认 `./*.md` 的 `string | string[]`
+    - `manifest.hooks`：只认 `./*.json` path、inline hooks object、或两者数组
+    - `manifest.commands`：只做 schema 级校验，接受 `string | string[] | object-map`，object metadata 必须满足 `source` 与 `content` 二选一等当前约束
+  - [`load_cached_plugin_manifest_json(...)`](../../src-tauri/crates/aster-rust/crates/aster/src/claude_plugin_cache.rs) 现在会先过这层共享 gate，再把 manifest 交给 [`loader.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/skills/loader.rs) 和 [`runtime_project_hooks.rs`](../../src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs)
+  - 结果上，`skills/hooks` current surface 不再各自“只管自己那一段”；只要 manifest 整体偏离 Claude current schema，就会一起短路
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：plugin manifest 现在已有共享有效性事实源，`skills` 与 `hooks` 都跟着同一份 upstream-style schema gate 走
+  - `current gap`：`manifest.commands` 仍只有 schema gate，没有 honest host；`outputStyles` 也仍缺当前宿主；managed policy、builtin plugin registry、push-style settings listener 仍保留为 gap
+  - `compat / deprecated / dead`：无新增；本轮没有把旧 installer validator、旧 plugin 面、或任意假兼容包装接回 current
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“路径语义接近 upstream，但 manifest 仍可能局部穿透”的半对齐，推进到“manifest 必须先整体合法，当前 `skills/hooks` 才能生效”，避免后续继续把局部可解析误当成 Claude current 对齐完成。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/claude_plugin_cache.rs" "src-tauri/crates/aster-rust/crates/aster/src/skills/loader.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs"` 通过
+  - `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="/tmp/lime-target-offline" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" load_cached_plugin_manifest_json_should_ --lib -- --nocapture` 通过（`3 passed`）
+  - `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="/tmp/lime-target-offline" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_load_skills_from_plugin_cache --lib -- --nocapture` 通过（`5 passed`）
+  - `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="/tmp/lime-target-offline" cargo test --manifest-path "src-tauri/Cargo.toml" -p lime load_runtime_plugin_hook_registry_should_ -- --nocapture` 通过（`3 passed`）
+  - `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR="/tmp/lime-target-offline" cargo test --manifest-path "src-tauri/Cargo.toml" -p lime load_runtime_project_hook_registry_should_include_ -- --nocapture` 通过（`4 passed`）
+
+### 继续推进（CCD-008 / plugin agents current）
+
+- 继续对照本地参考运行时 [`loadPluginAgents.ts`](../../../../js/claudecode/src/utils/plugins/loadPluginAgents.ts)、[`loadAgentsDir.ts`](../../../../js/claudecode/src/tools/AgentTool/loadAgentsDir.ts) 与 [`prompt.ts`](../../../../js/claudecode/src/tools/AgentTool/prompt.ts) 后，确认 plugin agents 在 upstream 里不是文案层概念，而是真正进入 subagent runtime 的 current surface。
+- 因此这一轮没有去接旧 installer、builtin preset / profile、`.aster policySettings` 或其他伪 current 面，而是只把 Lime 当前已有 honest host 的 plugin agent 子集接到真实 runtime：
+  - [`runtime_plugin_agents.rs`](../../src-tauri/src/commands/aster_agent_cmd/runtime_plugin_agents.rs) 新增 plugin agent catalog loader，唯一事实源复用 [`claude_plugin_cache.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/claude_plugin_cache.rs) 的 enabled plugin cache 解析结果
+  - 当前实际承接的字段只有：`agent_type`、`description / when-to-use`、markdown body -> `system_prompt`、`model`、`tools`、`disallowedTools`
+  - `${CLAUDE_PLUGIN_ROOT}` 现在会在 plugin agent prompt 里做真实替换；`tools / disallowedTools` 不是只进 prompt 文案，而是继续落到 Lime 现有 `allowed_tools / disallowed_tools` 真实权限边界
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 现在会在 `spawn_subagent` 时按 `agent_type -> plugin definition` 叠加 system prompt、model override、tool scope
+  - [`runtime_turn.rs`](../../src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs) 现在会把“当前可用 plugin agent types”并入主会话的 `RuntimeAgents` prompt augmentation，避免主 agent 看不到 plugin agent surface
+- 这一轮也把 unsupported 边界继续收紧成 fail-closed，而不是做假兼容：
+  - `skills`、`memory`、`effort`、`maxTurns / max_turns`、`isolation`：当前没有 honest host，整条 plugin agent definition 会被跳过并记录原因
+  - `${user_config.*}`：当前没有对应宿主，直接 fail-closed
+  - `permissionMode`、`hooks`、`mcpServers`：按 upstream 当前语义只记 warning，不额外硬接宿主
+  - 测试里顺手修正了 plugin cache ID 口径：Lime 当前 `claude_plugin_cache` 只认 `plugin@marketplace`，不是 `market/plugin` 或 `@market/plugin`
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：plugin marketplace cache 里的 agent definitions 已进入 Lime 当前 subagent runtime 主链，真实承接了 prompt / model / tool scope 三个当前宿主
+  - `current gap`：plugin agent 的 `skills / memory / effort / maxTurns / isolation` 仍无 honest host，继续 fail-closed；managed policy、builtin plugin registry / hooks、push-style settings listener 仍保留为 gap
+  - `compat / deprecated / dead`：无新增；本轮没有为了“看起来兼容”去接旧 plugin 面、旧 preset 面或任意 policy 包装层
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“plugin skills / hooks 已 current，但 plugin 自带 agents 仍完全绕开 runtime”的断层，推进到“plugin agents 也进入当前 subagent 主路径”；后续剩余差距就集中在 unsupported agent fields 与 plugin loader 生命周期缺口，而不是继续卡在 agent surface 本身。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/runtime_plugin_agents.rs" "src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs" "src-tauri/src/commands/aster_agent_cmd/mod.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs" "src-tauri/src/commands/aster_agent_cmd/tests.rs"` 通过
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" runtime_plugin_agents --lib -- --nocapture` 通过（`4 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_build_subagent_customization_state_with_plugin_agent_applies_runtime_overlay_and_tool_scope --lib -- --nocapture` 通过（`1 passed`）
+
+### 继续推进（CCD-008 / Agent current `run_in_background` 透传）
+
+- 继续对照本地参考运行时 [`AgentTool.tsx`](../../../../js/claudecode/src/tools/AgentTool/AgentTool.tsx) 后，确认 `run_in_background` 不是可有可无的展示字段，而是 Claude current `Agent` surface 用来决定 child agent 是否异步运行的真实输入。
+- 进一步核对 Lime 当前链路后，确认缺口不在 `aster-rust` schema：
+  - [`agent_control.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 已经把 `run_in_background` 解析进 `SpawnAgentRequest`
+  - 但 [`subagent_tools.rs`](../../src-tauri/src/commands/aster_agent_cmd/tool_runtime/subagent_tools.rs) 之前在 callback 组装 [`AgentRuntimeSpawnSubagentRequest`](../../src-tauri/src/commands/aster_agent_cmd/dto.rs) 时把它硬编码成了 `false`
+  - 结果是 Lime 当前 `Agent` tool surface 会静默吞掉 upstream 已经存在的后台运行语义，和参考运行时不一致
+- 因此这一轮没有新增任何 compat 包装，而是把这条 current 字段透传补通：
+  - [`subagent_tools.rs`](../../src-tauri/src/commands/aster_agent_cmd/tool_runtime/subagent_tools.rs) 新增小型 request mapping helper，统一负责 `SpawnAgentRequest -> AgentRuntimeSpawnSubagentRequest`
+  - `run_in_background` 现在按真实输入继续向下透传，不再在 callback 层被写死
+  - 同时补了一条映射单测，直接钉住 `Agent` current surface 的关键字段不再在 Lime host callback 里丢失
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：`Agent` current surface 的 `run_in_background` 已进入 Lime 当前 subagent runtime 主链，至少 metadata / runtime request 已与 upstream 对齐，不再在宿主 callback 处丢字段
+  - `current gap`：plugin agent definition 的 `background: true` 仍未承接；`mode / isolation` 也仍没有 honest host，这两项都不应伪装成已支持
+  - `compat / deprecated / dead`：无新增；本轮没有为了“先兼容着”去扩展旧 subagent surface
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“plugin agent prompt/model/tool scope 已 current，但 `Agent` 最基础的后台运行字段仍在 Lime callback 层失真”的状态，推进到“`Agent` current surface 的后台运行语义至少不再被宿主吞掉”；后续下一刀应继续判断是否把 plugin agent 的 `background: true` 也接回同一条主链。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/tool_runtime/subagent_tools.rs"` 通过
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_map_spawn_agent_request_to_runtime_request_preserves_current_surface_fields --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_remove_duplicate_current_surface_agent_tool_keeps_send_message --lib -- --nocapture` 通过（`1 passed`）
+
+### 继续推进（CCD-008 / plugin agent `background` current）
+
+- 在补通 `Agent.run_in_background` 之后，继续对照本地参考运行时 [`loadPluginAgents.ts`](../../../../js/claudecode/src/utils/plugins/loadPluginAgents.ts) 与 [`AgentTool.tsx`](../../../../js/claudecode/src/tools/AgentTool/AgentTool.tsx) 后，确认 upstream 还有一层当前事实：
+  - plugin agent frontmatter 自带 `background: true`
+  - upstream 会把它和显式 `run_in_background` 一起并入 `shouldRunAsync`
+  - 因此如果 Lime 只承接显式请求、完全忽略 plugin agent 自带 `background`，current surface 仍然是不完整的
+- 继续核对 Lime 当前宿主能力后，也确认这一步只能按 honest host 收口：
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 当前本来就是统一的后台 queued-turn 启动路径，没有另一套真正的前台 child-agent executor
+  - 所以这一轮不能伪造“foreground/background 双引擎”
+  - 但至少应该把 plugin agent 的 `background` 收进当前 runtime request / metadata 真相集，避免连 effective background intent 都丢掉
+- 因此这一轮继续把 plugin agent `background` 接到同一条 current 主链：
+  - [`runtime_plugin_agents.rs`](../../src-tauri/src/commands/aster_agent_cmd/runtime_plugin_agents.rs) 现在会解析 frontmatter `background`
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 新增 effective background helper，把显式 `run_in_background` 与 plugin agent `background` 合并
+  - child subagent turn metadata 里的 `subagent.run_in_background` 现在会写入 effective 值，而不是只看 request 显式字段
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：plugin agent definition 的 `background` 已进入 Lime 当前 subagent runtime 真相集；即使当前执行器仍是统一后台队列，effective background intent 已不再丢失
+  - `current gap`：Lime 仍没有 upstream 那种真正区分 foreground/background child execution lifecycle 的宿主；`mode / isolation` 也仍无 honest host，继续保持 unsupported
+  - `compat / deprecated / dead`：无新增；本轮没有为了对齐 `background` 去硬造另一套 child runtime
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“plugin agent prompt/model/tool scope 已 current，显式 `run_in_background` 也透传了，但 plugin 自带 `background` 仍失真”的状态，推进到“plugin agent 与 Agent tool 共享同一套 effective background 事实源”；后续若要继续补，只能往真正的 child lifecycle / notification host 收，不该回头补 compat 包装。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/runtime_plugin_agents.rs" "src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs"` 通过
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" load_runtime_plugin_agent_catalog_should_load_supported_agents_and_skip_unsupported_fields --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_effective_run_in_background_prefers_plugin_agent_background --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_build_subagent_customization_state_with_plugin_agent_applies_runtime_overlay_and_tool_scope --lib -- --nocapture` 通过（`1 passed`）
+
+### 继续推进（CCD-008 / Agent `mode` current subset）
+
+- 在补通 `run_in_background` / plugin agent `background` 之后，继续对照本地参考运行时 [`AgentTool.tsx`](../../../../js/claudecode/src/tools/AgentTool/AgentTool.tsx) 与 [`PermissionMode.ts`](../../../../js/claudecode/src/utils/permissions/PermissionMode.ts) 后，确认 `mode` 也是 `Agent` current surface 的真实输入，而不是文案字段。
+- 继续核对 Lime 当前宿主能力后，确认这条线不能“全量冒充支持”：
+  - upstream 的 `plan` 绑定的是完整的 plan-mode / approval lifecycle
+  - Lime 当前只有显式 [`EnterPlanMode` / `ExitPlanMode`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/plan_mode_tool.rs) 工具流，没有可附着到 child session 的同构 permission runtime
+  - `isolation` 同样仍缺 honest host，尤其 `worktree / remote` 会直接牵到另一套 child lifecycle
+- 因此这一轮只把有真实宿主的 `mode` 子集接回 current，而不是做垃圾兼容：
+  - [`subagent_tools.rs`](../../src-tauri/src/commands/aster_agent_cmd/tool_runtime/subagent_tools.rs) 不再吞掉 `mode / isolation`，而是完整透传到 runtime request
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 现在会把：
+    - `default` 视为继承父会话 access mode
+    - `acceptEdits` 映射到 Lime 现有 `current` access mode
+    - `dontAsk` 映射到 Lime 现有 `full-access` access mode
+  - `plan` 与 `bypassPermissions` 继续明确 fail-closed，`isolation` 也继续明确拒绝
+  - [`prompt_context.rs`](../../src-tauri/src/commands/aster_agent_cmd/prompt_context.rs) 的 current surface 提示也同步收口到这条最新事实，不再笼统声称“任何非空 mode 都拒绝”
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：`Agent.mode` 已进入 Lime 当前 subagent runtime 的 honest subset；`default / acceptEdits / dontAsk` 不再停留在 schema 层，而会真实影响 child access mode
+  - `current gap`：`plan` 仍缺可绑定到 child session 的真实 plan-mode lifecycle；`bypassPermissions` 与 `isolation` 也仍无 honest host，继续保持 fail-closed
+  - `compat / deprecated / dead`：无新增；本轮没有为了“看起来支持 mode”去长出平行 permission runtime
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“`Agent` 表面上接受 mode，但 Lime runtime 要么吞字段、要么一刀全拒”的状态，推进到“当前真正有宿主的 mode 子集已经进入 subagent 主链，而剩余部分被明确留在 gap”；后续若继续推进，应优先判断 child-specific plan lifecycle 是否值得 honest 落地，而不是回头给 `plan` / `isolation` 包一层假支持。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/tool_runtime/subagent_tools.rs" "src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs" "src-tauri/src/commands/aster_agent_cmd/prompt_context.rs"` 通过
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_map_spawn_agent_request_to_runtime_request_preserves_current_surface_fields --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_validate_spawn_request_surface_accepts_supported_modes_and_rejects_unsupported_values --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_spawn_request_access_mode_prefers_supported_mode_override --lib -- --nocapture` 通过（`1 passed`）
+
+### 继续推进（CCD-008 / plan mode honest 边界 + plugin agent `isolation` current）
+
+- 继续对照本地参考运行时 [`AgentTool.tsx`](../../../../js/claudecode/src/tools/AgentTool/AgentTool.tsx)、[`loadPluginAgents.ts`](../../../../js/claudecode/src/utils/plugins/loadPluginAgents.ts) 与 Lime 当前宿主实现后，先把 `plan / isolation` 两条线重新核清了一次：
+  - [`plan_mode_tool.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/plan_mode_tool.rs) 当前仍把 plan mode 挂在 `GLOBAL_STATE` 上，并且 `EnterPlanMode` 还会显式拒绝 agent context；这说明 Lime 现在仍没有可绑定到 child session 的 plan-mode host，不能把 `Agent.mode=plan` 伪装成已支持。
+  - 但 plugin agent 的 `isolation: worktree` 在 upstream 并不是“非法 frontmatter”；[`loadPluginAgents.ts`](../../../../js/claudecode/src/utils/plugins/loadPluginAgents.ts) 会正常加载它，只是在真正 spawn 时再交给宿主能力决定是否能跑。
+  - Lime 之前却把 plugin agent 的 `isolation` 放进了 loader 级 unsupported 字段集合，导致包含 `isolation: worktree` 的 plugin agent 在 catalog 阶段就整条被跳过。这不是 honest fail-closed，而是 current surface 漂移。
+- 因此这一轮没有去硬接 `worktree` 宿主，而是先把事实源收正：
+  - [`runtime_plugin_agents.rs`](../../src-tauri/src/commands/aster_agent_cmd/runtime_plugin_agents.rs) 不再把 `isolation` 当成 loader 级 unsupported 字段；runtime plugin agent catalog 现在会保留 `isolation: worktree` 定义，和 upstream current frontmatter 保持一致。
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 新增 effective isolation 解析：显式 request isolation 优先，其次才回落到 plugin agent frontmatter。
+  - 对 effective isolation 继续保持 fail-closed：只要最终 isolation 非空，runtime 仍会明确返回 `isolation is not supported in the current runtime`，而不是静默吞掉或假装已经进入 worktree lifecycle。
+  - child turn metadata 里的 `subagent.isolation` 也收口到 effective 值，避免 request 为空但 plugin agent 自带 isolation 时继续写出失真的 metadata。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：plugin agent `isolation` 已进入 Lime 当前 runtime catalog 真相集；Lime 不再在加载期错误跳过 upstream 合法的 plugin agent definition。
+  - `current gap`：`worktree` 仍没有接上 Claude 那套创建 / cwd override / cleanup 生命周期，因此 spawn 侧继续 honest fail-closed；`mode=plan` 也仍缺 child-session scoped host，继续保持 gap。
+  - `compat / deprecated / dead`：无新增；本轮没有为了“先看起来支持 isolation”去伪造 worktree session 或平移旧实现。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“plugin agent current frontmatter 在 Lime loader 阶段就失真”的状态，推进到“catalog 事实源已对齐，剩余缺口只集中在真正的 worktree / plan host lifecycle”；下一刀如果继续推进，应优先判断是否值得 honest 落地 child worktree host，而不是再回头补 compat 包装。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/runtime_plugin_agents.rs" "src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs"` 通过
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" load_runtime_plugin_agent_catalog_should_load_supported_agents_and_skip_unsupported_fields --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_effective_isolation_prefers_request_then_plugin_agent --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_validate_effective_spawn_isolation_rejects_plugin_agent_default --lib -- --nocapture` 通过（`1 passed`）
+
+### 继续推进（CCD-008 / worktree honest host 接线）
+
+- 继续严格对照本地参考运行时 `/Users/coso/Documents/dev/js/claudecode` 的 `AgentTool.tsx / worktree.ts / resumeAgent.ts` 后，这一轮没有再停在“catalog 接住 isolation，但 spawn 继续全拒”的中间态，而是把 Lime 已有的 Aster worktree host 真正接回了 subagent current 主链：
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 现在会在 effective isolation 为 `worktree` 时直接复用 Aster 现成的 [`EnterWorktreeTool`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/worktree_tools.rs)，不再重写一套 git worktree 生命周期。
+  - `close_subagent` 现在也会复用 [`ExitWorktreeTool`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/worktree_tools.rs) 做 honest 收尾：
+    - worktree 干净时自动移除，并把 session 恢复回原目录
+    - worktree 有改动时保留现状，后续 `resume` / `send` 继续沿用同一个 worktree
+  - 这一步和 upstream 的“无改动清理、有改动保留”事实源保持一致，但没有为了表面对齐去伪造另一套 cleanup 逻辑。
+- 同时把 Lime 本地真正的阻塞点一并收掉：
+  - `resolve_workspace_id_for_working_dir(...)` 不再只认 workspace root 精确匹配；现在会对 `working_dir` 做最长祖先 workspace 匹配。
+  - 因此 `cwd` 指向 workspace 子目录，以及 `.aster/worktrees/<slug>` 这种 child worktree 目录，现在都能正确映回原 workspace，不会再在 spawn / send 阶段因为 `working_dir` 不等于 root 而失败。
+- 这一轮仍保持 honest fail-closed，没有为了“看起来像 upstream”硬编不存在的宿主语义：
+  - `isolation=remote` 继续明确拒绝
+  - `cwd + isolation=worktree` 继续明确拒绝，因为 Lime 当前 persistent subagent runtime 还不能诚实承接 upstream 那组组合语义
+  - `mode=plan / bypassPermissions` 仍保持之前的 fail-closed 边界
+- [`prompt_context.rs`](../../src-tauri/src/commands/aster_agent_cmd/prompt_context.rs) 的 current surface 提示也已经同步更新，不再继续向模型暴露“non-empty isolation 全不支持”的过时事实。
+- 这一步后的 `CCD-008` 边界进一步收紧为：
+  - `current`：`Agent.isolation=worktree`、plugin agent `isolation: worktree`、clean-remove / dirty-keep 的 child worktree close lifecycle、workspace 子目录与 `.aster/worktrees/*` 的 workspace 归属
+  - `current gap`：`isolation=remote`、`cwd + worktree` 组合语义、child-scoped `plan` lifecycle
+  - `compat / deprecated / dead`：无新增；本轮没有为了迁就现状去长第二套 compat worktree 实现
+- 已执行定向校验：
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_validate_spawn_request_surface_accepts_supported_modes_and_rejects_unsupported_values --lib -- --nocapture`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_validate_effective_spawn_isolation_accepts_worktree_and_rejects_unsupported_values --lib -- --nocapture`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_workspace_id_for_working_dir_prefers_longest_ancestor_workspace --lib -- --nocapture`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_maybe_enter_subagent_worktree_switches_session_to_worktree --lib -- --nocapture`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_cleanup_subagent_worktree_for_close_removes_clean_and_keeps_dirty_worktree --lib -- --nocapture`
+
+### 继续推进（CCD-008 / missing worktree fallback）
+
+- 在把 `worktree` honest host 接回 child runtime 后，继续对照本地参考运行时 [`resumeAgent.ts`](../../../../js/claudecode/src/tools/AgentTool/resumeAgent.ts) 复盘了一次恢复链路，确认还有一个很贴边界的 current 漏口：
+  - upstream 在 resume 前会先检查 `meta.worktreePath` 是否仍是有效目录；如果 worktree 已被外部删除，就直接回退到 parent cwd，而不是继续拿坏路径做后续执行上下文。
+  - Lime 之前虽然已经有了 dirty-keep 的 child worktree close lifecycle，但如果该 worktree 之后被外部清理，`send_subagent_input / resume_subagent / close_subagent` 仍会继续读到陈旧 `working_dir + WorktreeSessionState`，把坏掉的路径继续沿 child runtime 传播。
+- 因此这一轮没有去发明新的 worktree 宿主，而是把恢复保护补到现有 current 边界上：
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 新增 `resolve_missing_subagent_worktree_restore(...)`，把“检测到 `worktree_path` 已丢失时，该回退到哪里、该清掉哪份 extension state”的决策收成单一事实源。
+  - 同文件里的 `restore_missing_subagent_worktree_if_needed(...)` 会复用这份决策，在真正需要时把 child session 的 `working_dir` 回退到 `original_cwd`，并移除陈旧 `WorktreeSessionState`。
+  - `agent_runtime_send_subagent_input_internal(...)`、`agent_runtime_resume_subagent_internal(...)` 与 `agent_runtime_close_subagent_internal(...)` 现在都会先经过这层恢复保护，再继续各自的队列恢复、输入投递或 close cleanup 流程。
+- 这一步后的 `CCD-008` 边界进一步收紧为：
+  - `current`：child worktree 在 dirty-keep 后若被外部删除，`send / resume / close` 会先回退到 `original_cwd` 并清理 stale worktree state，不再继续沿坏路径执行。
+  - `current gap`：`isolation=remote`、`cwd + worktree` 组合语义、child-scoped `plan` lifecycle 仍未进入 honest host。
+  - `compat / deprecated / dead`：无新增；本轮没有为了“让恢复先跑起来”去长第二套 worktree 状态源。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 里刚接回来的 child worktree current 从“能创建、能保留，但恢复链路遇到外部删除就掉回坏状态”的半成品，推进到“至少在现有 host 之内具备 upstream 同类的最小恢复韧性”；下一刀若继续推进，应优先判断 `cwd + isolation=worktree` 能否 honest 落地，而不是回头补 compat 包装。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs"` 通过
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_missing_subagent_worktree_restore_falls_back_to_original_cwd --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_workspace_id_for_working_dir_prefers_longest_ancestor_workspace --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_validate_effective_spawn_isolation_accepts_worktree_and_rejects_unsupported_values --lib -- --nocapture` 通过（`1 passed`）
+
+### 继续推进（CCD-008 / final status worktree auto cleanup）
+
+- 继续严格对照本地参考运行时 [`AgentTool.tsx`](../../../../js/claudecode/src/tools/AgentTool/AgentTool.tsx) 后，又补上了一处之前还没 honest 对齐的 child worktree 生命周期：
+  - upstream 在 agent 自然结束时就会尝试清理 worktree；只有检测到未提交改动或额外提交时才保留 worktree，供后续继续处理。
+  - Lime 之前虽然已经在 `close_subagent` 路径接上了 `clean-remove / dirty-keep`，但 child session 自然进入 `Completed / Failed / Aborted` 时不会自动清理，导致干净 worktree 会一直挂到显式 `close_agent` 才回收。
+- 因此这一轮没有再造一套 git 清理器，而是继续复用现有 Aster host：
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 新增 `should_auto_cleanup_subagent_worktree(...)` 与 `maybe_cleanup_subagent_worktree_after_runtime_event(...)`，把“哪些 runtime 终态应该尝试自动回收 worktree”收口成单一事实源。
+  - `maybe_emit_subagent_status_for_runtime_event(...)` 现在会在 relevant runtime event 进入 child final status 后，先尝试复用 [`ExitWorktreeTool`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/worktree_tools.rs) 做 clean-remove / dirty-keep，再发状态事件。
+  - 如果 worktree 已被外部删除，仍会先经过前一轮补上的 missing-worktree fallback，回退 `original_cwd` 并移除 stale `WorktreeSessionState`，不会把坏路径继续带进自动清理流程。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：`Agent.isolation=worktree` 现在同时具备 `spawn -> natural final status auto cleanup -> explicit close cleanup -> missing-worktree fallback` 的 honest child lifecycle；干净 worktree 不再需要额外依赖手动 close 才回收。
+  - `current gap`：`isolation=remote`、`cwd + worktree` 组合语义、child-scoped `plan` lifecycle 仍未进入 honest host。
+  - `compat / deprecated / dead`：无新增；本轮没有为了“补自动清理”去发明第二套 worktree 状态源或自写 git remove 流程。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 的 child worktree current 从“能创建、能恢复、能在 close 时清理”的半收口状态，推进到“自然结束时也按 upstream 语义自动收尾”的更完整主链；下一刀若继续推进，应优先判断 `cwd + worktree` 是否有 honest host，而不是回头补手动约定或兼容包裹。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs"` 通过
+  - `env CARGO_TARGET_DIR="/tmp/lime-target-subagent-worktree" cargo test --manifest-path "src-tauri/Cargo.toml" "commands::aster_agent_cmd::subagent_runtime::tests::" --lib -- --nocapture` 通过（`18 passed`）

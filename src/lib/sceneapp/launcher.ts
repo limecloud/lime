@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   createAutomationJob,
@@ -6,7 +6,8 @@ import {
 } from "@/lib/api/automation";
 import {
   planSceneAppLaunch,
-  type SceneAppDescriptor,
+  type SceneAppCurrentDescriptor as SceneAppDescriptor,
+  type SceneAppCurrentPlanResult as SceneAppPlanResult,
 } from "@/lib/api/sceneapp";
 import type { Project } from "@/lib/api/project";
 import type {
@@ -37,6 +38,7 @@ export interface SceneAppLaunchRequest {
   seed: SceneAppSeed;
   entrySource: string;
   referenceMemoryIds?: string[];
+  planResult?: SceneAppPlanResult;
 }
 
 export function useSceneAppLaunchRuntime({
@@ -58,22 +60,41 @@ export function useSceneAppLaunchRuntime({
   const [automationJobSaving, setAutomationJobSaving] = useState(false);
   const [pendingAutomationRequest, setPendingAutomationRequest] =
     useState<AutomationJobRequest | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const prepareAutomationDialog = useCallback(
     async (payload: {
       initialValues: AutomationJobDialogInitialValues;
       request: AutomationJobRequest;
     }) => {
+      setAutomationDialogInitialValues(payload.initialValues);
+      setPendingAutomationRequest(payload.request);
+      setAutomationDialogOpen(true);
+      setAutomationWorkspaces([]);
+
       try {
         const workspaces = await loadSceneAppAutomationWorkspaces(projectId);
+        if (!isMountedRef.current) {
+          return;
+        }
         setAutomationWorkspaces(workspaces);
-        setAutomationDialogInitialValues(payload.initialValues);
-        setPendingAutomationRequest(payload.request);
-        setAutomationDialogOpen(true);
       } catch (error) {
+        if (!isMountedRef.current) {
+          return;
+        }
         toast.error(
           `准备 SceneApp 自动化任务失败：${formatSceneAppErrorMessage(error)}`,
         );
+        setAutomationDialogOpen(false);
+        setAutomationDialogInitialValues(null);
+        setPendingAutomationRequest(null);
+        setAutomationWorkspaces([]);
       }
     },
     [projectId],
@@ -85,25 +106,28 @@ export function useSceneAppLaunchRuntime({
       seed,
       entrySource,
       referenceMemoryIds,
+      planResult,
     }: SceneAppLaunchRequest) => {
       setSceneAppLaunchingId(descriptor.id);
       try {
         const trimmedProjectId = projectId?.trim() || undefined;
-        const planResult = await planSceneAppLaunch({
-          sceneappId: descriptor.id,
-          entrySource,
-          workspaceId: trimmedProjectId,
-          projectId: trimmedProjectId,
-          userInput: seed.userInput,
-          referenceMemoryIds:
-            referenceMemoryIds && referenceMemoryIds.length > 0
-              ? referenceMemoryIds
-              : undefined,
-          slots: seed.slots,
-        });
+        const resolvedPlanResult =
+          planResult ??
+          (await planSceneAppLaunch({
+            sceneappId: descriptor.id,
+            entrySource,
+            workspaceId: trimmedProjectId,
+            projectId: trimmedProjectId,
+            userInput: seed.userInput,
+            referenceMemoryIds:
+              referenceMemoryIds && referenceMemoryIds.length > 0
+                ? referenceMemoryIds
+                : undefined,
+            slots: seed.slots,
+          }));
 
         const resolvedAction = resolveSceneAppLaunchAction({
-          planResult,
+          planResult: resolvedPlanResult,
           projectId,
           activeTheme,
           creationMode,
@@ -135,7 +159,9 @@ export function useSceneAppLaunchRuntime({
       } catch (error) {
         toast.error(`启动做法失败：${formatSceneAppErrorMessage(error)}`);
       } finally {
-        setSceneAppLaunchingId(null);
+        if (isMountedRef.current) {
+          setSceneAppLaunchingId(null);
+        }
       }
     },
     [

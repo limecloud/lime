@@ -1,5 +1,6 @@
 import type {
-  SceneAppDescriptor,
+  SceneAppCompatType,
+  SceneAppCurrentDescriptor as SceneAppDescriptor,
   SceneAppDeliveryContract,
   SceneAppPattern,
   SceneAppRunSummary,
@@ -50,6 +51,22 @@ export interface SceneAppRunInsight {
   nextAction: string;
 }
 
+export interface SceneAppTypePresentation {
+  label: string;
+  legacyCompat: boolean;
+}
+
+export interface SceneAppInfraPresentation {
+  label: string;
+  legacyCompat: boolean;
+}
+
+type SceneAppPresentedType = SceneAppType | SceneAppCompatType;
+type SceneAppCurrentPresentationDescriptor = Pick<
+  SceneAppDescriptor,
+  "id" | "title" | "sceneappType"
+>;
+
 export const FEATURED_SCENEAPP_IDS = [
   "story-video-suite",
   "x-article-export",
@@ -64,12 +81,14 @@ const PATTERN_LABELS: Record<SceneAppPattern, string> = {
   tool_wrapper: "工具封装",
 };
 
+const SCENEAPP_COMPAT_TYPE_LABEL = "目录同步";
+const SCENEAPP_COMPAT_INFRA_LABEL = "目录同步";
+
 const INFRA_LABELS: Record<string, string> = {
   composition_blueprint: "组合蓝图",
   workspace_storage: "项目沉淀",
   artifact_bundle: "结果包",
   project_pack: "项目整包",
-  cloud_runtime: "目录同步",
   timeline: "运行轨迹",
   browser_connector: "真实浏览器",
   site_adapter: "网页适配器",
@@ -88,7 +107,6 @@ const SCENEAPP_TYPE_LABELS: Record<SceneAppType, string> = {
   local_instant: "本地即时",
   local_durable: "持续运行",
   browser_grounded: "真实浏览器",
-  cloud_managed: "目录同步",
   hybrid: "多能力组合",
 };
 
@@ -180,21 +198,65 @@ function truncateSingleLine(value: string, maxLength = 88): string {
 
 function summarizeLabels(
   values: string[],
-  labelMap: Record<string, string>,
   fallback: string,
 ): string {
-  const labels = Array.from(
-    new Set(
-      values
-        .map((value) => labelMap[value])
-        .filter((value): value is string => Boolean(value)),
-    ),
-  ).slice(0, 3);
+  const labels = Array.from(new Set(values.filter(Boolean))).slice(0, 3);
 
   return labels.length > 0 ? labels.join(" · ") : fallback;
 }
 
-function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentationCopy {
+export function resolveSceneAppTypePresentation(
+  sceneappType: SceneAppPresentedType,
+): SceneAppTypePresentation {
+  if (sceneappType === "cloud_managed") {
+    return {
+      label: SCENEAPP_COMPAT_TYPE_LABEL,
+      legacyCompat: true,
+    };
+  }
+
+  return {
+    label: SCENEAPP_TYPE_LABELS[sceneappType],
+    legacyCompat: false,
+  };
+}
+
+export function resolveSceneAppInfraPresentation(
+  infraKey: string,
+): SceneAppInfraPresentation | null {
+  if (infraKey === "cloud_runtime") {
+    return {
+      label: SCENEAPP_COMPAT_INFRA_LABEL,
+      legacyCompat: true,
+    };
+  }
+
+  const label = INFRA_LABELS[infraKey];
+  if (!label) {
+    return null;
+  }
+
+  return {
+    label,
+    legacyCompat: false,
+  };
+}
+
+export function collectSceneAppInfraPresentationLabels(
+  infraProfile: string[],
+): string[] {
+  return Array.from(
+    new Set(
+      infraProfile
+        .map((infraKey) => resolveSceneAppInfraPresentation(infraKey)?.label)
+        .filter((label): label is string => Boolean(label)),
+    ),
+  );
+}
+
+function inferFallbackCopy(
+  descriptor: SceneAppCurrentPresentationDescriptor,
+): SceneAppPresentationCopy {
   if (descriptor.sceneappType === "local_durable") {
     return {
       businessLabel: "持续任务",
@@ -214,17 +276,6 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
       executionLabel: "浏览器上下文",
       executionTone: "amber",
       fallbackPrompt: `请执行做法「${descriptor.title}」，并复用当前浏览器上下文完成任务。`,
-    };
-  }
-
-  if (descriptor.sceneappType === "cloud_managed") {
-    return {
-      businessLabel: "目录同步",
-      valueStatement: "把旧目录里的做法同步到客户端，由当前工作区继续执行并回写结果。",
-      actionLabel: "进入生成",
-      executionLabel: "客户端执行",
-      executionTone: "sky",
-      fallbackPrompt: `请启动做法「${descriptor.title}」，并把结果写回当前工作区。`,
     };
   }
 
@@ -250,7 +301,7 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
 }
 
 export function getSceneAppPresentationCopy(
-  descriptor: SceneAppDescriptor,
+  descriptor: SceneAppCurrentPresentationDescriptor,
 ): SceneAppPresentationCopy {
   return FEATURED_SCENEAPP_PRESETS[descriptor.id] ?? inferFallbackCopy(descriptor);
 }
@@ -262,21 +313,25 @@ export function getSceneAppPatternLabel(pattern: SceneAppPattern): string {
 export function getSceneAppPatternSummary(
   descriptor: Pick<SceneAppDescriptor, "patternStack">,
 ): string {
-  return summarizeLabels(descriptor.patternStack, PATTERN_LABELS, "标准结果链");
+  return summarizeLabels(
+    descriptor.patternStack
+      .map((pattern) => PATTERN_LABELS[pattern])
+      .filter(Boolean),
+    "标准结果链",
+  );
 }
 
 export function getSceneAppInfraSummary(
   descriptor: Pick<SceneAppDescriptor, "infraProfile">,
 ): string {
   return summarizeLabels(
-    descriptor.infraProfile,
-    INFRA_LABELS,
+    collectSceneAppInfraPresentationLabels(descriptor.infraProfile),
     "当前工作区能力",
   );
 }
 
-export function getSceneAppTypeLabel(sceneappType: SceneAppType): string {
-  return SCENEAPP_TYPE_LABELS[sceneappType];
+export function getSceneAppTypeLabel(sceneappType: SceneAppPresentedType): string {
+  return resolveSceneAppTypePresentation(sceneappType).label;
 }
 
 export function getSceneAppDeliveryContractLabel(

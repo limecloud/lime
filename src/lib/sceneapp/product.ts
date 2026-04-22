@@ -2,17 +2,18 @@ import type {
   SceneAppDeliveryArtifactRef,
   SceneAppBrowserRuntimeRef,
   SceneAppServiceSceneRuntimeRef,
+  SceneAppCurrentDescriptor as SceneAppDescriptor,
+  SceneAppCurrentPlanResult as SceneAppPlanResult,
   SceneAppDeliveryContract,
-  SceneAppDescriptor,
   SceneAppGovernanceArtifactKind,
   SceneAppGovernanceArtifactRef,
   SceneAppNativeSkillRuntimeRef,
-  SceneAppPlanResult,
   SceneAppRunSummary,
   SceneAppScorecard,
 } from "./types";
 import type { SceneAppEntryCardItem, SceneAppSeed } from "./presentation";
 import {
+  collectSceneAppInfraPresentationLabels,
   getSceneAppDeliveryContractLabel,
   getSceneAppInfraSummary,
   getSceneAppPatternLabel,
@@ -23,6 +24,7 @@ import {
   getSceneAppRunStatusLabel,
   getSceneAppScorecardActionLabel,
   getSceneAppTypeLabel,
+  resolveSceneAppTypePresentation,
   getSceneAppViewerKindLabel,
 } from "./presentation";
 
@@ -1573,10 +1575,14 @@ export function buildSceneAppWorkbenchStatItems(
   descriptors: SceneAppDescriptor[],
 ): SceneAppWorkbenchStatItem[] {
   const uniqueTypes = new Set(
-    descriptors.map((descriptor) => descriptor.sceneappType),
+    descriptors.map(
+      (descriptor) => resolveSceneAppTypePresentation(descriptor.sceneappType).label,
+    ),
   ).size;
   const uniqueInfraCount = new Set(
-    descriptors.flatMap((descriptor) => descriptor.infraProfile),
+    descriptors.flatMap((descriptor) =>
+      collectSceneAppInfraPresentationLabels(descriptor.infraProfile),
+    ),
   ).size;
   const durableCount = descriptors.filter(
     (descriptor) => descriptor.sceneappType === "local_durable",

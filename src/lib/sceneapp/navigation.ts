@@ -14,6 +14,18 @@ export interface SceneAppsPageParams {
   patternFilter?: SceneAppPattern;
 }
 
+export function normalizeSceneAppTypeFilter(value: unknown): SceneAppType | undefined {
+  switch (value) {
+    case "local_instant":
+    case "local_durable":
+    case "browser_grounded":
+    case "hybrid":
+      return value;
+    default:
+      return undefined;
+  }
+}
+
 export function normalizeOptionalText(value?: string | null): string | undefined {
   if (typeof value !== "string") {
     return undefined;
@@ -76,8 +88,9 @@ export function normalizeSceneAppsPageParams(
   if (search) {
     normalized.search = search;
   }
-  if (params?.typeFilter) {
-    normalized.typeFilter = params.typeFilter;
+  const typeFilter = normalizeSceneAppTypeFilter(params?.typeFilter);
+  if (typeFilter) {
+    normalized.typeFilter = typeFilter;
   }
   if (params?.patternFilter) {
     normalized.patternFilter = params.patternFilter;

@@ -392,7 +392,7 @@ jobs:
             exit 1
           fi
 
-      - name: Build Tauri app (Windows offline, direct release upload)
+      - name: Build Tauri app (Windows installer, direct release upload)
         if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
@@ -413,13 +413,13 @@ jobs:
           releaseDraft: false
           prerelease: ${{ steps.release_meta.outputs.is_prerelease == 'true' }}
           includeUpdaterJson: ${{ steps.updater_mode.outputs.enabled == 'true' }}
-          # tauri-action@v0 使用 assetNamePattern，离线包优先上传并保留独立名称
-          assetNamePattern: "[name]_[version]_[arch]-offline[setup][ext]"
+          # tauri-action@v0 使用 assetNamePattern，Windows 只保留单一 setup 安装包
+          assetNamePattern: "[name]_[version]_[arch][setup][ext]"
           # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
           args: --target ${{ matrix.target }} --config tauri.windows.conf.json
 
-      - name: Build Tauri app (Windows offline, stage only)
-        id: build_windows_offline_stage
+      - name: Build Tauri app (Windows installer, stage only)
+        id: build_windows_stage
         if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
         uses: tauri-apps/tauri-action@v0
         env:
@@ -436,11 +436,11 @@ jobs:
           # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
           args: --target ${{ matrix.target }} --config tauri.windows.conf.json
 
-      - name: Stage Windows offline release asset
+      - name: Stage Windows release asset
         if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
         shell: bash
         env:
-          ARTIFACT_PATHS_JSON: ${{ steps.build_windows_offline_stage.outputs.artifactPaths }}
+          ARTIFACT_PATHS_JSON: ${{ steps.build_windows_stage.outputs.artifactPaths }}
           RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
           TARGET_TRIPLE: ${{ matrix.target }}
           STAGING_DIR: release-assets/${{ matrix.target }}
@@ -452,25 +452,25 @@ jobs:
 
           const raw = (process.env.ARTIFACT_PATHS_JSON || '').trim();
           if (!raw) {
-            throw new Error('Windows offline artifactPaths 输出为空');
+            throw new Error('Windows installer artifactPaths 输出为空');
           }
 
           let artifacts;
           try {
             artifacts = JSON.parse(raw);
           } catch (error) {
-            throw new Error(`Windows offline artifactPaths 不是合法 JSON: ${raw}\n${error}`);
+            throw new Error(`Windows installer artifactPaths 不是合法 JSON: ${raw}\n${error}`);
           }
 
           if (!Array.isArray(artifacts) || artifacts.length === 0) {
-            throw new Error(`Windows offline artifactPaths 为空数组: ${raw}`);
+            throw new Error(`Windows installer artifactPaths 为空数组: ${raw}`);
           }
 
           const installerPath = artifacts.find(
             (item) => typeof item === 'string' && item.toLowerCase().endsWith('.exe')
           );
           if (!installerPath) {
-            throw new Error(`Windows offline 构建未找到 .exe 安装包: ${raw}`);
+            throw new Error(`Windows installer 构建未找到 .exe 安装包: ${raw}`);
           }
 
           const version = (process.env.RELEASE_TAG || '').replace(/^v/, '');
@@ -489,115 +489,11 @@ jobs:
 
           const stagedPath = path.join(
             stagingDir,
-            `Lime_${version}_${archLabel}-offline-setup.exe`
+            `Lime_${version}_${archLabel}-setup.exe`
           );
 
           fs.copyFileSync(installerPath, stagedPath);
-          console.log(`Staged Windows offline installer: ${installerPath} -> ${stagedPath}`);
-          NODE
-
-      - name: Build Tauri app (Windows online, direct release upload)
-        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'true'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 禁用 LTO 加速编译（正式发布可改为 thin）
-          CARGO_PROFILE_RELEASE_LTO: "off"
-          # 增加并行编译单元
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
-          CARGO_INCREMENTAL: 0
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: sccache
-        with:
-          tauriScript: npx tauri
-          projectPath: src-tauri
-          tagName: ${{ github.event.inputs.version || github.ref_name }}
-          releaseName: "Lime ${{ github.event.inputs.version || github.ref_name }}"
-          releaseBody: ${{ env.RELEASE_BODY }}
-          releaseDraft: false
-          prerelease: ${{ steps.release_meta.outputs.is_prerelease == 'true' }}
-          includeUpdaterJson: ${{ steps.updater_mode.outputs.enabled == 'true' }}
-          # tauri-action@v0 使用 assetNamePattern，在线包作为体积更小的备选
-          assetNamePattern: "[name]_[version]_[arch]-online[setup][ext]"
-          # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
-          args: --target ${{ matrix.target }} --config tauri.windows.online.conf.json
-
-      - name: Build Tauri app (Windows online, stage only)
-        id: build_windows_online_stage
-        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          # 禁用 LTO 加速编译（正式发布可改为 thin）
-          CARGO_PROFILE_RELEASE_LTO: "off"
-          # 增加并行编译单元
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
-          CARGO_INCREMENTAL: 0
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: sccache
-        with:
-          tauriScript: npx tauri
-          projectPath: src-tauri
-          # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
-          args: --target ${{ matrix.target }} --config tauri.windows.online.conf.json
-
-      - name: Stage Windows online release asset
-        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
-        shell: bash
-        env:
-          ARTIFACT_PATHS_JSON: ${{ steps.build_windows_online_stage.outputs.artifactPaths }}
-          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
-          TARGET_TRIPLE: ${{ matrix.target }}
-          STAGING_DIR: release-assets/${{ matrix.target }}
-        run: |
-          set -euo pipefail
-          node - <<'NODE'
-          const fs = require('fs');
-          const path = require('path');
-
-          const raw = (process.env.ARTIFACT_PATHS_JSON || '').trim();
-          if (!raw) {
-            throw new Error('Windows online artifactPaths 输出为空');
-          }
-
-          let artifacts;
-          try {
-            artifacts = JSON.parse(raw);
-          } catch (error) {
-            throw new Error(`Windows online artifactPaths 不是合法 JSON: ${raw}\n${error}`);
-          }
-
-          if (!Array.isArray(artifacts) || artifacts.length === 0) {
-            throw new Error(`Windows online artifactPaths 为空数组: ${raw}`);
-          }
-
-          const installerPath = artifacts.find(
-            (item) => typeof item === 'string' && item.toLowerCase().endsWith('.exe')
-          );
-          if (!installerPath) {
-            throw new Error(`Windows online 构建未找到 .exe 安装包: ${raw}`);
-          }
-
-          const version = (process.env.RELEASE_TAG || '').replace(/^v/, '');
-          if (!version) {
-            throw new Error('RELEASE_TAG 为空，无法生成 Windows release 文件名');
-          }
-
-          const targetTriple = process.env.TARGET_TRIPLE || '';
-          const archLabel =
-            targetTriple.startsWith('x86_64-') ? 'x64' :
-            targetTriple.startsWith('aarch64-') ? 'aarch64' :
-            targetTriple.replace(/[^A-Za-z0-9._-]+/g, '-');
-
-          const stagingDir = process.env.STAGING_DIR;
-          fs.mkdirSync(stagingDir, { recursive: true });
-
-          const stagedPath = path.join(
-            stagingDir,
-            `Lime_${version}_${archLabel}-online-setup.exe`
-          );
-
-          fs.copyFileSync(installerPath, stagedPath);
-          console.log(`Staged Windows online installer: ${installerPath} -> ${stagedPath}`);
+          console.log(`Staged Windows installer: ${installerPath} -> ${stagedPath}`);
           NODE
 
       - name: Build macOS app (attempt 1, verbose)

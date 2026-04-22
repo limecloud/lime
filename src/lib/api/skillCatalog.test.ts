@@ -206,7 +206,7 @@ function buildBaseSetupPackage() {
   };
 }
 
-function buildLegacyCloudSceneCatalog(): SkillCatalog {
+function buildLegacyCloudSceneCatalog() {
   const seeded = getSeededSkillCatalog();
   const generalSkill = seeded.items[0]!;
 
@@ -400,8 +400,8 @@ describe("skillCatalog", () => {
 
     expect(skillItem).toEqual(
       expect.objectContaining({
-        defaultExecutorBinding: "cloud_scene",
-        executionLocation: "cloud_required",
+        defaultExecutorBinding: "agent_turn",
+        executionLocation: "client_default",
         execution: expect.objectContaining({
           kind: "agent_turn",
         }),
@@ -423,6 +423,10 @@ describe("skillCatalog", () => {
     );
 
     const stored = window.localStorage.getItem("lime:skill-catalog:v1");
+    expect(stored).toContain("\"defaultExecutorBinding\":\"agent_turn\"");
+    expect(stored).toContain("\"executionLocation\":\"client_default\"");
+    expect(stored).not.toContain("\"defaultExecutorBinding\":\"cloud_scene\"");
+    expect(stored).not.toContain("\"executionLocation\":\"cloud_required\"");
     expect(stored).toContain("\"executionKind\":\"agent_turn\"");
     expect(stored).not.toContain("\"executionKind\":\"cloud_scene\"");
     expect(stored).not.toContain("\"kind\":\"cloud_scene\"");

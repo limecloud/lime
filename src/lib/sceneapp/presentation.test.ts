@@ -1,24 +1,30 @@
 import { describe, expect, it } from "vitest";
-import type { SceneAppDescriptor } from "./types";
+import type {
+  SceneAppCompatType,
+  SceneAppCurrentDescriptor as SceneAppDescriptor,
+} from "./types";
 import {
+  collectSceneAppInfraPresentationLabels,
   getSceneAppInfraSummary,
   getSceneAppPresentationCopy,
   getSceneAppTypeLabel,
+  resolveSceneAppInfraPresentation,
+  resolveSceneAppTypePresentation,
 } from "./presentation";
 
-function createDescriptor(
+function createCurrentDescriptor(
   overrides: Partial<SceneAppDescriptor> = {},
 ): SceneAppDescriptor {
   return {
-    id: "legacy-cloud-sceneapp",
-    title: "旧版目录场景",
-    summary: "历史目录里的兼容场景。",
-    category: "Legacy",
-    sceneappType: "cloud_managed",
+    id: "local-sceneapp",
+    title: "本地即时做法",
+    summary: "当前目录里的即时做法。",
+    category: "Current",
+    sceneappType: "local_instant",
     patternPrimary: "pipeline",
     patternStack: ["pipeline"],
     capabilityRefs: ["agent_turn"],
-    infraProfile: ["cloud_runtime", "agent_turn", "workspace_storage"],
+    infraProfile: ["agent_turn", "workspace_storage"],
     deliveryContract: "artifact_bundle",
     outputHint: "结果包",
     entryBindings: [
@@ -28,33 +34,55 @@ function createDescriptor(
       },
     ],
     launchRequirements: [],
-    sourcePackageId: "legacy-cloud-sceneapp",
+    sourcePackageId: "local-sceneapp",
     sourcePackageVersion: "2026-04-21",
     ...overrides,
   };
 }
 
 describe("sceneapp presentation", () => {
-  it("compat cloud_managed 的类型和文案也应按目录同步口径展示", () => {
-    const descriptor = createDescriptor();
-    const copy = getSceneAppPresentationCopy(descriptor);
+  it("compat helper 应继续把 cloud_managed 显示为目录同步", () => {
+    const compatType: SceneAppCompatType = "cloud_managed";
 
-    expect(getSceneAppTypeLabel("cloud_managed")).toBe("目录同步");
-    expect(copy).toEqual(
-      expect.objectContaining({
-        businessLabel: "目录同步",
-        executionLabel: "客户端执行",
-      }),
-    );
-    expect(copy.valueStatement).toContain("同步");
-    expect(copy.valueStatement).toContain("客户端");
+    expect(resolveSceneAppTypePresentation(compatType)).toEqual({
+      label: "目录同步",
+      legacyCompat: true,
+    });
+    expect(getSceneAppTypeLabel(compatType)).toBe("目录同步");
   });
 
-  it("基础设施摘要应统一显示 current 执行面标签", () => {
-    const descriptor = createDescriptor();
+  it("compat infra helper 应继续把 cloud_runtime 显示为目录同步", () => {
+    expect(resolveSceneAppInfraPresentation("cloud_runtime")).toEqual({
+      label: "目录同步",
+      legacyCompat: true,
+    });
+    expect(
+      collectSceneAppInfraPresentationLabels([
+        "cloud_runtime",
+        "agent_turn",
+        "cloud_runtime",
+      ]),
+    ).toEqual(["目录同步", "Agent 工作区"]);
+  });
 
+  it("current descriptor copy 应只沿 current 本地执行语义生成", () => {
+    const descriptor = createCurrentDescriptor();
+    const copy = getSceneAppPresentationCopy(descriptor);
+
+    expect(resolveSceneAppTypePresentation(descriptor.sceneappType)).toEqual({
+      label: "本地即时",
+      legacyCompat: false,
+    });
+    expect(getSceneAppTypeLabel(descriptor.sceneappType)).toBe("本地即时");
+    expect(copy).toEqual(
+      expect.objectContaining({
+        businessLabel: "即时工作流",
+        executionLabel: "当前会话继续",
+        executionTone: "slate",
+      }),
+    );
     expect(getSceneAppInfraSummary(descriptor)).toBe(
-      "目录同步 · Agent 工作区 · 项目沉淀",
+      "Agent 工作区 · 项目沉淀",
     );
   });
 });

@@ -5,14 +5,18 @@ import {
 } from "@/lib/base-setup/seededServiceSkillPackage";
 import { readStoredBaseSetupPackageSnapshot } from "@/lib/base-setup/storage";
 import {
+  LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE,
+  SERVICE_SKILL_EXECUTION_LOCATION_LABEL,
   clearServiceSkillCatalogCache,
   getSeededServiceSkillCatalog,
   getServiceSkillCatalog,
   listServiceSkills,
   refreshServiceSkillCatalogFromRemote,
+  resolveServiceSkillExecutionLocationPresentation,
   saveServiceSkillCatalog,
   subscribeServiceSkillCatalogChanged,
   type ServiceSkillCatalog,
+  type ServiceSkillCompatCatalog,
 } from "./serviceSkills";
 
 function buildRemoteBaseSetupPackage() {
@@ -120,7 +124,7 @@ function buildRemoteCatalog(): ServiceSkillCatalog {
   };
 }
 
-function buildLegacyCompatRemoteCatalog(): ServiceSkillCatalog {
+function buildLegacyCompatRemoteCatalog(): ServiceSkillCompatCatalog {
   const seeded = getSeededServiceSkillCatalog();
   return {
     version: "tenant-2026-04-21-legacy-compat",
@@ -169,6 +173,27 @@ describe("serviceSkills API", () => {
     delete window.__LIME_SESSION_TOKEN__;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("应统一解析 current 与 compat 执行位置展示语义", () => {
+    expect(
+      resolveServiceSkillExecutionLocationPresentation("client_default"),
+    ).toEqual({
+      label: SERVICE_SKILL_EXECUTION_LOCATION_LABEL,
+      legacyCompat: false,
+    });
+    expect(
+      resolveServiceSkillExecutionLocationPresentation("cloud_required"),
+    ).toEqual({
+      label: SERVICE_SKILL_EXECUTION_LOCATION_LABEL,
+      legacyCompat: true,
+    });
+    expect(LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE).toBe(
+      "沿用旧目录兼容标记，实际仍在客户端执行。",
+    );
+    expect(
+      resolveServiceSkillExecutionLocationPresentation("browser_assist"),
+    ).toBeNull();
   });
 
   it("无缓存时应回退到 seeded catalog", async () => {
@@ -312,8 +337,8 @@ describe("serviceSkills API", () => {
 
     expect(catalog.items[0]).toEqual(
       expect.objectContaining({
-        defaultExecutorBinding: "cloud_scene",
-        executionLocation: "cloud_required",
+        defaultExecutorBinding: "agent_turn",
+        executionLocation: "client_default",
         skillBundle: expect.objectContaining({
           metadata: expect.objectContaining({
             Lime_execution_location: "client_default",
@@ -326,6 +351,10 @@ describe("serviceSkills API", () => {
     const stored = window.localStorage.getItem("lime:service-skill-catalog:v1");
     expect(stored).toContain("\"Lime_execution_location\":\"client_default\"");
     expect(stored).toContain("\"Lime_executor_binding\":\"agent_turn\"");
+    expect(stored).toContain("\"executionLocation\":\"client_default\"");
+    expect(stored).toContain("\"defaultExecutorBinding\":\"agent_turn\"");
+    expect(stored).not.toContain("\"executionLocation\":\"cloud_required\"");
+    expect(stored).not.toContain("\"defaultExecutorBinding\":\"cloud_scene\"");
     expect(stored).not.toContain("\"Lime_execution_location\":\"cloud_required\"");
     expect(stored).not.toContain("\"Lime_executor_binding\":\"cloud_scene\"");
   });

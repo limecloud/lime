@@ -3,6 +3,7 @@ import {
   type StoredBaseSetupPackageSnapshot,
 } from "@/lib/base-setup/storage";
 import type {
+  BaseSetupAllowedBindingFamily,
   BaseSetupArtifactProfile,
   BaseSetupBindingProfile,
   BaseSetupCatalogProjection,
@@ -11,15 +12,15 @@ import type {
   BaseSetupScorecardProfile,
 } from "@/lib/base-setup/types";
 import type {
-  SceneAppBindingFamily,
-  SceneAppCatalog,
-  SceneAppCompositionProfile,
-  SceneAppCompositionStepDescriptor,
+  SceneAppCurrentCatalog,
+  SceneAppCurrentCompositionProfile,
+  SceneAppCurrentCompositionStepDescriptor,
+  SceneAppCurrentDescriptor,
+  SceneAppCurrentEntryBinding,
+  SceneAppCurrentBindingFamily,
+  SceneAppCurrentLaunchRequirement,
   SceneAppDeliveryContract,
   SceneAppDeliveryProfile,
-  SceneAppDescriptor,
-  SceneAppEntryBinding,
-  SceneAppLaunchRequirement,
   SceneAppPattern,
   SceneAppScorecardProfile,
   SceneAppType,
@@ -31,8 +32,8 @@ interface SceneProjectionGroup {
 }
 
 function normalizeCompatSceneAppBindingFamily(
-  bindingFamily: SceneAppBindingFamily,
-): SceneAppBindingFamily {
+  bindingFamily: BaseSetupAllowedBindingFamily,
+): SceneAppCurrentBindingFamily {
   return bindingFamily === "cloud_scene" ? "agent_turn" : bindingFamily;
 }
 
@@ -113,7 +114,7 @@ function buildScorecardProfileMap(
 function resolveDistinctBindingFamilies(
   blueprint: BaseSetupCompositionBlueprint | undefined,
   bindingProfileMap: Map<string, BaseSetupBindingProfile>,
-): SceneAppBindingFamily[] {
+): SceneAppCurrentBindingFamily[] {
   if (!blueprint?.steps?.length) {
     return [];
   }
@@ -122,7 +123,7 @@ function resolveDistinctBindingFamilies(
     .map((step) => step.bindingProfileRef)
     .filter((value): value is string => Boolean(value))
     .map((ref) => bindingProfileMap.get(ref)?.bindingFamily)
-    .filter((value): value is SceneAppBindingFamily => Boolean(value))
+    .filter((value): value is BaseSetupAllowedBindingFamily => Boolean(value))
     .map((bindingFamily) =>
       normalizeCompatSceneAppBindingFamily(bindingFamily),
     );
@@ -264,8 +265,8 @@ function buildLaunchRequirements(
   binding: BaseSetupBindingProfile,
   projection: BaseSetupCatalogProjection,
   requiredSlotCount: number,
-): SceneAppLaunchRequirement[] {
-  const requirements: SceneAppLaunchRequirement[] = [];
+): SceneAppCurrentLaunchRequirement[] {
+  const requirements: SceneAppCurrentLaunchRequirement[] = [];
 
   if (requiredSlotCount > 0) {
     requirements.push({
@@ -305,12 +306,12 @@ function buildLaunchRequirements(
 
 function buildEntryBindings(
   params: {
-    bindingFamily: SceneAppBindingFamily;
+    bindingFamily: BaseSetupAllowedBindingFamily;
     serviceSkillProjection?: BaseSetupCatalogProjection;
     sceneProjection?: BaseSetupCatalogProjection;
   },
-): SceneAppEntryBinding[] {
-  const bindings: SceneAppEntryBinding[] = [];
+): SceneAppCurrentEntryBinding[] {
+  const bindings: SceneAppCurrentEntryBinding[] = [];
   const bindingFamily = normalizeCompatSceneAppBindingFamily(
     params.bindingFamily,
   );
@@ -363,28 +364,28 @@ function buildDeliveryProfile(params: {
 function buildCompositionProfile(
   blueprint: BaseSetupCompositionBlueprint | undefined,
   bindingProfileMap: Map<string, BaseSetupBindingProfile>,
-): SceneAppCompositionProfile | undefined {
+): SceneAppCurrentCompositionProfile | undefined {
   if (!blueprint?.id && !blueprint?.steps?.length) {
     return undefined;
   }
 
-  const steps: SceneAppCompositionStepDescriptor[] = (blueprint?.steps ?? []).map(
-    (step, index) => ({
-      id: step.id,
-      order: index + 1,
-      bindingProfileRef: step.bindingProfileRef,
-      bindingFamily: step.bindingProfileRef
-        ? (() => {
-            const bindingFamily = bindingProfileMap.get(
-              step.bindingProfileRef,
-            )?.bindingFamily;
-            return bindingFamily
-              ? normalizeCompatSceneAppBindingFamily(bindingFamily)
-              : undefined;
-          })()
-        : undefined,
-    }),
-  );
+  const steps: SceneAppCurrentCompositionStepDescriptor[] = (
+    blueprint?.steps ?? []
+  ).map((step, index) => ({
+    id: step.id,
+    order: index + 1,
+    bindingProfileRef: step.bindingProfileRef,
+    bindingFamily: step.bindingProfileRef
+      ? (() => {
+          const bindingFamily = bindingProfileMap.get(
+            step.bindingProfileRef,
+          )?.bindingFamily;
+          return bindingFamily
+            ? normalizeCompatSceneAppBindingFamily(bindingFamily)
+            : undefined;
+        })()
+      : undefined,
+  }));
 
   return {
     blueprintRef: blueprint?.id,
@@ -416,7 +417,7 @@ function compileSceneAppDescriptor(params: {
   artifactProfileMap: Map<string, BaseSetupArtifactProfile>;
   compositionBlueprintMap: Map<string, BaseSetupCompositionBlueprint>;
   scorecardProfileMap: Map<string, BaseSetupScorecardProfile>;
-}): SceneAppDescriptor | null {
+}): SceneAppCurrentDescriptor | null {
   const primaryProjection =
     params.sceneProjection ?? params.serviceSkillProjection ?? null;
   if (!primaryProjection) {
@@ -529,7 +530,7 @@ function compileSceneAppDescriptor(params: {
 export function compileSceneAppCatalogFromPackage(
   pkg: BaseSetupPackage,
   options: { generatedAt?: string } = {},
-): SceneAppCatalog {
+): SceneAppCurrentCatalog {
   const bindingProfileMap = buildBindingProfileMap(pkg);
   const artifactProfileMap = buildArtifactProfileMap(pkg);
   const compositionBlueprintMap = buildCompositionBlueprintMap(pkg);
@@ -546,7 +547,7 @@ export function compileSceneAppCatalogFromPackage(
         scorecardProfileMap,
       }),
     )
-    .filter((item): item is SceneAppDescriptor => Boolean(item))
+    .filter((item): item is SceneAppCurrentDescriptor => Boolean(item))
     .sort((left, right) => left.title.localeCompare(right.title, "zh-CN"));
 
   return {
@@ -558,13 +559,13 @@ export function compileSceneAppCatalogFromPackage(
 
 export function compileSceneAppCatalogFromSnapshot(
   snapshot: StoredBaseSetupPackageSnapshot,
-): SceneAppCatalog {
+): SceneAppCurrentCatalog {
   return compileSceneAppCatalogFromPackage(snapshot.package, {
     generatedAt: snapshot.syncedAt,
   });
 }
 
-export function readStoredSceneAppCatalog(): SceneAppCatalog | null {
+export function readStoredSceneAppCatalog(): SceneAppCurrentCatalog | null {
   const snapshot = readStoredBaseSetupPackageSnapshot();
   if (!snapshot) {
     return null;

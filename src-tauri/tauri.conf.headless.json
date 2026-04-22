@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri:; img-src 'self' asset: tauri: data: https: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' tauri: http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* http://[::1]:* ws://[::1]:* https:; frame-src https: http:; object-src 'none'"
+      "csp": "default-src 'self' tauri:; img-src 'self' asset: tauri: data: https: blob:; style-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline'; connect-src 'self' tauri: http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* http://[::1]:* ws://[::1]:* https:; frame-src https: http:; object-src 'none'"
     },
     "macOSPrivateApi": true
   },

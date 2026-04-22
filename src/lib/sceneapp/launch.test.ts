@@ -1,20 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { buildSceneAppExecutionDraft } from "./launch";
-import type { SceneAppPlanResult } from "./types";
+import type { SceneAppCurrentPlanResult } from "./types";
 
 type SceneAppPlanResultOverrides = {
-  descriptor?: Partial<SceneAppPlanResult["descriptor"]>;
-  readiness?: Partial<SceneAppPlanResult["readiness"]>;
-  contextOverlay?: Partial<NonNullable<SceneAppPlanResult["contextOverlay"]>>;
-  projectPackPlan?: Partial<NonNullable<SceneAppPlanResult["projectPackPlan"]>>;
-  plan?: Partial<Omit<SceneAppPlanResult["plan"], "adapterPlan">> & {
-    adapterPlan?: Partial<SceneAppPlanResult["plan"]["adapterPlan"]>;
+  descriptor?: Partial<SceneAppCurrentPlanResult["descriptor"]>;
+  readiness?: Partial<SceneAppCurrentPlanResult["readiness"]>;
+  contextOverlay?: Partial<
+    NonNullable<SceneAppCurrentPlanResult["contextOverlay"]>
+  >;
+  projectPackPlan?: Partial<
+    NonNullable<SceneAppCurrentPlanResult["projectPackPlan"]>
+  >;
+  plan?: Partial<Omit<SceneAppCurrentPlanResult["plan"], "adapterPlan">> & {
+    adapterPlan?: Partial<SceneAppCurrentPlanResult["plan"]["adapterPlan"]>;
   };
 };
 
 function createPlanResult(
   overrides: SceneAppPlanResultOverrides = {},
-): SceneAppPlanResult {
+): SceneAppCurrentPlanResult {
   const planOverrides = overrides.plan ?? {};
   const adapterPlanOverrides = planOverrides.adapterPlan ?? {};
 
@@ -41,12 +45,12 @@ function createPlanResult(
       sourcePackageId: "lime-core-sceneapps",
       sourcePackageVersion: "2026-04-15",
       ...(overrides.descriptor ?? {}),
-    } as SceneAppPlanResult["descriptor"],
+    } as SceneAppCurrentPlanResult["descriptor"],
     readiness: {
       ready: true,
       unmetRequirements: [],
       ...(overrides.readiness ?? {}),
-    } as SceneAppPlanResult["readiness"],
+    } as SceneAppCurrentPlanResult["readiness"],
     contextOverlay: {
       compilerPlan: {
         activeLayers: ["skill", "memory", "tool"],
@@ -102,12 +106,12 @@ function createPlanResult(
         linkedServiceSkillId: adapterPlanOverrides.linkedServiceSkillId,
         linkedSceneKey: adapterPlanOverrides.linkedSceneKey,
         preferredProfileKey: adapterPlanOverrides.preferredProfileKey,
-      } as SceneAppPlanResult["plan"]["adapterPlan"],
+      } as SceneAppCurrentPlanResult["plan"]["adapterPlan"],
       storageStrategy: planOverrides.storageStrategy ?? "workspace_bundle",
       artifactContract: planOverrides.artifactContract ?? "artifact_bundle",
       governanceHooks: planOverrides.governanceHooks ?? ["evidence_pack"],
       warnings: planOverrides.warnings ?? [],
-    } as SceneAppPlanResult["plan"],
+    } as SceneAppCurrentPlanResult["plan"],
   };
 }
 
@@ -202,28 +206,6 @@ describe("sceneapp launch facade", () => {
     expect(draft.notes).toContain("完整度将按 2 个必含部件判断。");
     expect(draft.notes).toContain(
       "当前做法规划会收敛到 Agent 工作区主链，并由客户端继续执行。",
-    );
-  });
-
-  it("legacy launch_cloud_scene 也应正规化成当前 service_scene 动作", () => {
-    const result = createPlanResult({
-      plan: {
-        adapterPlan: {
-          adapterKind: "cloud_scene",
-          runtimeAction: "launch_cloud_scene",
-          targetRef: "sceneapp-service-story-video",
-          targetLabel: "短视频编排",
-        },
-      },
-    });
-
-    const draft = buildSceneAppExecutionDraft(result);
-
-    expect(draft).toEqual(
-      expect.objectContaining({
-        kind: "workspace_entry",
-        runtimeAction: "open_service_scene_session",
-      }),
     );
   });
 

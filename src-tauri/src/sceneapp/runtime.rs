@@ -71,7 +71,7 @@ fn requirement_satisfied(
             .is_some_and(|value| !value.trim().is_empty()),
         SceneAppLaunchRequirementKind::BrowserSession => runtime.browser_session_attached,
         // legacy compat only：current SceneApp 不再把云端会话视为执行门槛。
-        SceneAppLaunchRequirementKind::CloudSession => true,
+        SceneAppLaunchRequirementKind::DirectorySessionCompat => true,
         SceneAppLaunchRequirementKind::Automation => runtime.automation_enabled,
     }
 }

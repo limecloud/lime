@@ -5821,6 +5821,7 @@ mod tests {
         assert_markers_in_order(
             strategy_slice,
             &[
+                "merge_system_prompt_with_runtime_plugin_agents(",
                 "TurnPromptAugmentationStageKind::RuntimeAgents",
                 "TurnPromptAugmentationStageKind::ExplicitLocalPathFocus",
                 "build_full_runtime_system_prompt(",

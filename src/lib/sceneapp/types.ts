@@ -1,4 +1,8 @@
-import type { ServiceSkillExecutorBinding } from "@/lib/api/serviceSkills";
+import type {
+  ServiceSkillAnyExecutorBinding,
+  ServiceSkillCompatExecutorBinding,
+  ServiceSkillCurrentExecutorBinding,
+} from "@/lib/api/serviceSkills";
 import type {
   AutomationExecutionMode,
   DeliveryConfig,
@@ -17,12 +21,15 @@ export type {
   TasteProfile,
 } from "@/lib/context-layer";
 
-export type SceneAppType =
+export type SceneAppCurrentType =
   | "local_instant"
   | "local_durable"
   | "browser_grounded"
-  | "cloud_managed"
   | "hybrid";
+
+// legacy compat only：旧目录可能仍返回 cloud_managed，但 current 页面状态不应再主动写出它。
+export type SceneAppCompatType = "cloud_managed";
+export type SceneAppType = SceneAppCurrentType;
 
 export type SceneAppPattern =
   | "pipeline"
@@ -31,20 +38,28 @@ export type SceneAppPattern =
   | "inversion"
   | "tool_wrapper";
 
-export type SceneAppBindingFamily = ServiceSkillExecutorBinding;
+export type SceneAppCurrentBindingFamily = ServiceSkillCurrentExecutorBinding;
+export type SceneAppCompatBindingFamily = ServiceSkillCompatExecutorBinding;
+export type SceneAppBindingFamily = ServiceSkillAnyExecutorBinding;
 
 export type SceneAppDeliveryContract =
   | "artifact_bundle"
   | "project_pack"
   | "table_report";
 
-export type SceneAppLaunchRequirementKind =
+export type SceneAppCurrentLaunchRequirementKind =
   | "user_input"
   | "project"
   | "browser_session"
-  | "automation"
+  | "automation";
+
+export type SceneAppCompatLaunchRequirementKind =
   // legacy compat only：current 启动前置不再把云端运行时当成可执行门槛。
-  | "cloud_session";
+  "cloud_session";
+
+export type SceneAppLaunchRequirementKind =
+  | SceneAppCurrentLaunchRequirementKind
+  | SceneAppCompatLaunchRequirementKind;
 
 export type SceneAppEntryBindingKind =
   | "service_skill"
@@ -127,8 +142,39 @@ export interface SceneAppCatalog {
 export interface SceneAppRuntimeContext {
   browserSessionAttached?: boolean;
   automationEnabled?: boolean;
-  // legacy compat only：current 本地执行面不再依赖云端 session，就算远端还回旧字段，也只允许作为兼容输入。
+  // current 内部语义：仅表示“旧目录会话兼容位”是否已就绪，不再代表任何当前云执行前置。
+  directorySessionReadyCompat?: boolean;
+}
+
+export interface SceneAppCompatRuntimeContextInput {
+  // legacy compat only：真实 wire 合同与历史调用方仍可能继续发旧字段名，只允许作为兼容输入。
   cloudSessionReady?: boolean;
+  cloud_session_ready?: unknown;
+}
+
+export function readSceneAppDirectorySessionReadyCompat(
+  runtimeContext:
+    | (Partial<SceneAppRuntimeContext> & SceneAppCompatRuntimeContextInput)
+    | null
+    | undefined,
+): boolean | undefined {
+  if (!runtimeContext || typeof runtimeContext !== "object") {
+    return undefined;
+  }
+
+  if (typeof runtimeContext.directorySessionReadyCompat === "boolean") {
+    return runtimeContext.directorySessionReadyCompat;
+  }
+
+  if (typeof runtimeContext.cloudSessionReady === "boolean") {
+    return runtimeContext.cloudSessionReady;
+  }
+
+  if (typeof runtimeContext.cloud_session_ready === "boolean") {
+    return runtimeContext.cloud_session_ready;
+  }
+
+  return undefined;
 }
 
 export interface SceneAppLaunchIntent {
@@ -209,6 +255,88 @@ export interface SceneAppPlanResult {
   contextOverlay?: SceneAppContextOverlay;
   projectPackPlan?: SceneAppProjectPackPlan;
 }
+
+export type SceneAppCurrentEntryBinding = Omit<
+  SceneAppEntryBinding,
+  "bindingFamily"
+> & {
+  bindingFamily: SceneAppCurrentBindingFamily;
+};
+
+export type SceneAppCurrentLaunchRequirement = Omit<
+  SceneAppLaunchRequirement,
+  "kind"
+> & {
+  kind: SceneAppCurrentLaunchRequirementKind;
+};
+
+export type SceneAppCurrentCompositionStepDescriptor = Omit<
+  SceneAppCompositionStepDescriptor,
+  "bindingFamily"
+> & {
+  bindingFamily?: SceneAppCurrentBindingFamily;
+};
+
+export type SceneAppCurrentCompositionProfile = Omit<
+  SceneAppCompositionProfile,
+  "steps"
+> & {
+  steps: SceneAppCurrentCompositionStepDescriptor[];
+};
+
+export type SceneAppCurrentDescriptor = Omit<
+  SceneAppDescriptor,
+  "entryBindings" | "launchRequirements" | "compositionProfile"
+> & {
+  entryBindings: SceneAppCurrentEntryBinding[];
+  launchRequirements: SceneAppCurrentLaunchRequirement[];
+  compositionProfile?: SceneAppCurrentCompositionProfile;
+};
+
+export type SceneAppCurrentCatalog = Omit<SceneAppCatalog, "items"> & {
+  items: SceneAppCurrentDescriptor[];
+};
+
+export type SceneAppCurrentExecutionPlanStep = Omit<
+  SceneAppExecutionPlanStep,
+  "bindingFamily"
+> & {
+  bindingFamily: SceneAppCurrentBindingFamily;
+};
+
+export type SceneAppCurrentRuntimeAdapterPlan = Omit<
+  SceneAppRuntimeAdapterPlan,
+  "adapterKind" | "runtimeAction"
+> & {
+  adapterKind: SceneAppCurrentBindingFamily;
+  runtimeAction: SceneAppCurrentRuntimeAction;
+};
+
+export type SceneAppCurrentExecutionPlan = Omit<
+  SceneAppExecutionPlan,
+  "executorKind" | "bindingFamily" | "stepPlan" | "adapterPlan"
+> & {
+  executorKind: SceneAppCurrentBindingFamily;
+  bindingFamily: SceneAppCurrentBindingFamily;
+  stepPlan: SceneAppCurrentExecutionPlanStep[];
+  adapterPlan: SceneAppCurrentRuntimeAdapterPlan;
+};
+
+export type SceneAppCurrentReadiness = Omit<
+  SceneAppReadiness,
+  "unmetRequirements"
+> & {
+  unmetRequirements: SceneAppCurrentLaunchRequirement[];
+};
+
+export type SceneAppCurrentPlanResult = Omit<
+  SceneAppPlanResult,
+  "descriptor" | "readiness" | "plan"
+> & {
+  descriptor: SceneAppCurrentDescriptor;
+  readiness: SceneAppCurrentReadiness;
+  plan: SceneAppCurrentExecutionPlan;
+};
 
 export interface SceneAppAutomationIntent {
   launchIntent: SceneAppLaunchIntent;

@@ -8,10 +8,9 @@ import type {
 import type { AgentPendingServiceSkillLaunchParams } from "@/types/page";
 import type {
   SceneAppAutomationIntent,
-  SceneAppBindingFamily,
+  SceneAppCurrentBindingFamily,
+  SceneAppCurrentPlanResult,
   SceneAppCurrentRuntimeAction,
-  SceneAppPlanResult,
-  SceneAppRuntimeAction,
 } from "./types";
 import {
   buildSceneAppExecutionSummaryViewModel,
@@ -41,7 +40,7 @@ export interface SceneAppWorkspaceExecutionDraft {
   kind: "workspace_entry";
   sceneappId: string;
   runtimeAction: SceneAppWorkspaceRuntimeAction;
-  adapterKind: SceneAppBindingFamily;
+  adapterKind: SceneAppCurrentBindingFamily;
   targetRef: string;
   targetLabel: string;
   workspaceId?: string;
@@ -181,29 +180,15 @@ function dedupeStrings(values: Array<string | undefined>): string[] {
 }
 
 function readLaunchPayload(
-  result: SceneAppPlanResult,
+  result: SceneAppCurrentPlanResult,
 ): Record<string, unknown> | undefined {
   return asRecord(result.plan.adapterPlan.launchPayload);
 }
 
 function readRequestMetadata(
-  result: SceneAppPlanResult,
+  result: SceneAppCurrentPlanResult,
 ): Record<string, unknown> {
   return asRecord(result.plan.adapterPlan.requestMetadata) ?? {};
-}
-
-function normalizeWorkspaceAdapterKind(
-  adapterKind: SceneAppBindingFamily,
-): SceneAppBindingFamily {
-  return adapterKind === "cloud_scene" ? "agent_turn" : adapterKind;
-}
-
-function normalizeSceneAppRuntimeAction(
-  runtimeAction: SceneAppRuntimeAction,
-): SceneAppCurrentRuntimeAction {
-  return runtimeAction === "launch_cloud_scene"
-    ? "open_service_scene_session"
-    : runtimeAction;
 }
 
 function normalizeSceneAppNote(note: string): string {
@@ -212,7 +197,7 @@ function normalizeSceneAppNote(note: string): string {
     .replace(/场景技能入口/g, "Agent 工作区入口");
 }
 
-function resolveSceneAppNotes(result: SceneAppPlanResult): string[] {
+function resolveSceneAppNotes(result: SceneAppCurrentPlanResult): string[] {
   return dedupeStrings([
     ...(result.contextOverlay?.compilerPlan.notes ?? []).map(
       normalizeSceneAppNote,
@@ -227,7 +212,7 @@ function resolveSceneAppNotes(result: SceneAppPlanResult): string[] {
 }
 
 function resolveSceneAppLaunchIntent(
-  result: SceneAppPlanResult,
+  result: SceneAppCurrentPlanResult,
 ): SceneAppAutomationIntent["launchIntent"] {
   const launchPayload = readLaunchPayload(result);
   const nestedIntent = readRecord(
@@ -345,7 +330,7 @@ function normalizeDeliveryConfig(
 }
 
 function buildSceneAppIntentSummary(
-  result: SceneAppPlanResult,
+  result: SceneAppCurrentPlanResult,
   source: Record<string, unknown> | undefined,
 ): string | undefined {
   const directInput = readText(
@@ -391,11 +376,9 @@ function buildSceneAppIntentSummary(
   return result.descriptor.summary.trim() || undefined;
 }
 
-function buildWorkspacePrompt(result: SceneAppPlanResult): string {
+function buildWorkspacePrompt(result: SceneAppCurrentPlanResult): string {
   const launchPayload = readLaunchPayload(result);
-  const runtimeAction = normalizeSceneAppRuntimeAction(
-    result.plan.adapterPlan.runtimeAction,
-  );
+  const runtimeAction = result.plan.adapterPlan.runtimeAction;
   const directInput = readText(
     launchPayload,
     "message",
@@ -437,7 +420,7 @@ function buildWorkspacePrompt(result: SceneAppPlanResult): string {
         `请继续执行做法「${result.descriptor.title}」，并遵循当前启动上下文。`);
 }
 
-function buildAutomationPrompt(result: SceneAppPlanResult): string {
+function buildAutomationPrompt(result: SceneAppCurrentPlanResult): string {
   const intent = resolveSceneAppLaunchIntent(result);
   return intent.userInput
     ? `SceneApp: ${result.descriptor.title}\n用户目标：${intent.userInput}`
@@ -481,13 +464,11 @@ function resolveWorkspaceContentId(
 }
 
 function buildWorkspaceExecutionDraft(
-  result: SceneAppPlanResult,
+  result: SceneAppCurrentPlanResult,
 ): SceneAppWorkspaceExecutionDraft {
   const requestMetadata = readRequestMetadata(result);
   const launchPayload = readLaunchPayload(result);
-  const runtimeAction = normalizeSceneAppRuntimeAction(
-    result.plan.adapterPlan.runtimeAction,
-  );
+  const runtimeAction = result.plan.adapterPlan.runtimeAction;
   if (runtimeAction === "create_automation_job") {
     throw new Error("automation runtimeAction 不应进入 workspace 执行草稿分支");
   }
@@ -527,9 +508,7 @@ function buildWorkspaceExecutionDraft(
       kind: "workspace_entry",
       sceneappId: result.descriptor.id,
       runtimeAction,
-      adapterKind: normalizeWorkspaceAdapterKind(
-        result.plan.adapterPlan.adapterKind,
-      ),
+      adapterKind: result.plan.adapterPlan.adapterKind,
       targetRef: result.plan.adapterPlan.targetRef,
       targetLabel: result.plan.adapterPlan.targetLabel,
       workspaceId: readText(launchPayload, "workspace_id", "workspaceId"),
@@ -562,9 +541,7 @@ function buildWorkspaceExecutionDraft(
     kind: "workspace_entry",
     sceneappId: result.descriptor.id,
     runtimeAction,
-    adapterKind: normalizeWorkspaceAdapterKind(
-      result.plan.adapterPlan.adapterKind,
-    ),
+    adapterKind: result.plan.adapterPlan.adapterKind,
     targetRef: result.plan.adapterPlan.targetRef,
     targetLabel: result.plan.adapterPlan.targetLabel,
     workspaceId: readText(launchPayload, "workspace_id", "workspaceId"),
@@ -682,7 +659,7 @@ function buildAutomationDialogInitialValues(input: {
 }
 
 function buildAutomationExecutionDraft(
-  result: SceneAppPlanResult,
+  result: SceneAppCurrentPlanResult,
 ): SceneAppAutomationExecutionDraft {
   const requestMetadata = readRequestMetadata(result);
   const launchPayload = readLaunchPayload(result);
@@ -769,7 +746,7 @@ function buildAutomationExecutionDraft(
 }
 
 export function buildSceneAppExecutionDraft(
-  result: SceneAppPlanResult,
+  result: SceneAppCurrentPlanResult,
 ): SceneAppExecutionDraft {
   if (result.plan.adapterPlan.runtimeAction === "create_automation_job") {
     return buildAutomationExecutionDraft(result);

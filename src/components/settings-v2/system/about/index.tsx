@@ -397,8 +397,8 @@ export function AboutSection() {
             {isWindows ? (
               <p className="mt-4 text-xs leading-5 text-slate-500">
                 {t(
-                  "Windows 默认下载在线安装包；如果处于离线、内网或受限网络环境，请在网页下载页改用 offline 安装包。",
-                  "Windows 默认下载在线安装包；如果处于离线、内网或受限网络环境，请在网页下载页改用 offline 安装包。",
+                  "Windows 仅提供单一 setup 安装包；需要手动升级或重装时，可直接使用网页下载页中的最新版。",
+                  "Windows 仅提供单一 setup 安装包；需要手动升级或重装时，可直接使用网页下载页中的最新版。",
                 )}
               </p>
             ) : null}

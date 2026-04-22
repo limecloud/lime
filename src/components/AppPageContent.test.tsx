@@ -495,7 +495,7 @@ describe("AppPageContent", () => {
       initialAutoSendRequestMetadata: {
         harness: {
           service_scene_launch: {
-            kind: "cloud_scene",
+            kind: "local_service_skill",
             service_scene_run: {
               scene_key: "story-video-suite",
             },
@@ -516,7 +516,7 @@ describe("AppPageContent", () => {
       initialAutoSendRequestMetadata: {
         harness: {
           service_scene_launch: {
-            kind: "cloud_scene",
+            kind: "local_service_skill",
             service_scene_run: {
               scene_key: "story-video-suite",
             },

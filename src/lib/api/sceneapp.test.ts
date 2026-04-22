@@ -32,7 +32,7 @@ describe("sceneapp API", () => {
           title: "短视频编排",
           summary: "测试目录项",
           category: "测试",
-          sceneappType: "hybrid",
+          sceneappType: "cloud_managed",
           patternPrimary: "pipeline",
           patternStack: ["pipeline"],
           capabilityRefs: ["cloud_scene", "timeline"],
@@ -57,6 +57,7 @@ describe("sceneapp API", () => {
         version: "2026-04-15",
         items: [
           expect.objectContaining({
+            sceneappType: "local_instant",
             capabilityRefs: ["agent_turn", "timeline"],
             infraProfile: ["workspace_storage"],
             entryBindings: [
@@ -76,17 +77,35 @@ describe("sceneapp API", () => {
       .mockResolvedValueOnce({
         id: "story-video-suite",
         title: "短视频编排",
+        sceneappType: "cloud_managed",
+        launchRequirements: [
+          {
+            kind: "cloud_session",
+            message: "旧目录仍声明了云会话门槛。",
+          },
+        ],
       })
       .mockResolvedValueOnce({
         descriptor: {
           id: "story-video-suite",
           title: "短视频编排",
+          sceneappType: "cloud_managed",
+          launchRequirements: [
+            {
+              kind: "cloud_session",
+              message: "旧目录仍声明了云会话门槛。",
+            },
+            {
+              kind: "project",
+              message: "需要项目上下文。",
+            },
+          ],
         },
         contextOverlay: {
           compilerPlan: {
             activeLayers: ["skill", "memory", "tool"],
             memoryRefs: ["workspace:workspace-default"],
-            toolRefs: ["workspace_storage"],
+            toolRefs: ["cloud_scene", "workspace_storage", "cloud_session"],
             referenceCount: 0,
             notes: ["已装配 1 条 memory 引用。"],
           },
@@ -95,7 +114,7 @@ describe("sceneapp API", () => {
             projectId: null,
             skillRefs: ["story-video-suite"],
             memoryRefs: ["workspace:workspace-default"],
-            toolRefs: ["workspace_storage"],
+            toolRefs: ["cloud_scene", "workspace_storage", "cloud_session"],
             referenceItems: [],
             tasteProfile: null,
           },
@@ -110,7 +129,12 @@ describe("sceneapp API", () => {
         },
         readiness: {
           ready: false,
-          unmetRequirements: [{ kind: "project" }],
+          unmetRequirements: [
+            {
+              kind: "cloud_session",
+              message: "旧目录仍声明了云会话门槛。",
+            },
+          ],
         },
         plan: {
           sceneappId: "story-video-suite",
@@ -136,12 +160,19 @@ describe("sceneapp API", () => {
         descriptor: {
           id: "story-video-suite",
           title: "短视频编排",
+          sceneappType: "cloud_managed",
+          launchRequirements: [
+            {
+              kind: "cloud_session",
+              message: "旧目录仍声明了云会话门槛。",
+            },
+          ],
         },
         contextOverlay: {
           compilerPlan: {
             activeLayers: ["skill", "memory", "tool"],
             memoryRefs: ["workspace:workspace-default"],
-            toolRefs: ["workspace_storage"],
+            toolRefs: ["cloud_scene", "workspace_storage", "cloud_session"],
             referenceCount: 1,
             notes: ["当前场景基线已写入项目级 Context Snapshot，后续 planning 会优先复用。"],
           },
@@ -150,7 +181,7 @@ describe("sceneapp API", () => {
             projectId: "project-demo",
             skillRefs: ["story-video-suite"],
             memoryRefs: ["workspace:workspace-default"],
-            toolRefs: ["workspace_storage"],
+            toolRefs: ["cloud_scene", "workspace_storage", "cloud_session"],
             referenceItems: [
               {
                 id: "ref-1",
@@ -175,7 +206,12 @@ describe("sceneapp API", () => {
         },
         readiness: {
           ready: false,
-          unmetRequirements: [{ kind: "project" }],
+          unmetRequirements: [
+            {
+              kind: "cloud_session",
+              message: "旧目录仍声明了云会话门槛。",
+            },
+          ],
         },
         plan: {
           sceneappId: "story-video-suite",
@@ -201,6 +237,8 @@ describe("sceneapp API", () => {
     await expect(getSceneAppDescriptor("story-video-suite")).resolves.toEqual(
       expect.objectContaining({
         id: "story-video-suite",
+        sceneappType: "local_instant",
+        launchRequirements: [],
       }),
     );
     await expect(
@@ -208,11 +246,32 @@ describe("sceneapp API", () => {
         sceneappId: "story-video-suite",
         userInput: "生成一个 30 秒产品短视频",
         referenceMemoryIds: ["memory-1"],
+        runtimeContext: {
+          directorySessionReadyCompat: true,
+        },
       }),
     ).resolves.toEqual(
       expect.objectContaining({
         descriptor: expect.objectContaining({
           id: "story-video-suite",
+          sceneappType: "local_instant",
+          launchRequirements: [
+            expect.objectContaining({
+              kind: "project",
+            }),
+          ],
+        }),
+        readiness: expect.objectContaining({
+          ready: true,
+          unmetRequirements: [],
+        }),
+        contextOverlay: expect.objectContaining({
+          compilerPlan: expect.objectContaining({
+            toolRefs: ["agent_turn", "workspace_storage"],
+          }),
+          snapshot: expect.objectContaining({
+            toolRefs: ["agent_turn", "workspace_storage"],
+          }),
         }),
         plan: expect.objectContaining({
           executorKind: "agent_turn",
@@ -233,17 +292,28 @@ describe("sceneapp API", () => {
         projectId: "project-demo",
         userInput: "生成一个 30 秒产品短视频",
         referenceMemoryIds: ["memory-1"],
+        runtimeContext: {
+          directorySessionReadyCompat: true,
+        },
       }),
     ).resolves.toEqual(
       expect.objectContaining({
         contextOverlay: expect.objectContaining({
+          compilerPlan: expect.objectContaining({
+            toolRefs: ["agent_turn", "workspace_storage"],
+          }),
           snapshot: expect.objectContaining({
+            toolRefs: ["agent_turn", "workspace_storage"],
             referenceItems: expect.arrayContaining([
               expect.objectContaining({
                 usageCount: 1,
               }),
             ]),
           }),
+        }),
+        readiness: expect.objectContaining({
+          ready: true,
+          unmetRequirements: [],
         }),
       }),
     );
@@ -261,6 +331,9 @@ describe("sceneapp API", () => {
           sceneappId: "story-video-suite",
           userInput: "生成一个 30 秒产品短视频",
           referenceMemoryIds: ["memory-1"],
+          runtimeContext: {
+            cloudSessionReady: true,
+          },
         },
       },
     );
@@ -273,6 +346,9 @@ describe("sceneapp API", () => {
           projectId: "project-demo",
           userInput: "生成一个 30 秒产品短视频",
           referenceMemoryIds: ["memory-1"],
+          runtimeContext: {
+            cloudSessionReady: true,
+          },
         },
       },
     );
@@ -300,6 +376,9 @@ describe("sceneapp API", () => {
           sceneappId: "daily-trend-briefing",
           workspaceId: "workspace-default",
           userInput: "关注 AI Agent 产品趋势",
+          runtimeContext: {
+            directorySessionReadyCompat: true,
+          },
         },
         runNow: true,
       }),
@@ -318,6 +397,9 @@ describe("sceneapp API", () => {
             sceneappId: "daily-trend-briefing",
             workspaceId: "workspace-default",
             userInput: "关注 AI Agent 产品趋势",
+            runtimeContext: {
+              cloudSessionReady: true,
+            },
           },
           runNow: true,
         },

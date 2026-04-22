@@ -8,7 +8,10 @@ import {
   type SceneAppAutomationExecutionDraft,
   type SceneAppWorkspaceExecutionDraft,
 } from "./launch";
-import type { SceneAppAutomationIntent, SceneAppPlanResult } from "./types";
+import type {
+  SceneAppAutomationIntent,
+  SceneAppCurrentPlanResult as SceneAppPlanResult,
+} from "./types";
 import type { Page, PageParams } from "@/types/page";
 import type { CreationMode } from "@/components/agent/chat/components/types";
 import type { ChatToolPreferences } from "@/components/agent/chat/utils/chatToolPreferences";

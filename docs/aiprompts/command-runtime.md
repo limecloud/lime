@@ -433,7 +433,7 @@ Lime 的命令体系固定按以下关系理解：
 
 固定要求：
 
-- `sceneapp_type` 回答它主要是本地即时、本地 durable、浏览器依赖、云端托管还是混合型
+- `sceneapp_type` 回答它主要是本地即时、本地 durable、浏览器依赖、目录同步兼容型还是混合型
 - `pattern_primary / pattern_stack` 回答它内部怎么组织逻辑
 - `infra_profile` 回答它到底用了浏览器、server skill、CLI、schedule、db、markdown 还是 json
 - 如果这一卡片写不出来，说明这个命令还没被真正设计清楚

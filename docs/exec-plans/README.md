@@ -27,7 +27,7 @@
 - 参考运行时主链总计划：`docs/exec-plans/upstream-runtime-alignment-plan.md`
 - 参考运行时主链进度日志：`docs/exec-plans/upstream-runtime-alignment-progress.md`
 - `@` 命令本地执行纠偏计划：`docs/exec-plans/at-command-local-execution-alignment-plan.md`
-- LimeNext 总实施计划：`docs/exec-plans/limenext-plan.md`
+- LimeNext 总实施计划（`legacy current reference`，当前主规划已切到 `docs/roadmap/limenextv2/README.md`）：`docs/exec-plans/limenext-plan.md`
 - LimeNext 推进日志：`docs/exec-plans/limenext-progress.md`
 - 技术债追踪：`docs/exec-plans/tech-debt-tracker.md`
 - 模块级实施细节：`docs/aiprompts/README.md`

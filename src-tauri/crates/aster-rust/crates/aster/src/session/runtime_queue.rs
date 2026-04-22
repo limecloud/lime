@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
 
 use super::runtime_store::{
@@ -43,6 +44,12 @@ impl SessionRuntimeQueueService {
 
     pub fn has_active_turn(&self, session_id: &str) -> bool {
         self.execution_gate.is_active(session_id)
+    }
+
+    pub async fn list_live_session_ids(&self) -> Result<HashSet<String>> {
+        let mut session_ids = self.execution_gate.active_session_ids();
+        session_ids.extend(self.store.list_queued_turn_session_ids().await?);
+        Ok(session_ids)
     }
 
     async fn take_next_turn_with_gate(
@@ -253,5 +260,25 @@ mod tests {
             }
             other => panic!("unexpected submit result: {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn list_live_session_ids_merges_active_and_queued_sessions() {
+        let store = Arc::new(InMemoryThreadRuntimeStore::default());
+        let service = SessionRuntimeQueueService::new(store.clone());
+        let _ = service
+            .submit_turn(queued_turn("active-session", "running", 1), true)
+            .await
+            .unwrap();
+        store
+            .enqueue_turn(queued_turn("queued-session", "queued-1", 2))
+            .await
+            .unwrap();
+
+        let session_ids = service.list_live_session_ids().await.unwrap();
+
+        assert!(session_ids.contains("active-session"));
+        assert!(session_ids.contains("queued-session"));
+        assert_eq!(session_ids.len(), 2);
     }
 }

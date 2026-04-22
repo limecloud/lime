@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax -- 测试底层 invoke 机制，需要直接使用命令名 */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -136,7 +135,7 @@ describe("tauri-mock/core invoke", () => {
         projectId: "project-video",
         userInput: "根据发布会亮点生成 30 秒短视频草稿",
         runtimeContext: {
-          cloudSessionReady: true,
+          directorySessionReadyCompat: true,
         },
       },
     });
@@ -147,7 +146,7 @@ describe("tauri-mock/core invoke", () => {
         workspaceId: "workspace-default",
         projectId: "project-video",
         runtimeContext: {
-          cloudSessionReady: true,
+          directorySessionReadyCompat: true,
         },
       },
     });
@@ -188,7 +187,7 @@ describe("tauri-mock/core invoke", () => {
           projectId: "project-video",
           userInput: "根据发布会亮点生成 30 秒短视频草稿",
           runtimeContext: {
-            cloudSessionReady: true,
+            directorySessionReadyCompat: true,
           },
         },
       }),
@@ -219,7 +218,7 @@ describe("tauri-mock/core invoke", () => {
           workspaceId: "workspace-default",
           projectId: "project-video",
           runtimeContext: {
-            cloudSessionReady: true,
+            directorySessionReadyCompat: true,
           },
         },
       }),
@@ -247,6 +246,42 @@ describe("tauri-mock/core invoke", () => {
     expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
   });
 
+  it("legacy cloudSessionReady 输入也应继续产出 current service_scene planner", async () => {
+    vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
+
+    await expect(
+      invoke("sceneapp_plan_launch", {
+        intent: {
+          sceneappId: "story-video-suite",
+          workspaceId: "workspace-default",
+          projectId: "project-video",
+          runtimeContext: {
+            cloudSessionReady: true,
+          },
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        plan: expect.objectContaining({
+          bindingFamily: "agent_turn",
+          adapterPlan: expect.objectContaining({
+            adapterKind: "agent_turn",
+            runtimeAction: "open_service_scene_session",
+            requestMetadata: expect.objectContaining({
+              harness: expect.objectContaining({
+                service_scene_launch: expect.objectContaining({
+                  kind: "local_service_skill",
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
   it("SceneApp mock 应把 referenceMemoryIds 编译成正式参考对象并透传到 adapter 合同", async () => {
     vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
 
@@ -259,7 +294,7 @@ describe("tauri-mock/core invoke", () => {
           userInput: "把这次新品卖点整理成 30 秒短视频方案",
           referenceMemoryIds: ["memory-1", "memory-2"],
           runtimeContext: {
-            cloudSessionReady: true,
+            directorySessionReadyCompat: true,
           },
         },
       }),

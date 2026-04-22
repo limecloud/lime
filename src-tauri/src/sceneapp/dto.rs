@@ -11,7 +11,8 @@ pub enum SceneAppType {
     LocalDurable,
     BrowserGrounded,
     // legacy compat only：current 不再把 SceneApp 解释成云端托管执行面。
-    CloudManaged,
+    #[serde(rename = "cloud_managed")]
+    DirectorySyncedCompat,
     Hybrid,
 }
 
@@ -32,7 +33,8 @@ pub enum SceneAppBindingFamily {
     BrowserAssist,
     AutomationJob,
     // legacy compat only：current 执行仍收敛到本地主链，cloud_scene 只保留历史目录输入。
-    CloudScene,
+    #[serde(rename = "cloud_scene")]
+    ServiceSceneCompat,
     NativeSkill,
 }
 
@@ -60,7 +62,8 @@ pub enum SceneAppLaunchRequirementKind {
     Project,
     BrowserSession,
     // legacy compat only：current 不再把云端会话当成启动门槛。
-    CloudSession,
+    #[serde(rename = "cloud_session")]
+    DirectorySessionCompat,
     Automation,
 }
 
@@ -174,7 +177,8 @@ pub struct SceneAppCatalog {
 pub struct SceneAppRuntimeContext {
     pub browser_session_attached: bool,
     // legacy compat only：保留旧目录/旧计划输入，不参与 current readiness。
-    pub cloud_session_ready: bool,
+    #[serde(default, rename = "cloudSessionReady", alias = "cloud_session_ready")]
+    pub directory_session_ready_compat: bool,
     pub automation_enabled: bool,
 }
 

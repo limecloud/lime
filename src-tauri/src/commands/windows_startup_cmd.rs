@@ -91,7 +91,7 @@ pub fn maybe_show_windows_startup_notice(app: &AppHandle) {
     }
 
     let message = diagnostics.summary_message.clone().unwrap_or_else(|| {
-        "检测到 Windows 启动环境存在阻塞问题，请查看日志并优先重新运行 Windows setup 安装包；如处于离线或受限网络环境，请改用 offline 安装包。".to_string()
+        "检测到 Windows 启动环境存在阻塞问题，请查看日志并优先重新运行最新的 Windows setup 安装包。".to_string()
     });
 
     app.dialog()
@@ -239,7 +239,7 @@ pub fn collect_windows_startup_diagnostics(app: &AppHandle) -> WindowsStartupDia
                     "webview2",
                     "未检测到 WebView2 Runtime 注册表项".to_string(),
                     Some(
-                        "如果用户通过便携版或在线安装包启动失败，请优先重新运行 Windows setup 安装包；离线或受限网络环境请改用 offline 安装包。".to_string(),
+                        "如果用户通过便携版或历史安装环境启动失败，请优先重新运行最新的 Windows setup 安装包。".to_string(),
                     ),
                 ));
             }
@@ -358,13 +358,13 @@ pub fn collect_windows_startup_diagnostics(app: &AppHandle) -> WindowsStartupDia
 
         let summary_message = if !errors.is_empty() {
             Some(format!(
-                "检测到 {} 个阻塞问题：{}。建议先检查目录权限，并优先重新运行 Windows setup 安装包；离线或受限网络环境请改用 offline 安装包。",
+                "检测到 {} 个阻塞问题：{}。建议先检查目录权限，并优先重新运行最新的 Windows setup 安装包。",
                 errors.len(),
                 errors.join("；")
             ))
         } else if !warnings.is_empty() {
             Some(format!(
-                "检测到 {} 个 Windows 环境提示：{}。如用户反馈启动失败，请优先收集日志并确认使用 Windows setup 安装包；离线或受限网络环境请改用 offline 安装包。",
+                "检测到 {} 个 Windows 环境提示：{}。如用户反馈启动失败，请优先收集日志并确认使用最新的 Windows setup 安装包。",
                 warnings.len(),
                 warnings.join("；")
             ))

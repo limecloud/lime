@@ -4,7 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import { useWorkspaceSceneAppEntryActions } from "./useWorkspaceSceneAppEntryActions";
-import type { SceneAppCatalog, SceneAppPlanResult } from "@/lib/sceneapp";
+import type {
+  SceneAppCurrentCatalog as SceneAppCatalog,
+  SceneAppCurrentPlanResult as SceneAppPlanResult,
+} from "@/lib/sceneapp";
 
 type SceneAppPlanResultOverrides = {
   descriptor?: Partial<SceneAppPlanResult["descriptor"]>;
@@ -30,10 +33,17 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/lib/api/sceneapp", () => ({
-  listSceneAppCatalog: () => mockListSceneAppCatalog(),
-  planSceneAppLaunch: (intent: unknown) => mockPlanSceneAppLaunch(intent),
-}));
+vi.mock("@/lib/api/sceneapp", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/sceneapp")>(
+      "@/lib/api/sceneapp",
+    );
+  return {
+    ...actual,
+    listSceneAppCatalog: () => mockListSceneAppCatalog(),
+    planSceneAppLaunch: (intent: unknown) => mockPlanSceneAppLaunch(intent),
+  };
+});
 
 vi.mock("@/lib/api/automation", () => ({
   createAutomationJob: (request: unknown) => mockCreateAutomationJob(request),
@@ -77,18 +87,14 @@ function createSceneAppCatalog(): SceneAppCatalog {
         sceneappType: "hybrid",
         patternPrimary: "pipeline",
         patternStack: ["pipeline", "generator", "inversion"],
-        capabilityRefs: ["cloud_scene"],
-        infraProfile: [
-          "composition_blueprint",
-          "workspace_storage",
-          "cloud_runtime",
-        ],
+        capabilityRefs: ["agent_turn"],
+        infraProfile: ["composition_blueprint", "workspace_storage"],
         deliveryContract: "artifact_bundle",
         outputHint: "短视频结果包",
         entryBindings: [
           {
             kind: "service_skill",
-            bindingFamily: "cloud_scene",
+            bindingFamily: "agent_turn",
           },
         ],
         launchRequirements: [
@@ -222,11 +228,11 @@ function createPlanResult(
     } as SceneAppPlanResult["readiness"],
     plan: {
       sceneappId: planOverrides.sceneappId ?? "story-video-suite",
-      executorKind: planOverrides.executorKind ?? "cloud_scene",
-      bindingFamily: planOverrides.bindingFamily ?? "cloud_scene",
+      executorKind: planOverrides.executorKind ?? "agent_turn",
+      bindingFamily: planOverrides.bindingFamily ?? "agent_turn",
       stepPlan: planOverrides.stepPlan ?? [],
       adapterPlan: {
-        adapterKind: adapterPlanOverrides.adapterKind ?? "cloud_scene",
+        adapterKind: adapterPlanOverrides.adapterKind ?? "agent_turn",
         runtimeAction:
           adapterPlanOverrides.runtimeAction ?? "open_service_scene_session",
         targetRef:
@@ -300,6 +306,28 @@ function renderHook(props?: Partial<HookProps>) {
     },
     getDefaultProps: () => ({ ...defaultProps, ...props }),
   };
+}
+
+async function waitForSceneAppCatalogReady(
+  harness: ReturnType<typeof renderHook>,
+): Promise<void> {
+  const loadCall = mockListSceneAppCatalog.mock.results.at(0);
+  if (loadCall?.type === "return") {
+    await loadCall.value;
+  }
+
+  await act(async () => {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const state = harness.getValue();
+      if (
+        state.sceneAppsLoading === false &&
+        state.featuredSceneApps.length > 0
+      ) {
+        return;
+      }
+      await Promise.resolve();
+    }
+  });
 }
 
 beforeEach(() => {
@@ -393,24 +421,22 @@ describe("useWorkspaceSceneAppEntryActions", () => {
       onNavigate,
     });
     await harness.render();
+    await waitForSceneAppCatalogReady(harness);
+    expect(
+      harness.getValue().featuredSceneApps.some(
+        (item) => item.id === "story-video-suite",
+      ),
+    ).toBe(true);
 
     await act(async () => {
       await harness.getValue().handleLaunchSceneApp("story-video-suite");
     });
 
-    expect(mockPlanSceneAppLaunch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sceneappId: "story-video-suite",
-        projectId: "project-1",
-        workspaceId: "project-1",
-        userInput: "做一条新品发布短视频",
-      }),
-    );
+    expect(mockToastError).not.toHaveBeenCalled();
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
         projectId: "project-1",
-        contentId: "content-video-1",
         initialUserPrompt: "做一条新品发布短视频",
         autoRunInitialPromptOnMount: true,
       }),

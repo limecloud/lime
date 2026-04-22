@@ -1,14 +1,18 @@
 import type { AutomationPayload } from "@/lib/api/automation";
+import {
+  resolveServiceSkillExecutionLocationPresentation,
+} from "@/lib/api/serviceSkills";
+
+export {
+  LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL,
+  LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE,
+} from "@/lib/api/serviceSkills";
 
 export interface AutomationServiceSkillSummaryItem {
   key: string;
   label: string;
   value: string;
 }
-
-export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL = "旧目录兼容";
-export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE =
-  "沿用旧目录兼容标记，实际仍在客户端执行。";
 
 export interface AutomationServiceSkillContext {
   id: string | null;
@@ -53,18 +57,17 @@ function resolveRunnerLabel(value: unknown): string {
 }
 
 function resolveExecutionLocationLabel(value: unknown): string {
-  switch (value) {
-    case "client_default":
-      return "客户端执行";
-    case "cloud_required":
-      return "客户端执行";
-    default:
-      return UNKNOWN_SERVICE_SKILL_LABEL;
-  }
+  return (
+    resolveServiceSkillExecutionLocationPresentation(value)?.label ??
+    UNKNOWN_SERVICE_SKILL_LABEL
+  );
 }
 
 function resolveExecutionLocationLegacyCompat(value: unknown): boolean {
-  return value === "cloud_required";
+  return (
+    resolveServiceSkillExecutionLocationPresentation(value)?.legacyCompat ??
+    false
+  );
 }
 
 function resolveSourceLabel(value: unknown): string {

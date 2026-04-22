@@ -20,8 +20,13 @@ export type ServiceSkillType = "service" | "site" | "prompt";
 
 export type ServiceSkillRunnerType = "instant" | "scheduled" | "managed";
 
+export type ServiceSkillCurrentExecutionLocation = "client_default";
 // legacy compat only：current 执行面固定回到客户端，cloud_required 只再表示旧目录标记。
-export type ServiceSkillExecutionLocation = "client_default" | "cloud_required";
+export type ServiceSkillCompatExecutionLocation = "cloud_required";
+export type ServiceSkillAnyExecutionLocation =
+  | ServiceSkillCurrentExecutionLocation
+  | ServiceSkillCompatExecutionLocation;
+export type ServiceSkillExecutionLocation = ServiceSkillCurrentExecutionLocation;
 
 export type ServiceSkillArtifactKind =
   | "report"
@@ -33,13 +38,17 @@ export type ServiceSkillArtifactKind =
   | "plan"
   | "table_report";
 
-export type ServiceSkillExecutorBinding =
+export type ServiceSkillCurrentExecutorBinding =
   | "native_skill"
   | "agent_turn"
   | "browser_assist"
-  | "automation_job"
-  // legacy compat only：仅允许作为旧目录输入，不再代表 current 执行面。
-  | "cloud_scene";
+  | "automation_job";
+// legacy compat only：仅允许作为旧目录输入，不再代表 current 执行面。
+export type ServiceSkillCompatExecutorBinding = "cloud_scene";
+export type ServiceSkillAnyExecutorBinding =
+  | ServiceSkillCurrentExecutorBinding
+  | ServiceSkillCompatExecutorBinding;
+export type ServiceSkillExecutorBinding = ServiceSkillCurrentExecutorBinding;
 
 export type ServiceSkillSlotType =
   | "text"
@@ -166,6 +175,15 @@ export interface ServiceSkillItem {
   version: string;
 }
 
+export interface ServiceSkillCompatItem
+  extends Omit<
+    ServiceSkillItem,
+    "defaultExecutorBinding" | "executionLocation"
+  > {
+  defaultExecutorBinding: ServiceSkillAnyExecutorBinding;
+  executionLocation: ServiceSkillAnyExecutionLocation;
+}
+
 export interface ServiceSkillCatalog {
   version: string;
   tenantId: string;
@@ -173,11 +191,47 @@ export interface ServiceSkillCatalog {
   items: ServiceSkillItem[];
 }
 
+export interface ServiceSkillCompatCatalog
+  extends Omit<ServiceSkillCatalog, "items"> {
+  items: ServiceSkillCompatItem[];
+}
+
 export type ServiceSkillCatalogChangeSource =
   | "seeded_fallback"
   | "bootstrap_sync"
   | "manual_override"
   | "cache_clear";
+
+export const SERVICE_SKILL_EXECUTION_LOCATION_LABEL = "客户端执行";
+export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL = "旧目录兼容";
+export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_SUMMARY =
+  "沿用旧目录兼容标记，实际仍在客户端执行";
+export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE =
+  `${LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_SUMMARY}。`;
+
+export interface ServiceSkillExecutionLocationPresentation {
+  label: string;
+  legacyCompat: boolean;
+}
+
+export function resolveServiceSkillExecutionLocationPresentation(
+  value: unknown,
+): ServiceSkillExecutionLocationPresentation | null {
+  switch (value) {
+    case "client_default":
+      return {
+        label: SERVICE_SKILL_EXECUTION_LOCATION_LABEL,
+        legacyCompat: false,
+      };
+    case "cloud_required":
+      return {
+        label: SERVICE_SKILL_EXECUTION_LOCATION_LABEL,
+        legacyCompat: true,
+      };
+    default:
+      return null;
+  }
+}
 
 interface ServiceSkillCatalogResponseEnvelope {
   code?: number;
@@ -219,7 +273,7 @@ function trimToUndefined(value?: string): string | undefined {
 }
 
 function resolveCurrentServiceSkillExecutionLocation(
-  item: ServiceSkillItem,
+  item: Pick<ServiceSkillCompatItem, "executionLocation">,
 ): ServiceSkillExecutionLocation {
   return item.executionLocation === "cloud_required"
     ? "client_default"
@@ -227,15 +281,29 @@ function resolveCurrentServiceSkillExecutionLocation(
 }
 
 function resolveCurrentServiceSkillExecutorBinding(
-  item: ServiceSkillItem,
-): Exclude<ServiceSkillExecutorBinding, "cloud_scene"> {
+  item: Pick<ServiceSkillCompatItem, "defaultExecutorBinding">,
+): ServiceSkillExecutorBinding {
   return item.defaultExecutorBinding === "cloud_scene"
     ? "agent_turn"
     : item.defaultExecutorBinding;
 }
 
 function toServiceSkillBundleMetadata(
-  item: ServiceSkillItem,
+  item: Pick<
+    ServiceSkillCompatItem,
+    | "skillType"
+    | "defaultExecutorBinding"
+    | "siteCapabilityBinding"
+    | "category"
+    | "runnerType"
+    | "executionLocation"
+    | "outputDestination"
+    | "outputHint"
+    | "entryHint"
+    | "promptTemplateKey"
+    | "themeTarget"
+    | "surfaceScopes"
+  >,
 ): Record<string, string> | undefined {
   const metadata: Record<string, string> = {};
   const skillType =
@@ -292,14 +360,19 @@ function toServiceSkillBundleMetadata(
 }
 
 function resolveDerivedServiceSkillOutputDestination(
-  item: ServiceSkillItem,
+  item: Pick<
+    ServiceSkillCompatItem,
+    "outputDestination" | "executionLocation" | "siteCapabilityBinding" | "runnerType"
+  >,
 ): string {
   if (trimToUndefined(item.outputDestination)) {
     return item.outputDestination!.trim();
   }
 
-  if (item.executionLocation === "cloud_required") {
-    return "结果仍会写回当前工作区；旧目录中的云端标记仅作兼容，不代表当前执行边界。";
+  const executionLocationPresentation =
+    resolveServiceSkillExecutionLocationPresentation(item.executionLocation);
+  if (executionLocationPresentation?.legacyCompat) {
+    return `结果仍会写回当前工作区；${LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE}`;
   }
 
   if (item.siteCapabilityBinding) {
@@ -319,7 +392,14 @@ function resolveDerivedServiceSkillOutputDestination(
   return "结果会写回当前工作区，方便继续编辑。";
 }
 
-function buildDerivedServiceSkillCompatibility(item: ServiceSkillItem): string {
+function buildDerivedServiceSkillCompatibility(
+  item: Pick<
+    ServiceSkillCompatItem,
+    | "readinessRequirements"
+    | "executionLocation"
+    | "defaultExecutorBinding"
+  >,
+): string {
   const parts = ["适用于 Lime 客户端技能目录"];
 
   if (item.readinessRequirements?.requiresModel) {
@@ -331,8 +411,11 @@ function buildDerivedServiceSkillCompatibility(item: ServiceSkillItem): string {
   if (item.readinessRequirements?.requiresProject) {
     parts.push("建议在项目上下文中启动");
   }
-  if (item.executionLocation === "cloud_required") {
-    parts.push("沿用旧目录兼容标记，实际仍在客户端执行");
+  if (
+    resolveServiceSkillExecutionLocationPresentation(item.executionLocation)
+      ?.legacyCompat
+  ) {
+    parts.push(LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_SUMMARY);
   }
   if (item.defaultExecutorBinding === "browser_assist") {
     parts.push("会复用浏览器站点上下文");
@@ -404,7 +487,7 @@ function validateDerivedServiceSkillBundleCompatibility(
 }
 
 function buildDerivedServiceSkillBundleSummary(
-  item: ServiceSkillItem,
+  item: ServiceSkillCompatItem,
 ): ServiceSkillBundleSummary {
   const name = trimToUndefined(item.skillKey) ?? item.id.trim();
   const description = trimToUndefined(item.summary) ?? item.title.trim();
@@ -431,6 +514,17 @@ function buildDerivedServiceSkillBundleSummary(
         validationErrors.length > 0 ? validationErrors : undefined,
       deprecatedFields: [],
     },
+  };
+}
+
+function normalizeServiceSkillItem(item: ServiceSkillCompatItem): ServiceSkillItem {
+  return {
+    ...item,
+    defaultExecutorBinding: resolveCurrentServiceSkillExecutorBinding(item),
+    executionLocation: resolveCurrentServiceSkillExecutionLocation(item),
+    skillBundle: item.skillBundle
+      ? JSON.parse(JSON.stringify(item.skillBundle))
+      : buildDerivedServiceSkillBundleSummary(item),
   };
 }
 
@@ -628,12 +722,12 @@ function isServiceSkillSceneBinding(
   );
 }
 
-function isServiceSkillItem(value: unknown): value is ServiceSkillItem {
+function isServiceSkillCompatItem(value: unknown): value is ServiceSkillCompatItem {
   if (!value || typeof value !== "object") {
     return false;
   }
 
-  const item = value as Partial<ServiceSkillItem>;
+  const item = value as Partial<ServiceSkillCompatItem>;
   const skillTypeValid =
     item.skillType === undefined ||
     SERVICE_SKILL_TYPES.includes(item.skillType);
@@ -690,18 +784,20 @@ function isServiceSkillItem(value: unknown): value is ServiceSkillItem {
   );
 }
 
-function isServiceSkillCatalog(value: unknown): value is ServiceSkillCatalog {
+function isServiceSkillCompatCatalog(
+  value: unknown,
+): value is ServiceSkillCompatCatalog {
   if (!value || typeof value !== "object") {
     return false;
   }
 
-  const catalog = value as Partial<ServiceSkillCatalog>;
+  const catalog = value as Partial<ServiceSkillCompatCatalog>;
   return (
     typeof catalog.version === "string" &&
     typeof catalog.tenantId === "string" &&
     typeof catalog.syncedAt === "string" &&
     Array.isArray(catalog.items) &&
-    catalog.items.every(isServiceSkillItem)
+    catalog.items.every(isServiceSkillCompatItem)
   );
 }
 
@@ -828,11 +924,7 @@ function readCachedServiceSkillCatalog(): ServiceSkillCatalog | null {
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw);
-    if (!isServiceSkillCatalog(parsed)) {
-      return null;
-    }
-    return cloneServiceSkillCatalog(parsed);
+    return normalizeServiceSkillCatalogInput(JSON.parse(raw))?.catalog ?? null;
   } catch {
     return null;
   }
@@ -925,17 +1017,20 @@ function mergeSeededLocalCustomServiceSkillItems(
 }
 
 function normalizeServiceSkillCatalog(
-  catalog: ServiceSkillCatalog,
+  catalog: ServiceSkillCompatCatalog,
 ): ServiceSkillCatalog {
   return cloneServiceSkillCatalog(
-    mergeSeededLocalCustomServiceSkillItems(catalog),
+    mergeSeededLocalCustomServiceSkillItems({
+      ...catalog,
+      items: catalog.items.map((item) => normalizeServiceSkillItem(item)),
+    }),
   );
 }
 
 function normalizeServiceSkillCatalogInput(
   value: unknown,
 ): NormalizedServiceSkillCatalogInput | null {
-  if (isServiceSkillCatalog(value)) {
+  if (isServiceSkillCompatCatalog(value)) {
     return {
       catalog: normalizeServiceSkillCatalog(value),
       baseSetupSnapshot: null,
@@ -966,7 +1061,10 @@ function isNormalizedServiceSkillCatalogInput(
   }
 
   const record = value as Record<string, unknown>;
-  if (!("catalog" in record) || !isServiceSkillCatalog(record.catalog)) {
+  if (
+    !("catalog" in record) ||
+    !isServiceSkillCompatCatalog(record.catalog)
+  ) {
     return false;
   }
 

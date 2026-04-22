@@ -6,13 +6,13 @@ import type { AutomationJobRecord } from "../api/automation";
 import type { CompanionPetStatus } from "../api/companion";
 import type { AgentRun } from "../api/executionRun";
 import type {
-  SceneAppBindingFamily,
-  SceneAppCatalog,
+  SceneAppCurrentBindingFamily,
+  SceneAppCurrentCatalog as SceneAppCatalog,
   SceneAppContextOverlay,
-  SceneAppDescriptor,
-  SceneAppPlanResult,
+  SceneAppCurrentDescriptor as SceneAppDescriptor,
+  SceneAppCurrentPlanResult as SceneAppPlanResult,
   SceneAppProjectPackPlan,
-  SceneAppRuntimeAdapterPlan,
+  SceneAppCurrentRuntimeAdapterPlan as SceneAppRuntimeAdapterPlan,
   SceneAppScorecard,
 } from "../api/sceneapp";
 
@@ -1685,9 +1685,6 @@ function buildMockSceneAppContextOverlay(
   if (runtimeContext.browserSessionAttached === true) {
     pushUniqueMock(toolRefs, "browser_session");
   }
-  if (runtimeContext.cloudSessionReady === true) {
-    pushUniqueMock(toolRefs, "cloud_session");
-  }
   if (runtimeContext.automationEnabled === true) {
     pushUniqueMock(toolRefs, "automation");
   }
@@ -1780,11 +1777,11 @@ function buildMockSceneAppAdapterPlan(
   const slots = resolveMockSceneAppSlots(intent);
   const runtimeContext = resolveMockSceneAppRuntimeContext(intent);
   const referenceMemoryIds = resolveMockSceneAppReferenceMemoryIds(intent);
-  const adapterKind: SceneAppBindingFamily =
-    descriptor.entryBindings[0]?.bindingFamily ?? "agent_turn";
+  const adapterKind = normalizeMockSceneAppAdapterKind(
+    descriptor.entryBindings[0]?.bindingFamily ?? "agent_turn",
+  );
   const shouldOpenServiceSceneSession =
-    (adapterKind === "cloud_scene" ||
-      adapterKind === "agent_turn") &&
+    adapterKind === "agent_turn" &&
     (descriptor.sceneappType === "local_instant" ||
       descriptor.sceneappType === "hybrid") &&
     Boolean(descriptor.linkedServiceSkillId || descriptor.linkedSceneKey) &&
@@ -2159,9 +2156,6 @@ function buildMockSceneAppPlanResult(
       if (requirement.kind === "browser_session") {
         return runtimeContext.browserSessionAttached !== true;
       }
-      if (requirement.kind === "cloud_session") {
-        return runtimeContext.cloudSessionReady !== true;
-      }
       if (requirement.kind === "automation") {
         return runtimeContext.automationEnabled !== true;
       }
@@ -2254,6 +2248,12 @@ function buildMockSceneAppPlanResult(
       warnings,
     },
   };
+}
+
+function normalizeMockSceneAppAdapterKind(
+  adapterKind: SceneAppCurrentBindingFamily,
+): SceneAppCurrentBindingFamily {
+  return adapterKind;
 }
 
 function buildMockSceneAppProjectPackPlan(

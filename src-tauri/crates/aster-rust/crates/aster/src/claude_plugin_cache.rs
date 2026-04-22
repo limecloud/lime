@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::hooks::FrontmatterHooks;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClaudePluginCacheEntry {
     pub plugin_id: String,
@@ -134,6 +136,7 @@ pub fn resolve_cached_plugin_manifest_path(plugin_root: &Path) -> Option<PathBuf
 pub enum ClaudeManifestRelativePathKind {
     Any,
     JsonFile,
+    MarkdownFile,
 }
 
 pub fn load_cached_plugin_manifest_json(
@@ -164,7 +167,262 @@ pub fn load_cached_plugin_manifest_json(
         ));
     }
 
+    validate_cached_plugin_manifest_compat(&manifest).map_err(|error| {
+        format!(
+            "plugin manifest 校验失败 ({}): {}",
+            manifest_path.display(),
+            error
+        )
+    })?;
+
     Ok(Some((manifest_path, manifest)))
+}
+
+fn validate_cached_plugin_manifest_compat(manifest: &serde_json::Value) -> Result<(), String> {
+    let object = manifest
+        .as_object()
+        .ok_or_else(|| "plugin manifest 必须是 JSON object".to_string())?;
+
+    validate_cached_plugin_manifest_name(object.get("name"))?;
+    validate_optional_manifest_string_field(object.get("version"), "manifest.version")?;
+    validate_optional_manifest_string_field(object.get("description"), "manifest.description")?;
+
+    if let Some(skills) = object.get("skills") {
+        validate_manifest_relative_path_list_field(
+            skills,
+            "manifest.skills",
+            ClaudeManifestRelativePathKind::Any,
+        )?;
+    }
+
+    if let Some(hooks) = object.get("hooks") {
+        validate_manifest_hooks_field(hooks)?;
+    }
+
+    if let Some(commands) = object.get("commands") {
+        validate_manifest_commands_field(commands)?;
+    }
+
+    if let Some(agents) = object.get("agents") {
+        validate_manifest_relative_path_list_field(
+            agents,
+            "manifest.agents",
+            ClaudeManifestRelativePathKind::MarkdownFile,
+        )?;
+    }
+
+    if let Some(output_styles) = object.get("outputStyles") {
+        validate_manifest_relative_path_list_field(
+            output_styles,
+            "manifest.outputStyles",
+            ClaudeManifestRelativePathKind::Any,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn validate_cached_plugin_manifest_name(name: Option<&serde_json::Value>) -> Result<(), String> {
+    let Some(name) = name else {
+        return Err("manifest.name 缺失".to_string());
+    };
+    let Some(name) = name.as_str() else {
+        return Err("manifest.name 必须是 string".to_string());
+    };
+    if name.is_empty() {
+        return Err("manifest.name 不能为空".to_string());
+    }
+    if name.contains(' ') {
+        return Err("manifest.name 不能包含空格".to_string());
+    }
+    Ok(())
+}
+
+fn validate_optional_manifest_string_field(
+    value: Option<&serde_json::Value>,
+    field_name: &str,
+) -> Result<(), String> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    if value.is_string() {
+        Ok(())
+    } else {
+        Err(format!("{field_name} 必须是 string"))
+    }
+}
+
+fn validate_manifest_relative_path_list_field(
+    value: &serde_json::Value,
+    field_name: &str,
+    kind: ClaudeManifestRelativePathKind,
+) -> Result<(), String> {
+    match value {
+        serde_json::Value::String(relative_path) => {
+            validate_manifest_relative_path_field(relative_path, field_name, kind)
+        }
+        serde_json::Value::Array(paths) => {
+            for entry in paths {
+                let Some(relative_path) = entry.as_str() else {
+                    return Err(format!("{field_name} 只能是 string 或 string[]"));
+                };
+                validate_manifest_relative_path_field(relative_path, field_name, kind)?;
+            }
+            Ok(())
+        }
+        _ => Err(format!("{field_name} 只能是 string 或 string[]")),
+    }
+}
+
+fn validate_manifest_relative_path_field(
+    relative_path: &str,
+    field_name: &str,
+    kind: ClaudeManifestRelativePathKind,
+) -> Result<(), String> {
+    validate_claude_manifest_relative_path(relative_path, kind)
+        .map(|_| ())
+        .map_err(|error| format!("{field_name} 路径无效（{relative_path}）：{error}"))
+}
+
+fn validate_manifest_hooks_field(hooks: &serde_json::Value) -> Result<(), String> {
+    match hooks {
+        serde_json::Value::String(relative_path) => validate_manifest_relative_path_field(
+            relative_path,
+            "manifest.hooks",
+            ClaudeManifestRelativePathKind::JsonFile,
+        ),
+        serde_json::Value::Array(entries) => {
+            for entry in entries {
+                validate_manifest_hook_entry(entry)?;
+            }
+            Ok(())
+        }
+        serde_json::Value::Object(_) => validate_manifest_inline_hooks(hooks),
+        _ => Err("manifest.hooks 只能是 string、hooks object 或其数组".to_string()),
+    }
+}
+
+fn validate_manifest_hook_entry(entry: &serde_json::Value) -> Result<(), String> {
+    match entry {
+        serde_json::Value::String(relative_path) => validate_manifest_relative_path_field(
+            relative_path,
+            "manifest.hooks",
+            ClaudeManifestRelativePathKind::JsonFile,
+        ),
+        serde_json::Value::Object(_) => validate_manifest_inline_hooks(entry),
+        _ => Err("manifest.hooks 只能是 string、hooks object 或其数组".to_string()),
+    }
+}
+
+fn validate_manifest_inline_hooks(hooks: &serde_json::Value) -> Result<(), String> {
+    serde_json::from_value::<FrontmatterHooks>(hooks.clone())
+        .map(|_| ())
+        .map_err(|error| format!("manifest.hooks inline 配置无效：{error}"))
+}
+
+fn validate_manifest_commands_field(commands: &serde_json::Value) -> Result<(), String> {
+    match commands {
+        serde_json::Value::String(relative_path) => {
+            validate_manifest_command_path(relative_path, "manifest.commands")
+        }
+        serde_json::Value::Array(entries) => {
+            for entry in entries {
+                let Some(relative_path) = entry.as_str() else {
+                    return Err("manifest.commands 只能是 string、string[] 或 object".to_string());
+                };
+                validate_manifest_command_path(relative_path, "manifest.commands")?;
+            }
+            Ok(())
+        }
+        serde_json::Value::Object(entries) => validate_manifest_command_metadata_map(entries),
+        _ => Err("manifest.commands 只能是 string、string[] 或 object".to_string()),
+    }
+}
+
+fn validate_manifest_command_path(relative_path: &str, field_name: &str) -> Result<(), String> {
+    validate_manifest_relative_path_field(
+        relative_path,
+        field_name,
+        ClaudeManifestRelativePathKind::Any,
+    )
+}
+
+fn validate_manifest_command_metadata_map(
+    entries: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
+    for (command_name, metadata) in entries {
+        validate_manifest_command_metadata(command_name, metadata)?;
+    }
+    Ok(())
+}
+
+fn validate_manifest_command_metadata(
+    command_name: &str,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    let Some(metadata) = metadata.as_object() else {
+        return Err(format!(
+            "manifest.commands[{command_name}] metadata 必须是 object"
+        ));
+    };
+
+    let mut has_source = false;
+    if let Some(source) = metadata.get("source") {
+        let Some(relative_path) = source.as_str() else {
+            return Err(format!(
+                "manifest.commands[{command_name}].source 必须是 string"
+            ));
+        };
+        validate_manifest_command_path(
+            relative_path,
+            &format!("manifest.commands[{command_name}].source"),
+        )?;
+        has_source = true;
+    }
+
+    let mut has_content = false;
+    if let Some(content) = metadata.get("content") {
+        if !content.is_string() {
+            return Err(format!(
+                "manifest.commands[{command_name}].content 必须是 string"
+            ));
+        }
+        has_content = true;
+    }
+
+    if has_source == has_content {
+        return Err(format!(
+            "manifest.commands[{command_name}] 必须且只能提供 source 或 content 其中之一"
+        ));
+    }
+
+    validate_optional_manifest_string_field(
+        metadata.get("description"),
+        &format!("manifest.commands[{command_name}].description"),
+    )?;
+    validate_optional_manifest_string_field(
+        metadata.get("argumentHint"),
+        &format!("manifest.commands[{command_name}].argumentHint"),
+    )?;
+    validate_optional_manifest_string_field(
+        metadata.get("model"),
+        &format!("manifest.commands[{command_name}].model"),
+    )?;
+
+    if let Some(allowed_tools) = metadata.get("allowedTools") {
+        let Some(items) = allowed_tools.as_array() else {
+            return Err(format!(
+                "manifest.commands[{command_name}].allowedTools 必须是 string[]"
+            ));
+        };
+        if items.iter().any(|item| !item.is_string()) {
+            return Err(format!(
+                "manifest.commands[{command_name}].allowedTools 必须是 string[]"
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 pub fn validate_claude_manifest_relative_path(
@@ -184,6 +442,12 @@ pub fn validate_claude_manifest_relative_path(
         return Err("路径必须指向 .json 文件".to_string());
     }
 
+    if matches!(kind, ClaudeManifestRelativePathKind::MarkdownFile)
+        && !relative_path.ends_with(".md")
+    {
+        return Err("路径必须指向 .md 文件".to_string());
+    }
+
     Ok(relative_path)
 }
 
@@ -193,7 +457,20 @@ pub fn resolve_claude_manifest_relative_path(
     kind: ClaudeManifestRelativePathKind,
 ) -> Result<PathBuf, String> {
     let relative_path = validate_claude_manifest_relative_path(relative_path, kind)?;
-    Ok(plugin_root.join(relative_path))
+    let mut resolved = plugin_root.to_path_buf();
+    for component in Path::new(relative_path).components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::Normal(part) => resolved.push(part),
+            std::path::Component::ParentDir => {
+                resolved.pop();
+            }
+            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                return Err("路径不能包含绝对路径前缀".to_string());
+            }
+        }
+    }
+    Ok(resolved)
 }
 
 const MANAGED_PLUGIN_POLICY_KEYS: &[&str] = &[
@@ -436,6 +713,16 @@ mod tests {
         fs::create_dir_all(&aster_dir).expect("创建 .aster 目录失败");
         fs::write(aster_dir.join("managed_settings.yaml"), content)
             .expect("写入 managed_settings.yaml 失败");
+    }
+
+    fn write_plugin_manifest(plugin_root: &Path, manifest: serde_json::Value) {
+        let manifest_dir = plugin_root.join(".claude-plugin");
+        fs::create_dir_all(&manifest_dir).expect("创建 manifest 目录失败");
+        fs::write(
+            manifest_dir.join("plugin.json"),
+            serde_json::to_string_pretty(&manifest).expect("序列化 manifest 失败"),
+        )
+        .expect("写入 manifest 失败");
     }
 
     #[test]
@@ -690,6 +977,47 @@ allowed_tools:
     }
 
     #[test]
+    fn load_cached_plugin_manifest_json_should_reject_invalid_manifest_name() {
+        let root = TempDir::new().expect("create temp root");
+        let plugin_root = root.path().join("plugin-root");
+        write_plugin_manifest(
+            &plugin_root,
+            serde_json::json!({
+                "name": "bad plugin",
+                "version": "1.0.0"
+            }),
+        );
+
+        let error = load_cached_plugin_manifest_json(&plugin_root)
+            .expect_err("带空格的 manifest.name 应报错");
+        assert!(error.contains("manifest.name 不能包含空格"));
+    }
+
+    #[test]
+    fn load_cached_plugin_manifest_json_should_reject_invalid_manifest_commands() {
+        let root = TempDir::new().expect("create temp root");
+        let plugin_root = root.path().join("plugin-root");
+        write_plugin_manifest(
+            &plugin_root,
+            serde_json::json!({
+                "name": "capsule",
+                "version": "1.0.0",
+                "commands": {
+                    "about": {
+                        "source": "./commands/about.md",
+                        "content": "# about"
+                    }
+                }
+            }),
+        );
+
+        let error = load_cached_plugin_manifest_json(&plugin_root)
+            .expect_err("非法 manifest.commands 应报错");
+        assert!(error.contains("manifest.commands[about]"));
+        assert!(error.contains("source 或 content"));
+    }
+
+    #[test]
     fn validate_claude_manifest_relative_path_should_require_dot_slash_and_json_suffix() {
         assert_eq!(
             validate_claude_manifest_relative_path(
@@ -715,5 +1043,26 @@ allowed_tools:
             .is_err(),
             "hooks 路径必须指向 json 文件"
         );
+        assert!(
+            validate_claude_manifest_relative_path(
+                "./agents/reviewer",
+                ClaudeManifestRelativePathKind::MarkdownFile,
+            )
+            .is_err(),
+            "agents 路径必须指向 markdown 文件"
+        );
+    }
+
+    #[test]
+    fn resolve_claude_manifest_relative_path_should_normalize_current_directory_segments() {
+        let root = Path::new("/tmp/demo-plugin");
+        let resolved = resolve_claude_manifest_relative_path(
+            root,
+            "./skills/writer",
+            ClaudeManifestRelativePathKind::Any,
+        )
+        .expect("应能解析 Claude 风格路径");
+
+        assert_eq!(resolved, root.join("skills").join("writer"));
     }
 }

@@ -155,9 +155,28 @@
 - 2026-04-21：已继续收口 sceneapp runtime context；`cloud_session_ready` 不再参与 current readiness / tool refs 注入，只再保留为 compat 输入字段，避免 current planning 再把“云会话”带回执行语义
 - 2026-04-21：已继续收口 sceneapp seeded/mock 原始目录展示；current `capabilityRefs`、`infraProfile` 与 composition step binding 不再主动写出 `cloud_scene / cloud_runtime`，旧 `cloud_scene` 只再保留在 service-scene adapter 锚点与 compat 输入
 - 2026-04-21：已继续收口 sceneapp current entry binding；seeded/mock 里的 `story-video-suite`、`voice-runtime` 当前入口已改成 `agent_turn`，Rust/mock planner 会按 service-scene 特征继续产出 `open_service_scene_session`
+- 2026-04-21：已继续收口 Rust sceneapp 内部命名；`CloudManaged / CloudScene / CloudSession / cloud_session_ready` 当前已改成内部 compat 语义名，并通过 serde 继续兼容旧外部值，避免 current 内部建模继续被旧云执行命名污染
+- 2026-04-22：已补通过 Rust sceneapp 定向 lib 测试：`should_build_service_scene_adapter_plan_for_hybrid_sceneapp`、`build_sceneapp_scorecard_from_runs_should_keep_stable_scene`、`should_promote_selected_memory_entries_into_reference_items`
 - 2026-04-21：已补跑本轮相关前端定向回归；`useWorkspaceSendActions`、`sceneapp` API/目录/展示与 SceneApps 页面共 8 个 Vitest 文件、154 条用例通过
 - 2026-04-21：已补跑 `npm run governance:legacy-report`，结果为 `边界违规 0 / 分类漂移候选 0`
 - 2026-04-21：已继续收口 sceneapp 展示层 current 边界；`presentation/product` 与 SceneApps 页面测试夹具默认改成 `agent_turn`，展示层不再主动持有 `cloud_scene` current 标签
+- 2026-04-22：已继续收口 `serviceSkills / skillCatalog` 类型边界；public `ServiceSkillItem / ServiceSkillCatalog / SkillCatalogExecutionKind` 默认只暴露 current 值，`cloud_scene / cloud_required` 改为显式 compat 类型或原始输入解析层处理
+- 2026-04-22：已同步更新聊天入口与技能页相关测试夹具；`service_scene_launch.kind` 当前统一改成 `local_service_skill`，服务技能 fixture 默认改成 `agent_turn + client_default`
+- 2026-04-22：已补跑服务技能 / 技能目录 / 聊天入口定向回归共 11 个 Vitest 文件、206 条用例通过；随后补跑 `sceneapp` API/目录/launch 3 个 Vitest 文件、13 条用例通过
+- 2026-04-22：已再次补跑 `npm run governance:legacy-report`，结果仍为 `边界违规 0 / 分类漂移候选 0`
+- 2026-04-22：已把 service skill 执行位置展示语义收回 `src/lib/api/serviceSkills.ts` 单一事实源；prompt composer 当前只写“客户端执行”，automation 设置页继续通过 compat helper 单独补 `旧目录兼容` 徽标，避免旧云目录标记继续混入 current prompt 文案
+- 2026-04-22：已继续收口 mock sceneapp planner 内部判断；legacy `cloudSessionReady` 输入不再把 planner 拉回 `cloud_scene` 分支，mock adapter 当前会先正规化到 `agent_turn` 后再决定是否打开 `service_scene` 会话
+- 2026-04-22：已继续收口前端 `sceneapp runtime context` 内部命名；当前默认改用 `directorySessionReadyCompat` 承载 compat 会话位，`sceneapp API` 调 Tauri 前会统一回写为 `cloudSessionReady` wire alias，mock readiness 也与 Rust 一样对 `cloud_session` 保持 compat no-op
+- 2026-04-22：已继续收口 SceneApps 页面 current 筛选面；目录页不再主动提供 `cloud_managed` 旧类型筛选，旧 page params / 最近访问里的 `typeFilter=cloud_managed` 现在会在 `navigation` 归一化阶段被丢弃，避免 current 页面状态继续把 compat 类型写回路由与本地存储
+- 2026-04-22：已继续收口 sceneapp 展示 compat helper；`presentation/product` 当前统一通过显式 helper 解析 `cloud_managed / cloud_runtime`，workbench 统计与基础设施摘要不再各自直接消费旧云命名，compat 展示只保留在单一 helper 边界
+- 2026-04-22：已继续收口 `sceneapp API` 的旧 planner 假门槛；当前网关会过滤 `launchRequirements / readiness.unmetRequirements` 里的 `cloud_session`，并把 context overlay 中的 `toolRefs.cloud_scene -> agent_turn`、`toolRefs.cloud_session -> 丢弃`，避免旧 planner 再把“云会话阻塞”显影到 current 详情页
+- 2026-04-22：已继续收口 `sceneapp API` 的 compat 类型投影；旧目录 `sceneappType = cloud_managed` 当前会按绑定族与基础设施信号正规化为 `local_instant / local_durable / browser_grounded / hybrid`，不再把 compat 类型直接暴露给 current 前台对象
+- 2026-04-22：已继续收口 current 测试夹具默认值；`workspace sceneapp launch`、`workspace sceneapp entry actions` 与 `automation` 的默认 SceneApp plan/descriptor 夹具已改成 `agent_turn` / 本地能力摘要，只再保留显式 compat 用例验证旧 `cloud_scene` 输入的正规化
+- 2026-04-22：已继续清理 sceneapp 深层 current 测试夹具；`product` 与 `SceneAppsPage` 默认目录样板不再把 `cloud_runtime` 当作普通 `infraProfile` 基线，旧云基础设施词现在只保留给显式 compat 断言
+- 2026-04-22：已继续收口 SceneApps 详情页 current 启动主链；详情页 launch 现在会优先复用当前 preview planning，`workspace_entry` 做法会继续导航到 `agent` 主链，`automation_job` 会先打开标准自动化弹窗再异步补工作区列表，避免 current UI 因重复 planning 或等待工作区列表而停在 sceneapps 自身
+- 2026-04-22：已为 sceneapp launch runtime 补 unmount 保护；页面切走或测试回收后不再回流异步 `setState`，避免 current 导航链在离开 SceneApps 页后继续触发收尾更新
+- 2026-04-22：已补跑 `SceneAppsPage / navigation / presentation / product / launch` 共 5 个 Vitest 文件、58 条用例，通过；`npm run governance:legacy-report` 与 `npm run verify:gui-smoke` 也已通过
+- 2026-04-22：`npm run verify:local` 在 smart 批次 `src/components/agent/chat/workspace/serviceSkillSceneLaunch.test.ts` 因 `@/lib/api/serviceSkills` mock 未同步导出 `resolveServiceSkillExecutionLocationPresentation` 失败；该阻塞位于另一条 service-skill 线，不属于本轮 sceneapp 启动实现回归
 - 2026-04-21：Rust 定向测试 `cargo test should_build_service_scene_adapter_plan_for_hybrid_sceneapp` 因工作区存在多路并发 `cargo test` 抢占 `target`/artifact lock，未拿到最终结果；本轮不把它记为已通过，后续需在较干净的 Rust 构建窗口补测
 - 2026-04-21：已尝试用独立 `CARGO_TARGET_DIR=/tmp/lime-target-codex-sceneapp` 复测 Rust service-scene 新用例，但首次编译 `aster`/`lime` 依赖链耗时过长，本轮仍未拿到最终结果；为避免持续占用机器资源，已主动停止该测试进程，后续需在更稳定的 Rust 构建窗口补跑
 
@@ -181,6 +200,8 @@
 - mention / sceneapp 内部命名：聊天发送边界里的 usage slot 提取已统一改成 `service_scene` 语义，sceneapp current seeded/mock 目录的展示能力摘要也已改成 `agent_turn` / 本地工作区表述，避免 current 实现继续把内部变量写成“云场景”
 - sceneapp current service-scene 入口：当前 seeded/mock 目录不再依赖 `entryBindings.bindingFamily = cloud_scene` 才能走本地场景执行；planner 会在 `agent_turn` current 目录下按 linked service skill / scene key 继续产出 `open_service_scene_session`
 - sceneapp 展示层：`presentation/product` 与 SceneApps 页面当前测试夹具、组合步骤、入口绑定和执行摘要默认都已切到 `agent_turn`；`cloud_scene` 不再作为 current UI 文案映射保留在展示层
+- `serviceSkills / skillCatalog` 类型面：公开 catalog/item/execution 类型当前只暴露 `agent_turn / client_default` 等 current 值；`cloud_scene / cloud_required` 仅再保留为 compat 输入类型与解析层归一化逻辑，避免前台 current consumer 继续把旧云执行名当作常规值处理
+- 聊天入口测试夹具：`workspaceEntry / AppPageContent / slash preflight / scene launch / send actions / EmptyState` 等 current fixture 已同步改成 `local_service_skill` 与 `agent_turn` 语义，避免测试继续给旧云执行命名续命
 
 ### 仍保留为 compat / 历史锚点
 

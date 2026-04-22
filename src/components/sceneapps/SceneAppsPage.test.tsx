@@ -6,9 +6,9 @@ import { SceneAppsPage } from "./SceneAppsPage";
 import {
   listSceneAppRecentVisits,
   recordSceneAppRecentVisit,
-  type SceneAppCatalog,
+  type SceneAppCurrentCatalog as SceneAppCatalog,
+  type SceneAppCurrentPlanResult as SceneAppPlanResult,
   type SceneAppsPageParams,
-  type SceneAppPlanResult,
 } from "@/lib/sceneapp";
 import type { Page, PageParams } from "@/types/page";
 
@@ -247,7 +247,6 @@ function createCatalog(): SceneAppCatalog {
           "composition_blueprint",
           "project_pack",
           "workspace_storage",
-          "cloud_runtime",
         ],
         deliveryContract: "project_pack",
         outputHint: "短视频项目包",
@@ -1604,6 +1603,26 @@ describe("SceneAppsPage", () => {
         referenceMemoryIds: ["memory-1", "memory-2"],
       }),
     );
+  });
+
+  it("目录页不应再暴露 cloud_managed 旧筛选，也应忽略遗留 typeFilter 参数", async () => {
+    const { container } = renderSceneAppsPage({
+      pageParams: {
+        view: "catalog",
+        typeFilter:
+          "cloud_managed" as unknown as SceneAppsPageParams["typeFilter"],
+      },
+    });
+    await flushEffects();
+
+    const buttonLabels = Array.from(container.querySelectorAll("button"))
+      .map((button) => button.textContent?.trim())
+      .filter((label): label is string => Boolean(label));
+
+    expect(buttonLabels).not.toContain("目录同步");
+    expect(container.textContent).not.toContain("清空筛选");
+    expect(buttonLabels).toContain("整套组合");
+    expect(buttonLabels).toContain("本地执行");
   });
 
   it("场景目录卡片应回流最近运行与经营信号", async () => {

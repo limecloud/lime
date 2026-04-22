@@ -1,8 +1,8 @@
 import type {
   ServiceSkillArtifactKind,
   ServiceSkillCatalog,
-  ServiceSkillExecutionLocation,
-  ServiceSkillExecutorBinding,
+  ServiceSkillAnyExecutionLocation,
+  ServiceSkillAnyExecutorBinding,
   ServiceSkillPromptTemplateKey,
   ServiceSkillReadinessRequirements,
   ServiceSkillRunnerType,
@@ -122,9 +122,9 @@ export interface BaseSetupSlotProfile {
 
 export interface BaseSetupBindingProfile {
   id: string;
-  bindingFamily: ServiceSkillExecutorBinding;
+  bindingFamily: ServiceSkillAnyExecutorBinding;
   runnerType?: ServiceSkillRunnerType;
-  executionLocation?: ServiceSkillExecutionLocation;
+  executionLocation?: ServiceSkillAnyExecutionLocation;
   capabilityRefs?: string[];
   timeoutSecs?: number;
   retryLimit?: number;
@@ -325,7 +325,7 @@ export interface BaseSetupRolloutResult {
 export interface BaseSetupRolloutInput {
   appVersion: string;
   seededFallbackAvailable: boolean;
-  supportedBindingFamilies?: readonly ServiceSkillExecutorBinding[];
+  supportedBindingFamilies?: readonly ServiceSkillAnyExecutorBinding[];
   supportedViewerKinds?: readonly BaseSetupViewerKind[];
   supportedKernelCapabilities?: readonly string[];
   validationResult?: BaseSetupValidationResult;

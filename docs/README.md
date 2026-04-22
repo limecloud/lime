@@ -61,7 +61,7 @@
 - `roadmap/limenext/flowcharts.md`：LimeNext 的业务图与技术主链流程图合集
 - `roadmap/limenext/sequences.md`：LimeNext 的业务时序与技术时序合集
 - `prd/gongneng/x-article-export/prd.md`：`Browser-grounded SceneApp` 样板功能包，定义 `/x文章转存` 如何把真实网页沉淀成项目内 Markdown bundle
-- `roadmap/lime-service-skill-cloud-config-prd.md`：服务型技能的端优先执行与云配置同步 PRD
+- `roadmap/lime-service-skill-cloud-config-prd.md`：服务型技能“目录云同步、本地执行”PRD，固定 `limecore` 目录控制面与 `lime` 本地执行面边界
 - `aiprompts/site-adapter-standard.md`：站点适配器标准与 `managed_cdp / existing_session` 当前执行边界
 - `ops.md`：运维与发布说明
 - `app.config.ts` / `nuxt.config.ts` / `package.json`：文档站配置

@@ -73,7 +73,7 @@ describe("agentStreamSlashSkillPreflight", () => {
     {
       key: "service_scene_launch",
       launch: {
-        kind: "cloud_scene",
+        kind: "local_service_skill",
         service_scene_run: {
           scene_key: "campaign-launch",
         },

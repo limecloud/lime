@@ -32,8 +32,8 @@ const DEFAULT_FEATURED_HOME_SERVICE_SKILL_LIMIT = 2;
 
 function normalizeHomeServiceSkillBinding(
   binding: ServiceSkillExecutorBinding,
-): Exclude<ServiceSkillExecutorBinding, "cloud_scene"> {
-  return binding === "cloud_scene" ? "agent_turn" : binding;
+): ServiceSkillExecutorBinding {
+  return binding;
 }
 
 function resolveServiceSkillExecutionKind(

@@ -144,6 +144,10 @@ function getBodyText() {
   return document.body.textContent ?? "";
 }
 
+function countTextOccurrences(text: string) {
+  return getBodyText().split(text).length - 1;
+}
+
 async function hoverTip(ariaLabel: string) {
   const trigger = document.body.querySelector(
     `button[aria-label='${ariaLabel}']`,
@@ -299,6 +303,26 @@ describe("ResourcesPage", () => {
     });
 
     expect(mockSetProjectId).toHaveBeenCalledWith("project-2");
+  });
+
+  it("顶部总览不应重复渲染当前范围信息", async () => {
+    const container = renderPage();
+    await flushEffects();
+
+    expect(countTextOccurrences("当前位于根目录，可继续进入子文件夹浏览。")).toBe(
+      1,
+    );
+    expect(getBodyText()).toContain("0 个文件夹 · 1 个内容项 · 最近更新");
+    expect(getBodyText()).toContain("显示第 1-1 条，共 1 条");
+    expect(getBodyText()).not.toContain("范围：");
+
+    const paragraphTexts = Array.from(container.querySelectorAll("p"))
+      .map((node) => node.textContent?.trim())
+      .filter((text): text is string => Boolean(text));
+
+    expect(paragraphTexts).not.toContain("文件夹");
+    expect(paragraphTexts).not.toContain("内容项");
+    expect(paragraphTexts).not.toContain("最近更新");
   });
 
   it("应移除头部和侧栏里的旧入口", async () => {

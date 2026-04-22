@@ -42,6 +42,7 @@ interface Mounted {
 }
 
 const mounted: Mounted[] = [];
+let originalUserAgent: PropertyDescriptor | undefined;
 
 function renderComponent() {
   const container = document.createElement("div");
@@ -112,6 +113,14 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 
   vi.clearAllMocks();
+  originalUserAgent = Object.getOwnPropertyDescriptor(
+    Navigator.prototype,
+    "userAgent",
+  );
+  Object.defineProperty(Navigator.prototype, "userAgent", {
+    configurable: true,
+    get: () => "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+  });
 
   mockCheckForUpdates.mockResolvedValue({
     current: "1.10.0",
@@ -143,6 +152,14 @@ afterEach(() => {
   }
 
   vi.clearAllMocks();
+
+  if (originalUserAgent) {
+    Object.defineProperty(
+      Navigator.prototype,
+      "userAgent",
+      originalUserAgent,
+    );
+  }
 });
 
 describe("AboutSection", () => {
@@ -194,5 +211,16 @@ describe("AboutSection", () => {
 
     expect(mockDownloadUpdate).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("下载失败，请手动下载最新版");
+  });
+
+  it("Windows 关于页应只提示单一 setup 安装包", async () => {
+    const container = renderComponent();
+    await waitForLoad();
+
+    expect(container.textContent).toContain(
+      "Windows 仅提供单一 setup 安装包；需要手动升级或重装时，可直接使用网页下载页中的最新版。",
+    );
+    expect(container.textContent).not.toContain("在线安装包");
+    expect(container.textContent).not.toContain("offline 安装包");
   });
 });

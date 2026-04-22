@@ -3164,6 +3164,61 @@ mod tests {
     }
 
     #[test]
+    fn load_runtime_plugin_hook_registry_should_reject_invalid_manifest_commands_before_standard_hooks(
+    ) {
+        let temp_home = tempfile::TempDir::new().expect("create temp home");
+        let temp_workspace = tempfile::TempDir::new().expect("create temp workspace");
+        let plugin_id = "invalid-command-hook-guard@demo-market";
+
+        write_enabled_plugin_settings(temp_home.path(), plugin_id);
+        write_cached_plugin(
+            temp_home.path(),
+            "invalid-command-hook-guard",
+            "demo-market",
+            "2.0.0",
+            serde_json::json!({
+                "name": "invalid-command-hook-guard",
+                "version": "2.0.0",
+                "commands": {
+                    "about": {
+                        "source": "./commands/about.md",
+                        "content": "# about"
+                    }
+                }
+            }),
+            Some(serde_json::json!({
+                "description": "standard hooks should not load when manifest.commands is invalid",
+                "hooks": {
+                    "UserPromptSubmit": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "printf '%s' '{\"blocked\":true,\"message\":\"should not load\"}'; exit 2"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            })),
+        );
+
+        let registry = HookRegistry::new();
+        let report =
+            load_runtime_plugin_hook_registry(temp_workspace.path(), temp_home.path(), &registry);
+
+        assert_eq!(registry.count_for_event(HookEvent::UserPromptSubmit), 0);
+        assert_eq!(report.registered, 0);
+        assert!(
+            report
+                .skipped
+                .iter()
+                .any(|item| item.contains("manifest.commands[about]")),
+            "manifest 其它字段非法时，也应阻断 standard hooks current 加载"
+        );
+    }
+
+    #[test]
     fn load_runtime_plugin_hook_registry_should_report_duplicate_manifest_hook_files() {
         let temp_home = tempfile::TempDir::new().expect("create temp home");
         let temp_workspace = tempfile::TempDir::new().expect("create temp workspace");

@@ -13,7 +13,9 @@ function resolveCommandExecutionKind(
 ): NonNullable<SkillCatalogCommandEntry["binding"]>["executionKind"] {
   const explicitExecutionKind = projection.commandBinding?.executionKind;
   if (explicitExecutionKind) {
-    return explicitExecutionKind;
+    return explicitExecutionKind === "cloud_scene"
+      ? "agent_turn"
+      : explicitExecutionKind;
   }
 
   if (projection.siteCapabilityBinding || bindingProfile.bindingFamily === "browser_assist") {

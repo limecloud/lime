@@ -278,6 +278,7 @@ mod request_model_resolution;
 mod research_skill_launch;
 mod resource_search_skill_launch;
 mod run_metadata;
+mod runtime_plugin_agents;
 mod runtime_project_hooks;
 mod runtime_turn;
 mod service_skill_launch;
@@ -447,6 +448,10 @@ use run_metadata::{
 use run_metadata::{
     extract_artifact_path_from_tool_start, provider_routing_matches_current,
     resolve_social_run_artifact_descriptor,
+};
+pub(crate) use runtime_plugin_agents::{
+    merge_system_prompt_with_runtime_plugin_agents,
+    resolve_requested_runtime_plugin_agent_definition, RuntimePluginAgentDefinition,
 };
 pub(crate) use runtime_turn::{build_queued_turn_task, build_runtime_queue_executor};
 #[cfg(test)]

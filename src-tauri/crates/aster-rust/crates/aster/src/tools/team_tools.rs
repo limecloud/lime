@@ -1,8 +1,8 @@
 use crate::session::{
     apply_session_update, query_session, require_shared_session_runtime_queue_service,
-    resolve_team_context, save_team_membership, save_team_state, ExtensionState, SessionManager,
-    SessionRuntimeQueueService, SessionType, TeamMember, TeamMembershipState, TeamSessionState,
-    TEAM_LEAD_NAME,
+    resolve_team_context, save_team_membership, save_team_state, ExtensionState, Session,
+    SessionManager, SessionRuntimeQueueService, SessionType, TeamMember, TeamMembershipState,
+    TeamSessionState, TEAM_LEAD_NAME,
 };
 use crate::tools::{
     base::Tool,
@@ -12,6 +12,7 @@ use crate::tools::{
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use crate::config::paths::Paths;
@@ -86,6 +87,12 @@ struct ListPeersOutput {
 struct ResolvedTeamMemberState {
     member: TeamMember,
     is_active: bool,
+}
+
+#[derive(Debug, Clone)]
+struct LocalSessionPeerState {
+    session: Session,
+    is_live: bool,
 }
 
 fn format_team_agent_id(name: &str, team_name: &str) -> String {
@@ -381,7 +388,7 @@ impl Tool for ListPeersTool {
     }
 
     fn description(&self) -> &str {
-        "列出当前可通过 SendMessage 直接通信的 peers。当前 Lime runtime 会先返回活跃 team 内成员，并额外暴露同一 working_dir 下最近的本机顶层 session；本机会话的 `send_to` 为 synthetic `uds:<session-id>`。`bridge:` remote peer 仍未进入 current。"
+        "列出当前可通过 SendMessage 直接通信的 peers。当前 Lime runtime 会先返回活跃 team 内成员，并优先暴露同一 working_dir 下 live 的本机顶层 session；若 live peers 不足，再回退最近本机会话。本机会话请使用 `send_to` 里的 synthetic `uds:<session-id>` 地址发送，不要把 `agent_id` 当作 peer address。`bridge:` remote peer 仍未进入 current。"
     }
 
     fn input_schema(&self) -> Value {
@@ -600,6 +607,7 @@ async fn resolve_local_session_peers(
     let current_session = query_session(current_session_id, false)
         .await
         .map_err(|error| ToolError::execution_failed(format!("读取当前 session 失败: {error}")))?;
+    let live_session_ids = resolve_live_local_session_ids().await?;
     let sessions = SessionManager::list_sessions_by_types(&[
         SessionType::User,
         SessionType::Scheduled,
@@ -608,19 +616,50 @@ async fn resolve_local_session_peers(
     .await
     .map_err(|error| ToolError::execution_failed(format!("列出本机会话 peers 失败: {error}")))?;
 
-    Ok(sessions
+    let mut peers = sessions
         .into_iter()
         .filter(|session| session.id != current_session_id)
         .filter(|session| session.working_dir == current_session.working_dir)
-        .take(MAX_LOCAL_SESSION_PEERS)
-        .map(|session| PeerDescriptor {
-            name: session.name,
-            agent_id: session.id.clone(),
-            agent_type: None,
-            is_lead: false,
-            send_to: format!("uds:{}", session.id),
+        .map(|session| LocalSessionPeerState {
+            is_live: live_session_ids.contains(&session.id),
+            session,
         })
+        .collect::<Vec<_>>();
+    peers.sort_by(|left, right| {
+        right
+            .is_live
+            .cmp(&left.is_live)
+            .then_with(|| right.session.updated_at.cmp(&left.session.updated_at))
+    });
+
+    Ok(peers
+        .into_iter()
+        .take(MAX_LOCAL_SESSION_PEERS)
+        .map(|peer| local_session_peer_descriptor(peer.session))
         .collect())
+}
+
+async fn resolve_live_local_session_ids() -> Result<HashSet<String>, ToolError> {
+    let Some(runtime_queue_service) = require_shared_session_runtime_queue_service().ok() else {
+        return Ok(HashSet::new());
+    };
+
+    runtime_queue_service
+        .list_live_session_ids()
+        .await
+        .map_err(|error| {
+            ToolError::execution_failed(format!("读取 live 本机会话 peers 失败: {error}"))
+        })
+}
+
+fn local_session_peer_descriptor(session: Session) -> PeerDescriptor {
+    PeerDescriptor {
+        name: session.name,
+        agent_id: session.id.clone(),
+        agent_type: None,
+        is_lead: false,
+        send_to: format!("uds:{}", session.id),
+    }
 }
 
 #[cfg(test)]
@@ -982,6 +1021,53 @@ mod tests {
         assert_eq!(peers[0]["name"], json!("another-workspace"));
         assert_eq!(peers[0]["agentId"], json!(local_peer.id));
         assert_eq!(peers[0]["sendTo"], json!(format!("uds:{}", local_peer.id)));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn list_peers_prioritizes_live_local_sessions_before_recent_fallback(
+    ) -> anyhow::Result<()> {
+        let temp_dir = tempdir()?;
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        let current = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            format!("local-peer-live-current-{}", Uuid::new_v4()),
+            SessionType::User,
+        )
+        .await?;
+        let live_peer = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            format!("local-peer-live-{}", Uuid::new_v4()),
+            SessionType::User,
+        )
+        .await?;
+
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        let recent_idle_peer = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            format!("local-peer-idle-{}", Uuid::new_v4()),
+            SessionType::User,
+        )
+        .await?;
+
+        require_shared_session_runtime_queue_service()?
+            .submit_turn(
+                queued_turn(&live_peer.id, &format!("queued-{}", Uuid::new_v4())),
+                true,
+            )
+            .await?;
+
+        let context = ToolContext::new(temp_dir.path().to_path_buf()).with_session_id(&current.id);
+        let result = ListPeersTool::new().execute(json!({}), &context).await?;
+
+        assert!(result.success);
+        let peers = result.metadata["peers"]
+            .as_array()
+            .expect("peers metadata should be an array");
+        assert_eq!(peers.len(), 2);
+        assert_eq!(peers[0]["agentId"], json!(live_peer.id));
+        assert_eq!(peers[1]["agentId"], json!(recent_idle_peer.id));
         Ok(())
     }
 

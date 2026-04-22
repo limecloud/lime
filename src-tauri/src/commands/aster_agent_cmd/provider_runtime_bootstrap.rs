@@ -175,24 +175,31 @@ struct CommandCandidate {
 }
 
 fn ollama_launch_candidates() -> Vec<CommandCandidate> {
-    let mut candidates = vec![CommandCandidate {
-        program: "ollama",
-        args: &["serve"],
-    }];
-
     #[cfg(target_os = "macos")]
     {
-        candidates.push(CommandCandidate {
-            program: "/Applications/Ollama.app/Contents/Resources/ollama",
-            args: &["serve"],
-        });
-        candidates.push(CommandCandidate {
-            program: "open",
-            args: &["-a", "Ollama"],
-        });
+        vec![
+            CommandCandidate {
+                program: "ollama",
+                args: &["serve"],
+            },
+            CommandCandidate {
+                program: "/Applications/Ollama.app/Contents/Resources/ollama",
+                args: &["serve"],
+            },
+            CommandCandidate {
+                program: "open",
+                args: &["-a", "Ollama"],
+            },
+        ]
     }
 
-    candidates
+    #[cfg(not(target_os = "macos"))]
+    {
+        vec![CommandCandidate {
+            program: "ollama",
+            args: &["serve"],
+        }]
+    }
 }
 
 async fn launch_ollama_runtime() -> Result<(), String> {

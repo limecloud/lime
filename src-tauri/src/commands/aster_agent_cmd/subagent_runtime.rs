@@ -238,12 +238,9 @@ fn register_runtime_subagent_frontmatter_hooks(
 fn validate_spawn_request_surface(
     request: &AgentRuntimeSpawnSubagentRequest,
 ) -> Result<(), String> {
-    if normalize_optional_text(request.mode.clone()).is_some() {
-        return Err("mode is not supported in the current runtime".to_string());
-    }
-    if normalize_optional_text(request.isolation.clone()).is_some() {
-        return Err("isolation is not supported in the current runtime".to_string());
-    }
+    resolve_spawn_request_access_mode_override(
+        normalize_optional_text(request.mode.clone()).as_deref(),
+    )?;
 
     Ok(())
 }
@@ -361,6 +358,13 @@ fn build_local_subagent_skill_payload(
 pub(crate) fn build_subagent_customization_state(
     request: &AgentRuntimeSpawnSubagentRequest,
 ) -> Result<Option<SubagentCustomizationState>, String> {
+    build_subagent_customization_state_with_plugin_agent(request, None)
+}
+
+pub(crate) fn build_subagent_customization_state_with_plugin_agent(
+    request: &AgentRuntimeSpawnSubagentRequest,
+    plugin_agent: Option<&RuntimePluginAgentDefinition>,
+) -> Result<Option<SubagentCustomizationState>, String> {
     let blueprint_role_id = normalize_optional_text(request.blueprint_role_id.clone());
     let blueprint_role_label = normalize_optional_text(request.blueprint_role_label.clone());
     let profile_id = normalize_optional_text(request.profile_id.clone());
@@ -384,8 +388,16 @@ pub(crate) fn build_subagent_customization_state(
     let skill_ids = normalize_optional_vec(&skill_ids);
     let skill_directories = normalize_optional_vec(&request.skill_directories);
     let hooks = normalize_frontmatter_hooks(request.hooks.clone());
-    let allowed_tools = normalize_optional_vec(&request.allowed_tools);
-    let disallowed_tools = normalize_optional_vec(&request.disallowed_tools);
+    let requested_allowed_tools = normalize_optional_vec(&request.allowed_tools);
+    let requested_disallowed_tools = normalize_optional_vec(&request.disallowed_tools);
+    let allowed_tools = merge_plugin_agent_allowed_tools(
+        plugin_agent.map(|agent| agent.allowed_tools.as_slice()),
+        &requested_allowed_tools,
+    );
+    let disallowed_tools = merge_plugin_agent_disallowed_tools(
+        plugin_agent.map(|agent| agent.disallowed_tools.as_slice()),
+        &requested_disallowed_tools,
+    );
 
     let mut skills = skill_ids
         .iter()
@@ -419,8 +431,12 @@ pub(crate) fn build_subagent_customization_state(
             .or_else(|| team_preset.map(|descriptor| descriptor.theme.to_string())),
         output_contract: normalize_optional_text(request.output_contract.clone())
             .or_else(|| profile.map(|descriptor| descriptor.output_contract.to_string())),
-        system_overlay: normalize_optional_text(request.system_overlay.clone())
-            .or_else(|| profile.map(|descriptor| descriptor.system_overlay.to_string())),
+        system_overlay: merge_optional_prompt_sections(
+            plugin_agent.map(|agent| agent.system_prompt.as_str()),
+            normalize_optional_text(request.system_overlay.clone())
+                .or_else(|| profile.map(|descriptor| descriptor.system_overlay.to_string()))
+                .as_deref(),
+        ),
         skill_ids,
         skills,
         hooks,
@@ -433,6 +449,58 @@ pub(crate) fn build_subagent_customization_state(
     } else {
         Ok(Some(state))
     }
+}
+
+fn merge_optional_prompt_sections(base: Option<&str>, appended: Option<&str>) -> Option<String> {
+    let base = base.map(str::trim).filter(|value| !value.is_empty());
+    let appended = appended.map(str::trim).filter(|value| !value.is_empty());
+    match (base, appended) {
+        (Some(base), Some(appended)) => Some(format!("{base}\n\n{appended}")),
+        (Some(base), None) => Some(base.to_string()),
+        (None, Some(appended)) => Some(appended.to_string()),
+        (None, None) => None,
+    }
+}
+
+fn merge_plugin_agent_allowed_tools(
+    plugin_allowed_tools: Option<&[String]>,
+    requested_allowed_tools: &[String],
+) -> Vec<String> {
+    let plugin_allowed_tools = plugin_allowed_tools.unwrap_or(&[]);
+    if plugin_allowed_tools.is_empty() {
+        return requested_allowed_tools.to_vec();
+    }
+    if requested_allowed_tools.is_empty() {
+        return plugin_allowed_tools.to_vec();
+    }
+
+    let requested = requested_allowed_tools.iter().collect::<HashSet<_>>();
+    plugin_allowed_tools
+        .iter()
+        .filter(|tool| requested.contains(tool))
+        .cloned()
+        .collect()
+}
+
+fn merge_plugin_agent_disallowed_tools(
+    plugin_disallowed_tools: Option<&[String]>,
+    requested_disallowed_tools: &[String],
+) -> Vec<String> {
+    let mut merged = Vec::new();
+    let mut seen = HashSet::new();
+
+    for tool in plugin_disallowed_tools.unwrap_or(&[]) {
+        if seen.insert(tool.clone()) {
+            merged.push(tool.clone());
+        }
+    }
+    for tool in requested_disallowed_tools {
+        if seen.insert(tool.clone()) {
+            merged.push(tool.clone());
+        }
+    }
+
+    merged
 }
 
 pub(crate) fn build_subagent_customization_system_prompt(
@@ -463,6 +531,8 @@ struct PreparedRuntimeSubagentSession {
     customization: Option<SubagentCustomizationState>,
     system_prompt: Option<String>,
     access_mode: lime_agent::SessionExecutionRuntimeAccessMode,
+    effective_run_in_background: bool,
+    effective_isolation: Option<String>,
 }
 
 fn build_subagent_runtime_event_name(session_id: &str) -> String {
@@ -486,6 +556,50 @@ fn resolve_subagent_request_access_mode(
     lime_agent::build_session_execution_runtime(session_id, Some(session), None, None, None)
         .and_then(|runtime| runtime.recent_access_mode)
         .unwrap_or_else(lime_agent::SessionExecutionRuntimeAccessMode::default_for_session)
+}
+
+fn resolve_spawn_request_access_mode_override(
+    mode: Option<&str>,
+) -> Result<Option<lime_agent::SessionExecutionRuntimeAccessMode>, String> {
+    let Some(mode) = mode.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+
+    if mode.eq_ignore_ascii_case("default") {
+        return Ok(None);
+    }
+    if mode.eq_ignore_ascii_case("acceptEdits") || mode.eq_ignore_ascii_case("accept_edits") {
+        return Ok(Some(lime_agent::SessionExecutionRuntimeAccessMode::Current));
+    }
+    if mode.eq_ignore_ascii_case("dontAsk") || mode.eq_ignore_ascii_case("dont_ask") {
+        return Ok(Some(
+            lime_agent::SessionExecutionRuntimeAccessMode::FullAccess,
+        ));
+    }
+    if mode.eq_ignore_ascii_case("plan") {
+        return Err(
+            "mode `plan` is not supported in the current runtime; use EnterPlanMode/ExitPlanMode instead"
+                .to_string(),
+        );
+    }
+    if mode.eq_ignore_ascii_case("bypassPermissions")
+        || mode.eq_ignore_ascii_case("bypass_permissions")
+    {
+        return Err("mode `bypassPermissions` is not supported in the current runtime".to_string());
+    }
+
+    Err(format!(
+        "mode `{mode}` is not supported in the current runtime; supported values: default, acceptEdits, dontAsk"
+    ))
+}
+
+fn resolve_spawn_request_access_mode(
+    session_id: &str,
+    session: &aster::session::Session,
+    request_mode: Option<&str>,
+) -> Result<lime_agent::SessionExecutionRuntimeAccessMode, String> {
+    Ok(resolve_spawn_request_access_mode_override(request_mode)?
+        .unwrap_or_else(|| resolve_subagent_request_access_mode(session_id, session)))
 }
 
 fn should_emit_subagent_status_for_runtime_event(event: &RuntimeAgentEvent) -> bool {
@@ -550,6 +664,13 @@ pub(crate) async fn maybe_emit_subagent_status_for_runtime_event(
     if !should_emit_subagent_status_for_runtime_event(event) {
         return;
     }
+    if let Err(error) = maybe_cleanup_subagent_worktree_after_runtime_event(session_id).await {
+        tracing::warn!(
+            "[AsterAgent][Subagent] runtime 事件后的 worktree 自动清理失败: session_id={}, error={}",
+            session_id,
+            error
+        );
+    }
     emit_subagent_status_changed_events(app, session_id).await;
 }
 
@@ -566,8 +687,7 @@ fn resolve_workspace_id_for_working_dir(
     working_dir: &Path,
 ) -> Result<String, String> {
     let manager = WorkspaceManager::new(db.clone());
-    manager
-        .get_by_path(working_dir)
+    resolve_workspace_for_working_dir(&manager, working_dir)
         .map_err(|error| format!("解析 workspace 失败: {error}"))?
         .map(|workspace| workspace.id)
         .ok_or_else(|| {
@@ -576,6 +696,224 @@ fn resolve_workspace_id_for_working_dir(
                 working_dir.to_string_lossy()
             )
         })
+}
+
+fn resolve_workspace_for_working_dir(
+    manager: &WorkspaceManager,
+    working_dir: &Path,
+) -> Result<Option<lime_core::workspace::Workspace>, String> {
+    if let Some(workspace) = manager.get_by_path(working_dir)? {
+        return Ok(Some(workspace));
+    }
+
+    let canonical_working_dir = canonicalize_best_effort(working_dir);
+    let matched = manager
+        .list()?
+        .into_iter()
+        .filter_map(|workspace| {
+            let canonical_root = canonicalize_best_effort(&workspace.root_path);
+            if canonical_working_dir == canonical_root
+                || canonical_working_dir.starts_with(&canonical_root)
+            {
+                Some((canonical_root.components().count(), workspace))
+            } else {
+                None
+            }
+        })
+        .max_by_key(|(depth, _)| *depth)
+        .map(|(_, workspace)| workspace);
+
+    Ok(matched)
+}
+
+fn canonicalize_best_effort(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SubagentWorktreeCloseOutcome {
+    NotEnabled,
+    RemovedClean,
+    KeptDirty,
+    CleanupFailed,
+}
+
+fn build_subagent_worktree_slug(session_id: &str) -> String {
+    let suffix = session_id
+        .chars()
+        .filter(|char| char.is_ascii_alphanumeric())
+        .take(8)
+        .collect::<String>();
+    if suffix.is_empty() {
+        "agent-worktree".to_string()
+    } else {
+        format!("agent-{suffix}")
+    }
+}
+
+async fn maybe_enter_subagent_worktree(
+    session_id: &str,
+    working_dir: &Path,
+    effective_isolation: Option<&str>,
+) -> Result<(), String> {
+    if effective_isolation != Some("worktree") {
+        return Ok(());
+    }
+
+    let context =
+        ToolContext::new(working_dir.to_path_buf()).with_session_id(session_id.to_string());
+    aster::tools::EnterWorktreeTool::new()
+        .execute(
+            serde_json::json!({
+                "name": build_subagent_worktree_slug(session_id),
+            }),
+            &context,
+        )
+        .await
+        .map(|_| ())
+        .map_err(|error| format!("创建 subagent worktree 失败: {error}"))
+}
+
+fn should_preserve_subagent_worktree_on_close(error_text: &str) -> bool {
+    error_text.contains("discard_changes: true") || error_text.contains("use action: \"keep\"")
+}
+
+async fn cleanup_subagent_worktree_for_close(
+    session: &aster::session::Session,
+) -> SubagentWorktreeCloseOutcome {
+    if aster::session::WorktreeSessionState::from_extension_data(&session.extension_data).is_none()
+    {
+        return SubagentWorktreeCloseOutcome::NotEnabled;
+    }
+
+    let context = ToolContext::new(session.working_dir.clone()).with_session_id(session.id.clone());
+    match aster::tools::ExitWorktreeTool::new()
+        .execute(serde_json::json!({ "action": "remove" }), &context)
+        .await
+    {
+        Ok(_) => SubagentWorktreeCloseOutcome::RemovedClean,
+        Err(error) => {
+            let error_text = error.to_string();
+            if should_preserve_subagent_worktree_on_close(&error_text) {
+                tracing::info!(
+                    "[AsterAgent][Subagent] 关闭 child session={} 时检测到 worktree 有改动，保留现状以便后续恢复",
+                    session.id
+                );
+                SubagentWorktreeCloseOutcome::KeptDirty
+            } else {
+                tracing::warn!(
+                    "[AsterAgent][Subagent] 关闭 child session={} 时清理 worktree 失败，保留现状: {}",
+                    session.id,
+                    error_text
+                );
+                SubagentWorktreeCloseOutcome::CleanupFailed
+            }
+        }
+    }
+}
+
+struct MissingSubagentWorktreeRestore {
+    original_cwd: PathBuf,
+    original_cwd_display: String,
+    extension_data: aster::session::ExtensionData,
+}
+
+fn resolve_missing_subagent_worktree_restore(
+    session: &aster::session::Session,
+) -> Result<Option<MissingSubagentWorktreeRestore>, String> {
+    let Some(state) =
+        aster::session::WorktreeSessionState::from_extension_data(&session.extension_data)
+    else {
+        return Ok(None);
+    };
+
+    if Path::new(&state.worktree_path).is_dir() {
+        return Ok(None);
+    }
+
+    let original_cwd = PathBuf::from(&state.original_cwd);
+    if !original_cwd.is_dir() {
+        return Err(format!(
+            "子代理 worktree 已丢失，且原目录不可用: {}",
+            state.original_cwd
+        ));
+    }
+
+    let mut extension_data = session.extension_data.clone();
+    extension_data.remove_extension_state(
+        aster::session::WorktreeSessionState::EXTENSION_NAME,
+        aster::session::WorktreeSessionState::VERSION,
+    );
+
+    Ok(Some(MissingSubagentWorktreeRestore {
+        original_cwd,
+        original_cwd_display: state.original_cwd,
+        extension_data,
+    }))
+}
+
+async fn restore_missing_subagent_worktree_if_needed(
+    session: aster::session::Session,
+) -> Result<aster::session::Session, String> {
+    let Some(restore) = resolve_missing_subagent_worktree_restore(&session)? else {
+        return Ok(session);
+    };
+
+    tracing::warn!(
+        "[AsterAgent][Subagent] 检测到 child session={} 的 worktree 已被外部移除，回退到原目录 {}",
+        session.id,
+        restore.original_cwd_display
+    );
+
+    aster::session::apply_session_update(&session.id, |update| {
+        update
+            .working_dir(restore.original_cwd.clone())
+            .extension_data(restore.extension_data)
+    })
+    .await
+    .map_err(|error| format!("worktree 丢失后回退子代理目录失败: {error}"))?;
+
+    read_session(&session.id, false, "worktree 丢失后刷新子代理 session 失败").await
+}
+
+fn should_auto_cleanup_subagent_worktree(status: SubagentRuntimeStatusKind) -> bool {
+    matches!(
+        status,
+        SubagentRuntimeStatusKind::Completed
+            | SubagentRuntimeStatusKind::Failed
+            | SubagentRuntimeStatusKind::Aborted
+    )
+}
+
+async fn maybe_cleanup_subagent_worktree_after_runtime_event(
+    session_id: &str,
+) -> Result<(), String> {
+    let status = load_subagent_runtime_status(session_id).await?;
+    if status.closed || !should_auto_cleanup_subagent_worktree(status.kind) {
+        return Ok(());
+    }
+
+    let session = read_session(
+        session_id,
+        false,
+        "自动清理 subagent worktree 时读取 session 失败",
+    )
+    .await?;
+    let session = restore_missing_subagent_worktree_if_needed(session).await?;
+    match cleanup_subagent_worktree_for_close(&session).await {
+        SubagentWorktreeCloseOutcome::RemovedClean => tracing::info!(
+            "[AsterAgent][Subagent] child session={} 已结束，自动清理干净的 worktree",
+            session_id
+        ),
+        SubagentWorktreeCloseOutcome::KeptDirty => tracing::info!(
+            "[AsterAgent][Subagent] child session={} 已结束，但 worktree 含改动，保留现状以便后续继续",
+            session_id
+        ),
+        SubagentWorktreeCloseOutcome::CleanupFailed
+        | SubagentWorktreeCloseOutcome::NotEnabled => {}
+    }
+
+    Ok(())
 }
 
 fn normalize_wait_timeout_ms(timeout_ms: Option<i64>) -> Result<i64, String> {
@@ -727,15 +1065,37 @@ async fn create_runtime_subagent_session(
     }
     enforce_team_spawn_limits(&parent_session_id).await?;
     let parent_session = read_session(&parent_session_id, false, "读取父会话失败").await?;
-    let customization = build_subagent_customization_state(request)?;
+    let access_mode = resolve_spawn_request_access_mode(
+        &parent_session_id,
+        &parent_session,
+        normalize_optional_text(request.mode.clone()).as_deref(),
+    )?;
+    let working_dir =
+        resolve_spawn_working_dir(parent_session.working_dir.as_path(), request.cwd.clone())?;
+    let plugin_agent = resolve_requested_runtime_plugin_agent_definition(
+        normalize_optional_text(request.agent_type.clone()).as_deref(),
+        working_dir.as_path(),
+        dirs::home_dir().as_deref(),
+    )?;
+    let effective_run_in_background =
+        resolve_effective_run_in_background(request, plugin_agent.as_ref());
+    let effective_isolation = resolve_effective_isolation(request, plugin_agent.as_ref());
+    validate_effective_spawn_isolation(
+        effective_isolation.as_deref(),
+        normalize_optional_text(request.cwd.clone()).as_deref(),
+    )?;
+    let customization =
+        build_subagent_customization_state_with_plugin_agent(request, plugin_agent.as_ref())?;
     let system_prompt = build_subagent_customization_system_prompt(customization.as_ref())?;
     let profile_name = customization
         .as_ref()
         .and_then(|state| state.profile_name.as_deref());
     let role_hint = resolve_subagent_role_hint(request, customization.as_ref());
-    let access_mode = resolve_subagent_request_access_mode(&parent_session_id, &parent_session);
-    let working_dir =
-        resolve_spawn_working_dir(parent_session.working_dir.as_path(), request.cwd.clone())?;
+    let resolved_model = normalize_optional_text(request.model.clone()).or_else(|| {
+        plugin_agent
+            .as_ref()
+            .and_then(|agent| normalize_optional_text(agent.model.clone()))
+    });
 
     let session = create_subagent_session(
         working_dir,
@@ -785,6 +1145,12 @@ async fn create_runtime_subagent_session(
         "写入 subagent session metadata",
     )
     .await?;
+    maybe_enter_subagent_worktree(
+        &session.id,
+        session.working_dir.as_path(),
+        effective_isolation.as_deref(),
+    )
+    .await?;
     AsterAgentWrapper::persist_session_recent_access_mode(&session.id, access_mode).await?;
     if let (Some(team_name), Some(teammate_name)) = (team_name, teammate_name.clone()) {
         register_spawned_teammate(
@@ -801,7 +1167,7 @@ async fn create_runtime_subagent_session(
         runtime,
         &parent_session_id,
         &session.id,
-        request.model.as_deref(),
+        resolved_model.as_deref(),
     )
     .await?;
     register_runtime_subagent_frontmatter_hooks(
@@ -810,13 +1176,58 @@ async fn create_runtime_subagent_session(
             .as_ref()
             .and_then(|state| state.hooks.as_ref()),
     );
+    let session = read_session(&session.id, false, "读取子代理 session 失败").await?;
 
     Ok(PreparedRuntimeSubagentSession {
         session,
         customization,
         system_prompt,
         access_mode,
+        effective_run_in_background,
+        effective_isolation,
     })
+}
+
+fn resolve_effective_run_in_background(
+    request: &AgentRuntimeSpawnSubagentRequest,
+    plugin_agent: Option<&RuntimePluginAgentDefinition>,
+) -> bool {
+    request.run_in_background || plugin_agent.map(|agent| agent.background).unwrap_or(false)
+}
+
+fn resolve_effective_isolation(
+    request: &AgentRuntimeSpawnSubagentRequest,
+    plugin_agent: Option<&RuntimePluginAgentDefinition>,
+) -> Option<String> {
+    normalize_optional_text(request.isolation.clone())
+        .or_else(|| plugin_agent.and_then(|agent| agent.isolation.clone()))
+}
+
+fn validate_effective_spawn_isolation(
+    effective_isolation: Option<&str>,
+    requested_cwd: Option<&str>,
+) -> Result<(), String> {
+    match effective_isolation
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None => Ok(()),
+        Some("worktree") => {
+            if requested_cwd.is_some() {
+                return Err(
+                    "cwd 目前不能与 isolation=worktree 组合；当前 persistent subagent runtime 还不能诚实承接这组 upstream 语义"
+                        .to_string(),
+                );
+            }
+            Ok(())
+        }
+        Some("remote") => {
+            Err("isolation `remote` is not supported in the current runtime".to_string())
+        }
+        Some(other) => Err(format!(
+            "isolation `{other}` is not supported in the current runtime; supported value: worktree"
+        )),
+    }
 }
 
 fn spawn_subagent_turn_in_background(
@@ -848,6 +1259,8 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
         customization,
         system_prompt,
         access_mode,
+        effective_run_in_background,
+        effective_isolation,
     } = create_runtime_subagent_session(runtime, &request).await?;
     let child_session_id = child_session.id.clone();
     let workspace_id =
@@ -878,11 +1291,11 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
                     "name": request.name,
                     "team_name": request.team_name,
                     "agent_type": request.agent_type,
-                    "run_in_background": request.run_in_background,
+                    "run_in_background": effective_run_in_background,
                     "reasoning_effort": request.reasoning_effort,
                     "fork_context": request.fork_context,
                     "mode": request.mode,
-                    "isolation": request.isolation,
+                    "isolation": effective_isolation,
                     "cwd": request.cwd,
                     "origin_tool": "Agent",
                     "blueprint_role_id": customization.as_ref().and_then(|state| state.blueprint_role_id.clone()),
@@ -932,6 +1345,7 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
     }
 
     let (session, _) = read_subagent_control_state(&session_id).await?;
+    let session = restore_missing_subagent_worktree_if_needed(session).await?;
     let access_mode = resolve_subagent_request_access_mode(&session_id, &session);
     let customization = SubagentCustomizationState::from_session(&session);
     let system_prompt = build_subagent_customization_system_prompt(customization.as_ref())?;
@@ -1056,6 +1470,7 @@ pub(crate) async fn agent_runtime_resume_subagent_internal(
     let mut changed_ids = Vec::new();
     for target_id in target_ids {
         let (session, control_state) = read_subagent_control_state(&target_id).await?;
+        let session = restore_missing_subagent_worktree_if_needed(session).await?;
         if !control_state.closed {
             continue;
         }
@@ -1108,6 +1523,7 @@ pub(crate) async fn agent_runtime_close_subagent_internal(
     let mut changed_ids = Vec::new();
     for target_id in target_ids {
         let (session, control_state) = read_subagent_control_state(&target_id).await?;
+        let session = restore_missing_subagent_worktree_if_needed(session).await?;
         if control_state.closed {
             continue;
         }
@@ -1117,11 +1533,27 @@ pub(crate) async fn agent_runtime_close_subagent_internal(
             .clear_runtime_queue(&target_id)
             .await
             .unwrap_or_default();
+        let worktree_close_outcome = cleanup_subagent_worktree_for_close(&session).await;
+        let session = read_session(&target_id, false, "关闭子代理后刷新 session 失败")
+            .await
+            .unwrap_or(session);
         let next_state = SubagentControlState::closed(
             Some(SUBAGENT_CONTROL_CLOSE_REASON.to_string()),
             merge_stashed_queued_turns(control_state.stashed_queued_turns, cleared_queued_turns),
         );
         write_subagent_control_state(&session, &next_state).await?;
+        match worktree_close_outcome {
+            SubagentWorktreeCloseOutcome::RemovedClean => tracing::info!(
+                "[AsterAgent][Subagent] 关闭 child session={} 时已自动清理干净的 worktree",
+                target_id
+            ),
+            SubagentWorktreeCloseOutcome::KeptDirty => tracing::info!(
+                "[AsterAgent][Subagent] 关闭 child session={} 时保留含改动的 worktree，后续 resume 将继续沿用",
+                target_id
+            ),
+            SubagentWorktreeCloseOutcome::CleanupFailed
+            | SubagentWorktreeCloseOutcome::NotEnabled => {}
+        }
         changed_ids.push(target_id);
     }
 
@@ -1139,6 +1571,16 @@ pub(crate) async fn agent_runtime_close_subagent_internal(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aster::session::WorktreeSessionState;
+    use lime_core::database::schema::create_tables;
+    use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
+
+    fn setup_workspace_test_db() -> DbConnection {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        create_tables(&conn).expect("create schema");
+        Arc::new(Mutex::new(conn))
+    }
 
     #[test]
     fn test_build_subagent_session_name_prefers_explicit_name() {
@@ -1203,7 +1645,8 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_spawn_request_surface_rejects_mode_and_isolation() {
+    fn test_validate_spawn_request_surface_accepts_supported_modes_and_rejects_unsupported_values()
+    {
         let request = AgentRuntimeSpawnSubagentRequest {
             parent_session_id: "parent-1".to_string(),
             message: "定位当前 team runtime 差异".to_string(),
@@ -1228,25 +1671,44 @@ mod tests {
             hooks: None,
             allowed_tools: Vec::new(),
             disallowed_tools: Vec::new(),
-            mode: Some("plan".to_string()),
+            mode: Some("acceptEdits".to_string()),
             isolation: None,
             cwd: None,
         };
 
+        validate_spawn_request_surface(&request)
+            .expect("acceptEdits should map to current access mode");
+
+        let default_request = AgentRuntimeSpawnSubagentRequest {
+            mode: Some("default".to_string()),
+            ..request.clone()
+        };
+        validate_spawn_request_surface(&default_request)
+            .expect("default should inherit parent access mode");
+
+        let dont_ask_request = AgentRuntimeSpawnSubagentRequest {
+            mode: Some("dontAsk".to_string()),
+            ..request.clone()
+        };
+        validate_spawn_request_surface(&dont_ask_request)
+            .expect("dontAsk should map to full access");
+
+        let unsupported_mode_request = AgentRuntimeSpawnSubagentRequest {
+            mode: Some("plan".to_string()),
+            ..request.clone()
+        };
         assert_eq!(
-            validate_spawn_request_surface(&request).unwrap_err(),
-            "mode is not supported in the current runtime"
+            validate_spawn_request_surface(&unsupported_mode_request).unwrap_err(),
+            "mode `plan` is not supported in the current runtime; use EnterPlanMode/ExitPlanMode instead"
         );
 
-        let isolation_request = AgentRuntimeSpawnSubagentRequest {
-            mode: None,
-            isolation: Some("worktree".to_string()),
+        let bypass_request = AgentRuntimeSpawnSubagentRequest {
+            mode: Some("bypassPermissions".to_string()),
             ..request
         };
-
         assert_eq!(
-            validate_spawn_request_surface(&isolation_request).unwrap_err(),
-            "isolation is not supported in the current runtime"
+            validate_spawn_request_surface(&bypass_request).unwrap_err(),
+            "mode `bypassPermissions` is not supported in the current runtime"
         );
     }
 
@@ -1270,6 +1732,31 @@ mod tests {
 
         assert_eq!(
             resolve_subagent_request_access_mode("child-2", &session),
+            lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly
+        );
+    }
+
+    #[test]
+    fn test_resolve_spawn_request_access_mode_prefers_supported_mode_override() {
+        let mut session = aster::session::Session::default();
+        session.id = "child-3".to_string();
+        lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly
+            .to_extension_data(&mut session.extension_data)
+            .expect("persist access mode");
+
+        assert_eq!(
+            resolve_spawn_request_access_mode("child-3", &session, Some("acceptEdits"))
+                .expect("acceptEdits should be supported"),
+            lime_agent::SessionExecutionRuntimeAccessMode::Current
+        );
+        assert_eq!(
+            resolve_spawn_request_access_mode("child-3", &session, Some("dontAsk"))
+                .expect("dontAsk should be supported"),
+            lime_agent::SessionExecutionRuntimeAccessMode::FullAccess
+        );
+        assert_eq!(
+            resolve_spawn_request_access_mode("child-3", &session, Some("default"))
+                .expect("default should inherit"),
             lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly
         );
     }
@@ -1364,5 +1851,299 @@ mod tests {
         );
 
         aster::hooks::clear_session_hooks("runtime-subagent-hook");
+    }
+
+    #[test]
+    fn test_build_subagent_customization_state_with_plugin_agent_applies_runtime_overlay_and_tool_scope(
+    ) {
+        let plugin_agent = RuntimePluginAgentDefinition {
+            agent_type: "research-kit:reviewer".to_string(),
+            when_to_use: "审查当前实现".to_string(),
+            system_prompt: "你是插件里的 reviewer agent。".to_string(),
+            model: Some("gpt-5.4".to_string()),
+            background: false,
+            isolation: None,
+            allowed_tools: vec!["Read".to_string(), "Bash".to_string()],
+            disallowed_tools: vec!["WebSearch".to_string()],
+            plugin_id: "research-kit@market".to_string(),
+            plugin_name: "research-kit".to_string(),
+            source_file: PathBuf::from("/tmp/reviewer.md"),
+        };
+        let customization = build_subagent_customization_state_with_plugin_agent(
+            &AgentRuntimeSpawnSubagentRequest {
+                parent_session_id: "parent-1".to_string(),
+                message: "检查 plugin agent".to_string(),
+                name: None,
+                team_name: None,
+                agent_type: Some("research-kit:reviewer".to_string()),
+                model: None,
+                run_in_background: false,
+                reasoning_effort: None,
+                fork_context: false,
+                blueprint_role_id: None,
+                blueprint_role_label: None,
+                profile_id: None,
+                profile_name: None,
+                role_key: None,
+                skill_ids: Vec::new(),
+                skill_directories: Vec::new(),
+                team_preset_id: None,
+                theme: None,
+                system_overlay: Some("优先输出证据。".to_string()),
+                output_contract: None,
+                hooks: None,
+                allowed_tools: vec!["Read".to_string(), "Edit".to_string()],
+                disallowed_tools: vec!["Bash".to_string()],
+                mode: None,
+                isolation: None,
+                cwd: None,
+            },
+            Some(&plugin_agent),
+        )
+        .expect("customization build should succeed")
+        .expect("customization should exist");
+
+        assert_eq!(customization.allowed_tools, vec!["Read"]);
+        assert_eq!(customization.disallowed_tools, vec!["WebSearch", "Bash"]);
+        assert!(customization
+            .system_overlay
+            .as_deref()
+            .unwrap_or_default()
+            .contains("你是插件里的 reviewer agent。"));
+        assert!(customization
+            .system_overlay
+            .as_deref()
+            .unwrap_or_default()
+            .contains("优先输出证据。"));
+    }
+
+    #[test]
+    fn test_resolve_effective_run_in_background_prefers_plugin_agent_background() {
+        let request = AgentRuntimeSpawnSubagentRequest {
+            parent_session_id: "parent-1".to_string(),
+            message: "检查 plugin agent background".to_string(),
+            name: None,
+            team_name: None,
+            agent_type: Some("research-kit:reviewer".to_string()),
+            model: None,
+            run_in_background: false,
+            reasoning_effort: None,
+            fork_context: false,
+            blueprint_role_id: None,
+            blueprint_role_label: None,
+            profile_id: None,
+            profile_name: None,
+            role_key: None,
+            skill_ids: Vec::new(),
+            skill_directories: Vec::new(),
+            team_preset_id: None,
+            theme: None,
+            system_overlay: None,
+            output_contract: None,
+            hooks: None,
+            allowed_tools: Vec::new(),
+            disallowed_tools: Vec::new(),
+            mode: None,
+            isolation: None,
+            cwd: None,
+        };
+        let plugin_agent = RuntimePluginAgentDefinition {
+            agent_type: "research-kit:reviewer".to_string(),
+            when_to_use: "审查当前实现".to_string(),
+            system_prompt: "你是插件里的 reviewer agent。".to_string(),
+            model: None,
+            background: true,
+            isolation: None,
+            allowed_tools: Vec::new(),
+            disallowed_tools: Vec::new(),
+            plugin_id: "research-kit@market".to_string(),
+            plugin_name: "research-kit".to_string(),
+            source_file: PathBuf::from("/tmp/reviewer.md"),
+        };
+
+        assert!(resolve_effective_run_in_background(
+            &request,
+            Some(&plugin_agent)
+        ));
+        assert!(resolve_effective_run_in_background(
+            &AgentRuntimeSpawnSubagentRequest {
+                run_in_background: true,
+                ..request.clone()
+            },
+            None,
+        ));
+        assert!(!resolve_effective_run_in_background(&request, None));
+    }
+
+    #[test]
+    fn test_resolve_effective_isolation_prefers_request_then_plugin_agent() {
+        let request = AgentRuntimeSpawnSubagentRequest {
+            parent_session_id: "parent-1".to_string(),
+            message: "检查 plugin agent isolation".to_string(),
+            name: None,
+            team_name: None,
+            agent_type: Some("research-kit:reviewer".to_string()),
+            model: None,
+            run_in_background: false,
+            reasoning_effort: None,
+            fork_context: false,
+            blueprint_role_id: None,
+            blueprint_role_label: None,
+            profile_id: None,
+            profile_name: None,
+            role_key: None,
+            skill_ids: Vec::new(),
+            skill_directories: Vec::new(),
+            team_preset_id: None,
+            theme: None,
+            system_overlay: None,
+            output_contract: None,
+            hooks: None,
+            allowed_tools: Vec::new(),
+            disallowed_tools: Vec::new(),
+            mode: None,
+            isolation: None,
+            cwd: None,
+        };
+        let plugin_agent = RuntimePluginAgentDefinition {
+            agent_type: "research-kit:reviewer".to_string(),
+            when_to_use: "审查当前实现".to_string(),
+            system_prompt: "你是插件里的 reviewer agent。".to_string(),
+            model: None,
+            background: false,
+            isolation: Some("worktree".to_string()),
+            allowed_tools: Vec::new(),
+            disallowed_tools: Vec::new(),
+            plugin_id: "research-kit@market".to_string(),
+            plugin_name: "research-kit".to_string(),
+            source_file: PathBuf::from("/tmp/reviewer.md"),
+        };
+
+        assert_eq!(
+            resolve_effective_isolation(&request, Some(&plugin_agent)).as_deref(),
+            Some("worktree")
+        );
+        assert_eq!(
+            resolve_effective_isolation(
+                &AgentRuntimeSpawnSubagentRequest {
+                    isolation: Some("remote".to_string()),
+                    ..request.clone()
+                },
+                Some(&plugin_agent),
+            )
+            .as_deref(),
+            Some("remote")
+        );
+        assert_eq!(resolve_effective_isolation(&request, None), None);
+    }
+
+    #[test]
+    fn test_validate_effective_spawn_isolation_accepts_worktree_and_rejects_unsupported_values() {
+        assert!(validate_effective_spawn_isolation(None, None).is_ok());
+        assert!(validate_effective_spawn_isolation(Some("worktree"), None).is_ok());
+        assert_eq!(
+            validate_effective_spawn_isolation(Some("remote"), None).unwrap_err(),
+            "isolation `remote` is not supported in the current runtime"
+        );
+        assert_eq!(
+            validate_effective_spawn_isolation(Some("worktree"), Some("/tmp/project"))
+                .unwrap_err(),
+            "cwd 目前不能与 isolation=worktree 组合；当前 persistent subagent runtime 还不能诚实承接这组 upstream 语义"
+        );
+    }
+
+    #[test]
+    fn test_resolve_workspace_id_for_working_dir_prefers_longest_ancestor_workspace() {
+        let db = setup_workspace_test_db();
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let root = temp_dir.path().join("repo");
+        let nested = root.join("packages/app");
+        std::fs::create_dir_all(&nested).expect("create nested dir");
+        let worktree_path = root.join(".aster/worktrees/agent-12345678");
+        std::fs::create_dir_all(&worktree_path).expect("create worktree dir");
+
+        let manager = WorkspaceManager::new(db.clone());
+        let workspace = manager
+            .create("Repo".to_string(), root.clone())
+            .expect("create workspace");
+
+        assert_eq!(
+            resolve_workspace_id_for_working_dir(&db, nested.as_path()).expect("resolve nested"),
+            workspace.id
+        );
+        assert_eq!(
+            resolve_workspace_id_for_working_dir(&db, worktree_path.as_path())
+                .expect("resolve worktree"),
+            workspace.id
+        );
+    }
+
+    #[test]
+    fn test_build_subagent_worktree_slug_uses_session_prefix() {
+        assert_eq!(
+            build_subagent_worktree_slug("3d813923-ab29-4109-a2bb-eae7f9b85004"),
+            "agent-3d813923"
+        );
+    }
+
+    #[test]
+    fn test_should_preserve_subagent_worktree_on_close_detects_dirty_prompt() {
+        assert!(should_preserve_subagent_worktree_on_close(
+            "Worktree has 1 uncommitted file. Removing will discard this work permanently. Confirm with the user, then re-invoke with discard_changes: true, or use action: \"keep\" to preserve the worktree."
+        ));
+        assert!(!should_preserve_subagent_worktree_on_close(
+            "No-op: there is no active EnterWorktree session to exit."
+        ));
+    }
+
+    #[test]
+    fn test_should_auto_cleanup_subagent_worktree_only_for_final_runtime_statuses() {
+        assert!(should_auto_cleanup_subagent_worktree(
+            SubagentRuntimeStatusKind::Completed
+        ));
+        assert!(should_auto_cleanup_subagent_worktree(
+            SubagentRuntimeStatusKind::Failed
+        ));
+        assert!(should_auto_cleanup_subagent_worktree(
+            SubagentRuntimeStatusKind::Aborted
+        ));
+        assert!(!should_auto_cleanup_subagent_worktree(
+            SubagentRuntimeStatusKind::Idle
+        ));
+        assert!(!should_auto_cleanup_subagent_worktree(
+            SubagentRuntimeStatusKind::Running
+        ));
+        assert!(!should_auto_cleanup_subagent_worktree(
+            SubagentRuntimeStatusKind::Closed
+        ));
+    }
+
+    #[test]
+    fn test_resolve_missing_subagent_worktree_restore_falls_back_to_original_cwd() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let repo = temp_dir.path().join("repo");
+        std::fs::create_dir_all(&repo).expect("create repo dir");
+        let worktree_path = repo.join(".aster/worktrees/agent-test-missing");
+
+        let mut session = aster::session::Session::default();
+        session.id = "child-missing-worktree".to_string();
+        session.working_dir = worktree_path.clone();
+        WorktreeSessionState {
+            original_cwd: repo.display().to_string(),
+            git_root: repo.display().to_string(),
+            worktree_path: worktree_path.display().to_string(),
+            worktree_branch: Some("aster/worktree/agent-test-missing".to_string()),
+            original_head_commit: Some("deadbeef".to_string()),
+            slug: "agent-test-missing".to_string(),
+        }
+        .to_extension_data(&mut session.extension_data)
+        .expect("persist fake worktree state");
+
+        let restore = resolve_missing_subagent_worktree_restore(&session)
+            .expect("resolve restore should succeed")
+            .expect("missing worktree should require restore");
+
+        assert_eq!(restore.original_cwd, repo);
+        assert!(WorktreeSessionState::from_extension_data(&restore.extension_data).is_none());
     }
 }

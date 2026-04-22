@@ -14,7 +14,6 @@ const TYPE_FILTER_OPTIONS: Array<{
 }> = [
   { value: "all", label: "全部做法" },
   { value: "hybrid", label: "整套组合" },
-  { value: "cloud_managed", label: "目录同步" },
   { value: "browser_grounded", label: "浏览器执行" },
   { value: "local_durable", label: "持续回流" },
   { value: "local_instant", label: "本地执行" },

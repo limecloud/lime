@@ -2,6 +2,10 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  SceneAppCurrentDescriptor,
+  SceneAppCurrentPlanResult,
+} from "@/lib/api/sceneapp";
 import { AutomationSettings } from ".";
 
 const {
@@ -106,6 +110,94 @@ vi.mock("sonner", () => ({
 }));
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
+
+type SceneAppPlanResultOverrides = {
+  descriptor?: Partial<SceneAppCurrentPlanResult["descriptor"]>;
+  readiness?: Partial<SceneAppCurrentPlanResult["readiness"]>;
+  plan?: Partial<Omit<SceneAppCurrentPlanResult["plan"], "adapterPlan">> & {
+    adapterPlan?: Partial<SceneAppCurrentPlanResult["plan"]["adapterPlan"]>;
+  };
+  projectPackPlan?: Partial<
+    NonNullable<SceneAppCurrentPlanResult["projectPackPlan"]>
+  >;
+};
+
+function createSceneAppDescriptorMock(
+  overrides: Partial<SceneAppCurrentDescriptor> = {},
+): SceneAppCurrentDescriptor {
+  return {
+    id: "story-video-suite",
+    title: "故事短视频套件",
+    summary: "围绕故事线、镜头脚本与短视频主稿组织完整结果链。",
+    category: "content",
+    sceneappType: "hybrid",
+    patternPrimary: "pipeline",
+    patternStack: ["pipeline", "generator", "inversion"],
+    capabilityRefs: ["agent_turn", "workspace_storage"],
+    infraProfile: ["composition_blueprint", "json_snapshot"],
+    deliveryContract: "project_pack",
+    outputHint: "输出可继续发布的短视频项目包。",
+    entryBindings: [],
+    launchRequirements: [],
+    deliveryProfile: {
+      viewerKind: "artifact_bundle",
+      primaryPart: "brief",
+      requiredParts: ["brief", "script"],
+    },
+    sourcePackageId: "lime-core-sceneapps",
+    sourcePackageVersion: "2.0.0",
+    ...overrides,
+  };
+}
+
+function createSceneAppPlanResultMock(
+  overrides: SceneAppPlanResultOverrides = {},
+): SceneAppCurrentPlanResult {
+  const planOverrides = overrides.plan ?? {};
+  const adapterPlanOverrides = planOverrides.adapterPlan ?? {};
+
+  return {
+    descriptor: createSceneAppDescriptorMock(overrides.descriptor),
+    readiness: {
+      ready: true,
+      unmetRequirements: [],
+      ...(overrides.readiness ?? {}),
+    },
+    plan: {
+      sceneappId: planOverrides.sceneappId ?? "story-video-suite",
+      executorKind: planOverrides.executorKind ?? "agent_turn",
+      bindingFamily: planOverrides.bindingFamily ?? "agent_turn",
+      stepPlan: planOverrides.stepPlan ?? [],
+      adapterPlan: {
+        adapterKind: adapterPlanOverrides.adapterKind ?? "agent_turn",
+        runtimeAction:
+          adapterPlanOverrides.runtimeAction ?? "submit_agent_turn",
+        targetRef: adapterPlanOverrides.targetRef ?? "story-video-suite",
+        targetLabel:
+          adapterPlanOverrides.targetLabel ?? "故事短视频套件",
+        requestMetadata: adapterPlanOverrides.requestMetadata ?? {},
+        launchPayload: adapterPlanOverrides.launchPayload ?? {},
+        notes: adapterPlanOverrides.notes ?? [],
+        linkedServiceSkillId: adapterPlanOverrides.linkedServiceSkillId,
+        linkedSceneKey: adapterPlanOverrides.linkedSceneKey,
+        preferredProfileKey: adapterPlanOverrides.preferredProfileKey,
+      },
+      storageStrategy: planOverrides.storageStrategy ?? "project_pack",
+      artifactContract: planOverrides.artifactContract ?? "project_pack",
+      governanceHooks: planOverrides.governanceHooks ?? [],
+      warnings: planOverrides.warnings ?? [],
+    },
+    projectPackPlan: {
+      packKind: "project_pack",
+      primaryPart: "brief",
+      requiredParts: ["brief", "script"],
+      viewerKind: "artifact_bundle",
+      completionStrategy: "required_parts_complete",
+      notes: ["按 Project Pack 对齐"],
+      ...(overrides.projectPackPlan ?? {}),
+    },
+  };
+}
 
 beforeEach(() => {
   (
@@ -1092,28 +1184,7 @@ describe("AutomationSettings", () => {
         updated_at: "2026-03-16T09:00:10Z",
       },
     ]);
-    mockGetSceneAppDescriptor.mockResolvedValue({
-      id: "story-video-suite",
-      title: "故事短视频套件",
-      summary: "围绕故事线、镜头脚本与短视频主稿组织完整结果链。",
-      category: "content",
-      sceneappType: "hybrid",
-      patternPrimary: "multi_stage_delivery",
-      patternStack: ["multi_stage_delivery", "cloud_execution"],
-      capabilityRefs: ["agent_turn", "cloud_scene"],
-      infraProfile: ["cloud_model", "json_snapshot"],
-      deliveryContract: "project_pack",
-      outputHint: "输出可继续发布的短视频项目包。",
-      entryBindings: [],
-      launchRequirements: [],
-      deliveryProfile: {
-        viewerKind: "project_pack",
-        primaryPart: "brief",
-        requiredParts: ["brief", "script"],
-      },
-      sourcePackageId: "lime-core-sceneapps",
-      sourcePackageVersion: "2.0.0",
-    });
+    mockGetSceneAppDescriptor.mockResolvedValue(createSceneAppDescriptorMock());
     mockGetSceneAppScorecard.mockResolvedValue({
       sceneappId: "story-video-suite",
       updatedAt: "2026-03-16T09:05:00Z",
@@ -1130,38 +1201,7 @@ describe("AutomationSettings", () => {
       observedFailureSignals: [],
       topFailureSignal: null,
     });
-    mockPlanSceneAppLaunch.mockResolvedValue({
-      descriptor: {
-        id: "story-video-suite",
-      },
-      readiness: {
-        ready: true,
-        unmetRequirements: [],
-      },
-      plan: {
-        executorKind: "cloud_scene",
-        bindingFamily: "cloud_scene",
-        stepPlan: [],
-        adapterPlan: {
-          runtimeAction: "submit_agent_turn",
-          bindingFamily: "cloud_scene",
-          adapterKind: "cloud_scene",
-          requestMetadata: {},
-        },
-        storageStrategy: "project_pack",
-        artifactContract: "project_pack",
-        governanceHooks: [],
-        warnings: [],
-      },
-      projectPackPlan: {
-        packKind: "project_pack",
-        primaryPart: "brief",
-        requiredParts: ["brief", "script"],
-        viewerKind: "project_pack",
-        completionStrategy: "required_parts_complete",
-        notes: ["按 Project Pack 对齐"],
-      },
-    });
+    mockPlanSceneAppLaunch.mockResolvedValue(createSceneAppPlanResultMock());
     const sceneAppRunSummary = {
       runId: "run-sceneapp-1",
       sceneappId: "story-video-suite",

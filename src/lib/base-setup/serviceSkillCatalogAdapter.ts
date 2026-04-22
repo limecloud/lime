@@ -2,8 +2,8 @@ import { getRuntimeAppVersion } from "@/lib/appVersion";
 import type {
   ServiceSkillArtifactKind,
   ServiceSkillCatalog,
-  ServiceSkillExecutionLocation,
-  ServiceSkillExecutorBinding,
+  ServiceSkillAnyExecutionLocation,
+  ServiceSkillAnyExecutorBinding,
   ServiceSkillPromptTemplateKey,
   ServiceSkillRunnerType,
   ServiceSkillSceneBinding,
@@ -211,7 +211,7 @@ function toBindingProfile(
 
   return {
     id,
-    bindingFamily: bindingFamily as ServiceSkillExecutorBinding,
+    bindingFamily: bindingFamily as ServiceSkillAnyExecutorBinding,
     runnerType: readString(record, "runnerType", "runner_type") as
       | ServiceSkillRunnerType
       | undefined,
@@ -219,7 +219,7 @@ function toBindingProfile(
       record,
       "executionLocation",
       "execution_location",
-    ) as ServiceSkillExecutionLocation | undefined,
+    ) as ServiceSkillAnyExecutionLocation | undefined,
     capabilityRefs,
     timeoutSecs: typeof timeoutSecs === "number" ? timeoutSecs : undefined,
     retryLimit: typeof retryLimit === "number" ? retryLimit : undefined,

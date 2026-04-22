@@ -1020,7 +1020,7 @@ pub(crate) fn build_team_preference_system_prompt(
     }
 
     lines.push(
-        "- Agent 支持这些结构化字段：description、prompt、subagent_type、model、run_in_background、name、team_name（别名 teamName）、reasoning_effort、fork_context、blueprint_role_id（别名 blueprintRoleId）、blueprint_role_label、profile_id、profile_name、role_key、skill_ids、skill_directories、team_preset_id、theme、system_overlay、output_contract、cwd、mode、isolation。team_name 需要与 name 搭配，并依附现有 team 上下文；当前 runtime 仍会拒绝非空 mode / isolation。"
+        "- Agent 支持这些结构化字段：description、prompt、subagent_type、model、run_in_background、name、team_name（别名 teamName）、reasoning_effort、fork_context、blueprint_role_id（别名 blueprintRoleId）、blueprint_role_label、profile_id、profile_name、role_key、skill_ids、skill_directories、team_preset_id、theme、system_overlay、output_contract、cwd、mode、isolation。team_name 需要与 name 搭配，并依附现有 team 上下文；当前 runtime 对 mode 只支持 default / acceptEdits / dontAsk 子集，plan / bypassPermissions 仍会被拒绝；isolation 当前只支持 worktree，remote 仍会被拒绝，且 cwd 目前不能与 worktree 同时使用。"
             .to_string(),
     );
     lines.push(

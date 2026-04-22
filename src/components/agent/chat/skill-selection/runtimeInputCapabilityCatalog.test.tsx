@@ -42,7 +42,7 @@ function buildRuntimeCatalogFixture(): SkillCatalog {
         sceneKey: "campaign-launch",
         commandPrefix: "/campaign-launch",
         aliases: ["campaign-launch", "launch"],
-        executionKind: "cloud_scene",
+        executionKind: "agent_turn",
       },
     ],
   };

@@ -22,9 +22,16 @@ vi.mock("@/lib/api/skillCatalog", () => ({
     mockListSkillCatalogSceneEntries(catalog),
 }));
 
-vi.mock("@/lib/api/serviceSkills", () => ({
-  listServiceSkills: () => mockListServiceSkills(),
-}));
+vi.mock("@/lib/api/serviceSkills", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/serviceSkills")>(
+      "@/lib/api/serviceSkills",
+    );
+  return {
+    ...actual,
+    listServiceSkills: () => mockListServiceSkills(),
+  };
+});
 
 vi.mock("@/lib/api/project", () => ({
   getOrCreateDefaultProject: () => mockGetOrCreateDefaultProject(),
@@ -50,8 +57,8 @@ function createCloudSceneSkill(): ServiceSkillHomeItem {
     outputHint: "配音文案 + 结果摘要",
     source: "cloud_catalog",
     runnerType: "instant",
-    defaultExecutorBinding: "cloud_scene",
-    executionLocation: "cloud_required",
+    defaultExecutorBinding: "agent_turn",
+    executionLocation: "client_default",
     version: "seed-v1",
     badge: "云目录",
     recentUsedAt: null,
@@ -229,7 +236,7 @@ describe("serviceSkillSceneLaunch", () => {
         sceneKey: "campaign-launch",
         commandPrefix: "/campaign-launch",
         linkedSkillId: "cloud-video-dubbing",
-        executionKind: "cloud_scene",
+        executionKind: "agent_turn",
       },
     ]);
     const request = await resolveRuntimeSceneLaunchRequest({

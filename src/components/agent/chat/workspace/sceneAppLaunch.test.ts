@@ -3,7 +3,7 @@ import {
   executeSceneAppLaunchAction,
   resolveSceneAppLaunchAction,
 } from "./sceneAppLaunch";
-import type { SceneAppPlanResult } from "@/lib/sceneapp";
+import type { SceneAppCurrentPlanResult as SceneAppPlanResult } from "@/lib/sceneapp";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 
 type SceneAppPlanResultOverrides = {
@@ -505,10 +505,10 @@ describe("sceneAppLaunch", () => {
       },
       plan: {
         sceneappId: "story-video-suite",
-        executorKind: "cloud_scene",
-        bindingFamily: "cloud_scene",
+        executorKind: "agent_turn",
+        bindingFamily: "agent_turn",
         adapterPlan: {
-          adapterKind: "cloud_scene",
+          adapterKind: "agent_turn",
           runtimeAction: "open_service_scene_session",
           targetRef: "sceneapp-service-story-video",
           targetLabel: "短视频编排",

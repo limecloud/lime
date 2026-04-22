@@ -1111,10 +1111,17 @@ mod tests {
     #[test]
     fn test_workspace_default_allowed_tool_names_workbench_with_browser_assist_excludes_prefix_tool(
     ) {
-        let names = workspace_default_allowed_tool_names(
-            WorkspaceToolSurface::workbench_with_browser_assist(),
-        );
-        assert_eq!(names.len(), 45);
+        let surface = WorkspaceToolSurface::workbench_with_browser_assist();
+        let names = workspace_default_allowed_tool_names(surface);
+        let expected_len = tool_catalog_entries_for_surface(surface)
+            .into_iter()
+            .filter(|entry| entry.workspace_default_allow)
+            .filter(|entry| entry.lifecycle == ToolLifecycle::Current)
+            .filter(|entry| !entry.name.ends_with("__"))
+            .map(|entry| entry.name)
+            .collect::<BTreeSet<_>>()
+            .len();
+        assert_eq!(names.len(), expected_len);
         assert!(names.contains(&SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(&TOOL_SEARCH_TOOL_NAME));
         assert!(names.contains(&LIST_MCP_RESOURCES_TOOL_NAME));
@@ -1123,10 +1130,10 @@ mod tests {
         assert!(names.contains(&"TeamCreate"));
         assert!(names.contains(&"TeamDelete"));
         assert!(names.contains(&LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME));
-        assert!(names.contains(&LIME_RUN_SERVICE_SKILL_TOOL_NAME));
         assert!(names.contains(&LIME_SEARCH_WEB_IMAGES_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RECOMMEND_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RUN_TOOL_NAME));
+        assert!(!names.contains(&LIME_RUN_SERVICE_SKILL_TOOL_NAME));
         assert!(!names
             .iter()
             .any(|name| name.starts_with(BROWSER_RUNTIME_TOOL_PREFIX)));

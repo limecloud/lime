@@ -7,8 +7,8 @@ import {
   getSceneAppScorecard,
   listSceneAppRuns,
   planSceneAppLaunch,
-  type SceneAppDescriptor,
-  type SceneAppPlanResult,
+  type SceneAppCurrentDescriptor as SceneAppDescriptor,
+  type SceneAppCurrentPlanResult as SceneAppPlanResult,
   type SceneAppRunSummary,
   type SceneAppScorecard,
 } from "@/lib/api/sceneapp";

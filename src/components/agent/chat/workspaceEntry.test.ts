@@ -205,7 +205,7 @@ describe("workspaceEntry", () => {
           initialAutoSendRequestMetadata: {
             harness: {
               service_scene_launch: {
-                kind: "cloud_scene",
+                kind: "local_service_skill",
               },
             },
           },
@@ -229,7 +229,7 @@ describe("workspaceEntry", () => {
         initialAutoSendRequestMetadata: {
           harness: {
             service_scene_launch: {
-              kind: "cloud_scene",
+              kind: "local_service_skill",
             },
           },
         },
@@ -246,7 +246,7 @@ describe("workspaceEntry", () => {
         initialAutoSendRequestMetadata: {
           harness: {
             service_scene_launch: {
-              kind: "cloud_scene",
+              kind: "local_service_skill",
             },
           },
         },

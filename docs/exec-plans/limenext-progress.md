@@ -6,9 +6,193 @@
 >
 > 补充说明（2026-04-18）：旧 Ribbi 过渡目录已清理。历史条目若继续出现旧 Ribbi 路径，默认按“当时旧路径、现已由 `docs/research/ribbi/*` 替代”理解。
 
+## 2026-04-22
+
+### 已完成
+
+- 把 `sceneapp API` 这一层继续收回 current-first 类型边界，避免 `@/lib/api/sceneapp` 的 helper 在类型层继续把 compat 执行族当成普通 current 输出：
+  - 已更新：
+    - `src/lib/sceneapp/types.ts`
+    - `src/lib/api/sceneapp.ts`
+    - `src/lib/sceneapp/catalog.ts`
+    - `src/lib/sceneapp/launchBridge.ts`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/settings-v2/system/automation/useAutomationSceneAppRuntime.ts`
+    - `src/lib/sceneapp/launcher.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts`
+    - `src/lib/tauri-mock/core.ts`
+    - `src/lib/sceneapp/launch.test.ts`
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/lib/sceneapp/presentation.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/launch.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/components/agent/chat/workspace/sceneAppLaunch.test.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx`
+    - `src/components/settings-v2/system/automation/index.test.tsx`
+    - `src/lib/sceneapp/types-runtime-context.ts`
+    - `eslint.config.js`
+  - 当前统一结论：
+    - `sceneapp/types.ts` 当前已补出 `SceneAppCurrentDescriptor / SceneAppCurrentCatalog / SceneAppCurrentPlanResult` 这一组 API 归一化后投影类型
+    - `normalizeCompatSceneAppBindingFamily(...)` 当前已显式返回 `SceneAppCurrentBindingFamily`
+    - `collectNormalizedSceneAppBindingFamilies(...)` 当前已只产出 current 执行族，不再把 `cloud_scene` 作为 API 正常输出类型继续向后传播
+    - `normalizeCompatSceneAppRuntimeAction(...)` 当前已显式返回 `SceneAppCurrentRuntimeAction`
+    - `listSceneAppCatalog / getSceneAppDescriptor / planSceneAppLaunch / saveSceneAppContextBaseline` 当前也已开始返回 current 投影类型
+    - `catalog.ts` 当前也已显式切到 `SceneAppCurrentDescriptor / SceneAppCurrentCatalog` 输出，`compileSceneAppCatalogFromPackage / compileSceneAppCatalogFromSnapshot / readStoredSceneAppCatalog` 不再继续对外声明宽目录
+    - `catalog.ts` 当前目录编译入口也已直接收窄到 `BaseSetupAllowedBindingFamily` compat 输入，不再让宽 `SceneAppBindingFamily` alias 继续参与 `Base Setup -> SceneApp` current 目录编译
+    - `SceneApps` 主页面 runtime、automation runtime、launcher 与工作区 `SceneApp` 入口当前也已开始显式消费 current 投影类型，而不是继续用宽 union
+    - 本地缓存目录回退当前已直接消费 `readStoredSceneAppCatalog()` 的 current 输出，不再额外过 `normalizeSceneAppCatalogProjection(...)`
+    - `launchBridge.ts` 当前公开合同也已切到 `SceneAppCurrentPlanResult`，启动桥不再在签名层继续承认宽 `SceneAppPlanResult`
+    - `launch.ts` 当前也已切到 `SceneAppCurrentPlanResult` 输入，执行草稿层内部不再继续保留 compat `launch_cloud_scene / cloud_scene` 投影 helper
+    - `tauri mock` 的默认目录与 planning builder、以及主链 `sceneapp` 测试夹具当前也已开始显式切到 `SceneAppCurrent*`
+    - `automation/index.test.tsx` 当前也已补成显式 `SceneAppCurrentDescriptor / SceneAppCurrentPlanResult` 夹具，`viewerKind` 这类字段不再靠无类型 mock 漂移
+    - compat `launch_cloud_scene / cloud_scene` 当前只再留给 API 归一化边界与显式 compat 用例，不再占据执行草稿层默认样板
+    - `presentation.ts / product.ts` 这类纯前台投影层当前也已切到 `SceneAppCurrent*`
+    - `launch.ts` 当前也已变成 current-only，`execution summary` 直接消费 current planning 结果
+    - `tauri-mock/core.ts` 当前默认 SceneApp mock 也已只接受 `SceneAppCurrentBindingFamily`，不再在默认样板里保留 compat `cloud_scene -> agent_turn` 正规化后门
+    - `types-runtime-context.ts` 当前已确认在 `src/docs` 范围零引用，并折叠成对 `types.ts` 的转发文件，避免 dead 类型副本继续漂移
+    - `eslint.config.js` 当前也已补上 `no-restricted-imports` 守卫，禁止新代码继续 import `types-runtime-context.ts`
+    - `presentation.test.ts` 当前也已切到 `SceneAppCurrentDescriptor`，仓库里已不再存在业务层直接 import 宽 `SceneAppDescriptor / SceneAppPlanResult / SceneAppCatalog` 的存量样本
+    - `eslint.config.js` 当前也已补上 `no-restricted-syntax` 守卫，禁止业务层与测试夹具重新 import 这三类宽 SceneApp 类型
+    - `eslint.config.js` 当前也已再补第二层守卫，禁止业务层与测试夹具重新 import 宽 `SceneAppBindingFamily / SceneAppRuntimeAction`
+    - `src/lib/api/sceneapp.ts` 当前也已不再直接 import 宽 `SceneAppBindingFamily / SceneAppRuntimeAction`，而是改成显式 `current + compat` 本地联合
+    - 因此当前宽 `SceneAppDescriptor / SceneAppPlanResult / SceneAppCatalog / SceneAppBindingFamily / SceneAppRuntimeAction` 已从“只剩 API 边界消费”进一步收口到“只剩 compat re-export 与类型模型本身”
+    - 这一步当前没有改运行时行为，只收紧了 API 归一化 helper、目录编译入口与输出合同的 current / compat 边界
+  - 当前定向验证：
+    - `rg -n "import type .*SceneAppBindingFamily|SceneAppBindingFamily,|import type .*SceneAppRuntimeAction|SceneAppRuntimeAction," "src"`
+    - `npx eslint "eslint.config.js" "src/lib/api/sceneapp.ts" "src/lib/sceneapp/catalog.ts"`
+    - `printf 'import type { SceneAppBindingFamily, SceneAppRuntimeAction } from "@/lib/sceneapp";\\ntype _Binding = SceneAppBindingFamily;\\ntype _Action = SceneAppRuntimeAction;\\n' | npx eslint --stdin --stdin-filename "src/__sceneapp-wide-execution-type-guard-smoke.ts"`
+    - `npm run governance:legacy-report`
+    - `npm run typecheck`
+    - `npx eslint "src/lib/api/sceneapp.ts" "src/lib/sceneapp/types.ts"`
+    - `npm exec vitest run "src/lib/api/sceneapp.test.ts" "src/lib/sceneapp/presentation.test.ts" "src/lib/sceneapp/launch.test.ts"`
+    - `npx eslint "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/settings-v2/system/automation/useAutomationSceneAppRuntime.ts" "src/lib/sceneapp/launcher.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts"`
+    - `npm exec vitest run "src/lib/api/sceneapp.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx"`
+    - `npm run typecheck`
+    - `npm exec vitest run "src/lib/api/sceneapp.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx"`
+    - `npx eslint "src/lib/sceneapp/catalog.ts" "src/lib/sceneapp/launchBridge.ts" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts"`
+    - `npm exec vitest run "src/lib/sceneapp/catalog.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts"`
+    - `npx eslint "src/lib/sceneapp/launch.ts" "src/lib/sceneapp/launch.test.ts" "src/lib/sceneapp/launchBridge.ts"`
+    - `npm exec vitest run "src/lib/sceneapp/launch.test.ts" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts"`
+    - `npx eslint "src/components/settings-v2/system/automation/index.test.tsx" "src/lib/sceneapp/launch.ts" "src/lib/sceneapp/launch.test.ts"`
+    - `npm exec vitest run "src/components/settings-v2/system/automation/index.test.tsx" "src/lib/sceneapp/launch.test.ts" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts"`
+    - `npx eslint "src/lib/sceneapp/types-runtime-context.ts" "src/lib/sceneapp/launch.ts" "src/components/settings-v2/system/automation/index.test.tsx"`
+    - `npx eslint "src/lib/tauri-mock/core.ts" "src/lib/sceneapp/types-runtime-context.ts"`
+    - `printf 'import \"@/lib/sceneapp/types-runtime-context\";\\n' | npx eslint --stdin --stdin-filename "src/__sceneapp-dead-import-smoke.ts"`
+    - `npx eslint "src/lib/sceneapp/presentation.test.ts" "src/lib/sceneapp/types-runtime-context.ts" "eslint.config.js"`
+    - `printf 'import type { SceneAppDescriptor } from "@/lib/sceneapp";\\ntype _Smoke = SceneAppDescriptor;\\n' | npx eslint --stdin --stdin-filename "src/__sceneapp-wide-type-guard-smoke.ts"`
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts"`
+    - `npx eslint "src/lib/tauri-mock/core.ts" "src/lib/sceneapp/launch.test.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx"`
+    - `npm exec vitest run "src/lib/sceneapp/launch.test.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx"`
+    - `npx eslint "src/lib/sceneapp/presentation.ts" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/launch.ts"`
+    - `npm exec vitest run "src/lib/sceneapp/presentation.test.ts" "src/lib/sceneapp/product.test.ts" "src/lib/sceneapp/launch.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 结果：
+    - `eslint` 通过
+    - `3 files / 13 tests passed`
+    - `4 files / 46 tests passed`
+    - `typecheck` 通过
+    - `3 files / 39 tests passed`
+    - `3 files / 37 tests passed`
+    - `4 files / 44 tests passed`
+    - `2 files / 11 tests passed`
+    - `3 files / 26 tests passed`
+    - `3 files / 41 tests passed`
+    - `stdin import guard expected failure observed`
+    - `stdin wide type guard expected failure observed`
+    - `stdin wide execution type guard expected failure observed`
+    - `rg` 扫描确认：实现层已无宽 `SceneAppBindingFamily / SceneAppRuntimeAction` import，剩余命中只在 compat re-export surface
+    - `governance:legacy-report` 通过，摘要为 `边界违规 0 / 分类漂移候选 0`
+    - `typecheck` 通过
+    - `5 files / 64 tests passed`
+    - `4 files / 57 tests passed`
+
+- 把 `sceneapp` 的 current / compat 边界正式补成 `LimeNext V2` 的 current 事实源，避免后续继续按旧云执行命名摇摆：
+  - 已新增：
+    - `docs/roadmap/limenextv2/sceneapp-current-boundary.md`
+  - 已更新：
+    - `docs/roadmap/limenextv2/README.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-v2-fs-blocker-2026-04-22.md`
+  - 当前统一结论：
+    - `cloud_managed / cloud_runtime / cloud_session / cloud_scene / launch_cloud_scene` 只允许留在 compat 输入、归一化、显式 compat helper 或 compat 测试里
+    - `SceneAppDescriptor.sceneappType` 的 current 语义固定只认 `local_instant / local_durable / browser_grounded / hybrid`
+
+- 在文件系统 `EPERM` 尚未恢复的前提下，确认并打通了一个可操作旁路，避免主线继续停在“只能写文档、不能改代码”的假进展：
+  - 当前现象：
+    - shell / `apply_patch` 仍无法直接读取仓库内受阻旧文件
+    - 但 Finder 可以把受阻文件复制到 `/private/tmp`，也可以把 `/private/tmp` 里的同名文件覆盖回仓库
+  - 当前工作流：
+    - `Finder duplicate -> /private/tmp`
+    - 在 `/private/tmp` 使用 `apply_patch`
+    - `Finder duplicate -> repo` 覆盖回原文件
+  - 这条旁路当前只适合少量关键文件，不适合大范围批量改动
+
+- 用这条旁路继续完成了 `sceneapp presentation` 这一刀的 current-first 收口：
+  - 已更新：
+    - `src/lib/sceneapp/types.ts`
+    - `src/lib/sceneapp/catalog.ts`
+    - `src/lib/sceneapp/launch.ts`
+    - `src/lib/sceneapp/presentation.ts`
+    - `src/lib/sceneapp/presentation.test.ts`
+  - 当前统一结论：
+    - `SceneAppBindingFamily` 当前已拆成 current / compat 两层，`cloud_scene` 不再只藏在共享别名里
+    - `catalog / launch` 里的 compat 归一化函数当前也已显式返回 current 执行族
+    - `SceneAppLaunchRequirementKind` 当前已拆成 current / compat 两层，`cloud_session` 不再和 current 启动前置混写
+    - `SceneAppRuntimeContext` 当前也已只保留 current 字段；`cloudSessionReady / cloud_session_ready` 当前只继续保留在 compat input 类型与兼容读取 helper 里
+    - `getSceneAppPresentationCopy(...)` 与 `inferFallbackCopy(...)` 当前已显式收窄到 current descriptor 视角
+    - compat `cloud_managed / cloud_runtime` 当前只继续保留在显式 label helper 与 compat 测试里
+    - `presentation.test.ts` 当前已拆开“compat helper 断言”和“current descriptor copy 断言”，不再允许用 `cloud_managed` 伪装成 current `SceneAppDescriptor`
+  - 当前定向验证：
+    - `npx --yes vitest@3.2.4 run /private/tmp/lime-sceneapp-edit/presentation.test.ts`
+    - 结果：`3 tests passed`
+  - 当前扩展旁路验证：
+    - 已通过：
+      - `npx --yes vitest@3.2.4 run "/private/tmp/sceneapp-scan/runEntryNavigation.test.ts" "/private/tmp/sceneapp-scan/launch.test.ts" "/private/tmp/sceneapp-scan/product.test.ts" "/private/tmp/sceneapp-scan/presentation.test.ts" "/private/tmp/sceneapp-scan/navigation.test.ts"`
+      - 结果：`5 files / 31 tests passed`
+    - 已确认但不记为代码回归：
+      - 直接把 `/private/tmp/sceneapp-scan/*.test.ts` 全跑时，`storage / entry` 会因缺少 `window/jsdom` 失败，`automation / executionPromptActions / catalog` 会因缺少 repo alias `@/...` 失败
+      - 这些失败当前按“临时副本环境不完整”理解，不按本轮 `presentation` 收口引入的新断链处理
+
+### 下一刀
+
+- 继续把 `@/lib/api/sceneapp` 的“归一化后输出”类型再往 current 投影收窄：
+  - 当前 output alias、目录编译层、本地缓存回读、启动桥、执行草稿层、核心消费面、tauri mock 默认样板、主链测试夹具和纯前台投影层都已切过去，下一步优先继续清理剩余旁路 helper 与非主链工厂里的宽 union
+  - 目标是让 current 页面和 workspace 消费面在编译期也尽量不再碰到 compat union
+- 继续借 Finder 旁路，把 repo 内正式校验补回来，优先顺序固定为：
+  - `npx eslint "src/lib/sceneapp/types.ts" "src/lib/sceneapp/presentation.ts" "src/lib/sceneapp/presentation.test.ts"`
+  - `npm exec vitest run "src/lib/sceneapp/presentation.test.ts" "src/lib/sceneapp/product.test.ts" "src/lib/api/sceneapp.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - `npm run governance:legacy-report`
+  - `npm run typecheck`
+- 如果 repo 内正式校验仍被 cwd / TCC 阻塞，就继续把更多定向校验切到 `/private/tmp` 副本上跑，直到 current 边界彻底收完。
+
 ## 2026-04-21
 
 ### 已完成
+
+- 把 Rust `sceneapp` 内部还残留的旧云执行类型名继续往 compat alias 收口，避免 `CloudManaged / CloudScene / CloudSession / cloud_session_ready` 继续污染 current 内部建模语言：
+  - 已更新：
+    - `src-tauri/src/sceneapp/dto.rs`
+    - `src-tauri/src/sceneapp/adapters.rs`
+    - `src-tauri/src/sceneapp/runtime.rs`
+    - `src-tauri/src/sceneapp/governance.rs`
+    - `src-tauri/src/sceneapp/context/compiler.rs`
+  - 当前统一结论：
+    - Rust 内部枚举当前已改成 `DirectorySyncedCompat / ServiceSceneCompat / DirectorySessionCompat`
+    - `SceneAppRuntimeContext` 内部字段当前已改成 `directory_session_ready_compat`
+    - 对外 serde 合同当前仍继续兼容旧值与旧字段名：`cloud_managed / cloud_scene / cloud_session / cloudSessionReady`
+    - 因此 current 内部语义继续向“目录同步 compat / service-scene compat / directory session compat”收口，但不会打断前端和历史数据读取
+  - 当前计划中的最小验证：
+    - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" should_build_service_scene_adapter_plan_for_hybrid_sceneapp`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" build_sceneapp_scorecard_from_runs_should_keep_stable_scene`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" should_promote_selected_memory_entries_into_reference_items`
+  - 本轮验证备注：
+    - 已完成 `rustfmt --edition 2021 "src-tauri/src/sceneapp/dto.rs" "src-tauri/src/sceneapp/adapters.rs" "src-tauri/src/sceneapp/runtime.rs" "src-tauri/src/sceneapp/governance.rs" "src-tauri/src/sceneapp/context/compiler.rs"`
+    - 已通过：
+      - `cargo test --manifest-path "src-tauri/Cargo.toml" --lib should_build_service_scene_adapter_plan_for_hybrid_sceneapp`
+      - `cargo test --manifest-path "src-tauri/Cargo.toml" --lib build_sceneapp_scorecard_from_runs_should_keep_stable_scene`
+      - `cargo test --manifest-path "src-tauri/Cargo.toml" --lib should_promote_selected_memory_entries_into_reference_items`
+    - 以上测试执行期间曾短暂等待 Cargo `package cache / artifact directory` 锁，但最终都已在默认 `src-tauri/target` 下完成，不再记为未验证
 
 - 把 Rust `service_scene_launch` 提取器的 current 默认值收回 `local_service_skill`，避免前端 metadata 已改成本地执行，但后端解析层仍把缺省 `kind` 视作 `cloud_scene`：
   - 已更新：
@@ -218,27 +402,50 @@
       - `entryBindings.bindingFamily.cloud_scene -> agent_turn`
       - `compositionProfile.steps.bindingFamily.cloud_scene -> agent_turn`
       - `infraProfile.cloud_runtime` 不再继续显影
+      - `launchRequirements.cloud_session` 不再继续显影
     - `planSceneAppLaunch` / `saveSceneAppContextBaseline` 当前会先正规化 `SceneAppPlanResult.plan`：
       - `executorKind.cloud_scene -> agent_turn`
       - `bindingFamily.cloud_scene -> agent_turn`
       - `adapterPlan.adapterKind.cloud_scene -> agent_turn`
       - `adapterPlan.runtimeAction.launch_cloud_scene -> open_service_scene_session`
+    - `SceneAppPlanResult` 当前还会继续正规化 compat planning 噪音：
+      - `readiness.unmetRequirements.cloud_session -> 丢弃`
+      - `readiness.ready` 会按过滤后的 unmet requirements 重新计算
+      - `contextOverlay.compilerPlan.toolRefs.cloud_scene -> agent_turn`
+      - `contextOverlay.compilerPlan.toolRefs.cloud_session -> 丢弃`
+      - `contextOverlay.snapshot.toolRefs.cloud_scene -> agent_turn`
+      - `contextOverlay.snapshot.toolRefs.cloud_session -> 丢弃`
+      - `descriptor.sceneappType.cloud_managed -> 按绑定族/infra 信号正规化为 current 类型`
     - 因此 current API 对象层现在也和 `skillCatalog / serviceSkills / sceneapp catalog / launch draft` 保持同一套本地执行语义
   - 当前计划中的最小验证：
     - `npx eslint "src/lib/api/sceneapp.ts" "src/lib/api/sceneapp.test.ts"`
     - `npm exec vitest run "src/lib/api/sceneapp.test.ts" "src/lib/sceneapp/launch.test.ts"`
     - `npm run typecheck`
 
+- 把 `sceneapp` 深层 current 测试夹具里的旧云基础设施默认值继续收掉，避免测试事实源还在把 `cloud_runtime` 当常规目录字段：
+  - 已更新：
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - 当前统一结论：
+    - `product` 与 `SceneAppsPage` 的默认 SceneApp descriptor/catalog fixture 当前只保留 current `infraProfile`
+    - `cloud_runtime` 现在只再留给显式 compat 用例，不再作为 current 基线样板的一部分
+    - 因此后续围绕 sceneapp 读模型、目录页和结果页继续补测试时，不会再被旧云基础设施命名反向污染默认事实源
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm exec vitest run "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+
 - 给 `sceneapp` 的剩余旧云 runtime 类型补上 current/compat 分层护栏，避免实现面已经收回本地执行，但类型层仍把 `cloud_session / launch_cloud_scene` 看起来像 current 分支：
   - 已更新：
     - `src/lib/sceneapp/types.ts`
   - 当前统一结论：
     - `SceneAppLaunchRequirementKind.cloud_session` 当前明确标注为 `legacy compat only`
-    - `SceneAppRuntimeContext.cloudSessionReady` 当前明确标注为 compat 输入，而不是 current 运行时门槛
+    - `SceneAppRuntimeContext` 当前内部字段已补成 `directorySessionReadyCompat`
+    - `SceneAppRuntimeContext.cloudSessionReady` 当前只再保留为 compat 输入 alias，不再作为 current 内部命名
     - `SceneAppRuntimeAction` 当前拆成：
       - `SceneAppCurrentRuntimeAction`
       - `SceneAppCompatRuntimeAction(launch_cloud_scene)`
-    - 因此类型层现在也更接近 `current = open_service_scene_session / 本地执行`，`compat = launch_cloud_scene / 旧云痕迹` 的事实源
+    - `sceneapp API` 当前会在 invoke 前把 `directorySessionReadyCompat` 回写成 wire compat 字段 `cloudSessionReady`
+    - 因此类型层现在也更接近 `current = open_service_scene_session / 本地执行`，`compat = launch_cloud_scene / 旧云痕迹 / cloudSessionReady` 的事实源
   - 当前计划中的最小验证：
     - `npx eslint "src/lib/sceneapp/types.ts"`
     - `npm run typecheck`

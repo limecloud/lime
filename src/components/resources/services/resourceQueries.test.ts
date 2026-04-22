@@ -5,6 +5,7 @@ import {
   getCategoryScopedResources,
   getCurrentFolder,
   getFolderBreadcrumbs,
+  getResourceCollectionSummary,
   getFolderScopedResources,
   getResourceMediaType,
 } from "./resourceQueries";
@@ -164,6 +165,38 @@ describe("resourceQueries", () => {
       image: 1,
       audio: 1,
       video: 1,
+    });
+  });
+
+  it("项目摘要应共用同一套项目级统计派生规则", () => {
+    const folderItem = createResource({
+      id: "folder-1",
+      kind: "folder",
+      updatedAt: 2,
+    });
+    const documentItem = createResource({
+      id: "doc-1",
+      updatedAt: 5,
+    });
+    const fileItem = createResource({
+      id: "file-1",
+      kind: "file",
+      sourceType: "material",
+      updatedAt: 4,
+    });
+
+    expect(
+      getResourceCollectionSummary([folderItem, documentItem, fileItem]),
+    ).toEqual({
+      folderCount: 1,
+      contentItemCount: 2,
+      latestUpdatedAt: 5,
+    });
+
+    expect(getResourceCollectionSummary([])).toEqual({
+      folderCount: 0,
+      contentItemCount: 0,
+      latestUpdatedAt: null,
     });
   });
 });

@@ -11,8 +11,8 @@ import {
   buildSceneAppWorkbenchStatItems,
 } from "./product";
 import type {
-  SceneAppDescriptor,
-  SceneAppPlanResult,
+  SceneAppCurrentDescriptor as SceneAppDescriptor,
+  SceneAppCurrentPlanResult as SceneAppPlanResult,
   SceneAppRunSummary,
   SceneAppScorecard,
 } from "./types";
@@ -43,7 +43,6 @@ function createDescriptor(
       "composition_blueprint",
       "project_pack",
       "workspace_storage",
-      "cloud_runtime",
     ],
     deliveryContract: "project_pack",
     outputHint: "短视频项目包",

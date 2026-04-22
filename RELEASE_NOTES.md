@@ -45,6 +45,8 @@
 - `package-lock.json`、`src-tauri/Cargo.lock` 与校验结果以本次最终验证通过的状态为准。
 - 本说明按当前整批待提交文件重新整理，覆盖运行时、前台、脚本、文档与版本同步内容，而不是仅记录版本号变更。
 
+
+
 ### 已执行校验
 
 - `npm run verify:app-version`：通过
@@ -56,3 +58,17 @@
 ---
 
 **完整变更**: `v1.15.0` -> `v1.16.0`
+
+### v1.16.0 同版重发补充（2026-04-22）
+
+- 修复 macOS 发布包在 `tauri://localhost` 协议下首屏样式注入不稳定的问题，避免 `styled-components` 运行时触发 `#17` 崩溃并导致窗口样式错乱。
+- `index.html` 现在会在应用脚本加载前显式设置 `SC_DISABLE_SPEEDY`；`src/lib/styledRuntime.ts` 新增运行时诊断与 fallback stylesheet 同步逻辑，在 Tauri 发布包里改走稳定的 `data:` stylesheet 回退，而不是继续依赖失效的动态 `<style>` 注入。
+- `src-tauri/tauri.conf.json` 与 `src-tauri/tauri.conf.headless.json` 已补齐 `style-src` 对 `data:` / `blob:` 的允许项，保证 fallback 样式表可在发布构建中加载。
+- 本地已重新验证安装包覆盖后的 `Lime.app` 可正常打开，之前出现的“窗口打开后布局完全错乱/无样式”问题已消失。
+- 本轮同版重发前额外复核：
+  - `npm run verify:app-version`
+  - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml"`
+  - `cargo clippy --manifest-path "src-tauri/Cargo.toml"`
+  - `npm run lint`
+  - `npm run verify:gui-smoke`

@@ -1607,8 +1607,11 @@ fn prepare_runtime_turn_prompt_strategy(
     };
     turn_input_builder.set_base_system_prompt(system_prompt_source, resolved_prompt.clone());
 
-    let prompt_with_runtime_agents =
-        merge_system_prompt_with_runtime_agents(resolved_prompt, Some(Path::new(workspace_root)));
+    let prompt_with_runtime_agents = merge_system_prompt_with_runtime_plugin_agents(
+        merge_system_prompt_with_runtime_agents(resolved_prompt, Some(Path::new(workspace_root))),
+        Path::new(workspace_root),
+        dirs::home_dir().as_deref(),
+    );
     turn_input_builder.apply_prompt_stage(
         TurnPromptAugmentationStageKind::RuntimeAgents,
         prompt_with_runtime_agents.clone(),

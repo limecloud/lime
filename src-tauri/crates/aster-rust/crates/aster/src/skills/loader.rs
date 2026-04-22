@@ -1268,6 +1268,79 @@ manifest
         );
     }
 
+    #[test]
+    fn test_load_skills_from_plugin_cache_should_reject_invalid_manifest_commands() {
+        let temp_home = TempDir::new().expect("create temp home");
+        let temp_workspace = TempDir::new().expect("create temp workspace");
+        let plugin_id = "capsule@demo-market";
+        let plugin_root = temp_home
+            .path()
+            .join(".claude")
+            .join("plugins")
+            .join("cache")
+            .join("demo-market")
+            .join("capsule")
+            .join("2.0.0");
+
+        write_enabled_plugin_settings(
+            temp_workspace.path(),
+            "settings.local.json",
+            serde_json::json!({
+                plugin_id: true
+            }),
+        );
+        write_cached_plugin_manifest_at_root(
+            &plugin_root.join("plugin.json"),
+            serde_json::json!({
+                "name": "capsule",
+                "version": "2.0.0",
+                "skills": "./extra-skill",
+                "commands": {
+                    "about": {
+                        "source": "./commands/about.md",
+                        "content": "# about"
+                    }
+                }
+            }),
+        );
+        write_cached_plugin_skill_at_root(
+            &plugin_root.join("extra-skill"),
+            r#"---
+name: extra-skill
+description: manifest plugin skill
+---
+manifest
+"#,
+        );
+
+        let snapshot = build_plugin_skill_registry_snapshot_with_context(
+            Some(temp_workspace.path()),
+            Some(temp_home.path()),
+        );
+        let snapshot_json: serde_json::Value =
+            serde_json::from_str(&snapshot).expect("snapshot 应为合法 JSON");
+        let skipped = snapshot_json
+            .get("skipped")
+            .and_then(serde_json::Value::as_array)
+            .expect("snapshot.skipped 应存在");
+        assert!(
+            skipped.iter().any(|item| item
+                .as_str()
+                .map(|text| text.contains("manifest.commands[about]"))
+                .unwrap_or(false)),
+            "manifest 其它字段非法时，也应阻断 plugin skill current 加载"
+        );
+
+        let skills = load_skills_from_plugin_cache_with_context(
+            Some(temp_workspace.path()),
+            Some(temp_home.path()),
+        );
+        assert!(
+            skills.is_empty(),
+            "manifest.commands 非法时，不应继续加载 manifest.skills 指向的 plugin skills"
+        );
+    }
+
     // ==================== Workflow YAML 解析综合测试 ====================
     // Task 2.2: 添加 YAML workflow 解析逻辑
     // Requirements: 3.1, 3.2, 3.3, 3.4

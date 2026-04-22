@@ -1,9 +1,12 @@
 # LimeNext 总实施计划
 
-> 状态：进行中  
+> 状态：`legacy current reference`  
 > 更新时间：2026-04-18  
 > 上位总纲：`docs/roadmap/limenext/`  
+> 当前主规划：`docs/roadmap/limenextv2/README.md`
 > 目标：把 LimeNext 从“上位平台定义”推进到“可持续实施的主线计划”，统一产品对象、运行时骨架、远程入口、长时执行、证据治理与场景选品的推进顺序。
+
+> 说明：本文保留旧阶段实施锚点与推进历史，帮助理解 `limenext -> limenextv2` 的迁移背景；后续 current 实现与新增文档默认不再以本文为主规格，而应回到 `docs/roadmap/limenextv2/README.md` 及其子专题。
 
 ## 1. 先给结论
 

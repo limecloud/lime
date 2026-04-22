@@ -297,6 +297,9 @@ describe("PluginManager 任务可观测", () => {
     ).not.toBeNull();
     expect(container.textContent).toContain("Windows 主程序更新与安装包");
     expect(container.textContent).toContain("新版本 0.89.0");
+    expect(container.textContent).toContain("安装包类型：Windows setup");
+    expect(container.textContent).not.toContain("online 安装包");
+    expect(container.textContent).not.toContain("offline 安装包");
 
     const aboutButton = container.querySelector(
       "[data-testid='plugin-windows-update-open-about']",

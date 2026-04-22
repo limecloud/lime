@@ -144,8 +144,8 @@ function createCloudSceneSkill(): ServiceSkillHomeItem {
     outputHint: "配音文案 + 结果摘要",
     source: "cloud_catalog",
     runnerType: "instant",
-    defaultExecutorBinding: "cloud_scene",
-    executionLocation: "cloud_required",
+    defaultExecutorBinding: "agent_turn",
+    executionLocation: "client_default",
     version: "seed-v1",
     badge: "云目录",
     recentUsedAt: null,
@@ -1938,7 +1938,7 @@ describe("useWorkspaceSendActions", () => {
         sceneKey: "campaign-launch",
         commandPrefix: "/campaign-launch",
         linkedSkillId: "cloud-video-dubbing",
-        executionKind: "cloud_scene",
+        executionKind: "agent_turn",
       },
     ]);
     const harness = mountHook({
@@ -4075,7 +4075,7 @@ describe("useWorkspaceSendActions", () => {
         sceneKey: "campaign-launch",
         commandPrefix: "/campaign-launch",
         linkedSkillId: "cloud-video-dubbing",
-        executionKind: "cloud_scene",
+        executionKind: "agent_turn",
       },
     ]);
     const harness = mountHook({

@@ -50,7 +50,7 @@ fn should_open_service_scene_session(
     binding_family: &SceneAppBindingFamily,
 ) -> bool {
     match binding_family {
-        SceneAppBindingFamily::CloudScene => true,
+        SceneAppBindingFamily::ServiceSceneCompat => true,
         SceneAppBindingFamily::AgentTurn => {
             matches!(
                 descriptor.sceneapp_type,
@@ -76,12 +76,13 @@ fn default_sceneapp_delivery() -> DeliveryConfig {
     DeliveryConfig::default()
 }
 
+// 保持旧目录/旧 planner 的对外字符串合同；current 内部语义已改为 compat 命名。
 fn binding_family_to_string(binding: &SceneAppBindingFamily) -> &'static str {
     match binding {
         SceneAppBindingFamily::AgentTurn => "agent_turn",
         SceneAppBindingFamily::BrowserAssist => "browser_assist",
         SceneAppBindingFamily::AutomationJob => "automation_job",
-        SceneAppBindingFamily::CloudScene => "cloud_scene",
+        SceneAppBindingFamily::ServiceSceneCompat => "cloud_scene",
         SceneAppBindingFamily::NativeSkill => "native_skill",
     }
 }
@@ -96,12 +97,13 @@ fn pattern_to_string(pattern: &SceneAppPattern) -> &'static str {
     }
 }
 
+// 保持旧目录/旧 DTO 的对外字符串合同；current 内部语义已改为 compat 命名。
 fn sceneapp_type_to_string(sceneapp_type: &SceneAppType) -> &'static str {
     match sceneapp_type {
         SceneAppType::LocalInstant => "local_instant",
         SceneAppType::LocalDurable => "local_durable",
         SceneAppType::BrowserGrounded => "browser_grounded",
-        SceneAppType::CloudManaged => "cloud_managed",
+        SceneAppType::DirectorySyncedCompat => "cloud_managed",
         SceneAppType::Hybrid => "hybrid",
     }
 }
@@ -407,7 +409,7 @@ fn build_sceneapp_runtime_request_metadata(
                 json!("submit_agent_turn"),
             );
         }
-        SceneAppBindingFamily::CloudScene => {}
+        SceneAppBindingFamily::ServiceSceneCompat => {}
     }
 
     root
@@ -1460,7 +1462,7 @@ fn build_sceneapp_runtime_action(
         SceneAppBindingFamily::AgentTurn => SceneAppRuntimeAction::SubmitAgentTurn,
         SceneAppBindingFamily::BrowserAssist => SceneAppRuntimeAction::LaunchBrowserAssist,
         SceneAppBindingFamily::AutomationJob => SceneAppRuntimeAction::CreateAutomationJob,
-        SceneAppBindingFamily::CloudScene => SceneAppRuntimeAction::OpenServiceSceneSession,
+        SceneAppBindingFamily::ServiceSceneCompat => SceneAppRuntimeAction::OpenServiceSceneSession,
         SceneAppBindingFamily::NativeSkill => SceneAppRuntimeAction::LaunchNativeSkill,
     }
 }
@@ -1506,7 +1508,7 @@ pub fn build_sceneapp_runtime_adapter_plan(
                 .map(str::to_string)
                 .or_else(|| descriptor.linked_scene_key.clone())
                 .unwrap_or_else(|| descriptor.id.clone()),
-            SceneAppBindingFamily::CloudScene
+            SceneAppBindingFamily::ServiceSceneCompat
             | SceneAppBindingFamily::NativeSkill
             | SceneAppBindingFamily::AutomationJob => descriptor
                 .linked_service_skill_id
@@ -1622,7 +1624,7 @@ pub fn build_sceneapp_runtime_adapter_plan(
                     "slots": launch_intent.slots.clone(),
                 })
             }
-            SceneAppBindingFamily::CloudScene => json!({
+            SceneAppBindingFamily::ServiceSceneCompat => json!({
                 "sceneapp_id": descriptor.id.clone(),
                 "scene_key": descriptor.linked_scene_key.clone(),
                 "service_skill_id": descriptor.linked_service_skill_id.clone(),

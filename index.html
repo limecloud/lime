@@ -28,6 +28,15 @@
   <body>
     <div id="root"></div>
     <script src="./oem-runtime-config.js"></script>
+    <script>
+      /**
+       * styled-components 会在模块初始化时读取全局 SC_DISABLE_SPEEDY。
+       * Tauri 生产 WebView 下提前切到文本注入，避免 CSSOM 注入失效。
+       */
+      var SC_DISABLE_SPEEDY =
+        window.location.protocol === "tauri:" ||
+        typeof window.__TAURI_INTERNALS__ !== "undefined";
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

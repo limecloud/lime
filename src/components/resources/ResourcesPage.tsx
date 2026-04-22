@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   ArrowUp,
-  Clock3,
   File,
   FileText,
   Folder,
@@ -13,7 +12,6 @@ import {
   Pencil,
   RefreshCw,
   Search,
-  Sparkles,
   Trash2,
   Video,
   type LucideIcon,
@@ -66,6 +64,7 @@ import { ResourcesImageWorkbench } from "./ResourcesImageWorkbench";
 import {
   canNavigateResourceFolderUp,
   getCategoryCounts,
+  getResourceCollectionSummary,
   getCategoryScopedResources,
   getCurrentFolder,
   getFolderBreadcrumbs,
@@ -560,36 +559,12 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   const activeCategoryLabel = resourceCategoryLabelMap[viewCategory];
   const ActiveCategoryIcon = resourceCategoryIconMap[viewCategory];
 
-  const totalFolderCount = useMemo(
-    () => items.filter((item) => item.kind === "folder").length,
+  const projectSummary = useMemo(
+    () => getResourceCollectionSummary(items),
     [items],
   );
 
-  const contentItemCount = useMemo(
-    () => Math.max(items.length - totalFolderCount, 0),
-    [items.length, totalFolderCount],
-  );
-
-  const latestVisibleUpdateLabel = useMemo(() => {
-    if (displayItems.length === 0) {
-      return "暂无更新";
-    }
-
-    const latestItem = displayItems.reduce((latest, item) =>
-      item.updatedAt > latest.updatedAt ? item : latest,
-    );
-    return formatTime(latestItem.updatedAt);
-  }, [displayItems]);
-
-  const currentScopeLabel = useMemo(() => {
-    if (!projectId) return "待选择";
-    if (!isFolderMode) {
-      return activeCategoryLabel;
-    }
-    return currentFolder?.name ?? "根目录";
-  }, [activeCategoryLabel, currentFolder?.name, isFolderMode, projectId]);
-
-  const currentScopeDescription = useMemo(() => {
+  const defaultScopeStatusDescription = useMemo(() => {
     if (!projectId) {
       return "先在左侧选择一个项目资料库。";
     }
@@ -614,51 +589,25 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
   const scopeStatusDescription = useMemo(() => {
     if (!crossProjectMediaHint) {
-      return currentScopeDescription;
+      return defaultScopeStatusDescription;
     }
 
     const categoryLabel = mediaCategoryLabelMap[crossProjectMediaHint.category];
     return `当前资料库暂无${categoryLabel}，检测到「${crossProjectMediaHint.projectName}」包含 ${crossProjectMediaHint.count} 个${categoryLabel}。`;
-  }, [crossProjectMediaHint, currentScopeDescription]);
+  }, [crossProjectMediaHint, defaultScopeStatusDescription]);
 
-  const headerStats = useMemo(
-    () => [
-      {
-        key: "results",
-        title: "结果",
-        value: `${displayItems.length}`,
-        icon: Sparkles,
-        iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
-      },
-      {
-        key: "folders",
-        title: "文件夹",
-        value: `${totalFolderCount}`,
-        icon: Folder,
-        iconClassName: "border-slate-200 bg-slate-100 text-slate-700",
-      },
-      {
-        key: "items",
-        title: "内容项",
-        value: `${contentItemCount}`,
-        icon: FileText,
-        iconClassName: "border-sky-200 bg-sky-100 text-sky-700",
-      },
-      {
-        key: "updated",
-        title: "最近更新",
-        value: latestVisibleUpdateLabel,
-        icon: Clock3,
-        iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
-      },
-    ],
-    [
-      contentItemCount,
-      displayItems.length,
-      latestVisibleUpdateLabel,
-      totalFolderCount,
-    ],
-  );
+  const projectSummaryLabel = useMemo(() => {
+    if (!projectId) {
+      return null;
+    }
+
+    const latestUpdateLabel =
+      projectSummary.latestUpdatedAt === null
+        ? "暂无更新"
+        : formatTime(projectSummary.latestUpdatedAt);
+
+    return `${projectSummary.folderCount} 个文件夹 · ${projectSummary.contentItemCount} 个内容项 · 最近更新 ${latestUpdateLabel}`;
+  }, [projectId, projectSummary]);
 
   const showEmptyState = projectId && !loading && displayItems.length === 0;
 
@@ -673,99 +622,61 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
       <div className="flex-1 overflow-auto">
         <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-6 px-4 py-5 lg:px-6 lg:py-6">
           <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0 max-w-3xl space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-                    资料库
-                  </h1>
-                  <WorkbenchInfoTip
-                    ariaLabel="资料库工作台说明"
-                    content="集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。"
-                    tone="mint"
-                  />
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
-                      saving
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-slate-200 bg-slate-50 text-slate-600",
-                    )}
-                  >
-                    {saving && (
-                      <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    )}
-                    {saving ? "同步中" : "已就绪"}
-                  </span>
-                </div>
-
-                <p className="text-sm leading-6 text-slate-500">
-                  {currentScopeDescription}
-                </p>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className="rounded-full border-slate-200 bg-slate-50 px-3 py-1 text-slate-700"
-                  >
-                    {selectedProject?.name ?? "未选择资料库"}
-                  </Badge>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+                  资料库
+                </h1>
+                <WorkbenchInfoTip
+                  ariaLabel="资料库工作台说明"
+                  content="集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。"
+                  tone="mint"
+                />
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
+                    saving
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 bg-slate-50 text-slate-600",
+                  )}
+                >
+                  {saving && (
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  )}
+                  {saving ? "同步中" : "已就绪"}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="rounded-full border-slate-200 bg-slate-50 px-3 py-1 text-slate-700"
+                >
+                  {selectedProject?.name ?? "未选择资料库"}
+                </Badge>
+                {projectSummaryLabel && (
                   <Badge
                     variant="outline"
                     className="rounded-full border-slate-200 bg-white px-3 py-1 text-slate-600"
                   >
-                    {isFolderMode
-                      ? `范围：${currentScopeLabel}`
-                      : `${activeCategoryLabel}分类视图`}
+                    {projectSummaryLabel}
                   </Badge>
-                  {searchQuery.trim() ? (
-                    <Badge
-                      variant="outline"
-                      className="rounded-full border-sky-200 bg-sky-50 px-3 py-1 text-sky-700"
-                    >
-                      搜索：{searchQuery.trim()}
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="rounded-full border-slate-200 bg-white px-3 py-1 text-slate-500"
-                    >
-                      {sortFieldLabelMap[sortField]} ·{" "}
-                      {sortDirectionLabelMap[sortDirection]}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2 xl:w-[440px]">
-                {headerStats.map((stat) => {
-                  const StatIcon = stat.icon;
-                  return (
-                    <div
-                      key={stat.key}
-                      className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-slate-500">
-                            {stat.title}
-                          </p>
-                          <p className="mt-1 truncate text-base font-semibold text-slate-900">
-                            {stat.value}
-                          </p>
-                        </div>
-                        <div
-                          className={cn(
-                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
-                            stat.iconClassName,
-                          )}
-                        >
-                          <StatIcon className="h-4 w-4" />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                )}
+                {searchQuery.trim() ? (
+                  <Badge
+                    variant="outline"
+                    className="rounded-full border-sky-200 bg-sky-50 px-3 py-1 text-sky-700"
+                  >
+                    搜索：{searchQuery.trim()}
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="rounded-full border-slate-200 bg-white px-3 py-1 text-slate-500"
+                  >
+                    {sortFieldLabelMap[sortField]} ·{" "}
+                    {sortDirectionLabelMap[sortDirection]}
+                  </Badge>
+                )}
               </div>
             </div>
           </section>

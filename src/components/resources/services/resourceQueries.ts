@@ -11,6 +11,12 @@ export type ResourceSortField = "updatedAt" | "createdAt" | "name";
 
 export type ResourceSortDirection = "asc" | "desc";
 
+export interface ResourceCollectionSummary {
+  folderCount: number;
+  contentItemCount: number;
+  latestUpdatedAt: number | null;
+}
+
 const imageExtensions = new Set([
   "png",
   "jpg",
@@ -243,4 +249,27 @@ export function getCategoryCounts(
   }
 
   return counts;
+}
+
+export function getResourceCollectionSummary(
+  items: ResourceItem[],
+): ResourceCollectionSummary {
+  let folderCount = 0;
+  let latestUpdatedAt: number | null = null;
+
+  for (const item of items) {
+    if (item.kind === "folder") {
+      folderCount += 1;
+    }
+
+    if (latestUpdatedAt === null || item.updatedAt > latestUpdatedAt) {
+      latestUpdatedAt = item.updatedAt;
+    }
+  }
+
+  return {
+    folderCount,
+    contentItemCount: items.length - folderCount,
+    latestUpdatedAt,
+  };
 }

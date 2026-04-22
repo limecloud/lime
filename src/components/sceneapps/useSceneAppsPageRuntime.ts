@@ -15,10 +15,10 @@ import {
   saveSceneAppContextBaseline,
   prepareSceneAppRunGovernanceArtifact,
   prepareSceneAppRunGovernanceArtifacts,
-  type SceneAppCatalog,
-  type SceneAppDescriptor,
+  type SceneAppCurrentCatalog as SceneAppCatalog,
+  type SceneAppCurrentDescriptor as SceneAppDescriptor,
+  type SceneAppCurrentPlanResult as SceneAppPlanResult,
   type SceneAppPattern,
-  type SceneAppPlanResult,
   type SceneAppRunSummary,
   type SceneAppScorecard,
   type SceneAppType,
@@ -43,6 +43,7 @@ import {
   formatSceneAppErrorMessage,
   findLatestSceneAppPackResultRun,
   listSceneAppRecentVisits,
+  normalizeSceneAppTypeFilter,
   useSceneAppLaunchRuntime,
   resolveSceneAppRuntimeArtifactOpenTarget,
   SCENEAPP_QUICK_REVIEW_ACTIONS,
@@ -203,7 +204,7 @@ export function useSceneAppsPageRuntime({
   >({});
   const [searchQuery, setSearchQuery] = useState(pageParams?.search ?? "");
   const [typeFilter, setTypeFilter] = useState<SceneAppTypeFilter>(
-    pageParams?.typeFilter ?? "all",
+    normalizeSceneAppTypeFilter(pageParams?.typeFilter) ?? "all",
   );
   const [patternFilter, setPatternFilter] = useState<SceneAppPatternFilter>(
     pageParams?.patternFilter ?? "all",
@@ -1343,6 +1344,36 @@ export function useSceneAppsPageRuntime({
       planResult: selectedPlanResult,
     });
   }, [launchSeed, selectedDescriptor, selectedEntryCard, selectedPlanResult]);
+  const reusableLaunchPlanResult = useMemo(() => {
+    if (
+      !selectedDescriptor ||
+      !launchSeed ||
+      !selectedPlanResult ||
+      selectedPlanLoading ||
+      selectedPlanError
+    ) {
+      return null;
+    }
+
+    if (selectedPlanResult.descriptor.id !== selectedDescriptor.id) {
+      return null;
+    }
+
+    // 当前输入还没和预览 planning 收敛时，启动仍应走实时规划，避免复用旧上下文。
+    if (launchInput !== effectivePrefillIntent) {
+      return null;
+    }
+
+    return selectedPlanResult;
+  }, [
+    effectivePrefillIntent,
+    launchInput,
+    launchSeed,
+    selectedDescriptor,
+    selectedPlanError,
+    selectedPlanLoading,
+    selectedPlanResult,
+  ]);
 
   const launchDisabledReason = useMemo(() => {
     if (!selectedDescriptor) {
@@ -1493,10 +1524,12 @@ export function useSceneAppsPageRuntime({
       seed: launchSeed,
       entrySource: "sceneapps_page",
       referenceMemoryIds: selectedReferenceMemoryIds,
+      planResult: reusableLaunchPlanResult ?? undefined,
     });
   }, [
     launchRuntime,
     launchSeed,
+    reusableLaunchPlanResult,
     selectedDescriptor,
     selectedReferenceMemoryIds,
   ]);

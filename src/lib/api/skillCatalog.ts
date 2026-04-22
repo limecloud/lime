@@ -26,9 +26,13 @@ export type SkillCatalogExecutionKind =
   | "native_skill"
   | "agent_turn"
   | "automation_job"
-  // legacy compat only：若远端或旧包仍返回 cloud_scene，当前前台会把它视作兼容输入而非真实执行面。
-  | "cloud_scene"
   | "site_adapter";
+
+// legacy compat only：若远端或旧包仍返回 cloud_scene，解析层会先正规化为 agent_turn。
+export type SkillCatalogCompatExecutionKind = "cloud_scene";
+type SkillCatalogAnyExecutionKind =
+  | SkillCatalogExecutionKind
+  | SkillCatalogCompatExecutionKind;
 
 export interface SkillCatalogExecution {
   kind: SkillCatalogExecutionKind;
@@ -294,15 +298,13 @@ function resolveSkillCatalogExecutionKind(
       return "native_skill";
     case "automation_job":
       return "automation_job";
-    case "cloud_scene":
-      return "agent_turn";
     default:
       return "agent_turn";
   }
 }
 
 function normalizeCompatSkillCatalogExecutionKind(
-  kind: SkillCatalogExecutionKind,
+  kind: SkillCatalogAnyExecutionKind,
 ): SkillCatalogExecutionKind {
   return kind === "cloud_scene" ? "agent_turn" : kind;
 }
@@ -310,14 +312,10 @@ function normalizeCompatSkillCatalogExecutionKind(
 function isLegacyCompatSceneSourceItem(
   item: Pick<
     ServiceSkillItem,
-    "defaultExecutorBinding" | "executionLocation" | "sceneBinding"
+    "sceneBinding"
   >,
 ): boolean {
-  return (
-    Boolean(item.sceneBinding) ||
-    item.defaultExecutorBinding === "cloud_scene" ||
-    item.executionLocation === "cloud_required"
-  );
+  return Boolean(item.sceneBinding);
 }
 
 function parseCommandBindingExecutionKind(

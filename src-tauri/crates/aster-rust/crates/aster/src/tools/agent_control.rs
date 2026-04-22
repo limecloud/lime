@@ -443,8 +443,8 @@ impl Tool for SendInputTool {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "to": { "type": "string", "description": "目标 agent 标识。可传 agent id、命名子 session 名称；若当前 session 属于活跃 team，也可传 teammate 名称、ListPeers 返回的 `agent_id`，或 `*` 广播给所有其他 team 成员。ListPeers 暴露的本机会话 `send_to` 形如 `uds:<session-id>`；`bridge:` 当前仍返回未实现失败。" },
-                "summary": { "type": "string", "description": "纯字符串 team / agent 消息必填的 5-10 词预览摘要；synthetic `uds:` 本机会话投递可省略。当前 runtime 仅保留到 metadata，不参与路由。" },
+                "to": { "type": "string", "description": "目标 agent 标识。可传 agent id、命名子 session 名称；若当前 session 属于活跃 team，也可传 teammate 名称或 `*` 广播给所有其他 team 成员。本机会话 peer 请使用 ListPeers 返回的 `send_to`，形如 `uds:<session-id>`；`bridge:` 当前仍返回未实现失败。" },
+                "summary": { "type": "string", "description": "纯字符串 team / agent 消息必填的 5-10 词预览摘要；显式 `uds:<session-id>` 本机会话投递可省略。当前 runtime 仅保留到 metadata，不参与路由。" },
                 "message": {
                     "description": "发送给目标 agent 的消息内容。字符串会直接发送；结构化 JSON 会被序列化为字符串后发送。",
                     "oneOf": [
@@ -581,17 +581,10 @@ impl Tool for SendInputTool {
         } else {
             resolve_send_targets(&context.session_id, &canonical_target).await?
         };
-        let cross_session_sender =
-            parsed_peer_address
-                .as_ref()
-                .map(|address| match address.scheme {
-                    PeerAddressScheme::Uds => {
-                        build_cross_session_sender_address(&context.session_id)
-                    }
-                    PeerAddressScheme::Bridge => {
-                        unreachable!("bridge peer target already returned")
-                    }
-                });
+        let cross_session_sender = resolved_targets
+            .iter()
+            .any(|target| target.delivery_kind == ResolvedSendTargetKind::CrossSessionLocal)
+            .then(|| build_cross_session_sender_address(&context.session_id));
         let mut deliveries = Vec::with_capacity(resolved_targets.len());
         for resolved_target in &resolved_targets {
             let request = SendInputRequest {
@@ -1528,6 +1521,47 @@ mod tests {
             current.id
         )));
         assert!(request.message.contains("继续验证"));
+    }
+
+    #[tokio::test]
+    async fn test_send_message_requires_summary_for_bare_local_session_id_target() {
+        let temp_dir = tempdir().unwrap();
+        let current = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            "cross-session-current".to_string(),
+            SessionType::User,
+        )
+        .await
+        .unwrap();
+        let peer = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            "cross-session-peer".to_string(),
+            SessionType::User,
+        )
+        .await
+        .unwrap();
+
+        let tool = SendInputTool::new(Arc::new(|_request| {
+            Box::pin(async move {
+                panic!("bare local session id should not be treated as summary-free local peer");
+            })
+        }));
+
+        let result = tool
+            .execute(
+                serde_json::json!({
+                    "to": peer.id,
+                    "message": "继续验证"
+                }),
+                &create_context(&current.id),
+            )
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(ToolError::InvalidParams(message))
+            if message == "summary is required when message is a string"
+        ));
     }
 
     #[tokio::test]
