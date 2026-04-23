@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createClientDesktopAuthSession,
   getClientProviderOffer,
+  listClientProviderOfferModels,
   listClientProviderOffers,
   pollClientDesktopAuthSession,
 } from "./oemCloudControlPlane";
@@ -237,5 +238,64 @@ describe("oemCloudControlPlane desktop auth", () => {
         hubTokenRef: "hub-token-ref",
       },
     });
+  });
+
+  it("应解析服务端直接下发的 OEM 模型 taxonomy 字段", async () => {
+    window.__LIME_SESSION_TOKEN__ = "session-token-001";
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        code: 200,
+        message: "success",
+        data: {
+          items: [
+            {
+              id: "model-001",
+              offerId: "offer-001",
+              modelId: "relay-gpt-images-2",
+              displayName: "Relay GPT Images 2",
+              abilities: ["image_generation"],
+              task_families: ["image_generation"],
+              input_modalities: ["text"],
+              output_modalities: ["image"],
+              runtime_features: ["images_api"],
+              deployment_source: "oem_cloud",
+              management_plane: "oem_control_plane",
+              canonical_model_id: "openai/gpt-images-2",
+              provider_model_id: "relay-gpt-images-2",
+              alias_source: "oem",
+              recommended: true,
+              status: "active",
+              sort: 10,
+              createdAt: "2026-04-22T00:00:00.000Z",
+              updatedAt: "2026-04-22T00:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const models = await listClientProviderOfferModels(
+      "tenant-0001",
+      "lime-hub-main",
+    );
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        modelId: "relay-gpt-images-2",
+        task_families: ["image_generation"],
+        input_modalities: ["text"],
+        output_modalities: ["image"],
+        runtime_features: ["images_api"],
+        deployment_source: "oem_cloud",
+        management_plane: "oem_control_plane",
+        canonical_model_id: "openai/gpt-images-2",
+        provider_model_id: "relay-gpt-images-2",
+        alias_source: "oem",
+      }),
+    ]);
   });
 });

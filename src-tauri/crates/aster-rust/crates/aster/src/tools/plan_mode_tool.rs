@@ -11,7 +11,10 @@
 // - 计划持久化存储
 // - 用户权限确认机制
 
-use crate::session::{query_session, resolve_team_context, SessionType};
+use crate::session::{
+    query_session, resolve_team_context, save_session_plan_mode_state, SessionPlanModeState,
+    SessionType,
+};
 use crate::tools::{
     base::{PermissionCheckResult, Tool},
     context::{ToolContext, ToolOptions, ToolResult},
@@ -145,6 +148,18 @@ lazy_static::lazy_static! {
 
 pub(crate) fn current_plan_mode_active() -> bool {
     GLOBAL_STATE.is_plan_mode_active()
+}
+
+async fn load_session_plan_mode_state(session_id: &str) -> Option<SessionPlanModeState> {
+    let session_id = session_id.trim();
+    if session_id.is_empty() {
+        return None;
+    }
+
+    query_session(session_id, false)
+        .await
+        .ok()
+        .and_then(|session| SessionPlanModeState::from_session(&session))
 }
 
 async fn session_is_subagent_context(context: &ToolContext) -> bool {
@@ -894,13 +909,19 @@ Before using this tool, ensure your plan is clear and unambiguous. If there are 
         _params: &Value,
         context: &ToolContext,
     ) -> PermissionCheckResult {
-        if !GLOBAL_STATE.is_plan_mode_active() {
+        let is_subagent_context = session_is_subagent_context(context).await;
+        let session_plan_state = load_session_plan_mode_state(&context.session_id).await;
+        let plan_mode_active = session_plan_state
+            .as_ref()
+            .is_some_and(|state| state.active)
+            || (!is_subagent_context && GLOBAL_STATE.is_plan_mode_active());
+        if !plan_mode_active {
             return PermissionCheckResult::deny(
                 "You are not in plan mode. This tool is only for exiting plan mode after writing a plan.",
             );
         }
 
-        if session_is_subagent_context(context).await {
+        if is_subagent_context {
             return PermissionCheckResult::allow();
         }
 
@@ -920,16 +941,27 @@ Before using this tool, ensure your plan is clear and unambiguous. If there are 
         let input: ExitPlanModeInput = serde_json::from_value(params).map_err(|error| {
             ToolError::invalid_params(format!("ExitPlanMode 参数无效: {error}"))
         })?;
+        let is_agent = session_is_subagent_context(context).await;
+        let session_plan_state = load_session_plan_mode_state(&context.session_id).await;
+        let using_session_plan_state = session_plan_state
+            .as_ref()
+            .is_some_and(|state| state.active);
         // 检查是否在计划模式中
-        if !GLOBAL_STATE.is_plan_mode_active() {
+        if !using_session_plan_state && !GLOBAL_STATE.is_plan_mode_active() {
             return Ok(ToolResult::error(
                 "Not in plan mode. Use EnterPlanMode first.",
             ));
         }
 
         // 获取计划文件信息
-        let plan_file = GLOBAL_STATE.get_plan_file();
-        let plan_id = GLOBAL_STATE.get_current_plan_id();
+        let plan_file = session_plan_state
+            .as_ref()
+            .and_then(|state| state.plan_file.clone())
+            .or_else(|| GLOBAL_STATE.get_plan_file());
+        let plan_id = session_plan_state
+            .as_ref()
+            .and_then(|state| state.plan_id.clone())
+            .or_else(|| GLOBAL_STATE.get_current_plan_id());
 
         let mut plan_content = String::new();
         if let Some(ref plan_file_path) = plan_file {
@@ -956,7 +988,6 @@ Before using this tool, ensure your plan is clear and unambiguous. If there are 
             }
         }
 
-        let is_agent = session_is_subagent_context(context).await;
         let team_context = resolve_team_context(&context.session_id)
             .await
             .map_err(|error| ToolError::execution_failed(format!("读取 team 状态失败: {error}")))?;
@@ -1016,10 +1047,37 @@ Before using this tool, ensure your plan is clear and unambiguous. If there are 
                 "submissionId": response.submission_id,
                 "extra": response.extra,
             }));
+
+            if using_session_plan_state {
+                let updated_state = SessionPlanModeState {
+                    active: true,
+                    plan_file: plan_file.clone(),
+                    plan_id: plan_id.clone(),
+                    awaiting_leader_approval: true,
+                    pending_request_id: Some(generated_request_id),
+                };
+                save_session_plan_mode_state(&context.session_id, Some(updated_state))
+                    .await
+                    .map_err(|error| {
+                        ToolError::execution_failed(format!(
+                            "持久化 teammate plan 状态失败: {error}"
+                        ))
+                    })?;
+            }
         }
 
-        // 更新全局状态：退出计划模式
-        GLOBAL_STATE.set_plan_mode(false, None, None);
+        if awaiting_leader_approval.is_none() {
+            if using_session_plan_state {
+                save_session_plan_mode_state(&context.session_id, None)
+                    .await
+                    .map_err(|error| {
+                        ToolError::execution_failed(format!("清理 session plan 状态失败: {error}"))
+                    })?;
+            } else {
+                // 更新全局状态：退出计划模式
+                GLOBAL_STATE.set_plan_mode(false, None, None);
+            }
+        }
         let output = ExitPlanModeOutput {
             plan: if plan_content.is_empty() {
                 None
@@ -1077,7 +1135,7 @@ mod tests {
     fn create_test_context() -> ToolContext {
         ToolContext {
             working_directory: std::env::current_dir().unwrap(),
-            session_id: "test-session".to_string(),
+            session_id: String::new(),
             user: Some("test-user".to_string()),
             environment: HashMap::new(),
             cancellation_token: None,
@@ -1302,13 +1360,20 @@ mod tests {
         let tool = ExitPlanModeTool::new();
         let context = create_session_context(SessionType::SubAgent).await?;
         let input = json!({});
+        let plan_path = std::env::temp_dir().join(format!("{}.md", Uuid::new_v4()));
 
-        GLOBAL_STATE.set_plan_mode(true, None, None);
+        crate::session::save_session_plan_mode_state(
+            &context.session_id,
+            Some(SessionPlanModeState::active(
+                Some(plan_path.display().to_string()),
+                Some("subagent-plan".to_string()),
+            )),
+        )
+        .await?;
 
         let result = tool.check_permissions(&input, &context).await;
         assert!(matches!(result.behavior, PermissionBehavior::Allow));
 
-        GLOBAL_STATE.set_plan_mode(false, None, None);
         let _ = delete_managed_session(&context.session_id).await;
         Ok(())
     }
@@ -1380,13 +1445,19 @@ mod tests {
     #[serial]
     async fn test_exit_plan_mode_execution_in_plan_mode() {
         let tool = ExitPlanModeTool::new();
-        let context = create_test_context();
+        let temp_dir = TempDir::new().expect("create temp dir");
+        let plan_path = temp_dir.path().join("PLAN.md");
+        fs::write(&plan_path, "# 计划\n\n- 收口当前实现\n").expect("write plan file");
+        let context = ToolContext {
+            working_directory: temp_dir.path().to_path_buf(),
+            ..create_test_context()
+        };
         let input = json!({});
 
         // 设置计划模式
         GLOBAL_STATE.set_plan_mode(
             true,
-            Some("test.md".to_string()),
+            Some(plan_path.to_string_lossy().to_string()),
             Some("test-id".to_string()),
         );
 
@@ -1406,12 +1477,16 @@ mod tests {
     async fn test_exit_plan_mode_marks_subagent_context_as_agent() -> anyhow::Result<()> {
         let tool = ExitPlanModeTool::new();
         let context = create_session_context(SessionType::SubAgent).await?;
+        let plan_path = std::env::temp_dir().join(format!("{}.md", Uuid::new_v4()));
 
-        GLOBAL_STATE.set_plan_mode(
-            true,
-            Some("test-subagent.md".to_string()),
-            Some("test-subagent-id".to_string()),
-        );
+        crate::session::save_session_plan_mode_state(
+            &context.session_id,
+            Some(SessionPlanModeState::active(
+                Some(plan_path.display().to_string()),
+                Some("test-subagent-id".to_string()),
+            )),
+        )
+        .await?;
 
         let result = tool.execute(json!({}), &context).await?;
         let output: serde_json::Value =
@@ -1449,11 +1524,14 @@ mod tests {
             })
         }));
 
-        GLOBAL_STATE.set_plan_mode(
-            true,
-            Some(plan_path.to_string_lossy().to_string()),
-            Some("plan-approval-id".to_string()),
-        );
+        crate::session::save_session_plan_mode_state(
+            &context.session_id,
+            Some(SessionPlanModeState::active(
+                Some(plan_path.to_string_lossy().to_string()),
+                Some("plan-approval-id".to_string()),
+            )),
+        )
+        .await?;
 
         let result = tool.execute(json!({}), &context).await?;
         let output: Value =
@@ -1470,7 +1548,15 @@ mod tests {
             json!(plan_path.to_string_lossy().to_string())
         );
         assert!(request_id.starts_with("plan_approval-"));
-        assert!(!GLOBAL_STATE.is_plan_mode_active());
+        let session = query_session(&context.session_id, false).await?;
+        let session_plan_state =
+            SessionPlanModeState::from_session(&session).expect("session plan state should exist");
+        assert!(session_plan_state.active);
+        assert!(session_plan_state.awaiting_leader_approval);
+        assert_eq!(
+            session_plan_state.pending_request_id.as_deref(),
+            Some(request_id.as_str())
+        );
 
         let sent_request = captured_request
             .lock()

@@ -36,6 +36,26 @@ vi.mock("@/components/provider-pool", () => ({
   ),
 }));
 
+vi.mock("@/components/input-kit", () => ({
+  ModelSelector: ({
+    providerType,
+    model,
+    activeTheme,
+    placeholderLabel,
+  }: {
+    providerType: string;
+    model: string;
+    activeTheme?: string;
+    placeholderLabel?: string;
+  }) => (
+    <div data-testid="provider-settings-model-selector">
+      {activeTheme ? `[${activeTheme}] ` : ""}
+      {providerType || placeholderLabel || "自动选择"} /{" "}
+      {model || placeholderLabel || "自动选择"}
+    </div>
+  ),
+}));
+
 vi.mock("@/lib/api/companion", () => ({
   getCompanionPetStatus: () => mockGetCompanionPetStatus(),
   launchCompanionPet: () => mockLaunchCompanionPet(),
@@ -335,11 +355,6 @@ beforeEach(() => {
           preferredModelId: "deepseek-chat",
           allowFallback: false,
         },
-        tts: {
-          preferredProviderId: "openai-tts",
-          preferredModelId: "gpt-4o-mini-tts",
-          allowFallback: true,
-        },
       },
     },
   });
@@ -497,6 +512,9 @@ describe("CloudProviderSettings", () => {
             modelId: "gpt-5.2-pro",
             displayName: "GPT-5.2 Pro",
             recommended: true,
+            abilities: ["chat", "vision_understanding", "image_generation"],
+            upstreamMapping: "openai/gpt-image-1",
+            description: "统一下发的多能力目录项",
           },
         ],
         defaultCloudOffer: createOffer(),
@@ -528,6 +546,12 @@ describe("CloudProviderSettings", () => {
     expect(text).toContain("fmt:2026-03-25T08:00:00.000Z");
     expect(text).toContain("Lime Hub 主服务");
     expect(text).toContain("GPT-5.2 Pro");
+    expect(text).toContain("OEM 云端");
+    expect(text).toContain("对话");
+    expect(text).toContain("视觉理解");
+    expect(text).toContain("图片生成");
+    expect(text).toContain("实际映射：gpt-5.2-pro → openai/gpt-image-1");
+    expect(text).toContain("统一下发的多能力目录项");
 
     await act(async () => {
       findButton(container, "已是默认来源").dispatchEvent(
@@ -537,6 +561,74 @@ describe("CloudProviderSettings", () => {
 
     expect(handleRefresh).toHaveBeenCalledTimes(1);
     expect(handleSetDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("已下发 taxonomy 时应优先使用统一 schema 渲染 OEM 模型目录", async () => {
+    mockUseOemCloudAccess.mockReturnValue(
+      createAccessState({
+        session: {
+          tenant: { id: "tenant-0001" },
+          user: {
+            id: "user-001",
+            email: "operator@example.com",
+            displayName: "Demo Operator",
+          },
+          session: {
+            id: "session-001",
+            expiresAt: "2026-03-25T08:00:00.000Z",
+          },
+        },
+        offers: [createOffer()],
+        preference: {
+          providerSource: "oem_cloud",
+          providerKey: "lime-hub-main",
+        },
+        selectedOffer: {
+          ...createOffer(),
+          access: {
+            offerId: "offer-001",
+            accessMode: "session",
+            hubTokenEnabled: false,
+          },
+        },
+        selectedModels: [
+          {
+            id: "model-002",
+            offerId: "offer-001",
+            modelId: "relay-gpt-images-2",
+            displayName: "Relay GPT Images 2",
+            abilities: ["chat", "vision_understanding"],
+            task_families: ["image_generation"],
+            input_modalities: ["text"],
+            output_modalities: ["image"],
+            runtime_features: ["images_api"],
+            canonical_model_id: "openai/gpt-images-2",
+            alias_source: "oem",
+            recommended: true,
+            description: "应优先使用统一 taxonomy",
+          },
+        ],
+        defaultCloudOffer: createOffer(),
+        activeCloudOffer: createOffer(),
+      }),
+    );
+
+    const { container } = await renderPage();
+
+    await act(async () => {
+      findButton(container, "云端服务").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Relay GPT Images 2");
+    expect(text).toContain("图片生成");
+    expect(text).not.toContain("视觉理解");
+    expect(text).not.toContain("对话");
+    expect(text).toContain(
+      "实际映射：relay-gpt-images-2 → openai/gpt-images-2",
+    );
   });
 
   it("服务端误报待登录时应优先展示当前会话的已登录状态", async () => {
@@ -706,7 +798,12 @@ describe("CloudProviderSettings", () => {
     expect(text).toContain("当前链路已就绪，可以直接点击“立即同步到桌宠”。");
     expect(text).toContain("桌宠能力偏好");
     expect(text).toContain("桌宠通用模型");
-    expect(text).toContain("桌宠语音播报");
+    expect(text).not.toContain("桌宠语音播报");
+    expect(
+      container.querySelectorAll(
+        "[data-testid='provider-settings-model-selector']",
+      ),
+    ).toHaveLength(1);
   });
 
   it("带 initialView=companion 时应默认打开桌宠管理页", async () => {

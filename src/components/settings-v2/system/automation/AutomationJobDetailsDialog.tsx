@@ -10,6 +10,10 @@ import { Button } from "@/components/ui/button";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { SceneAppRunDetailPanel } from "@/components/sceneapps/SceneAppRunDetailPanel";
 import {
+  buildSceneAppExecutionFollowupDestinations,
+  type SceneAppExecutionFollowupDestination,
+} from "@/components/sceneapps/sceneAppExecutionFollowupDestinations";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -65,6 +69,7 @@ interface AutomationJobDetailsDialogProps {
   sceneAppError?: string | null;
   onOpenSceneAppDetail?: () => void;
   onOpenSceneAppGovernance?: () => void;
+  onReviewCurrentProject?: () => void;
   onSceneAppDeliveryArtifactAction?: (
     action: SceneAppRunDetailViewModel["deliveryArtifactEntries"][number],
   ) => void;
@@ -73,6 +78,9 @@ interface AutomationJobDetailsDialogProps {
   ) => void;
   onSceneAppGovernanceArtifactAction?: (
     action: SceneAppRunDetailViewModel["governanceArtifactEntries"][number],
+  ) => void;
+  onSceneAppEntryAction?: (
+    action: NonNullable<SceneAppRunDetailViewModel["entryAction"]>,
   ) => void;
   onRefreshHistory: (jobId: string) => Promise<void> | void;
 }
@@ -91,11 +99,65 @@ export function AutomationJobDetailsDialog({
   sceneAppError = null,
   onOpenSceneAppDetail,
   onOpenSceneAppGovernance,
+  onReviewCurrentProject,
   onSceneAppDeliveryArtifactAction,
   onSceneAppGovernanceAction,
   onSceneAppGovernanceArtifactAction,
+  onSceneAppEntryAction,
   onRefreshHistory,
 }: AutomationJobDetailsDialogProps) {
+  const followupDestinations = sceneAppRunDetailView
+    ? buildSceneAppExecutionFollowupDestinations(sceneAppRunDetailView)
+    : [];
+  const resolveFollowupDestinationAction = (
+    destination: SceneAppExecutionFollowupDestination,
+  ): { label: string; onClick: () => void } | null => {
+    const action = destination.action;
+    if (!action) {
+      return null;
+    }
+
+    switch (action.kind) {
+      case "review_current_project":
+        return onReviewCurrentProject
+          ? {
+              label: action.label,
+              onClick: onReviewCurrentProject,
+            }
+          : null;
+      case "governance_action":
+        return onSceneAppGovernanceAction
+          ? {
+              label: action.label,
+              onClick: () => onSceneAppGovernanceAction(action.entry),
+            }
+          : null;
+      case "governance_artifact":
+        return onSceneAppGovernanceArtifactAction
+          ? {
+              label: action.label,
+              onClick: () => onSceneAppGovernanceArtifactAction(action.entry),
+            }
+          : null;
+      case "entry_action":
+        return onSceneAppEntryAction
+          ? {
+              label: action.label,
+              onClick: () => onSceneAppEntryAction(action.entry),
+            }
+          : null;
+      case "delivery_artifact":
+        return onSceneAppDeliveryArtifactAction
+          ? {
+              label: action.label,
+              onClick: () => onSceneAppDeliveryArtifactAction(action.entry),
+            }
+          : null;
+      default:
+        return null;
+    }
+  };
+
   return (
     <Dialog open={open && Boolean(job)} onOpenChange={onOpenChange}>
       <DialogContent
@@ -334,34 +396,105 @@ export function AutomationJobDetailsDialog({
                             </div>
                           </div>
 
-                          {sceneAppSummaryCard.scorecardActionLabel ||
-                          sceneAppSummaryCard.topFailureSignalLabel ? (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              {sceneAppSummaryCard.scorecardActionLabel ? (
-                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                                  {sceneAppSummaryCard.scorecardActionLabel}
+                          {sceneAppSummaryCard.scorecardAggregate ? (
+                            <div
+                              className="mt-4 rounded-[18px] border border-white bg-white/90 px-4 py-4"
+                              data-testid="automation-sceneapp-scorecard-aggregate"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="text-xs font-medium text-slate-500">
+                                  经营判断
+                                </div>
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
+                                  {sceneAppSummaryCard.scorecardAggregate.statusLabel}
                                 </span>
-                              ) : null}
-                              {sceneAppSummaryCard.topFailureSignalLabel ? (
-                                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                                  {sceneAppSummaryCard.topFailureSignalLabel}
-                                </span>
-                              ) : null}
-                            </div>
-                          ) : null}
-
-                          {sceneAppSummaryCard.destinations.length ? (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              {sceneAppSummaryCard.destinations.map(
-                                (destination) => (
-                                  <span
-                                    key={destination.key}
-                                    className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700"
-                                  >
-                                    {destination.label}
+                                {sceneAppSummaryCard.scorecardAggregate
+                                  .actionLabel ? (
+                                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                                    {
+                                      sceneAppSummaryCard.scorecardAggregate
+                                        .actionLabel
+                                    }
                                   </span>
-                                ),
-                              )}
+                                ) : null}
+                                {sceneAppSummaryCard.scorecardAggregate
+                                  .topFailureSignalLabel ? (
+                                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                                    {
+                                      sceneAppSummaryCard.scorecardAggregate
+                                        .topFailureSignalLabel
+                                    }
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="mt-3 text-sm leading-6 text-slate-800">
+                                {sceneAppSummaryCard.scorecardAggregate.summary}
+                              </div>
+                              <div className="mt-2 text-sm leading-6 text-slate-600">
+                                {sceneAppSummaryCard.scorecardAggregate.nextAction}
+                              </div>
+                              {sceneAppSummaryCard.scorecardAggregate
+                                .destinations.length ? (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {sceneAppSummaryCard.scorecardAggregate.destinations.map(
+                                    (destination) => (
+                                      <span
+                                        key={destination.key}
+                                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
+                                      >
+                                        {destination.label}
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              ) : null}
+                              {followupDestinations.length ? (
+                                <div
+                                  className="mt-4 grid gap-3 md:grid-cols-2"
+                                  data-testid="automation-sceneapp-destination-actions"
+                                >
+                                  {followupDestinations.map((destination) => {
+                                    const destinationAction =
+                                      resolveFollowupDestinationAction(
+                                        destination,
+                                      );
+
+                                    return (
+                                      <article
+                                        key={destination.key}
+                                        className="rounded-[16px] border border-slate-200/80 bg-slate-50/70 px-3 py-3"
+                                      >
+                                        <div className="text-sm font-medium text-slate-900">
+                                          {destination.label}
+                                        </div>
+                                        <div className="mt-2 text-xs leading-5 text-slate-600">
+                                          {destination.description}
+                                        </div>
+                                        {destinationAction ? (
+                                          <div className="mt-3">
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="outline"
+                                              data-testid={`automation-sceneapp-destination-action-${destination.key}`}
+                                              onClick={
+                                                destinationAction.onClick
+                                              }
+                                            >
+                                              {destinationAction.label}
+                                            </Button>
+                                          </div>
+                                        ) : destination.key ===
+                                          "automation-job" ? (
+                                          <div className="mt-3 text-xs leading-5 text-slate-500">
+                                            当前就在这条持续流程里，无需再跳转一次。
+                                          </div>
+                                        ) : null}
+                                      </article>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
 

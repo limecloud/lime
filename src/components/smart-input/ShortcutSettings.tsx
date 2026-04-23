@@ -23,6 +23,10 @@ export interface ShortcutSettingsProps {
   onValidate?: (shortcut: string) => Promise<boolean>;
   /** 是否禁用 */
   disabled?: boolean;
+  /** 空值占位文案 */
+  emptyLabel?: string;
+  /** 是否允许直接清空 */
+  allowClear?: boolean;
 }
 
 // ============================================================
@@ -111,6 +115,8 @@ export function ShortcutSettings({
   onShortcutChange,
   onValidate,
   disabled = false,
+  emptyLabel = "未设置快捷键",
+  allowClear = false,
 }: ShortcutSettingsProps) {
   // 状态
   const [isRecording, setIsRecording] = useState(false);
@@ -135,6 +141,25 @@ export function ShortcutSettings({
     setRecordedShortcut(null);
     setError(null);
   }, []);
+
+  const clearShortcut = useCallback(async () => {
+    if (!allowClear || !currentShortcut || disabled) {
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await onShortcutChange("");
+      setRecordedShortcut(null);
+      setIsRecording(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "清空失败");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [allowClear, currentShortcut, disabled, onShortcutChange]);
 
   // 保存快捷键
   const saveShortcut = useCallback(async () => {
@@ -226,8 +251,10 @@ export function ShortcutSettings({
                 ? formatShortcutDisplay(recordedShortcut)
                 : "按下快捷键组合..."}
             </span>
-          ) : (
+          ) : displayShortcut ? (
             <span>{formatShortcutDisplay(displayShortcut)}</span>
+          ) : (
+            <span className="text-muted-foreground">{emptyLabel}</span>
           )}
         </div>
 
@@ -257,16 +284,33 @@ export function ShortcutSettings({
             </button>
           </>
         ) : (
-          <button
-            onClick={startRecording}
-            disabled={disabled}
-            className={cn(
-              "px-3 py-2 rounded border text-sm transition-colors",
-              disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-muted",
-            )}
-          >
-            修改
-          </button>
+          <>
+            {allowClear && currentShortcut ? (
+              <button
+                onClick={clearShortcut}
+                disabled={disabled || isSaving}
+                className={cn(
+                  "px-3 py-2 rounded border text-sm transition-colors",
+                  disabled || isSaving
+                    ? "opacity-50 cursor-not-allowed"
+                    : "hover:bg-muted",
+                )}
+                title="清空"
+              >
+                清空
+              </button>
+            ) : null}
+            <button
+              onClick={startRecording}
+              disabled={disabled}
+              className={cn(
+                "px-3 py-2 rounded border text-sm transition-colors",
+                disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-muted",
+              )}
+            >
+              修改
+            </button>
+          </>
         )}
       </div>
 

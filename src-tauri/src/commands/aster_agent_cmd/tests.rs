@@ -1068,6 +1068,9 @@ mod tests {
 
         assert!(permissions
             .iter()
+            .any(|permission| permission.tool == "Bash" && !permission.allowed));
+        assert!(permissions
+            .iter()
             .any(|permission| permission.tool == "Read" && !permission.allowed));
         assert!(permissions
             .iter()
@@ -1102,6 +1105,11 @@ mod tests {
             serde_json::json!({"type": "object"}),
         )));
         registry.register(Box::new(DummyTool::new(
+            "Bash",
+            "Run shell",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
             "Glob",
             "Glob file",
             serde_json::json!({"type": "object"}),
@@ -1115,6 +1123,7 @@ mod tests {
         prune_image_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
 
         assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("Bash"));
         assert!(!registry.contains("Read"));
         assert!(!registry.contains("Glob"));
         assert!(registry.contains("Skill"));
@@ -4456,9 +4465,10 @@ mod tests {
         assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"image_task\":"));
         assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
-        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Bash / Read / Glob / Grep"));
         assert!(merged.contains("应立即改为直调 Skill(image_generate)"));
-        assert!(merged.contains("lime media image generate --json"));
+        assert!(merged.contains("lime_create_image_generation_task"));
+        assert!(merged.contains("不要再通过 Bash 拼接 CLI 命令或临时 /tmp 任务文件"));
         assert!(merged.contains("不要伪造“图片已生成完成”"));
         assert!(merged.contains("当前任务已经显式进入图片技能主链"));
     }
@@ -6319,6 +6329,7 @@ mod tests {
         let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let expected: HashSet<String> = [
             "src/commands/aster_agent_cmd/action_runtime.rs",
+            "src/commands/agent_cmd.rs",
             "src/commands/persona_cmd.rs",
             "src/commands/theme_context_cmd.rs",
         ]

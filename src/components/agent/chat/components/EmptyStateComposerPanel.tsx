@@ -77,6 +77,7 @@ interface EmptyStateComposerPanelProps {
   onEditCuratedTask?: () => void;
   creationReplaySurface?: CreationReplaySurfaceModel | null;
   projectId?: string | null;
+  sessionId?: string | null;
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
   showCreationModeSelector: boolean;
@@ -125,6 +126,7 @@ export function EmptyStateComposerPanel({
   onEditCuratedTask,
   creationReplaySurface = null,
   projectId = null,
+  sessionId = null,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
   showCreationModeSelector,
@@ -165,6 +167,10 @@ export function EmptyStateComposerPanel({
       : null;
   const activeCuratedTask =
     activeCapability?.kind === "curated_task" ? activeCapability.task : null;
+  const activeCuratedTaskReferenceEntries =
+    activeCapability?.kind === "curated_task"
+      ? activeCapability.referenceEntries
+      : undefined;
   const activeSkill =
     activeCapability?.kind === "installed_skill"
       ? activeCapability.skill
@@ -259,6 +265,9 @@ export function EmptyStateComposerPanel({
         {activeCuratedTask ? (
           <CuratedTaskBadge
             task={activeCuratedTask}
+            projectId={projectId}
+            sessionId={sessionId}
+            referenceEntries={activeCuratedTaskReferenceEntries}
             onEdit={onEditCuratedTask}
             onClear={onClearInputCapability ?? (() => undefined)}
           />

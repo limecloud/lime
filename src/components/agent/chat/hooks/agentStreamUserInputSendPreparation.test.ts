@@ -215,6 +215,50 @@ describe("agentStreamUserInputSendPreparation", () => {
     expect(isSending).toBe(false);
   });
 
+  it("应优先使用 options 里的 provider/model override", () => {
+    vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000008")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000009");
+
+    let messages: Message[] = [];
+    let isSending = false;
+    const env = {
+      ...createEnv({
+        providerType: "openai",
+        model: "gpt-5.4-mini",
+      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
+    };
+
+    const result = prepareAgentStreamUserInputSend({
+      content: "改成翻译链路",
+      images: [],
+      skipUserMessage: false,
+      options: {
+        providerOverride: "translation-provider",
+        modelOverride: "translation-model",
+      },
+      env,
+    });
+
+    expect(result.effectiveProviderType).toBe("translation-provider");
+    expect(result.effectiveModel).toBe("translation-model");
+    expect(result.modelOverride).toBe("translation-model");
+    expect(messages).toHaveLength(2);
+    expect(isSending).toBe(true);
+  });
+
   it("恢复态 thread 仍忙时也应直接进入 queue 模式", () => {
     vi.spyOn(crypto, "randomUUID")
       .mockReturnValueOnce("00000000-0000-0000-0000-000000000004")

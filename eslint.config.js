@@ -916,12 +916,12 @@ const apiCompatibilityCommandSelectors = ["check_api_compatibility"].map(
   }),
 );
 
-const sceneAppWideTypeImportSelectors = [
+const sceneAppCurrentProjectionAliasImportSelectors = [
   {
     selector:
-      "ImportSpecifier[imported.name='SceneAppDescriptor'], ImportSpecifier[imported.name='SceneAppPlanResult'], ImportSpecifier[imported.name='SceneAppCatalog']",
+      "ImportSpecifier[imported.name='SceneAppCurrentDescriptor'], ImportSpecifier[imported.name='SceneAppCurrentPlanResult'], ImportSpecifier[imported.name='SceneAppCurrentCatalog']",
     message:
-      "SceneApp 宽类型只允许停留在 compat 输入或 API 归一化边界；业务层与测试夹具请改用 SceneAppCurrent* 投影类型。",
+      "SceneApp base type 现已是 current 事实源；业务层请直接改用 SceneAppDescriptor / SceneAppPlanResult / SceneAppCatalog，避免继续依赖 SceneAppCurrent* 过渡别名。",
   },
 ];
 
@@ -930,7 +930,37 @@ const sceneAppWideExecutionTypeImportSelectors = [
     selector:
       "ImportSpecifier[imported.name='SceneAppBindingFamily'], ImportSpecifier[imported.name='SceneAppRuntimeAction']",
     message:
-      "SceneApp 宽执行类型只允许停留在 API 归一化边界；业务层与测试夹具请改用 SceneAppCurrentBindingFamily / SceneAppCurrentRuntimeAction。",
+      "SceneApp 宽执行类型只允许停留在 API 归一化边界；业务层与测试夹具请改用 SceneAppExecutorBindingFamily / SceneAppExecutionRuntimeAction。",
+  },
+];
+
+const sceneAppCompatInputTypeImportSelectors = [
+  {
+    selector:
+      "ImportSpecifier[imported.name='SceneAppCompatDescriptorInput'], ImportSpecifier[imported.name='SceneAppCompatCatalogInput'], ImportSpecifier[imported.name='SceneAppCompatExecutionPlanInput'], ImportSpecifier[imported.name='SceneAppCompatPlanResultInput']",
+    message:
+      "SceneApp raw compat 输入类型只允许停留在 API 归一化边界；业务层与测试夹具请改用 SceneAppCurrent* 或 current 业务投影。",
+  },
+];
+
+const sceneAppCompatTokenSelectors = [
+  {
+    selector:
+      "Literal[value='cloud_managed'], Literal[value='cloud_runtime'], Literal[value='cloud_session'], Literal[value='cloud_scene'], Literal[value='launch_cloud_scene'], Literal[value='cloudSessionReady'], Literal[value='cloud_session_ready']",
+    message:
+      "SceneApp compat token 只允许停留在 API/目录编译/compat 展示边界；业务层请统一使用 current 语义。",
+  },
+  {
+    selector:
+      "Property[key.name='cloudSessionReady'], TSPropertySignature[key.name='cloudSessionReady'], MemberExpression[property.name='cloudSessionReady']",
+    message:
+      "cloudSessionReady 只允许停留在 SceneApp compat input 边界；业务层请统一改用 directorySessionReadyCompat 或 current 语义。",
+  },
+  {
+    selector:
+      "Property[key.name='cloud_session_ready'], TSPropertySignature[key.name='cloud_session_ready'], MemberExpression[property.name='cloud_session_ready']",
+    message:
+      "cloud_session_ready 只允许停留在 SceneApp compat input 边界；业务层请统一改用 directorySessionReadyCompat 或 current 语义。",
   },
 ];
 
@@ -1082,7 +1112,6 @@ export default [
       ),
       "no-restricted-syntax": [
         "error",
-        ...sceneAppWideTypeImportSelectors,
         ...generalChatCompatCommandSelectors,
         ...agentRuntimeCommandSelectors,
         ...projectGatewayCommandSelectors,
@@ -1256,7 +1285,32 @@ export default [
     rules: {
       "no-restricted-syntax": [
         "error",
+        ...sceneAppCurrentProjectionAliasImportSelectors,
         ...sceneAppWideExecutionTypeImportSelectors,
+        ...sceneAppCompatInputTypeImportSelectors,
+      ],
+    },
+  },
+  {
+    files: [
+      "src/lib/sceneapp/**/*.{ts,tsx}",
+      "src/components/sceneapps/**/*.{ts,tsx}",
+      "src/components/settings-v2/system/automation/**/*.{ts,tsx}",
+      "src/components/agent/chat/workspace/**/*.{ts,tsx}",
+      "src/components/agent/chat/AgentChatWorkspace.tsx",
+    ],
+    ignores: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "src/lib/sceneapp/types.ts",
+      "src/lib/sceneapp/catalog.ts",
+      "src/lib/sceneapp/presentation.ts",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...sceneAppCurrentProjectionAliasImportSelectors,
+        ...sceneAppCompatTokenSelectors,
       ],
     },
   },

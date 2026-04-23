@@ -8,6 +8,7 @@ import {
   IMAGE_GEN_MODELS,
   type ImageGenModel,
 } from "@/components/image-gen/types";
+import { inferModelTaskFamilies } from "@/lib/model/inferModelCapabilities";
 
 export type ImageModelPreset = "basic" | "jimeng" | "kling";
 
@@ -21,6 +22,42 @@ export interface ImageProviderModelCandidate extends ImageProviderCandidate {
   apiHost?: string;
 }
 
+function getBuiltinImageModels(
+  providerId: string,
+  providerType: string,
+): ImageGenModel[] {
+  const normalizedProviderId = providerId.trim().toLowerCase();
+  const normalizedProviderType = providerType.trim().toLowerCase();
+  const byProviderId = IMAGE_GEN_MODELS[normalizedProviderId];
+
+  if (byProviderId && byProviderId.length > 0) {
+    return byProviderId;
+  }
+
+  if (
+    normalizedProviderId &&
+    normalizedProviderType &&
+    normalizedProviderId !== normalizedProviderType
+  ) {
+    return [];
+  }
+
+  return IMAGE_GEN_MODELS[normalizedProviderType] ?? [];
+}
+
+function isImageGenerationModelId(
+  modelId: string,
+  providerId: string,
+  providerType: string,
+): boolean {
+  return inferModelTaskFamilies({
+    modelId,
+    providerId,
+    providerType,
+    providerModelId: modelId,
+  }).includes("image_generation");
+}
+
 function normalizeProviderSignature(
   providerId: string,
   providerType: string,
@@ -31,21 +68,18 @@ function normalizeProviderSignature(
 export function isImageProvider(
   providerId: string,
   providerType: string,
+  customModels?: string[],
 ): boolean {
-  const normalized = normalizeProviderSignature(providerId, providerType);
-  return (
-    normalized.includes("fal") ||
-    normalized.includes("new-api") ||
-    normalized.includes("openai") ||
-    normalized.includes("doubao") ||
-    normalized.includes("volc") ||
-    normalized.includes("dashscope") ||
-    normalized.includes("alibaba") ||
-    normalized.includes("qwen") ||
-    normalized.includes("kling") ||
-    normalized.includes("minimax") ||
-    normalized.includes("hailuo") ||
-    normalized.includes("image")
+  const builtinModels = getBuiltinImageModels(providerId, providerType);
+  if (builtinModels.length > 0) {
+    return true;
+  }
+
+  return Boolean(
+    Array.isArray(customModels) &&
+      customModels.some((modelId) =>
+        isImageGenerationModelId(modelId, providerId, providerType),
+      ),
   );
 }
 
@@ -152,14 +186,27 @@ function isLikelyFalImageModel(modelId: string): boolean {
   );
 }
 
+function normalizeGeneratedModel(modelId: string): ImageGenModel {
+  return {
+    id: modelId,
+    name: modelId,
+    supportedSizes: [
+      "1024x1024",
+      "768x1344",
+      "1344x768",
+      "1792x1024",
+      "1024x1792",
+    ],
+  };
+}
+
 export function getImageModelsForProvider(
   providerId: string,
   providerType: string,
   customModels?: string[],
   apiHost?: string,
 ): ImageGenModel[] {
-  const builtinModels =
-    IMAGE_GEN_MODELS[providerId] ?? IMAGE_GEN_MODELS[providerType] ?? [];
+  const builtinModels = getBuiltinImageModels(providerId, providerType);
 
   if (customModels && customModels.length > 0) {
     const nextCustomModels = isFalLikeProvider(
@@ -168,37 +215,23 @@ export function getImageModelsForProvider(
       apiHost,
     )
       ? customModels.filter((modelId) => isLikelyFalImageModel(modelId))
-      : customModels;
+      : customModels.filter((modelId) =>
+          isImageGenerationModelId(modelId, providerId, providerType),
+        );
 
     if (nextCustomModels.length > 0) {
-      return nextCustomModels.map((modelId) => ({
-        id: modelId,
-        name: modelId,
-        supportedSizes: [
-          "1024x1024",
-          "768x1344",
-          "1344x768",
-          "1792x1024",
-          "1024x1792",
-        ],
-      }));
+      return nextCustomModels.map(normalizeGeneratedModel);
     }
 
     if (builtinModels.length > 0) {
       return builtinModels;
     }
 
-    return customModels.map((modelId) => ({
-      id: modelId,
-      name: modelId,
-      supportedSizes: [
-        "1024x1024",
-        "768x1344",
-        "1344x768",
-        "1792x1024",
-        "1024x1792",
-      ],
-    }));
+    return customModels
+      .filter((modelId) =>
+        isImageGenerationModelId(modelId, providerId, providerType),
+      )
+      .map(normalizeGeneratedModel);
   }
 
   return builtinModels;

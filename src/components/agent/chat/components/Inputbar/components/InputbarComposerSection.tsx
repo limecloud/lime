@@ -92,6 +92,7 @@ interface InputbarComposerSectionProps {
   contextVariant?: "default" | "task-center";
   projectId?: string | null;
   sessionId?: string | null;
+  inputCompletionEnabled?: boolean;
 }
 
 export const InputbarComposerSection: React.FC<
@@ -143,6 +144,7 @@ export const InputbarComposerSection: React.FC<
   contextVariant = "default",
   projectId = null,
   sessionId = null,
+  inputCompletionEnabled = true,
 }) => {
   const [teamSelectorAutoOpenToken, setTeamSelectorAutoOpenToken] = useState<
     number | null
@@ -360,6 +362,7 @@ export const InputbarComposerSection: React.FC<
               defaultCuratedTaskReferenceEntries
             : defaultCuratedTaskReferenceEntries
         }
+        inputCompletionEnabled={inputCompletionEnabled}
       />
       <InputbarCore
         textareaRef={textareaRef}

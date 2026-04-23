@@ -1038,6 +1038,24 @@
   - 优先核定 `SessionEnd` 在 Lime 里是否存在单一 current 宿主入口，再继续补 lifecycle event bootstrap
   - 如果要继续追平 `Stop` 语义，再单独设计 `preventContinuation / stopReason` 应该如何落到 Lime 的 auto-continue / turn policy，而不是把它硬塞成通用错误返回
 
+### 继续推进（resume current surface / runtime root 收口）
+
+- 把 Agent Chat 主工作台的 Claude Code 风格 resume 入口接回 current 对话主链：
+  - `ChatSidebar` 顶部入口当前已改成“继续最近会话”，并显式提示“上下文已保留”。
+  - `EmptyState` 当前也已补出最近会话恢复入口，恢复动作继续复用现有 `handleResumeSidebarTask(...)`，没有再扩第二套 resume 执行路径。
+  - `AgentChatWorkspace / WorkspaceConversationScene / useWorkspaceConversationSceneRuntime` 当前已贯通最近会话 topic 的透传与展示，避免 resume 入口只停留在静态文案层。
+- 继续把 runtime 主链收回单一事实源，修掉全量 Rust 校验里最后一组 `Aster path root` 初始化分叉：
+  - `lime_agent` 的 [aster_runtime_support.rs](../../src-tauri/crates/agent/src/aster_runtime_support.rs) 现在会优先认领上游 `aster` 已初始化的 shared runtime root，再决定是否回退到 Lime 自己的 app path。
+  - `aster` 的 [config/paths.rs](../../src-tauri/crates/aster-rust/crates/aster/src/config/paths.rs) 当前补了 `initialized_path_root()` 只读访问器，避免 Lime wrapper 在上游已经锁定 root 后又尝试走默认目录，导致 `OnceLock + PATH_ROOT_OVERRIDE` 分叉。
+  - 这一步之后，之前只在全量 `cargo test` 下暴露的 `test_list_current_surface_tool_definitions_includes_agent_tool` / `test_tool_search_bridge_includes_current_surface_agent_tool` 已恢复通过，`ToolSearch current surface` 也不再因为 runtime root 初始化顺序而假失败。
+- 本轮校验结果：
+  - 前端 resume 定向回归已通过：`agentChatShared / ChatSidebar / EmptyState`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml"` 已全绿
+  - `npm run verify:local` 已通过，包含 smart Vitest、全量 Rust 与 `verify:gui-smoke`
+- 这一步服务主线目标的关系是：
+  - 产品层把“继续最近会话”真正放回 current 对话入口，而不是继续依赖旧侧栏语义；
+  - 运行时层把 Lime wrapper 与上游 shared runtime root 收回到同一事实源，避免 queue / resume / tool surface 校验继续被初始化顺序噪声干扰。
+
 ## 2026-04-21
 
 ### 继续推进（CCD-008 / SessionEnd hooks current）
@@ -1767,3 +1785,254 @@
 - 已执行定向校验：
   - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs"` 通过
   - `env CARGO_TARGET_DIR="/tmp/lime-target-subagent-worktree" cargo test --manifest-path "src-tauri/Cargo.toml" "commands::aster_agent_cmd::subagent_runtime::tests::" --lib -- --nocapture` 通过（`18 passed`）
+
+### 继续推进（CCD-008 / `cwd + worktree` honest host）
+
+- 继续严格对照本地参考实现 [`AgentTool.tsx`](../../../../js/claudecode/src/tools/AgentTool/AgentTool.tsx) 后，这一轮把之前那条“看起来放开了组合，实际却把 child `working_dir` 回写到原仓库路径”的半成品收成了 honest host：
+  - upstream 真实执行面虽然仍带着 “Mutually exclusive” 的旧 schema 文案，但实际代码已经允许 `cwd + isolation=worktree` 共存。
+  - Lime 上一版也开始尝试承接这组语义，但当时仍把 child session 先绑到 bootstrap 目录、进入 worktree 后再直接写回原始 `cwd`；这会让 child 后续 filesystem / shell 行为重新落回原仓库，而不是 child worktree。
+- 因此这一轮没有继续补 compat，而是把组合语义真正收口到现有 Aster worktree host 内：
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 新增 `resolve_subagent_worktree_cwd_mapping(...)`，只在 `cwd` 属于父会话同一 Git 仓库时放行，并把请求目录映射成“源 worktree 根 -> 目标 child worktree 根”的相对路径。
+  - 同文件里的 `resolve_subagent_session_bootstrap_working_dir(...)` 也同步改回以真实 `execution_working_dir` 建 child session，不再为了进 worktree 先把 child session 绑到父目录；这样 `EnterWorktreeTool` 记录下来的 `original_cwd` 就仍然是显式请求的 `cwd`。
+  - `maybe_enter_subagent_worktree(...)` 现在会在创建 worktree 后立即调用 `remap_subagent_worktree_cwd_after_enter(...)`，把 child session 的 `working_dir` 切到 `worktree_path + relative_path` 对应的子目录，而不是切回原仓库路径。
+  - 如果该子目录在新 worktree 中不存在，`rollback_subagent_worktree_after_spawn_failure(...)` 会复用现有 `ExitWorktreeTool` 把刚创建的临时 worktree 回滚掉，避免留下半成功的 child worktree 状态。
+  - [`prompt_context.rs`](../../src-tauri/src/commands/aster_agent_cmd/prompt_context.rs) 也同步把提示更新成当前真实边界：允许组合，但只支持同仓库、可映射到 child worktree 的目录。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：`Agent.isolation=worktree` 现在不仅支持单独使用，也支持与显式 `cwd` 组合；当 `cwd` 位于父会话同一 Git 仓库、且能映射到 child worktree 现有目录时，child 会真正运行在 `worktree` 内对应子目录，同时继续沿用既有的 dirty-keep、missing-worktree fallback 与 final-status auto cleanup lifecycle。
+  - `current gap`：`isolation=remote`、跨仓库 `cwd + worktree`、无法映射到 child worktree 现有目录的 `cwd`、child-scoped `plan` lifecycle。
+  - `compat / deprecated / dead`：无新增；本轮没有为了“看起来像 upstream”继续保留把 `working_dir` 回写到原仓库路径的假支持，也没有发明第二套 worktree 状态源。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 里 child worktree 最后一块明显失真的 `cwd` 组合语义收成 honest current，避免 Lime 再停在“表面允许组合、实际仍在原仓库执行”的半对齐状态；下一刀如果继续推进，应回到 `isolation=remote`、child `plan` lifecycle 和 `PermissionRequest.updatedPermissions` 这些仍缺真实宿主的剩余 gap。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs" "src-tauri/src/commands/aster_agent_cmd/prompt_context.rs"` 通过
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_maybe_enter_subagent_worktree_remaps_requested_cwd_into_child_worktree --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_subagent_worktree_cwd_mapping_rejects_cross_repo_cwd --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_subagent_session_bootstrap_working_dir_keeps_execution_working_dir --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_validate_effective_spawn_isolation_accepts_worktree_and_rejects_unsupported_values --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_missing_subagent_worktree_restore_falls_back_to_original_cwd --lib -- --nocapture` 通过（`1 passed`）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_workspace_id_for_working_dir_prefers_longest_ancestor_workspace --lib -- --nocapture` 通过（`1 passed`）
+
+### 继续推进（CCD-008 / Agent callback-backed `mode` / `isolation` reachability）
+
+- 在补齐 `worktree + cwd` honest host 后，又顺着 Lime 当前真实入口复核了一次，确认还有一处更贴主链的阻断：
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 虽然已经具备 `mode / isolation / cwd` 的宿主解析与 `worktree` 生命周期。
+  - 但 Aster 当前真正暴露给模型的 [`Agent`](../../src-tauri/crates/aster-rust/crates/aster/src/agents/subagent_tool.rs) surface，在 callback-backed 分支的 [`agent.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/agents/agent.rs) 里仍会先把 `mode / isolation` 一刀拒绝。
+  - 结果就是：Lime 宿主内部已经能 honest 处理 `worktree + cwd`，但对外 current `Agent` surface 还到不了这条主链，属于“实现存在、入口失真”。
+- 因此这一轮没有再改宿主内核，而是把入口边界收正：
+  - [`agent.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/agents/agent.rs) 的 `prepare_callback_backed_agent_spawn(...)` 不再提前拒绝 `mode / isolation`。
+  - 同时把 `mode / isolation` 纳入 callback-backed path 的触发条件；即使没有 `run_in_background / name / team_name / cwd / tool scope`，只要显式请求了 `mode` 或 `isolation`，也会走真实宿主 callback，而不是误落回前景 foreground-only 分支。
+  - [`subagent_tool.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/agents/subagent_tool.rs) 的当前 schema / description 也同步更新：`mode / isolation` 不再继续宣称“当前 runtime 不支持”，而是明确为“callback-backed runtime 会透传给宿主，由宿主决定支持子集”。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：top-level `Agent` callback-backed current surface 现在终于能真实到达 Lime 宿主的 `mode / isolation / cwd` 主链；`worktree + cwd` 不再只停留在宿主内部实现。
+  - `current gap`：`isolation=remote` 仍无 honest host；`mode=plan` 现在会到达宿主，但仍在 [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 处明确 fail-closed，因为还没有 child-session scoped plan lifecycle。
+  - `compat / deprecated / dead`：无新增；本轮没有为了让入口“看起来支持”再加第二套 Agent 壳，只是把当前 public surface 收回到已存在的真实宿主能力。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“宿主内核已经对齐、但 Aster `Agent` 入口还把关键字段挡在外面”的半完成状态，推进到“对外 current surface 终于能 honest 命中 Lime 的 subagent runtime 主链”；下一刀若继续推进，应回到 `mode=plan` 的 child-scoped lifecycle 与 `isolation=remote` 这两个仍缺真实宿主的剩余 gap。
+
+### 继续推进（CCD-008 / PermissionRequest.updatedPermissions session setMode current subset）
+
+- 继续严格对照本地参考实现：
+  - `"/Users/coso/Documents/dev/js/claudecode/src/utils/permissions/PermissionUpdate.ts"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/utils/permissions/PermissionUpdateSchema.ts"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/hooks/toolPermission/PermissionContext.ts"`
+  后确认 Lime 这一刀仍不能假装拥有 Claude Code 那套完整 `ToolPermissionContext + permission rules/directories persistence host`。因此本轮没有把 `updatedPermissions` 整体宣称为 supported，而是只把当前确实有宿主的最小子集收成 `current`：
+  - 仅支持 `PermissionRequest` hook 返回 `decision=allow` 且 `updatedPermissions` 全量属于 `setMode + destination=session`
+  - 其它类型继续 fail-closed 回退原生审批流，不执行 hook allow，也不应用 `updatedInput / updatedPermissions`
+- [`runtime_project_hooks.rs`](../../src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs) 现已把 `updatedPermissions` 从“只看 presence 的布尔标记”改成真实解析 supported subset：
+  - `acceptEdits -> current`
+  - `dontAsk -> full-access`
+  - `default -> SessionExecutionRuntimeAccessMode::default_for_session()`，按 Lime 当前 session 默认值落到 `full-access`
+  - `plan` / `bypassPermissions` 继续显式拒绝
+  - `addRules / replaceRules / removeRules / addDirectories / removeDirectories` 与任何 `destination != session` 都继续按 unsupported 处理
+- 同一文件里的 runtime hook 应用链也已补上最小 honest side effect：
+  - 支持的 `updatedPermissions.setMode(session)` 会在返回 `Allow` 前调用 `persist_session_recent_access_mode(...)`
+  - 如果 session access mode 持久化失败，本次会回退到原生审批流，而不是继续假装 hook allow 已完整生效
+  - `updatedInput` 在 supported subset 下继续保留，不会因为补 side effect 又退回到“能改 mode 就不能改 input”的假取舍
+- 前端同步闭环也已补齐：
+  - [`agentSessionRefresh.ts`](../../src/components/agent/chat/hooks/agentSessionRefresh.ts) 刷新 detail 后若看到 `execution_runtime.recent_access_mode`，会同步更新当前 `accessMode` 状态并回写 session shadow storage
+  - [`useAgentSession.ts`](../../src/components/agent/chat/hooks/useAgentSession.ts) 已把这条同步接进现有 `refreshSessionDetail(...)` 主链，因此同一会话里后端刚通过 hook 更新的 session access mode，会在发送结束后的 refresh 里立刻反映到下一条提交，而不必等用户切 topic
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：`PermissionRequest.updatedPermissions` 现在至少已有一条 honest current 子集：`allow + setMode(destination=session)`，并且能真实持久化 session `recent_access_mode`，再回流到当前聊天页的 access mode 主状态
+  - `current gap`：rules 类 updates、directories 类 updates、任何 non-session destination、`plan` / `bypassPermissions` 仍无 honest host；本轮没有为了“看起来接近 upstream”去偷偷部分应用 mixed updates
+  - `compat / deprecated / dead`：无新增；本轮没有把 `PermissionRequest.updatedPermissions` 包成“看起来都 supported，实际只有日志”的 compat 壳
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 里最后一块明显处于“schema 有、hook 可回、但宿主完全不生效”的权限更新断层推进到最小 honest current，避免 Lime 继续停在“hook allow 了，实际 session 权限状态却没变”的假对齐状态；下一刀若继续推进，应优先回到 `isolation=remote`、child-scoped `plan` lifecycle，或在未来真的存在规则/目录 permission host 之后再考虑扩 `updatedPermissions` 子集。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs"` 通过
+  - `npx vitest run "src/components/agent/chat/hooks/agentSessionRefresh.test.ts"` 通过（`4 passed`）
+  - `npx vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "已有 recent_access_mode 时发送消息应沿用恢复后的正式权限策略"` 通过（`1 passed, 142 skipped`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" permission_request_project_hooks --lib -- --nocapture` 通过（`6 passed`）
+
+### 继续推进（CCD-008 / managed-session peer messaging current）
+
+- 继续严格对照本地参考实现：
+  - `"/Users/coso/Documents/dev/js/claudecode/src/hooks/useInboxPoller.ts"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/tools/SendMessageTool/SendMessageTool.ts"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/constants/xml.ts"`
+  后确认上一轮把 `teammate mode=plan` 宿主生命周期接回 current 后，剩下最贴主链的断层不该再停在“只有 plan_approval_request 能到 lead，普通 teammate 消息与 uds 本机会话消息仍卡死在 callback 层”：
+  - upstream 对 lead / 本机会话 peer 的普通消息并不是另一套假的 host，而是包装成 `<teammate-message>` / `<cross-session-message>` 后继续走目标 session 的正常收件主链。
+  - Lime 之前的真实问题不是缺少第三套 transport，而是 [`agent_runtime_send_subagent_input_internal`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 看到 non-subagent target 就直接拒绝，导致 [`agent_control.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 已经能构造的 `uds:` peer surface 和 `team-lead` 路由始终停在“工具层看起来能发、宿主层实际打不进去”的假完成状态。
+- 因此这一轮没有去补 mailbox compat，而是把 non-subagent plain/xml 消息 honest 接回 Lime 现有 managed-session queue：
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 新增 `submit_runtime_message_to_managed_session(...)`，让 non-subagent target 在非结构化控制消息场景下也走 `submit_runtime_turn(queue_if_busy=true)`，事件名收口到现有 `agent_stream`，不再只允许 `plan_approval_request` 这一个特例。
+  - 同文件继续保留 control-message 治理边界：`plan_approval_request` 仍走自动审批控制链；`shutdown_response` 与误投到 managed session 的 `plan_approval_response` 继续显式 fail-closed，而不是被偷偷降级成普通聊天文本。
+  - [`agent_control.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 现在会把“teammate 发给 team lead 的普通文本/普通 JSON 文本化消息”包装成 upstream 同类 `<teammate-message teammate_id="..." summary="...">...</teammate-message>`，只对 lead 目标生效，不影响现有 subagent->subagent 文本投递和结构化 control message。
+  - 这样 `uds:` 本机会话 peer 的 `<cross-session-message>` 包络终于也不再停留在 callback 单测里，而是真能投递到 Lime 的 managed session runtime。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：`SendMessage` 现在已具备两条 honest non-subagent 主链：`uds:` 本机会话 peer 文本消息，以及 teammate -> team lead 的普通消息；两者都进入目标 managed session 的正常 runtime queue，而不是停在 fake callback surface。
+  - `current gap`：`bridge:` remote peer 仍无 host；lead-side `shutdown_response` 仍缺上游 inbox / graceful shutdown lifecycle，继续 fail-closed；更完整的 teammate-message UI 呈现也还没收成单独视图。
+  - `compat / deprecated / dead`：无新增；本轮没有为了“看起来和 upstream 一样”再补一层 mailbox 文件或本地 bridge 兼容层，而是复用 Lime 现有 session queue 事实源。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“teammate plan 生命周期已回正，但普通协作消息仍被宿主挡死”的半完成状态，推进到“本地 team/peer messaging 至少已经走进真实 managed-session 主路径”；下一刀若继续推进，应优先判断 lead-side `shutdown_response` 与 `bridge:` remote peer 是否存在 honest host，而不是回头包更多假的传输层。
+
+### 继续推进（CCD-008 / lead-side shutdown response current subset）
+
+- 继续严格对照本地参考实现：
+  - `"/Users/coso/Documents/dev/js/claudecode/src/tools/SendMessageTool/SendMessageTool.ts"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/hooks/useInboxPoller.ts"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/utils/teammateMailbox.ts"`
+  后确认上一刀把普通 teammate / `uds:` peer 文本消息接回 managed-session queue 后，最贴主链的剩余断层其实不是 `bridge:`，而是 `shutdown_response` 仍停留在“工具面能构造、lead side 明确拒收”的假支持：
+  - upstream 的 `shutdown_response` 并不会原样回写给 lead；它会在发送侧翻译成 `shutdown_approved / shutdown_rejected`，携带 `from`，由 lead inbox poller 一边做 teammate lifecycle side effect，一边把结果继续回显给 lead。
+  - Lime 之前之所以继续 fail-closed，不是因为 close 能力不存在，而是 managed-session lead 缺少这层 `sender + lifecycle + queue replay` 的 current 收件路径。
+- 因此这一轮没有补 mailbox compat，也没有伪造 remote bridge，而是把 lead-side `shutdown_response` 收成最小 honest current subset：
+  - [`agent_control.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 现在会把 `shutdown_response` 在发送侧翻译成 upstream 同类 `shutdown_approved / shutdown_rejected` payload，并补上 `from` 与 `timestamp`；不再把缺失 sender 的裸 `shutdown_response` JSON 直接丢给 lead。
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 新增 lead-side `shutdown_approved / shutdown_rejected` 控制消息解析；其中 `shutdown_approved` 会复用现有 `agent_runtime_close_subagent_internal(...)` 关闭对应 teammate，`shutdown_rejected` 则保留 teammate 生命周期不变。
+  - 同文件还会把处理后的 shutdown 控制消息包装成 `<teammate-message teammate_id="...">...</teammate-message>` 再投递回 lead managed session 的正常 runtime queue，这样 lead 既能拿到真实 lifecycle side effect，也能像 upstream 一样在会话里看到 teammate 的审批结果，而不是只发生隐式后台关闭。
+  - legacy 形态的裸 `shutdown_response` 继续在 managed-session lead 侧 fail-closed；本轮没有为了迁就旧 payload 再长一层兼容解析。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：本地 team runtime 现在除了普通 teammate / `uds:` peer 文本消息外，也已经具备 lead-side `shutdown_response` 的最小 honest current subset：发送侧翻译、lead-side close、以及结果回显都走现有 runtime queue / subagent close 主链。
+  - `current gap`：`bridge:` remote peer 仍无 honest host；`shutdown_request` 本身仍只是 structured prompt 主链，不是 upstream mailbox/pane backend 的完整宿主实现；更完整的 teammate-message 专用 UI 仍未单独收口。
+  - `compat / deprecated / dead`：无新增；本轮没有引入 mailbox 文件层、pane backend compat 或第二套 shutdown transport。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“普通协作消息已 current，但 shutdown 协作仍是假支持”的状态，推进到“至少本地 team runtime 的 shutdown approval 主链也已经回到 honest host”；下一刀若继续推进，应优先判断 `bridge:` remote peer 是否存在真实宿主面，而不是继续扩张本地 compat。
+- 已执行定向校验：
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" test_parse_runtime_control_message_accepts_shutdown_approved_shape --lib -- --nocapture` 通过（`1 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" test_reject_unsupported_managed_session_control_message --lib -- --nocapture` 通过（`2 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target-aster-verify" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" send_message_ --lib -- --nocapture` 通过（`16 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target-aster-verify" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_exit_plan_mode_teammate_submits_plan_approval_request --lib -- --nocapture` 通过（`1 passed`）
+
+### 继续推进（CCD-008 / managed-session peer message display current subset）
+
+- 继续严格对照本地参考实现：
+  - `"/Users/coso/Documents/dev/js/claudecode/src/components/messages/UserTeammateMessage.tsx"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/components/messages/PlanApprovalMessage.tsx"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/components/messages/ShutdownMessage.tsx"`
+  后确认上一刀虽然已经把 `<teammate-message>` / `<cross-session-message>` honest 接回了 Lime managed-session queue，但前端聊天显示仍停留在“把 XML 包络和 shutdown JSON 原样吐给用户”的半成品：
+  - upstream 不会把 teammate / cross-session 包络直接裸露给用户；它至少会把 envelope 解析成可读的 teammate message 视图，并把 `shutdown_approved / shutdown_rejected / plan_approval_*` 这类已知结构化消息折叠成正常文案。
+  - Lime 当前缺的也不是新的 pane backend，而是聊天显示层没有对已经进入 current 的 runtime peer envelope 做最小收口，导致主链明明已 honest 到达队列，界面却还像在看宿主协议原文。
+- 因此这一轮没有补新的消息面板或 mailbox compat，而是先把现有聊天气泡收成最小可读 current：
+  - [`runtimePeerMessageDisplay.ts`](../../src/components/agent/chat/utils/runtimePeerMessageDisplay.ts) 新增 runtime peer envelope 文本格式化器，会把 `<teammate-message>` / `<cross-session-message>` 解析成可读标题，并把 `shutdown_* / plan_approval_* / task_assignment / task_completed / idle_notification` 这些当前已知结构化 payload 转成用户能直接理解的正文。
+  - [`internalImagePlaceholder.ts`](../../src/components/agent/chat/utils/internalImagePlaceholder.ts) 现已在现有消息清洗主链里复用这层格式化，因此无论消息最终走 assistant `StreamingRenderer`，还是 user `MarkdownRenderer`，都不会再把 XML 包络直接暴露给聊天区。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：managed-session 当前已不仅能投递 teammate / `uds:` peer 消息，也能在现有聊天气泡里把这些 envelope 以可读文案展示出来；lead-side `shutdown_response` 的 current subset 不再退化成“界面里只剩一坨 XML + JSON”。
+  - `current gap`：`bridge:` remote peer 仍无 honest host；`shutdown_request` 仍不是 upstream mailbox/pane backend 的完整宿主；更完整的 teammate-message 专用 UI 仍未单独收口成独立视图。
+  - `compat / deprecated / dead`：无新增；本轮没有为了追求外观接近 upstream 再发明第二套消息模型或独立 pane backend，只复用现有聊天显示主链做 envelope 格式化。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“runtime host 已接通，但用户看到的仍是协议原文”的半交付状态，推进到“已进入 current 的 peer/shutdown 协作消息至少在现有聊天主路径里可读可用”；下一刀若继续推进，应优先回到 `bridge:` honest host 判定或独立 teammate-message 视图是否值得单独收口，而不是回头补假的 transport。
+
+### 继续推进（CCD-008 / runtime peer message card current subset）
+
+- 继续严格对照本地参考实现：
+  - `"/Users/coso/Documents/dev/js/claudecode/src/components/messages/UserTeammateMessage.tsx"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/components/messages/PlanApprovalMessage.tsx"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/components/messages/ShutdownMessage.tsx"`
+  后确认上一刀虽然已经把 `<teammate-message>` / `<cross-session-message>` 从协议原文收成“可读文案”，但和 upstream 相比仍差最后一层真正的消息视图：
+  - upstream 不是单纯把 peer envelope 改写成字符串，而是会根据 `plan_approval_* / shutdown_* / task_assignment / task_completed` 的不同语义渲染成专门 teammate message 组件。
+  - Lime 当前若继续停在“纯文本摘要”，主路径虽然能读，但协作状态层级仍然和普通正文混在一起，不利于把 current 的 teammate runtime surface 真正收成可交付聊天体验。
+- 因此这一轮没有发明新的 pane/backend，也没有把 peer message 另起一套 store，而是继续在现有聊天气泡主路径收一刀：
+  - [`runtimePeerMessageDisplay.ts`](../../src/components/agent/chat/utils/runtimePeerMessageDisplay.ts) 现在除了保留纯文本摘要能力，也补出了 runtime peer envelope 的结构化解析模型，可按原始顺序识别多条 `<teammate-message>` / `<cross-session-message>`，并区分 `plan_approval_* / shutdown_* / task_assignment / task_completed / idle_notification / teammate_terminated` 等当前已知 payload。
+  - [`RuntimePeerMessageCards.tsx`](../../src/components/agent/chat/components/RuntimePeerMessageCards.tsx) 新增聊天主路径的 peer message 卡片视图，按不同 payload 给予不同层级和状态色；计划审批、结束任务、任务分配/完成不再只是一段普通字符串。
+  - [`StreamingRenderer.tsx`](../../src/components/agent/chat/components/StreamingRenderer.tsx) 现已在 assistant 正文主路径上优先识别“纯 peer envelope 消息”，直接渲染 peer cards；既保留原有 process/timeline 链路，也不再把这类 runtime 协作消息降级回普通 markdown。
+  - [`MessageList.tsx`](../../src/components/agent/chat/components/MessageList.tsx) 现已在 user 正文分支做同样收口，因此无论消息最终落在 assistant 还是 user 气泡，只要原始正文是纯 peer envelope，都会沿用同一套卡片视图，而 preview/sidebar 仍继续复用文本摘要，不额外发明第二套预览协议。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：managed-session current 路径里的 teammate / cross-session / shutdown / plan approval 消息，已经从“协议原文”进到“可读摘要”再进到“专门消息卡片”；现有聊天主路径已经具备最小 honest teammate message view。
+  - `current gap`：`bridge:` remote peer 仍无 honest host；更完整的 teammate mailbox / pane backend 仍不存在；timeline / inbox 之外的更细粒度 peer 状态聚合仍未像 upstream 那样单独抽成更完整视图。
+  - `compat / deprecated / dead`：无新增；本轮没有为了对齐 upstream 继续扩张 transport、mailbox 文件或第二套消息列表，只在现有气泡主路径补真实视图层。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“聊天里能看懂 peer 消息”继续推进到“聊天里已经能把 peer 协作状态按类型分层显示”；下一刀若继续推进，应优先回到 `bridge:` honest host 或更完整 teammate-message 独立视图，而不是回头再堆字符串兼容。
+- 已执行定向校验：
+  - `npx vitest run "src/components/agent/chat/utils/runtimePeerMessageDisplay.test.ts" "src/components/agent/chat/components/RuntimePeerMessageCards.test.tsx" "src/components/agent/chat/components/StreamingRenderer.test.tsx" "src/components/agent/chat/components/MessageList.test.tsx"` 通过（`4 files, 102 tests passed`）
+
+### 继续推进（CCD-008 / runtime peer lifecycle-noise 收口）
+
+- 继续严格对照本地参考实现：
+  - `"/Users/coso/Documents/dev/js/claudecode/src/components/messages/UserTeammateMessage.tsx"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/components/messages/AttachmentMessage.tsx"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/components/messages/TaskAssignmentMessage.tsx"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/utils/teammateMailbox.ts"`
+  后确认上一刀虽然已经把 managed-session peer message 收成专门卡片，但与 upstream 仍有两处 current 语义差：
+  - upstream 会静默 `shutdown_approved`、`idle_notification`、`teammate_terminated`，不把这些 lifecycle/noise 消息继续暴露在主聊天里。
+  - upstream `task_assignment` 明确保留 `assignedBy`，而 Lime 卡片之前只展示 `sender + taskId/subject/description`，丢掉了真正的任务分配者信息。
+- 因此这一轮没有继续给 peer message 叠新 pane，也没有为了“看起来兼容”补 mailbox 伪层，而是直接在现有 current 解析主链收口：
+  - [`runtimePeerMessageDisplay.ts`](../../src/components/agent/chat/utils/runtimePeerMessageDisplay.ts) 现已补 `task_assignment.assignedBy` 解析，并新增统一的 runtime peer envelope 静默规则；`parseRuntimePeerMessageEnvelopes(...)`、`isPureRuntimePeerMessageText(...)`、`formatRuntimePeerMessageText(...)` 都已共享同一套 `shutdown_approved / idle_notification / teammate_terminated` 过滤语义，不再让卡片、preview、内部文本清洗各自分叉判断。
+  - [`RuntimePeerMessageCards.tsx`](../../src/components/agent/chat/components/RuntimePeerMessageCards.tsx) 已删除这些静默 lifecycle 消息对应的显示分支，避免 current UI 还保留不该露出的死路径；同时 `task_assignment` 卡片现会显式展示 `assignedBy`。
+  - 由于 [`internalImagePlaceholder.ts`](../../src/components/agent/chat/utils/internalImagePlaceholder.ts) 继续复用 `formatRuntimePeerMessageText(...)`，这次收口不只影响 peer cards，也同步影响聊天摘要、preview 与内部文本清洗入口，保证不会在别的 current 出口重新漏出 lifecycle/noise 原文。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：Lime 当前 managed-session peer message 主路径，已经不再把 upstream 会静默的 lifecycle/noise 消息暴露给主聊天；`task_assignment` 也已带上真实 `assignedBy`，而不是只剩 envelope sender。
+  - `current gap`：`bridge:` remote peer 仍无 honest host；更完整的 teammate inbox / pane backend 仍不存在；更丰富的 peer lifecycle 聚合状态仍未像 upstream 那样抽成单独面板。
+  - `compat / deprecated / dead`：无新增；本轮没有为了迁就旧面继续保留“可显示但不该显示”的 lifecycle UI 分支，也没有为 `bridge:` 缺口补假的 transport 或 fake host。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“peer message 已有卡片，但主聊天里仍混入 upstream 会静默的噪音协议消息”的半收口状态，推进到“managed-session current surface 的显示语义也已对齐到 upstream 的最小 honest subset”；下一刀若继续推进，应优先回到 `bridge:` honest host / remote peer 宿主判定，而不是回头再修补显示层兼容。
+- 已执行校验：
+  - `npx vitest run "src/components/agent/chat/utils/runtimePeerMessageDisplay.test.ts" "src/components/agent/chat/components/RuntimePeerMessageCards.test.tsx" "src/components/agent/chat/components/StreamingRenderer.test.tsx" "src/components/agent/chat/components/MessageList.test.tsx"` 通过（`4 files, 106 tests passed`）
+  - 宿主侧 `subagent_runtime` 的 parser / gate 复核已通过；更大范围的 `verify:local` / `verify:gui-smoke` 本轮未复核，不再写成已通过
+
+### 继续推进（CCD-008 / peer address 事实源收口）
+
+- 继续严格对照本地参考实现：
+  - `"/Users/coso/Documents/dev/js/claudecode/src/utils/peerAddress.ts"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/tools/SendMessageTool/SendMessageTool.ts"`
+  后确认 Lime 当前真正需要的不是再“多支持一个前缀”，而是先把 peer address 的 current / unsupported 事实源说实话并收成一处：
+  - upstream 会把 `uds:` / `bridge:` 的地址语法解析单独抽出来，再根据真实 host 能力决定是否可投递；语法识别不等于 transport 已存在。
+  - Lime 当前已经把 synthetic `uds:<session-id>` 本地跨 session 投递收进 current，但 `bridge:` 仍没有 upstream 那种 remote peer host / session ingress；因此继续保留 “`bridge:` unsupported” 才是 honest host。
+  - 之前 [`agent_control.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 的 `send_message_unsupported_peer_result(...)` 还残留 `Uds => unsupported` 死分支，已经和现状漂移。
+- 因此这一轮没有伪造 remote peer transport，也没有继续包 compat，而是做最小事实源收口：
+  - 新增 [`peer_address_surface.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/peer_address_surface.rs)，把 `uds:` / `bridge:` 解析、`SendMessage` / `ListPeers` 描述文案，以及 `bridge:` unsupported 原因统一收成同一处；当前口径固定为：`uds:` = current local cross-session peer，`bridge:` = unsupported gap，原因是缺 remote peer host / session ingress。
+  - [`agent_control.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 已改为只在 `bridge:` 上走受控失败，并删除过时的 `Uds => unsupported` 分支；`unsupportedTargetScheme` 也复用同一事实源，不再各处手写。
+  - [`team_tools.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/team_tools.rs) 现在复用同一套 peer surface 文案，因此 `ListPeers` 与 `SendMessage` 对 `uds:` / `bridge:` 的 current / unsupported 说明不会再各自漂移。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：synthetic `uds:<session-id>` 仍是 Lime 当前唯一 honest 的 cross-session local peer address surface，可被 `ListPeers.send_to` 暴露并由 `SendMessage` 直接投递。
+  - `current gap`：`bridge:` remote peer 仍无 honest host；更完整的 teammate inbox / pane backend 仍不存在；更丰富的 peer lifecycle 聚合状态仍未像 upstream 那样抽成单独面板。
+  - `compat / deprecated / dead`：无新增；本轮没有为了“兼容 upstream 表面”假装支持 `bridge:`，也没有继续保留已经不真实的 `uds:` unsupported 文案分支。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“peer address 能工作但事实源文案仍会自相矛盾”的状态，推进到“当前已支持与明确未支持的 peer surface 都由同一事实源定义”；下一刀若继续推进，应优先回到 `bridge:` honest host 判定或更完整 teammate-message 独立视图，而不是再补假的 remote transport。
+
+## 2026-04-22
+
+### 继续推进（CCD-008 / SessionStart resume honest host 收口）
+
+- 继续严格对照本地参考实现：
+  - `"/Users/coso/Documents/dev/js/claudecode/src/utils/conversationRecovery.ts"`
+  - `"/Users/coso/Documents/dev/js/claudecode/src/utils/sessionStart.ts"`
+  后确认 Lime 这一刀不该再新开第二套 `resume` 命令，而应把 Claude Code 的 `processSessionStartHooks('resume', { sessionId })` 语义收进现有 `agent_runtime_get_session` current 主链：
+  - 只有“继续最近会话 / 自动恢复 / 初始会话导航 / hydrate 恢复 / sidebar resume 入口”这类真正的恢复路径，才显式透传 `resumeSessionStartHooks=true`
+  - 普通 `refreshSessionDetail(...)`、`final_done` 后刷新、`stopSending` 后普通刷新、以及单纯 `getSession(sessionId)` 仍保持非 resume 语义，不把日常 detail refresh 伪装成 lifecycle host
+- 因此这一轮没有新增 `agent_runtime_resume_session` 之类的平级协议，而是把恢复语义最小化补进既有命令面：
+  - 前端 [`types.ts`](../../src/lib/api/agentRuntime/types.ts)、[`sessionClient.ts`](../../src/lib/api/agentRuntime/sessionClient.ts)、[`agentRuntimeAdapter.ts`](../../src/components/agent/chat/hooks/agentRuntimeAdapter.ts) 新增并透传 `resumeSessionStartHooks?: boolean`
+  - [`useAgentSession.ts`](../../src/components/agent/chat/hooks/useAgentSession.ts)、[`useWorkspaceInitialSessionNavigation.ts`](../../src/components/agent/chat/workspace/useWorkspaceInitialSessionNavigation.ts)、[`useWorkspaceTopicSwitch.ts`](../../src/components/agent/chat/workspace/useWorkspaceTopicSwitch.ts)、[`useWorkspaceProjectSelection.ts`](../../src/components/agent/chat/hooks/useWorkspaceProjectSelection.ts)、[`AgentChatWorkspace.tsx`](../../src/components/agent/chat/AgentChatWorkspace.tsx) 现在只在真实 resume 路径上传这个标记
+  - Rust [`runtime_api.rs`](../../src-tauri/src/commands/aster_agent_cmd/command_api/runtime_api.rs) 的 `agent_runtime_get_session(...)` 增加可选参数 `resume_session_start_hooks: Option<bool>`；当且仅当该标记为 `true` 时，才会在成功取回 detail 后执行 `run_runtime_session_start_project_hooks_for_session_with_runtime(..., SessionSource::Resume)`
+  - [`runtime_project_hooks.rs`](../../src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs) 已把 `SessionSource::Resume` 从 unsupported warning 中移除，只保留 `Clear` 继续 fail-closed；[`agent_sessions.rs`](../../src-tauri/src/dev_bridge/dispatcher/agent_sessions.rs)、[`agentRuntimeCommandSchema.json`](../../src/lib/governance/agentRuntimeCommandSchema.json) 与 [`commandManifest.generated.ts`](../../src/lib/api/agentRuntime/commandManifest.generated.ts) 也已同步
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：Lime 现在已有一条 honest 的 `SessionStart(resume)` 宿主入口，而且仍然收敛在 `agent_runtime_get_session` 这一条 current 命令主链上；恢复语义由显式调用方决定，不再靠模糊的“只要拿 detail 就算 resume”
+  - `current gap`：`SessionStart(clear)` 仍无 honest host；普通 refresh 与 queue resume 也仍不能冒充 lifecycle resume
+  - `compat / deprecated / dead`：无新增；本轮没有为了对齐 upstream 再补第二套 session resume 协议，也没有把普通 detail refresh 接回 compat 壳
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 里最后一块此前一直被明确保留为 gap 的 `SessionStart(resume)`，推进成 Lime 当前真实存在、且不会误伤普通刷新路径的 honest current subset；下一刀若继续推进，应优先回到 `SessionEnd(clear / logout / prompt_input_exit)` 或 `SessionStart(clear)` 是否存在真实宿主，而不是再把更多 refresh 动作包成伪生命周期。
+- 已执行校验：
+  - `cargo fetch --manifest-path "src-tauri/Cargo.toml"` 执行，用于修复本机 `~/.cargo/registry/src` 缺失 `half-2.7.1`、`aws-lc-sys-0.37.1` 源文件导致的环境级假失败
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" runtime_project_hooks::tests::build_runtime_session_start_unsupported_warning_message_should_allow_current_sources -- --nocapture` 通过
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" runtime_project_hooks::tests::run_runtime_session_start_project_hooks_for_session_should_run_resume_source -- --nocapture` 通过
+  - `npx vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx"` 通过（`143 passed`）；已同步恢复路径与普通刷新路径对 `mockGetAgentRuntimeSession` 的一参/二参断言
+  - `npm run verify:local` 未通过，但失败点是工作区既有无关改动：[`sceneapp.ts`](../../src/lib/api/sceneapp.ts) 里 `SceneAppExecutionPlan`、`SceneAppRuntimeAdapterPlan` 两个未使用导入触发 `eslint`，并非本轮 `resume` 改动回归
+  - `npm run verify:gui-smoke` 已成功把 headless Tauri、DevBridge、`workspace-ready`、`browser-runtime`、`site-adapters` 与 `agent-service-skill-entry` 拉起并跑通；最终失败在 `smoke:agent-runtime-tool-surface` 的 [`useWorkspaceConversationSceneRuntime.test.ts`](../../src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.test.ts) 上，报的是 `react-syntax-highlighter` / `refractor` 的 ESM-CJS 兼容错误，日志显示脚本运行时 Node 为 `v18.20.2`，同样不属于本轮 `resume` 主链回归
+
+### 继续推进（CCD-008 / teammate plan team-context reachability）
+
+- 继续严格对照本地参考实现：
+  - `"/Users/coso/Documents/dev/js/claudecode/src/tools/AgentTool/AgentTool.tsx"`
+  后确认 Lime 当前 `mode=plan` 剩余缺口不在 `plan_mode_tool.rs` 本身，而在 callback-backed `Agent -> subagent_runtime` 这段入口边界：
+  - upstream 会先做 `resolveTeamName(input.team_name || appState.teamContext?.teamName)`，只要当前已有 team context，`name + mode=plan` 即使没显式传 `team_name`，仍会走 teammate spawn，并进入现成的 child-scoped plan lifecycle。
+  - Lime 之前虽然在 [`agent_control.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 文案上宣称“未传 `team_name` 时沿用当前 team 上下文”，但 [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 实际仍把 teammate / plan host 锁死在“必须显式 `team_name + name`”这一层，导致 lead session 里最贴主链的 `name + mode=plan` 仍会在宿主前门被挡掉。
+- 因此这一轮没有发明第二套 compat 参数，也没有把 `plan` 泛化给普通 subagent，而是只把已有 honest host 接通：
+  - [`subagent_runtime.rs`](../../src-tauri/src/commands/aster_agent_cmd/subagent_runtime.rs) 新增 `resolve_effective_teammate_spawn_request(...)`，会在父 session 已有 lead-side team context 时，从当前 team 自动补齐有效 `team_name`；显式 `team_name` 仍会校验当前 lead team 是否匹配。
+  - 同文件的 `validate_spawn_request_surface(...)` 不再把 `name + mode=plan` 提前一刀拒绝，而是允许这类请求进入宿主，再由实际 team context / lead 身份做 fail-closed 判定；无 team context、non-lead session、以及 `team_name`/`name` 组合不合法的情况仍继续明确拒绝。
+  - spawn 成功后写入的 child metadata 现在会持久化“解析后的有效 `team_name`”，避免 tool 入参为空但 session 元数据仍丢失当前 team 事实源。
+  - [`prompt_context.rs`](../../src-tauri/src/commands/aster_agent_cmd/prompt_context.rs) 也同步收口：明确 `team_name` 可在已有 lead-side team context 时省略，`mode=plan` 当前只支持 team teammate 子集，不再继续把这条已经接通的 current surface 描述成全量 unsupported。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：top-level lead session 现在已经能按 upstream 同类语义，用 `name + mode=plan` 命中现有 teammate plan lifecycle；如果当前 team context 已存在，即使调用方没显式传 `team_name`，也会沿用当前 team。
+  - `current gap`：没有 team context 的普通 subagent 仍不能假装支持 `mode=plan`；non-lead / teammate session 也仍不能继续派生 teammate；`isolation=remote`、`bridge:` remote peer、`PermissionRequest.updatedPermissions` 的 rules/directories/non-session destination 依旧没有 honest host。
+  - `compat / deprecated / dead`：无新增；本轮没有为了“看起来支持 plan”继续扩非 team child 的假 lifecycle，也没有再加前端兜底把错误 team surface 掩过去。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“子 session plan lifecycle 明明已在宿主内部存在，但最常见的 lead/team 调用入口仍到不了”的半成品，推进到“当前真正有宿主的 `plan` 子集已经可达”；下一刀若继续推进，应优先回到 `isolation=remote` 或只在未来确实出现新的 child permission / lifecycle host 时再扩 `plan` 边界。
+- 已执行定向校验：
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_effective_teammate_spawn_request_ --lib -- --nocapture` 通过（`3 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" test_resolve_spawn_request_access_mode_prefers_supported_mode_override --lib -- --nocapture` 通过（`1 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" test_validate_spawn_request_surface_accepts_supported_modes_and_rejects_unsupported_values --lib -- --nocapture` 通过（`1 passed`）

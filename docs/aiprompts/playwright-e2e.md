@@ -198,7 +198,7 @@ npm run test:contracts
 
 1. 在 `Claw` 对话框输入 `@配图 生成 ...`
 2. 确认聊天区先进入 skill 执行态，并能看到 `image_generate` 相关工具轨迹，而不是前端静默直接创建任务
-3. 如当前环境走 `Bash -> lime media image generate --json`，确认工具标题与结果摘要对应这条 CLI 主链；若实际走到兼容入口 `lime task create image --json`，也要确认它继续推进到真实完成态，而不是只创建任务文件；CLI 不可用时，才允许回退 `lime_create_image_generation_task`
+3. 确认 current 主链会把图片请求交给 `Skill(image_generate) -> lime_create_image_generation_task`，而不是退回旧的 Bash/CLI 图片旁路；若界面或日志里出现 `任务 ID：{task_id}` 这类模板占位，说明仍在走废弃 prompt 旁路，视为失败
 4. 等待 task file 回流后，确认同一条卡片被替换为成功或失败状态，而不是额外再插一条前端本地伪造结果
 5. 刷新页面或切换会话再返回原话题，确认最近图片任务会从 `.lime/tasks` 恢复
 6. 如手动打开右侧查看器，确认任务卡状态与聊天区一致，且不会自动展开独立图片画布
@@ -213,7 +213,7 @@ npm run test:contracts
 
 1. 在 `Claw` 对话框输入 `@封面 小红书 标题: 春日咖啡快闪 风格: 清新插画, 1:1 春日咖啡市集封面`
 2. 确认聊天区先进入 skill 执行态，并能看到 `cover_generate` 相关工具轨迹，而不是前端静默直接创建任务
-3. 如当前环境走 `social_generate_cover_image + Bash -> lime task create cover --json`，确认工具标题与结果摘要对应这条封面任务主链；CLI 不可用时，才允许回退 `lime_create_cover_generation_task`
+3. 确认 `@封面` 命中了 `cover_generate` 的 current binding；如当前 binding family 是 `typed local_cli`，确认工具标题与结果摘要对应 runtime 结构化组装的 `Lime CLI` 封面执行链；如当前 binding family 是原生结构化 binding，则确认仍回写同一条 `cover_generate` task file。无论哪种，都不应要求模型先写 Bash；CLI 不可用时，才允许回退 `lime_create_cover_generation_task`
 4. 等待任务回流后，确认同一条结果只展示真实 task file 状态，不会额外再插一条前端本地伪造“封面已生成”
 5. 如当前界面已暴露右侧查看区或任务卡，确认其状态与聊天轻卡一致，且任务类型显示为 `cover_generate` / 封面任务
 6. 刷新页面或切换会话再返回原话题，确认最近封面任务仍可从 `.lime/tasks` 恢复
@@ -223,7 +223,7 @@ npm run test:contracts
 
 1. 在 `Claw` 对话框输入 `@海报 小红书 风格: 清新拼贴 春日咖啡市集活动海报`
 2. 确认聊天区先进入 skill 执行态，并能看到 `image_generate` 相关工具轨迹，而不是前端静默直接创建任务
-3. 如当前环境走 `Bash -> lime media image generate --json`，确认工具标题与结果摘要对应这条图片任务主链；CLI 不可用时，才允许回退 `lime_create_image_generation_task`
+3. 确认当前海报请求仍会沿 `Skill(image_generate) -> lime_create_image_generation_task` 主链提交真实图片任务，而不是退回旧的 Bash/CLI 图片旁路
 4. 确认请求 metadata 中写入了 `entry_source = at_poster_command`，而不是被当成普通 `@配图` 或另一套海报协议
 5. 确认默认海报尺寸会收敛到 `4:5 / 864x1152`，且 prompt 会补齐“海报设计”语义，而不是裸主题词直传
 6. 等待任务回流后，确认同一条结果只展示真实 task file 状态，不会额外再插一条前端本地伪造“海报已生成”
@@ -234,7 +234,7 @@ npm run test:contracts
 
 1. 在 `Claw` 对话框输入 `@转写 https://example.com/interview.mp4 生成逐字稿`
 2. 确认聊天区先进入 skill 执行态，并能看到 `transcription_generate` 相关工具轨迹，而不是前端静默直接调用旧 `transcribe_audio`
-3. 如当前环境走 `Bash -> lime task create transcription --json`，确认工具标题与结果摘要对应这条 CLI 主链；CLI 不可用时，才允许回退 `lime_create_transcription_task`
+3. 确认 `@转写` 命中了 `transcription_generate` 的 current binding；如当前 binding family 是 `typed local_cli`，确认工具标题与结果摘要对应 runtime 结构化组装的 `lime task create transcription --json`；CLI 不可用时，才允许回退 `lime_create_transcription_task`
 4. 等待任务回流后，确认同一条结果只展示真实 task file 状态，不会额外再插一条前端本地伪造“转写已完成”
 5. 如果输入里没有 `source_url` / `source_path`，确认 Agent 最多只追问 1 个关键问题请求补充来源，而不是直接创建空任务或伪造完成态
 6. 刷新页面或切换会话再返回原话题，确认最近转写任务仍可从 `.lime/tasks` 恢复
@@ -343,7 +343,7 @@ npm run test:contracts
 
 1. 在 `Claw` 对话框输入 `@链接解析 https://example.com/agent 提取要点 并整理成投资人可读摘要`
 2. 确认聊天区先进入 skill 执行态，并能看到 `url_parse` 相关工具轨迹，而不是前端静默退回普通总结
-3. 如当前环境走 `Bash -> lime task create url-parse --json`，确认工具标题与结果摘要对应这条 CLI 主链；CLI 不可用时，才允许回退 `lime_create_url_parse_task`
+3. 确认 `@链接解析` 命中了 `url_parse` 的 current binding；如当前 binding family 是 `typed local_cli`，确认工具标题与结果摘要对应 runtime 结构化组装的 `lime task create url-parse --json`；CLI 不可用时，才允许回退 `lime_create_url_parse_task`
 4. 如果当前回合无法即时抓取正文，也必须看到真实 `url_parse` task file 被创建，且 `extractStatus` 为 `pending_extract`，而不是停留在口头解释
 5. 如果输入里没有 URL，确认 Agent 最多只追问 1 个关键问题请求补充链接，而不是直接创建空任务或伪造完成态
 6. 刷新页面或切换会话再返回原话题，确认最近链接解析任务仍可从 `.lime/tasks` 恢复
@@ -365,7 +365,7 @@ npm run test:contracts
 2. 输入一个已安装技能，例如 `/image_generate 画一张春日海报`
 3. 确认前端不会回退普通 `chat_stream`，而是进入 skill 执行态
 4. 打开控制台，确认浏览器模式接通 DevBridge 时不再出现 `execute_skill`、`list_executable_skills` 或 `get_skill_detail` 的 unknown command 报错
-5. 如当前 skill 设计为走 `Bash -> lime ...`，继续确认最终反馈的是任务提交摘要或任务状态，而不是前端本地伪造成功态
+5. 如当前 skill 的 executor kind 是 `typed local_cli`，继续确认最终反馈的是 runtime 组装后的任务提交摘要或任务状态，而不是前端本地伪造成功态；不要把“模型先写 Bash”当成通过条件
 
 ### 聊天结果保存为技能验证
 

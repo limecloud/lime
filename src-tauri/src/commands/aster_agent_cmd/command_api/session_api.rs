@@ -88,6 +88,11 @@ pub async fn agent_runtime_update_session(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    let provider_selector = request
+        .provider_selector
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     let model_name = request
         .model_name
         .as_deref()
@@ -100,6 +105,9 @@ pub async fn agent_runtime_update_session(
             provider_name,
             model_name,
         )?;
+    }
+    if let Some(provider_selector) = provider_selector.or(provider_name) {
+        persist_session_provider_routing(&trimmed_session_id, provider_selector).await?;
     }
 
     if let Some(recent_preferences) = request.recent_preferences {

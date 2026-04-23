@@ -2,12 +2,27 @@
 //!
 //! 提供 Agent 的进程与标题相关 Tauri 命令
 
-use crate::agent::{AsterAgentState, AsterAgentWrapper};
+use crate::agent::{build_auxiliary_session_config, AsterAgentState, AsterAgentWrapper};
 use crate::commands::aster_agent_cmd::ensure_browser_mcp_tools_registered;
+use crate::commands::auxiliary_model_selection::{
+    prepare_auxiliary_provider_scope, AuxiliaryServiceModelSlot,
+};
+use crate::config::GlobalConfigManagerState;
 use crate::database::DbConnection;
 use crate::AppState;
+use aster::conversation::message::Message;
+use futures::StreamExt;
+use lime_agent::merge_system_prompt_with_runtime_agents;
 use serde::Serialize;
 use tauri::State;
+use uuid::Uuid;
+
+const TITLE_FALLBACK_PROVIDER_CHAIN: [(&str, &str); 4] = [
+    ("deepseek", "deepseek-chat"),
+    ("openai", "gpt-4o-mini"),
+    ("anthropic", "claude-3-haiku-20240307"),
+    ("kiro", "anthropic.claude-3-haiku-20240307-v1:0"),
+];
 
 /// 安全截断字符串，确保不会在多字节字符中间切割
 ///
@@ -25,6 +40,196 @@ fn truncate_string(s: &str, max_chars: usize) -> String {
         let truncated: String = s.chars().take(max_chars).collect();
         format!("{truncated}...")
     }
+}
+
+fn normalize_optional_text(value: Option<String>) -> Option<String> {
+    let trimmed = value?.trim().to_string();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+fn strip_code_fence(value: &str) -> String {
+    value
+        .trim()
+        .trim_start_matches("```text")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim()
+        .to_string()
+}
+
+fn normalize_generated_title(value: &str) -> Option<String> {
+    let normalized_content = strip_code_fence(value);
+    let first_line = normalized_content
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())?;
+    let normalized = first_line
+        .trim_start_matches("标题：")
+        .trim_start_matches("标题:")
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim_matches('《')
+        .trim_matches('》')
+        .trim_matches('【')
+        .trim_matches('】')
+        .trim_matches('「')
+        .trim_matches('」')
+        .trim_matches('`')
+        .trim();
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(truncate_string(normalized, 18))
+    }
+}
+
+fn build_session_title_source_text(
+    messages: &[lime_agent::SessionTitlePreviewMessage],
+) -> Option<String> {
+    let normalized = messages
+        .iter()
+        .filter_map(|message| {
+            let content = message.content.trim();
+            if content.is_empty() {
+                None
+            } else {
+                Some(format!("{}：{}", message.role, content))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    normalize_optional_text(Some(normalized)).map(|value| truncate_string(&value, 1200))
+}
+
+fn build_fallback_title(source_text: &str, title_kind: &str) -> String {
+    let normalized_source = source_text
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or(source_text)
+        .trim();
+    if normalized_source.is_empty() {
+        return if title_kind == "image_task" {
+            "图片任务".to_string()
+        } else {
+            "新话题".to_string()
+        };
+    }
+
+    truncate_string(normalized_source, 15)
+}
+
+fn build_title_generation_system_prompt(title_kind: &str) -> String {
+    if title_kind == "image_task" {
+        [
+            "你是 Lime 的图片任务命名助手。",
+            "请根据给定的图片生成需求，生成一个简洁清晰的中文标题。",
+            "要求：",
+            "1. 标题控制在 6 到 18 个中文字符之间。",
+            "2. 优先体现主体、场景或用途，不要空泛复述“图片任务”“配图”。",
+            "3. 不要加引号、句号、编号、解释或 markdown。",
+            "4. 只输出标题本身。",
+        ]
+        .join("\n")
+    } else {
+        [
+            "你是 Lime 的会话命名助手。",
+            "请根据给定的对话摘要生成一个简洁清晰的中文标题。",
+            "要求：",
+            "1. 标题控制在 6 到 18 个中文字符之间。",
+            "2. 优先体现任务目标或讨论主题，不要泛泛写“新话题”“继续对话”。",
+            "3. 不要加引号、句号、编号、解释或 markdown。",
+            "4. 只输出标题本身。",
+        ]
+        .join("\n")
+    }
+}
+
+async fn generate_title_with_agent(
+    agent_state: &AsterAgentState,
+    db: &DbConnection,
+    config_manager: &GlobalConfigManagerState,
+    title_kind: &str,
+    source_text: &str,
+) -> Result<String, String> {
+    let session_id = format!("title-gen-{}", Uuid::new_v4());
+    let provider_scope = prepare_auxiliary_provider_scope(
+        agent_state,
+        db,
+        config_manager,
+        &session_id,
+        if title_kind == "image_task" {
+            AuxiliaryServiceModelSlot::GenerationTopic
+        } else {
+            AuxiliaryServiceModelSlot::Topic
+        },
+        &TITLE_FALLBACK_PROVIDER_CHAIN,
+    )
+    .await?;
+
+    let result = async {
+        let cancel_token = agent_state.create_cancel_token(&session_id).await;
+        let base_runtime_prompt = merge_system_prompt_with_runtime_agents(None, None);
+        let system_prompt = match base_runtime_prompt {
+            Some(base_prompt) => Some(format!(
+                "{base_prompt}\n\n{}",
+                build_title_generation_system_prompt(title_kind)
+            )),
+            None => Some(build_title_generation_system_prompt(title_kind)),
+        };
+        let session_config = build_auxiliary_session_config(&session_id, system_prompt, false);
+        let user_message = Message::user().with_text(source_text);
+
+        let agent_arc = agent_state.get_agent_arc();
+        let guard = agent_arc.read().await;
+        let agent = guard.as_ref().ok_or("Agent 未初始化")?;
+        let stream_result = agent
+            .reply(user_message, session_config, Some(cancel_token.clone()))
+            .await;
+
+        let mut full_content = String::new();
+        match stream_result {
+            Ok(mut stream) => {
+                while let Some(event_result) = stream.next().await {
+                    match event_result {
+                        Ok(agent_event) => {
+                            if let aster::agents::AgentEvent::Message(message) = agent_event {
+                                for content in &message.content {
+                                    if let aster::conversation::message::MessageContent::Text(
+                                        text_content,
+                                    ) = content
+                                    {
+                                        full_content.push_str(&text_content.text);
+                                    }
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            tracing::error!("[AgentTitle] 流式标题生成失败: {}", error);
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                agent_state.remove_cancel_token(&session_id).await;
+                return Err(format!("标题生成失败: {error}"));
+            }
+        }
+
+        agent_state.remove_cancel_token(&session_id).await;
+
+        normalize_generated_title(&full_content).ok_or_else(|| "标题生成返回为空".to_string())
+    }
+    .await;
+
+    provider_scope.restore(agent_state, db).await;
+    result
 }
 
 /// Agent 进程状态响应
@@ -119,26 +324,47 @@ pub async fn agent_get_process_status(
 /// 根据对话内容生成一个简洁的标题
 #[tauri::command]
 pub async fn agent_generate_title(
+    agent_state: State<'_, AsterAgentState>,
     db: State<'_, DbConnection>,
-    session_id: String,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    session_id: Option<String>,
+    preview_text: Option<String>,
+    title_kind: Option<String>,
 ) -> Result<String, String> {
-    // 获取会话的前几条消息（用于生成标题）
-    let messages = AsterAgentWrapper::list_title_preview_messages_sync(&db, &session_id, 4)?;
-
-    // 过滤出 user 和 assistant 消息
-    let chat_messages: Vec<_> = messages.iter().collect();
-
-    if chat_messages.len() < 2 {
-        return Ok("新话题".to_string());
-    }
-
-    // 这里简化处理：使用第一条用户消息的前 15 个字作为默认标题
-    if let Some(first_user_msg) = chat_messages.iter().find(|msg| msg.role == "user") {
-        let content = &first_user_msg.content;
-        // 使用字符边界安全截断
-        let title = truncate_string(content, 15);
-        Ok(title)
+    let resolved_title_kind =
+        normalize_optional_text(title_kind).unwrap_or_else(|| "session".to_string());
+    let resolved_preview_text = normalize_optional_text(preview_text);
+    let resolved_session_id = normalize_optional_text(session_id);
+    let source_text = if let Some(preview_text) = resolved_preview_text {
+        preview_text
+    } else if let Some(session_id) = resolved_session_id.as_deref() {
+        let messages = AsterAgentWrapper::list_title_preview_messages_sync(&db, session_id, 6)?;
+        build_session_title_source_text(&messages)
+            .ok_or_else(|| "当前会话还没有足够的内容用于生成标题".to_string())?
     } else {
-        Ok("新话题".to_string())
+        return Err("缺少生成标题所需的内容".to_string());
+    };
+
+    agent_state.init_agent_with_db(&db).await?;
+    ensure_browser_mcp_tools_registered(agent_state.inner(), &db).await?;
+
+    match generate_title_with_agent(
+        &agent_state,
+        &db,
+        &config_manager,
+        &resolved_title_kind,
+        &source_text,
+    )
+    .await
+    {
+        Ok(title) => Ok(title),
+        Err(error) => {
+            tracing::warn!(
+                "[AgentTitle] 智能标题生成失败，已回退摘要标题: kind={}, error={}",
+                resolved_title_kind,
+                error
+            );
+            Ok(build_fallback_title(&source_text, &resolved_title_kind))
+        }
     }
 }

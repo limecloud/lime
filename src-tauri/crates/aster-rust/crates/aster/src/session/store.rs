@@ -78,6 +78,12 @@ pub trait SessionStore: Send + Sync {
         user_set: bool,
     ) -> Result<()>;
 
+    /// 更新 session 工作目录
+    async fn update_working_dir(&self, session_id: &str, working_dir: PathBuf) -> Result<()>;
+
+    /// 更新 session 类型
+    async fn update_session_type(&self, session_id: &str, session_type: SessionType) -> Result<()>;
+
     /// 更新 session 扩展数据
     async fn update_extension_data(
         &self,
@@ -262,6 +268,18 @@ impl SessionStore for NoopSessionStore {
         _session_id: &str,
         _name: String,
         _user_set: bool,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn update_working_dir(&self, _session_id: &str, _working_dir: PathBuf) -> Result<()> {
+        Ok(())
+    }
+
+    async fn update_session_type(
+        &self,
+        _session_id: &str,
+        _session_type: SessionType,
     ) -> Result<()> {
         Ok(())
     }

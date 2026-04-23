@@ -71,6 +71,8 @@ interface UseInputbarControllerParams {
   workflowSteps?: WorkflowStep[];
   workflowRunState?: "idle" | "auto_running" | "await_user_decision";
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
+  projectId?: string | null;
+  sessionId?: string | null;
 }
 
 export function useInputbarController({
@@ -94,6 +96,8 @@ export function useInputbarController({
   workflowSteps = [],
   workflowRunState,
   onEnableSuggestedTeam,
+  projectId = null,
+  sessionId = null,
   skills,
   serviceSkills,
   serviceSkillGroups,
@@ -137,6 +141,10 @@ export function useInputbarController({
       : null;
   const activeCuratedTask =
     activeCapability?.kind === "curated_task" ? activeCapability.task : null;
+  const activeCuratedTaskReferenceEntries =
+    activeCapability?.kind === "curated_task"
+      ? activeCapability.referenceEntries
+      : undefined;
   const initialInputCapabilitySignature = useMemo(() => {
     const route = initialInputCapability?.capabilityRoute;
     if (!route) {
@@ -325,6 +333,9 @@ export function useInputbarController({
           activeCuratedTask
             ? React.createElement(CuratedTaskBadge, {
                 task: activeCuratedTask,
+                projectId,
+                sessionId,
+                referenceEntries: activeCuratedTaskReferenceEntries,
                 onEdit: () => {
                   if (activeCapability?.kind !== "curated_task") {
                     return;
@@ -396,6 +407,8 @@ export function useInputbarController({
     ? React.createElement(CuratedTaskLauncherDialog, {
         open: true,
         task: editingCuratedTaskCapability.task,
+        projectId,
+        sessionId,
         initialInputValues: editingCuratedTaskCapability.launchInputValues,
         initialReferenceMemoryIds:
           editingCuratedTaskCapability.referenceMemoryIds,

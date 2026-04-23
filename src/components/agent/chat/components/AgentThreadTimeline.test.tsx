@@ -867,6 +867,50 @@ describe("AgentThreadTimeline", () => {
     expect(container.textContent).toContain("随后补齐自动续提。");
   });
 
+  it("reasoning 展开后应压平被切碎成多行的过程 prose", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("reasoning-1", 1),
+        type: "reasoning",
+        text: [
+          "目录",
+          "",
+          "也",
+          "",
+          "不存在。",
+          "",
+          "可能",
+          "",
+          "整个",
+          "",
+          ".lime",
+          "",
+          "目录",
+          "",
+          "都不",
+          "",
+          "存在。",
+        ].join("\n"),
+      },
+    ];
+
+    const container = renderTimeline(items, {
+      turn: {
+        status: "completed",
+      },
+    });
+
+    const summary = container.querySelector("summary");
+    act(() => {
+      summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const markdownBlocks = container.querySelectorAll('[data-testid="markdown-renderer"]');
+    expect(markdownBlocks[0]?.textContent).toBe(
+      "目录也不存在。可能整个 .lime 目录都不存在。",
+    );
+  });
+
   it("reasoning 缺少正文时应回退显示 summary", () => {
     const items: AgentThreadItem[] = [
       {

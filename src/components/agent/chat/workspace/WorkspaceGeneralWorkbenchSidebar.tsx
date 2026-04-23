@@ -11,6 +11,8 @@ import type { Message } from "../types";
 
 type GeneralWorkbenchSidebarWorkflowProps = Pick<
   GeneralWorkbenchSidebarProps,
+  | "projectId"
+  | "sessionId"
   | "branchMode"
   | "onNewTopic"
   | "onSwitchTopic"
@@ -58,6 +60,8 @@ interface WorkspaceGeneralWorkbenchSidebarProps {
     ComponentProps<typeof GeneralWorkbenchHarnessCard>["onToggleHarnessPanel"]
   >;
   workflow: {
+    projectId?: GeneralWorkbenchSidebarWorkflowProps["projectId"];
+    sessionId?: GeneralWorkbenchSidebarWorkflowProps["sessionId"];
     branchItems: GeneralWorkbenchSidebarWorkflowProps["branchItems"];
     onCreateVersionSnapshot: GeneralWorkbenchSidebarWorkflowProps["onNewTopic"];
     onSwitchBranchVersion: GeneralWorkbenchSidebarWorkflowProps["onSwitchTopic"];
@@ -119,6 +123,8 @@ export function WorkspaceGeneralWorkbenchSidebar({
 
   return (
     <GeneralWorkbenchSidebar
+      projectId={workflow.projectId}
+      sessionId={workflow.sessionId}
       branchMode="version"
       onNewTopic={workflow.onCreateVersionSnapshot}
       onSwitchTopic={workflow.onSwitchBranchVersion}

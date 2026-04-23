@@ -13,6 +13,12 @@ fn parse_request<T: DeserializeOwned>(args: Option<&JsonValue>) -> Result<T, Dyn
     parse_nested_arg(&args_or_default(args), "request")
 }
 
+fn get_optional_bool_arg(args: &JsonValue, primary: &str, secondary: &str) -> Option<bool> {
+    args.get(primary)
+        .or_else(|| args.get(secondary))
+        .and_then(|value| value.as_bool())
+}
+
 pub(super) async fn try_handle(
     state: &DevBridgeState,
     cmd: &str,
@@ -94,10 +100,12 @@ pub(super) async fn try_handle(
             >(args)?;
             let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
             let db = app_handle.state::<crate::database::DbConnection>();
+            let config_manager = app_handle.state::<crate::config::GlobalConfigManagerState>();
             crate::commands::aster_agent_cmd::agent_runtime_compact_session(
                 app_handle.clone(),
                 aster_state,
                 db,
+                config_manager,
                 request,
             )
             .await?;
@@ -177,6 +185,11 @@ pub(super) async fn try_handle(
         "agent_runtime_get_session" => {
             let args = args_or_default(args);
             let session_id = get_string_arg(&args, "sessionId", "session_id")?;
+            let resume_session_start_hooks = get_optional_bool_arg(
+                &args,
+                "resumeSessionStartHooks",
+                "resume_session_start_hooks",
+            );
             let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
             let db = app_handle.state::<crate::database::DbConnection>();
             let api_key_provider_service =
@@ -199,6 +212,7 @@ pub(super) async fn try_handle(
                     mcp_manager,
                     automation_state,
                     session_id,
+                    resume_session_start_hooks,
                 )
                 .await?,
             )?

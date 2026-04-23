@@ -5,6 +5,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { VideoCanvasProps } from "./types";
 import { VideoSidebar, type VideoProviderOption } from "./VideoSidebar";
 import { VideoWorkspace } from "./VideoWorkspace";
+import { useGlobalMediaGenerationDefaults } from "@/hooks/useGlobalMediaGenerationDefaults";
 import { apiKeyProviderApi } from "@/lib/api/apiKeyProvider";
 import {
   ackCanvasImageInsertRequest,
@@ -14,6 +15,7 @@ import {
   onCanvasImageInsertRequest,
   type CanvasImageInsertRequest,
 } from "@/lib/canvasImageInsertBus";
+import { normalizeMediaGenerationPreference } from "@/lib/mediaGeneration";
 
 const VIDEO_MODEL_PRESETS: Record<string, string[]> = {
   doubao: ["seedance-1-5-pro-251215", "seedance-1-5-lite-250428"],
@@ -244,6 +246,7 @@ export const VideoCanvas: React.FC<VideoCanvasProps> = memo(
   ({ state, onStateChange, projectId, contentId, onClose: _onClose }) => {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [providers, setProviders] = useState<VideoProviderOption[]>([]);
+    const { mediaDefaults } = useGlobalMediaGenerationDefaults();
 
     useEffect(() => {
       let active = true;
@@ -294,33 +297,63 @@ export const VideoCanvas: React.FC<VideoCanvasProps> = memo(
       }
       return resolveProviderModels(selectedProvider);
     }, [selectedProvider]);
+    const preferredVideoSelection = useMemo(
+      () => normalizeMediaGenerationPreference(mediaDefaults.video),
+      [mediaDefaults.video],
+    );
 
     useEffect(() => {
       if (providers.length === 0) {
         return;
       }
 
-      if (
-        !state.providerId ||
-        !providers.some((provider) => provider.id === state.providerId)
-      ) {
-        const firstProvider = providers[0];
-        const firstModel = resolveProviderModels(firstProvider)[0] ?? "";
-        onStateChange({
-          ...state,
-          providerId: firstProvider.id,
-          model: firstModel,
-        });
+      const currentProvider =
+        providers.find((provider) => provider.id === state.providerId) ?? null;
+      const preferredProvider =
+        preferredVideoSelection.preferredProviderId
+          ? providers.find(
+              (provider) =>
+                provider.id === preferredVideoSelection.preferredProviderId,
+            ) ?? null
+          : null;
+      const nextProvider = currentProvider ?? preferredProvider ?? providers[0];
+      if (!nextProvider) {
         return;
       }
 
-      if (!state.model && availableModels.length > 0) {
-        onStateChange({
-          ...state,
-          model: availableModels[0],
-        });
+      const nextModels = resolveProviderModels(nextProvider);
+      const currentModelValid =
+        currentProvider?.id === nextProvider.id &&
+        nextModels.includes(state.model);
+      const preferredModelValid =
+        preferredProvider?.id === nextProvider.id &&
+        Boolean(preferredVideoSelection.preferredModelId) &&
+        nextModels.includes(preferredVideoSelection.preferredModelId || "");
+      const nextModel = currentModelValid
+        ? state.model
+        : preferredModelValid
+          ? (preferredVideoSelection.preferredModelId ?? "")
+          : (nextModels[0] ?? "");
+
+      if (
+        state.providerId === nextProvider.id &&
+        state.model === nextModel
+      ) {
+        return;
       }
-    }, [availableModels, onStateChange, providers, state]);
+
+      onStateChange({
+        ...state,
+        providerId: nextProvider.id,
+        model: nextModel,
+      });
+    }, [
+      onStateChange,
+      preferredVideoSelection.preferredModelId,
+      preferredVideoSelection.preferredProviderId,
+      providers,
+      state,
+    ]);
 
     const matchesRequestTarget = useMemo(
       () => (request: CanvasImageInsertRequest) =>

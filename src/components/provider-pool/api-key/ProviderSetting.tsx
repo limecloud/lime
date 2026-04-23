@@ -212,7 +212,8 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
     providerType: provider.type,
     apiHost: provider.api_host,
   });
-  const requiresLiveModelTruth = modelAutoFetchCapability.supported;
+  const requiresLiveModelTruth =
+    modelAutoFetchCapability.requiresLiveModelTruth;
   const hasRequiredApiAccess =
     !modelAutoFetchCapability.requiresApiKey || enabledApiKeyCount > 0;
   const usesAnthropicProtocol = ["anthropic", "anthropic-compatible"].includes(

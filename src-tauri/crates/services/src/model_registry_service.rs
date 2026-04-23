@@ -3,11 +3,15 @@
 //! 从内嵌资源加载模型数据，管理本地缓存，提供模型搜索等功能
 //! 模型数据在构建时从 aiclientproxy/models 仓库打包进应用
 
+use aster::providers::canonical::{maybe_get_canonical_model, CanonicalModel};
+use lime_core::api_host_utils::normalize_openai_model_discovery_host;
 use lime_core::database::dao::api_key_provider::{infer_managed_runtime_spec, ApiProviderType};
 use lime_core::database::DbConnection;
 use lime_core::models::model_registry::{
-    EnhancedModelMetadata, ModelCapabilities, ModelLimits, ModelPricing, ModelSource, ModelStatus,
-    ModelSyncState, ModelTier, ProviderAliasConfig, UserModelPreference,
+    EnhancedModelMetadata, ModelAliasSource, ModelCapabilities, ModelDeploymentSource, ModelLimits,
+    ModelManagementPlane, ModelModality, ModelPricing, ModelRuntimeFeature, ModelSource,
+    ModelStatus, ModelSyncState, ModelTaskFamily, ModelTier, ProviderAliasConfig,
+    UserModelPreference,
 };
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -58,6 +62,19 @@ struct RepoModel {
     description: Option<String>,
     #[serde(default)]
     description_zh: Option<String>,
+    #[serde(default)]
+    task_families: Vec<String>,
+    #[serde(default)]
+    input_modalities: Vec<String>,
+    #[serde(default)]
+    output_modalities: Vec<String>,
+    #[serde(default)]
+    runtime_features: Vec<String>,
+    deployment_source: Option<String>,
+    management_plane: Option<String>,
+    canonical_model_id: Option<String>,
+    provider_model_id: Option<String>,
+    alias_source: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -117,6 +134,773 @@ struct PreparedModelFetchRequest {
     protocol: ModelFetchProtocol,
     url: String,
     headers: Vec<(String, String)>,
+}
+
+fn normalize_identifier(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+fn build_search_text(parts: &[Option<String>]) -> String {
+    parts
+        .iter()
+        .filter_map(|part| {
+            part.as_ref()
+                .map(|value| normalize_identifier(value))
+                .filter(|value| !value.is_empty())
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn text_contains_any(text: &str, keywords: &[&str]) -> bool {
+    keywords.iter().any(|keyword| text.contains(keyword))
+}
+
+fn push_unique<T: PartialEq>(target: &mut Vec<T>, value: T) {
+    if !target.contains(&value) {
+        target.push(value);
+    }
+}
+
+fn parse_task_family(value: &str) -> Option<ModelTaskFamily> {
+    match normalize_identifier(value).as_str() {
+        "chat" => Some(ModelTaskFamily::Chat),
+        "reasoning" => Some(ModelTaskFamily::Reasoning),
+        "vision_understanding" => Some(ModelTaskFamily::VisionUnderstanding),
+        "image_generation" => Some(ModelTaskFamily::ImageGeneration),
+        "image_edit" => Some(ModelTaskFamily::ImageEdit),
+        "speech_to_text" => Some(ModelTaskFamily::SpeechToText),
+        "text_to_speech" => Some(ModelTaskFamily::TextToSpeech),
+        "embedding" => Some(ModelTaskFamily::Embedding),
+        "rerank" => Some(ModelTaskFamily::Rerank),
+        "moderation" => Some(ModelTaskFamily::Moderation),
+        _ => None,
+    }
+}
+
+fn parse_modality(value: &str) -> Option<ModelModality> {
+    match normalize_identifier(value).as_str() {
+        "text" => Some(ModelModality::Text),
+        "image" => Some(ModelModality::Image),
+        "audio" => Some(ModelModality::Audio),
+        "video" => Some(ModelModality::Video),
+        "file" => Some(ModelModality::File),
+        "embedding" => Some(ModelModality::Embedding),
+        "json" => Some(ModelModality::Json),
+        _ => None,
+    }
+}
+
+fn parse_runtime_feature(value: &str) -> Option<ModelRuntimeFeature> {
+    match normalize_identifier(value).as_str() {
+        "streaming" => Some(ModelRuntimeFeature::Streaming),
+        "tool_calling" => Some(ModelRuntimeFeature::ToolCalling),
+        "json_schema" => Some(ModelRuntimeFeature::JsonSchema),
+        "reasoning" => Some(ModelRuntimeFeature::Reasoning),
+        "prompt_cache" => Some(ModelRuntimeFeature::PromptCache),
+        "responses_api" => Some(ModelRuntimeFeature::ResponsesApi),
+        "chat_completions_api" => Some(ModelRuntimeFeature::ChatCompletionsApi),
+        "images_api" => Some(ModelRuntimeFeature::ImagesApi),
+        _ => None,
+    }
+}
+
+fn parse_deployment_source(value: &str) -> Option<ModelDeploymentSource> {
+    match normalize_identifier(value).as_str() {
+        "local" => Some(ModelDeploymentSource::Local),
+        "user_cloud" => Some(ModelDeploymentSource::UserCloud),
+        "oem_cloud" => Some(ModelDeploymentSource::OemCloud),
+        _ => None,
+    }
+}
+
+fn parse_management_plane(value: &str) -> Option<ModelManagementPlane> {
+    match normalize_identifier(value).as_str() {
+        "local_settings" => Some(ModelManagementPlane::LocalSettings),
+        "oem_control_plane" => Some(ModelManagementPlane::OemControlPlane),
+        "hybrid" => Some(ModelManagementPlane::Hybrid),
+        _ => None,
+    }
+}
+
+fn parse_alias_source(value: &str) -> Option<ModelAliasSource> {
+    match normalize_identifier(value).as_str() {
+        "official" => Some(ModelAliasSource::Official),
+        "relay" => Some(ModelAliasSource::Relay),
+        "oem" => Some(ModelAliasSource::Oem),
+        "local" => Some(ModelAliasSource::Local),
+        _ => None,
+    }
+}
+
+fn parse_task_families(values: &[String]) -> Vec<ModelTaskFamily> {
+    let mut families = Vec::new();
+    for value in values {
+        if let Some(family) = parse_task_family(value) {
+            push_unique(&mut families, family);
+        }
+    }
+    families
+}
+
+fn parse_modalities(values: &[String]) -> Vec<ModelModality> {
+    let mut modalities = Vec::new();
+    for value in values {
+        if let Some(modality) = parse_modality(value) {
+            push_unique(&mut modalities, modality);
+        }
+    }
+    modalities
+}
+
+fn parse_runtime_features(values: &[String]) -> Vec<ModelRuntimeFeature> {
+    let mut features = Vec::new();
+    for value in values {
+        if let Some(feature) = parse_runtime_feature(value) {
+            push_unique(&mut features, feature);
+        }
+    }
+    features
+}
+
+fn infer_reasoning_capability(model_id: &str) -> bool {
+    let normalized = normalize_identifier(model_id);
+    text_contains_any(&normalized, &["thinking", "reasoning"])
+}
+
+fn infer_vision_capability(
+    model_id: &str,
+    provider_id: Option<&str>,
+    family: Option<&str>,
+    description: Option<&str>,
+) -> bool {
+    let text = build_search_text(&[
+        Some(model_id.to_string()),
+        family.map(ToString::to_string),
+        description.map(ToString::to_string),
+    ]);
+    if text.is_empty() {
+        return false;
+    }
+
+    if text_contains_any(
+        &text,
+        &[
+            "embedding",
+            "embed",
+            "rerank",
+            "tts",
+            "stt",
+            "transcribe",
+            "transcription",
+            "speech",
+            "audio",
+            "moderation",
+            "imagen",
+            "dall-e",
+            "dalle",
+            "stable diffusion",
+            "stable-diffusion",
+            "sdxl",
+            "sd3",
+            "midjourney",
+            "image generation",
+            "image-generation",
+            "image-gen",
+            "image-preview",
+            "flux",
+            "nano-banana",
+        ],
+    ) {
+        return false;
+    }
+
+    if text_contains_any(
+        &text,
+        &[
+            "vision",
+            "multimodal",
+            "multi-modal",
+            "omni",
+            "image-input",
+            "image understanding",
+        ],
+    ) {
+        return true;
+    }
+
+    let provider = provider_id.map(normalize_identifier).unwrap_or_default();
+    let openai_like = text_contains_any(&text, &["gpt-5", "gpt-4o", "gpt-4.1", "gpt-4.5", "codex"]);
+    if provider == "openai" || provider == "codex" {
+        return openai_like;
+    }
+    if provider == "gemini" || provider == "google" {
+        return text.contains("gemini");
+    }
+    if provider == "anthropic" || provider == "claude" {
+        return text.contains("claude");
+    }
+    if provider == "qwen" || provider == "alibaba" {
+        return (text.contains("qwen") && (text.contains("vl") || text.contains("vision")))
+            || text.contains("qvq");
+    }
+    if provider == "zhipuai" {
+        return text.contains("glm-") && text.contains('v');
+    }
+
+    openai_like
+        || text.contains("gemini")
+        || text.contains("claude")
+        || text.contains("qvq")
+        || (text.contains("qwen") && (text.contains("vl") || text.contains("vision")))
+        || (text.contains("glm-") && text.contains('v'))
+}
+
+fn infer_image_generation_capability(
+    model_id: &str,
+    family: Option<&str>,
+    description: Option<&str>,
+    provider_model_id: Option<&str>,
+    canonical_model_id: Option<&str>,
+    input_modalities: &[ModelModality],
+    output_modalities: &[ModelModality],
+) -> bool {
+    output_modalities.contains(&ModelModality::Image)
+        || text_contains_any(
+            &build_search_text(&[
+                Some(model_id.to_string()),
+                family.map(ToString::to_string),
+                description.map(ToString::to_string),
+                provider_model_id.map(ToString::to_string),
+                canonical_model_id.map(ToString::to_string),
+            ]),
+            &[
+                "gpt-image",
+                "gpt-images",
+                "imagen",
+                "dall-e",
+                "dalle",
+                "stable diffusion",
+                "stable-diffusion",
+                "sdxl",
+                "sd3",
+                "midjourney",
+                "image generation",
+                "image-generation",
+                "image-gen",
+                "image-preview",
+                "flux",
+                "nano-banana",
+                "recraft",
+                "ideogram",
+                "seedream",
+                "cogview",
+            ],
+        )
+        || (input_modalities.contains(&ModelModality::Image)
+            && output_modalities.contains(&ModelModality::Image))
+}
+
+fn infer_image_edit_capability(
+    model_id: &str,
+    family: Option<&str>,
+    description: Option<&str>,
+    input_modalities: &[ModelModality],
+    output_modalities: &[ModelModality],
+) -> bool {
+    text_contains_any(
+        &build_search_text(&[
+            Some(model_id.to_string()),
+            family.map(ToString::to_string),
+            description.map(ToString::to_string),
+        ]),
+        &[
+            "edit",
+            "inpaint",
+            "outpaint",
+            "img2img",
+            "image-edit",
+            "image_edit",
+            "image edits",
+        ],
+    ) || (input_modalities.contains(&ModelModality::Image)
+        && output_modalities.contains(&ModelModality::Image))
+}
+
+fn infer_model_task_families(
+    model_id: &str,
+    provider_id: Option<&str>,
+    family: Option<&str>,
+    description: Option<&str>,
+    capabilities: Option<&ModelCapabilities>,
+    explicit_task_families: &[ModelTaskFamily],
+    input_modalities: &[ModelModality],
+    output_modalities: &[ModelModality],
+    provider_model_id: Option<&str>,
+    canonical_model_id: Option<&str>,
+) -> Vec<ModelTaskFamily> {
+    if !explicit_task_families.is_empty() {
+        return explicit_task_families.to_vec();
+    }
+
+    let text = build_search_text(&[
+        Some(model_id.to_string()),
+        family.map(ToString::to_string),
+        description.map(ToString::to_string),
+        provider_model_id.map(ToString::to_string),
+        canonical_model_id.map(ToString::to_string),
+    ]);
+    let inferred_reasoning = capabilities
+        .map(|caps| caps.reasoning)
+        .unwrap_or_else(|| infer_reasoning_capability(model_id));
+    let inferred_vision = capabilities
+        .map(|caps| caps.vision)
+        .unwrap_or_else(|| infer_vision_capability(model_id, provider_id, family, description));
+    let is_embedding = text_contains_any(&text, &["embedding", "embed", "text-embedding"]);
+    let is_rerank = text_contains_any(&text, &["rerank", "re-rank"]);
+    let is_moderation = text_contains_any(&text, &["moderation"]);
+    let is_speech_to_text = text_contains_any(
+        &text,
+        &[
+            "stt",
+            "asr",
+            "speech-to-text",
+            "speech to text",
+            "transcribe",
+            "transcription",
+            "whisper",
+        ],
+    );
+    let is_text_to_speech = text_contains_any(
+        &text,
+        &[
+            "tts",
+            "text-to-speech",
+            "text to speech",
+            "speech synthesis",
+            "voice-synth",
+        ],
+    );
+    let is_image_generation = infer_image_generation_capability(
+        model_id,
+        family,
+        description,
+        provider_model_id,
+        canonical_model_id,
+        input_modalities,
+        output_modalities,
+    );
+    let is_image_edit = infer_image_edit_capability(
+        model_id,
+        family,
+        description,
+        input_modalities,
+        output_modalities,
+    );
+
+    let mut families = Vec::new();
+    if is_embedding {
+        push_unique(&mut families, ModelTaskFamily::Embedding);
+    }
+    if is_rerank {
+        push_unique(&mut families, ModelTaskFamily::Rerank);
+    }
+    if is_moderation {
+        push_unique(&mut families, ModelTaskFamily::Moderation);
+    }
+    if is_speech_to_text {
+        push_unique(&mut families, ModelTaskFamily::SpeechToText);
+    }
+    if is_text_to_speech {
+        push_unique(&mut families, ModelTaskFamily::TextToSpeech);
+    }
+    if is_image_generation {
+        push_unique(&mut families, ModelTaskFamily::ImageGeneration);
+    }
+    if is_image_edit {
+        push_unique(&mut families, ModelTaskFamily::ImageEdit);
+    }
+    if inferred_vision && !is_image_generation {
+        push_unique(&mut families, ModelTaskFamily::VisionUnderstanding);
+    }
+    if inferred_reasoning {
+        push_unique(&mut families, ModelTaskFamily::Reasoning);
+    }
+
+    let specialized_only = families.iter().any(|family| {
+        matches!(
+            family,
+            ModelTaskFamily::Embedding
+                | ModelTaskFamily::Rerank
+                | ModelTaskFamily::Moderation
+                | ModelTaskFamily::SpeechToText
+                | ModelTaskFamily::TextToSpeech
+                | ModelTaskFamily::ImageGeneration
+                | ModelTaskFamily::ImageEdit
+        )
+    });
+
+    if !specialized_only
+        || inferred_vision
+        || inferred_reasoning
+        || capabilities.map(|caps| caps.tools).unwrap_or(false)
+        || capabilities
+            .map(|caps| caps.function_calling)
+            .unwrap_or(false)
+        || capabilities.map(|caps| caps.json_mode).unwrap_or(false)
+    {
+        push_unique(&mut families, ModelTaskFamily::Chat);
+    }
+
+    families
+}
+
+fn infer_model_capabilities(
+    model_id: &str,
+    provider_id: Option<&str>,
+    task_families: &[ModelTaskFamily],
+) -> ModelCapabilities {
+    let specialized_only = task_families.iter().any(|family| {
+        matches!(
+            family,
+            ModelTaskFamily::ImageGeneration
+                | ModelTaskFamily::ImageEdit
+                | ModelTaskFamily::SpeechToText
+                | ModelTaskFamily::TextToSpeech
+                | ModelTaskFamily::Embedding
+                | ModelTaskFamily::Rerank
+        )
+    });
+
+    ModelCapabilities {
+        vision: task_families.contains(&ModelTaskFamily::VisionUnderstanding),
+        tools: !task_families.contains(&ModelTaskFamily::ImageGeneration),
+        streaming: true,
+        json_mode: !specialized_only,
+        function_calling: !task_families.contains(&ModelTaskFamily::ImageGeneration)
+            && !task_families.contains(&ModelTaskFamily::ImageEdit)
+            && !task_families.contains(&ModelTaskFamily::SpeechToText)
+            && !task_families.contains(&ModelTaskFamily::TextToSpeech)
+            && !task_families.contains(&ModelTaskFamily::Embedding)
+            && !task_families.contains(&ModelTaskFamily::Rerank),
+        reasoning: task_families.contains(&ModelTaskFamily::Reasoning)
+            || provider_id.map(normalize_identifier).as_deref() == Some("codex")
+            || infer_reasoning_capability(model_id),
+    }
+}
+
+fn infer_input_modalities(
+    task_families: &[ModelTaskFamily],
+    explicit_input_modalities: &[ModelModality],
+) -> Vec<ModelModality> {
+    if !explicit_input_modalities.is_empty() {
+        return explicit_input_modalities.to_vec();
+    }
+
+    let mut modalities = Vec::new();
+    if !task_families.contains(&ModelTaskFamily::SpeechToText) {
+        push_unique(&mut modalities, ModelModality::Text);
+    }
+    if task_families.contains(&ModelTaskFamily::SpeechToText) {
+        push_unique(&mut modalities, ModelModality::Audio);
+    }
+    if task_families.contains(&ModelTaskFamily::ImageEdit)
+        || task_families.contains(&ModelTaskFamily::VisionUnderstanding)
+    {
+        push_unique(&mut modalities, ModelModality::Image);
+    }
+    if task_families.iter().any(|family| {
+        matches!(
+            family,
+            ModelTaskFamily::Embedding
+                | ModelTaskFamily::Rerank
+                | ModelTaskFamily::Moderation
+                | ModelTaskFamily::TextToSpeech
+        )
+    }) {
+        push_unique(&mut modalities, ModelModality::Text);
+    }
+
+    modalities
+}
+
+fn infer_output_modalities(
+    task_families: &[ModelTaskFamily],
+    explicit_output_modalities: &[ModelModality],
+    capabilities: Option<&ModelCapabilities>,
+) -> Vec<ModelModality> {
+    if !explicit_output_modalities.is_empty() {
+        return explicit_output_modalities.to_vec();
+    }
+
+    let mut modalities = Vec::new();
+    if task_families.iter().any(|family| {
+        matches!(
+            family,
+            ModelTaskFamily::Chat
+                | ModelTaskFamily::Reasoning
+                | ModelTaskFamily::VisionUnderstanding
+                | ModelTaskFamily::SpeechToText
+                | ModelTaskFamily::Rerank
+                | ModelTaskFamily::Moderation
+        )
+    }) {
+        push_unique(&mut modalities, ModelModality::Text);
+    }
+    if task_families.contains(&ModelTaskFamily::ImageGeneration)
+        || task_families.contains(&ModelTaskFamily::ImageEdit)
+    {
+        push_unique(&mut modalities, ModelModality::Image);
+    }
+    if task_families.contains(&ModelTaskFamily::TextToSpeech) {
+        push_unique(&mut modalities, ModelModality::Audio);
+    }
+    if task_families.contains(&ModelTaskFamily::Embedding) {
+        push_unique(&mut modalities, ModelModality::Embedding);
+    }
+    if capabilities.map(|caps| caps.json_mode).unwrap_or(false)
+        && !task_families.contains(&ModelTaskFamily::SpeechToText)
+    {
+        push_unique(&mut modalities, ModelModality::Json);
+    }
+
+    modalities
+}
+
+fn infer_runtime_features(
+    provider_id: Option<&str>,
+    capabilities: Option<&ModelCapabilities>,
+    task_families: &[ModelTaskFamily],
+    explicit_runtime_features: &[ModelRuntimeFeature],
+) -> Vec<ModelRuntimeFeature> {
+    if !explicit_runtime_features.is_empty() {
+        return explicit_runtime_features.to_vec();
+    }
+
+    let provider_key = provider_id.map(normalize_identifier).unwrap_or_default();
+    let mut features = Vec::new();
+    if capabilities.map(|caps| caps.streaming).unwrap_or(true) {
+        push_unique(&mut features, ModelRuntimeFeature::Streaming);
+    }
+    if capabilities
+        .map(|caps| caps.tools || caps.function_calling)
+        .unwrap_or(false)
+    {
+        push_unique(&mut features, ModelRuntimeFeature::ToolCalling);
+    }
+    if capabilities.map(|caps| caps.json_mode).unwrap_or(false) {
+        push_unique(&mut features, ModelRuntimeFeature::JsonSchema);
+    }
+    if capabilities.map(|caps| caps.reasoning).unwrap_or(false)
+        || task_families.contains(&ModelTaskFamily::Reasoning)
+    {
+        push_unique(&mut features, ModelRuntimeFeature::Reasoning);
+    }
+    if provider_key == "codex" {
+        push_unique(&mut features, ModelRuntimeFeature::ResponsesApi);
+    }
+    if matches!(
+        provider_key.as_str(),
+        "openai" | "new-api" | "azure-openai" | "gateway"
+    ) {
+        push_unique(&mut features, ModelRuntimeFeature::ChatCompletionsApi);
+    }
+    if task_families.contains(&ModelTaskFamily::ImageGeneration)
+        || task_families.contains(&ModelTaskFamily::ImageEdit)
+    {
+        push_unique(&mut features, ModelRuntimeFeature::ImagesApi);
+    }
+
+    features
+}
+
+fn infer_deployment_source(
+    provider_id: Option<&str>,
+    description: Option<&str>,
+    explicit_deployment_source: Option<ModelDeploymentSource>,
+) -> ModelDeploymentSource {
+    if let Some(source) = explicit_deployment_source {
+        return source;
+    }
+
+    let text = build_search_text(&[
+        provider_id.map(ToString::to_string),
+        description.map(ToString::to_string),
+    ]);
+    if text_contains_any(
+        &text,
+        &["ollama", "lmstudio", "gpustack", "ovms", "comfyui"],
+    ) {
+        return ModelDeploymentSource::Local;
+    }
+    if text_contains_any(
+        &text,
+        &["lime-hub", "lime hub", "oem", "partner-hub", "partner hub"],
+    ) {
+        return ModelDeploymentSource::OemCloud;
+    }
+
+    ModelDeploymentSource::UserCloud
+}
+
+fn infer_management_plane(
+    deployment_source: &ModelDeploymentSource,
+    explicit_management_plane: Option<ModelManagementPlane>,
+) -> ModelManagementPlane {
+    if let Some(plane) = explicit_management_plane {
+        return plane;
+    }
+
+    match deployment_source {
+        ModelDeploymentSource::Local => ModelManagementPlane::LocalSettings,
+        ModelDeploymentSource::OemCloud => ModelManagementPlane::OemControlPlane,
+        ModelDeploymentSource::UserCloud => ModelManagementPlane::LocalSettings,
+    }
+}
+
+fn infer_alias_source(
+    explicit_alias_source: Option<ModelAliasSource>,
+    provider_model_id: Option<&str>,
+    canonical_model_id: Option<&str>,
+    canonical_model: Option<&CanonicalModel>,
+) -> Option<ModelAliasSource> {
+    if let Some(alias_source) = explicit_alias_source {
+        return Some(alias_source);
+    }
+
+    if provider_model_id.is_some() && canonical_model_id.is_some() {
+        if canonical_model.is_some() {
+            return Some(ModelAliasSource::Official);
+        }
+        if provider_model_id.map(normalize_identifier)
+            != canonical_model_id.map(normalize_identifier)
+        {
+            return Some(ModelAliasSource::Relay);
+        }
+    }
+
+    None
+}
+
+#[derive(Debug, Clone)]
+struct InferredModelTaxonomy {
+    task_families: Vec<ModelTaskFamily>,
+    input_modalities: Vec<ModelModality>,
+    output_modalities: Vec<ModelModality>,
+    runtime_features: Vec<ModelRuntimeFeature>,
+    deployment_source: ModelDeploymentSource,
+    management_plane: ModelManagementPlane,
+    canonical_model_id: Option<String>,
+    provider_model_id: Option<String>,
+    alias_source: Option<ModelAliasSource>,
+}
+
+struct ModelTaxonomyInput<'a> {
+    model_id: &'a str,
+    provider_id: Option<&'a str>,
+    family: Option<&'a str>,
+    description: Option<&'a str>,
+    capabilities: Option<&'a ModelCapabilities>,
+    explicit_task_families: &'a [ModelTaskFamily],
+    explicit_input_modalities: &'a [ModelModality],
+    explicit_output_modalities: &'a [ModelModality],
+    explicit_runtime_features: &'a [ModelRuntimeFeature],
+    explicit_deployment_source: Option<ModelDeploymentSource>,
+    explicit_management_plane: Option<ModelManagementPlane>,
+    provider_model_id: Option<&'a str>,
+    canonical_model_id: Option<&'a str>,
+    explicit_alias_source: Option<ModelAliasSource>,
+    canonical_model: Option<&'a CanonicalModel>,
+}
+
+fn infer_model_taxonomy(input: ModelTaxonomyInput<'_>) -> InferredModelTaxonomy {
+    let canonical_input_modalities = input
+        .canonical_model
+        .map(|model| parse_modalities(&model.input_modalities))
+        .unwrap_or_default();
+    let canonical_output_modalities = input
+        .canonical_model
+        .map(|model| parse_modalities(&model.output_modalities))
+        .unwrap_or_default();
+    let input_seed = if input.explicit_input_modalities.is_empty() {
+        canonical_input_modalities.as_slice()
+    } else {
+        input.explicit_input_modalities
+    };
+    let output_seed = if input.explicit_output_modalities.is_empty() {
+        canonical_output_modalities.as_slice()
+    } else {
+        input.explicit_output_modalities
+    };
+    let task_families = infer_model_task_families(
+        input.model_id,
+        input.provider_id,
+        input.family,
+        input.description,
+        input.capabilities,
+        input.explicit_task_families,
+        input_seed,
+        output_seed,
+        input.provider_model_id,
+        input.canonical_model_id,
+    );
+    let input_modalities = if !input.explicit_input_modalities.is_empty() {
+        input.explicit_input_modalities.to_vec()
+    } else if !canonical_input_modalities.is_empty() {
+        canonical_input_modalities
+    } else {
+        infer_input_modalities(&task_families, input.explicit_input_modalities)
+    };
+    let output_modalities = if !input.explicit_output_modalities.is_empty() {
+        input.explicit_output_modalities.to_vec()
+    } else if !canonical_output_modalities.is_empty() {
+        canonical_output_modalities
+    } else {
+        infer_output_modalities(
+            &task_families,
+            input.explicit_output_modalities,
+            input.capabilities,
+        )
+    };
+    let runtime_features = infer_runtime_features(
+        input.provider_id,
+        input.capabilities,
+        &task_families,
+        input.explicit_runtime_features,
+    );
+    let deployment_source = infer_deployment_source(
+        input.provider_id,
+        input.description,
+        input.explicit_deployment_source,
+    );
+    let management_plane =
+        infer_management_plane(&deployment_source, input.explicit_management_plane);
+    let provider_model_id = input
+        .provider_model_id
+        .map(ToString::to_string)
+        .or_else(|| Some(input.model_id.to_string()));
+    let canonical_model_id = input
+        .canonical_model_id
+        .map(ToString::to_string)
+        .or_else(|| input.canonical_model.map(|model| model.id.clone()));
+    let alias_source = infer_alias_source(
+        input.explicit_alias_source,
+        provider_model_id.as_deref(),
+        canonical_model_id.as_deref(),
+        input.canonical_model,
+    );
+
+    InferredModelTaxonomy {
+        task_families,
+        input_modalities,
+        output_modalities,
+        runtime_features,
+        deployment_source,
+        management_plane,
+        canonical_model_id,
+        provider_model_id,
+        alias_source,
+    }
 }
 
 /// 模型注册服务
@@ -391,6 +1175,51 @@ impl ModelRegistryService {
         now: i64,
     ) -> EnhancedModelMetadata {
         let caps = model.capabilities.unwrap_or_default();
+        let capabilities = ModelCapabilities {
+            vision: caps.vision,
+            tools: caps.tools,
+            streaming: caps.streaming,
+            json_mode: caps.json_mode,
+            function_calling: caps.function_calling,
+            reasoning: caps.reasoning,
+        };
+        let canonical_model = maybe_get_canonical_model(provider_id, &model.id);
+        let explicit_task_families = parse_task_families(&model.task_families);
+        let explicit_input_modalities = parse_modalities(&model.input_modalities);
+        let explicit_output_modalities = parse_modalities(&model.output_modalities);
+        let explicit_runtime_features = parse_runtime_features(&model.runtime_features);
+        let explicit_deployment_source = model
+            .deployment_source
+            .as_deref()
+            .and_then(parse_deployment_source);
+        let explicit_management_plane = model
+            .management_plane
+            .as_deref()
+            .and_then(parse_management_plane);
+        let explicit_alias_source = model.alias_source.as_deref().and_then(parse_alias_source);
+        let taxonomy = infer_model_taxonomy(ModelTaxonomyInput {
+            model_id: &model.id,
+            provider_id: Some(provider_id),
+            family: model.family.as_deref(),
+            description: model
+                .description_zh
+                .as_deref()
+                .or(model.description.as_deref()),
+            capabilities: Some(&capabilities),
+            explicit_task_families: &explicit_task_families,
+            explicit_input_modalities: &explicit_input_modalities,
+            explicit_output_modalities: &explicit_output_modalities,
+            explicit_runtime_features: &explicit_runtime_features,
+            explicit_deployment_source,
+            explicit_management_plane,
+            provider_model_id: model
+                .provider_model_id
+                .as_deref()
+                .or(Some(model.id.as_str())),
+            canonical_model_id: model.canonical_model_id.as_deref(),
+            explicit_alias_source,
+            canonical_model: canonical_model.as_ref(),
+        });
 
         EnhancedModelMetadata {
             id: model.id,
@@ -402,14 +1231,16 @@ impl ModelRegistryService {
                 .tier
                 .and_then(|t| t.parse().ok())
                 .unwrap_or(ModelTier::Pro),
-            capabilities: ModelCapabilities {
-                vision: caps.vision,
-                tools: caps.tools,
-                streaming: caps.streaming,
-                json_mode: caps.json_mode,
-                function_calling: caps.function_calling,
-                reasoning: caps.reasoning,
-            },
+            capabilities,
+            task_families: taxonomy.task_families,
+            input_modalities: taxonomy.input_modalities,
+            output_modalities: taxonomy.output_modalities,
+            runtime_features: taxonomy.runtime_features,
+            deployment_source: taxonomy.deployment_source,
+            management_plane: taxonomy.management_plane,
+            canonical_model_id: taxonomy.canonical_model_id,
+            provider_model_id: taxonomy.provider_model_id,
+            alias_source: taxonomy.alias_source,
             pricing: model.pricing.map(|p| ModelPricing {
                 input_per_million: p.input,
                 output_per_million: p.output,
@@ -468,6 +1299,15 @@ impl ModelRegistryService {
                         family: row.get(4)?,
                         tier: tier_str.parse().unwrap_or(ModelTier::Pro),
                         capabilities: serde_json::from_str(&capabilities_json).unwrap_or_default(),
+                        task_families: vec![],
+                        input_modalities: vec![],
+                        output_modalities: vec![],
+                        runtime_features: vec![],
+                        deployment_source: ModelDeploymentSource::UserCloud,
+                        management_plane: ModelManagementPlane::LocalSettings,
+                        canonical_model_id: None,
+                        provider_model_id: None,
+                        alias_source: None,
                         pricing: pricing_json.and_then(|s| serde_json::from_str(&s).ok()),
                         limits: serde_json::from_str(&limits_json).unwrap_or_default(),
                         status: status_str.parse().unwrap_or(ModelStatus::Active),
@@ -982,16 +1822,13 @@ impl ModelRegistryService {
                 );
 
                 if Self::should_disable_registry_fallback(api_host, provider_type) {
-                    let scoped_provider_candidates = self
-                        .collect_explicit_model_provider_ids(provider_id, api_host)
+                    let (scoped_local_models, scoped_local_source) = self
+                        .resolve_scoped_local_models(provider_id, api_host, custom_models)
                         .await;
-                    let matched_custom_models = self
-                        .match_local_models_by_ids(
-                            custom_models,
-                            Some(scoped_provider_candidates.as_slice()),
-                        )
-                        .await;
-                    let keeps_custom_models = !matched_custom_models.is_empty();
+                    let keeps_custom_models = !scoped_local_models.is_empty()
+                        && scoped_local_source == ModelFetchSource::CustomModels;
+                    let keeps_catalog_models = !scoped_local_models.is_empty()
+                        && scoped_local_source == ModelFetchSource::Catalog;
                     let is_anthropic_models_not_found =
                         api_error.kind == ModelFetchErrorKind::NotFound;
                     let adjusted_hint = if is_anthropic_models_not_found {
@@ -1003,12 +1840,20 @@ impl ModelRegistryService {
                         if keeps_custom_models {
                             "当前 Anthropic 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。"
                                 .to_string()
+                        } else if keeps_catalog_models {
+                            "当前 Anthropic 兼容入口未提供标准 /models 接口，已回退到内置厂商目录。"
+                                .to_string()
                         } else {
                             "当前 Anthropic 兼容入口未提供标准 /models 接口。".to_string()
                         }
                     } else if keeps_custom_models {
                         format!(
                             "API 获取失败: {}，已保留当前 Provider 的自定义模型；同时不再回退通用本地目录，避免误显示其它厂商模型。",
+                            api_error.message
+                        )
+                    } else if keeps_catalog_models {
+                        format!(
+                            "API 获取失败: {}，已回退到内置厂商目录；同时不再回退通用本地目录，避免误显示其它厂商模型。",
                             api_error.message
                         )
                     } else {
@@ -1019,8 +1864,8 @@ impl ModelRegistryService {
                     };
 
                     return Ok(FetchModelsResult {
-                        models: matched_custom_models,
-                        source: ModelFetchSource::CustomModels,
+                        models: scoped_local_models,
+                        source: scoped_local_source,
                         error: Some(error),
                         request_url: api_url,
                         diagnostic_hint: adjusted_hint,
@@ -1088,20 +1933,21 @@ impl ModelRegistryService {
         provider_type: Option<ApiProviderType>,
         custom_models: &[String],
     ) -> Vec<EnhancedModelMetadata> {
-        // 优先精确匹配 custom_models（最贴近用户配置）
-        let scoped_provider_candidates = self
-            .collect_explicit_model_provider_ids(provider_id, api_host)
+        let (scoped_local_models, scoped_local_source) = self
+            .resolve_scoped_local_models(provider_id, api_host, custom_models)
             .await;
-        let matched_custom_models = self
-            .match_local_models_by_ids(custom_models, Some(scoped_provider_candidates.as_slice()))
-            .await;
-        if !matched_custom_models.is_empty() {
+        if !scoped_local_models.is_empty() {
             tracing::info!(
-                "[ModelRegistry] 本地兜底命中 custom_models: provider={}, matched={}",
+                "[ModelRegistry] 本地兜底命中 scoped {}: provider={}, matched={}",
+                match scoped_local_source {
+                    ModelFetchSource::CustomModels => "custom_models",
+                    ModelFetchSource::Catalog => "catalog_models",
+                    _ => "local_models",
+                },
                 provider_id,
-                matched_custom_models.len()
+                scoped_local_models.len()
             );
-            return matched_custom_models;
+            return scoped_local_models;
         }
 
         if Self::should_disable_registry_fallback(api_host, provider_type) {
@@ -1123,11 +1969,56 @@ impl ModelRegistryService {
             candidate_provider_ids
         );
 
+        self.collect_local_models_for_candidates(&candidate_provider_ids)
+            .await
+    }
+
+    async fn resolve_scoped_local_models(
+        &self,
+        provider_id: &str,
+        api_host: &str,
+        custom_models: &[String],
+    ) -> (Vec<EnhancedModelMetadata>, ModelFetchSource) {
+        let scoped_provider_candidates = self
+            .collect_explicit_model_provider_ids(provider_id, api_host)
+            .await;
+        let matched_custom_models = self
+            .match_local_models_by_ids(custom_models, Some(scoped_provider_candidates.as_slice()))
+            .await;
+        if !matched_custom_models.is_empty() {
+            return (matched_custom_models, ModelFetchSource::CustomModels);
+        }
+
+        // 对未知 relay / 自定义网关场景，显式 custom_models 仍应按“精确模型 ID”保留，
+        // 不能因为 provider_id / host 无法映射，就退化成整包通用目录。
+        let globally_matched_custom_models =
+            self.match_local_models_by_ids(custom_models, None).await;
+        if !globally_matched_custom_models.is_empty() {
+            return (
+                globally_matched_custom_models,
+                ModelFetchSource::CustomModels,
+            );
+        }
+
+        let scoped_catalog_models = self
+            .collect_local_models_for_candidates(&scoped_provider_candidates)
+            .await;
+        if !scoped_catalog_models.is_empty() {
+            return (scoped_catalog_models, ModelFetchSource::Catalog);
+        }
+
+        (Vec::new(), ModelFetchSource::LocalFallback)
+    }
+
+    async fn collect_local_models_for_candidates(
+        &self,
+        candidate_provider_ids: &[String],
+    ) -> Vec<EnhancedModelMetadata> {
         let cache = self.models_cache.read().await;
         let mut models = Vec::new();
         let mut seen_ids = HashSet::new();
 
-        for candidate in &candidate_provider_ids {
+        for candidate in candidate_provider_ids {
             for model in cache.iter().filter(|m| m.provider_id == *candidate) {
                 if seen_ids.insert(model.id.clone()) {
                     models.push(model.clone());
@@ -1212,19 +2103,40 @@ impl ModelRegistryService {
         }
 
         let host_alias_candidates = self.infer_provider_ids_from_host_aliases(api_host);
+        let inferred_host_candidates = if host_alias_candidates.is_empty() {
+            Self::infer_provider_ids_from_api_host(api_host)
+        } else {
+            &[]
+        };
+
         if host_alias_candidates.is_empty() {
-            for inferred_id in Self::infer_provider_ids_from_api_host(api_host) {
+            for inferred_id in inferred_host_candidates {
                 Self::push_unique_candidate(&mut candidates, inferred_id);
             }
         } else {
-            for inferred_id in host_alias_candidates {
-                Self::push_unique_candidate(&mut candidates, &inferred_id);
+            for inferred_id in &host_alias_candidates {
+                Self::push_unique_candidate(&mut candidates, inferred_id);
             }
         }
 
         if let Some(provider_type) = provider_type {
-            for mapped_id in Self::map_provider_type_to_registry_ids(provider_type) {
-                Self::push_unique_candidate(&mut candidates, mapped_id);
+            let has_scoped_host_candidates =
+                !host_alias_candidates.is_empty() || !inferred_host_candidates.is_empty();
+            if Self::should_skip_provider_type_catalog_fallback(
+                api_host,
+                provider_type,
+                has_scoped_host_candidates,
+            ) {
+                tracing::info!(
+                    "[ModelRegistry] 跳过通用 provider_type 目录兜底: provider={}, host={}, type={:?}",
+                    provider_id,
+                    api_host,
+                    provider_type
+                );
+            } else {
+                for mapped_id in Self::map_provider_type_to_registry_ids(provider_type) {
+                    Self::push_unique_candidate(&mut candidates, mapped_id);
+                }
             }
         }
 
@@ -1432,6 +2344,35 @@ impl ModelRegistryService {
         &[]
     }
 
+    fn should_skip_provider_type_catalog_fallback(
+        api_host: &str,
+        provider_type: ApiProviderType,
+        has_scoped_host_candidates: bool,
+    ) -> bool {
+        if has_scoped_host_candidates {
+            return false;
+        }
+
+        if !matches!(
+            provider_type,
+            ApiProviderType::Openai
+                | ApiProviderType::OpenaiResponse
+                | ApiProviderType::Codex
+                | ApiProviderType::NewApi
+                | ApiProviderType::Gateway
+        ) {
+            return false;
+        }
+
+        let original_host = api_host.trim().trim_end_matches('/');
+        if original_host.is_empty() {
+            return false;
+        }
+
+        let normalized_host = normalize_openai_model_discovery_host(api_host);
+        normalized_host.trim_end_matches('/') != original_host
+    }
+
     fn map_provider_type_to_registry_ids(
         provider_type: ApiProviderType,
     ) -> &'static [&'static str] {
@@ -1533,7 +2474,8 @@ impl ModelRegistryService {
 
     /// 构建模型枚举 API URL
     fn build_models_api_url(api_host: &str) -> String {
-        let host = api_host.trim_end_matches('/');
+        let normalized_host = normalize_openai_model_discovery_host(api_host);
+        let host = normalized_host.trim_end_matches('/');
 
         if host.ends_with("/models") {
             return host.to_string();
@@ -1665,6 +2607,14 @@ impl ModelRegistryService {
     }
 
     fn build_models_api_hint(provider_id: &str, api_host: &str, api_url: &str) -> Option<String> {
+        let normalized_host = normalize_openai_model_discovery_host(api_host);
+        let original_host = api_host.trim().trim_end_matches('/');
+        if !original_host.is_empty() && normalized_host.trim_end_matches('/') != original_host {
+            return Some(format!(
+                "当前 API Host 看起来是具体接口地址而不是基础地址。Lime 已自动回退到 `{api_url}` 尝试模型枚举；如果上游本身不提供 `/models`，请改填基础 API Host，或直接在 Provider 中填写自定义模型。"
+            ));
+        }
+
         let host = api_host.to_lowercase();
         let provider = provider_id.to_lowercase();
 
@@ -2132,6 +3082,46 @@ impl ModelRegistryService {
                 .unwrap_or(&model.id)
                 .to_string()
         });
+        let canonical_model = maybe_get_canonical_model(provider_id, &model.id);
+        let initial_taxonomy = infer_model_taxonomy(ModelTaxonomyInput {
+            model_id: &model.id,
+            provider_id: Some(provider_id),
+            family: model.family.as_deref(),
+            description: None,
+            capabilities: None,
+            explicit_task_families: &[],
+            explicit_input_modalities: &[],
+            explicit_output_modalities: &[],
+            explicit_runtime_features: &[],
+            explicit_deployment_source: None,
+            explicit_management_plane: None,
+            provider_model_id: Some(model.id.as_str()),
+            canonical_model_id: None,
+            explicit_alias_source: None,
+            canonical_model: canonical_model.as_ref(),
+        });
+        let capabilities = infer_model_capabilities(
+            &model.id,
+            Some(provider_id),
+            &initial_taxonomy.task_families,
+        );
+        let taxonomy = infer_model_taxonomy(ModelTaxonomyInput {
+            model_id: &model.id,
+            provider_id: Some(provider_id),
+            family: model.family.as_deref(),
+            description: None,
+            capabilities: Some(&capabilities),
+            explicit_task_families: &initial_taxonomy.task_families,
+            explicit_input_modalities: &initial_taxonomy.input_modalities,
+            explicit_output_modalities: &initial_taxonomy.output_modalities,
+            explicit_runtime_features: &[],
+            explicit_deployment_source: None,
+            explicit_management_plane: None,
+            provider_model_id: Some(model.id.as_str()),
+            canonical_model_id: initial_taxonomy.canonical_model_id.as_deref(),
+            explicit_alias_source: initial_taxonomy.alias_source.clone(),
+            canonical_model: canonical_model.as_ref(),
+        });
 
         EnhancedModelMetadata {
             id: model.id.clone(),
@@ -2142,14 +3132,16 @@ impl ModelRegistryService {
                 .unwrap_or_else(|| provider_id.to_string()),
             family: model.family,
             tier: ModelTier::Pro,
-            capabilities: ModelCapabilities {
-                vision: false,
-                tools: false,
-                streaming: true,
-                json_mode: false,
-                function_calling: false,
-                reasoning: false,
-            },
+            capabilities,
+            task_families: taxonomy.task_families,
+            input_modalities: taxonomy.input_modalities,
+            output_modalities: taxonomy.output_modalities,
+            runtime_features: taxonomy.runtime_features,
+            deployment_source: taxonomy.deployment_source,
+            management_plane: taxonomy.management_plane,
+            canonical_model_id: taxonomy.canonical_model_id,
+            provider_model_id: taxonomy.provider_model_id,
+            alias_source: taxonomy.alias_source,
             pricing: None,
             limits: ModelLimits {
                 context_length: model.context_length,
@@ -2175,15 +3167,17 @@ impl ModelRegistryService {
         let Some(host) = parsed.host_str() else {
             return false;
         };
+        let normalized_host = host.trim_matches(['[', ']']);
 
         if matches!(
-            host,
+            normalized_host,
             "localhost" | "127.0.0.1" | "::1" | "0.0.0.0" | "host.docker.internal"
         ) {
             return true;
         }
 
-        host.parse::<std::net::IpAddr>()
+        normalized_host
+            .parse::<std::net::IpAddr>()
             .map(|ip| ip.is_loopback() || ip.is_unspecified())
             .unwrap_or(false)
     }
@@ -2374,6 +3368,12 @@ mod tests {
             ModelRegistryService::build_models_api_url("https://example.com/proxy/api/v9"),
             "https://example.com/proxy/api/v9/models"
         );
+        assert_eq!(
+            ModelRegistryService::build_models_api_url(
+                "https://gateway.example.com/proxy/responses"
+            ),
+            "https://gateway.example.com/proxy/v1/models"
+        );
     }
 
     #[test]
@@ -2462,6 +3462,19 @@ mod tests {
         assert!(hint
             .unwrap()
             .contains("https://open.bigmodel.cn/api/paas/v4"));
+    }
+
+    #[test]
+    fn test_build_models_api_hint_explains_endpoint_host_normalization() {
+        let hint = ModelRegistryService::build_models_api_hint(
+            "custom-codex",
+            "https://gateway.example.com/proxy/responses",
+            "https://gateway.example.com/proxy/v1/models",
+        )
+        .expect("responses endpoint should produce hint");
+
+        assert!(hint.contains("具体接口地址而不是基础地址"));
+        assert!(hint.contains("https://gateway.example.com/proxy/v1/models"));
     }
 
     #[test]
@@ -2652,7 +3665,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_anthropic_compatible_local_fallback_returns_empty() {
+    async fn test_anthropic_compatible_local_fallback_returns_catalog_for_known_mimo_host() {
         let service = create_service_with_repo_resource_dir();
         service
             .initialize()
@@ -2661,17 +3674,17 @@ mod tests {
 
         let fallback_models = service
             .get_local_fallback_model_ids_with_hints(
-                "custom-minimax",
-                "https://api.minimaxi.com/anthropic",
+                "custom-mimo",
+                "https://token-plan-cn.xiaomimimo.com/anthropic",
                 Some(ApiProviderType::AnthropicCompatible),
-                &[
-                    "claude-opus-4-6".to_string(),
-                    "claude-opus-4-5-20251101".to_string(),
-                ],
+                &[],
             )
             .await;
 
-        assert!(fallback_models.is_empty());
+        assert_eq!(fallback_models.len(), 3);
+        assert!(fallback_models.contains(&"mimo-v2-pro".to_string()));
+        assert!(fallback_models.contains(&"mimo-v2-omni".to_string()));
+        assert!(fallback_models.contains(&"mimo-v2-flash".to_string()));
     }
 
     #[tokio::test]
@@ -2692,6 +3705,46 @@ mod tests {
             .await;
 
         assert_eq!(fallback_models, vec!["MiniMax-M2.7".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn test_openai_endpoint_local_fallback_keeps_explicit_custom_models() {
+        let service = create_service_with_repo_resource_dir();
+        service
+            .initialize()
+            .await
+            .expect("initialize model registry");
+
+        let fallback_models = service
+            .get_local_fallback_model_ids_with_hints(
+                "custom-openai-endpoint",
+                "https://gateway.example.com/proxy/responses",
+                Some(ApiProviderType::Openai),
+                &["gpt-images-2".to_string()],
+            )
+            .await;
+
+        assert_eq!(fallback_models, vec!["gpt-images-2".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn test_openai_endpoint_local_fallback_does_not_expand_generic_openai_catalog() {
+        let service = create_service_with_repo_resource_dir();
+        service
+            .initialize()
+            .await
+            .expect("initialize model registry");
+
+        let fallback_models = service
+            .get_local_fallback_model_ids_with_hints(
+                "custom-openai-endpoint",
+                "https://gateway.example.com/proxy/responses",
+                Some(ApiProviderType::Openai),
+                &[],
+            )
+            .await;
+
+        assert!(fallback_models.is_empty());
     }
 
     #[test]

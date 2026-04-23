@@ -114,12 +114,12 @@ beforeEach(() => {
 
   vi.clearAllMocks();
   originalUserAgent = Object.getOwnPropertyDescriptor(
-    Navigator.prototype,
+    window.navigator,
     "userAgent",
   );
-  Object.defineProperty(Navigator.prototype, "userAgent", {
+  Object.defineProperty(window.navigator, "userAgent", {
     configurable: true,
-    get: () => "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
   });
 
   mockCheckForUpdates.mockResolvedValue({
@@ -154,11 +154,9 @@ afterEach(() => {
   vi.clearAllMocks();
 
   if (originalUserAgent) {
-    Object.defineProperty(
-      Navigator.prototype,
-      "userAgent",
-      originalUserAgent,
-    );
+    Object.defineProperty(window.navigator, "userAgent", originalUserAgent);
+  } else {
+    Reflect.deleteProperty(window.navigator, "userAgent");
   }
 });
 

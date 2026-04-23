@@ -700,6 +700,11 @@ export function buildImageTaskPreviewFromToolResult(
       readMetadataString([metadata], ["project_id", "projectId"]) || null,
     contentId:
       readMetadataString([metadata], ["content_id", "contentId"]) || null,
+    taskFilePath:
+      readMetadataString([metadata], ["path", "absolute_path", "absolutePath"]) ||
+      null,
+    artifactPath:
+      readMetadataString([metadata], ["artifact_path", "artifactPath"]) || null,
     imageCount: resolvedImageCount,
     size:
       parsedArguments.size ||

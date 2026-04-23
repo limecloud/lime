@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  getModelOutputModalities,
+  getModelTaskFamilies,
   inferModelCapabilities,
+  inferModelTaskFamilies,
   inferVisionCapability,
 } from "./inferModelCapabilities";
 
@@ -37,5 +40,65 @@ describe("inferModelCapabilities", () => {
       json_mode: true,
       function_calling: true,
     });
+  });
+
+  it("应将 gpt-images-2 识别为图片生成模型而非视觉理解模型", () => {
+    expect(
+      inferModelTaskFamilies({
+        modelId: "gpt-images-2",
+        providerId: "new-api",
+        providerType: "openai",
+      }),
+    ).toContain("image_generation");
+    expect(
+      inferModelTaskFamilies({
+        modelId: "gpt-images-2",
+        providerId: "new-api",
+        providerType: "openai",
+      }),
+    ).not.toContain("vision_understanding");
+  });
+
+  it("应从统一 schema 解析图片模型的输出模态", () => {
+    expect(
+      getModelOutputModalities({
+        id: "gpt-image-1",
+        provider_id: "openai",
+        family: null,
+        description: "OpenAI image generation model",
+        source: "embedded",
+        capabilities: {
+          vision: false,
+          tools: false,
+          streaming: true,
+          json_mode: false,
+          function_calling: false,
+          reasoning: false,
+        },
+        task_families: ["image_generation"],
+        input_modalities: ["text"],
+        output_modalities: ["image"],
+      }),
+    ).toEqual(["image"]);
+  });
+
+  it("缺少显式 schema 时仍应把多模态聊天模型识别为视觉理解 + 对话", () => {
+    expect(
+      getModelTaskFamilies({
+        id: "gpt-4o",
+        provider_id: "openai",
+        family: "gpt-4o",
+        description: null,
+        source: "embedded",
+        capabilities: {
+          vision: true,
+          tools: true,
+          streaming: true,
+          json_mode: true,
+          function_calling: true,
+          reasoning: false,
+        },
+      }),
+    ).toEqual(expect.arrayContaining(["chat", "vision_understanding"]));
   });
 });

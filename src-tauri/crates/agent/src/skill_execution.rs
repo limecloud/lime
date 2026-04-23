@@ -8,9 +8,12 @@ use crate::{
 };
 use aster::agents::SessionConfig;
 use aster::conversation::message::Message;
+use aster::session::TurnContextOverride;
 use futures::StreamExt;
 use lime_skills::{ExecutionCallback, LoadedSkillDefinition};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub type SkillEventEmitter = Arc<dyn Fn(String, RuntimeAgentEvent) + Send + Sync + 'static>;
@@ -137,6 +140,26 @@ fn build_user_message(user_input: &str, images: &[SkillInputImage]) -> Message {
     user_message
 }
 
+fn build_skill_turn_context(skill: &LoadedSkillDefinition) -> Option<TurnContextOverride> {
+    let allowed_tools = skill
+        .allowed_tools
+        .as_ref()
+        .filter(|tools| !tools.is_empty())?;
+
+    let mut metadata = HashMap::new();
+    metadata.insert(
+        "subagent".to_string(),
+        json!({
+            "allowed_tools": allowed_tools,
+        }),
+    );
+
+    Some(TurnContextOverride {
+        metadata,
+        ..TurnContextOverride::default()
+    })
+}
+
 async fn stream_skill_session(
     aster_state: &AsterAgentState,
     session_id: &str,
@@ -223,6 +246,7 @@ pub async fn execute_skill_workflow(
     let mut artifact_paths = Vec::new();
     let mut accumulated_context = user_input.to_string();
     let mut final_output = String::new();
+    let skill_turn_context = build_skill_turn_context(skill);
 
     tracing::info!(
         "[execute_skill_workflow] 开始 workflow 执行: steps={}, skill={}",
@@ -251,10 +275,13 @@ pub async fn execute_skill_workflow(
             memory_prompt,
         );
         let step_session_id = format!("{session_id}-step-{}", step.id);
-        let session_config = SessionConfigBuilder::new(&step_session_id)
+        let mut session_config_builder = SessionConfigBuilder::new(&step_session_id)
             .system_prompt(step_system_prompt)
-            .include_context_trace(true)
-            .build();
+            .include_context_trace(true);
+        if let Some(turn_context) = skill_turn_context.clone() {
+            session_config_builder = session_config_builder.turn_context(turn_context);
+        }
+        let session_config = session_config_builder.build();
         let step_input = build_step_input(user_input, &accumulated_context, idx == 0);
         let user_message = build_user_message(&step_input, images);
 
@@ -344,13 +371,16 @@ pub async fn execute_skill_prompt(
         emitter,
     } = request;
     let event_name = format!("skill-exec-{execution_id}");
-    let session_config = SessionConfigBuilder::new(session_id)
+    let mut session_config_builder = SessionConfigBuilder::new(session_id)
         .system_prompt(build_prompt_system_prompt(
             &skill.markdown_content,
             memory_prompt,
         ))
-        .include_context_trace(true)
-        .build();
+        .include_context_trace(true);
+    if let Some(turn_context) = build_skill_turn_context(skill) {
+        session_config_builder = session_config_builder.turn_context(turn_context);
+    }
+    let session_config = session_config_builder.build();
     let user_message = build_user_message(user_input, images);
     let reply = stream_skill_session(
         aster_state,
@@ -391,4 +421,64 @@ pub async fn execute_skill_prompt(
             error: None,
         }],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_skill_turn_context;
+    use lime_skills::LoadedSkillDefinition;
+    use std::collections::HashMap;
+
+    fn build_loaded_skill(allowed_tools: Option<Vec<&str>>) -> LoadedSkillDefinition {
+        LoadedSkillDefinition {
+            skill_name: "image_generate".to_string(),
+            display_name: "配图".to_string(),
+            description: "测试 skill".to_string(),
+            markdown_content: "test".to_string(),
+            license: None,
+            metadata: HashMap::new(),
+            allowed_tools: allowed_tools.map(|tools| {
+                tools
+                    .into_iter()
+                    .map(|tool| tool.to_string())
+                    .collect::<Vec<_>>()
+            }),
+            argument_hint: None,
+            when_to_use: None,
+            when_to_use_config: None,
+            model: None,
+            provider: None,
+            disable_model_invocation: false,
+            execution_mode: "prompt".to_string(),
+            workflow_ref: None,
+            workflow_steps: Vec::new(),
+            standard_compliance: Default::default(),
+        }
+    }
+
+    #[test]
+    fn build_skill_turn_context_forwards_allowed_tools_to_subagent_scope_metadata() {
+        let skill = build_loaded_skill(Some(vec![
+            "lime_create_image_generation_task",
+            "social_generate_cover_image",
+        ]));
+
+        let turn_context = build_skill_turn_context(&skill).expect("turn context");
+        assert_eq!(
+            turn_context.metadata["subagent"]["allowed_tools"],
+            serde_json::json!([
+                "lime_create_image_generation_task",
+                "social_generate_cover_image"
+            ])
+        );
+    }
+
+    #[test]
+    fn build_skill_turn_context_skips_empty_allowed_tools() {
+        let skill = build_loaded_skill(Some(Vec::new()));
+        assert!(build_skill_turn_context(&skill).is_none());
+
+        let skill = build_loaded_skill(None);
+        assert!(build_skill_turn_context(&skill).is_none());
+    }
 }

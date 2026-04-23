@@ -8,9 +8,8 @@ import type {
 import type { AgentPendingServiceSkillLaunchParams } from "@/types/page";
 import type {
   SceneAppAutomationIntent,
-  SceneAppCurrentBindingFamily,
-  SceneAppCurrentPlanResult,
-  SceneAppCurrentRuntimeAction,
+  SceneAppPlanResult,
+  SceneAppRuntimeAdapterPlan,
 } from "./types";
 import {
   buildSceneAppExecutionSummaryViewModel,
@@ -18,7 +17,7 @@ import {
 } from "./product";
 
 type SceneAppWorkspaceRuntimeAction = Exclude<
-  SceneAppCurrentRuntimeAction,
+  SceneAppRuntimeAdapterPlan["runtimeAction"],
   "create_automation_job"
 >;
 
@@ -40,7 +39,7 @@ export interface SceneAppWorkspaceExecutionDraft {
   kind: "workspace_entry";
   sceneappId: string;
   runtimeAction: SceneAppWorkspaceRuntimeAction;
-  adapterKind: SceneAppCurrentBindingFamily;
+  adapterKind: SceneAppRuntimeAdapterPlan["adapterKind"];
   targetRef: string;
   targetLabel: string;
   workspaceId?: string;
@@ -180,13 +179,13 @@ function dedupeStrings(values: Array<string | undefined>): string[] {
 }
 
 function readLaunchPayload(
-  result: SceneAppCurrentPlanResult,
+  result: SceneAppPlanResult,
 ): Record<string, unknown> | undefined {
   return asRecord(result.plan.adapterPlan.launchPayload);
 }
 
 function readRequestMetadata(
-  result: SceneAppCurrentPlanResult,
+  result: SceneAppPlanResult,
 ): Record<string, unknown> {
   return asRecord(result.plan.adapterPlan.requestMetadata) ?? {};
 }
@@ -197,7 +196,7 @@ function normalizeSceneAppNote(note: string): string {
     .replace(/场景技能入口/g, "Agent 工作区入口");
 }
 
-function resolveSceneAppNotes(result: SceneAppCurrentPlanResult): string[] {
+function resolveSceneAppNotes(result: SceneAppPlanResult): string[] {
   return dedupeStrings([
     ...(result.contextOverlay?.compilerPlan.notes ?? []).map(
       normalizeSceneAppNote,
@@ -212,7 +211,7 @@ function resolveSceneAppNotes(result: SceneAppCurrentPlanResult): string[] {
 }
 
 function resolveSceneAppLaunchIntent(
-  result: SceneAppCurrentPlanResult,
+  result: SceneAppPlanResult,
 ): SceneAppAutomationIntent["launchIntent"] {
   const launchPayload = readLaunchPayload(result);
   const nestedIntent = readRecord(
@@ -330,7 +329,7 @@ function normalizeDeliveryConfig(
 }
 
 function buildSceneAppIntentSummary(
-  result: SceneAppCurrentPlanResult,
+  result: SceneAppPlanResult,
   source: Record<string, unknown> | undefined,
 ): string | undefined {
   const directInput = readText(
@@ -376,7 +375,7 @@ function buildSceneAppIntentSummary(
   return result.descriptor.summary.trim() || undefined;
 }
 
-function buildWorkspacePrompt(result: SceneAppCurrentPlanResult): string {
+function buildWorkspacePrompt(result: SceneAppPlanResult): string {
   const launchPayload = readLaunchPayload(result);
   const runtimeAction = result.plan.adapterPlan.runtimeAction;
   const directInput = readText(
@@ -420,7 +419,7 @@ function buildWorkspacePrompt(result: SceneAppCurrentPlanResult): string {
         `请继续执行做法「${result.descriptor.title}」，并遵循当前启动上下文。`);
 }
 
-function buildAutomationPrompt(result: SceneAppCurrentPlanResult): string {
+function buildAutomationPrompt(result: SceneAppPlanResult): string {
   const intent = resolveSceneAppLaunchIntent(result);
   return intent.userInput
     ? `SceneApp: ${result.descriptor.title}\n用户目标：${intent.userInput}`
@@ -464,7 +463,7 @@ function resolveWorkspaceContentId(
 }
 
 function buildWorkspaceExecutionDraft(
-  result: SceneAppCurrentPlanResult,
+  result: SceneAppPlanResult,
 ): SceneAppWorkspaceExecutionDraft {
   const requestMetadata = readRequestMetadata(result);
   const launchPayload = readLaunchPayload(result);
@@ -659,7 +658,7 @@ function buildAutomationDialogInitialValues(input: {
 }
 
 function buildAutomationExecutionDraft(
-  result: SceneAppCurrentPlanResult,
+  result: SceneAppPlanResult,
 ): SceneAppAutomationExecutionDraft {
   const requestMetadata = readRequestMetadata(result);
   const launchPayload = readLaunchPayload(result);
@@ -746,7 +745,7 @@ function buildAutomationExecutionDraft(
 }
 
 export function buildSceneAppExecutionDraft(
-  result: SceneAppCurrentPlanResult,
+  result: SceneAppPlanResult,
 ): SceneAppExecutionDraft {
   if (result.plan.adapterPlan.runtimeAction === "create_automation_job") {
     return buildAutomationExecutionDraft(result);

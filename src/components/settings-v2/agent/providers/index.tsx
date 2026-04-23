@@ -42,6 +42,7 @@ import {
   loadCompanionProviderOverview,
   type CompanionProviderOverviewPayload,
 } from "@/lib/provider/companionProviderOverview";
+import { createOemCloudModelMetadata } from "@/lib/model/oemCloudModelMetadata";
 import type { SettingsProviderView } from "@/types/page";
 import { cn } from "@/lib/utils";
 import { CompanionCapabilityPreferencesCard } from "./CompanionCapabilityPreferencesCard";
@@ -122,6 +123,45 @@ function InfoPill(props: {
       {props.label}
     </span>
   );
+}
+
+function formatOemModelTaskFamilyLabel(value: string): string {
+  switch (value) {
+    case "chat":
+      return "对话";
+    case "reasoning":
+      return "思考";
+    case "vision_understanding":
+      return "视觉理解";
+    case "image_generation":
+      return "图片生成";
+    case "image_edit":
+      return "图片编辑";
+    case "speech_to_text":
+      return "语音转写";
+    case "text_to_speech":
+      return "语音合成";
+    case "embedding":
+      return "Embedding";
+    case "rerank":
+      return "检索重排";
+    case "moderation":
+      return "审核";
+    default:
+      return value;
+  }
+}
+
+function formatOemModelDeploymentLabel(value?: string | null): string {
+  switch (value) {
+    case "local":
+      return "本地";
+    case "user_cloud":
+      return "云端";
+    case "oem_cloud":
+    default:
+      return "OEM 云端";
+  }
 }
 
 function RuntimeSummaryItem(props: {
@@ -1583,31 +1623,61 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                     </div>
                   ) : selectedModels.length > 0 ? (
                     <div className="space-y-2 rounded-[20px] border border-slate-200/80 bg-slate-50 p-3">
-                      {selectedModels.map((model) => (
-                        <div
-                          key={model.id}
-                          className="rounded-[16px] border border-slate-200/80 bg-white px-3 py-3"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">
-                                {model.displayName}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {model.modelId}
-                              </p>
+                      {selectedModels.map((model) => {
+                        const metadata = createOemCloudModelMetadata(model);
+                        const abilityTags = (metadata.task_families ?? []).map(
+                          formatOemModelTaskFamilyLabel,
+                        );
+                        const upstreamMapping =
+                          metadata.alias_source === "oem"
+                            ? metadata.canonical_model_id
+                            : null;
+
+                        return (
+                          <div
+                            key={model.id}
+                            className="rounded-[16px] border border-slate-200/80 bg-white px-3 py-3"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">
+                                  {model.displayName}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {model.modelId}
+                                </p>
+                              </div>
+                              {model.recommended ? (
+                                <InfoPill label="推荐" tone="emerald" />
+                              ) : null}
                             </div>
-                            {model.recommended ? (
-                              <InfoPill label="推荐" tone="emerald" />
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <InfoPill
+                                label={formatOemModelDeploymentLabel(
+                                  metadata.deployment_source,
+                                )}
+                              />
+                              {abilityTags.map((tag) => (
+                                <InfoPill
+                                  key={`${model.id}-${tag}`}
+                                  label={tag}
+                                />
+                              ))}
+                            </div>
+                            {model.description ? (
+                              <p className="mt-2 text-xs leading-5 text-slate-500">
+                                {model.description}
+                              </p>
+                            ) : null}
+                            {upstreamMapping ? (
+                              <p className="mt-1 text-[11px] leading-5 text-violet-600">
+                                实际映射：{model.modelId} →{" "}
+                                {upstreamMapping}
+                              </p>
                             ) : null}
                           </div>
-                          {model.description ? (
-                            <p className="mt-2 text-xs leading-5 text-slate-500">
-                              {model.description}
-                            </p>
-                          ) : null}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">

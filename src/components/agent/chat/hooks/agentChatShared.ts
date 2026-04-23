@@ -21,6 +21,12 @@ export type TaskStatusReason =
   | "user_action"
   | "tool_failure";
 
+interface RecentSessionLabelSource {
+  status: TaskStatus;
+  statusReason?: TaskStatusReason;
+  messagesCount?: number;
+}
+
 export interface Topic {
   id: string;
   title: string;
@@ -78,6 +84,8 @@ export interface SendMessageOptions {
   assistantDraft?: AssistantDraftState;
   displayContent?: string;
   skillRequest?: SlashSkillRequest;
+  providerOverride?: string;
+  modelOverride?: string;
 }
 
 export interface WorkspacePathMissingState {
@@ -275,6 +283,7 @@ export function deriveTaskStatusFromLiveState(params: {
   isSending: boolean;
   pendingActionCount: number;
   queuedTurnCount?: number;
+  threadStatus?: string | null;
   workspaceError: boolean;
 }): TaskStatus {
   return deriveTaskLiveState(params).status;
@@ -285,6 +294,7 @@ export function deriveTaskLiveState(params: {
   isSending: boolean;
   pendingActionCount: number;
   queuedTurnCount?: number;
+  threadStatus?: string | null;
   workspaceError: boolean;
 }): LiveTaskStatusDescriptor {
   const {
@@ -292,6 +302,7 @@ export function deriveTaskLiveState(params: {
     isSending,
     pendingActionCount,
     queuedTurnCount = 0,
+    threadStatus = null,
     workspaceError,
   } = params;
 
@@ -302,7 +313,12 @@ export function deriveTaskLiveState(params: {
     };
   }
 
-  if (isSending || queuedTurnCount > 0) {
+  if (
+    isSending ||
+    queuedTurnCount > 0 ||
+    threadStatus === "running" ||
+    threadStatus === "queued"
+  ) {
     return {
       status: "running",
       statusReason: "default",
@@ -355,6 +371,7 @@ export function buildLiveTaskSnapshot(params: {
   isSending: boolean;
   pendingActionCount: number;
   queuedTurnCount?: number;
+  threadStatus?: string | null;
   workspaceError: boolean;
 }): LiveTaskSnapshot {
   const {
@@ -362,6 +379,7 @@ export function buildLiveTaskSnapshot(params: {
     isSending,
     pendingActionCount,
     queuedTurnCount,
+    threadStatus,
     workspaceError,
   } = params;
   const lastMessage = messages[messages.length - 1];
@@ -371,6 +389,7 @@ export function buildLiveTaskSnapshot(params: {
     isSending,
     pendingActionCount,
     queuedTurnCount,
+    threadStatus,
     workspaceError,
   });
 
@@ -382,6 +401,84 @@ export function buildLiveTaskSnapshot(params: {
     lastPreview: preview || "等待你补充任务需求后开始执行。",
     hasUnread: false,
   };
+}
+
+function resolveRecentTopicPriority(topic: RecentSessionLabelSource): number {
+  if (topic.status === "waiting") {
+    return 0;
+  }
+
+  if (
+    topic.status === "failed" &&
+    topic.statusReason === "workspace_error"
+  ) {
+    return 1;
+  }
+
+  if (topic.status === "running") {
+    return 2;
+  }
+
+  if (topic.status === "done") {
+    return 3;
+  }
+
+  if (topic.status === "failed") {
+    return 4;
+  }
+
+  if ((topic.messagesCount ?? 0) > 0) {
+    return 5;
+  }
+
+  return 6;
+}
+
+export function resolveRecentTopicCandidate(
+  topics: Topic[],
+  currentTopicId?: string | null,
+): Topic | null {
+  const candidates = topics.filter(
+    (topic) => topic.id.trim() && topic.id !== currentTopicId,
+  );
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const sorted = [...candidates].sort((left, right) => {
+    const priorityDiff =
+      resolveRecentTopicPriority(left) - resolveRecentTopicPriority(right);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+
+    const updatedDiff = right.updatedAt.getTime() - left.updatedAt.getTime();
+    if (updatedDiff !== 0) {
+      return updatedDiff;
+    }
+
+    return right.createdAt.getTime() - left.createdAt.getTime();
+  });
+
+  const actionable = sorted.find(
+    (topic) => topic.status !== "draft" || topic.messagesCount > 0,
+  );
+
+  return actionable ?? sorted[0] ?? null;
+}
+
+export function resolveRecentTopicActionLabel(
+  topic: RecentSessionLabelSource,
+): string {
+  switch (topic.status) {
+    case "done":
+      return "回看最近结果";
+    case "draft":
+      return "打开最近会话";
+    default:
+      return "继续最近会话";
+  }
 }
 
 export const mapSessionToTopic = (session: AsterSessionInfo): Topic => {

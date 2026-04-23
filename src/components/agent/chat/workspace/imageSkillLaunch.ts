@@ -17,6 +17,7 @@ interface ResolveImageWorkbenchSkillRequestParams {
   rawText: string;
   parsedCommand: ParsedImageWorkbenchCommand;
   images: MessageImage[];
+  title?: string;
   currentImageWorkbenchState: SessionImageWorkbenchState;
   imageWorkbenchSelectedModelId?: string;
   imageWorkbenchSelectedProviderId?: string;
@@ -223,6 +224,7 @@ export function resolveImageWorkbenchSkillRequest(
   const requestContext = {
     kind: "image_task",
     image_task: {
+      title: collapseWhitespace(params.title) || undefined,
       mode: parsedCommand.mode,
       prompt: effectivePrompt,
       raw_text: rawText,

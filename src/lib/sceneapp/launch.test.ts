@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { buildSceneAppExecutionDraft } from "./launch";
-import type { SceneAppCurrentPlanResult } from "./types";
+import type { SceneAppPlanResult } from "./types";
 
 type SceneAppPlanResultOverrides = {
-  descriptor?: Partial<SceneAppCurrentPlanResult["descriptor"]>;
-  readiness?: Partial<SceneAppCurrentPlanResult["readiness"]>;
+  descriptor?: Partial<SceneAppPlanResult["descriptor"]>;
+  readiness?: Partial<SceneAppPlanResult["readiness"]>;
   contextOverlay?: Partial<
-    NonNullable<SceneAppCurrentPlanResult["contextOverlay"]>
+    NonNullable<SceneAppPlanResult["contextOverlay"]>
   >;
   projectPackPlan?: Partial<
-    NonNullable<SceneAppCurrentPlanResult["projectPackPlan"]>
+    NonNullable<SceneAppPlanResult["projectPackPlan"]>
   >;
-  plan?: Partial<Omit<SceneAppCurrentPlanResult["plan"], "adapterPlan">> & {
-    adapterPlan?: Partial<SceneAppCurrentPlanResult["plan"]["adapterPlan"]>;
+  plan?: Partial<Omit<SceneAppPlanResult["plan"], "adapterPlan">> & {
+    adapterPlan?: Partial<SceneAppPlanResult["plan"]["adapterPlan"]>;
   };
 };
 
 function createPlanResult(
   overrides: SceneAppPlanResultOverrides = {},
-): SceneAppCurrentPlanResult {
+): SceneAppPlanResult {
   const planOverrides = overrides.plan ?? {};
   const adapterPlanOverrides = planOverrides.adapterPlan ?? {};
 
@@ -45,12 +45,12 @@ function createPlanResult(
       sourcePackageId: "lime-core-sceneapps",
       sourcePackageVersion: "2026-04-15",
       ...(overrides.descriptor ?? {}),
-    } as SceneAppCurrentPlanResult["descriptor"],
+    } as SceneAppPlanResult["descriptor"],
     readiness: {
       ready: true,
       unmetRequirements: [],
       ...(overrides.readiness ?? {}),
-    } as SceneAppCurrentPlanResult["readiness"],
+    } as SceneAppPlanResult["readiness"],
     contextOverlay: {
       compilerPlan: {
         activeLayers: ["skill", "memory", "tool"],
@@ -106,12 +106,12 @@ function createPlanResult(
         linkedServiceSkillId: adapterPlanOverrides.linkedServiceSkillId,
         linkedSceneKey: adapterPlanOverrides.linkedSceneKey,
         preferredProfileKey: adapterPlanOverrides.preferredProfileKey,
-      } as SceneAppCurrentPlanResult["plan"]["adapterPlan"],
+      } as SceneAppPlanResult["plan"]["adapterPlan"],
       storageStrategy: planOverrides.storageStrategy ?? "workspace_bundle",
       artifactContract: planOverrides.artifactContract ?? "artifact_bundle",
       governanceHooks: planOverrides.governanceHooks ?? ["evidence_pack"],
       warnings: planOverrides.warnings ?? [],
-    } as SceneAppCurrentPlanResult["plan"],
+    } as SceneAppPlanResult["plan"],
   };
 }
 

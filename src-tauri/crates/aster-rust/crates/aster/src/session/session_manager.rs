@@ -475,9 +475,7 @@ impl SessionManager {
     }
 
     fn can_apply_update_via_store(builder: &SessionUpdateBuilder) -> bool {
-        builder.session_type.is_none()
-            && builder.working_dir.is_none()
-            && !(builder.user_set_name.is_some() && builder.name.is_none())
+        !(builder.user_set_name.is_some() && builder.name.is_none())
     }
 
     async fn apply_update_via_store(
@@ -488,8 +486,8 @@ impl SessionManager {
             session_id,
             name,
             user_set_name,
-            session_type: _,
-            working_dir: _,
+            session_type,
+            working_dir,
             extension_data,
             total_tokens,
             input_tokens,
@@ -510,6 +508,14 @@ impl SessionManager {
             store
                 .update_session_name(&session_id, name, user_set_name.unwrap_or(false))
                 .await?;
+        }
+
+        if let Some(working_dir) = working_dir {
+            store.update_working_dir(&session_id, working_dir).await?;
+        }
+
+        if let Some(session_type) = session_type {
+            store.update_session_type(&session_id, session_type).await?;
         }
 
         if let Some(extension_data) = extension_data {

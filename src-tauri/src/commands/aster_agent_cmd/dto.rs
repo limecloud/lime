@@ -1789,6 +1789,8 @@ pub struct AgentRuntimeUpdateSessionRequest {
     pub session_id: String,
     #[serde(default)]
     pub name: Option<String>,
+    #[serde(default, alias = "providerSelector")]
+    pub provider_selector: Option<String>,
     #[serde(default, alias = "providerName")]
     pub provider_name: Option<String>,
     #[serde(default, alias = "modelName")]

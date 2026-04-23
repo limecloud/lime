@@ -296,12 +296,7 @@ function preloadSettingsTab(tab: SettingsTabs): Promise<unknown> | null {
     case SettingsTabs.Skills:
       return import("../agent/skills");
     case SettingsTabs.MediaServices:
-      return Promise.all([
-        import("../agent/media-services"),
-        import("../agent/media-services/preload").then((module) =>
-          module.preloadMediaServicesSection("image"),
-        ),
-      ]);
+      return import("../agent/media-services");
     case SettingsTabs.McpServer:
       return import("@/components/mcp");
     case SettingsTabs.WebSearch:
@@ -406,7 +401,7 @@ function renderSettingsContent(
     case SettingsTabs.MediaServices:
       return withSettingsContentFallback(
         <MediaServicesSettings />,
-        "正在加载媒体服务...",
+        "正在加载服务模型...",
       );
 
     // 系统组

@@ -547,6 +547,9 @@ describe("EmptyState", () => {
     });
 
     expect(container.textContent).not.toContain("围绕最近复盘");
+    expect(
+      container.querySelector('[data-testid="entry-review-feedback-banner"]'),
+    ).toBeNull();
 
     await act(async () => {
       recordCuratedTaskRecommendationSignalFromReviewDecision(
@@ -584,12 +587,21 @@ describe("EmptyState", () => {
     const breakdownCard = container.querySelector(
       '[data-testid="entry-recommended-viral-content-breakdown"]',
     );
+    const reviewBanner = container.querySelector(
+      '[data-testid="entry-review-feedback-banner"]',
+    );
 
     expect(reviewCard?.textContent).toContain("复盘这个账号/项目");
     expect(reviewCard?.textContent).toContain("围绕最近复盘");
     expect(reviewCard?.textContent).toContain("复盘：短视频编排");
     expect(breakdownCard?.textContent).toContain("拆解一条爆款内容");
     expect(breakdownCard?.textContent).toContain("围绕最近复盘");
+    expect(reviewBanner?.textContent).toContain("最近复盘已更新");
+    expect(reviewBanner?.textContent).toContain("短视频编排 · 补证据");
+    expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
+    expect(reviewBanner?.textContent).toContain(
+      "更适合继续：复盘这个账号/项目 / 拆解一条爆款内容",
+    );
   });
 
   it("无浏览器入口且无可挂方法时，不应默认渲染支撑能力摘要层", async () => {
@@ -1954,7 +1966,7 @@ describe("EmptyState", () => {
             "account-project-review": {
               project_goal: "AI 内容周报",
               existing_results:
-                "这轮运行已产出项目结果，但仍需补齐复核意见。",
+                "这轮运行已产出项目结果，但仍需补齐复核意见。 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
             },
           },
         },
@@ -1965,6 +1977,9 @@ describe("EmptyState", () => {
       '[data-testid="entry-recommended-account-project-review"]',
     ) as HTMLButtonElement | null;
     expect(templateButton).toBeTruthy();
+    expect(container.textContent).toContain("当前判断：先补复核与修复");
+    expect(container.textContent).toContain("当前卡点：复核阻塞");
+    expect(container.textContent).toContain("更适合去向：周会复盘");
 
     act(() => {
       templateButton?.click();
@@ -1999,6 +2014,39 @@ describe("EmptyState", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it("首页下游结果模板卡片也应显影当前项目结果基线", async () => {
+    const container = renderEmptyState({
+      defaultCuratedTaskReferenceEntries: [
+        {
+          id: "sceneapp:content-pack:run:1",
+          sourceKind: "sceneapp_execution_summary",
+          title: "AI 内容周报",
+          summary: "当前已有一轮运行结果，可直接作为后续生成基线。",
+          category: "experience",
+          categoryLabel: "成果",
+          tags: ["复盘", "项目结果"],
+          taskPrefillByTaskId: {
+            "account-project-review": {
+              project_goal: "AI 内容周报",
+              existing_results:
+                "这轮运行已产出项目结果，但仍需补齐复核意见。 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+            },
+          },
+        },
+      ],
+    });
+
+    const templateButton = container.querySelector(
+      '[data-testid="entry-recommended-daily-trend-briefing"]',
+    ) as HTMLButtonElement | null;
+
+    expect(templateButton).toBeTruthy();
+    expect(templateButton?.textContent).toContain("当前结果基线：AI 内容周报");
+    expect(templateButton?.textContent).toContain("当前判断：先补复核与修复");
+    expect(templateButton?.textContent).toContain("当前卡点：复核阻塞");
+    expect(templateButton?.textContent).toContain("更适合去向：周会复盘");
+  });
+
   it("当前带入参考灵感时，结果模板推荐应显式标记为围绕当前参考", async () => {
     const container = renderEmptyState({
       creationReplaySurface: {
@@ -2028,6 +2076,30 @@ describe("EmptyState", () => {
 
     expect(container.textContent).toContain("围绕当前参考");
     expect(container.textContent).toContain("内容主稿生成");
+  });
+
+  it("当前带入做法草稿时，首页应显影更明确的连续性横幅", async () => {
+    const container = renderEmptyState({
+      creationReplaySurface: {
+        kind: "skill_scaffold",
+        eyebrow: "当前带入做法草稿",
+        badgeLabel: "做法草稿",
+        title: "账号复盘方法",
+        summary: "把结果复盘成下一轮增长方案。",
+        hint: "这轮会先沿着这份做法草稿继续生成，跑顺后可回到我的方法继续整理。",
+        defaultReferenceMemoryIds: [],
+        defaultReferenceEntries: [],
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("沿着当前上下文继续");
+    expect(container.textContent).toContain("当前带入做法草稿");
+    expect(container.textContent).toContain("这轮会先沿着这份做法草稿继续生成");
+    expect(container.textContent).toContain("先沿着当前做法开工");
   });
 
   it("最近保存到灵感库的成果信号应影响首页结果模板推荐", async () => {
@@ -2699,5 +2771,32 @@ describe("EmptyState", () => {
     });
 
     expect(onResumeRecentSceneApp).toHaveBeenCalledTimes(1);
+  });
+
+  it("存在最近会话时应提供继续最近会话入口", async () => {
+    const onResumeRecentSession = vi.fn();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      recentSessionTitle: "品牌发布节奏整理",
+      recentSessionSummary: "已整理到待确认发布标题这一步。",
+      recentSessionActionLabel: "继续最近会话",
+      onResumeRecentSession,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const resumeButton = container.querySelector(
+      '[data-testid="entry-recent-session-resume"]',
+    ) as HTMLButtonElement | null;
+    expect(resumeButton).toBeTruthy();
+    expect(resumeButton?.textContent).toContain("继续最近会话");
+    expect(resumeButton?.textContent).toContain("品牌发布节奏整理");
+
+    act(() => {
+      resumeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onResumeRecentSession).toHaveBeenCalledTimes(1);
   });
 });

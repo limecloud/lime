@@ -402,11 +402,15 @@ mod tests {
         assert!(MODAL_RESOURCE_SEARCH_SKILL_CONTENT.contains("name: modal_resource_search"));
         assert!(IMAGE_GENERATE_SKILL_CONTENT.contains("name: image_generate"));
         assert!(IMAGE_GENERATE_SKILL_CONTENT
+            .contains("allowed-tools: lime_create_image_generation_task"));
+        assert!(IMAGE_GENERATE_SKILL_CONTENT
+            .contains("必须直接调用 `lime_create_image_generation_task` 创建真实图片任务"));
+        assert!(IMAGE_GENERATE_SKILL_CONTENT
+            .contains("不要通过 `Bash` 拼接 `lime media image generate --json`"));
+        assert!(!IMAGE_GENERATE_SKILL_CONTENT
             .contains("allowed-tools: Bash, lime_create_image_generation_task"));
-        assert!(IMAGE_GENERATE_SKILL_CONTENT
+        assert!(!IMAGE_GENERATE_SKILL_CONTENT
             .contains("优先调用 `Bash` 执行 `lime media image generate --json` 提交任务"));
-        assert!(IMAGE_GENERATE_SKILL_CONTENT
-            .contains("如果当前环境实际走到 `lime task create image --json` 兼容入口"));
         assert!(LIBRARY_SKILL_CONTENT.contains("name: library"));
         assert!(URL_PARSE_SKILL_CONTENT.contains("name: url_parse"));
         assert!(RESEARCH_SKILL_CONTENT.contains("name: research"));

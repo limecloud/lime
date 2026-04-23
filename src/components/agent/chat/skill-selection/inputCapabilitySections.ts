@@ -36,8 +36,17 @@ import {
   type CuratedTaskInputValues,
   type CuratedTaskTemplateItem,
 } from "../utils/curatedTaskTemplates";
+import { listCuratedTaskRecommendationSignals } from "../utils/curatedTaskRecommendationSignals";
 import { buildInstalledSkillCapabilityDescription } from "@/components/skills/installedSkillPresentation";
-import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
+import {
+  extractCuratedTaskReferenceMemoryIds,
+  mergeCuratedTaskReferenceEntries,
+  normalizeCuratedTaskReferenceMemoryIds,
+  type CuratedTaskReferenceEntry,
+} from "../utils/curatedTaskReferenceSelection";
+import {
+  buildSceneAppExecutionReviewPrefillSnapshot,
+} from "../utils/sceneAppCuratedTaskReference";
 
 const FEATURED_SERVICE_SKILL_LIMIT = 4;
 const RECENT_REPLAY_TEXT_PREVIEW_LIMIT = 48;
@@ -99,6 +108,12 @@ export interface InputCapabilitySection {
   key: string;
   heading: string;
   items: InputCapabilityDescriptor[];
+  banner?: {
+    badge: string;
+    title: string;
+    summary: string;
+    footnote?: string;
+  };
 }
 
 interface MentionServiceSkillGroup {
@@ -132,6 +147,150 @@ interface RecentMentionEntry {
   commandPrefix?: string;
   skillId?: string;
 }
+
+type InputCommandCapabilityGroupKey =
+  | "search_read"
+  | "generate_expression"
+  | "media_transform"
+  | "preview_publish"
+  | "browser_execution"
+  | "other";
+
+type SlashCommandSectionGroupKey =
+  | "workspace_action"
+  | "prompt_action"
+  | "status_help";
+
+interface InputCommandSectionMeta {
+  key: string;
+  heading: string;
+  kindLabel: string;
+  icon: InputCapabilityIcon;
+  iconClassName: string;
+  order: number;
+}
+
+const INPUT_COMMAND_SECTION_META: Record<
+  InputCommandCapabilityGroupKey,
+  InputCommandSectionMeta
+> = {
+  search_read: {
+    key: "search-read",
+    heading: "搜索 / 读取",
+    kindLabel: "搜索 / 读取",
+    icon: "command",
+    iconClassName: "mr-2 h-4 w-4 text-sky-600",
+    order: 10,
+  },
+  generate_expression: {
+    key: "generate-expression",
+    heading: "生成 / 表达",
+    kindLabel: "生成 / 表达",
+    icon: "image-plus",
+    iconClassName: "mr-2 h-4 w-4 text-amber-600",
+    order: 20,
+  },
+  media_transform: {
+    key: "media-transform",
+    heading: "媒体转换",
+    kindLabel: "媒体转换",
+    icon: "sparkles",
+    iconClassName: "mr-2 h-4 w-4 text-cyan-600",
+    order: 30,
+  },
+  preview_publish: {
+    key: "preview-publish",
+    heading: "预览 / 发布",
+    kindLabel: "预览 / 发布",
+    icon: "zap",
+    iconClassName: "mr-2 h-4 w-4 text-rose-600",
+    order: 40,
+  },
+  browser_execution: {
+    key: "browser-execution",
+    heading: "浏览器 / 执行",
+    kindLabel: "浏览器 / 执行",
+    icon: "command",
+    iconClassName: "mr-2 h-4 w-4 text-slate-600",
+    order: 50,
+  },
+  other: {
+    key: "other-capabilities",
+    heading: "其他能力",
+    kindLabel: "其他能力",
+    icon: "command",
+    iconClassName: "mr-2 h-4 w-4 text-primary",
+    order: 90,
+  },
+};
+
+const INPUT_COMMAND_GROUP_BY_KEY: Record<
+  string,
+  InputCommandCapabilityGroupKey
+> = {
+  modal_resource_search: "search_read",
+  research: "search_read",
+  deep_search: "search_read",
+  research_report: "search_read",
+  competitor_research: "search_read",
+  site_search: "search_read",
+  read_pdf: "search_read",
+  summary: "search_read",
+  translation: "search_read",
+  analysis: "search_read",
+  web_scrape: "search_read",
+  webpage_read: "search_read",
+  url_parse: "search_read",
+  image_generate: "generate_expression",
+  cover_generate: "generate_expression",
+  poster_generate: "generate_expression",
+  video_generate: "generate_expression",
+  presentation_generate: "generate_expression",
+  form_generate: "generate_expression",
+  webpage_generate: "generate_expression",
+  broadcast_generate: "generate_expression",
+  image_edit: "media_transform",
+  image_variation: "media_transform",
+  voice_runtime: "media_transform",
+  transcription_generate: "media_transform",
+  typesetting: "media_transform",
+  channel_preview_runtime: "preview_publish",
+  upload_runtime: "preview_publish",
+  publish_runtime: "preview_publish",
+  publish_compliance: "preview_publish",
+  browser_runtime: "browser_execution",
+  code_runtime: "browser_execution",
+};
+
+const SLASH_COMMAND_SECTION_META: Record<
+  SlashCommandSectionGroupKey,
+  InputCommandSectionMeta
+> = {
+  workspace_action: {
+    key: "workspace-action",
+    heading: "工作台操作",
+    kindLabel: "工作台操作",
+    icon: "command",
+    iconClassName: "mr-2 h-4 w-4 text-emerald-600",
+    order: 10,
+  },
+  prompt_action: {
+    key: "prompt-action",
+    heading: "提示命令",
+    kindLabel: "提示命令",
+    icon: "sparkles",
+    iconClassName: "mr-2 h-4 w-4 text-amber-600",
+    order: 20,
+  },
+  status_help: {
+    key: "status-help",
+    heading: "状态 / 帮助",
+    kindLabel: "状态 / 帮助",
+    icon: "zap",
+    iconClassName: "mr-2 h-4 w-4 text-slate-600",
+    order: 30,
+  },
+};
 
 interface BuildInputCapabilitySectionsParams {
   mode: "mention" | "slash";
@@ -170,6 +329,44 @@ function compareRecentMentionEntries(
     return right.usedAt - left.usedAt;
   }
   return left.title.localeCompare(right.title, "zh-CN");
+}
+
+function resolveDisplayTitleFromCommandLike(item: {
+  label?: string;
+  commandPrefix: string;
+}): string {
+  const label = item.label?.trim();
+  return label && label !== item.commandPrefix ? label : item.commandPrefix;
+}
+
+function mergeCapabilityKindLabel(
+  primary: string | undefined,
+  secondary: string | undefined,
+): string | undefined {
+  const parts = [primary?.trim(), secondary?.trim()].filter(
+    (value): value is string => Boolean(value),
+  );
+
+  if (parts.length === 0) {
+    return undefined;
+  }
+
+  return parts.join(" · ");
+}
+
+function compareSlashCommandsForEmptyQuery(
+  left: CodexSlashCommandDefinition,
+  right: CodexSlashCommandDefinition,
+): number {
+  const emptyQueryOrder: Record<string, number> = {
+    new: 10,
+    clear: 20,
+    compact: 30,
+  };
+
+  return (
+    (emptyQueryOrder[left.key] ?? 999) - (emptyQueryOrder[right.key] ?? 999)
+  );
 }
 
 function resolveBuiltinCommandPrefillReplayText(params: {
@@ -231,6 +428,136 @@ function resolveRecentSlashEntryDescription(params: {
   }
 
   return params.fallbackTitle;
+}
+
+function resolveInputCommandSectionMeta(
+  command: Pick<BuiltinInputCommand, "key">,
+): InputCommandSectionMeta {
+  return (
+    INPUT_COMMAND_SECTION_META[INPUT_COMMAND_GROUP_BY_KEY[command.key] ?? "other"]
+  );
+}
+
+function resolveSlashCommandSectionMeta(
+  command: Pick<CodexSlashCommandDefinition, "kind">,
+): InputCommandSectionMeta {
+  switch (command.kind) {
+    case "local_action":
+      return SLASH_COMMAND_SECTION_META.workspace_action;
+    case "prompt_action":
+      return SLASH_COMMAND_SECTION_META.prompt_action;
+    case "info":
+    default:
+      return SLASH_COMMAND_SECTION_META.status_help;
+  }
+}
+
+function groupItemsBySectionMeta<T>(
+  items: T[],
+  resolveMeta: (item: T) => InputCommandSectionMeta,
+): Array<{ meta: InputCommandSectionMeta; items: T[] }> {
+  const groups = new Map<string, { meta: InputCommandSectionMeta; items: T[] }>();
+
+  for (const item of items) {
+    const meta = resolveMeta(item);
+    const current = groups.get(meta.key);
+    if (current) {
+      current.items.push(item);
+      continue;
+    }
+
+    groups.set(meta.key, {
+      meta,
+      items: [item],
+    });
+  }
+
+  return Array.from(groups.values()).sort((left, right) => {
+    if (left.meta.order !== right.meta.order) {
+      return left.meta.order - right.meta.order;
+    }
+    return left.meta.heading.localeCompare(right.meta.heading, "zh-CN");
+  });
+}
+
+function truncateSectionBannerText(value: string, maxLength = 96): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength).trimEnd()}...`;
+}
+
+function resolveCuratedTaskLaunchContext(params: {
+  task: CuratedTaskTemplateItem;
+  referenceEntries?: CuratedTaskReferenceEntry[];
+}) {
+  const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(params.task);
+  const mergedReferenceEntries = mergeCuratedTaskReferenceEntries([
+    ...(params.referenceEntries ?? []),
+    ...(launchPrefill?.referenceEntries ?? []),
+  ]);
+  const mergedReferenceMemoryIds =
+    normalizeCuratedTaskReferenceMemoryIds([
+      ...(params.referenceEntries
+        ? extractCuratedTaskReferenceMemoryIds(params.referenceEntries) ?? []
+        : []),
+      ...(launchPrefill?.referenceMemoryIds ?? []),
+      ...(extractCuratedTaskReferenceMemoryIds(mergedReferenceEntries) ?? []),
+    ]) ?? [];
+
+  return {
+    launchPrefill,
+    mergedReferenceEntries,
+    mergedReferenceMemoryIds,
+  };
+}
+
+function buildCuratedTaskSceneAppBaselineSummary(params: {
+  task: CuratedTaskTemplateItem;
+  referenceEntries?: CuratedTaskReferenceEntry[];
+}): string | null {
+  const snapshot = buildSceneAppExecutionReviewPrefillSnapshot({
+    referenceEntries: params.referenceEntries,
+    taskId: params.task.id,
+  });
+  if (!snapshot) {
+    return null;
+  }
+
+  const highlights = [
+    snapshot.statusLabel ? `当前判断：${snapshot.statusLabel}` : null,
+    snapshot.destinationsLabel
+      ? `更适合去向：${snapshot.destinationsLabel}`
+      : snapshot.operatingAction
+        ? `经营动作：${snapshot.operatingAction}`
+        : null,
+  ].filter((item): item is string => Boolean(item));
+
+  return [`当前结果基线：${snapshot.sourceTitle}`, ...highlights]
+    .filter((item) => item.trim().length > 0)
+    .join(" · ");
+}
+
+function buildCuratedTaskSlashDescription(params: {
+  task: CuratedTaskTemplateItem;
+  reasonSummary?: string;
+  referenceEntries?: CuratedTaskReferenceEntry[];
+  fallbackDescription?: string;
+}): string {
+  const sceneAppBaselineSummary = buildCuratedTaskSceneAppBaselineSummary({
+    task: params.task,
+    referenceEntries: params.referenceEntries,
+  });
+
+  return [
+    sceneAppBaselineSummary,
+    params.reasonSummary,
+    params.fallbackDescription,
+  ]
+    .filter((value): value is string => Boolean(value && value.trim().length > 0))
+    .join(" · ");
 }
 
 const SERVICE_SKILL_GROUP_META: Record<
@@ -343,7 +670,7 @@ function buildMentionCapabilitySections(
       visibleRecentMentionEntries.push({
         key: `builtin-command:${command.key}`,
         kind: "builtin_command",
-        kindLabel: "命令",
+        kindLabel: resolveInputCommandSectionMeta(command).kindLabel,
         title: command.commandPrefix,
         description: resolveRecentBuiltinCommandDescription(
           command,
@@ -420,50 +747,57 @@ function buildMentionCapabilitySections(
             const command = params.builtinCommands.find(
               (item) => item.key === entry.commandKey,
             );
+            const meta = command
+              ? resolveInputCommandSectionMeta(command)
+              : null;
             return command
-            ? [
+              ? [
                 {
                   key: entry.key,
                   kind: "builtin_command" as const,
                   title: entry.commandPrefix || command.commandPrefix,
                   description: entry.description,
-                  icon: "command" as const,
-                  iconClassName: "mr-2 h-4 w-4 text-sky-600",
+                  icon: meta?.icon ?? "command",
+                  iconClassName:
+                    meta?.iconClassName ?? "mr-2 h-4 w-4 text-sky-600",
                   kindLabel: entry.kindLabel,
                   command,
                   replayText: entry.replayText,
                 },
               ]
-            : [];
-        }
+              : [];
+          }
 
-        const skill = params.mentionServiceSkills.find(
-          (item) => item.id === entry.skillId,
-        );
-        return skill
-          ? [
-              {
-                key: entry.key,
-                kind: "service_skill" as const,
-                title: entry.title,
-                description: entry.description,
-                icon: "sparkles" as const,
-                iconClassName: "mr-2 h-4 w-4 text-emerald-600",
-                kindLabel: entry.kindLabel,
-                skill,
-              },
-            ]
-          : [];
+          const skill = params.mentionServiceSkills.find(
+            (item) => item.id === entry.skillId,
+          );
+          return skill
+            ? [
+                {
+                  key: entry.key,
+                  kind: "service_skill" as const,
+                  title: entry.title,
+                  description: entry.description,
+                  icon: "sparkles" as const,
+                  iconClassName: "mr-2 h-4 w-4 text-emerald-600",
+                  kindLabel: entry.kindLabel,
+                  skill,
+                },
+              ]
+            : [];
         },
       ),
     });
   }
 
-  if (visibleBuiltinCommands.length > 0) {
+  for (const group of groupItemsBySectionMeta(
+    visibleBuiltinCommands,
+    resolveInputCommandSectionMeta,
+  )) {
     sections.push({
-      key: "builtin-commands",
-      heading: "内建命令",
-      items: visibleBuiltinCommands.map((command) => {
+      key: `builtin-commands:${group.meta.key}`,
+      heading: group.meta.heading,
+      items: group.items.map((command) => {
         const recentRecord = mentionUsageMap.get(
           getMentionEntryUsageRecordKey("builtin_command", command.key),
         );
@@ -481,8 +815,9 @@ function buildMentionCapabilitySections(
             command,
             resolvedReplayText,
           ),
-          icon: "image-plus" as const,
-          iconClassName: "mr-2 h-4 w-4 text-sky-600",
+          icon: group.meta.icon,
+          iconClassName: group.meta.iconClassName,
+          kindLabel: group.meta.kindLabel,
           command,
           replayText: resolvedReplayText,
         };
@@ -597,6 +932,12 @@ function buildSlashCapabilitySections(
   const featuredCuratedTaskTemplateMap = new Map(
     featuredCuratedTaskTemplates.map((item) => [item.template.id, item] as const),
   );
+  const latestReviewSignal = listCuratedTaskRecommendationSignals({
+    projectId: params.projectId,
+    sessionId: params.sessionId,
+  })
+    .filter((signal) => signal.source === "review_feedback")
+    .sort((left, right) => right.createdAt - left.createdAt)[0];
   const allSupportedSlashCommands = params.slashCommands.filter(
     (command) => command.support === "supported",
   );
@@ -615,7 +956,7 @@ function buildSlashCapabilitySections(
       visibleRecentSlashEntries.push({
         key: `command:${command.key}`,
         kind: "command",
-        kindLabel: "快捷操作",
+        kindLabel: resolveSlashCommandSectionMeta(command).kindLabel,
         commandPrefix: command.commandPrefix,
         title: command.label,
         description: resolveRecentSlashEntryDescription({
@@ -734,9 +1075,17 @@ function buildSlashCapabilitySections(
       .filter((entry): entry is string => Boolean(entry)),
   );
 
-  const visibleSupportedSlashCommands = allSupportedSlashCommands.filter(
-    (command) => !recentSlashCommandKeys.has(command.commandPrefix),
-  );
+  const visibleSupportedSlashCommands = (
+    isEmptyQuery
+      ? allSupportedSlashCommands.filter(
+          (command) => command.kind === "local_action",
+        )
+      : allSupportedSlashCommands
+  )
+    .filter((command) => !recentSlashCommandKeys.has(command.commandPrefix))
+    .sort((left, right) =>
+      isEmptyQuery ? compareSlashCommandsForEmptyQuery(left, right) : 0,
+    );
   const visibleUnsupportedSlashCommands = !isEmptyQuery
     ? params.slashCommands.filter((command) => command.support === "unsupported")
     : [];
@@ -751,122 +1100,130 @@ function buildSlashCapabilitySections(
   const visibleCuratedTaskTemplates = isEmptyQuery
     ? curatedTaskTemplates.filter((template) => !recentCuratedTaskIds.has(template.id))
     : curatedTaskTemplates;
+  const highlightedReviewTemplates = visibleCuratedTaskTemplates
+    .filter(
+      (task) =>
+        featuredCuratedTaskTemplateMap.get(task.id)?.reasonLabel ===
+        "围绕最近复盘",
+    )
+    .slice(0, 2);
 
   const sections: InputCapabilitySection[] = [];
 
-  if (visibleRecentSlashEntries.length > 0) {
-    sections.push({
-      key: "recent-slash",
-      heading: "最近使用",
-      items: visibleRecentSlashEntries.flatMap<InputCapabilityDescriptor>(
-        (entry) => {
-          if (entry.kind === "command") {
-            const command = allSupportedSlashCommands.find(
-              (item) => item.commandPrefix === entry.commandPrefix,
-            );
-            return command
-            ? [
-                {
-                  key: entry.key,
-                  kind: "slash_command" as const,
-                  title: entry.commandPrefix ?? command.commandPrefix,
-                  description: entry.description,
-                  icon: "command" as const,
-                  iconClassName: "mr-2 h-4 w-4 text-emerald-600",
-                  kindLabel: entry.kindLabel,
-                  command,
-                  replayText: entry.replayText,
-                },
-              ]
-            : [];
-        }
-
-        if (entry.kind === "scene") {
-          const command = params.sceneCommands.find(
-            (item) => item.commandPrefix === entry.commandPrefix,
-          );
-          return command
-            ? [
-                {
-                  key: entry.key,
-                  kind: "scene_command" as const,
-                  title: entry.commandPrefix ?? command.commandPrefix,
-                  description: entry.description,
-                  icon: "zap" as const,
-                  iconClassName: "mr-2 h-4 w-4 text-sky-600",
-                  kindLabel: entry.kindLabel,
-                  command,
-                  replayText: entry.replayText,
-                },
-              ]
-            : [];
-        }
-
-        if (entry.kind === "curated_task") {
-          const task = curatedTaskTemplates.find(
-            (item) => item.id === entry.taskId,
-          );
-          const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(
-            task ?? null,
-          );
-          return task
-            ? [
-                {
-                  key: entry.key,
-                  kind: "curated_task" as const,
-                  title: task.title,
-                  description: entry.description,
-                  icon: "sparkles" as const,
-                  iconClassName: "mr-2 h-4 w-4 text-amber-600",
-                  kindLabel: entry.kindLabel,
-                  task,
-                  launchInputValues: launchPrefill?.inputValues,
-                  referenceMemoryIds: launchPrefill?.referenceMemoryIds,
-                  referenceEntries: launchPrefill?.referenceEntries,
-                  launcherPrefillHint: launchPrefill?.hint,
-                },
-              ]
-            : [];
-        }
-
-        const skill = params.installedSkills.find(
-          (item) => `/${item.key}` === entry.commandPrefix,
+  const buildRecentSlashCapabilityItems = (
+    entries: RecentSlashEntry[],
+  ): InputCapabilityDescriptor[] =>
+    entries.flatMap<InputCapabilityDescriptor>((entry) => {
+      if (entry.kind === "command") {
+        const command = allSupportedSlashCommands.find(
+          (item) => item.commandPrefix === entry.commandPrefix,
         );
-        return skill
+        const meta = command ? resolveSlashCommandSectionMeta(command) : null;
+        return command
           ? [
               {
                 key: entry.key,
-                kind: "installed_skill" as const,
-                title: entry.commandPrefix ?? `/${skill.key}`,
+                kind: "slash_command" as const,
+                title: entry.title,
                 description: entry.description,
-                icon: "zap" as const,
-                iconClassName: "mr-2 h-4 w-4 text-primary",
-                kindLabel: entry.kindLabel,
-                skill,
+                icon: meta?.icon ?? "command",
+                iconClassName:
+                  meta?.iconClassName ?? "mr-2 h-4 w-4 text-emerald-600",
+                kindLabel: mergeCapabilityKindLabel(
+                  entry.kindLabel,
+                  entry.commandPrefix ?? command.commandPrefix,
+                ),
+                command,
                 replayText: entry.replayText,
               },
             ]
           : [];
-        },
-      ),
-    });
-  }
+      }
 
-  if (visibleSupportedSlashCommands.length > 0) {
-    sections.push({
-      key: "supported-slash-commands",
-      heading: isEmptyQuery ? "快捷操作" : "Lime 命令",
-      items: visibleSupportedSlashCommands.map((command) => ({
-        key: command.key,
-        kind: "slash_command" as const,
-        title: command.commandPrefix,
-        description: command.description,
-        icon: "command" as const,
-        iconClassName: "mr-2 h-4 w-4 text-emerald-600",
-        command,
-      })),
+      if (entry.kind === "scene") {
+        const command = params.sceneCommands.find(
+          (item) => item.commandPrefix === entry.commandPrefix,
+        );
+        return command
+          ? [
+              {
+                key: entry.key,
+                kind: "scene_command" as const,
+                title: entry.title,
+                description: entry.description,
+                icon: "zap" as const,
+                iconClassName: "mr-2 h-4 w-4 text-sky-600",
+                kindLabel: mergeCapabilityKindLabel(
+                  entry.kindLabel,
+                  entry.commandPrefix ?? command.commandPrefix,
+                ),
+                command,
+                replayText: entry.replayText,
+              },
+            ]
+          : [];
+      }
+
+      if (entry.kind === "curated_task") {
+        const task = curatedTaskTemplates.find((item) => item.id === entry.taskId);
+        if (!task) {
+          return [];
+        }
+        const launchContext = resolveCuratedTaskLaunchContext({
+          task,
+          referenceEntries: params.referenceEntries,
+        });
+        return [
+          {
+            key: entry.key,
+            kind: "curated_task" as const,
+            title: task.title,
+            description: buildCuratedTaskSlashDescription({
+              task,
+              referenceEntries: launchContext.mergedReferenceEntries,
+              fallbackDescription: entry.description,
+            }),
+            icon: "sparkles" as const,
+            iconClassName: "mr-2 h-4 w-4 text-amber-600",
+            kindLabel: entry.kindLabel,
+            task,
+            launchInputValues: launchContext.launchPrefill?.inputValues,
+            referenceMemoryIds: launchContext.mergedReferenceMemoryIds,
+            referenceEntries: launchContext.mergedReferenceEntries,
+            launcherPrefillHint: launchContext.launchPrefill?.hint,
+          },
+        ];
+      }
+
+      const skill = params.installedSkills.find(
+        (item) => `/${item.key}` === entry.commandPrefix,
+      );
+      return skill
+        ? [
+            {
+              key: entry.key,
+              kind: "installed_skill" as const,
+              title: skill.name,
+              description: entry.description,
+              icon: "zap" as const,
+              iconClassName: "mr-2 h-4 w-4 text-primary",
+              kindLabel: mergeCapabilityKindLabel(
+                entry.kindLabel,
+                entry.commandPrefix ?? `/${skill.key}`,
+              ),
+              skill,
+              replayText: entry.replayText,
+            },
+          ]
+        : [];
     });
-  }
+
+  const visibleRecentContinuationEntries = isEmptyQuery
+    ? visibleRecentSlashEntries.filter((entry) => entry.kind !== "command")
+    : visibleRecentSlashEntries;
+  const visibleRecentCommandEntries = isEmptyQuery
+    ? visibleRecentSlashEntries.filter((entry) => entry.kind === "command")
+    : [];
 
   if (visibleUnsupportedSlashCommands.length > 0) {
     sections.push({
@@ -889,54 +1246,144 @@ function buildSlashCapabilitySections(
     ...visibleSceneCommands.map((command) => ({
       key: command.entryId ?? command.key,
       kind: "scene_command" as const,
-      title: command.commandPrefix,
+      title: resolveDisplayTitleFromCommandLike(command),
       description: command.description,
       icon: "zap" as const,
       iconClassName: "mr-2 h-4 w-4 text-sky-600",
+      kindLabel: command.commandPrefix,
       command,
     })),
-    ...visibleCuratedTaskTemplates.map((task) => ({
-      key: task.id,
-      kind: "curated_task" as const,
-      title: task.title,
-      description: [
-        featuredCuratedTaskTemplateMap.get(task.id)?.reasonSummary,
-        buildCuratedTaskCapabilityDescription(task, {
-          includeResultDestination: true,
+    ...visibleCuratedTaskTemplates.map((task) => {
+      const launchContext = resolveCuratedTaskLaunchContext({
+        task,
+        referenceEntries: params.referenceEntries,
+      });
+      return {
+        key: task.id,
+        kind: "curated_task" as const,
+        title: task.title,
+        description: buildCuratedTaskSlashDescription({
+          task,
+          reasonSummary: featuredCuratedTaskTemplateMap.get(task.id)?.reasonSummary,
+          referenceEntries: launchContext.mergedReferenceEntries,
+          fallbackDescription: buildCuratedTaskCapabilityDescription(task, {
+            includeResultDestination: true,
+          }),
         }),
-      ]
-        .filter((value): value is string => Boolean(value))
-        .join(" · "),
-      icon: "sparkles" as const,
-      iconClassName: "mr-2 h-4 w-4 text-amber-600",
-      kindLabel:
-        featuredCuratedTaskTemplateMap.get(task.id)?.badgeLabel ?? task.badge,
-      task,
-    })),
+        icon: "sparkles" as const,
+        iconClassName: "mr-2 h-4 w-4 text-amber-600",
+        kindLabel:
+          featuredCuratedTaskTemplateMap.get(task.id)?.badgeLabel ?? task.badge,
+        task,
+        launchInputValues: launchContext.launchPrefill?.inputValues,
+        referenceMemoryIds: launchContext.mergedReferenceMemoryIds,
+        referenceEntries: launchContext.mergedReferenceEntries,
+        launcherPrefillHint: launchContext.launchPrefill?.hint,
+      };
+    }),
   ];
 
-  if (visibleResultTemplateItems.length > 0) {
-    sections.push({
+  const resultTemplatesSection: InputCapabilitySection | null =
+    visibleResultTemplateItems.length > 0
+      ? {
       key: "result-templates",
-      heading: "结果模板",
+      heading: isEmptyQuery ? "先拿结果" : "结果模板",
       items: visibleResultTemplateItems,
+      ...(latestReviewSignal && highlightedReviewTemplates.length > 0
+        ? {
+            banner: {
+              badge: "围绕最近复盘",
+              title: `最近复盘已更新：${latestReviewSignal.title}`,
+              summary: truncateSectionBannerText(latestReviewSignal.summary),
+              footnote: `更适合继续：${highlightedReviewTemplates
+                .map((task) => task.title)
+                .join(" / ")}`,
+            },
+          }
+        : {}),
+        }
+      : null;
+
+  const installedSkillsSection: InputCapabilitySection | null =
+    visibleInstalledSkills.length > 0
+      ? {
+          key: "installed-skills",
+          heading: isEmptyQuery ? "我的方法" : "已安装技能",
+          items: visibleInstalledSkills.map((skill) => ({
+            key: skill.directory,
+            kind: "installed_skill" as const,
+            title: skill.name,
+            description: buildInstalledSkillCapabilityDescription(skill),
+            icon: "zap" as const,
+            iconClassName: "mr-2 h-4 w-4 text-primary",
+            skill,
+          })),
+        }
+      : null;
+
+  if (isEmptyQuery && resultTemplatesSection) {
+    sections.push(resultTemplatesSection);
+  }
+
+  if (visibleRecentContinuationEntries.length > 0) {
+    sections.push({
+      key: "recent-slash-continuations",
+      heading: isEmptyQuery ? "继续上次做法" : "最近使用",
+      items: buildRecentSlashCapabilityItems(visibleRecentContinuationEntries),
     });
   }
 
-  if (visibleInstalledSkills.length > 0) {
+  if (isEmptyQuery && installedSkillsSection) {
+    sections.push(installedSkillsSection);
+  }
+
+  for (const group of groupItemsBySectionMeta(
+    visibleSupportedSlashCommands,
+    resolveSlashCommandSectionMeta,
+  )) {
     sections.push({
-      key: "installed-skills",
-      heading: "已安装技能",
-      items: visibleInstalledSkills.map((skill) => ({
-        key: skill.directory,
-        kind: "installed_skill" as const,
-        title: skill.name,
-        description: buildInstalledSkillCapabilityDescription(skill),
-        icon: "zap" as const,
-        iconClassName: "mr-2 h-4 w-4 text-primary",
-        skill,
-      })),
+      key: `supported-slash-commands:${group.meta.key}`,
+      heading: group.meta.heading,
+      items: group.items.map((command) => {
+        const recentRecord = slashUsageMap.get(
+          getSlashEntryUsageRecordKey("command", command.key),
+        );
+        return {
+          key: command.key,
+          kind: "slash_command" as const,
+          title: resolveDisplayTitleFromCommandLike(command),
+          description: resolveRecentSlashEntryDescription({
+            replayText: recentRecord?.replayText,
+            fallbackDescription: command.description,
+            fallbackTitle: command.label,
+          }),
+          icon: group.meta.icon,
+          iconClassName: group.meta.iconClassName,
+          kindLabel: mergeCapabilityKindLabel(
+            group.meta.kindLabel,
+            command.commandPrefix,
+          ),
+          command,
+          replayText: recentRecord?.replayText,
+        };
+      }),
     });
+  }
+
+  if (visibleRecentCommandEntries.length > 0) {
+    sections.push({
+      key: "recent-slash-operations",
+      heading: "最近操作",
+      items: buildRecentSlashCapabilityItems(visibleRecentCommandEntries),
+    });
+  }
+
+  if (!isEmptyQuery && installedSkillsSection) {
+    sections.push(installedSkillsSection);
+  }
+
+  if (!isEmptyQuery && resultTemplatesSection) {
+    sections.push(resultTemplatesSection);
   }
 
   if (params.availableSkills.length > 0) {

@@ -544,6 +544,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   chatToolPreferences?: ChatToolPreferences;
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
+  inputCompletionEnabled?: boolean;
 }
 
 export function useWorkspaceInputbarSceneRuntime({
@@ -652,6 +653,7 @@ export function useWorkspaceInputbarSceneRuntime({
   chatToolPreferences,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
+  inputCompletionEnabled = true,
 }: UseWorkspaceInputbarSceneRuntimeParams) {
   const resolvedQueuedTurns = useMemo(() => queuedTurns ?? [], [queuedTurns]);
   const resolvedChatToolPreferences =
@@ -771,6 +773,7 @@ export function useWorkspaceInputbarSceneRuntime({
         onRemoveQueuedTurn: removeQueuedTurn,
         defaultCuratedTaskReferenceMemoryIds,
         defaultCuratedTaskReferenceEntries,
+        inputCompletionEnabled,
       },
       floatingTeamWorkspaceDock: {
         enabled: teamWorkspaceEnabled,

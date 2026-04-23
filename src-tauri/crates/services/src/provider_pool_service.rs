@@ -1545,6 +1545,15 @@ impl ProviderPoolService {
             .json(&request_body)
             .timeout(self.health_check_timeout);
 
+        if runtime_spec.protocol_family
+            == lime_core::database::dao::api_key_provider::ProviderProtocolFamily::Anthropic
+            && runtime_spec
+                .auth_header
+                .eq_ignore_ascii_case("Authorization")
+        {
+            request = request.header("x-api-key", api_key);
+        }
+
         for (name, value) in runtime_spec.extra_headers {
             request = request.header(*name, *value);
         }

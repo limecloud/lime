@@ -22,7 +22,6 @@ import {
   RefreshCw,
   Bug,
   Wrench,
-  Mic,
   ShieldAlert,
   Sparkles,
   FolderOpen,
@@ -51,11 +50,6 @@ import {
   getServerDiagnostics,
   getWindowsStartupDiagnostics,
 } from "@/lib/api/serverRuntime";
-import {
-  getVoiceInputConfig,
-  saveVoiceInputConfig,
-  VoiceInputConfig,
-} from "@/lib/api/asrProvider";
 import { applyCrashReportingSettings } from "@/lib/crashReporting";
 import {
   buildCrashDiagnosticPayload,
@@ -83,11 +77,6 @@ const ShortcutSettings = lazy(() =>
 const UpdateCheckSettings = lazy(() =>
   import("./UpdateCheckSettings").then((module) => ({
     default: module.UpdateCheckSettings,
-  })),
-);
-const VoiceSettings = lazy(() =>
-  import("@/components/voice").then((module) => ({
-    default: module.VoiceSettings,
   })),
 );
 const ClipboardPermissionGuideCard = lazy(() =>
@@ -186,7 +175,6 @@ export function ExperimentalSettings() {
   const [toolCallingConfig, setToolCallingConfig] = useState<ToolCallingConfig>(
     DEFAULT_TOOL_CALLING_CONFIG,
   );
-  const [voiceConfig, setVoiceConfig] = useState<VoiceInputConfig | null>(null);
   const [crashConfig, setCrashConfig] = useState<CrashReportingConfig>(
     DEFAULT_CRASH_REPORTING_CONFIG,
   );
@@ -208,35 +196,17 @@ export function ExperimentalSettings() {
     setLoading(true);
     setError(null);
     try {
-      const [experimentalConfig, voiceInputConfig, fullConfig] =
-        await Promise.all([
-          getExperimentalConfig(),
-          getVoiceInputConfig(),
-          getConfig(),
-        ]);
+      const [experimentalConfig, fullConfig] = await Promise.all([
+        getExperimentalConfig(),
+        getConfig(),
+      ]);
       setConfig(experimentalConfig);
       setToolCallingConfig(normalizeToolCallingConfig(fullConfig.tool_calling));
-      setVoiceConfig(voiceInputConfig);
       setCrashConfig(normalizeCrashReportingConfig(fullConfig.crash_reporting));
     } catch (err) {
       console.error("加载实验室配置失败:", err);
       setError(err instanceof Error ? err.message : "加载配置失败");
       setConfig(DEFAULT_EXPERIMENTAL_FEATURES);
-      setVoiceConfig({
-        enabled: false,
-        shortcut: "CommandOrControl+Shift+V",
-        processor: {
-          polish_enabled: true,
-          default_instruction_id: "default",
-        },
-        output: {
-          mode: "type",
-          type_delay_ms: 10,
-        },
-        instructions: [],
-        sound_enabled: true,
-        translate_instruction_id: "default",
-      });
       setCrashConfig(DEFAULT_CRASH_REPORTING_CONFIG);
       setToolCallingConfig(DEFAULT_TOOL_CALLING_CONFIG);
     } finally {
@@ -344,32 +314,6 @@ export function ExperimentalSettings() {
       return false;
     }
   }, []);
-
-  // 更新语音输入配置
-  const handleVoiceConfigChange = useCallback(
-    async (newConfig: VoiceInputConfig) => {
-      setSaving(true);
-      setMessage(null);
-      try {
-        await saveVoiceInputConfig(newConfig);
-        setVoiceConfig(newConfig);
-        setMessage({
-          type: "success",
-          text: newConfig.enabled ? "语音输入功能已启用" : "语音输入功能已禁用",
-        });
-        setTimeout(() => setMessage(null), 2000);
-      } catch (err) {
-        console.error("保存语音配置失败:", err);
-        setMessage({
-          type: "error",
-          text: err instanceof Error ? err.message : "保存失败",
-        });
-      } finally {
-        setSaving(false);
-      }
-    },
-    [],
-  );
 
   const persistToolCallingConfig = useCallback(
     async (next: ToolCallingConfig, successText: string) => {
@@ -711,11 +655,6 @@ export function ExperimentalSettings() {
                 inactiveLabel="截图对话未启用"
               />
               <StatusPill
-                active={Boolean(voiceConfig?.enabled)}
-                activeLabel="语音输入已启用"
-                inactiveLabel="语音输入未启用"
-              />
-              <StatusPill
                 active={Boolean(config?.webmcp?.enabled)}
                 activeLabel="WebMCP 预留已启用"
                 inactiveLabel="WebMCP 预留未启用"
@@ -726,7 +665,7 @@ export function ExperimentalSettings() {
                 inactiveLabel="崩溃上报未启用"
               />
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                诊断动作：5 项
+                诊断动作：4 项
               </span>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
                 {saving ? "保存中" : diagnosticBusy ? "诊断执行中" : "当前空闲"}
@@ -1153,30 +1092,6 @@ export function ExperimentalSettings() {
               <UpdateCheckSettings />
             </Suspense>
           </ExperimentalPanel>
-
-          {voiceConfig ? (
-            <div className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-              <div className="mb-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <Mic className="h-4 w-4 text-sky-600" />
-                  语音输入实验
-                </div>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  语音快捷键、润色和翻译指令属于实验链路，适合单独验证输入体验。
-                </p>
-              </div>
-              <Suspense
-                fallback={<DeferredPanelFallback label="语音实验设置" />}
-              >
-                <VoiceSettings
-                  config={voiceConfig}
-                  onConfigChange={handleVoiceConfigChange}
-                  onValidateShortcut={handleValidateShortcut}
-                  disabled={saving}
-                />
-              </Suspense>
-            </div>
-          ) : null}
 
           <Suspense
             fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}

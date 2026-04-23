@@ -21,7 +21,7 @@
       "contains": "minimax.io/anthropic"
     },
     {
-      "provider": "mimo",
+      "provider": "xiaomi",
       "contains": "token-plan-cn.xiaomimimo.com/anthropic"
     }
   ]

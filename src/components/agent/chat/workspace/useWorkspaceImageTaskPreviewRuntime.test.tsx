@@ -536,7 +536,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
 
     expect(getMediaTaskArtifact).toHaveBeenCalledWith({
       projectRootPath: DEFAULT_PROJECT_ROOT_PATH,
-      taskRef: taskId,
+      taskRef: `/workspace/project-image-1/.lime/tasks/image_generate/${taskId}.json`,
     });
     expect(getValue().messages).toEqual([
       expect.objectContaining({
@@ -645,7 +645,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     expect(readFilePreview).toHaveBeenCalledWith(taskPath, 256 * 1024);
     expect(getMediaTaskArtifact).toHaveBeenCalledWith({
       projectRootPath: DEFAULT_PROJECT_ROOT_PATH,
-      taskRef: taskId,
+      taskRef: taskPath,
     });
     expect(getValue().messages).toEqual([
       expect.objectContaining({
@@ -1083,6 +1083,167 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         }),
       }),
     ]);
+  });
+
+  it("历史消息带绝对 task file 时，应优先按 task file 恢复跨根目录图片结果", async () => {
+    const taskId = "task-image-history-absolute-1";
+    const taskFilePath =
+      "/Users/youmin/.lime/tasks/image_generate/task-image-history-absolute-1.json";
+    const artifactPath = ".lime/tasks/image_generate/task-image-history-absolute-1.json";
+    vi.mocked(hasTauriInvokeCapability).mockReturnValue(false);
+    vi.mocked(hasTauriRuntimeMarkers).mockReturnValue(false);
+    vi.mocked(getMediaTaskArtifact).mockResolvedValueOnce(
+      createArtifactOutput({
+        task_id: taskId,
+        task_type: "image_generate",
+        absolute_path: taskFilePath,
+        artifact_path: artifactPath,
+        absolute_artifact_path: taskFilePath,
+        record: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "completed",
+          normalized_status: "succeeded",
+          created_at: "2026-04-04T12:00:00Z",
+          payload: {
+            prompt: "[img:跨根目录恢复的三国群像]",
+            count: 1,
+            size: "1024x1024",
+          },
+          result: {
+            images: [{ url: "https://example.com/history-absolute.png" }],
+          },
+        }),
+      }),
+    );
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: [
+          {
+            id: `image-workbench:${taskId}:assistant`,
+            role: "assistant",
+            content: "图片任务已提交，正在同步任务状态。",
+            timestamp: new Date("2026-04-04T12:00:00Z"),
+            imageWorkbenchPreview: {
+              taskId,
+              prompt: "跨根目录恢复的三国群像",
+              status: "running",
+              phase: "queued",
+              taskFilePath,
+              artifactPath,
+            },
+          },
+        ],
+      },
+    );
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getMediaTaskArtifact).toHaveBeenCalledWith({
+      projectRootPath: "/Users/youmin",
+      taskRef: taskFilePath,
+    });
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: `image-workbench:${taskId}:assistant`,
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "complete",
+          imageUrl: "https://example.com/history-absolute.png",
+          taskFilePath,
+          artifactPath,
+        }),
+      }),
+    ]);
+  });
+
+  it("收到工作区外绝对 task file 事件时，应继续按绝对路径轮询 artifact API", async () => {
+    const taskId = "task-image-external-live-1";
+    const taskFilePath =
+      "/Users/youmin/.lime/tasks/image_generate/task-image-external-live-1.json";
+    const artifactPath = ".lime/tasks/image_generate/task-image-external-live-1.json";
+    let listener: CreationTaskListener | null = null;
+    vi.mocked(safeListen).mockImplementationOnce(async (event, handler) => {
+      expect(event).toBe("lime://creation_task_submitted");
+      listener = handler;
+      return vi.fn();
+    });
+    vi.mocked(readFilePreview).mockRejectedValueOnce(
+      new Error("task file temporarily unavailable"),
+    );
+    vi.mocked(getMediaTaskArtifact).mockResolvedValueOnce(
+      createArtifactOutput({
+        task_id: taskId,
+        task_type: "image_generate",
+        absolute_path: taskFilePath,
+        artifact_path: artifactPath,
+        absolute_artifact_path: taskFilePath,
+        record: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "completed",
+          normalized_status: "succeeded",
+          created_at: "2026-04-04T12:30:00Z",
+          payload: {
+            prompt: "[img:工作区外完成的三国主视觉]",
+            count: 1,
+            size: "1024x1024",
+          },
+          result: {
+            images: [{ url: "https://example.com/external-live.png" }],
+          },
+        }),
+      }),
+    );
+
+    const { render, getValue } = renderHook();
+    await render();
+
+    await act(async () => {
+      listener?.({
+        payload: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "running",
+          path: artifactPath,
+          absolute_path: taskFilePath,
+          prompt: "工作区外完成的三国主视觉",
+        }),
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => {
+      expect(getMediaTaskArtifact).toHaveBeenCalledWith({
+        projectRootPath: "/Users/youmin",
+        taskRef: taskFilePath,
+      });
+    });
+
+    await vi.waitFor(() => {
+      expect(getValue().messages).toEqual([
+        expect.objectContaining({
+          id: `image-workbench:${taskId}:assistant`,
+          imageWorkbenchPreview: expect.objectContaining({
+            taskId,
+            status: "complete",
+            imageUrl: "https://example.com/external-live.png",
+            taskFilePath,
+            artifactPath,
+          }),
+        }),
+      ]);
+    });
   });
 
   it("浏览器开发模式下不应触发工作区级图片任务全量恢复", async () => {

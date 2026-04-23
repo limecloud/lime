@@ -18,6 +18,8 @@ import type { Dispatch, SetStateAction } from "react";
 import { toast } from "sonner";
 import { useAgentChatUnified } from "./hooks";
 import {
+  resolveRecentTopicActionLabel,
+  resolveRecentTopicCandidate,
   type TaskStatusReason,
 } from "./hooks/agentChatShared";
 import {
@@ -29,6 +31,7 @@ import { useSessionFiles } from "./hooks/useSessionFiles";
 import { useContentSync } from "./hooks/useContentSync";
 import { useDeveloperFeatureFlags } from "@/hooks/useDeveloperFeatureFlags";
 import { useGlobalMediaGenerationDefaults } from "@/hooks/useGlobalMediaGenerationDefaults";
+import { useServiceModelsConfig } from "@/hooks/useServiceModelsConfig";
 import { useTrayModelShortcuts } from "./hooks/useTrayModelShortcuts";
 import { type CanvasWorkbenchLayoutMode } from "./components/CanvasWorkbenchLayout";
 import type { CreationMode } from "./components/types";
@@ -268,6 +271,7 @@ import {
   recordCuratedTaskRecommendationSignalFromReviewDecision,
 } from "./utils/curatedTaskRecommendationSignals";
 import {
+  buildSceneAppExecutionCuratedTaskFollowUpAction,
   buildCuratedTaskReferenceEntryFromSceneAppExecution,
   buildSceneAppExecutionReviewFollowUpAction,
 } from "./utils/sceneAppCuratedTaskReference";
@@ -453,9 +457,14 @@ export function AgentChatWorkspace({
   const [input, setInput] = useState("");
   const [runtimeInitialInputCapability, setRuntimeInitialInputCapability] =
     useState<AgentInitialInputCapabilityParams>();
+  const [runtimeEntryBannerMessage, setRuntimeEntryBannerMessage] = useState<
+    string | null
+  >(null);
   const [selectedText, setSelectedText] = useState("");
+  const effectiveEntryBannerMessage =
+    runtimeEntryBannerMessage?.trim() || entryBannerMessage;
   const [entryBannerVisible, setEntryBannerVisible] = useState(
-    Boolean(entryBannerMessage),
+    Boolean(effectiveEntryBannerMessage),
   );
   const shouldBootstrapCanvasOnEntry =
     Boolean(contentId) && isSpecializedWorkbenchTheme(normalizedEntryTheme);
@@ -557,8 +566,14 @@ export function AgentChatWorkspace({
   }, [initialCreationMode]);
 
   useEffect(() => {
-    setEntryBannerVisible(Boolean(entryBannerMessage));
+    if (entryBannerMessage) {
+      setRuntimeEntryBannerMessage(null);
+    }
   }, [entryBannerMessage]);
+
+  useEffect(() => {
+    setEntryBannerVisible(Boolean(effectiveEntryBannerMessage));
+  }, [effectiveEntryBannerMessage]);
 
   const pageMountedAtRef = useRef(Date.now());
 
@@ -795,6 +810,9 @@ export function AgentChatWorkspace({
   );
   const { workspaceHarnessEnabled } = useDeveloperFeatureFlags();
   const { mediaDefaults } = useGlobalMediaGenerationDefaults();
+  const { serviceModels } = useServiceModelsConfig();
+  const inputCompletionEnabled =
+    serviceModels.input_completion?.enabled !== false;
   const effectiveImageWorkbenchPreference = useMemo(
     () =>
       resolveMediaGenerationPreference(
@@ -3118,6 +3136,7 @@ export function AgentChatWorkspace({
     browserAssistPreferredBackend: browserAssistRequestPreferredBackend,
     browserAssistAutoLaunch: browserAssistRequestAutoLaunch,
     workspaceRequestMetadataBase: initialRequestMetadata,
+    serviceModels,
     messages,
     bootstrapDispatchPreview,
     sendMessage,
@@ -3204,6 +3223,9 @@ export function AgentChatWorkspace({
       if (!normalizedPrompt) {
         return;
       }
+      const nextBannerMessage = payload.bannerMessage?.trim() || null;
+      setRuntimeEntryBannerMessage(nextBannerMessage);
+      setEntryBannerVisible(Boolean(nextBannerMessage || entryBannerMessage));
       setInput(normalizedPrompt);
       const nextRuntimeInitialInputCapability =
         buildRuntimeInitialInputCapabilityFromFollowUpAction({
@@ -3215,7 +3237,7 @@ export function AgentChatWorkspace({
       }
       setRuntimeInitialInputCapability(nextRuntimeInitialInputCapability);
     },
-    [],
+    [entryBannerMessage],
   );
   const handleRestartGeneralWorkbenchEntryPrompt = useCallback(() => {
     if (!generalWorkbenchEntryPrompt) {
@@ -3422,10 +3444,35 @@ export function AgentChatWorkspace({
 
   const handleResumeSidebarTask = useCallback(
     async (topicId: string, _statusReason?: TaskStatusReason) => {
-      await switchTopic(topicId, { forceRefresh: true });
+      await switchTopic(topicId, {
+        forceRefresh: true,
+        resumeSessionStartHooks: true,
+      });
     },
     [switchTopic],
   );
+
+  const recentSessionTopic = useMemo(
+    () => resolveRecentTopicCandidate(topics, sessionId),
+    [sessionId, topics],
+  );
+  const recentSessionActionLabel = useMemo(
+    () =>
+      recentSessionTopic
+        ? resolveRecentTopicActionLabel(recentSessionTopic)
+        : "继续最近会话",
+    [recentSessionTopic],
+  );
+  const handleResumeRecentSession = useCallback(() => {
+    if (!recentSessionTopic) {
+      return;
+    }
+
+    void handleResumeSidebarTask(
+      recentSessionTopic.id,
+      recentSessionTopic.statusReason,
+    );
+  }, [handleResumeSidebarTask, recentSessionTopic]);
 
   const handleWriteFile = useWorkspaceWriteFileAction({
     activeTheme,
@@ -3926,6 +3973,24 @@ export function AgentChatWorkspace({
     applyWorkbenchFollowUpActionPayload,
     defaultCuratedTaskReferenceEntries,
   ]);
+  const handleContinueSceneAppReviewFeedback = useCallback(
+    (taskId: string) => {
+      const followUpAction = buildSceneAppExecutionCuratedTaskFollowUpAction({
+        referenceEntries: defaultCuratedTaskReferenceEntries,
+        taskId,
+      });
+      if (!followUpAction) {
+        toast.error("当前复盘建议还缺少可继续的结果模板。");
+        return;
+      }
+
+      applyWorkbenchFollowUpActionPayload(followUpAction);
+    },
+    [
+      applyWorkbenchFollowUpActionPayload,
+      defaultCuratedTaskReferenceEntries,
+    ],
+  );
   const sceneAppExecutionContentPostEntries = useMemo(
     () =>
       buildSceneAppExecutionContentPostEntries({
@@ -4503,6 +4568,13 @@ export function AgentChatWorkspace({
     sceneAppExecutionSummaryState?.summary,
     sessionId,
   ]);
+  const latestReviewFeedbackSignal =
+    listCuratedTaskRecommendationSignals({
+      projectId,
+      sessionId,
+    })
+      .filter((signal) => signal.source === "review_feedback")
+      .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
   const sceneAppExecutionSummaryCard = useMemo(
     () => (
       <SceneAppExecutionSummaryCard
@@ -4514,6 +4586,8 @@ export function AgentChatWorkspace({
         latestPackResultUsesFallback={
           sceneAppExecutionSummaryState?.latestPackResultUsesFallback
         }
+        latestReviewFeedbackSignal={latestReviewFeedbackSignal}
+        onContinueReviewFeedback={handleContinueSceneAppReviewFeedback}
         onReviewCurrentProject={handleReviewCurrentSceneAppExecution}
         onSaveAsSkill={handleSaveSceneAppExecutionAsSkill}
         onOpenSceneAppDetail={handleOpenSceneAppExecutionDetail}
@@ -4541,6 +4615,7 @@ export function AgentChatWorkspace({
     [
       canOpenSceneAppExecutionHumanReview,
       handleApplySceneAppExecutionQuickReview,
+      handleContinueSceneAppReviewFeedback,
       handleOpenSceneAppExecutionContentPost,
       handleOpenSceneAppExecutionDetail,
       handleOpenSceneAppExecutionHumanReview,
@@ -4553,6 +4628,7 @@ export function AgentChatWorkspace({
       handleRunSceneAppExecutionPromptAction,
       handleRunSceneAppExecutionGovernanceAction,
       isSending,
+      latestReviewFeedbackSignal,
       queuedTurns.length,
       sceneAppReviewDecisionLoading,
       sceneAppReviewDecisionSaving,
@@ -4962,6 +5038,8 @@ export function AgentChatWorkspace({
       harnessPanelVisible={contextHarnessRuntime.harnessPanelVisible}
       onToggleHarnessPanel={contextHarnessRuntime.handleToggleHarnessPanel}
       workflow={{
+        projectId,
+        sessionId,
         branchItems: generalWorkbenchScaffoldRuntime.branchItems,
         onCreateVersionSnapshot: handleCreateVersionSnapshot,
         onSwitchBranchVersion: handleSwitchBranchVersion,
@@ -5232,6 +5310,7 @@ export function AgentChatWorkspace({
     defaultCuratedTaskReferenceMemoryIds:
       defaultCuratedTaskReferenceMemoryIds,
     defaultCuratedTaskReferenceEntries: defaultCuratedTaskReferenceEntries,
+    inputCompletionEnabled,
   });
 
   const canvasScene = useWorkspaceCanvasSceneRuntime({
@@ -5336,7 +5415,7 @@ export function AgentChatWorkspace({
     generalCanvasContent: generalCanvasState.content,
     handleToggleHarnessPanel: contextHarnessRuntime.handleToggleHarnessPanel,
     entryBannerVisible,
-    entryBannerMessage,
+    entryBannerMessage: effectiveEntryBannerMessage,
     creationReplaySurface: initialCreationReplaySurface,
     defaultCuratedTaskReferenceMemoryIds,
     defaultCuratedTaskReferenceEntries,
@@ -5384,6 +5463,10 @@ export function AgentChatWorkspace({
     handleLaunchSceneApp: workspaceSceneAppEntryActions.handleLaunchSceneApp,
     canResumeRecentSceneApp,
     handleResumeRecentSceneApp,
+    recentSessionTitle: recentSessionTopic?.title ?? null,
+    recentSessionSummary: recentSessionTopic?.lastPreview ?? null,
+    recentSessionActionLabel,
+    handleResumeRecentSession,
     handleOpenSceneAppsDirectory,
     hideHistoryToggle,
     showChatPanel: effectiveShowChatPanel,
@@ -5491,6 +5574,7 @@ export function AgentChatWorkspace({
         isSending={shellIsSending}
         pendingActionCount={shellPendingActions.length}
         queuedTurnCount={shellQueuedTurns.length}
+        threadStatus={threadRead?.status ?? (currentTurnId ? "running" : null)}
         workspaceError={conversationSceneRuntime.workspaceAlertVisible}
         childSubagentSessions={childSubagentSessions}
         subagentParentContext={subagentParentContext}

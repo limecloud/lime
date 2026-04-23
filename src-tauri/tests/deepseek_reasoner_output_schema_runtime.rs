@@ -179,6 +179,26 @@ impl SessionStore for TestSessionStore {
             .await
     }
 
+    async fn update_working_dir(&self, session_id: &str, working_dir: PathBuf) -> Result<()> {
+        let mut sessions = self.sessions.write().await;
+        let session = sessions
+            .get_mut(session_id)
+            .ok_or_else(|| anyhow!("session not found: {session_id}"))?;
+        session.working_dir = working_dir;
+        session.updated_at = Utc::now();
+        Ok(())
+    }
+
+    async fn update_session_type(&self, session_id: &str, session_type: SessionType) -> Result<()> {
+        let mut sessions = self.sessions.write().await;
+        let session = sessions
+            .get_mut(session_id)
+            .ok_or_else(|| anyhow!("session not found: {session_id}"))?;
+        session.session_type = session_type;
+        session.updated_at = Utc::now();
+        Ok(())
+    }
+
     async fn update_extension_data(
         &self,
         session_id: &str,

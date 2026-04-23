@@ -71,6 +71,9 @@ pub(crate) struct ServiceSceneLaunchContext {
     pub(crate) execution_kind: Option<String>,
     pub(crate) execution_location: Option<String>,
     pub(crate) slot_values: Option<serde_json::Value>,
+    pub(crate) preferred_provider_id: Option<String>,
+    pub(crate) preferred_model_id: Option<String>,
+    pub(crate) allow_fallback: Option<bool>,
     pub(crate) project_id: Option<String>,
     pub(crate) content_id: Option<String>,
     pub(crate) entry_source: Option<String>,
@@ -376,6 +379,23 @@ pub(crate) fn extract_service_scene_launch_context(
             .or_else(|| service_scene_run.get("slotValues"))
             .cloned()
             .filter(|value| value.is_object()),
+        preferred_provider_id: extract_object_string(
+            service_scene_run,
+            &[
+                "preferred_provider_id",
+                "preferredProviderId",
+                "provider_id",
+                "providerId",
+            ],
+        ),
+        preferred_model_id: extract_object_string(
+            service_scene_run,
+            &["preferred_model_id", "preferredModelId", "model"],
+        ),
+        allow_fallback: service_scene_run
+            .get("allow_fallback")
+            .or_else(|| service_scene_run.get("allowFallback"))
+            .and_then(serde_json::Value::as_bool),
         project_id: extract_object_string(service_scene_run, &["project_id", "projectId"]),
         content_id: extract_object_string(service_scene_run, &["content_id", "contentId"]),
         entry_source: extract_object_string(service_scene_run, &["entry_source", "entrySource"]),

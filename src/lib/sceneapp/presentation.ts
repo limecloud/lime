@@ -1,6 +1,6 @@
 import type {
   SceneAppCompatType,
-  SceneAppCurrentDescriptor as SceneAppDescriptor,
+  SceneAppDescriptor,
   SceneAppDeliveryContract,
   SceneAppPattern,
   SceneAppRunSummary,
@@ -62,7 +62,7 @@ export interface SceneAppInfraPresentation {
 }
 
 type SceneAppPresentedType = SceneAppType | SceneAppCompatType;
-type SceneAppCurrentPresentationDescriptor = Pick<
+type SceneAppPresentationDescriptor = Pick<
   SceneAppDescriptor,
   "id" | "title" | "sceneappType"
 >;
@@ -255,7 +255,7 @@ export function collectSceneAppInfraPresentationLabels(
 }
 
 function inferFallbackCopy(
-  descriptor: SceneAppCurrentPresentationDescriptor,
+  descriptor: SceneAppPresentationDescriptor,
 ): SceneAppPresentationCopy {
   if (descriptor.sceneappType === "local_durable") {
     return {
@@ -301,7 +301,7 @@ function inferFallbackCopy(
 }
 
 export function getSceneAppPresentationCopy(
-  descriptor: SceneAppCurrentPresentationDescriptor,
+  descriptor: SceneAppPresentationDescriptor,
 ): SceneAppPresentationCopy {
   return FEATURED_SCENEAPP_PRESETS[descriptor.id] ?? inferFallbackCopy(descriptor);
 }

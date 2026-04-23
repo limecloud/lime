@@ -1,5 +1,6 @@
 import type { ContentPart, Message } from "../types";
 import { stripAssistantProtocolResidue } from "./protocolResidue";
+import { formatRuntimePeerMessageText } from "./runtimePeerMessageDisplay";
 
 const BRACKET_IMAGE_PLACEHOLDER_RE = /\[\s*Image\s*#\d+\s*\]/gi;
 const BARE_IMAGE_PLACEHOLDER_RE =
@@ -155,16 +156,17 @@ export function sanitizeMessageTextForDisplay(
     options.role === "assistant"
       ? stripAssistantPhaseSummaryTitle(stripAssistantProtocolResidue(text))
       : text.trim();
-  if (!normalized) {
+  const formattedRuntimePeerMessage = formatRuntimePeerMessageText(normalized);
+  if (!formattedRuntimePeerMessage) {
     return "";
   }
 
-  if (!containsInternalImagePlaceholder(normalized)) {
-    return normalized;
+  if (!containsInternalImagePlaceholder(formattedRuntimePeerMessage)) {
+    return formattedRuntimePeerMessage;
   }
 
   if (
-    isOnlyInternalImagePlaceholderText(normalized) &&
+    isOnlyInternalImagePlaceholderText(formattedRuntimePeerMessage) &&
     ((options.role === "user" && options.hasImages) ||
       options.role === "assistant")
   ) {
@@ -172,7 +174,7 @@ export function sanitizeMessageTextForDisplay(
   }
 
   return collapseDisplayWhitespace(
-    replaceImagePlaceholders(normalized, "图片"),
+    replaceImagePlaceholders(formattedRuntimePeerMessage, "图片"),
   );
 }
 

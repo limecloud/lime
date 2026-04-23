@@ -79,6 +79,47 @@ describe("agentSessionRefresh", () => {
     expect(markSynced).toHaveBeenCalledWith("session-1", "code_orchestrated");
   });
 
+  it("刷新 detail 时应把 recent_access_mode 同步到当前 accessMode 与 session shadow", async () => {
+    const applySessionDetail = vi.fn();
+    const markSynced = vi.fn();
+    const persistSessionAccessMode = vi.fn();
+    const setAccessModeState = vi.fn();
+    const detail: AsterSessionDetail = {
+      id: "session-1",
+      messages: [],
+      created_at: 1,
+      updated_at: 2,
+      execution_strategy: "react",
+      execution_runtime: {
+        session_id: "session-1",
+        execution_strategy: "react",
+        recent_access_mode: "current",
+        source: "session",
+      },
+    };
+
+    await expect(
+      refreshAgentSessionDetailState({
+        runtime: {
+          getSession: vi.fn(async () => detail),
+        },
+        sessionIdRef: {
+          current: "session-1",
+        } as MutableRefObject<string | null>,
+        applySessionDetail,
+        markSessionExecutionStrategySynced: markSynced,
+        persistSessionAccessMode,
+        setAccessModeState,
+      }),
+    ).resolves.toBe(true);
+
+    expect(persistSessionAccessMode).toHaveBeenCalledWith(
+      "session-1",
+      "current",
+    );
+    expect(setAccessModeState).toHaveBeenCalledWith("current");
+  });
+
   it("刷新 read model 时应在会话仍匹配时应用 snapshot", async () => {
     const applyReadModelSnapshot = vi.fn();
 

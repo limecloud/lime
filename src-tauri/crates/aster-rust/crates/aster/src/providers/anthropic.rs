@@ -70,6 +70,20 @@ fn resolve_anthropic_auth(host: &str, secret: String) -> AuthMethod {
     }
 }
 
+fn build_anthropic_api_client(host: &str, auth_secret: String) -> Result<ApiClient> {
+    let should_add_x_api_key_header = should_use_bearer_auth_for_anthropic_host(host);
+    let auth = resolve_anthropic_auth(host, auth_secret.clone());
+
+    let mut api_client = ApiClient::new(host.to_string(), auth)?
+        .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+
+    if should_add_x_api_key_header {
+        api_client = api_client.with_header("x-api-key", &auth_secret)?;
+    }
+
+    Ok(api_client)
+}
+
 #[derive(serde::Serialize)]
 pub struct AnthropicProvider {
     #[serde(skip)]
@@ -99,11 +113,8 @@ impl AnthropicProvider {
                 .or_else(|_| config.get_secret("ANTHROPIC_AUTH_TOKEN"))?
         };
 
-        let auth = resolve_anthropic_auth(&host, api_key);
         let automatic_prompt_cache = supports_automatic_prompt_cache_for_host(&host);
-
-        let api_client =
-            ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+        let api_client = build_anthropic_api_client(&host, api_key)?;
 
         Ok(Self {
             api_client,
@@ -124,10 +135,7 @@ impl AnthropicProvider {
             .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
 
         let automatic_prompt_cache = supports_automatic_prompt_cache_for_host(&config.base_url);
-        let auth = resolve_anthropic_auth(&config.base_url, api_key);
-
-        let api_client = ApiClient::new(config.base_url, auth)?
-            .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+        let api_client = build_anthropic_api_client(&config.base_url, api_key)?;
 
         Ok(Self {
             api_client,
@@ -383,8 +391,9 @@ fn supports_automatic_prompt_cache_for_host(host: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        resolve_anthropic_auth, should_use_bearer_auth_for_anthropic_host,
-        supports_automatic_prompt_cache_for_host, AnthropicProvider,
+        build_anthropic_api_client, resolve_anthropic_auth,
+        should_use_bearer_auth_for_anthropic_host, supports_automatic_prompt_cache_for_host,
+        AnthropicProvider,
     };
     use crate::conversation::message::Message;
     use crate::model::ModelConfig;
@@ -423,6 +432,44 @@ mod tests {
             }
             _ => panic!("expected x-api-key auth"),
         }
+    }
+
+    #[test]
+    fn test_known_compatible_host_adds_dual_auth_headers_to_api_client() {
+        let api_client = build_anthropic_api_client(
+            "https://token-plan-cn.xiaomimimo.com/anthropic",
+            "k1".to_string(),
+        )
+        .expect("api client should build");
+        let headers = api_client.default_headers_for_test();
+
+        assert_eq!(
+            headers
+                .get("anthropic-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("2023-06-01")
+        );
+        assert_eq!(
+            headers
+                .get("x-api-key")
+                .and_then(|value| value.to_str().ok()),
+            Some("k1")
+        );
+    }
+
+    #[test]
+    fn test_official_host_keeps_single_auth_header_mode() {
+        let api_client = build_anthropic_api_client("https://api.anthropic.com", "k2".to_string())
+            .expect("api client should build");
+        let headers = api_client.default_headers_for_test();
+
+        assert_eq!(
+            headers
+                .get("anthropic-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("2023-06-01")
+        );
+        assert!(headers.get("x-api-key").is_none());
     }
 
     #[test]

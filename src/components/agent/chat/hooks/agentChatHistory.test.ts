@@ -755,4 +755,102 @@ describe("agentChatHistory", () => {
     expect(mergedMessages[1]?.role).toBe("assistant");
     expect(mergedMessages[1]?.toolCalls?.[0]?.id).toBe("tool-site-early");
   });
+
+  it("同一条 hydrate assistant 缺失本地图片预览时，不应重复追加同 id 消息", () => {
+    const assistantTimestamp = new Date("2026-04-23T12:00:02.000Z");
+    const localMessages = [
+      {
+        id: "session-image-dup-0",
+        role: "user" as const,
+        content: "@配图 生成一张三国群像",
+        timestamp: new Date("2026-04-23T12:00:00.000Z"),
+      },
+      {
+        id: "session-image-dup-1",
+        role: "assistant" as const,
+        content: "图片任务已完成，共生成 1 张。",
+        timestamp: assistantTimestamp,
+        contentParts: [
+          {
+            type: "tool_use" as const,
+            toolCall: {
+              id: "tool-image-dup-1",
+              name: "lime_create_image_generation_task",
+              arguments: '{"prompt":"三国群像"}',
+              status: "completed" as const,
+              startTime: assistantTimestamp,
+              endTime: assistantTimestamp,
+              result: {
+                success: true,
+                output: "图片任务已完成，共生成 1 张。",
+              },
+            },
+          },
+          {
+            type: "text" as const,
+            text: "图片任务已完成，共生成 1 张。",
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-image-dup-1",
+            name: "lime_create_image_generation_task",
+            arguments: '{"prompt":"三国群像"}',
+            status: "completed" as const,
+            startTime: assistantTimestamp,
+            endTime: assistantTimestamp,
+            result: {
+              success: true,
+              output: "图片任务已完成，共生成 1 张。",
+            },
+          },
+        ],
+        imageWorkbenchPreview: {
+          taskId: "task-image-dup-1",
+          prompt: "三国群像",
+          mode: "generate" as const,
+          status: "complete" as const,
+          imageUrl: "data:image/png;base64,dup-preview",
+          imageCount: 1,
+          projectId: "project-image-dup-1",
+          contentId: "content-image-dup-1",
+        },
+      },
+    ];
+    const hydratedMessages = [
+      {
+        id: "session-image-dup-0",
+        role: "user" as const,
+        content: "@配图 生成一张三国群像",
+        timestamp: new Date("2026-04-23T12:00:01.000Z"),
+      },
+      {
+        id: "session-image-dup-1",
+        role: "assistant" as const,
+        content: "图片任务已完成，共生成 1 张。",
+        timestamp: new Date("2026-04-23T12:00:03.000Z"),
+        contentParts: [
+          {
+            type: "text" as const,
+            text: "图片任务已完成，共生成 1 张。",
+          },
+        ],
+      },
+    ];
+
+    const mergedMessages = mergeHydratedMessagesWithLocalState(
+      localMessages,
+      hydratedMessages,
+    );
+
+    expect(mergedMessages).toHaveLength(2);
+    expect(
+      mergedMessages.filter((message) => message.id === "session-image-dup-1"),
+    ).toHaveLength(1);
+    expect(mergedMessages[1]?.imageWorkbenchPreview).toMatchObject({
+      taskId: "task-image-dup-1",
+      imageUrl: "data:image/png;base64,dup-preview",
+      status: "complete",
+    });
+  });
 });

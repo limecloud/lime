@@ -7,6 +7,7 @@ use super::{
     LlmProvider, SharedSkillRegistry, SkillDefinition, SkillError, SkillExecutionMode,
     SkillExecutionResult, SkillExecutor,
 };
+use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::{Agent, AgentEvent, SessionConfig};
 use crate::config::AsterMode;
 use crate::conversation::message::Message;
@@ -18,9 +19,9 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::providers::{create_with_default_model, create_with_named_model};
 use crate::session::{
-    ChatHistoryMatch, CommitOptions, CommitReport, ExtensionData, MemoryCategory, MemoryHealth,
-    MemoryRecord, MemorySearchResult, MemoryStats, Session, SessionInsights, SessionStore,
-    SessionType, TokenStatsUpdate, TurnContextOverride,
+    ChatHistoryMatch, CommitOptions, CommitReport, ExtensionData, ItemRuntime, ItemRuntimePayload,
+    MemoryCategory, MemoryHealth, MemoryRecord, MemorySearchResult, MemoryStats, Session,
+    SessionInsights, SessionStore, SessionType, TokenStatsUpdate, TurnContextOverride,
 };
 use crate::tools::base::{PermissionCheckResult, Tool};
 use crate::tools::context::{ToolContext, ToolResult};
@@ -28,7 +29,7 @@ use crate::tools::error::ToolError;
 use async_trait::async_trait;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -143,7 +144,7 @@ impl SkillTool {
             }
         }
 
-        if skill.execution_mode == SkillExecutionMode::Agent {
+        if Self::should_execute_with_agent_runtime(&skill) {
             return Ok(self
                 .execute_agent_skill(&skill, &skill_content, context)
                 .await);
@@ -156,6 +157,15 @@ impl SkillTool {
             .execute(&skill, skill_input, None)
             .await
             .map_err(|error| format!("执行 skill '{}' 失败: {}", skill.skill_name, error))
+    }
+
+    fn should_execute_with_agent_runtime(skill: &SkillDefinition) -> bool {
+        skill.execution_mode == SkillExecutionMode::Agent
+            || (skill.execution_mode == SkillExecutionMode::Prompt
+                && skill
+                    .allowed_tools
+                    .as_ref()
+                    .is_some_and(|tools| !tools.is_empty()))
     }
 
     /// Generate tool description with available skills
@@ -218,6 +228,18 @@ Important:
         )
     }
 
+    async fn resolve_current_session_agent(context: &ToolContext) -> Option<Arc<Agent>> {
+        if context.session_id.is_empty() {
+            return None;
+        }
+
+        let manager = AgentManager::instance().await.ok()?;
+        manager
+            .get_or_create_agent(context.session_id.clone())
+            .await
+            .ok()
+    }
+
     async fn resolve_current_provider(
         context: &ToolContext,
     ) -> Result<Option<Arc<dyn Provider>>, String> {
@@ -225,21 +247,8 @@ Important:
             return Ok(Some(provider.clone()));
         }
 
-        if context.session_id.is_empty() {
+        let Some(agent) = Self::resolve_current_session_agent(context).await else {
             return Ok(None);
-        }
-
-        let manager = match AgentManager::instance().await {
-            Ok(manager) => manager,
-            Err(_) => return Ok(None),
-        };
-
-        let agent = match manager
-            .get_or_create_agent(context.session_id.clone())
-            .await
-        {
-            Ok(agent) => agent,
-            Err(_) => return Ok(None),
         };
 
         match agent.provider().await {
@@ -317,16 +326,50 @@ Important:
         skill_content: &str,
         context: &ToolContext,
     ) -> SkillExecutionResult {
+        let source_agent = Self::resolve_current_session_agent(context).await;
+        self.execute_agent_skill_with_source_agent(skill, skill_content, context, source_agent)
+            .await
+    }
+
+    async fn execute_agent_skill_with_source_agent(
+        &self,
+        skill: &SkillDefinition,
+        skill_content: &str,
+        context: &ToolContext,
+        source_agent: Option<Arc<Agent>>,
+    ) -> SkillExecutionResult {
         let resolved_provider = match self.resolve_skill_provider(skill, context).await {
             Ok(provider) => provider,
             Err(error) => return build_failed_skill_result(skill, error),
         };
         let requested_model = resolved_provider.model.clone();
 
-        let session = build_skill_agent_session(context.working_directory.clone(), skill);
+        let session = build_skill_agent_session(
+            context.working_directory.clone(),
+            skill,
+            Some(context.session_id.as_str()),
+        );
         let session_id = session.id.clone();
         let session_store: Arc<dyn SessionStore> = Arc::new(SkillAgentSessionStore::new(session));
-        let agent = Agent::new().with_session_store(session_store);
+        let mut agent = Agent::new().with_session_store(session_store);
+        if let Some(source_agent) = source_agent.as_deref() {
+            agent = agent.with_shared_native_tool_surface_from(source_agent);
+        }
+        agent
+            .extension_manager
+            .set_context(PlatformExtensionContext {
+                session_id: Some(session_id.clone()),
+                extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
+            })
+            .await;
+        if let Some(source_agent) = source_agent.as_deref() {
+            if let Err(error) = agent.inherit_runtime_tool_surface_from(source_agent).await {
+                return build_failed_skill_result(
+                    skill,
+                    format!("继承当前 session 工具面失败: {error}"),
+                );
+            }
+        }
         agent.set_permission_mode(AsterMode::Auto).await;
 
         if let Err(error) = agent
@@ -351,6 +394,7 @@ Important:
             turn_context: Some(TurnContextOverride {
                 cwd: Some(context.working_directory.clone()),
                 model: requested_model.clone(),
+                metadata: build_skill_turn_context_metadata(skill),
                 ..TurnContextOverride::default()
             }),
         };
@@ -370,6 +414,7 @@ Important:
         };
 
         let mut last_assistant_text = None;
+        let mut forwarded_tool_call = None;
         while let Some(event) = stream.next().await {
             match event {
                 Ok(AgentEvent::Message(message))
@@ -378,6 +423,13 @@ Important:
                     let text = message.as_concat_text();
                     if !text.trim().is_empty() {
                         last_assistant_text = Some(text);
+                    }
+                }
+                Ok(AgentEvent::ItemCompleted { item }) => {
+                    if let Some(tool_call) =
+                        extract_forwarded_skill_tool_call(&item, skill.allowed_tools.as_deref())
+                    {
+                        forwarded_tool_call = Some(tool_call);
                     }
                 }
                 Ok(_) => {}
@@ -390,10 +442,15 @@ Important:
             }
         }
 
-        build_success_skill_result(
+        let mut result = build_success_skill_result(
             skill,
             last_assistant_text.unwrap_or_else(|| "Skill executed".to_string()),
-        )
+        );
+        if let Some(tool_call) = forwarded_tool_call {
+            result.forwarded_tool_name = Some(tool_call.tool_name);
+            result.forwarded_tool_metadata = Some(tool_call.metadata);
+        }
+        result
     }
 }
 
@@ -506,13 +563,45 @@ fn normalize_skill_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
-fn build_skill_agent_session(working_dir: PathBuf, skill: &SkillDefinition) -> Session {
+fn build_skill_turn_context_metadata(skill: &SkillDefinition) -> HashMap<String, Value> {
+    let mut metadata = HashMap::new();
+
+    if let Some(allowed_tools) = skill
+        .allowed_tools
+        .as_ref()
+        .filter(|tools| !tools.is_empty())
+    {
+        metadata.insert(
+            "tool_scope".to_string(),
+            json!({
+                "allowed_tools": allowed_tools,
+            }),
+        );
+    }
+
+    metadata
+}
+
+fn build_skill_agent_session(
+    working_dir: PathBuf,
+    skill: &SkillDefinition,
+    parent_session_id: Option<&str>,
+) -> Session {
+    let session_id = parent_session_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| format!("skill-agent-{}", Uuid::new_v4()));
+
     Session {
-        id: format!("skill-agent-{}", Uuid::new_v4()),
+        id: session_id,
         working_dir,
         name: format!("skill-agent:{}", skill.short_name()),
         user_set_name: false,
-        session_type: SessionType::SubAgent,
+        // skill 会话使用隔离的自定义 SessionStore 持有状态，
+        // 不需要再复用 SubAgent 的工具白名单裁剪，否则 current-surface
+        // 动态注册工具（如 lime_create_image_generation_task）会在列举阶段被隐藏。
+        session_type: SessionType::User,
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
         extension_data: ExtensionData::default(),
@@ -546,6 +635,8 @@ fn build_failed_skill_result(
         command_name: Some(skill.skill_name.clone()),
         allowed_tools: skill.allowed_tools.clone(),
         model: skill.model.clone(),
+        forwarded_tool_name: None,
+        forwarded_tool_metadata: None,
     }
 }
 
@@ -561,7 +652,57 @@ fn build_success_skill_result(
         command_name: Some(skill.skill_name.clone()),
         allowed_tools: skill.allowed_tools.clone(),
         model: skill.model.clone(),
+        forwarded_tool_name: None,
+        forwarded_tool_metadata: None,
     }
+}
+
+#[derive(Debug, Clone)]
+struct ForwardedSkillToolCall {
+    tool_name: String,
+    metadata: Value,
+}
+
+fn extract_forwarded_skill_tool_call(
+    item: &ItemRuntime,
+    allowed_tools: Option<&[String]>,
+) -> Option<ForwardedSkillToolCall> {
+    let ItemRuntimePayload::ToolCall {
+        tool_name,
+        output,
+        success,
+        ..
+    } = &item.payload
+    else {
+        return None;
+    };
+
+    if !success.unwrap_or(false) {
+        return None;
+    }
+
+    let allowed_tools = allowed_tools?;
+    if allowed_tools.is_empty() || !allowed_tools.iter().any(|name| name == tool_name) {
+        return None;
+    }
+
+    let metadata = output
+        .as_ref()
+        .and_then(extract_structured_tool_metadata)
+        .filter(Value::is_object)?;
+
+    Some(ForwardedSkillToolCall {
+        tool_name: tool_name.clone(),
+        metadata,
+    })
+}
+
+fn extract_structured_tool_metadata(output: &Value) -> Option<Value> {
+    let record = output.as_object()?;
+    record
+        .get("structured_content")
+        .or_else(|| record.get("structuredContent"))
+        .cloned()
 }
 
 struct SkillAgentSessionStore {
@@ -689,6 +830,34 @@ impl SessionStore for SkillAgentSessionStore {
         };
         session.name = name;
         session.user_set_name = user_set;
+        session.updated_at = chrono::Utc::now();
+        Ok(())
+    }
+
+    async fn update_working_dir(
+        &self,
+        _session_id: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<()> {
+        let mut session = match self.session.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        session.working_dir = working_dir;
+        session.updated_at = chrono::Utc::now();
+        Ok(())
+    }
+
+    async fn update_session_type(
+        &self,
+        _session_id: &str,
+        session_type: SessionType,
+    ) -> anyhow::Result<()> {
+        let mut session = match self.session.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        session.session_type = session_type;
         session.updated_at = chrono::Utc::now();
         Ok(())
     }
@@ -889,6 +1058,23 @@ impl Tool for SkillTool {
                 if let Some(model) = result.model {
                     tool_result = tool_result.with_metadata("model", serde_json::json!(model));
                 }
+                if let Some(forwarded_tool_name) = result.forwarded_tool_name {
+                    tool_result = tool_result.with_metadata(
+                        "skill_forwarded_tool_name",
+                        serde_json::json!(forwarded_tool_name),
+                    );
+                }
+                if let Some(forwarded_metadata) = result.forwarded_tool_metadata {
+                    if let Some(map) = forwarded_metadata.as_object() {
+                        let metadata_map = map
+                            .iter()
+                            .map(|(key, value)| (key.clone(), value.clone()))
+                            .collect::<HashMap<_, _>>();
+                        tool_result = tool_result.with_metadata_map(metadata_map);
+                    }
+                    tool_result = tool_result
+                        .with_metadata("skill_forwarded_tool_metadata", forwarded_metadata);
+                }
 
                 Ok(tool_result)
             }
@@ -914,12 +1100,19 @@ mod tests {
         FrontmatterHooks, HookEvent, HookInput, HookRegistry,
     };
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+    use crate::session::{ItemRuntime, ItemRuntimePayload, ItemStatus};
     use crate::skills::new_shared_registry;
     use crate::skills::types::{
         SkillDefinition, SkillExecutionMode, SkillSource, WorkflowDefinition, WorkflowStep,
     };
-    use rmcp::model::Tool as McpTool;
+    use crate::tools::base::Tool as NativeTool;
+    use crate::tools::error::ToolError;
+    use crate::tools::ToolResult as NativeToolResult;
+    use chrono::Utc;
+    use rmcp::model::{CallToolRequestParam, Tool as McpTool};
+    use serde_json::json;
     use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
 
     fn create_test_skill() -> SkillDefinition {
@@ -929,7 +1122,7 @@ mod tests {
             description: "A test skill".to_string(),
             has_user_specified_description: true,
             markdown_content: "# Example\n\nDo something.".to_string(),
-            allowed_tools: Some(vec!["read_file".to_string()]),
+            allowed_tools: None,
             argument_hint: Some("--flag".to_string()),
             when_to_use: Some("When testing".to_string()),
             version: Some("1.0.0".to_string()),
@@ -966,11 +1159,19 @@ mod tests {
         }
     }
 
+    fn create_tool_capable_prompt_skill() -> SkillDefinition {
+        SkillDefinition {
+            allowed_tools: Some(vec!["Read".to_string()]),
+            ..create_test_skill()
+        }
+    }
+
     #[derive(Default)]
     struct MockProvider {
         name: String,
         model: String,
         calls: Mutex<Vec<String>>,
+        tool_names: Mutex<Vec<Vec<String>>>,
     }
 
     impl MockProvider {
@@ -979,6 +1180,7 @@ mod tests {
                 name: name.to_string(),
                 model: model.to_string(),
                 calls: Mutex::new(Vec::new()),
+                tool_names: Mutex::new(Vec::new()),
             }
         }
     }
@@ -1001,7 +1203,7 @@ mod tests {
             model_config: &ModelConfig,
             system: &str,
             messages: &[Message],
-            _tools: &[McpTool],
+            tools: &[McpTool],
         ) -> Result<(Message, ProviderUsage), ProviderError> {
             let user_message = messages
                 .first()
@@ -1011,6 +1213,12 @@ mod tests {
                 "{}|{}|{}",
                 model_config.model_name, system, user_message
             ));
+            self.tool_names.lock().expect("tool_names lock").push(
+                tools
+                    .iter()
+                    .map(|tool| tool.name.to_string())
+                    .collect::<Vec<_>>(),
+            );
             Ok((
                 Message::assistant()
                     .with_text(format!("[{}] {}", model_config.model_name, user_message)),
@@ -1020,6 +1228,127 @@ mod tests {
 
         fn get_model_config(&self) -> ModelConfig {
             ModelConfig::new(&self.model).expect("model config")
+        }
+    }
+
+    struct ToolCallingProvider {
+        name: String,
+        model: String,
+        requested_tool: String,
+        call_count: AtomicUsize,
+        tool_names: Mutex<Vec<Vec<String>>>,
+    }
+
+    impl ToolCallingProvider {
+        fn new(name: &str, model: &str, requested_tool: &str) -> Self {
+            Self {
+                name: name.to_string(),
+                model: model.to_string(),
+                requested_tool: requested_tool.to_string(),
+                call_count: AtomicUsize::new(0),
+                tool_names: Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Provider for ToolCallingProvider {
+        fn metadata() -> ProviderMetadata
+        where
+            Self: Sized,
+        {
+            ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            &self.name
+        }
+
+        async fn complete_with_model(
+            &self,
+            model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            tools: &[McpTool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            self.tool_names.lock().expect("tool_names lock").push(
+                tools
+                    .iter()
+                    .map(|tool| tool.name.to_string())
+                    .collect::<Vec<_>>(),
+            );
+
+            let call_index = self.call_count.fetch_add(1, Ordering::SeqCst);
+            if call_index == 0 {
+                if tools.iter().any(|tool| tool.name == self.requested_tool) {
+                    let arguments = serde_json::json!({
+                        "prompt": "生成一张测试图片"
+                    })
+                    .as_object()
+                    .cloned()
+                    .expect("tool arguments");
+
+                    return Ok((
+                        Message::assistant().with_tool_request(
+                            "tool-call-1",
+                            Ok(CallToolRequestParam {
+                                name: self.requested_tool.clone().into(),
+                                arguments: Some(arguments),
+                            }),
+                        ),
+                        ProviderUsage::new(model_config.model_name.clone(), Usage::default()),
+                    ));
+                }
+
+                return Ok((
+                    Message::assistant().with_text("missing requested tool"),
+                    ProviderUsage::new(model_config.model_name.clone(), Usage::default()),
+                ));
+            }
+
+            Ok((
+                Message::assistant().with_text("skill finished"),
+                ProviderUsage::new(model_config.model_name.clone(), Usage::default()),
+            ))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            ModelConfig::new(&self.model).expect("model config")
+        }
+    }
+
+    struct DynamicForwardedTool;
+
+    #[async_trait]
+    impl NativeTool for DynamicForwardedTool {
+        fn name(&self) -> &str {
+            "dynamic_forwarded_tool"
+        }
+
+        fn description(&self) -> &str {
+            "test forwarded tool"
+        }
+
+        fn input_schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object",
+                "properties": {
+                    "prompt": { "type": "string" }
+                },
+                "required": ["prompt"],
+                "additionalProperties": false
+            })
+        }
+
+        async fn execute(
+            &self,
+            _params: serde_json::Value,
+            _context: &ToolContext,
+        ) -> Result<NativeToolResult, ToolError> {
+            Ok(NativeToolResult::success("forwarded")
+                .with_metadata("task_id", json!("task-forwarded-1"))
+                .with_metadata("task_type", json!("image_generate"))
+                .with_metadata("status", json!("queued")))
         }
     }
 
@@ -1189,6 +1518,145 @@ mod tests {
                 .any(|call| call.contains("Base directory for this skill: /test")),
             "agent mode 应注入 skill base directory header"
         );
+    }
+
+    #[tokio::test]
+    async fn test_skill_tool_executes_prompt_skill_with_allowed_tools_via_agent_runtime() {
+        let tool = SkillTool::new();
+        let provider = Arc::new(MockProvider::new("openai", "gpt-4o"));
+        let provider_dyn: Arc<dyn Provider> = provider.clone();
+        let mut skill = create_tool_capable_prompt_skill();
+        skill.model = Some("gpt-4o-mini".to_string());
+        skill.markdown_content =
+            "Inspect ${CLAUDE_SKILL_DIR} for session ${CLAUDE_SESSION_ID}.".to_string();
+        let context = build_tool_context(provider_dyn);
+        let skill_content = build_skill_content(&skill, Some("整理需求"), &context.session_id);
+
+        let result = tool
+            .execute_agent_skill(&skill, &skill_content, &context)
+            .await;
+
+        assert!(result.success);
+        assert_eq!(result.allowed_tools, Some(vec!["Read".to_string()]));
+        assert_eq!(result.model, Some("gpt-4o-mini".to_string()));
+        assert!(result
+            .output
+            .as_deref()
+            .unwrap_or_default()
+            .contains("**ARGUMENTS:** 整理需求"));
+
+        let calls = provider.calls.lock().expect("calls lock");
+        assert!(
+            calls.iter().any(|call| call.starts_with("gpt-4o-mini|")),
+            "tool-capable prompt skill 应命中 agent runtime model override"
+        );
+        drop(calls);
+
+        let tool_names = provider.tool_names.lock().expect("tool_names lock");
+        assert!(
+            tool_names
+                .iter()
+                .any(|names| names == &vec!["Read".to_string()]),
+            "tool-capable prompt skill 应把 provider 可见工具面收窄到 allowed-tools，实际为 {:?}",
+            *tool_names
+        );
+    }
+
+    #[tokio::test]
+    async fn test_skill_tool_inherits_current_session_dynamic_native_tool_surface() {
+        let tool = SkillTool::new();
+        let provider = Arc::new(ToolCallingProvider::new(
+            "openai",
+            "gpt-4o",
+            "dynamic_forwarded_tool",
+        ));
+        let provider_dyn: Arc<dyn Provider> = provider.clone();
+        let mut skill = create_tool_capable_prompt_skill();
+        skill.allowed_tools = Some(vec!["dynamic_forwarded_tool".to_string()]);
+        skill.markdown_content = "Call the forwarded tool immediately.".to_string();
+
+        let source_session =
+            build_skill_agent_session(PathBuf::from("/tmp"), &skill, Some("skill-session"));
+        let source_store: Arc<dyn SessionStore> =
+            Arc::new(SkillAgentSessionStore::new(source_session));
+        let source_agent = Arc::new(Agent::new().with_session_store(source_store));
+        {
+            let mut registry = source_agent.tool_registry().write().await;
+            registry.register(Box::new(DynamicForwardedTool));
+        }
+
+        let context = build_tool_context(provider_dyn);
+        let skill_content = build_skill_content(&skill, None, &context.session_id);
+        let result = tool
+            .execute_agent_skill_with_source_agent(
+                &skill,
+                &skill_content,
+                &context,
+                Some(source_agent),
+            )
+            .await;
+
+        assert!(result.success);
+        assert_eq!(
+            result.forwarded_tool_name.as_deref(),
+            Some("dynamic_forwarded_tool")
+        );
+        let metadata = result
+            .forwarded_tool_metadata
+            .as_ref()
+            .expect("forwarded metadata");
+        assert_eq!(metadata["task_id"], json!("task-forwarded-1"));
+        assert_eq!(metadata["task_type"], json!("image_generate"));
+
+        let tool_names = provider.tool_names.lock().expect("tool_names lock");
+        assert!(
+            tool_names
+                .first()
+                .is_some_and(|names| names == &vec!["dynamic_forwarded_tool".to_string()]),
+            "skill 子 agent 应继承当前 session 的动态 native tool，实际为 {:?}",
+            *tool_names
+        );
+    }
+
+    #[test]
+    fn test_extract_forwarded_skill_tool_call_prefers_allowed_tool_metadata() {
+        let item = ItemRuntime {
+            id: "tool-call-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 1,
+            status: ItemStatus::Completed,
+            started_at: Utc::now(),
+            completed_at: Some(Utc::now()),
+            updated_at: Utc::now(),
+            payload: ItemRuntimePayload::ToolCall {
+                tool_name: "lime_create_image_generation_task".to_string(),
+                arguments: None,
+                output: Some(json!({
+                    "content": [{ "text": "图片任务已提交", "type": "text" }],
+                    "structured_content": {
+                        "task_id": "task-image-1",
+                        "task_type": "image_generate",
+                        "status": "queued"
+                    },
+                    "is_error": false,
+                    "meta": null
+                })),
+                success: Some(true),
+                error: None,
+                metadata: None,
+            },
+        };
+
+        let forwarded = extract_forwarded_skill_tool_call(
+            &item,
+            Some(&["lime_create_image_generation_task".to_string()]),
+        )
+        .expect("should capture forwarded tool metadata");
+
+        assert_eq!(forwarded.tool_name, "lime_create_image_generation_task");
+        assert_eq!(forwarded.metadata["task_id"], json!("task-image-1"));
+        assert_eq!(forwarded.metadata["task_type"], json!("image_generate"));
     }
 
     #[tokio::test]

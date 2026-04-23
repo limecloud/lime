@@ -97,6 +97,10 @@ where
 }
 
 fn initialize_aster_runtime_dirs() -> Result<PathBuf, String> {
+    if let Some(existing_root) = aster::config::paths::initialized_path_root() {
+        return initialize_aster_runtime_dirs_with_root(existing_root);
+    }
+
     initialize_aster_runtime_dirs_with_root(app_paths::resolve_aster_dir()?)
 }
 
@@ -116,11 +120,26 @@ pub(crate) fn require_aster_runtime_store() -> Result<Arc<dyn ThreadRuntimeStore
     require_shared_session_runtime_store().map_err(|error| error.to_string())
 }
 
+async fn ensure_aster_runtime_dirs_async() -> Result<PathBuf, String> {
+    if ASTER_RUNTIME_ROOT.get().is_some() {
+        return require_aster_runtime_dirs();
+    }
+
+    tokio::task::spawn_blocking(ensure_aster_runtime_dirs)
+        .await
+        .map_err(|error| format!("异步初始化 Aster runtime 失败: {error}"))?
+}
+
+async fn require_aster_runtime_store_async() -> Result<Arc<dyn ThreadRuntimeStore>, String> {
+    ensure_aster_runtime_dirs_async().await?;
+    require_shared_session_runtime_store().map_err(|error| error.to_string())
+}
+
 /// 读取会话 runtime snapshot。
 pub(crate) async fn load_aster_runtime_snapshot(
     session_id: &str,
 ) -> Result<SessionRuntimeSnapshot, String> {
-    ensure_aster_runtime_dirs()?;
+    ensure_aster_runtime_dirs_async().await?;
     load_shared_session_runtime_snapshot(session_id)
         .await
         .map_err(|error| format!("读取 runtime snapshot 失败: {error}"))
@@ -129,7 +148,7 @@ pub(crate) async fn load_aster_runtime_snapshot(
 pub(crate) async fn list_aster_runtime_queued_turns(
     session_id: &str,
 ) -> Result<Vec<QueuedTurnRuntime>, String> {
-    let store = require_aster_runtime_store()?;
+    let store = require_aster_runtime_store_async().await?;
     store
         .list_queued_turns(session_id)
         .await
@@ -137,7 +156,7 @@ pub(crate) async fn list_aster_runtime_queued_turns(
 }
 
 async fn list_aster_runtime_queued_turn_session_ids() -> Result<Vec<String>, String> {
-    let store = require_aster_runtime_store()?;
+    let store = require_aster_runtime_store_async().await?;
     store
         .list_queued_turn_session_ids()
         .await
@@ -146,7 +165,7 @@ async fn list_aster_runtime_queued_turn_session_ids() -> Result<Vec<String>, Str
 
 /// 启动恢复统一入口：只在这里完成当前 queued session 枚举。
 pub(crate) async fn prepare_aster_runtime_queue_resumption() -> Result<Vec<String>, String> {
-    ensure_aster_runtime_dirs()?;
+    ensure_aster_runtime_dirs_async().await?;
     list_aster_runtime_queued_turn_session_ids().await
 }
 
@@ -163,7 +182,7 @@ pub async fn restore_aster_runtime_queued_turns(
 pub(crate) async fn enqueue_aster_runtime_turn(
     queued_turn: QueuedTurnRuntime,
 ) -> Result<QueuedTurnRuntime, String> {
-    let store = require_aster_runtime_store()?;
+    let store = require_aster_runtime_store_async().await?;
     store
         .enqueue_turn(queued_turn)
         .await
@@ -173,7 +192,7 @@ pub(crate) async fn enqueue_aster_runtime_turn(
 pub(crate) async fn remove_aster_runtime_queued_turn(
     queued_turn_id: &str,
 ) -> Result<Option<QueuedTurnRuntime>, String> {
-    let store = require_aster_runtime_store()?;
+    let store = require_aster_runtime_store_async().await?;
     store
         .remove_queued_turn(queued_turn_id)
         .await
@@ -183,7 +202,7 @@ pub(crate) async fn remove_aster_runtime_queued_turn(
 pub(crate) async fn clear_aster_runtime_queued_turns(
     session_id: &str,
 ) -> Result<Vec<QueuedTurnRuntime>, String> {
-    let store = require_aster_runtime_store()?;
+    let store = require_aster_runtime_store_async().await?;
     store
         .clear_queued_turns(session_id)
         .await
@@ -231,7 +250,7 @@ pub(crate) fn queued_turn_snapshot_from_runtime(
 async fn migrate_legacy_runtime_queue_to_aster_store(
     db: &DbConnection,
 ) -> Result<LegacyRuntimeQueueMigrationReport, String> {
-    ensure_aster_runtime_dirs()?;
+    ensure_aster_runtime_dirs_async().await?;
     let snapshot = {
         let conn = lock_db(db)?;
         agent_runtime_queue_repository::load_legacy_runtime_queue_snapshot(&conn)?

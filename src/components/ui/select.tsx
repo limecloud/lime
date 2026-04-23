@@ -136,14 +136,15 @@ const SelectTrigger: React.FC<SelectTriggerProps> = ({
 interface SelectValueProps {
   placeholder?: string;
   className?: string;
+  children?: React.ReactNode;
 }
 
-const SelectValue: React.FC<SelectValueProps> = ({ placeholder }) => {
+const SelectValue: React.FC<SelectValueProps> = ({ placeholder, children }) => {
   const context = useContext(SelectContext);
   if (!context) throw new Error("SelectValue must be used within Select");
 
   const { value } = context;
-  return <span>{value || placeholder}</span>;
+  return <span>{children || value || placeholder}</span>;
 };
 
 interface SelectContentProps {

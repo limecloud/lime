@@ -1,8 +1,11 @@
 use super::*;
+use crate::commands::aster_agent_cmd::service_skill_launch::extract_service_scene_launch_context;
 use crate::commands::model_registry_cmd::ModelRegistryState;
 use lime_core::database::dao::api_key_provider::{ApiProviderType, ProviderGroup};
 use lime_core::models::model_registry::{
-    EnhancedModelMetadata, ModelCapabilities, ModelSource, ModelTier, ProviderAliasConfig,
+    EnhancedModelMetadata, ModelCapabilities, ModelDeploymentSource, ModelManagementPlane,
+    ModelModality, ModelRuntimeFeature, ModelSource, ModelTaskFamily, ModelTier,
+    ProviderAliasConfig,
 };
 use std::collections::HashSet;
 use tauri::Manager;
@@ -240,17 +243,254 @@ fn infer_vision_capability(
 fn infer_model_capabilities(
     model_id: &str,
     provider_id: Option<&str>,
+    task_families: &[ModelTaskFamily],
     family: Option<&str>,
     description: Option<&str>,
 ) -> ModelCapabilities {
+    let specialized_only = task_families.iter().any(|family| {
+        matches!(
+            family,
+            ModelTaskFamily::ImageGeneration
+                | ModelTaskFamily::ImageEdit
+                | ModelTaskFamily::SpeechToText
+                | ModelTaskFamily::TextToSpeech
+                | ModelTaskFamily::Embedding
+                | ModelTaskFamily::Rerank
+        )
+    });
+
     ModelCapabilities {
-        vision: infer_vision_capability(model_id, provider_id, family, description),
-        tools: true,
+        vision: task_families.contains(&ModelTaskFamily::VisionUnderstanding)
+            || infer_vision_capability(model_id, provider_id, family, description),
+        tools: !task_families.contains(&ModelTaskFamily::ImageGeneration),
         streaming: true,
-        json_mode: true,
-        function_calling: true,
-        reasoning: infer_reasoning_capability(model_id),
+        json_mode: !specialized_only,
+        function_calling: !task_families.contains(&ModelTaskFamily::ImageGeneration)
+            && !task_families.contains(&ModelTaskFamily::ImageEdit)
+            && !task_families.contains(&ModelTaskFamily::SpeechToText)
+            && !task_families.contains(&ModelTaskFamily::TextToSpeech)
+            && !task_families.contains(&ModelTaskFamily::Embedding)
+            && !task_families.contains(&ModelTaskFamily::Rerank),
+        reasoning: task_families.contains(&ModelTaskFamily::Reasoning)
+            || infer_reasoning_capability(model_id)
+            || provider_id.map(normalize_identifier).as_deref() == Some("codex"),
     }
+}
+
+fn infer_model_task_families(
+    model_id: &str,
+    provider_id: Option<&str>,
+    family: Option<&str>,
+    description: Option<&str>,
+) -> Vec<ModelTaskFamily> {
+    let text = [
+        normalize_identifier(model_id),
+        family.map(normalize_identifier).unwrap_or_default(),
+        description.map(normalize_identifier).unwrap_or_default(),
+    ]
+    .into_iter()
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join(" ");
+    let inferred_vision = infer_vision_capability(model_id, provider_id, family, description);
+    let inferred_reasoning = infer_reasoning_capability(model_id);
+    let is_embedding = text_contains_any(&text, &["embedding", "embed", "text-embedding"]);
+    let is_rerank = text_contains_any(&text, &["rerank", "re-rank"]);
+    let is_moderation = text_contains_any(&text, &["moderation"]);
+    let is_speech_to_text = text_contains_any(
+        &text,
+        &[
+            "stt",
+            "asr",
+            "speech-to-text",
+            "speech to text",
+            "transcribe",
+            "transcription",
+            "whisper",
+        ],
+    );
+    let is_text_to_speech = text_contains_any(
+        &text,
+        &[
+            "tts",
+            "text-to-speech",
+            "text to speech",
+            "speech synthesis",
+            "voice-synth",
+        ],
+    );
+    let is_image_generation = text_contains_any(
+        &text,
+        &[
+            "gpt-image",
+            "gpt-images",
+            "imagen",
+            "dall-e",
+            "dalle",
+            "stable diffusion",
+            "stable-diffusion",
+            "sdxl",
+            "sd3",
+            "midjourney",
+            "image generation",
+            "image-generation",
+            "image-gen",
+            "image-preview",
+            "flux",
+            "nano-banana",
+            "recraft",
+            "ideogram",
+            "seedream",
+        ],
+    );
+    let is_image_edit = text_contains_any(
+        &text,
+        &[
+            "edit",
+            "inpaint",
+            "outpaint",
+            "img2img",
+            "image-edit",
+            "image_edit",
+            "image edits",
+        ],
+    );
+
+    let mut families = Vec::new();
+    if is_embedding {
+        families.push(ModelTaskFamily::Embedding);
+    }
+    if is_rerank {
+        families.push(ModelTaskFamily::Rerank);
+    }
+    if is_moderation {
+        families.push(ModelTaskFamily::Moderation);
+    }
+    if is_speech_to_text {
+        families.push(ModelTaskFamily::SpeechToText);
+    }
+    if is_text_to_speech {
+        families.push(ModelTaskFamily::TextToSpeech);
+    }
+    if is_image_generation {
+        families.push(ModelTaskFamily::ImageGeneration);
+    }
+    if is_image_edit {
+        families.push(ModelTaskFamily::ImageEdit);
+    }
+    if inferred_vision && !is_image_generation {
+        families.push(ModelTaskFamily::VisionUnderstanding);
+    }
+    if inferred_reasoning {
+        families.push(ModelTaskFamily::Reasoning);
+    }
+
+    let specialized_only = families.iter().any(|family| {
+        matches!(
+            family,
+            ModelTaskFamily::Embedding
+                | ModelTaskFamily::Rerank
+                | ModelTaskFamily::Moderation
+                | ModelTaskFamily::SpeechToText
+                | ModelTaskFamily::TextToSpeech
+                | ModelTaskFamily::ImageGeneration
+                | ModelTaskFamily::ImageEdit
+        )
+    });
+    if !specialized_only || inferred_vision || inferred_reasoning {
+        families.push(ModelTaskFamily::Chat);
+    }
+
+    families
+}
+
+fn infer_input_modalities(task_families: &[ModelTaskFamily]) -> Vec<ModelModality> {
+    let mut modalities = vec![ModelModality::Text];
+    if task_families.contains(&ModelTaskFamily::SpeechToText) {
+        modalities.push(ModelModality::Audio);
+    }
+    if task_families.contains(&ModelTaskFamily::ImageEdit)
+        || task_families.contains(&ModelTaskFamily::VisionUnderstanding)
+    {
+        modalities.push(ModelModality::Image);
+    }
+    modalities
+}
+
+fn infer_output_modalities(
+    task_families: &[ModelTaskFamily],
+    capabilities: &ModelCapabilities,
+) -> Vec<ModelModality> {
+    let mut modalities = Vec::new();
+    if task_families.iter().any(|family| {
+        matches!(
+            family,
+            ModelTaskFamily::Chat
+                | ModelTaskFamily::Reasoning
+                | ModelTaskFamily::VisionUnderstanding
+                | ModelTaskFamily::SpeechToText
+                | ModelTaskFamily::Rerank
+                | ModelTaskFamily::Moderation
+        )
+    }) {
+        modalities.push(ModelModality::Text);
+    }
+    if task_families.contains(&ModelTaskFamily::ImageGeneration)
+        || task_families.contains(&ModelTaskFamily::ImageEdit)
+    {
+        modalities.push(ModelModality::Image);
+    }
+    if task_families.contains(&ModelTaskFamily::TextToSpeech) {
+        modalities.push(ModelModality::Audio);
+    }
+    if task_families.contains(&ModelTaskFamily::Embedding) {
+        modalities.push(ModelModality::Embedding);
+    }
+    if capabilities.json_mode && !task_families.contains(&ModelTaskFamily::SpeechToText) {
+        modalities.push(ModelModality::Json);
+    }
+    modalities
+}
+
+fn infer_runtime_features(
+    provider_id: &str,
+    task_families: &[ModelTaskFamily],
+    capabilities: &ModelCapabilities,
+) -> Vec<ModelRuntimeFeature> {
+    let mut features = vec![ModelRuntimeFeature::Streaming];
+    if capabilities.tools || capabilities.function_calling {
+        features.push(ModelRuntimeFeature::ToolCalling);
+    }
+    if capabilities.json_mode {
+        features.push(ModelRuntimeFeature::JsonSchema);
+    }
+    if capabilities.reasoning || task_families.contains(&ModelTaskFamily::Reasoning) {
+        features.push(ModelRuntimeFeature::Reasoning);
+    }
+    match normalize_identifier(provider_id).as_str() {
+        "codex" => features.push(ModelRuntimeFeature::ResponsesApi),
+        "openai" | "new-api" | "azure-openai" | "gateway" => {
+            features.push(ModelRuntimeFeature::ChatCompletionsApi)
+        }
+        _ => {}
+    }
+    if task_families.contains(&ModelTaskFamily::ImageGeneration)
+        || task_families.contains(&ModelTaskFamily::ImageEdit)
+    {
+        features.push(ModelRuntimeFeature::ImagesApi);
+    }
+    features
+}
+
+fn infer_deployment_source(provider_id: &str) -> ModelDeploymentSource {
+    let normalized = normalize_identifier(provider_id);
+    if text_contains_any(
+        &normalized,
+        &["ollama", "lmstudio", "gpustack", "ovms", "comfyui"],
+    ) {
+        return ModelDeploymentSource::Local;
+    }
+    ModelDeploymentSource::UserCloud
 }
 
 fn build_inferred_model_metadata(
@@ -260,6 +500,23 @@ fn build_inferred_model_metadata(
     description: Option<String>,
 ) -> EnhancedModelMetadata {
     let now = chrono::Utc::now().timestamp();
+    let task_families = infer_model_task_families(
+        model_id,
+        Some(provider_id),
+        family.as_deref(),
+        description.as_deref(),
+    );
+    let capabilities = infer_model_capabilities(
+        model_id,
+        Some(provider_id),
+        &task_families,
+        family.as_deref(),
+        description.as_deref(),
+    );
+    let input_modalities = infer_input_modalities(&task_families);
+    let output_modalities = infer_output_modalities(&task_families, &capabilities);
+    let runtime_features = infer_runtime_features(provider_id, &task_families, &capabilities);
+    let deployment_source = infer_deployment_source(provider_id);
     EnhancedModelMetadata {
         id: model_id.to_string(),
         display_name: model_id.to_string(),
@@ -267,12 +524,16 @@ fn build_inferred_model_metadata(
         provider_name: provider_id.to_string(),
         family: family.clone(),
         tier: ModelTier::Pro,
-        capabilities: infer_model_capabilities(
-            model_id,
-            Some(provider_id),
-            family.as_deref(),
-            description.as_deref(),
-        ),
+        capabilities,
+        task_families,
+        input_modalities,
+        output_modalities,
+        runtime_features,
+        deployment_source,
+        management_plane: ModelManagementPlane::LocalSettings,
+        canonical_model_id: None,
+        provider_model_id: Some(model_id.to_string()),
+        alias_source: None,
         pricing: None,
         limits: Default::default(),
         status: Default::default(),
@@ -439,7 +700,9 @@ fn model_has_reasoning_capability(
     fallback_model_id: &str,
 ) -> bool {
     model
-        .map(|item| item.capabilities.reasoning)
+        .map(|item| {
+            item.capabilities.reasoning || item.supports_task_family(&ModelTaskFamily::Reasoning)
+        })
         .unwrap_or(false)
         || infer_reasoning_capability(fallback_model_id)
 }
@@ -563,6 +826,26 @@ fn normalize_model_lineage_key(model_id: &str) -> String {
 }
 
 fn is_likely_non_chat_model(model: &EnhancedModelMetadata) -> bool {
+    let has_specialized_non_chat_family = model.task_families.iter().any(|family| {
+        matches!(
+            family,
+            ModelTaskFamily::Embedding
+                | ModelTaskFamily::Rerank
+                | ModelTaskFamily::Moderation
+                | ModelTaskFamily::SpeechToText
+                | ModelTaskFamily::TextToSpeech
+                | ModelTaskFamily::ImageGeneration
+                | ModelTaskFamily::ImageEdit
+        )
+    });
+    if has_specialized_non_chat_family
+        && !model.supports_task_family(&ModelTaskFamily::Chat)
+        && !model.supports_task_family(&ModelTaskFamily::Reasoning)
+        && !model.supports_task_family(&ModelTaskFamily::VisionUnderstanding)
+    {
+        return true;
+    }
+
     let text = [
         normalize_identifier(&model.id),
         normalize_identifier(&model.display_name),
@@ -625,8 +908,8 @@ fn resolve_catalog_fallback_model_id(
             model_has_reasoning_capability(Some(left), &left.id) == prefer_reasoning;
         let right_reasoning_match =
             model_has_reasoning_capability(Some(right), &right.id) == prefer_reasoning;
-        let left_vision_match = left.capabilities.vision == prefer_vision;
-        let right_vision_match = right.capabilities.vision == prefer_vision;
+        let left_vision_match = supports_vision(Some(left), &left.id) == prefer_vision;
+        let right_vision_match = supports_vision(Some(right), &right.id) == prefer_vision;
 
         left_same_base
             .cmp(&right_same_base)
@@ -657,6 +940,13 @@ fn resolve_catalog_fallback_model_id(
 }
 
 fn is_likely_image_generation_model(model: &EnhancedModelMetadata) -> bool {
+    if model.supports_task_family(&ModelTaskFamily::ImageGeneration)
+        || model.supports_task_family(&ModelTaskFamily::ImageEdit)
+        || model.has_output_modality(&ModelModality::Image)
+    {
+        return true;
+    }
+
     let text = [
         normalize_identifier(&model.id),
         normalize_identifier(&model.display_name),
@@ -697,7 +987,9 @@ fn is_likely_image_generation_model(model: &EnhancedModelMetadata) -> bool {
 
 fn supports_vision(model: Option<&EnhancedModelMetadata>, fallback_model_id: &str) -> bool {
     if let Some(item) = model {
-        return item.capabilities.vision;
+        return item.capabilities.vision
+            || item.supports_task_family(&ModelTaskFamily::VisionUnderstanding)
+            || item.has_input_modality(&ModelModality::Image);
     }
 
     infer_vision_capability(fallback_model_id, None, None, None)
@@ -749,7 +1041,8 @@ fn resolve_vision_model_id(
     let mut candidates = models
         .iter()
         .filter(|candidate| {
-            candidate.capabilities.vision && !is_likely_image_generation_model(candidate)
+            supports_vision(Some(candidate), &candidate.id)
+                && !is_likely_image_generation_model(candidate)
         })
         .collect::<Vec<_>>();
 
@@ -821,6 +1114,7 @@ async fn resolve_request_thinking_enabled(request: &AsterChatRequest) -> Result<
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RequestPreferenceSource {
     Request,
+    ServiceSceneLaunch,
     Session,
 }
 
@@ -829,6 +1123,13 @@ struct SessionProviderModelContext {
     provider_selector: Option<String>,
     provider_name: Option<String>,
     model_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ServiceSceneModelPreferenceContext {
+    provider_selector: String,
+    model_name: String,
+    allow_fallback: bool,
 }
 
 impl SessionProviderModelContext {
@@ -842,6 +1143,20 @@ impl SessionProviderModelContext {
                 .and_then(|config| normalize_optional_text(Some(config.model_name.clone()))),
         }
     }
+}
+
+fn resolve_service_scene_model_preference(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<ServiceSceneModelPreferenceContext> {
+    let context = extract_service_scene_launch_context(request_metadata)?;
+    let provider_selector = normalize_optional_text(context.preferred_provider_id)?;
+    let model_name = normalize_optional_text(context.preferred_model_id)?;
+
+    Some(ServiceSceneModelPreferenceContext {
+        provider_selector,
+        model_name,
+        allow_fallback: context.allow_fallback.unwrap_or(true),
+    })
 }
 
 fn resolve_provider_preference_with_session_fallback(
@@ -908,40 +1223,18 @@ async fn load_session_provider_model_context(
     Ok(SessionProviderModelContext::from_session(&session))
 }
 
-pub(super) async fn resolve_runtime_request_provider_config(
+async fn build_runtime_request_provider_config_from_preference(
     app: &AppHandle,
     db: &DbConnection,
     api_key_provider_service: &ApiKeyProviderServiceState,
     request: &AsterChatRequest,
-) -> Result<Option<ConfigureProviderRequest>, String> {
-    if request.provider_config.is_some() {
-        return Ok(None);
-    }
-
-    let session_context =
-        if request.provider_preference.is_some() && request.model_preference.is_some() {
-            None
-        } else {
-            Some(load_session_provider_model_context(request).await?)
-        };
-
-    let Some((provider_selector, provider_preference_source)) =
-        resolve_provider_preference_with_session_fallback(
-            request.provider_preference.clone(),
-            session_context.as_ref(),
-        )
-    else {
-        return Ok(None);
-    };
-    let (model_preference, model_preference_source) =
-        resolve_model_preference_with_session_fallback(
-            request.model_preference.clone(),
-            &provider_selector,
-            session_context.as_ref(),
-        )?;
-
+    provider_selector: &str,
+    model_preference: &str,
+    model_preference_source: RequestPreferenceSource,
+    allow_runtime_fallback: bool,
+) -> Result<ConfigureProviderRequest, String> {
     let context =
-        build_provider_resolution_context(db, api_key_provider_service, &provider_selector)?;
+        build_provider_resolution_context(db, api_key_provider_service, provider_selector)?;
     let (catalog, _alias_config) = load_model_registry_catalog(app, &context).await;
     let thinking_enabled = resolve_request_thinking_enabled(request).await?;
     let has_images = request
@@ -950,33 +1243,15 @@ pub(super) async fn resolve_runtime_request_provider_config(
         .map(|images| !images.is_empty())
         .unwrap_or(false);
 
-    if matches!(provider_preference_source, RequestPreferenceSource::Session) {
-        tracing::info!(
-            "[AsterAgent] 后端从会话恢复 provider 偏好: session={}, provider={}",
-            request.session_id,
-            provider_selector
-        );
-    }
-
-    if matches!(model_preference_source, RequestPreferenceSource::Session) {
-        tracing::info!(
-            "[AsterAgent] 后端从会话恢复模型偏好: session={}, provider={}, model={}",
-            request.session_id,
-            provider_selector,
-            model_preference
-        );
-    }
-
     let mut resolved_model = if thinking_enabled {
-        resolve_thinking_model_id(&model_preference, &catalog)
+        resolve_thinking_model_id(model_preference, &catalog)
     } else {
-        resolve_base_model_on_thinking_off(&model_preference, &catalog)
+        resolve_base_model_on_thinking_off(model_preference, &catalog)
     };
-    let should_fallback_unknown_session_model =
-        matches!(model_preference_source, RequestPreferenceSource::Session)
-            && !context.is_custom_provider
-            && find_model_meta(&resolved_model, &catalog).is_none();
-    if should_fallback_unknown_session_model {
+    let should_fallback_unknown_model = allow_runtime_fallback
+        && !context.is_custom_provider
+        && find_model_meta(&resolved_model, &catalog).is_none();
+    if should_fallback_unknown_model {
         let fallback_model = resolve_catalog_fallback_model_id(
             &resolved_model,
             &catalog,
@@ -985,8 +1260,9 @@ pub(super) async fn resolve_runtime_request_provider_config(
         );
         if fallback_model != resolved_model {
             tracing::info!(
-                "[AsterAgent] 会话持久化模型已失效，自动回落到当前可用模型: session={}, provider={}, stale_model={}, fallback_model={}",
+                "[AsterAgent] 偏好模型已失效，自动回落到当前可用模型: session={}, source={:?}, provider={}, stale_model={}, fallback_model={}",
                 request.session_id,
+                model_preference_source,
                 context.provider_selector,
                 resolved_model,
                 fallback_model
@@ -1002,7 +1278,8 @@ pub(super) async fn resolve_runtime_request_provider_config(
 
     if resolved_model != model_preference {
         tracing::info!(
-            "[AsterAgent] 后端已解析请求模型: provider={}, requested_model={}, resolved_model={}, thinking_enabled={}, has_images={}",
+            "[AsterAgent] 后端已解析请求模型: source={:?}, provider={}, requested_model={}, resolved_model={}, thinking_enabled={}, has_images={}",
+            model_preference_source,
             context.provider_selector,
             model_preference,
             resolved_model,
@@ -1019,15 +1296,22 @@ pub(super) async fn resolve_runtime_request_provider_config(
     let model_capabilities = find_model_meta(&resolved_model, &catalog)
         .map(|model| model.capabilities.clone())
         .unwrap_or_else(|| {
+            let inferred_task_families = infer_model_task_families(
+                &resolved_model,
+                Some(&context.provider_selector),
+                None,
+                None,
+            );
             infer_model_capabilities(
                 &resolved_model,
                 Some(&context.provider_selector),
+                &inferred_task_families,
                 None,
                 None,
             )
         });
 
-    Ok(Some(ConfigureProviderRequest {
+    Ok(ConfigureProviderRequest {
         provider_id: Some(context.provider_selector.clone()),
         provider_name: context.aster_provider_name,
         model_name: resolved_model,
@@ -1036,7 +1320,157 @@ pub(super) async fn resolve_runtime_request_provider_config(
         model_capabilities: Some(model_capabilities),
         tool_call_strategy: None,
         toolshim_model: None,
-    }))
+    })
+}
+
+pub(super) async fn resolve_runtime_request_provider_config(
+    app: &AppHandle,
+    db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
+    request: &AsterChatRequest,
+) -> Result<Option<ConfigureProviderRequest>, String> {
+    if request.provider_config.is_some() {
+        return Ok(None);
+    }
+
+    let service_scene_preference =
+        resolve_service_scene_model_preference(request.metadata.as_ref());
+    let session_context =
+        if request.provider_preference.is_some() && request.model_preference.is_some() {
+            None
+        } else {
+            Some(load_session_provider_model_context(request).await?)
+        };
+
+    if request.provider_preference.is_some() || request.model_preference.is_some() {
+        let Some((provider_selector, provider_preference_source)) =
+            resolve_provider_preference_with_session_fallback(
+                request.provider_preference.clone(),
+                session_context.as_ref(),
+            )
+        else {
+            return Ok(None);
+        };
+        let (model_preference, model_preference_source) =
+            resolve_model_preference_with_session_fallback(
+                request.model_preference.clone(),
+                &provider_selector,
+                session_context.as_ref(),
+            )?;
+
+        if matches!(provider_preference_source, RequestPreferenceSource::Session) {
+            tracing::info!(
+                "[AsterAgent] 后端从会话恢复 provider 偏好: session={}, provider={}",
+                request.session_id,
+                provider_selector
+            );
+        }
+
+        if matches!(model_preference_source, RequestPreferenceSource::Session) {
+            tracing::info!(
+                "[AsterAgent] 后端从会话恢复模型偏好: session={}, provider={}, model={}",
+                request.session_id,
+                provider_selector,
+                model_preference
+            );
+        }
+
+        return Ok(Some(
+            build_runtime_request_provider_config_from_preference(
+                app,
+                db,
+                api_key_provider_service,
+                request,
+                &provider_selector,
+                &model_preference,
+                model_preference_source,
+                matches!(model_preference_source, RequestPreferenceSource::Session),
+            )
+            .await?,
+        ));
+    }
+
+    if let Some(scene_preference) = service_scene_preference.as_ref() {
+        match build_runtime_request_provider_config_from_preference(
+            app,
+            db,
+            api_key_provider_service,
+            request,
+            &scene_preference.provider_selector,
+            &scene_preference.model_name,
+            RequestPreferenceSource::ServiceSceneLaunch,
+            scene_preference.allow_fallback,
+        )
+        .await
+        {
+            Ok(config) => {
+                tracing::info!(
+                    "[AsterAgent] 后端从 service_scene_launch 恢复 provider/model 偏好: session={}, provider={}, model={}, allow_fallback={}",
+                    request.session_id,
+                    scene_preference.provider_selector,
+                    scene_preference.model_name,
+                    scene_preference.allow_fallback
+                );
+                return Ok(Some(config));
+            }
+            Err(error) => {
+                if !scene_preference.allow_fallback {
+                    return Err(format!(
+                        "service_scene_launch 首选服务不可用，且已关闭自动回退: {error}"
+                    ));
+                }
+                tracing::warn!(
+                    "[AsterAgent] service_scene_launch 首选 provider/model 不可用，已回退会话默认: session={}, provider={}, model={}, error={}",
+                    request.session_id,
+                    scene_preference.provider_selector,
+                    scene_preference.model_name,
+                    error
+                );
+            }
+        }
+    }
+
+    let Some((provider_selector, provider_preference_source)) =
+        resolve_provider_preference_with_session_fallback(None, session_context.as_ref())
+    else {
+        return Ok(None);
+    };
+    let (model_preference, model_preference_source) =
+        resolve_model_preference_with_session_fallback(
+            None,
+            &provider_selector,
+            session_context.as_ref(),
+        )?;
+
+    if matches!(provider_preference_source, RequestPreferenceSource::Session) {
+        tracing::info!(
+            "[AsterAgent] 后端从会话恢复 provider 偏好: session={}, provider={}",
+            request.session_id,
+            provider_selector
+        );
+    }
+    if matches!(model_preference_source, RequestPreferenceSource::Session) {
+        tracing::info!(
+            "[AsterAgent] 后端从会话恢复模型偏好: session={}, provider={}, model={}",
+            request.session_id,
+            provider_selector,
+            model_preference
+        );
+    }
+
+    Ok(Some(
+        build_runtime_request_provider_config_from_preference(
+            app,
+            db,
+            api_key_provider_service,
+            request,
+            &provider_selector,
+            &model_preference,
+            model_preference_source,
+            true,
+        )
+        .await?,
+    ))
 }
 
 #[cfg(test)]
@@ -1068,6 +1502,32 @@ mod tests {
                 function_calling: true,
                 reasoning,
             },
+            task_families: {
+                let mut families = vec![ModelTaskFamily::Chat];
+                if reasoning {
+                    families.push(ModelTaskFamily::Reasoning);
+                }
+                if vision {
+                    families.push(ModelTaskFamily::VisionUnderstanding);
+                }
+                families
+            },
+            input_modalities: if vision {
+                vec![ModelModality::Text, ModelModality::Image]
+            } else {
+                vec![ModelModality::Text]
+            },
+            output_modalities: vec![ModelModality::Text, ModelModality::Json],
+            runtime_features: vec![
+                ModelRuntimeFeature::Streaming,
+                ModelRuntimeFeature::ToolCalling,
+                ModelRuntimeFeature::JsonSchema,
+            ],
+            deployment_source: ModelDeploymentSource::UserCloud,
+            management_plane: ModelManagementPlane::LocalSettings,
+            canonical_model_id: None,
+            provider_model_id: Some(id.to_string()),
+            alias_source: None,
             pricing: None,
             limits: Default::default(),
             status: Default::default(),
@@ -1340,6 +1800,51 @@ mod tests {
             resolved,
             ("gemini".to_string(), RequestPreferenceSource::Request)
         );
+    }
+
+    #[test]
+    fn service_scene_model_preference_reads_complete_preference() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "service_scene_launch": {
+                    "kind": "local_service_skill",
+                    "service_scene_run": {
+                        "skill_id": "voice-runtime",
+                        "preferred_provider_id": "openai-tts",
+                        "preferred_model_id": "gpt-4o-mini-tts",
+                        "allow_fallback": false,
+                    }
+                }
+            }
+        });
+
+        let resolved = resolve_service_scene_model_preference(Some(&metadata));
+
+        assert_eq!(
+            resolved,
+            Some(ServiceSceneModelPreferenceContext {
+                provider_selector: "openai-tts".to_string(),
+                model_name: "gpt-4o-mini-tts".to_string(),
+                allow_fallback: false,
+            })
+        );
+    }
+
+    #[test]
+    fn service_scene_model_preference_ignores_provider_only_selection() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "service_scene_launch": {
+                    "kind": "local_service_skill",
+                    "service_scene_run": {
+                        "skill_id": "voice-runtime",
+                        "preferred_provider_id": "openai-tts"
+                    }
+                }
+            }
+        });
+
+        assert!(resolve_service_scene_model_preference(Some(&metadata)).is_none());
     }
 
     #[test]

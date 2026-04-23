@@ -6,6 +6,8 @@ import {
   deriveTaskLiveState,
   deriveTaskStatusFromLiveState,
   extractTaskPreviewFromMessages,
+  resolveRecentTopicActionLabel,
+  resolveRecentTopicCandidate,
 } from "./agentChatShared";
 
 function createPendingActionMessages(
@@ -158,5 +160,122 @@ describe("agentChatShared", () => {
       status: "failed",
       statusReason: "tool_failure",
     });
+  });
+
+  it("当前线程仍在运行时，不应把最新 assistant 消息误判为已完成", () => {
+    const messages: Message[] = [
+      {
+        id: "msg-tool-request",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-22T10:59:16.000Z"),
+        toolCalls: [
+          {
+            id: "tool-1",
+            name: "WebSearch",
+            arguments: '{"query":"AI agent trends"}',
+            status: "running",
+            startTime: new Date("2026-04-22T10:59:16.000Z"),
+          },
+        ],
+      },
+    ];
+
+    expect(
+      deriveTaskLiveState({
+        messages,
+        isSending: false,
+        pendingActionCount: 0,
+        queuedTurnCount: 0,
+        threadStatus: "running",
+        workspaceError: false,
+      }),
+    ).toEqual({
+      status: "running",
+      statusReason: "default",
+    });
+  });
+
+  it("应优先返回最近可继续的会话候选", () => {
+    const topics = [
+      {
+        id: "topic-done",
+        title: "最近结果",
+        createdAt: new Date("2026-03-15T09:40:00.000Z"),
+        updatedAt: new Date("2026-03-15T09:45:00.000Z"),
+        workspaceId: "workspace-1",
+        messagesCount: 4,
+        executionStrategy: "react" as const,
+        status: "done" as const,
+        statusReason: "default" as const,
+        lastPreview: "结果已产出。",
+        isPinned: false,
+        hasUnread: false,
+        tag: null,
+        sourceSessionId: "topic-done",
+      },
+      {
+        id: "topic-waiting",
+        title: "待继续任务",
+        createdAt: new Date("2026-03-15T09:46:00.000Z"),
+        updatedAt: new Date("2026-03-15T09:50:00.000Z"),
+        workspaceId: "workspace-1",
+        messagesCount: 2,
+        executionStrategy: "react" as const,
+        status: "waiting" as const,
+        statusReason: "user_action" as const,
+        lastPreview: "等待补充标题。",
+        isPinned: false,
+        hasUnread: false,
+        tag: null,
+        sourceSessionId: "topic-waiting",
+      },
+      {
+        id: "topic-current",
+        title: "当前任务",
+        createdAt: new Date("2026-03-15T09:52:00.000Z"),
+        updatedAt: new Date("2026-03-15T09:55:00.000Z"),
+        workspaceId: "workspace-1",
+        messagesCount: 1,
+        executionStrategy: "react" as const,
+        status: "draft" as const,
+        statusReason: "default" as const,
+        lastPreview: "当前草稿。",
+        isPinned: false,
+        hasUnread: false,
+        tag: null,
+        sourceSessionId: "topic-current",
+      },
+    ];
+
+    expect(resolveRecentTopicCandidate(topics, "topic-current")?.id).toBe(
+      "topic-waiting",
+    );
+  });
+
+  it("最近会话动作文案应随会话状态变化", () => {
+    expect(
+      resolveRecentTopicActionLabel({
+        status: "waiting",
+        statusReason: "user_action",
+        messagesCount: 2,
+      }),
+    ).toBe("继续最近会话");
+
+    expect(
+      resolveRecentTopicActionLabel({
+        status: "done",
+        statusReason: "default",
+        messagesCount: 4,
+      }),
+    ).toBe("回看最近结果");
+
+    expect(
+      resolveRecentTopicActionLabel({
+        status: "draft",
+        statusReason: "default",
+        messagesCount: 0,
+      }),
+    ).toBe("打开最近会话");
   });
 });

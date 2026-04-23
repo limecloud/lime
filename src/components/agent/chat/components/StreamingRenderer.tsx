@@ -19,6 +19,7 @@ import { ActionRequestA2UIPreviewCard } from "./ActionRequestA2UIPreviewCard";
 import { InlineToolProcessStep } from "./InlineToolProcessStep";
 import { DecisionPanel } from "./DecisionPanel";
 import { AgentPlanBlock } from "./AgentPlanBlock";
+import { RuntimePeerMessageCards } from "./RuntimePeerMessageCards";
 import { parseAIResponse } from "@/lib/workspace/a2ui";
 import type {
   A2UIFormData,
@@ -44,6 +45,8 @@ import {
   sanitizeContentPartsForDisplay,
   sanitizeMessageTextForDisplay,
 } from "../utils/internalImagePlaceholder";
+import { normalizeProcessDisplayText } from "../utils/processDisplayText";
+import { isPureRuntimePeerMessageText } from "../utils/runtimePeerMessageDisplay";
 import {
   summarizeStreamingToolBatch,
   type ToolBatchSummaryDescriptor,
@@ -78,7 +81,7 @@ function resolveThinkingDisplayParts(
   content: string,
   isStreaming: boolean,
 ): ThinkingDisplayParts {
-  const trimmed = content.trim();
+  const trimmed = normalizeProcessDisplayText(content).trim();
   const statusLabel = isStreaming ? "思考中" : "已完成思考";
 
   if (!trimmed) {
@@ -853,6 +856,8 @@ const StreamingProcessGroup: React.FC<{
 interface StreamingRendererProps {
   /** 文本内容（向后兼容） */
   content: string;
+  /** 原始文本内容（用于保留协议包络的专门展示） */
+  rawContent?: string;
   /** 是否正在流式输出 */
   isStreaming?: boolean;
   /** 工具调用列表（向后兼容） */
@@ -919,6 +924,7 @@ interface StreamingRendererProps {
 export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
   ({
     content,
+    rawContent,
     isStreaming = false,
     toolCalls,
     showCursor = true,
@@ -962,6 +968,14 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
           role: "assistant",
         }),
       [content],
+    );
+    const runtimePeerSourceText = useMemo(
+      () => (rawContent ?? content).trim(),
+      [content, rawContent],
+    );
+    const shouldRenderRuntimePeerCards = useMemo(
+      () => isPureRuntimePeerMessageText(runtimePeerSourceText),
+      [runtimePeerSourceText],
     );
     const interleavedContentParts = useMemo(
       () =>
@@ -1457,6 +1471,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
           (displayContent.length > 0 ||
             (externalThinking && externalThinking.length > 0)))
       : visibleText.length > 0 ||
+        shouldRenderRuntimePeerCards ||
         Boolean(finalThinking) ||
         (toolCalls?.length ?? 0) > 0 ||
         visibleActionRequests.length > 0;
@@ -1582,11 +1597,15 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
           : null}
 
         {/* 解析后的内容区域（包括 A2UI、write_file、普通文本） */}
-        {renderParsedResultParts({
-          parsed: parsedContent,
-          keyPrefix: "standard",
-          lastStreamingPartIndex: parsedContent.parts.length - 1,
-        })}
+        {shouldRenderRuntimePeerCards ? (
+          <RuntimePeerMessageCards text={runtimePeerSourceText} />
+        ) : (
+          renderParsedResultParts({
+            parsed: parsedContent,
+            keyPrefix: "standard",
+            lastStreamingPartIndex: parsedContent.parts.length - 1,
+          })
+        )}
 
         {/* 如果没有内容但正在流式输出，显示光标 */}
         {!hasVisibleContent &&

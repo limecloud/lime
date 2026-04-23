@@ -39,6 +39,7 @@ import { ToolCallItem } from "./ToolCallDisplay";
 import { DecisionPanel } from "./DecisionPanel";
 import { AgentThreadTimelineArtifactCard } from "./AgentThreadTimelineArtifactCard";
 import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
+import { normalizeProcessDisplayText } from "../utils/processDisplayText";
 import {
   isInternalRoutingTurnSummaryText,
   normalizeTurnSummaryDisplayText,
@@ -87,11 +88,13 @@ function resolveReasoningDisplayText(
   bodyText: string;
   combinedText: string;
 } {
-  const summaryText = (item.summary || [])
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join("\n\n");
-  const bodyText = item.text.trim();
+  const summaryText = normalizeProcessDisplayText(
+    (item.summary || [])
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n\n"),
+  );
+  const bodyText = normalizeProcessDisplayText(item.text.trim());
 
   if (!summaryText) {
     return {
@@ -123,7 +126,7 @@ function resolveReasoningDisplayText(
   return {
     summaryText,
     bodyText,
-    combinedText: `${summaryText}\n\n${bodyText}`,
+    combinedText: normalizeProcessDisplayText(`${summaryText}\n\n${bodyText}`),
   };
 }
 

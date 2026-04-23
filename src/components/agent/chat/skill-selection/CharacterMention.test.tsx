@@ -30,7 +30,11 @@ import {
   findCuratedTaskTemplateById,
   recordCuratedTaskTemplateUsage,
 } from "../utils/curatedTaskTemplates";
-import { recordCuratedTaskRecommendationSignalFromMemory } from "../utils/curatedTaskRecommendationSignals";
+import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
+import {
+  recordCuratedTaskRecommendationSignalFromMemory,
+  recordCuratedTaskRecommendationSignalFromReviewDecision,
+} from "../utils/curatedTaskRecommendationSignals";
 
 const mockListServiceSkills = vi.hoisted(() => vi.fn());
 const mockListUnifiedMemories = vi.hoisted(() =>
@@ -323,14 +327,8 @@ interface HarnessProps {
   projectId?: string | null;
   sessionId?: string | null;
   defaultCuratedTaskReferenceMemoryIds?: string[];
-  defaultCuratedTaskReferenceEntries?: Array<{
-    id: string;
-    title: string;
-    summary: string;
-    category: "identity" | "context" | "preference" | "experience" | "activity";
-    categoryLabel: string;
-    tags: string[];
-  }>;
+  defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
+  inputCompletionEnabled?: boolean;
 }
 
 const Harness: React.FC<HarnessProps> = ({
@@ -350,6 +348,7 @@ const Harness: React.FC<HarnessProps> = ({
   sessionId = null,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
+  inputCompletionEnabled = true,
 }) => {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -393,6 +392,7 @@ const Harness: React.FC<HarnessProps> = ({
           defaultCuratedTaskReferenceEntries
         }
         onNavigateToSettings={onNavigateToSettings}
+        inputCompletionEnabled={inputCompletionEnabled}
       />
     </div>
   );
@@ -702,6 +702,21 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("测试角色");
   });
 
+  it("关闭输入自动补全后不应再弹出现有提及面板", async () => {
+    const container = renderHarness({
+      characters: [createCharacter("测试角色")],
+      inputCompletionEnabled: false,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    expect(
+      document.body.querySelector('[data-testid="mention-popover-content"]'),
+    ).toBeNull();
+    expect(document.body.textContent).not.toContain("测试角色");
+  });
+
   it("无角色和技能时仍应显示内建图片命令", async () => {
     const container = renderHarness({
       characters: [],
@@ -711,7 +726,9 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("生成 / 表达");
+    expect(document.body.textContent).toContain("搜索 / 读取");
+    expect(document.body.textContent).toContain("浏览器 / 执行");
     expect(document.body.textContent).toContain("@配图");
     expect(document.body.textContent).toContain("@封面");
     expect(document.body.textContent).toContain("@海报");
@@ -1756,7 +1773,7 @@ describe("CharacterMention", () => {
     });
 
     expect(document.body.textContent).not.toContain("最近使用");
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("搜索 / 读取");
     expect(document.body.textContent).toContain("@搜索");
   });
 
@@ -1768,6 +1785,13 @@ describe("CharacterMention", () => {
           metadata: {
             lime_when_to_use: "当你需要复用本地写作方法时使用。",
             lime_argument_hint: "主题、受众与语气要求",
+          },
+        }),
+        createSkill("脚本助手", "skill-script", true, {
+          description: "另一条备用本地做法",
+          metadata: {
+            lime_when_to_use: "当你需要改写脚本结构时使用。",
+            lime_argument_hint: "脚本目标与表达风格",
           },
         }),
       ],
@@ -1910,7 +1934,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("生成 / 表达");
     expect(document.body.textContent).toContain("@网页");
   });
 
@@ -1933,7 +1957,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("生成 / 表达");
     expect(document.body.textContent).toContain("@PPT");
   });
 
@@ -1956,7 +1980,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("生成 / 表达");
     expect(document.body.textContent).toContain("@表单");
   });
 
@@ -1979,7 +2003,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("浏览器 / 执行");
     expect(document.body.textContent).toContain("@代码");
   });
 
@@ -2002,7 +2026,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("预览 / 发布");
     expect(document.body.textContent).toContain("@发布");
   });
 
@@ -2025,7 +2049,8 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("生成 / 表达");
+    expect(document.body.textContent).toContain("媒体转换");
     expect(document.body.textContent).toContain("@配图");
     expect(document.body.textContent).toContain("@配音");
   });
@@ -2049,7 +2074,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("生成 / 表达");
     expect(document.body.textContent).toContain("@海报");
   });
 
@@ -2072,7 +2097,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("预览 / 发布");
     expect(document.body.textContent).toContain("@渠道预览");
   });
 
@@ -2095,7 +2120,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("预览 / 发布");
     expect(document.body.textContent).toContain("@上传");
   });
 
@@ -2118,7 +2143,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("预览 / 发布");
     expect(document.body.textContent).toContain("@发布合规");
   });
 
@@ -2141,7 +2166,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("浏览器 / 执行");
     expect(document.body.textContent).toContain("@浏览器");
   });
 
@@ -2164,7 +2189,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("搜索 / 读取");
     expect(document.body.textContent).toContain("@竞品");
   });
 
@@ -2187,7 +2212,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("搜索 / 读取");
     expect(document.body.textContent).toContain("@抓取");
   });
 
@@ -2210,7 +2235,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("搜索 / 读取");
     expect(document.body.textContent).toContain("@网页读取");
   });
 
@@ -2286,16 +2311,38 @@ describe("CharacterMention", () => {
     expect(onChangeSpy).toHaveBeenCalledWith("/skill-a ");
   });
 
-  it("输入 / 时应显示 Codex slash 命令列表", async () => {
-    const container = renderHarness();
+  it("输入 / 时应优先显示先拿结果、我的方法与工作台操作，而不是把全部命令摊平", async () => {
+    const container = renderHarness({
+      skills: [createSkill("本地做法A", "local-skill-a", true)],
+    });
     const textarea = getTextarea(container);
 
     await typeSlashAndWait(textarea);
 
-    expect(document.body.textContent).toContain("快捷操作");
+    expect(document.body.textContent).toContain("先拿结果");
+    expect(document.body.textContent).toContain("工作台操作");
+    expect(document.body.textContent).toContain("新建任务");
+    expect(document.body.textContent).toContain("清空任务");
+    expect(document.body.textContent).toContain("压缩上下文");
+    expect(document.body.textContent).toContain(
+      "整理当前任务时再用，不会替代上面的结果入口。",
+    );
     expect(document.body.textContent).toContain("/compact");
-    expect(document.body.textContent).toContain("/review");
+    expect(document.body.textContent).not.toContain(
+      "压缩当前会话上下文并写入摘要",
+    );
+    expect(document.body.textContent).toContain("我的方法");
+    expect(document.body.textContent).not.toContain("/review");
+    expect(document.body.textContent).not.toContain("/help");
     expect(document.body.textContent).not.toContain("/quit");
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText.indexOf("先拿结果")).toBeLessThan(
+      bodyText.indexOf("我的方法"),
+    );
+    expect(bodyText.indexOf("我的方法")).toBeLessThan(
+      bodyText.indexOf("工作台操作"),
+    );
   });
 
   it("统一目录中的结果模板应出现在 slash 面板里", async () => {
@@ -2377,6 +2424,116 @@ describe("CharacterMention", () => {
         },
       }),
     );
+  });
+
+  it("slash 面板里的复盘结果模板应显影当前结果基线摘要", async () => {
+    const container = renderHarness({
+      defaultCuratedTaskReferenceEntries: [
+        {
+          id: "sceneapp:ai-weekly:run:1",
+          sourceKind: "sceneapp_execution_summary",
+          title: "AI 内容周报",
+          summary: "已有一轮可继续放量的结果。",
+          category: "experience",
+          categoryLabel: "成果",
+          tags: ["复盘", "增长"],
+          taskPrefillByTaskId: {
+            "account-project-review": {
+              project_goal: "AI 内容周报",
+              existing_results:
+                "当前判断：适合继续放量 经营动作：保留品牌联名方向 更适合去向：内容主稿生成 / 渠道改写",
+            },
+          },
+        },
+      ],
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/复盘");
+
+    expect(document.body.textContent).toContain("结果模板");
+    expect(document.body.textContent).toContain("复盘这个账号/项目");
+    expect(document.body.textContent).toContain("当前结果基线：AI 内容周报");
+    expect(document.body.textContent).toContain("当前判断：适合继续放量");
+    expect(document.body.textContent).toContain(
+      "更适合去向：内容主稿生成 / 渠道改写",
+    );
+  });
+
+  it("slash 面板里的下游结果模板也应继续显影 sceneapp 基线摘要", async () => {
+    const container = renderHarness({
+      defaultCuratedTaskReferenceEntries: [
+        {
+          id: "sceneapp:ai-weekly:run:1",
+          sourceKind: "sceneapp_execution_summary",
+          title: "AI 内容周报",
+          summary: "已有一轮可继续放量的结果。",
+          category: "experience",
+          categoryLabel: "成果",
+          tags: ["复盘", "增长"],
+          taskPrefillByTaskId: {
+            "account-project-review": {
+              project_goal: "AI 内容周报",
+              existing_results:
+                "当前判断：适合继续放量 经营动作：保留品牌联名方向 更适合去向：内容主稿生成 / 渠道改写",
+            },
+          },
+        },
+      ],
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/趋势");
+
+    expect(document.body.textContent).toContain("每日趋势摘要");
+    expect(document.body.textContent).toContain("当前结果基线：AI 内容周报");
+    expect(document.body.textContent).toContain("当前判断：适合继续放量");
+    expect(document.body.textContent).toContain(
+      "更适合去向：内容主稿生成 / 渠道改写",
+    );
+  });
+
+  it("搜索命中的普通结果模板也应继续沿用最近一次启动参数", async () => {
+    act(() => {
+      recordCuratedTaskTemplateUsage({
+        templateId: "daily-trend-briefing",
+        launchInputValues: {
+          theme_target: "AI 内容创作",
+          platform_region: "X 与 TikTok 北美区",
+        },
+      });
+    });
+
+    const container = renderHarness({
+      syncValue: true,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/趋势");
+
+    const templateButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("每日趋势摘要"));
+    expect(templateButton).toBeTruthy();
+
+    await act(async () => {
+      templateButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain(
+      "已根据你上次启动 每日趋势摘要 时的参数自动预填，可继续修改后进入生成。",
+    );
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    expect(themeInput?.value).toBe("AI 内容创作");
+    expect(platformInput?.value).toBe("X 与 TikTok 北美区");
   });
 
   it("提供 onSelectInputCapability 时，slash 面板选择结果模板应在 launcher 确认后走统一 capability 回调", async () => {
@@ -2555,7 +2712,7 @@ describe("CharacterMention", () => {
 
     const resultTemplateSection = Array.from(
       document.body.querySelectorAll("section"),
-    ).find((section) => section.textContent?.includes("结果模板"));
+    ).find((section) => section.textContent?.includes("先拿结果"));
     expect(resultTemplateSection).toBeTruthy();
 
     const buttonTexts = Array.from(
@@ -2573,18 +2730,74 @@ describe("CharacterMention", () => {
     expect(reviewIndex).toBeLessThan(trendIndex);
   });
 
+  it("slash 面板的结果模板分组应显影最近复盘横幅", async () => {
+    recordCuratedTaskRecommendationSignalFromReviewDecision(
+      {
+        session_id: "session-review-needs-evidence",
+        decision_status: "needs_more_evidence",
+        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
+        risk_level: "medium",
+        risk_tags: ["证据不足", "需要复盘"],
+        followup_actions: ["补账号数据复盘", "拆解一条高表现内容"],
+      },
+      {
+        projectId: "project-review-2",
+        sceneTitle: "短视频编排",
+      },
+    );
+
+    const container = renderHarness({
+      projectId: "project-review-2",
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    const banner = document.body.querySelector(
+      '[data-testid="input-capability-section-banner-result-templates"]',
+    );
+    expect(banner?.textContent).toContain("围绕最近复盘");
+    expect(banner?.textContent).toContain("最近复盘已更新：短视频编排 · 补证据");
+    expect(banner?.textContent).toContain("这轮结果还缺证据");
+    expect(banner?.textContent).toContain(
+      "更适合继续：复盘这个账号/项目 / 拆解一条爆款内容",
+    );
+  });
+
   it("搜索未接入的 slash 命令时，应单独显示暂未接入分组", async () => {
     const container = renderHarness();
     const textarea = getTextarea(container);
 
     await typeSlashAndWait(textarea, "/qui");
 
-    expect(document.body.textContent).not.toContain("快捷操作");
+    expect(document.body.textContent).not.toContain("工作台操作");
     expect(document.body.textContent).toContain("暂未接入");
     expect(document.body.textContent).toContain("/quit");
   });
 
-  it("slash 空查询时应优先显示最近使用，且不在原分组重复", async () => {
+  it("slash 搜索提示类命令时，应按提示命令分组展开", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/rev");
+
+    expect(document.body.textContent).toContain("提示命令");
+    expect(document.body.textContent).toContain("/review");
+    expect(document.body.textContent).not.toContain("状态 / 帮助");
+  });
+
+  it("slash 搜索状态类命令时，应按状态 / 帮助分组展开", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/help");
+
+    expect(document.body.textContent).toContain("状态 / 帮助");
+    expect(document.body.textContent).toContain("/help");
+  });
+
+  it("slash 空查询时应优先显示继续上次做法，且不在原分组重复", async () => {
     act(() => {
       saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
       recordSlashEntryUsage({
@@ -2612,7 +2825,12 @@ describe("CharacterMention", () => {
 
     await typeSlashAndWait(textarea);
 
-    expect(document.body.textContent).toContain("最近使用");
+    expect(document.body.textContent).toContain("继续上次做法");
+    expect(document.body.textContent).toContain("最近操作");
+    expect(document.body.textContent).toContain("压缩上下文");
+    expect(document.body.textContent).toContain(
+      "最近用过的工作台动作；如果是继续产出，优先看上面的做法。",
+    );
 
     const compactButtons = Array.from(
       document.body.querySelectorAll("button"),
@@ -2641,7 +2859,7 @@ describe("CharacterMention", () => {
     );
   });
 
-  it("slash 面板中的已安装技能与最近 skill 应展示统一轻合同", async () => {
+  it("slash 面板中的我的方法与继续上次做法应展示统一轻合同", async () => {
     act(() => {
       recordSlashEntryUsage({
         kind: "skill",
@@ -2659,22 +2877,38 @@ describe("CharacterMention", () => {
             lime_argument_hint: "主题、受众与语气要求",
           },
         }),
+        createSkill("脚本助手", "skill-script", true, {
+          description: "脚本改写做法",
+          metadata: {
+            lime_when_to_use:
+              "当你已经有一版脚本，想继续整理成更适合生成的做法时使用。",
+            lime_argument_hint: "已有脚本、目标平台或表达方式",
+          },
+        }),
       ],
     });
     const textarea = getTextarea(container);
 
     await typeSlashAndWait(textarea);
 
-    expect(document.body.textContent).toContain("最近使用");
+    expect(document.body.textContent).toContain("我的方法");
+    expect(document.body.textContent).toContain("继续上次做法");
+    expect(document.body.textContent).toContain(
+      "优先接着已经跑过的方法，通常比重新挑一条更省重来成本。",
+    );
     expect(document.body.textContent).toContain("/skill-writer");
     expect(document.body.textContent).toContain(
       "写作助手 · 当你需要复用本地写作方法时使用。",
     );
+    expect(document.body.textContent).toContain(
+      "更多本地做法；没命中上面的继续项时，再来这里挑一条新的。",
+    );
+    expect(document.body.textContent).toContain("脚本助手");
     expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
     expect(document.body.textContent).toContain("交付：带着该方法进入生成主执行面");
   });
 
-  it("slash 面板打开后新增本地 skill 使用记录时，应即时刷新最近使用分组", async () => {
+  it("slash 面板打开后新增本地 skill 使用记录时，应即时刷新继续上次做法分组", async () => {
     const container = renderHarness({
       skills: [
         createSkill("写作助手", "skill-writer", true, {
@@ -2690,7 +2924,7 @@ describe("CharacterMention", () => {
 
     await typeSlashAndWait(textarea);
 
-    expect(document.body.textContent).not.toContain("最近使用");
+    expect(document.body.textContent).not.toContain("继续上次做法");
 
     await act(async () => {
       recordSlashEntryUsage({
@@ -2701,7 +2935,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("最近使用");
+    expect(document.body.textContent).toContain("继续上次做法");
     expect(document.body.textContent).toContain("/skill-writer");
     expect(document.body.textContent).toContain("写作助手");
   });
@@ -2939,7 +3173,7 @@ describe("CharacterMention", () => {
     await typeSlashAndWait(textarea, "/com");
 
     expect(document.body.textContent).not.toContain("最近使用");
-    expect(document.body.textContent).toContain("Lime 命令");
+    expect(document.body.textContent).toContain("工作台操作");
     expect(document.body.textContent).toContain("/compact");
   });
 

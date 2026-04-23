@@ -147,6 +147,13 @@ export function MicrophoneTest({
     };
   }, []); // 空依赖，只在卸载时执行
 
+  const selectedDeviceLabel = selectedDeviceId
+    ? devices.find((device) => device.id === selectedDeviceId)?.name ??
+      selectedDeviceId
+    : devices.find((device) => device.is_default)?.name
+      ? `系统默认 (${devices.find((device) => device.is_default)?.name})`
+      : "系统默认";
+
   return (
     <div className="space-y-4">
       {/* 设备选择 */}
@@ -160,7 +167,9 @@ export function MicrophoneTest({
             disabled={disabled || loading || testing}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="选择麦克风设备" />
+              <SelectValue placeholder="选择麦克风设备">
+                {selectedDeviceLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__default__">

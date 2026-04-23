@@ -602,6 +602,7 @@ describe("useAsterAgentChat 首页新会话", () => {
       });
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         "session-live-missing",
+        undefined,
       );
     } finally {
       harness.unmount();
@@ -667,7 +668,10 @@ describe("useAsterAgentChat 首页新会话", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(missingSessionId);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
+        missingSessionId,
+        undefined,
+      );
       expect(harness.getValue().sessionId).toBe(activeSessionId);
       expect(
         harness
@@ -726,7 +730,10 @@ describe("useAsterAgentChat 任务快照", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
+        sessionId,
+        undefined,
+      );
       expect(harness.getValue().messages).toHaveLength(2);
       expect(harness.getValue().messages[0]?.content).toContain(
         "帮我继续整理这份任务",
@@ -767,7 +774,9 @@ describe("useAsterAgentChat 任务快照", () => {
         await harness.getValue().stopSending();
       });
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        resumeSessionStartHooks: true,
+      });
       expect(mockInterruptAgentRuntimeTurn).toHaveBeenCalledWith({
         session_id: sessionId,
       });
@@ -902,7 +911,9 @@ describe("useAsterAgentChat 任务快照", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        resumeSessionStartHooks: true,
+      });
       expect(harness.getValue().queuedTurns).toEqual([
         {
           queued_turn_id: "queued-hydrated-1",
@@ -2754,7 +2765,10 @@ describe("useAsterAgentChat runtime routing", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
+        sessionId,
+        undefined,
+      );
       expect(harness.getValue().currentTurnId).toBe("turn-real-1");
       expect(harness.getValue().threadItems).toEqual(
         expect.arrayContaining([
@@ -2959,7 +2973,10 @@ describe("useAsterAgentChat runtime routing", () => {
       const assistantMessage = [...harness.getValue().messages]
         .reverse()
         .find((msg) => msg.role === "assistant");
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
+        sessionId,
+        undefined,
+      );
       expect(assistantMessage).toBeTruthy();
       expect(assistantMessage?.content).toContain(
         "执行失败：模型未输出最终答复，请重试",
@@ -5546,7 +5563,9 @@ describe("useAsterAgentChat 偏好持久化", () => {
     try {
       await flushEffects();
       await flushEffects();
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        resumeSessionStartHooks: true,
+      });
       expect(
         JSON.parse(
           localStorage.getItem(`agent_session_workspace_${sessionId}`) ||
@@ -5611,7 +5630,9 @@ describe("useAsterAgentChat 偏好持久化", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        resumeSessionStartHooks: true,
+      });
       expect(harness.getValue().sessionId).toBeNull();
       expect(
         sessionStorage.getItem(`aster_curr_sessionId_${workspaceId}`),
@@ -6125,7 +6146,7 @@ describe("useAsterAgentChat 偏好持久化", () => {
       expect(value.model).toBe("gemini-2.5-pro");
       expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
         session_id: topicId,
-        provider_name: "gemini",
+        provider_selector: "gemini",
         model_name: "gemini-2.5-pro",
       });
     } finally {

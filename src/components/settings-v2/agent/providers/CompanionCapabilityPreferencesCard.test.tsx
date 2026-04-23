@@ -30,6 +30,26 @@ vi.mock("@/lib/providerDataEvents", () => ({
     mockSubscribeProviderDataChanged(...args),
 }));
 
+vi.mock("@/components/input-kit", () => ({
+  ModelSelector: ({
+    providerType,
+    model,
+    activeTheme,
+    placeholderLabel,
+  }: {
+    providerType: string;
+    model: string;
+    activeTheme?: string;
+    placeholderLabel?: string;
+  }) => (
+    <div data-testid="companion-model-selector">
+      {activeTheme ? `[${activeTheme}] ` : ""}
+      {providerType || placeholderLabel || "自动选择"} /{" "}
+      {model || placeholderLabel || "自动选择"}
+    </div>
+  ),
+}));
+
 import { CompanionCapabilityPreferencesCard } from "./CompanionCapabilityPreferencesCard";
 
 interface MountedCard {
@@ -88,11 +108,6 @@ beforeEach(() => {
           preferredProviderId: "deepseek",
           preferredModelId: "deepseek-chat",
           allowFallback: false,
-        },
-        tts: {
-          preferredProviderId: "openai-tts",
-          preferredModelId: "gpt-4o-mini-tts",
-          allowFallback: true,
         },
       },
     },
@@ -171,14 +186,18 @@ afterEach(() => {
 });
 
 describe("CompanionCapabilityPreferencesCard", () => {
-  it("应展示桌宠通用模型与语音播报偏好说明", async () => {
+  it("应只展示已接入主链的桌宠通用模型偏好", async () => {
     const container = renderCard();
     await flushEffects();
 
     expect(container.textContent).toContain("桌宠能力偏好");
     expect(container.textContent).toContain("桌宠通用模型");
-    expect(container.textContent).toContain("桌宠语音播报");
     expect(container.textContent).toContain("最近当前 provider/model");
+    expect(container.textContent).toContain("[general] deepseek / deepseek-chat");
+    expect(container.textContent).not.toContain("桌宠语音播报");
+    expect(
+      container.querySelectorAll("[data-testid='companion-model-selector']"),
+    ).toHaveLength(1);
   });
 
   it("恢复通用默认时应清空 companion_defaults.general", async () => {
@@ -195,11 +214,7 @@ describe("CompanionCapabilityPreferencesCard", () => {
     expect(
       savedConfig.workspace_preferences.companion_defaults.general,
     ).toBeUndefined();
-    expect(savedConfig.workspace_preferences.companion_defaults.tts).toEqual({
-      preferredProviderId: "openai-tts",
-      preferredModelId: "gpt-4o-mini-tts",
-      allowFallback: true,
-    });
+    expect(savedConfig.workspace_preferences.companion_defaults.tts).toBeUndefined();
     expect(container.textContent).toContain("桌宠能力偏好已保存");
   });
 });

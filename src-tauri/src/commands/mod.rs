@@ -5,6 +5,7 @@ pub mod asr_cmd;
 pub mod aster_agent_cmd;
 pub mod auto_fix_cmd;
 pub mod automation_cmd;
+pub mod auxiliary_model_selection;
 pub mod browser_connector_cmd;
 pub mod browser_environment_cmd;
 pub mod browser_profile_cmd;

@@ -21,6 +21,79 @@ pub struct ModelCapabilities {
     pub reasoning: bool,
 }
 
+/// 模型任务族
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelTaskFamily {
+    Chat,
+    Reasoning,
+    VisionUnderstanding,
+    ImageGeneration,
+    ImageEdit,
+    SpeechToText,
+    TextToSpeech,
+    Embedding,
+    Rerank,
+    Moderation,
+}
+
+/// 模型输入/输出模态
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelModality {
+    Text,
+    Image,
+    Audio,
+    Video,
+    File,
+    Embedding,
+    Json,
+}
+
+/// 模型运行时特性
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelRuntimeFeature {
+    Streaming,
+    ToolCalling,
+    JsonSchema,
+    Reasoning,
+    PromptCache,
+    ResponsesApi,
+    ChatCompletionsApi,
+    ImagesApi,
+}
+
+/// 模型部署来源
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelDeploymentSource {
+    #[default]
+    UserCloud,
+    Local,
+    OemCloud,
+}
+
+/// 模型管理面
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelManagementPlane {
+    #[default]
+    LocalSettings,
+    OemControlPlane,
+    Hybrid,
+}
+
+/// 模型别名来源
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelAliasSource {
+    Official,
+    Relay,
+    Oem,
+    Local,
+}
+
 /// 模型定价
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelPricing {
@@ -206,6 +279,30 @@ pub struct EnhancedModelMetadata {
     pub tier: ModelTier,
     /// 模型能力
     pub capabilities: ModelCapabilities,
+    /// 任务族
+    #[serde(default)]
+    pub task_families: Vec<ModelTaskFamily>,
+    /// 输入模态
+    #[serde(default)]
+    pub input_modalities: Vec<ModelModality>,
+    /// 输出模态
+    #[serde(default)]
+    pub output_modalities: Vec<ModelModality>,
+    /// 运行时特性
+    #[serde(default)]
+    pub runtime_features: Vec<ModelRuntimeFeature>,
+    /// 部署来源
+    #[serde(default)]
+    pub deployment_source: ModelDeploymentSource,
+    /// 管理面
+    #[serde(default)]
+    pub management_plane: ModelManagementPlane,
+    /// 规范化模型 ID
+    pub canonical_model_id: Option<String>,
+    /// 实际 Provider 返回的模型 ID
+    pub provider_model_id: Option<String>,
+    /// 别名来源
+    pub alias_source: Option<ModelAliasSource>,
     /// 定价信息
     pub pricing: Option<ModelPricing>,
     /// 限制信息
@@ -243,6 +340,15 @@ impl EnhancedModelMetadata {
             family: None,
             tier: ModelTier::Pro,
             capabilities: ModelCapabilities::default(),
+            task_families: vec![],
+            input_modalities: vec![],
+            output_modalities: vec![],
+            runtime_features: vec![],
+            deployment_source: ModelDeploymentSource::UserCloud,
+            management_plane: ModelManagementPlane::LocalSettings,
+            canonical_model_id: None,
+            provider_model_id: None,
+            alias_source: None,
             pricing: None,
             limits: ModelLimits::default(),
             status: ModelStatus::Active,
@@ -313,6 +419,18 @@ impl EnhancedModelMetadata {
     pub fn with_source(mut self, source: ModelSource) -> Self {
         self.source = source;
         self
+    }
+
+    pub fn supports_task_family(&self, family: &ModelTaskFamily) -> bool {
+        self.task_families.contains(family)
+    }
+
+    pub fn has_input_modality(&self, modality: &ModelModality) -> bool {
+        self.input_modalities.contains(modality)
+    }
+
+    pub fn has_output_modality(&self, modality: &ModelModality) -> bool {
+        self.output_modalities.contains(modality)
     }
 }
 
@@ -540,6 +658,15 @@ impl ModelsDevModel {
                 function_calling: self.tool_call,
                 reasoning: self.reasoning,
             },
+            task_families: vec![],
+            input_modalities: vec![],
+            output_modalities: vec![],
+            runtime_features: vec![],
+            deployment_source: ModelDeploymentSource::UserCloud,
+            management_plane: ModelManagementPlane::LocalSettings,
+            canonical_model_id: None,
+            provider_model_id: Some(self.id.clone()),
+            alias_source: None,
             pricing: self.cost.as_ref().map(|c| ModelPricing {
                 input_per_million: c.input,
                 output_per_million: c.output,

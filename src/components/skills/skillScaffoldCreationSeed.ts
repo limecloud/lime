@@ -45,6 +45,10 @@ function normalizeStructuredItems(
     .slice(0, maxItems);
 }
 
+function stripLeadingLabel(value: string): string {
+  return value.replace(/^[^：:]{1,16}[：:]\s*/, "").trim();
+}
+
 function buildSection(title: string, items: string[]): string | undefined {
   if (items.length === 0) {
     return undefined;
@@ -84,4 +88,22 @@ export function buildSkillScaffoldCreationSeed(
       .join("\n\n"),
     entryBannerMessage: `已从技能草稿“${name}”带回创作输入，可继续改写后发送。`,
   };
+}
+
+export function buildSkillScaffoldReplayText(
+  draft: SkillScaffoldDraft,
+): string {
+  const name = normalizeOptionalSnippet(draft.name, 48) || DEFAULT_SKILL_NAME;
+  const primaryGoal = normalizeOptionalSnippet(
+    stripLeadingLabel(
+      normalizeStructuredItems(draft.inputs, 1)[0] ||
+        draft.sourceExcerpt ||
+        draft.description ||
+        normalizeStructuredItems(draft.whenToUse, 1)[0] ||
+        "",
+    ),
+    96,
+  );
+
+  return primaryGoal || `继续复用“${name}”这套做法`;
 }

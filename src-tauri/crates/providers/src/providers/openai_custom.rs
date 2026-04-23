@@ -1,5 +1,8 @@
 //! OpenAI Custom Provider (自定义 OpenAI 兼容 API)
 use crate::converter::ReasoningHandler;
+use lime_core::api_host_utils::{
+    normalize_openai_compatible_api_host, normalize_openai_model_discovery_host,
+};
 use lime_core::models::openai::{ChatCompletionRequest, ChatMessage};
 use reqwest::Client;
 use reqwest::StatusCode;
@@ -178,6 +181,13 @@ impl OpenAICustomProvider {
             .unwrap_or_else(|| "https://api.openai.com".to_string())
     }
 
+    fn normalize_base_for_endpoint(base_url: &str, endpoint: &str) -> String {
+        match endpoint {
+            "models" => normalize_openai_model_discovery_host(base_url),
+            _ => normalize_openai_compatible_api_host(base_url),
+        }
+    }
+
     pub fn is_configured(&self) -> bool {
         self.config.api_key.is_some() && self.config.enabled
     }
@@ -191,7 +201,7 @@ impl OpenAICustomProvider {
     /// - `https://open.bigmodel.cn/api/paas/v4` -> `https://open.bigmodel.cn/api/paas/v4/chat/completions`
     /// - `https://api.deepseek.com/v1` -> `https://api.deepseek.com/v1/chat/completions`
     fn build_url(&self, endpoint: &str) -> String {
-        let base = self.get_base_url();
+        let base = Self::normalize_base_for_endpoint(&self.get_base_url(), endpoint);
         let base = base.trim_end_matches('/');
 
         // 检查是否已经包含版本号路径（/v1, /v2, /v3, /v4 等）
@@ -225,7 +235,8 @@ impl OpenAICustomProvider {
     }
 
     fn build_url_from_base(base_url: &str, endpoint: &str) -> String {
-        let base = base_url.trim_end_matches('/');
+        let base = Self::normalize_base_for_endpoint(base_url, endpoint);
+        let base = base.trim_end_matches('/');
 
         let has_version = base
             .rsplit('/')
@@ -889,6 +900,19 @@ mod tests {
         assert!(urls.contains(&"http://127.0.0.1:3030/openai/v1/chat/completions".to_string()));
         assert!(urls.contains(&"http://127.0.0.1:3030/openai/chat/completions".to_string()));
         assert!(urls.contains(&"http://127.0.0.1:3030/v1/chat/completions".to_string()));
+    }
+
+    #[test]
+    fn test_build_urls_with_fallbacks_normalizes_responses_endpoint_input() {
+        let provider = OpenAICustomProvider::with_config(
+            "sk-test".to_string(),
+            Some("https://gateway.example.com/proxy/responses".to_string()),
+        );
+
+        let urls = provider.build_urls_with_fallbacks("models");
+
+        assert!(urls.contains(&"https://gateway.example.com/proxy/v1/models".to_string()));
+        assert!(urls.contains(&"https://gateway.example.com/proxy/models".to_string()));
     }
 
     #[tokio::test]

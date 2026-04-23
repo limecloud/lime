@@ -17,4 +17,6 @@ export interface HandleSendOptions {
   displayContent?: string;
   skillRequest?: SlashSkillRequest;
   capabilityRoute?: InputCapabilitySendRoute;
+  providerOverride?: string;
+  modelOverride?: string;
 }

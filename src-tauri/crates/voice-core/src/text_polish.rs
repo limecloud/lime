@@ -37,6 +37,7 @@ pub async fn polish_with_local_api(
     base_url: &str,
     api_key: &str,
     prompt: &str,
+    provider: Option<&str>,
     model: Option<&str>,
     instruction_id: &str,
 ) -> Result<String, String> {
@@ -44,8 +45,9 @@ pub async fn polish_with_local_api(
     let model_name = model.filter(|m| !m.is_empty()).unwrap_or("deepseek-chat");
 
     tracing::info!(
-        "[语音润色] 使用模型: {}, 指令: {}",
+        "[语音润色] 使用模型: {}, provider: {:?}, 指令: {}",
         model_name,
+        provider,
         instruction_id
     );
 
@@ -90,11 +92,17 @@ pub async fn polish_with_local_api(
 
     let endpoint = format!("{}/v1/chat/completions", base_url.trim_end_matches('/'));
 
-    let response = reqwest::Client::new()
+    let mut request_builder = reqwest::Client::new()
         .post(endpoint)
         .header("Authorization", format!("Bearer {api_key}"))
         .header("Content-Type", "application/json")
-        .json(&request)
+        .json(&request);
+
+    if let Some(provider_id) = provider.filter(|value| !value.trim().is_empty()) {
+        request_builder = request_builder.header("X-Provider-Id", provider_id);
+    }
+
+    let response = request_builder
         .send()
         .await
         .map_err(|e| format!("请求失败: {e}"))?;

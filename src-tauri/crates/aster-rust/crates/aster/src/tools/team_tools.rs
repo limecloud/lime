@@ -4,6 +4,7 @@ use crate::session::{
     SessionManager, SessionRuntimeQueueService, SessionType, TeamMember, TeamMembershipState,
     TeamSessionState, TEAM_LEAD_NAME,
 };
+use crate::tools::peer_address_surface::LIST_PEERS_TOOL_DESCRIPTION;
 use crate::tools::{
     base::Tool,
     context::{ToolContext, ToolResult},
@@ -388,7 +389,7 @@ impl Tool for ListPeersTool {
     }
 
     fn description(&self) -> &str {
-        "列出当前可通过 SendMessage 直接通信的 peers。当前 Lime runtime 会先返回活跃 team 内成员，并优先暴露同一 working_dir 下 live 的本机顶层 session；若 live peers 不足，再回退最近本机会话。本机会话请使用 `send_to` 里的 synthetic `uds:<session-id>` 地址发送，不要把 `agent_id` 当作 peer address。`bridge:` remote peer 仍未进入 current。"
+        LIST_PEERS_TOOL_DESCRIPTION
     }
 
     fn input_schema(&self) -> Value {

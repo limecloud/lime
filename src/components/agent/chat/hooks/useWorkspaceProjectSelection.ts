@@ -13,6 +13,7 @@ interface PendingTopicSwitchState {
   topicId: string;
   targetProjectId: string;
   forceRefresh?: boolean;
+  resumeSessionStartHooks?: boolean;
 }
 
 interface UseWorkspaceProjectSelectionOptions {
@@ -128,6 +129,7 @@ export function useWorkspaceProjectSelection(
       targetProjectId: string,
       options?: {
         forceRefresh?: boolean;
+        resumeSessionStartHooks?: boolean;
       },
     ) => {
       const normalizedTargetProjectId = normalizeProjectId(targetProjectId);
@@ -141,6 +143,9 @@ export function useWorkspaceProjectSelection(
         topicId,
         targetProjectId: normalizedTargetProjectId,
         ...(options?.forceRefresh === true ? { forceRefresh: true } : {}),
+        ...(options?.resumeSessionStartHooks === true
+          ? { resumeSessionStartHooks: true }
+          : {}),
       };
       setInternalProjectId(normalizedTargetProjectId);
     },

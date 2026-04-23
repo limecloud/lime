@@ -538,6 +538,12 @@ pub struct SkillExecutionResult {
     pub allowed_tools: Option<Vec<String>>,
     /// Preferred model
     pub model: Option<String>,
+    /// Nested tool name forwarded from an agent-capable skill run
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forwarded_tool_name: Option<String>,
+    /// Structured metadata forwarded from a nested tool result
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forwarded_tool_metadata: Option<serde_json::Value>,
 }
 
 #[cfg(test)]
@@ -1342,6 +1348,8 @@ mod tests {
         assert!(result.command_name.is_none());
         assert!(result.allowed_tools.is_none());
         assert!(result.model.is_none());
+        assert!(result.forwarded_tool_name.is_none());
+        assert!(result.forwarded_tool_metadata.is_none());
     }
 
     #[test]
@@ -1357,6 +1365,8 @@ mod tests {
             command_name: Some("workflow-skill".to_string()),
             allowed_tools: None,
             model: Some("gpt-4".to_string()),
+            forwarded_tool_name: None,
+            forwarded_tool_metadata: None,
         };
 
         assert!(result.success);
@@ -1375,6 +1385,8 @@ mod tests {
             command_name: Some("test-skill".to_string()),
             allowed_tools: Some(vec!["read_file".to_string()]),
             model: Some("claude-3".to_string()),
+            forwarded_tool_name: None,
+            forwarded_tool_metadata: None,
         };
 
         let json = serde_json::to_string(&result).unwrap();
@@ -1453,6 +1465,8 @@ mod tests {
             command_name: Some("test".to_string()),
             allowed_tools: Some(vec!["tool".to_string()]),
             model: Some("model".to_string()),
+            forwarded_tool_name: None,
+            forwarded_tool_metadata: None,
         };
 
         let json = serde_json::to_string(&original).unwrap();
@@ -1481,6 +1495,8 @@ mod tests {
             command_name: None,
             allowed_tools: None,
             model: None,
+            forwarded_tool_name: None,
+            forwarded_tool_metadata: None,
         };
 
         let cloned = result.clone();

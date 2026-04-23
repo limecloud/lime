@@ -61,6 +61,8 @@ function areGeneralWorkbenchSidebarWorkflowPropsEqual(
   next: GeneralWorkbenchSidebarWorkflowContract,
 ): boolean {
   return (
+    previous.projectId === next.projectId &&
+    previous.sessionId === next.sessionId &&
     previous.onNewTopic === next.onNewTopic &&
     previous.onSwitchTopic === next.onSwitchTopic &&
     previous.onDeleteTopic === next.onDeleteTopic &&

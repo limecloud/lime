@@ -11,6 +11,11 @@ import {
   hasTauriRuntimeMarkers,
 } from "@/lib/tauri-runtime";
 import { resolveAbsoluteWorkspacePath } from "./workspacePath";
+import {
+  buildImageTaskLookupRequest,
+  IMAGE_TASKS_ROOT_RELATIVE_PATH,
+  normalizeImageTaskPath,
+} from "./imageTaskLocator";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import {
   replaceDocumentImageTaskPlaceholderWithImage,
@@ -31,7 +36,6 @@ const IMAGE_TASK_FILE_PREVIEW_MAX_SIZE = 256 * 1024;
 const IMAGE_TASK_POLL_INTERVAL_MS = 1500;
 const IMAGE_TASK_RESTORE_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const IMAGE_TASK_RESTORE_LIMIT = 8;
-const IMAGE_TASKS_ROOT_RELATIVE_PATH = ".lime/tasks";
 const IMAGE_TASKS_RESTORE_SCAN_DEPTH = 2;
 
 interface CreationTaskSubmittedPayload {
@@ -65,6 +69,7 @@ interface TrackedImageTask {
   taskFamily: string;
   artifactPath: string;
   absolutePath: string;
+  lookupTaskRef: string;
   timerId: number | null;
   polling: boolean;
 }
@@ -149,12 +154,18 @@ function shouldPreferLoadedImageTaskSnapshot(
   return candidate.snapshot.updatedAt > current.snapshot.updatedAt;
 }
 
-function collectSeedImageTaskIds(messages?: Message[]): string[] {
+interface SeedImageTaskRecord {
+  taskId: string;
+  taskFilePath?: string;
+  artifactPath?: string;
+}
+
+function collectSeedImageTasks(messages?: Message[]): SeedImageTaskRecord[] {
   if (!messages || messages.length === 0) {
     return [];
   }
 
-  const taskIds: string[] = [];
+  const tasks: SeedImageTaskRecord[] = [];
   const seen = new Set<string>();
   messages.forEach((message) => {
     if (message.role !== "assistant") {
@@ -167,9 +178,17 @@ function collectSeedImageTaskIds(messages?: Message[]): string[] {
     }
 
     seen.add(taskId);
-    taskIds.push(taskId);
+    tasks.push({
+      taskId,
+      taskFilePath: normalizeImageTaskPath(
+        message.imageWorkbenchPreview?.taskFilePath,
+      ),
+      artifactPath: normalizeImageTaskPath(
+        message.imageWorkbenchPreview?.artifactPath,
+      ),
+    });
   });
-  return taskIds;
+  return tasks;
 }
 
 function isImageWorkbenchTaskSatisfiedByCache(params: {
@@ -1016,6 +1035,8 @@ function buildParsedImageTaskSnapshot(params: {
   taskType: string;
   projectId?: string | null;
   contentId?: string | null;
+  taskFilePath?: string | null;
+  artifactPath?: string | null;
   canvasState: CanvasStateUnion | null;
 }): ParsedImageTaskSnapshot | null {
   const payload = asRecord(params.taskRecord.payload);
@@ -1142,6 +1163,8 @@ function buildParsedImageTaskSnapshot(params: {
   const attemptCount = Array.isArray(params.taskRecord.attempts)
     ? params.taskRecord.attempts.length
     : undefined;
+  const taskFilePath = normalizeImageTaskPath(params.taskFilePath) ?? null;
+  const artifactPath = normalizeImageTaskPath(params.artifactPath) ?? null;
   const preview: MessageImageWorkbenchPreview = {
     taskId: params.taskId,
     prompt: prompt || `${taskLabel}进行中`,
@@ -1149,6 +1172,8 @@ function buildParsedImageTaskSnapshot(params: {
     status: previewStatus,
     projectId: params.projectId ?? null,
     contentId: params.contentId ?? null,
+    taskFilePath,
+    artifactPath,
     imageUrl: outputs[0]?.url ?? null,
     imageCount:
       previewStatus === "running" ? requestedCount : successCount || undefined,
@@ -1261,6 +1286,8 @@ function buildParsedImageTaskSnapshot(params: {
       failureMessage: lastError,
       hookImageIds: outputs.map((output) => output.hookImageId),
       applyTarget,
+      taskFilePath,
+      artifactPath,
     },
     outputs,
     terminal:
@@ -1279,6 +1306,8 @@ function buildPendingImageTaskSnapshot(params: {
   progressMessage?: string;
   projectId?: string | null;
   contentId?: string | null;
+  taskFilePath?: string | null;
+  artifactPath?: string | null;
   canvasState: CanvasStateUnion | null;
 }): ParsedImageTaskSnapshot {
   const taskMode = resolveTaskMode(params.taskType, {
@@ -1304,6 +1333,8 @@ function buildPendingImageTaskSnapshot(params: {
       taskType: params.taskType,
       projectId: params.projectId ?? null,
       contentId: params.contentId ?? null,
+      taskFilePath: params.taskFilePath ?? null,
+      artifactPath: params.artifactPath ?? null,
       canvasState: params.canvasState,
     }) || {
       taskId: params.taskId,
@@ -1328,6 +1359,8 @@ function buildPendingImageTaskSnapshot(params: {
           status: "running",
           projectId: params.projectId ?? null,
           contentId: params.contentId ?? null,
+          taskFilePath: normalizeImageTaskPath(params.taskFilePath) ?? null,
+          artifactPath: normalizeImageTaskPath(params.artifactPath) ?? null,
           phase: resolvePendingProgressPhase(params.status),
           statusMessage: params.progressMessage || "任务已提交，正在排队处理。",
         },
@@ -1350,6 +1383,8 @@ function buildPendingImageTaskSnapshot(params: {
           contentId: params.contentId ?? null,
           requestedTarget: resolveTaskRequestedTarget(params.taskType),
         }),
+        taskFilePath: normalizeImageTaskPath(params.taskFilePath) ?? null,
+        artifactPath: normalizeImageTaskPath(params.artifactPath) ?? null,
       },
       outputs: [],
       terminal: false,
@@ -1374,6 +1409,8 @@ function buildImageTaskSnapshotFromArtifactOutput(params: {
         taskType: params.artifact.task_type,
         projectId: params.projectId ?? null,
         contentId: params.contentId ?? null,
+        taskFilePath: params.artifact.absolute_path,
+        artifactPath: params.artifact.artifact_path,
         canvasState: params.canvasState,
       }) || null
     );
@@ -1389,6 +1426,8 @@ function buildImageTaskSnapshotFromArtifactOutput(params: {
     status: params.artifact.status,
     projectId: params.projectId ?? null,
     contentId: params.contentId ?? null,
+    taskFilePath: params.artifact.absolute_path,
+    artifactPath: params.artifact.artifact_path,
     canvasState: params.canvasState,
   });
 }
@@ -1475,6 +1514,10 @@ function mergeImageTaskSnapshot(
       {
         ...snapshot.task,
         sessionId: previousTask?.sessionId || snapshot.task.sessionId,
+        taskFilePath:
+          snapshot.task.taskFilePath ?? previousTask?.taskFilePath ?? null,
+        artifactPath:
+          snapshot.task.artifactPath ?? previousTask?.artifactPath ?? null,
       },
       ...current.tasks.filter((task) => task.id !== snapshot.taskId),
     ],
@@ -1547,6 +1590,8 @@ function patchMessagesWithImageWorkbenchState(params: {
       prompt: preview.prompt || task.prompt,
       mode: task.mode,
       status: resolvePreviewStatusFromWorkbenchTask(task.status),
+      taskFilePath: task.taskFilePath ?? preview.taskFilePath ?? null,
+      artifactPath: task.artifactPath ?? preview.artifactPath ?? null,
       imageUrl: preferredOutput?.url || preview.imageUrl || null,
       imageCount: outputs.length > 0 ? outputs.length : preview.imageCount,
       sourceImageUrl: task.sourceImageUrl ?? preview.sourceImageUrl ?? null,
@@ -1565,6 +1610,8 @@ function patchMessagesWithImageWorkbenchState(params: {
 
     const hasChanged =
       nextPreview.status !== preview.status ||
+      nextPreview.taskFilePath !== preview.taskFilePath ||
+      nextPreview.artifactPath !== preview.artifactPath ||
       nextPreview.imageUrl !== preview.imageUrl ||
       nextPreview.imageCount !== preview.imageCount ||
       nextPreview.size !== preview.size ||
@@ -1656,20 +1703,23 @@ export function useWorkspaceImageTaskPreviewRuntime({
     let unlisten: (() => void) | null = null;
     const restoredSeedTaskIds = new Set<string>();
 
-    const loadTaskSnapshotFromArtifactApi = async (
-      taskId: string,
-    ): Promise<LoadedImageTaskSnapshot | null> => {
-      const currentProjectRootPath =
-        runtimeContextRef.current.projectRootPath?.trim();
-      if (!currentProjectRootPath) {
+    const loadTaskSnapshotFromArtifactApi = async (params: {
+      taskId: string;
+      taskFilePath?: string | null;
+      artifactPath?: string | null;
+    }): Promise<LoadedImageTaskSnapshot | null> => {
+      const request = buildImageTaskLookupRequest({
+        taskId: params.taskId,
+        taskFilePath: params.taskFilePath,
+        artifactPath: params.artifactPath,
+        projectRootPath: runtimeContextRef.current.projectRootPath,
+      });
+      if (!request) {
         return null;
       }
 
       try {
-        const artifact = await getMediaTaskArtifact({
-          projectRootPath: currentProjectRootPath,
-          taskRef: taskId,
-        });
+        const artifact = await getMediaTaskArtifact(request);
         if (cancelled) {
           return null;
         }
@@ -1729,6 +1779,10 @@ export function useWorkspaceImageTaskPreviewRuntime({
         taskFamily: "image",
         artifactPath: params.artifactPath || existing?.artifactPath || "",
         absolutePath: params.absolutePath || existing?.absolutePath || "",
+        lookupTaskRef:
+          params.absolutePath ||
+          existing?.lookupTaskRef ||
+          params.taskId,
         timerId: null,
         polling: false,
       });
@@ -1760,32 +1814,36 @@ export function useWorkspaceImageTaskPreviewRuntime({
         let loadedSnapshot: LoadedImageTaskSnapshot | null = null;
 
         try {
-          const preview = await readFilePreview(
-            trackedTask.absolutePath,
-            IMAGE_TASK_FILE_PREVIEW_MAX_SIZE,
-          );
-          if (cancelled || !trackedTasks.has(taskId)) {
-            return;
-          }
+          if (trackedTask.absolutePath) {
+            const preview = await readFilePreview(
+              trackedTask.absolutePath,
+              IMAGE_TASK_FILE_PREVIEW_MAX_SIZE,
+            );
+            if (cancelled || !trackedTasks.has(taskId)) {
+              return;
+            }
 
-          if (!preview.error && preview.content?.trim()) {
-            const parsed = JSON.parse(preview.content) as Record<
-              string,
-              unknown
-            >;
-            const snapshot = buildParsedImageTaskSnapshot({
-              taskRecord: parsed,
-              taskId: trackedTask.taskId,
-              taskType: trackedTask.taskType,
-              projectId: runtimeContextRef.current.projectId,
-              contentId: runtimeContextRef.current.contentId,
-              canvasState: runtimeContextRef.current.canvasState,
-            });
-            if (snapshot) {
-              loadedSnapshot = {
-                snapshot,
+            if (!preview.error && preview.content?.trim()) {
+              const parsed = JSON.parse(preview.content) as Record<
+                string,
+                unknown
+              >;
+              const snapshot = buildParsedImageTaskSnapshot({
                 taskRecord: parsed,
-              };
+                taskId: trackedTask.taskId,
+                taskType: trackedTask.taskType,
+                projectId: runtimeContextRef.current.projectId,
+                contentId: runtimeContextRef.current.contentId,
+                taskFilePath: trackedTask.absolutePath,
+                artifactPath: trackedTask.artifactPath,
+                canvasState: runtimeContextRef.current.canvasState,
+              });
+              if (snapshot) {
+                loadedSnapshot = {
+                  snapshot,
+                  taskRecord: parsed,
+                };
+              }
             }
           }
         } catch {
@@ -1798,8 +1856,11 @@ export function useWorkspaceImageTaskPreviewRuntime({
           loadedSnapshot.snapshot.outputs.length === 0;
 
         if (shouldProbeArtifactApi) {
-          const artifactSnapshot =
-            await loadTaskSnapshotFromArtifactApi(taskId);
+          const artifactSnapshot = await loadTaskSnapshotFromArtifactApi({
+            taskId,
+            taskFilePath: trackedTask.absolutePath || trackedTask.lookupTaskRef,
+            artifactPath: trackedTask.artifactPath,
+          });
           if (
             shouldPreferLoadedImageTaskSnapshot(
               loadedSnapshot,
@@ -1814,6 +1875,16 @@ export function useWorkspaceImageTaskPreviewRuntime({
           return;
         }
 
+        trackedTask.lookupTaskRef =
+          loadedSnapshot.snapshot.task.taskFilePath ||
+          trackedTask.absolutePath ||
+          trackedTask.lookupTaskRef;
+        trackedTask.absolutePath =
+          loadedSnapshot.snapshot.task.taskFilePath ||
+          trackedTask.absolutePath;
+        trackedTask.artifactPath =
+          loadedSnapshot.snapshot.task.artifactPath ||
+          trackedTask.artifactPath;
         applyLoadedTaskSnapshot(loadedSnapshot);
 
         if (loadedSnapshot.snapshot.terminal) {
@@ -1957,6 +2028,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
               taskType,
               projectId: runtimeContextRef.current.projectId,
               contentId: runtimeContextRef.current.contentId,
+              taskFilePath: candidatePath,
               canvasState: runtimeContextRef.current.canvasState,
             });
             if (!snapshot) {
@@ -2018,8 +2090,12 @@ export function useWorkspaceImageTaskPreviewRuntime({
           taskId: item.snapshot.taskId,
           taskType: item.taskType,
           taskFamily: item.taskFamily,
-          artifactPath: item.absolutePath,
-          absolutePath: item.absolutePath,
+          artifactPath: item.snapshot.task.artifactPath || "",
+          absolutePath: item.snapshot.task.taskFilePath || item.absolutePath,
+          lookupTaskRef:
+            item.snapshot.task.taskFilePath ||
+            item.absolutePath ||
+            item.snapshot.taskId,
           timerId: null,
           polling: false,
         });
@@ -2030,33 +2106,37 @@ export function useWorkspaceImageTaskPreviewRuntime({
     const restoreTrackedTasksFromMessages = async (
       seedMessages?: Message[],
     ): Promise<boolean> => {
-      const taskIds = collectSeedImageTaskIds(
+      const taskSeeds = collectSeedImageTasks(
         seedMessages || runtimeContextRef.current.messages,
-      ).filter((taskId) => !restoredSeedTaskIds.has(taskId));
-      if (taskIds.length === 0 || cancelled) {
+      ).filter((task) => !restoredSeedTaskIds.has(task.taskId));
+      if (taskSeeds.length === 0 || cancelled) {
         return false;
       }
 
-      taskIds.forEach((taskId) => {
-        restoredSeedTaskIds.add(taskId);
+      taskSeeds.forEach((task) => {
+        restoredSeedTaskIds.add(task.taskId);
       });
 
-      const unresolvedTaskIds = taskIds.filter(
-        (taskId) =>
+      const unresolvedTaskSeeds = taskSeeds.filter(
+        (task) =>
           !isImageWorkbenchTaskSatisfiedByCache({
             imageWorkbenchState:
               runtimeContextRef.current.currentImageWorkbenchState,
-            taskId,
+            taskId: task.taskId,
           }),
       );
-      if (unresolvedTaskIds.length === 0) {
+      if (unresolvedTaskSeeds.length === 0) {
         return true;
       }
 
       const loadedSnapshots = await Promise.all(
-        unresolvedTaskIds.map(async (taskId) => ({
-          taskId,
-          loaded: await loadTaskSnapshotFromArtifactApi(taskId),
+        unresolvedTaskSeeds.map(async (task) => ({
+          task,
+          loaded: await loadTaskSnapshotFromArtifactApi({
+            taskId: task.taskId,
+            taskFilePath: task.taskFilePath,
+            artifactPath: task.artifactPath,
+          }),
         })),
       );
       if (cancelled) {
@@ -2067,7 +2147,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
         (
           item,
         ): item is {
-          taskId: string;
+          task: SeedImageTaskRecord;
           loaded: LoadedImageTaskSnapshot;
         } => Boolean(item.loaded),
       );
@@ -2079,13 +2159,17 @@ export function useWorkspaceImageTaskPreviewRuntime({
         applyLoadedTaskSnapshot(item.loaded);
         if (!item.loaded.snapshot.terminal) {
           trackTaskForPolling({
-            taskId: item.taskId,
+            taskId: item.task.taskId,
+            absolutePath:
+              item.loaded.snapshot.task.taskFilePath || item.task.taskFilePath,
+            artifactPath:
+              item.loaded.snapshot.task.artifactPath || item.task.artifactPath,
           });
-          scheduleNextPoll(item.taskId);
+          scheduleNextPoll(item.task.taskId);
         }
       });
 
-      return resolvedSnapshots.length === taskIds.length;
+      return resolvedSnapshots.length === unresolvedTaskSeeds.length;
     };
 
     restoreSeedMessagesRef.current = (seedMessages) => {
@@ -2118,6 +2202,10 @@ export function useWorkspaceImageTaskPreviewRuntime({
       }
       const artifactPath =
         payload.path?.trim() || payload.absolute_path?.trim() || "";
+      const absolutePath = resolveAbsoluteWorkspacePath(
+        runtimeContextRef.current.projectRootPath,
+        payload.absolute_path?.trim() || artifactPath,
+      );
       const normalizedEventStatus = normalizeTaskStatus(payload.status);
       const progressMessage = payload.reused_existing
         ? "已复用现有图片任务，正在同步最新状态。"
@@ -2158,6 +2246,8 @@ export function useWorkspaceImageTaskPreviewRuntime({
                 payload.project_id || runtimeContextRef.current.projectId,
               contentId:
                 payload.content_id || runtimeContextRef.current.contentId,
+              taskFilePath: absolutePath,
+              artifactPath,
               canvasState: runtimeContextRef.current.canvasState,
             })
           : null;
@@ -2203,10 +2293,6 @@ export function useWorkspaceImageTaskPreviewRuntime({
           setCanvasState,
         });
       }
-      const absolutePath = resolveAbsoluteWorkspacePath(
-        runtimeContextRef.current.projectRootPath,
-        payload.absolute_path?.trim() || artifactPath,
-      );
 
       if (!taskId || !taskType || taskFamily !== "image" || !absolutePath) {
         return;
@@ -2222,6 +2308,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
         taskFamily,
         artifactPath,
         absolutePath,
+        lookupTaskRef: absolutePath,
         timerId: null,
         polling: false,
       });

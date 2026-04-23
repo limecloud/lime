@@ -155,10 +155,21 @@ interface BuildWorkspaceEmptyStatePropsParams {
   onResumeRecentSceneApp?: ComponentProps<
     typeof EmptyState
   >["onResumeRecentSceneApp"];
+  recentSessionTitle?: ComponentProps<typeof EmptyState>["recentSessionTitle"];
+  recentSessionSummary?: ComponentProps<
+    typeof EmptyState
+  >["recentSessionSummary"];
+  recentSessionActionLabel?: ComponentProps<
+    typeof EmptyState
+  >["recentSessionActionLabel"];
+  onResumeRecentSession?: ComponentProps<
+    typeof EmptyState
+  >["onResumeRecentSession"];
   onOpenSceneAppsDirectory?: ComponentProps<
     typeof EmptyState
   >["onOpenSceneAppsDirectory"];
   projectId: string | null;
+  sessionId?: string | null;
   onProjectChange?: ComponentProps<typeof EmptyState>["onProjectChange"];
   onOpenSettings?: ComponentProps<typeof EmptyState>["onOpenSettings"];
   runtimeToolAvailability?: ComponentProps<
@@ -225,8 +236,13 @@ export function buildWorkspaceEmptyStateProps({
   onLaunchSceneApp,
   canResumeRecentSceneApp,
   onResumeRecentSceneApp,
+  recentSessionTitle,
+  recentSessionSummary,
+  recentSessionActionLabel,
+  onResumeRecentSession,
   onOpenSceneAppsDirectory,
   projectId,
+  sessionId,
   onProjectChange,
   onOpenSettings,
   runtimeToolAvailability,
@@ -294,8 +310,13 @@ export function buildWorkspaceEmptyStateProps({
     onLaunchSceneApp,
     canResumeRecentSceneApp,
     onResumeRecentSceneApp,
+    recentSessionTitle,
+    recentSessionSummary,
+    recentSessionActionLabel,
+    onResumeRecentSession,
     onOpenSceneAppsDirectory,
     projectId,
+    sessionId,
     onProjectChange,
     onOpenSettings,
     runtimeToolAvailability,

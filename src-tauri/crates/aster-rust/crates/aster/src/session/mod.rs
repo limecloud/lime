@@ -37,6 +37,7 @@ mod memory_extractor;
 mod memory_pipeline;
 mod memory_repository;
 mod memory_retriever;
+mod plan;
 mod query;
 pub mod resume;
 mod runtime_queue;
@@ -84,6 +85,7 @@ pub use memory::{
     CommitOptions, CommitReport, MemoryCategory, MemoryHealth, MemoryRecord, MemorySearchResult,
     MemoryStats,
 };
+pub use plan::{save_session_plan_mode_state, SessionPlanModeState};
 pub use query::{
     collect_subagent_cascade_session_ids, query_all_subagent_sessions_with_metadata,
     query_child_subagent_sessions, query_session, query_subagent_cascade_session_ids,

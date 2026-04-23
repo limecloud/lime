@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { ProviderIcon } from "@/icons/providers";
 import {
+  type ConfiguredProvider,
   findConfiguredProviderBySelection,
   useConfiguredProviders,
 } from "@/hooks/useConfiguredProviders";
@@ -33,6 +34,7 @@ import { ModelCapabilityBadges } from "@/components/model/ModelCapabilityBadges"
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
 import { resolveProviderModelLoadOptions } from "@/lib/model/providerModelLoadOptions";
+import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 
 const compactTriggerClassName =
   "h-8 min-w-[104px] max-w-[168px] justify-start gap-1.5 rounded-full border-slate-200/80 bg-white/92 px-2.5 text-slate-600 shadow-none transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-800";
@@ -64,6 +66,19 @@ export interface ModelSelectorProps {
   popoverSide?: "top" | "bottom";
   disabled?: boolean;
   backgroundPreload?: "immediate" | "idle" | "disabled";
+  allowAutoProvider?: boolean;
+  allowAutoModel?: boolean;
+  autoProviderLabel?: string;
+  autoModelLabel?: string;
+  placeholderLabel?: string;
+  suppressAutoSelection?: boolean;
+  providerFilter?: (provider: ConfiguredProvider) => boolean;
+  modelFilter?: (
+    model: EnhancedModelMetadata,
+    provider: ConfiguredProvider,
+  ) => boolean;
+  emptyStateTitle?: string;
+  emptyStateDescription?: string;
 }
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
@@ -78,6 +93,16 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   popoverSide = "top",
   disabled = false,
   backgroundPreload = "immediate",
+  allowAutoProvider = false,
+  allowAutoModel = false,
+  autoProviderLabel = "自动选择",
+  autoModelLabel = "自动选择",
+  placeholderLabel = "选择模型",
+  suppressAutoSelection = false,
+  providerFilter,
+  modelFilter,
+  emptyStateTitle = "工具模型未配置",
+  emptyStateDescription = "配置工具模型以获得更好的对话标题和记忆管理。",
 }) => {
   const [open, setOpen] = useState(false);
   const [noProviderGuideDismissed, setNoProviderGuideDismissed] = useState(
@@ -148,9 +173,23 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const { providers: configuredProviders, loading: providersLoading } =
     useConfiguredProviders({ autoLoad: shouldLoadProviders });
 
+  const visibleProviders = useMemo(
+    () =>
+      providerFilter
+        ? configuredProviders.filter((provider) => providerFilter(provider))
+        : configuredProviders,
+    [configuredProviders, providerFilter],
+  );
   const selectedProvider = useMemo(() => {
     return findConfiguredProviderBySelection(configuredProviders, providerType);
   }, [configuredProviders, providerType]);
+  const selectedProviderVisible = useMemo(
+    () =>
+      selectedProvider
+        ? visibleProviders.some((provider) => provider.key === selectedProvider.key)
+        : false,
+    [selectedProvider, visibleProviders],
+  );
   const providerModelLoadOptions = useMemo(
     () =>
       resolveProviderModelLoadOptions({
@@ -177,10 +216,18 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const filteredResult = useMemo(() => {
     return filterModelsByTheme(activeTheme, providerModels);
   }, [activeTheme, providerModels]);
+  const visibleModels = useMemo(() => {
+    if (!selectedProvider || !modelFilter) {
+      return filteredResult.models;
+    }
+    return filteredResult.models.filter((item) =>
+      modelFilter(item, selectedProvider),
+    );
+  }, [filteredResult.models, modelFilter, selectedProvider]);
 
   const modelOptions = useMemo(
     () =>
-      filteredResult.models.map((item) => {
+      visibleModels.map((item) => {
         const compatibilityIssue = getProviderModelCompatibilityIssue({
           providerType,
           configuredProviderType: selectedProvider?.type,
@@ -192,7 +239,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           compatibilityIssue,
         };
       }),
-    [filteredResult.models, providerType, selectedProvider?.type],
+    [providerType, selectedProvider?.type, visibleModels],
   );
 
   const currentModels = useMemo(
@@ -227,27 +274,29 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     if (hasInitialized.current) return;
     if (!shouldLoadProviders) return;
     if (providersLoading) return;
-    if (configuredProviders.length === 0) return;
+    if (visibleProviders.length === 0) return;
+    if (allowAutoProvider || suppressAutoSelection) return;
 
     hasInitialized.current = true;
 
     if (!providerType.trim()) {
-      setProviderType(
-        configuredProviders[0].providerId ?? configuredProviders[0].key,
-      );
+      setProviderType(visibleProviders[0].providerId ?? visibleProviders[0].key);
     }
   }, [
-    configuredProviders,
+    allowAutoProvider,
     providerType,
     providersLoading,
     setProviderType,
     shouldLoadProviders,
+    suppressAutoSelection,
+    visibleProviders,
   ]);
 
   useEffect(() => {
     if (!shouldLoadModels) return;
     if (!selectedProvider) return;
     if (modelsLoading) return;
+    if (allowAutoModel || suppressAutoSelection) return;
 
     const currentModel = modelRef.current;
     if (
@@ -257,11 +306,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       setModel(currentModels[0]);
     }
   }, [
+    allowAutoModel,
     currentModels,
     modelsLoading,
     selectedProvider,
     setModel,
     shouldLoadModels,
+    suppressAutoSelection,
   ]);
 
   useEffect(() => {
@@ -302,10 +353,25 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     compactProviderType.toLowerCase() === "lime-hub"
       ? defaultHubProviderLabel
       : getProviderLabel(compactProviderType);
-  const selectedProviderLabel =
-    selectedProvider?.label || fallbackProviderLabel;
-  const compactProviderLabel = selectedProvider?.label || fallbackProviderLabel;
-  const compactModelLabel = model || "切换模型";
+  const isAutoSelection = !providerType.trim() && !model.trim();
+  const showPlaceholderSelection =
+    isAutoSelection && (allowAutoProvider || suppressAutoSelection);
+  const selectedProviderLabel = showPlaceholderSelection
+    ? placeholderLabel
+    : selectedProvider?.label ||
+      (allowAutoProvider && !providerType.trim()
+        ? autoProviderLabel
+        : fallbackProviderLabel);
+  const compactProviderLabel = showPlaceholderSelection
+    ? placeholderLabel
+    : selectedProvider?.label ||
+      (allowAutoProvider && !providerType.trim()
+        ? autoProviderLabel
+        : fallbackProviderLabel);
+  const selectedModelLabel = showPlaceholderSelection
+    ? placeholderLabel
+    : model || (allowAutoModel ? autoModelLabel : "选择模型");
+  const compactModelLabel = selectedModelLabel;
   const normalizedTheme = (activeTheme || "").toLowerCase();
   const activeThemeLabel =
     THEME_LABEL_MAP[normalizedTheme] || activeTheme || "当前主题";
@@ -317,19 +383,19 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const showNoProviderGuide =
     shouldLoadProviders &&
     !providersLoading &&
-    configuredProviders.length === 0 &&
+    visibleProviders.length === 0 &&
     !noProviderGuideDismissed;
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
-    if (configuredProviders.length === 0) {
+    if (visibleProviders.length === 0) {
       return;
     }
     window.localStorage.removeItem(NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY);
     setNoProviderGuideDismissed(false);
-  }, [configuredProviders.length]);
+  }, [visibleProviders.length]);
 
   const handleDismissNoProviderGuide = () => {
     if (typeof window !== "undefined") {
@@ -351,10 +417,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
             <div className="min-w-0">
               <div className="text-sm font-medium text-amber-900">
-                工具模型未配置
+                {emptyStateTitle}
               </div>
               <div className="text-xs text-amber-700 leading-5">
-                配置工具模型以获得更好的对话标题和记忆管理。
+                {emptyStateDescription}
               </div>
             </div>
           </div>
@@ -409,7 +475,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 compactTriggerClassName,
                 open && "border-slate-300 bg-white text-slate-700",
               )}
-              title={`${selectedProviderLabel} / ${model || "选择模型"}`}
+              title={
+                showPlaceholderSelection
+                  ? placeholderLabel
+                  : `${selectedProviderLabel} / ${selectedModelLabel}`
+              }
             >
               <ProviderIcon
                 providerType={compactProviderType}
@@ -430,15 +500,21 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               className={defaultTriggerClassName}
             >
               <Bot size={16} className="text-slate-500" />
-              <span className="min-w-0 flex-1 flex items-center gap-1.5">
-                <span className="font-medium truncate">
-                  {selectedProviderLabel}
+              {showPlaceholderSelection ? (
+                <span className="min-w-0 flex-1 font-medium text-left text-slate-700">
+                  {placeholderLabel}
                 </span>
-                <span className="text-slate-300 shrink-0">/</span>
-                <span className="text-sm text-slate-500 truncate">
-                  {model || "选择模型"}
+              ) : (
+                <span className="min-w-0 flex-1 flex items-center gap-1.5">
+                  <span className="font-medium truncate">
+                    {selectedProviderLabel}
+                  </span>
+                  <span className="text-slate-300 shrink-0">/</span>
+                  <span className="text-sm text-slate-500 truncate">
+                    {selectedModelLabel}
+                  </span>
                 </span>
-              </span>
+              )}
               <ChevronDown className="ml-1 h-3 w-3 text-slate-400 opacity-70" />
             </Button>
           )}
@@ -457,13 +533,19 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
               模型选择
             </div>
-            <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
-              <span className="font-medium">{selectedProviderLabel}</span>
-              <span className="text-slate-300">/</span>
-              <span className="truncate text-slate-500">
-                {model || "选择模型"}
-              </span>
-            </div>
+            {showPlaceholderSelection ? (
+              <div className="mt-1 text-sm font-medium text-slate-700">
+                {placeholderLabel}
+              </div>
+            ) : (
+              <div className="mt-1 flex items-center gap-2 text-sm text-slate-700">
+                <span className="font-medium">{selectedProviderLabel}</span>
+                <span className="text-slate-300">/</span>
+                <span className="truncate text-slate-500">
+                  {selectedModelLabel}
+                </span>
+              </div>
+            )}
             {activeTheme ? (
               <div className="mt-1 text-xs text-slate-500">
                 当前按 {activeThemeLabel} 组织候选模型
@@ -483,12 +565,38 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 供应商
               </div>
 
-              {configuredProviders.length === 0 ? (
+              {visibleProviders.length === 0 ? (
                 <div className="px-2 py-3 text-xs leading-5 text-slate-500">
                   暂无已配置供应商
                 </div>
               ) : (
-                configuredProviders.map((provider) => {
+                <>
+                  {allowAutoProvider ? (
+                    <button
+                      onClick={() => {
+                        setProviderType("");
+                        setModel("");
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        itemClassName,
+                        !providerType.trim()
+                          ? "border-slate-200 bg-white text-slate-900 shadow-sm shadow-slate-950/5"
+                          : "text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-900",
+                      )}
+                    >
+                      <span className="truncate">{autoProviderLabel}</span>
+                      {!providerType.trim() ? (
+                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      ) : null}
+                    </button>
+                  ) : null}
+                  {selectedProvider && !selectedProviderVisible ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-700">
+                      当前已选供应商暂不可用
+                    </div>
+                  ) : null}
+                  {visibleProviders.map((provider) => {
                   const isSelected = selectedProvider?.key === provider.key;
                   const providerPromptCacheMode = getProviderPromptCacheMode(
                     provider.type,
@@ -529,7 +637,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                       )}
                     </button>
                   );
-                })
+                  })}
+                </>
               )}
             </div>
 
@@ -562,12 +671,41 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
               <ScrollArea className="flex-1">
                 <div className="space-y-1 p-1">
-                  {modelOptions.length === 0 ? (
+                  {!selectedProvider && (allowAutoProvider || suppressAutoSelection) ? (
+                    <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
+                      先选择供应商，再查看模型列表
+                    </div>
+                  ) : modelOptions.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
                       暂无可用模型
                     </div>
                   ) : (
-                    modelOptions.map((currentModelItem) => (
+                    <>
+                      {allowAutoModel && selectedProvider ? (
+                        <button
+                          onClick={() => {
+                            setModel("");
+                            setOpen(false);
+                          }}
+                          className={cn(
+                            `${itemClassName} group`,
+                            !model.trim()
+                              ? "border-slate-200 bg-slate-50 text-slate-900"
+                              : "text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900",
+                          )}
+                        >
+                          <span className="truncate">{autoModelLabel}</span>
+                          {!model.trim() ? (
+                            <Check size={14} className="text-slate-900" />
+                          ) : null}
+                        </button>
+                      ) : null}
+                      {selectedProvider && model.trim() && !currentModels.includes(model) ? (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-700">
+                          当前已选模型暂不可用
+                        </div>
+                      ) : null}
+                      {modelOptions.map((currentModelItem) => (
                       <button
                         key={currentModelItem.id}
                         disabled={Boolean(currentModelItem.compatibilityIssue)}
@@ -619,7 +757,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           <Check size={14} className="text-slate-900" />
                         ) : null}
                       </button>
-                    ))
+                      ))}
+                    </>
                   )}
                 </div>
               </ScrollArea>

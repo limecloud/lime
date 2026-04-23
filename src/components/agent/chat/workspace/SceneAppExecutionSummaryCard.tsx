@@ -7,17 +7,28 @@ import type {
 import { Button } from "@/components/ui/button";
 import { SceneAppProjectPackRuntimePanel } from "@/components/sceneapps/SceneAppProjectPackRuntimePanel";
 import {
+  buildSceneAppExecutionFollowupDestinations,
+  type SceneAppExecutionFollowupDestination,
+} from "@/components/sceneapps/sceneAppExecutionFollowupDestinations";
+import {
   buildSceneAppExecutionPromptActions,
   type SceneAppExecutionPromptAction,
   type SceneAppQuickReviewAction,
 } from "@/lib/sceneapp";
 import type { SceneAppExecutionContentPostEntry } from "./sceneAppExecutionContentPosts";
+import {
+  buildReviewFeedbackProjection,
+  type ReviewFeedbackProjection,
+} from "../utils/reviewFeedbackProjection";
+import type { CuratedTaskRecommendationSignal } from "../utils/curatedTaskRecommendationSignals";
 
 interface SceneAppExecutionSummaryCardProps {
   summary?: SceneAppExecutionSummaryViewModel | null;
   latestPackResultDetailView?: SceneAppRunDetailViewModel | null;
   latestPackResultLoading?: boolean;
   latestPackResultUsesFallback?: boolean;
+  latestReviewFeedbackSignal?: CuratedTaskRecommendationSignal | null;
+  onContinueReviewFeedback?: (taskId: string) => void;
   onReviewCurrentProject?: () => void;
   onSaveAsSkill?: () => void;
   onOpenSceneAppDetail?: () => void;
@@ -46,6 +57,60 @@ interface SceneAppExecutionSummaryCardProps {
   onContentPostAction?: (entry: SceneAppExecutionContentPostEntry) => void;
   promptActionPending?: boolean;
   onPromptAction?: (action: SceneAppExecutionPromptAction) => void;
+}
+
+function ReviewFeedbackProjectionBanner({
+  projection,
+  onContinueReviewFeedback,
+}: {
+  projection: ReviewFeedbackProjection;
+  onContinueReviewFeedback?: (taskId: string) => void;
+}) {
+  const primarySuggestedTask = projection.suggestedTasks[0] ?? null;
+
+  return (
+    <div
+      className="mt-3 rounded-[16px] border border-sky-200 bg-white px-3 py-3"
+      data-testid="sceneapp-execution-summary-review-feedback-banner"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+          围绕最近复盘
+        </span>
+        {projection.suggestedTaskTitles.length > 0 ? (
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+            {projection.suggestedTaskTitles.join(" / ")}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-2 text-sm font-medium leading-6 text-slate-900">
+        最近复盘已更新：{projection.signal.title}
+      </div>
+      <div className="mt-1 text-sm leading-6 text-slate-600">
+        {projection.signal.summary}
+      </div>
+      <div className="mt-1 text-sm leading-6 text-slate-600">
+        {projection.suggestionText}
+      </div>
+      {primarySuggestedTask && onContinueReviewFeedback ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-full border-sky-200 bg-white px-3 text-xs font-medium text-slate-700 hover:border-sky-300 hover:bg-sky-50"
+            data-testid="sceneapp-execution-summary-review-feedback-action"
+            onClick={() => onContinueReviewFeedback(primarySuggestedTask.taskId)}
+          >
+            继续去「{primarySuggestedTask.title}」
+          </Button>
+          <span className="text-xs leading-5 text-slate-500">
+            会继续带着当前结果基线，不用重新整理一遍。
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function renderPartChips(
@@ -99,6 +164,24 @@ function resolveRuntimeToneClass(
   }
 }
 
+function resolveAggregateToneClass(
+  status: NonNullable<
+    SceneAppExecutionSummaryViewModel["scorecardAggregate"]
+  >["status"],
+): string {
+  switch (status) {
+    case "good":
+      return "border-lime-200 bg-lime-50 text-lime-700";
+    case "watch":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "risk":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    case "idle":
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600";
+  }
+}
+
 function resolvePromptActionToneClass(
   tone: SceneAppExecutionPromptAction["tone"],
   disabled: boolean,
@@ -132,73 +215,13 @@ function resolveContentPostReadinessToneClass(
   }
 }
 
-function buildExecutionFollowupDestinations(
-  detailView: SceneAppRunDetailViewModel,
-): Array<{
-  key: string;
-  label: string;
-  description: string;
-}> {
-  const destinations: Array<{
-    key: string;
-    label: string;
-    description: string;
-  }> = [];
-  const actionKeys = new Set(
-    detailView.governanceActionEntries.map((entry) => entry.key),
-  );
-  const artifactKinds = new Set(
-    detailView.governanceArtifactEntries.map((entry) => entry.artifactRef.kind),
-  );
-
-  if (
-    actionKeys.has("weekly-review-pack") ||
-    (artifactKinds.has("evidence_summary") &&
-      artifactKinds.has("review_decision_markdown"))
-  ) {
-    destinations.push({
-      key: "weekly-review",
-      label: "周会复盘",
-      description: "证据摘要与人工复核已经适合带去业务复盘，方便快速对齐卡点和下一步。",
-    });
-  }
-
-  if (
-    actionKeys.has("structured-governance-pack") ||
-    artifactKinds.has("review_decision_json")
-  ) {
-    destinations.push({
-      key: "task-center",
-      label: "生成工作台",
-      description:
-        "这轮结果的复盘材料已经整理好，后续更适合回到生成工作台继续推进下一步。",
-    });
-  }
-
-  if (detailView.entryAction?.kind === "open_automation_job") {
-    destinations.push({
-      key: "automation-job",
-      label: "持续流程 / 自动化",
-      description: "这轮结果已经挂到持续任务，可以继续跟进调度频率、运行历史与交付状态。",
-    });
-  }
-
-  if (detailView.deliveryArtifactEntries.length > 0) {
-    destinations.push({
-      key: "delivery-editing",
-      label: "结果编辑 / 发布",
-      description: "主稿和结果文件已经可直接打开，适合继续编辑、复核或进入发布前处理。",
-    });
-  }
-
-  return destinations;
-}
-
 export function SceneAppExecutionSummaryCard({
   summary,
   latestPackResultDetailView = null,
   latestPackResultLoading = false,
   latestPackResultUsesFallback = false,
+  latestReviewFeedbackSignal = null,
+  onContinueReviewFeedback,
   onReviewCurrentProject,
   onSaveAsSkill,
   onOpenSceneAppDetail,
@@ -222,8 +245,12 @@ export function SceneAppExecutionSummaryCard({
     return null;
   }
 
+  const reviewFeedbackProjection = buildReviewFeedbackProjection({
+    signal: latestReviewFeedbackSignal,
+  });
+
   const followupDestinations = latestPackResultDetailView
-    ? buildExecutionFollowupDestinations(latestPackResultDetailView)
+    ? buildSceneAppExecutionFollowupDestinations(latestPackResultDetailView)
     : [];
   const promptActions = latestPackResultDetailView
     ? buildSceneAppExecutionPromptActions(latestPackResultDetailView)
@@ -232,6 +259,7 @@ export function SceneAppExecutionSummaryCard({
     summary.projectPackPlan?.packKindLabel ?? summary.deliveryContractLabel;
   const deliveryDestinationLabel =
     summary.projectPackPlan?.viewerLabel || deliveryContractLabel || "待补齐";
+  const scorecardAggregate = summary.scorecardAggregate ?? null;
   const scorecardSummaryLabel =
     summary.scorecardProfileRef ||
     (summary.scorecardMetricKeys.length > 0
@@ -246,6 +274,54 @@ export function SceneAppExecutionSummaryCard({
       quickReviewActions.length ||
       latestPackResultDetailView,
   );
+  const resolveFollowupDestinationAction = (
+    destination: SceneAppExecutionFollowupDestination,
+  ): { label: string; onClick: () => void } | null => {
+    const action = destination.action;
+    if (!action) {
+      return null;
+    }
+
+    switch (action.kind) {
+      case "review_current_project":
+        return onReviewCurrentProject
+          ? {
+              label: action.label,
+              onClick: onReviewCurrentProject,
+            }
+          : null;
+      case "governance_action":
+        return onGovernanceAction
+          ? {
+              label: action.label,
+              onClick: () => onGovernanceAction(action.entry),
+            }
+          : null;
+      case "governance_artifact":
+        return onGovernanceArtifactAction
+          ? {
+              label: action.label,
+              onClick: () => onGovernanceArtifactAction(action.entry),
+            }
+          : null;
+      case "entry_action":
+        return onEntryAction
+          ? {
+              label: action.label,
+              onClick: () => onEntryAction(action.entry),
+            }
+          : null;
+      case "delivery_artifact":
+        return onDeliveryArtifactAction
+          ? {
+              label: action.label,
+              onClick: () => onDeliveryArtifactAction(action.entry),
+            }
+          : null;
+      default:
+        return null;
+    }
+  };
 
   return (
     <section
@@ -465,6 +541,12 @@ export function SceneAppExecutionSummaryCard({
                 {summary.feedbackSummary}
               </div>
             ) : null}
+            {reviewFeedbackProjection ? (
+              <ReviewFeedbackProjectionBanner
+                projection={reviewFeedbackProjection}
+                onContinueReviewFeedback={onContinueReviewFeedback}
+              />
+            ) : null}
           </section>
 
           <section
@@ -532,6 +614,53 @@ export function SceneAppExecutionSummaryCard({
             <p className="mt-2 text-sm leading-6 text-slate-600">
               这里保留继续复核、放量或回退时最关键的判断线索，不把经营判断藏在后台。
             </p>
+            {scorecardAggregate ? (
+              <div
+                className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50/80 p-3"
+                data-testid="sceneapp-execution-summary-scorecard-aggregate"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${resolveAggregateToneClass(
+                      scorecardAggregate.status,
+                    )}`}
+                  >
+                    {scorecardAggregate.statusLabel}
+                  </span>
+                  {scorecardAggregate.actionLabel ? (
+                    <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                      {scorecardAggregate.actionLabel}
+                    </span>
+                  ) : null}
+                  {scorecardAggregate.topFailureSignalLabel ? (
+                    <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-medium text-amber-700">
+                      {scorecardAggregate.topFailureSignalLabel}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-3 text-sm leading-6 text-slate-800">
+                  {scorecardAggregate.summary}
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-600">
+                  {scorecardAggregate.nextAction}
+                </div>
+                {scorecardAggregate.destinations.length ? (
+                  <div
+                    className="mt-3 flex flex-wrap gap-2"
+                    data-testid="sceneapp-execution-summary-scorecard-destinations"
+                  >
+                    {scorecardAggregate.destinations.map((destination) => (
+                      <span
+                        key={destination.key}
+                        className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700"
+                      >
+                        {destination.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {summary.scorecardProfileRef ? (
               <div className="mt-3 text-sm leading-6 text-slate-700">
                 <span className="font-medium text-slate-900">判断基线：</span>
@@ -670,19 +799,37 @@ export function SceneAppExecutionSummaryCard({
 
                 {followupDestinations.length ? (
                   <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                    {followupDestinations.map((item) => (
-                      <article
-                        key={item.key}
-                        className="rounded-[18px] border border-white bg-white px-3 py-3"
-                      >
-                        <div className="text-sm font-medium text-slate-900">
-                          {item.label}
-                        </div>
-                        <div className="mt-2 text-xs leading-5 text-slate-600">
-                          {item.description}
-                        </div>
-                      </article>
-                    ))}
+                    {followupDestinations.map((item) => {
+                      const destinationAction =
+                        resolveFollowupDestinationAction(item);
+
+                      return (
+                        <article
+                          key={item.key}
+                          className="rounded-[18px] border border-white bg-white px-3 py-3"
+                        >
+                          <div className="text-sm font-medium text-slate-900">
+                            {item.label}
+                          </div>
+                          <div className="mt-2 text-xs leading-5 text-slate-600">
+                            {item.description}
+                          </div>
+                          {destinationAction ? (
+                            <div className="mt-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                data-testid={`sceneapp-execution-summary-destination-action-${item.key}`}
+                                onClick={destinationAction.onClick}
+                              >
+                                {destinationAction.label}
+                              </Button>
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+                    })}
                   </div>
                 ) : null}
 

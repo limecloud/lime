@@ -12,6 +12,27 @@ vi.mock("@/lib/api/appConfig", () => ({
   saveConfig: mockSaveConfig,
 }));
 
+vi.mock("@/components/input-kit", () => ({
+  ModelSelector: ({
+    providerType,
+    model,
+    placeholderLabel,
+  }: {
+    providerType: string;
+    model: string;
+    placeholderLabel?: string;
+  }) => {
+    const providerLabel =
+      providerType === "doubao-video" ? "豆包视频" : providerType;
+    return (
+      <div data-testid="video-model-selector">
+        {providerLabel || placeholderLabel || "自动选择"} /{" "}
+        {model || placeholderLabel || "自动选择"}
+      </div>
+    );
+  },
+}));
+
 vi.mock("@/hooks/useApiKeyProvider", () => ({
   useApiKeyProvider: () => ({
     providers: [
@@ -48,9 +69,11 @@ function renderComponent(): HTMLDivElement {
   return container;
 }
 
-async function flushEffects() {
+async function flushEffects(times = 2) {
   await act(async () => {
-    await Promise.resolve();
+    for (let index = 0; index < times; index += 1) {
+      await Promise.resolve();
+    }
   });
 }
 
@@ -125,49 +148,47 @@ afterEach(() => {
 });
 
 describe("VideoGenSettings", () => {
-  it("应加载全局视频默认设置", async () => {
+  it("应加载简化后的视频服务模型设置", async () => {
     const container = renderComponent();
-    await flushEffects();
-    await flushEffects();
+    await flushEffects(3);
 
-    expect(container.textContent).toContain("全局默认视频服务");
-    expect(container.textContent).toContain("默认视频 Provider");
-    expect(container.textContent).toContain("默认视频模型");
+    expect(container.textContent).toContain("视频服务模型");
+    expect(container.textContent).toContain("豆包视频");
+    expect(container.textContent).toContain("seedance-1-5-pro-251215");
+    expect(container.textContent).not.toContain("全局默认视频服务");
   });
 
   it("应把视频设置补充说明收进 tips", async () => {
     renderComponent();
-    await flushEffects();
-    await flushEffects();
+    await flushEffects(3);
 
     expect(getBodyText()).not.toContain(
-      "这里配置的是全局默认视频服务。未在项目中单独覆盖时，视频素材与 AI 视频任务都会优先使用这里的 Provider / 模型。",
+      "这里配置视频任务的默认 Provider、模型与回退策略，保持和图片、语音一致的简洁设置结构。",
     );
     expect(getBodyText()).not.toContain(
-      "关闭后，若全局默认视频服务缺失、被禁用或无可用 Key，将直接提示错误。",
+      "关闭后，若当前默认视频服务缺失、被禁用或无可用 Key，将直接提示错误。",
     );
 
-    const globalTip = await hoverTip("全局默认视频服务说明");
+    const sectionTip = await hoverTip("视频服务模型说明");
     expect(getBodyText()).toContain(
-      "这里配置的是全局默认视频服务。未在项目中单独覆盖时，视频素材与 AI 视频任务都会优先使用这里的 Provider / 模型。",
+      "这里配置视频任务的默认 Provider、模型与回退策略，保持和图片、语音一致的简洁设置结构。",
     );
-    await leaveTip(globalTip);
+    await leaveTip(sectionTip);
 
-    const fallbackTip = await hoverTip("默认视频服务不可用时自动回退说明");
+    const fallbackTip = await hoverTip("Provider 不可用时自动回退说明");
     expect(getBodyText()).toContain(
-      "关闭后，若全局默认视频服务缺失、被禁用或无可用 Key，将直接提示错误。",
+      "关闭后，若当前默认视频服务缺失、被禁用或无可用 Key，将直接提示错误。",
     );
     await leaveTip(fallbackTip);
   });
 
-  it("恢复全局默认后应清空视频服务覆盖", async () => {
+  it("恢复默认后应清空视频服务覆盖", async () => {
     const container = renderComponent();
-    await flushEffects();
-    await flushEffects();
+    await flushEffects(3);
 
     await act(async () => {
       findButton(container, "恢复默认").click();
-      await flushEffects();
+      await flushEffects(2);
     });
 
     expect(mockSaveConfig).toHaveBeenCalledTimes(1);

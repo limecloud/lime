@@ -12,11 +12,16 @@ import type {
   MediaTaskArtifactOutput,
   MediaTaskLookupRequest,
 } from "@/lib/api/mediaTasks";
+import { generateAgentRuntimeTitle } from "@/lib/api/agentRuntime";
 import { emitCanvasImageInsertRequest } from "@/lib/canvasImageInsertBus";
 import { onImageWorkbenchTaskAction } from "@/lib/imageWorkbenchEvents";
 import type { MessageImage } from "../types";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
-import { resolveImageWorkbenchSkillRequest } from "./imageSkillLaunch";
+import {
+  buildImageWorkbenchSessionTitle,
+  resolveImageWorkbenchSkillRequest,
+} from "./imageSkillLaunch";
+import { buildImageTaskLookupRequest } from "./imageTaskLocator";
 import {
   collapseWhitespace,
   resolveImageWorkbenchActionLabel,
@@ -334,10 +339,20 @@ export function useWorkspaceImageWorkbenchActionRuntime({
       }
 
       try {
-        const originalTask = await getImageTask({
+        const trackedTask = currentImageWorkbenchState.tasks.find(
+          (task) => task.id === normalizedTaskId,
+        );
+        const originalTaskLookup = buildImageTaskLookupRequest({
+          taskId: normalizedTaskId,
+          taskFilePath: trackedTask?.taskFilePath,
+          artifactPath: trackedTask?.artifactPath,
           projectRootPath: normalizedProjectRootPath,
-          taskRef: normalizedTaskId,
         });
+        if (!originalTaskLookup) {
+          throw new Error("未找到原任务文件，暂时无法重新生成");
+        }
+
+        const originalTask = await getImageTask(originalTaskLookup);
         const payload =
           originalTask.record?.payload &&
           typeof originalTask.record.payload === "object" &&
@@ -347,10 +362,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         if (!payload) {
           throw new Error("未找到原任务上下文，暂时无法重新生成");
         }
-
-        const trackedTask = currentImageWorkbenchState.tasks.find(
-          (task) => task.id === normalizedTaskId,
-        );
         const prompt =
           readTaskPayloadString(payload, ["prompt"]) || trackedTask?.prompt;
         if (!prompt?.trim()) {
@@ -368,7 +379,7 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         const anchorText = resolveTaskRecordAnchorText(originalTask.record);
 
         await createImageGenerationTask({
-          projectRootPath: normalizedProjectRootPath,
+          projectRootPath: originalTaskLookup.projectRootPath,
           prompt,
           title: readTaskPayloadString(payload, ["title"]) || prompt,
           mode: resolveReplayMode(payload.mode ?? payload.task_mode),
@@ -464,10 +475,20 @@ export function useWorkspaceImageWorkbenchActionRuntime({
       }
 
       try {
-        await cancelImageTask({
+        const trackedTask = currentImageWorkbenchState.tasks.find(
+          (task) => task.id === normalizedTaskId,
+        );
+        const cancelRequest = buildImageTaskLookupRequest({
+          taskId: normalizedTaskId,
+          taskFilePath: trackedTask?.taskFilePath,
+          artifactPath: trackedTask?.artifactPath,
           projectRootPath: normalizedProjectRootPath,
-          taskRef: normalizedTaskId,
         });
+        if (!cancelRequest) {
+          throw new Error("未找到图片任务文件，暂时无法取消");
+        }
+
+        await cancelImageTask(cancelRequest);
         toast.success("已提交取消请求");
         return true;
       } catch (error) {
@@ -477,7 +498,7 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         return false;
       }
     },
-    [cancelImageTask, projectRootPath],
+    [cancelImageTask, currentImageWorkbenchState.tasks, projectRootPath],
   );
 
   const handleStopImageWorkbenchGeneration = useCallback(async () => {
@@ -679,11 +700,25 @@ export function useWorkspaceImageWorkbenchActionRuntime({
       }
 
       const resolvedSessionKey = await resolveImageWorkbenchSessionKey({});
+      const titlePreviewText =
+        params.parsedCommand.mode === "generate"
+          ? effectivePrompt
+          : `${params.parsedCommand.mode === "edit" ? "修图" : "重绘"}：${effectivePrompt}`;
+      const resolvedTaskTitle = await generateAgentRuntimeTitle({
+        previewText: titlePreviewText,
+        titleKind: "image_task",
+      }).catch(() =>
+        buildImageWorkbenchSessionTitle(
+          params.parsedCommand.mode,
+          effectivePrompt,
+        ),
+      );
 
       const skillRequest = resolveImageWorkbenchSkillRequest({
         rawText: params.rawText,
         parsedCommand: params.parsedCommand,
         images: params.images,
+        title: resolvedTaskTitle,
         currentImageWorkbenchState,
         imageWorkbenchSelectedModelId,
         imageWorkbenchSelectedProviderId,

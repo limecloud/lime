@@ -1,74 +1,60 @@
-## Lime v1.16.0
+## Lime v1.17.0
+
+发布日期：`2026-04-23`
 
 ### 发布概览
 
-- 本次版本基于当前整批待发布工作树整理，覆盖 `225` 个文件，包含运行时 current 对齐、`@命令 / ServiceSkill / SkillCatalog / SceneApp` 本地执行面收口、工作台 IA 与多页面重构、自动化与资料库体验整理、开发脚本与工程文档同步，以及版本入口统一升级。
-- 本次发布目标 tag 为 `v1.16.0`。
+- 本次发布目标 tag 为 `v1.17.0`。
+- 当前待发布工作树已扩大到 `257` 个已跟踪文件改动，并继续新增一批未跟踪模块；本版重点已经从单纯版本同步扩展为 agent/runtime current 化、模型 taxonomy 与服务模型配置升级、工作台推荐链路重构、自动化 follow-up 收口，以及语音设置主链整理。
+- 本说明按当前工作树事实源重新整理，覆盖本轮新增的 runtime、settings、automation 与 docs/aiprompts 变化，不再沿用上一轮的简化摘要。
 
-### 运行时、hooks 与宿主能力推进
+### 重点更新
 
-- `runtime_project_hooks` 已真正接入当前 runtime 主链，补齐 `UserPromptSubmit`、`SessionStart(startup / compact)`、stop、permission request 等 hook 生命周期，不再停留在“存在 loader / executor、但主提交链没用上”的半接线状态。
-- `subagent_runtime`、`tool_runtime`、`runtime_turn`、`session_runtime` 与 `prompt_context` 同步推进，补上子代理自定义、frontmatter hooks、`allowed_tools` / `disallowed_tools`、会话级工具 allow/deny 与警告链，统一多代理与工具调用边界。
-- `aster` 侧继续向参考运行时 current 口径对齐：`skills/loader.rs`、`skills/registry.rs`、`skills/tool.rs`、`agents/tool_execution.rs`、`agents/subagent_tool.rs`、hooks registry / executor / types、permission inspector 与 workflow tool 全面更新，补齐 plugin skill reload、skill frontmatter hooks、permission hook current、subagent tool scope current。
-- session store、subagent profile、API key provider、agent runtime DTO / types、配置类型与 catalog 同步收口，宿主配置、权限与会话状态更加统一。
+#### 1. Agent runtime、skills 与会话路由继续 current 化
 
-### ServiceSkill、SkillCatalog、SceneApp 本地执行面收口
+- `runtime_project_hooks`、`subagent_runtime`、`runtime_turn`、`request_model_resolution`、`session_api`、`dto` 与 `skill_execution` 继续增强，补齐 hook 生命周期、会话 provider 路由持久化、子代理工具边界、skill allowed-tools 下传和运行期上下文装配。
+- `aster` 侧同步更新 `agent`、`reply_parts`、`subagent_tool`、`session_manager`、`session/store`、`skills/tool`、`skills/executor`、`team_tools` 等实现，并新增 `session/plan.rs`、`tools/peer_address_surface.rs` 等 current surface，继续减少 compat 语义回流。
+- 前台新增 `RuntimePeerMessageCards` 及其配套解析/测试，把计划审批、任务分配、任务完成、结束请求等跨代理消息改为结构化卡片表达；协作状态与 runtime message surface 比上一轮更清晰。
 
-- `src/lib/api/serviceSkills.ts`、`skillCatalog.ts`、`sceneapp.ts`、seeded package、compat projection 与 Tauri mock 已统一改成“目录控制面 + 本地执行面”模型：`cloud_required`、`cloud_scene` 只再作为历史输入解析，不再冒充当前执行真相。
-- `SceneApp` 前后端协议继续收口到 `agent_turn / browser_assist / automation_job / native_skill / cloud_scene(compat)` 同一套 current 分层；planner、launch、presentation、catalog、review、run-entry navigation 与 Rust `sceneapp/*` runtime / governance / dto / adapters 一并对齐。
-- `serviceSkillRuns.ts` 与 `cloudRunStorage.ts` 已移除，`useWorkspaceServiceSkillEntryActions.ts` 不再依赖云端 run/poll 主链；`service-skills/storage.ts`、`mentionEntryUsage.ts` 改为带 changed event / subscribe 的最近使用与实时回流，避免“执行完成但入口状态不刷新”的断层。
-- `@命令`、`ServiceSkill`、`SceneApp` 与 seeded base-setup 包的兼容投影继续减少双轨：旧云会话命名仅保留 compat 入口，当前前台与执行链统一表达为本地即时执行或可恢复的真实业务入口。
+#### 2. 模型 taxonomy、Provider 元数据与服务模型配置升级
 
-### 工作台 IA、页面与桌面壳更新
+- `model_registry_service`、`request_model_resolution` 与 `lime_core::model_registry` 继续扩展，显式建模 `task family`、`input/output modality`、`runtime feature`、`deployment source`、`management plane`、`alias source`，并补齐 canonical model / provider model 映射、host 归一化和 provider alias 推断。
+- `ProviderModelList` 新增能力筛选、模态与来源徽标、代理别名映射提示；`inferModelCapabilities`、`providerModelsCatalog`、`oemCloudModelMetadata`、`serviceModels`、`useServiceModelsConfig` 一起补齐前端能力推断与服务模型偏好整理。
+- 新增 `SettingModelSelectorField`、`auxiliary_model_selection.rs`、`api_host_utils.rs`，把图片、视频、语音等服务模型选择尽量收敛成统一配置方式；`openai.json`、`xiaomi.json`、`index.json`、`host_aliases.json` 与 app config 类型也同步更新。
 
-- 侧边栏、导航与首页信息架构已重组为 `任务 / 能力 / 资料 / 系统` 主分区，`生成 / 我的方法 / 创作场景 / 持续流程 / 资料库 / 灵感库` 等工作台入口重新编排；插件中心、OpenClaw、桌宠等历史系统入口改为可配置隐藏而非默认暴露。
-- `SkillsWorkspacePage`、聊天空状态、聊天侧栏、卡片区和输入区围绕“最近继续、推荐理由、输出去向、下一步动作、结果复盘”重写前台文案与布局，技能启动、精选任务与最近入口更贴近当前产品语义。
-- `SceneAppsPage`、`SceneAppsCatalogPanel`、`SceneAppDetailPanel`、`SceneAppRunDetailPanel`、scorecard / governance / workflow rail 继续产品化，前台口径改成 `做法目录 / 生成准备 / 做法复盘`，同时补齐最近访问、一键继续、运行复盘与回到真实业务入口的链路。
-- `ResourcesPage` 从“管理式资料页”收口到“浏览 / 打开 / 切换”主链，查询逻辑抽到 `services/resourceQueries.ts`，去掉 store selectors 和创建文件夹/文档主路径，补上分类、分页、排序、面包屑与空态表达。
-- `MemoryPage`、`ImageGallery`、`VideoWorkspace`、`StartupLoadingScreen`、`main.tsx`、`index.html`、i18n patch 与 `Appearance` 设置页一并更新，启动壳、轻量 renderer 注册与首屏体验更统一。
+#### 3. 工作台入口、推荐链路与 SceneApp follow-up 继续重构
 
-### 自动化、开发脚本与工程支撑同步
+- `EmptyState`、`SkillsWorkspacePage`、`GeneralWorkbenchSidebar`、`CharacterMentionPanel`、`inputCapabilitySections`、`CuratedTaskLauncherDialog` 等前台组件继续围绕“最近继续、推荐理由、结果预览、复盘反馈”重写，减少冷启动与切换场景时的信息断层。
+- 推荐任务、做法复用与创建回放链路继续增强：`CreationReplaySurfaceBanner`、`CuratedTaskBadge`、`reviewFeedbackProjection`、`processDisplayText`、`searchResultPreview`、`runtimePeerMessageDisplay`、`imageTaskLocator` 等模块一起补齐上下文说明与任务定位。
+- `SceneAppsPage`、`SceneAppExecutionSummaryCard`、`SceneAppReviewFeedbackBanner`、`sceneAppExecutionFollowupDestinations` 以及 `workspace` 侧的发送、图片预览、workbench action runtime 一起调整，发送后结果定位、SceneApp 复盘和 follow-up 导航链路更顺。
 
-- `settings-v2/system/automation`、`serviceSkillContext`、`useAutomationSceneAppRuntime` 与相关测试同步更新，把自动化详情、SceneApp runtime 引用和 ServiceSkill 语义进一步接回同一条主链。
-- 开发与启动脚本已补齐新的本地壳流程：新增 `scripts/start-tauri-dev-server.mjs`、`scripts/lib/vite-dev-server-bootstrap.mjs`，并更新 `start-web-bridge-dev.mjs` 与 `vite.config.ts`，让 Tauri 壳与 Web bridge 共用更稳定的 dev server bootstrap。
-- 前后端回归与契约测试同步扩充，`AppSidebar`、`EmptyState`、`SkillsWorkspacePage`、`SceneAppsPage`、`ResourcesPage`、`serviceSkillContext`、`resourceQueries`、`agentChatWorkspaceLoader` 等相关测试文件一起更新，保证页面重构和执行语义调整有稳定断言。
+#### 4. 自动化、媒体设置与语音主链继续收口
 
-### 文档、路线图与治理同步
+- `settings-v2/system/automation` 新增 `AutomationJobFocusStrip`、`AutomationOverviewFocusCard`，`AutomationJobDetailsDialog` 也补上 scorecard aggregate、follow-up destination action 与 SceneApp 后续动作映射，持续流程的“现在该看什么、下一步去哪”比之前明确很多。
+- `settings-v2` 下的 `image-gen`、`media-services`、`video-gen`、`voice` 页面继续大幅整理，媒体偏好区、provider 偏好与模型选择逻辑统一回收到现有设置框架。
+- 语音链路继续收口到 current 主路径：`voice_config_service` 现在会在删除指令后自动回补默认/翻译指令，`voice_processor_service` 与 `voice-core/text_polish.rs` 补上 provider 透传，前台 `InstructionEditor`、`MicrophoneTest`、`ShortcutSettings` 一起接回新的设置页；旧的 `VoiceSettings.tsx` 与 `PolishModelSelector.tsx` 已继续退出主路径。
 
-- 工程文档、执行计划与路线图已整体更新到最新事实源：`command-runtime`、`commands`、`quality-workflow`、`playwright-e2e`、`skill-standard`、`limecore-collaboration-entry`、`limenext-progress`、`upstream-runtime-alignment-progress`、`tech-debt-tracker`、`exec-plans/README`、`lime-service-skill-cloud-config-prd` 等文件已同步收口。
-- 新增 `docs/exec-plans/at-command-local-execution-alignment-plan.md`，把 `@命令` 本地执行面纠偏明确落为可追踪计划；现有文档口径统一强调“目录控制面 + 本地执行面”，并继续追踪 compat 旧命名与历史锚点的退出路径。
+#### 5. 文档、治理与工程支撑同步
 
-### 版本、发布物与同步项
+- `docs/aiprompts/overview.md`、`command-runtime.md`、`commands.md`、`governance.md`、`quality-workflow.md`、`playwright-e2e.md` 与 `docs/roadmap/lime-service-skill-cloud-config-prd.md` 已同步更新，明确了结构化 binding、`typed local_cli`、compat CLI 之间的 current/compat 边界，以及主线执行期间避免治理偏航的规则。
+- `docs/exec-plans/limenext-progress.md`、`upstream-runtime-alignment-progress.md`、`tech-debt-tracker.md`、`docs/exec-plans/README.md` 等执行计划与治理文档已继续更新；新增 `docs/exec-plans/provider-model-taxonomy-progress.md`，把模型 taxonomy / provider metadata 收口过程单独落成可追踪工件。
+- `eslint.config.js`、`agentRuntimeCommandSchema.json`、`commandManifest.generated.ts`、默认 skill 资源与相关测试一起更新，保证工程入口、运行时口径与默认 skill 约束保持一致。
+
+### 已同步的发布项
 
 - 应用版本入口已对齐到 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.headless.json`。
-- CLI npm wrapper 与发布示例已同步到 `1.16.0`。
-- `package-lock.json`、`src-tauri/Cargo.lock` 与校验结果以本次最终验证通过的状态为准。
-- 本说明按当前整批待提交文件重新整理，覆盖运行时、前台、脚本、文档与版本同步内容，而不是仅记录版本号变更。
+- CLI npm wrapper 与发布示例已同步到 `1.17.0`。
+- `package-lock.json`、`src-tauri/Cargo.lock` 与 aster MCP replay fixture 中的应用版本串已同步到 `1.17.0`。
 
+### 校验状态
 
-
-### 已执行校验
-
-- `npm run verify:app-version`：通过
-- `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`：已执行
-- `env CARGO_TARGET_DIR="/tmp/lime-release-1.16.0-test" cargo test --manifest-path "src-tauri/Cargo.toml"`：通过，主库 `1010` 条单测通过，额外 `2` 条集成测试通过；另有 `2` 条真实联网用例按默认配置保持 `ignored`
-- `env CARGO_TARGET_DIR="/tmp/lime-release-1.16.0-test" cargo clippy --manifest-path "src-tauri/Cargo.toml"`：通过，当前保留 `1` 条 clippy 告警，位于 `src-tauri/crates/skills/src/lime_llm_provider.rs:255`（`clippy::too_many_arguments`）
-- `npm run lint`：通过
+- 当前在本会话内实际确认并通过：`npm run verify:app-version`
+- 本轮 release note 更新没有额外重跑 `npm run verify:local`、`npm run test:contracts`、`npm run verify:gui-smoke`、`cargo test --manifest-path "src-tauri/Cargo.toml"`；当前 release note 不再复用旧版“已执行校验”结论来冒充这轮结果。
+- 按 Lime 当前规则，这次变更同时覆盖 Rust、命令/runtime 边界和用户可见 GUI，发布前最少建议补跑：
+  - `npm run verify:local`
+  - `npm run test:contracts`
+  - `npm run verify:gui-smoke`
 
 ---
 
-**完整变更**: `v1.15.0` -> `v1.16.0`
-
-### v1.16.0 同版重发补充（2026-04-22）
-
-- 修复 macOS 发布包在 `tauri://localhost` 协议下首屏样式注入不稳定的问题，避免 `styled-components` 运行时触发 `#17` 崩溃并导致窗口样式错乱。
-- `index.html` 现在会在应用脚本加载前显式设置 `SC_DISABLE_SPEEDY`；`src/lib/styledRuntime.ts` 新增运行时诊断与 fallback stylesheet 同步逻辑，在 Tauri 发布包里改走稳定的 `data:` stylesheet 回退，而不是继续依赖失效的动态 `<style>` 注入。
-- `src-tauri/tauri.conf.json` 与 `src-tauri/tauri.conf.headless.json` 已补齐 `style-src` 对 `data:` / `blob:` 的允许项，保证 fallback 样式表可在发布构建中加载。
-- 本地已重新验证安装包覆盖后的 `Lime.app` 可正常打开，之前出现的“窗口打开后布局完全错乱/无样式”问题已消失。
-- 本轮同版重发前额外复核：
-  - `npm run verify:app-version`
-  - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
-  - `cargo test --manifest-path "src-tauri/Cargo.toml"`
-  - `cargo clippy --manifest-path "src-tauri/Cargo.toml"`
-  - `npm run lint`
-  - `npm run verify:gui-smoke`
+**完整变更**: `v1.16.0` -> `v1.17.0`

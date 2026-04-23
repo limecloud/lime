@@ -3810,6 +3810,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
 
     expect(sharedSwitchTopicMock).toHaveBeenCalledWith("topic-a", {
       forceRefresh: true,
+      resumeSessionStartHooks: true,
     });
     expect(onNavigate).not.toHaveBeenCalled();
     expect(mockLaunchBrowserSession).not.toHaveBeenCalled();

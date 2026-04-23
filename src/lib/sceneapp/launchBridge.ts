@@ -10,7 +10,7 @@ import {
 } from "./launch";
 import type {
   SceneAppAutomationIntent,
-  SceneAppCurrentPlanResult as SceneAppPlanResult,
+  SceneAppPlanResult,
 } from "./types";
 import type { Page, PageParams } from "@/types/page";
 import type { CreationMode } from "@/components/agent/chat/components/types";

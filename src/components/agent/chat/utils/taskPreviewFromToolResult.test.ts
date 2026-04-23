@@ -21,6 +21,8 @@ describe("buildImageTaskPreviewFromToolResult", () => {
           size: "1024x1024",
           project_id: "project-1",
           content_id: "content-1",
+          path: "/tmp/task-1.json",
+          artifact_path: ".lime/tasks/image_generate/task-1.json",
           requested_count: 2,
           received_count: 2,
         },
@@ -36,6 +38,8 @@ describe("buildImageTaskPreviewFromToolResult", () => {
       size: "1024x1024",
       projectId: "project-1",
       contentId: "content-1",
+      taskFilePath: "/tmp/task-1.json",
+      artifactPath: ".lime/tasks/image_generate/task-1.json",
       phase: "succeeded",
       statusMessage: "图片已生成完成，共 2 张。",
     });

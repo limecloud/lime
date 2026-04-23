@@ -3,7 +3,7 @@ import {
   executeSceneAppLaunchAction,
   resolveSceneAppLaunchAction,
 } from "./sceneAppLaunch";
-import type { SceneAppCurrentPlanResult as SceneAppPlanResult } from "@/lib/sceneapp";
+import type { SceneAppPlanResult } from "@/lib/sceneapp";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 
 type SceneAppPlanResultOverrides = {

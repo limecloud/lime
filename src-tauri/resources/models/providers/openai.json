@@ -59,6 +59,21 @@
       "is_latest": true
     },
     {
+      "id": "gpt-images-2",
+      "name": "GPT Images 2",
+      "family": "gpt-images",
+      "tier": "pro",
+      "description": "OpenAI 图片生成模型，提供 /images/generations 能力。",
+      "description_zh": "OpenAI 图片生成模型，提供 /images/generations 能力。",
+      "task_families": ["image_generation"],
+      "input_modalities": ["text"],
+      "output_modalities": ["image"],
+      "runtime_features": ["images_api"],
+      "status": "active",
+      "release_date": "2025-04-16",
+      "is_latest": true
+    },
+    {
       "id": "gpt-5.3-codex",
       "name": "GPT-5.3 Codex",
       "family": "gpt-5-codex",

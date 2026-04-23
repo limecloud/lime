@@ -2,7 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Dispatch, SetStateAction } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
+import type {
+  ServiceModelPreferenceConfig,
+  ServiceModelsConfig,
+} from "@/lib/api/appConfigTypes";
+import { useGlobalMediaGenerationDefaults } from "@/hooks/useGlobalMediaGenerationDefaults";
 import { getOrCreateDefaultProject } from "@/lib/api/project";
+import { normalizeMediaGenerationPreference } from "@/lib/mediaGeneration";
+import {
+  mergeServiceModelPrompt,
+  resolveServiceModelExecutionPreference,
+} from "@/lib/serviceModels";
 import { parseAnalysisWorkbenchCommand } from "../utils/analysisWorkbenchCommand";
 import { parseBrowserWorkbenchCommand } from "../utils/browserWorkbenchCommand";
 import { parseBroadcastWorkbenchCommand } from "../utils/broadcastWorkbenchCommand";
@@ -202,6 +212,14 @@ type CompletedMentionCommandUsage = {
   replayText?: string;
   slotValues?: ServiceSkillSlotValues;
 };
+type RewritePurpose = NonNullable<HandleSendOptions["purpose"]>;
+
+const PROMPT_REWRITE_PURPOSES = new Set<RewritePurpose>([
+  "content_review",
+  "text_stylize",
+  "style_rewrite",
+  "style_audit",
+]);
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -217,6 +235,76 @@ function normalizeOptionalText(value?: string | null): string | undefined {
 
   const normalized = value.trim();
   return normalized ? normalized : undefined;
+}
+
+function hasHarnessLaunchRequestMetadata(
+  requestMetadata: Record<string, unknown> | undefined,
+  launchKey: "translation_skill_launch" | "resource_search_skill_launch",
+): boolean {
+  return Boolean(asRecord(asRecord(requestMetadata?.harness)?.[launchKey]));
+}
+
+function resolveServiceModelSendOverrides(params: {
+  requestMetadata: Record<string, unknown> | undefined;
+  purpose?: HandleSendOptions["purpose"];
+  serviceModels?: ServiceModelsConfig;
+}): Pick<HandleSendOptions, "providerOverride" | "modelOverride"> {
+  const { requestMetadata, purpose, serviceModels } = params;
+
+  const harnessMetadata = asRecord(requestMetadata?.harness);
+  const serviceSceneLaunch =
+    asRecord(harnessMetadata?.service_scene_launch) ??
+    asRecord(harnessMetadata?.serviceSceneLaunch);
+  const serviceSceneRun =
+    asRecord(serviceSceneLaunch?.service_scene_run) ??
+    asRecord(serviceSceneLaunch?.serviceSceneRun);
+
+  let preference: ServiceModelPreferenceConfig | undefined;
+  if (
+    hasHarnessLaunchRequestMetadata(requestMetadata, "translation_skill_launch")
+  ) {
+    preference = serviceModels?.translation;
+  } else if (
+    hasHarnessLaunchRequestMetadata(
+      requestMetadata,
+      "resource_search_skill_launch",
+    )
+  ) {
+    preference = serviceModels?.resource_prompt_rewrite;
+  } else if (purpose && PROMPT_REWRITE_PURPOSES.has(purpose)) {
+    preference = serviceModels?.prompt_rewrite;
+  }
+
+  const resolvedPreference = resolveServiceModelExecutionPreference(preference);
+  const serviceScenePreferredProvider = normalizeOptionalText(
+    typeof serviceSceneRun?.preferred_provider_id === "string"
+      ? serviceSceneRun.preferred_provider_id
+      : typeof serviceSceneRun?.preferredProviderId === "string"
+        ? serviceSceneRun.preferredProviderId
+        : undefined,
+  );
+  const serviceScenePreferredModel = normalizeOptionalText(
+    typeof serviceSceneRun?.preferred_model_id === "string"
+      ? serviceSceneRun.preferred_model_id
+      : typeof serviceSceneRun?.preferredModelId === "string"
+        ? serviceSceneRun.preferredModelId
+        : typeof serviceSceneRun?.model === "string"
+          ? serviceSceneRun.model
+          : undefined,
+  );
+
+  return {
+    providerOverride:
+      resolvedPreference.providerOverride ??
+      (serviceScenePreferredProvider && serviceScenePreferredModel
+        ? serviceScenePreferredProvider
+        : undefined),
+    modelOverride:
+      resolvedPreference.modelOverride ??
+      (serviceScenePreferredProvider && serviceScenePreferredModel
+        ? serviceScenePreferredModel
+        : undefined),
+  };
 }
 
 function normalizeServiceSkillUsageSlotValue(
@@ -1747,12 +1835,17 @@ function buildResourceSearchSkillLaunchRequestContext(params: {
   projectId?: string | null;
   contentId?: string | null;
   sessionId?: string | null;
+  promptOverride?: string;
 }): Record<string, unknown> {
+  const prompt =
+    normalizeOptionalText(params.promptOverride) ||
+    normalizeOptionalText(params.parsedCommand.prompt);
+
   return {
     kind: "resource_search_task",
     resource_search_task: {
       raw_text: params.rawText,
-      prompt: params.parsedCommand.prompt || undefined,
+      prompt,
       title: params.parsedCommand.title,
       resource_type: params.parsedCommand.resourceType,
       query: params.parsedCommand.query,
@@ -2247,6 +2340,11 @@ async function resolveVoiceSkillLaunchRequestContext(params: {
   serviceSkills: ServiceSkillHomeItem[];
   projectId?: string | null;
   contentId?: string | null;
+  voicePreference?: {
+    preferredProviderId?: string;
+    preferredModelId?: string;
+    allowFallback?: boolean;
+  } | null;
 }): Promise<VoiceSkillLaunchRequest | null> {
   const skill = resolveVoiceCommandServiceSkill(params.serviceSkills);
   if (!skill) {
@@ -2288,6 +2386,9 @@ async function resolveVoiceSkillLaunchRequestContext(params: {
         }
       : {}),
   };
+  const resolvedVoicePreference = normalizeMediaGenerationPreference(
+    params.voicePreference,
+  );
 
   return {
     dispatchText: composeServiceSkillPrompt({
@@ -2319,6 +2420,9 @@ async function resolveVoiceSkillLaunchRequestContext(params: {
         target_language: params.parsedCommand.targetLanguage,
         voice_style: params.parsedCommand.voiceStyle,
         slot_values: Object.keys(slotValues).length > 0 ? slotValues : undefined,
+        preferred_provider_id: resolvedVoicePreference.preferredProviderId,
+        preferred_model_id: resolvedVoicePreference.preferredModelId,
+        allow_fallback: resolvedVoicePreference.allowFallback ?? true,
       },
     },
   };
@@ -2356,6 +2460,7 @@ interface UseWorkspaceSendActionsParams {
     | null;
   browserAssistAutoLaunch?: boolean | null;
   workspaceRequestMetadataBase?: Record<string, unknown>;
+  serviceModels?: ServiceModelsConfig;
   messages: Message[];
   bootstrapDispatchPreview?: InitialDispatchPreviewSnapshot | null;
   sendMessage: SendMessageFn;
@@ -2459,6 +2564,7 @@ export function useWorkspaceSendActions({
   browserAssistPreferredBackend,
   browserAssistAutoLaunch,
   workspaceRequestMetadataBase,
+  serviceModels,
   messages,
   bootstrapDispatchPreview,
   sendMessage,
@@ -2480,6 +2586,7 @@ export function useWorkspaceSendActions({
     useState<SubmissionPreviewSnapshot | null>(null);
   const [isPreparingSend, setIsPreparingSend] = useState(false);
   const isPreparingSendRef = useRef(false);
+  const { mediaDefaults } = useGlobalMediaGenerationDefaults();
   const { mentionCommandSkillIdMap, mentionCommandPrefixKeyMap } =
     useRuntimeMentionCommandCatalog();
   const clearRuntimeTeamDispatchPreview = useCallback(() => {
@@ -2496,6 +2603,8 @@ export function useWorkspaceSendActions({
         : [],
     [runtimeTeamDispatchPreview],
   );
+  const resourcePromptRewritePreference =
+    serviceModels?.resource_prompt_rewrite;
   const submissionPreviewMessages = useMemo(
     () =>
       messagesCount === 0 && submissionPreview
@@ -2994,11 +3103,18 @@ export function useWorkspaceSendActions({
           ? parseResourceSearchWorkbenchCommand(sourceText)
           : null;
       if (parsedResourceSearchWorkbenchCommand) {
+        const resourceRewritePreference = resolveServiceModelExecutionPreference(
+          resourcePromptRewritePreference,
+        );
         const requestContext = buildResourceSearchSkillLaunchRequestContext({
           rawText: sourceText,
           parsedCommand: parsedResourceSearchWorkbenchCommand,
           projectId,
           contentId,
+          promptOverride: mergeServiceModelPrompt(
+            resourceRewritePreference.customPrompt,
+            parsedResourceSearchWorkbenchCommand.prompt,
+          ),
         });
         pendingCommandSessionBinding = {
           kind: "request_context",
@@ -4145,6 +4261,7 @@ export function useWorkspaceSendActions({
           serviceSkills,
           projectId,
           contentId,
+          voicePreference: mediaDefaults.voice,
         });
         if (!voiceSkillLaunch) {
           clearSubmissionPreview();
@@ -4375,11 +4492,13 @@ export function useWorkspaceSendActions({
       handleAutoLaunchMatchedSiteSkill,
       resolveImageWorkbenchSkillRequest,
       input,
+      mediaDefaults.voice,
       messagesCount,
       mentionedCharacters,
       openRuntimeSceneGate,
       projectId,
       resolveSendBoundary,
+      resourcePromptRewritePreference,
       serviceSkills,
       mentionCommandPrefixKeyMap,
       mentionCommandSkillIdMap,
@@ -4449,6 +4568,11 @@ export function useWorkspaceSendActions({
           selectedTeamSummary,
           teamMemoryShadowSnapshot,
         });
+        const serviceModelSendOverrides = resolveServiceModelSendOverrides({
+          requestMetadata: nextRequestMetadata,
+          purpose: sendOptions?.purpose,
+          serviceModels,
+        });
         const nextSendOptions: HandleSendOptions = {
           ...(sendOptions || {}),
           displayContent:
@@ -4456,6 +4580,12 @@ export function useWorkspaceSendActions({
               ? sendOptions?.displayContent ?? sourceText
               : sendOptions?.displayContent,
           requestMetadata: nextRequestMetadata,
+          providerOverride:
+            sendOptions?.providerOverride ??
+            serviceModelSendOverrides.providerOverride,
+          modelOverride:
+            sendOptions?.modelOverride ??
+            serviceModelSendOverrides.modelOverride,
         };
 
         await sendMessage(
@@ -4529,6 +4659,7 @@ export function useWorkspaceSendActions({
       selectedTeam,
       selectedTeamLabel,
       selectedTeamSummary,
+      serviceModels,
       teamMemoryShadowSnapshot,
       sendMessage,
       setInput,

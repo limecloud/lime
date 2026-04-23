@@ -1,5 +1,14 @@
 import { isAliasProvider } from "@/lib/constants/providerMappings";
-import { inferModelCapabilities } from "@/lib/model/inferModelCapabilities";
+import {
+  inferInputModalities,
+  inferModelAliasSource,
+  inferModelCapabilities,
+  inferModelDeploymentSource,
+  inferModelManagementPlane,
+  inferModelTaskFamilies,
+  inferOutputModalities,
+  inferRuntimeFeatures,
+} from "@/lib/model/inferModelCapabilities";
 import type {
   EnhancedModelMetadata,
   ProviderAliasConfig,
@@ -60,6 +69,10 @@ function convertCustomModelsToMetadata(
   providerName: string,
 ): EnhancedModelMetadata[] {
   return models.map((modelName): EnhancedModelMetadata => {
+    const taxonomyParams = {
+      modelId: modelName,
+      providerId,
+    };
     return {
       id: modelName,
       display_name: modelName,
@@ -67,10 +80,16 @@ function convertCustomModelsToMetadata(
       provider_name: providerName,
       family: null,
       tier: "pro" as const,
-      capabilities: inferModelCapabilities({
-        modelId: modelName,
-        providerId,
-      }),
+      capabilities: inferModelCapabilities(taxonomyParams),
+      task_families: inferModelTaskFamilies(taxonomyParams),
+      input_modalities: inferInputModalities(taxonomyParams),
+      output_modalities: inferOutputModalities(taxonomyParams),
+      runtime_features: inferRuntimeFeatures(taxonomyParams),
+      deployment_source: inferModelDeploymentSource(taxonomyParams),
+      management_plane: inferModelManagementPlane(taxonomyParams),
+      canonical_model_id: null,
+      provider_model_id: modelName,
+      alias_source: inferModelAliasSource(taxonomyParams),
       pricing: null,
       limits: {
         context_length: null,
@@ -116,6 +135,10 @@ function convertBackendModelIdsToMetadata(
       return registryModel;
     }
 
+    const taxonomyParams = {
+      modelId,
+      providerId: selectedProvider.registryId || selectedProvider.key,
+    };
     return {
       id: modelId,
       display_name: modelId,
@@ -123,10 +146,16 @@ function convertBackendModelIdsToMetadata(
       provider_name: selectedProvider.label,
       family: null,
       tier: "pro" as const,
-      capabilities: inferModelCapabilities({
-        modelId,
-        providerId: selectedProvider.registryId || selectedProvider.key,
-      }),
+      capabilities: inferModelCapabilities(taxonomyParams),
+      task_families: inferModelTaskFamilies(taxonomyParams),
+      input_modalities: inferInputModalities(taxonomyParams),
+      output_modalities: inferOutputModalities(taxonomyParams),
+      runtime_features: inferRuntimeFeatures(taxonomyParams),
+      deployment_source: inferModelDeploymentSource(taxonomyParams),
+      management_plane: inferModelManagementPlane(taxonomyParams),
+      canonical_model_id: null,
+      provider_model_id: modelId,
+      alias_source: inferModelAliasSource(taxonomyParams),
       pricing: null,
       limits: {
         context_length: null,
@@ -153,6 +182,15 @@ function convertAliasModelsToMetadata(
 ): EnhancedModelMetadata[] {
   return models.map((modelName): EnhancedModelMetadata => {
     const aliasInfo = aliasConfig.aliases[modelName];
+    const taxonomyParams = {
+      modelId: modelName,
+      providerId: aliasInfo?.provider || providerId,
+      family: aliasInfo?.provider || null,
+      description: aliasInfo?.description || null,
+      providerModelId: modelName,
+      canonicalModelId: aliasInfo?.actual || null,
+      aliasSource: "relay" as const,
+    };
     return {
       id: modelName,
       display_name: modelName,
@@ -160,12 +198,16 @@ function convertAliasModelsToMetadata(
       provider_name: providerName,
       family: aliasInfo?.provider || null,
       tier: "pro" as const,
-      capabilities: inferModelCapabilities({
-        modelId: modelName,
-        providerId: aliasInfo?.provider || providerId,
-        family: aliasInfo?.provider || null,
-        description: aliasInfo?.description || null,
-      }),
+      capabilities: inferModelCapabilities(taxonomyParams),
+      task_families: inferModelTaskFamilies(taxonomyParams),
+      input_modalities: inferInputModalities(taxonomyParams),
+      output_modalities: inferOutputModalities(taxonomyParams),
+      runtime_features: inferRuntimeFeatures(taxonomyParams),
+      deployment_source: inferModelDeploymentSource(taxonomyParams),
+      management_plane: inferModelManagementPlane(taxonomyParams),
+      canonical_model_id: aliasInfo?.actual || null,
+      provider_model_id: modelName,
+      alias_source: inferModelAliasSource(taxonomyParams),
       pricing: null,
       limits: {
         context_length: null,

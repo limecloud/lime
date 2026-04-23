@@ -3,8 +3,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  SceneAppCurrentDescriptor,
-  SceneAppCurrentPlanResult,
+  SceneAppDescriptor,
+  SceneAppPlanResult,
 } from "@/lib/api/sceneapp";
 import { AutomationSettings } from ".";
 
@@ -112,19 +112,19 @@ vi.mock("sonner", () => ({
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 type SceneAppPlanResultOverrides = {
-  descriptor?: Partial<SceneAppCurrentPlanResult["descriptor"]>;
-  readiness?: Partial<SceneAppCurrentPlanResult["readiness"]>;
-  plan?: Partial<Omit<SceneAppCurrentPlanResult["plan"], "adapterPlan">> & {
-    adapterPlan?: Partial<SceneAppCurrentPlanResult["plan"]["adapterPlan"]>;
+  descriptor?: Partial<SceneAppPlanResult["descriptor"]>;
+  readiness?: Partial<SceneAppPlanResult["readiness"]>;
+  plan?: Partial<Omit<SceneAppPlanResult["plan"], "adapterPlan">> & {
+    adapterPlan?: Partial<SceneAppPlanResult["plan"]["adapterPlan"]>;
   };
   projectPackPlan?: Partial<
-    NonNullable<SceneAppCurrentPlanResult["projectPackPlan"]>
+    NonNullable<SceneAppPlanResult["projectPackPlan"]>
   >;
 };
 
 function createSceneAppDescriptorMock(
-  overrides: Partial<SceneAppCurrentDescriptor> = {},
-): SceneAppCurrentDescriptor {
+  overrides: Partial<SceneAppDescriptor> = {},
+): SceneAppDescriptor {
   return {
     id: "story-video-suite",
     title: "故事短视频套件",
@@ -152,7 +152,7 @@ function createSceneAppDescriptorMock(
 
 function createSceneAppPlanResultMock(
   overrides: SceneAppPlanResultOverrides = {},
-): SceneAppCurrentPlanResult {
+): SceneAppPlanResult {
   const planOverrides = overrides.plan ?? {};
   const adapterPlanOverrides = planOverrides.adapterPlan ?? {};
 
@@ -387,12 +387,11 @@ async function renderSettings(
   await act(async () => {
     root.render(<AutomationSettings {...props} />);
   });
-  await act(async () => {
-    await Promise.resolve();
-  });
-  await act(async () => {
-    await Promise.resolve();
-  });
+  for (let index = 0; index < 4; index += 1) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
   return container;
 }
 
@@ -433,6 +432,202 @@ async function leaveTip(trigger: HTMLButtonElement | null) {
     trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
     await Promise.resolve();
   });
+}
+
+function setupSceneAppAutomationMocks() {
+  const sceneAppJob = {
+    id: "job-sceneapp-1",
+    name: "故事短视频套件｜定时执行",
+    description: "按统一做法合同持续产出 Project Pack。",
+    enabled: true,
+    workspace_id: "workspace-default",
+    execution_mode: "intelligent",
+    schedule: { kind: "cron", expr: "0 9 * * *", tz: "Asia/Shanghai" },
+    payload: {
+      kind: "agent_turn",
+      prompt: "请执行 SceneApp 自动化任务。",
+      system_prompt: null,
+      web_search: false,
+      request_metadata: {
+        sceneapp: {
+          id: "story-video-suite",
+          title: "故事短视频套件",
+          sceneapp_type: "hybrid",
+          delivery_contract: "project_pack",
+        },
+        harness: {
+          sceneapp_id: "story-video-suite",
+          entry_source: "sceneapp_detail_preview",
+          project_id: "workspace-default",
+          workspace_id: "workspace-default",
+          sceneapp_launch: {
+            sceneapp_id: "story-video-suite",
+            entry_source: "sceneapp_detail_preview",
+            project_id: "workspace-default",
+            workspace_id: "workspace-default",
+            reference_memory_ids: ["memory-1"],
+          },
+        },
+        sceneapp_reference_memory_ids: ["memory-1"],
+        sceneapp_slots: {
+          topic: "AI 创作者工具",
+        },
+      },
+    },
+    delivery: {
+      mode: "none",
+      channel: null,
+      target: null,
+      best_effort: true,
+      output_schema: "text",
+      output_format: "text",
+    },
+    timeout_secs: 120,
+    max_retries: 2,
+    next_run_at: "2026-03-16T09:00:00Z",
+    last_status: "success",
+    last_error: null,
+    last_run_at: "2026-03-16T08:59:00Z",
+    last_finished_at: "2026-03-16T09:00:10Z",
+    running_started_at: null,
+    consecutive_failures: 0,
+    last_retry_count: 0,
+    auto_disabled_until: null,
+    last_delivery: {
+      success: true,
+      message: "写入成功",
+      channel: "local_file",
+      target: "/tmp/lime/story-video-suite/brief.md",
+      output_kind: "document",
+      output_schema: "text",
+      output_format: "text",
+      output_preview: "# brief",
+      delivery_attempt_id: "delivery-sceneapp-1",
+      run_id: "run-sceneapp-1",
+      execution_retry_count: 0,
+      delivery_attempts: 1,
+      attempted_at: "2026-03-16T09:00:10Z",
+    },
+    created_at: "2026-03-16T00:00:00Z",
+    updated_at: "2026-03-16T00:00:00Z",
+  };
+  const sceneAppAgentRun = {
+    id: "run-sceneapp-1",
+    source: "automation",
+    source_ref: "job-sceneapp-1",
+    session_id: "session-sceneapp-1",
+    status: "success",
+    started_at: "2026-03-16T08:59:00Z",
+    finished_at: "2026-03-16T09:00:10Z",
+    duration_ms: 70_000,
+    error_code: null,
+    error_message: null,
+    metadata: JSON.stringify({
+      sceneapp: {
+        id: "story-video-suite",
+      },
+    }),
+    created_at: "2026-03-16T08:59:00Z",
+    updated_at: "2026-03-16T09:00:10Z",
+  };
+  const sceneAppRunSummary = {
+    runId: "run-sceneapp-1",
+    sceneappId: "story-video-suite",
+    status: "success",
+    source: "automation",
+    sourceRef: "job-sceneapp-1",
+    sessionId: "session-sceneapp-1",
+    startedAt: "2026-03-16T08:59:00Z",
+    finishedAt: "2026-03-16T09:00:10Z",
+    artifactCount: 1,
+    deliveryArtifactRefs: [
+      {
+        relativePath: "artifacts/brief.md",
+        absolutePath: "/tmp/lime/story-video-suite/artifacts/brief.md",
+        partKey: "brief",
+        projectId: "workspace-default",
+        workspaceId: "workspace-default",
+        source: "runtime_evidence",
+      },
+    ],
+    governanceArtifactRefs: [
+      {
+        kind: "evidence_summary",
+        label: "证据摘要",
+        relativePath:
+          ".lime/harness/sessions/session-sceneapp-1/evidence/summary.md",
+        absolutePath:
+          "/tmp/lime/story-video-suite/.lime/harness/sessions/session-sceneapp-1/evidence/summary.md",
+        projectId: "workspace-default",
+        workspaceId: "workspace-default",
+        source: "session_governance",
+      },
+      {
+        kind: "review_decision_markdown",
+        label: "人工复核记录",
+        relativePath:
+          ".lime/harness/sessions/session-sceneapp-1/governance/review.md",
+        absolutePath:
+          "/tmp/lime/story-video-suite/.lime/harness/sessions/session-sceneapp-1/governance/review.md",
+        projectId: "workspace-default",
+        workspaceId: "workspace-default",
+        source: "session_governance",
+      },
+      {
+        kind: "review_decision_json",
+        label: "复盘 JSON",
+        relativePath:
+          ".lime/harness/sessions/session-sceneapp-1/governance/review.json",
+        absolutePath:
+          "/tmp/lime/story-video-suite/.lime/harness/sessions/session-sceneapp-1/governance/review.json",
+        projectId: "workspace-default",
+        workspaceId: "workspace-default",
+        source: "session_governance",
+      },
+    ],
+    deliveryRequiredParts: ["brief", "script"],
+    deliveryCompletedParts: ["brief"],
+    deliveryMissingParts: ["script"],
+    deliveryCompletionRate: 50,
+    deliveryPartCoverageKnown: true,
+    failureSignal: null,
+    runtimeEvidenceUsed: true,
+    evidenceKnownGaps: [],
+    verificationFailureOutcomes: [],
+    requestTelemetryAvailable: true,
+    requestTelemetryMatchedCount: 1,
+    artifactValidatorApplicable: true,
+    artifactValidatorIssueCount: 0,
+    artifactValidatorRecoveredCount: 0,
+  };
+
+  mockGetAutomationJobs.mockResolvedValue([sceneAppJob]);
+  mockGetAutomationRunHistory.mockResolvedValue([sceneAppAgentRun]);
+  mockGetSceneAppDescriptor.mockResolvedValue(createSceneAppDescriptorMock());
+  mockGetSceneAppScorecard.mockResolvedValue({
+    sceneappId: "story-video-suite",
+    updatedAt: "2026-03-16T09:05:00Z",
+    summary: "这条场景的整包交付率稳定，可继续保留在自动化闭环里。",
+    metrics: [
+      {
+        key: "complete_pack_rate",
+        label: "整包交付率",
+        value: 100,
+        status: "good",
+      },
+    ],
+    recommendedAction: "keep",
+    observedFailureSignals: [],
+    topFailureSignal: null,
+  });
+  mockPlanSceneAppLaunch.mockResolvedValue(createSceneAppPlanResultMock());
+  mockListSceneAppRuns.mockResolvedValue([sceneAppRunSummary]);
+  mockGetSceneAppRunSummary.mockResolvedValue(sceneAppRunSummary);
+
+  return {
+    sceneAppJob,
+    sceneAppRunSummary,
+  };
 }
 
 describe("AutomationSettings", () => {
@@ -1085,173 +1280,7 @@ describe("AutomationSettings", () => {
 
   it("做法自动化任务应在详情里回流闭环摘要，并支持继续打开治理页与结果文件", async () => {
     const onNavigate = vi.fn();
-    mockGetAutomationJobs.mockResolvedValueOnce([
-      {
-        id: "job-sceneapp-1",
-        name: "故事短视频套件｜定时执行",
-        description: "按统一做法合同持续产出 Project Pack。",
-        enabled: true,
-        workspace_id: "workspace-default",
-        execution_mode: "intelligent",
-        schedule: { kind: "cron", expr: "0 9 * * *", tz: "Asia/Shanghai" },
-        payload: {
-          kind: "agent_turn",
-          prompt: "请执行 SceneApp 自动化任务。",
-          system_prompt: null,
-          web_search: false,
-          request_metadata: {
-            sceneapp: {
-              id: "story-video-suite",
-              title: "故事短视频套件",
-              sceneapp_type: "hybrid",
-              delivery_contract: "project_pack",
-            },
-            harness: {
-              sceneapp_id: "story-video-suite",
-              entry_source: "sceneapp_detail_preview",
-              project_id: "workspace-default",
-              workspace_id: "workspace-default",
-              sceneapp_launch: {
-                sceneapp_id: "story-video-suite",
-                entry_source: "sceneapp_detail_preview",
-                project_id: "workspace-default",
-                workspace_id: "workspace-default",
-                reference_memory_ids: ["memory-1"],
-              },
-            },
-            sceneapp_reference_memory_ids: ["memory-1"],
-            sceneapp_slots: {
-              topic: "AI 创作者工具",
-            },
-          },
-        },
-        delivery: {
-          mode: "none",
-          channel: null,
-          target: null,
-          best_effort: true,
-          output_schema: "text",
-          output_format: "text",
-        },
-        timeout_secs: 120,
-        max_retries: 2,
-        next_run_at: "2026-03-16T09:00:00Z",
-        last_status: "success",
-        last_error: null,
-        last_run_at: "2026-03-16T08:59:00Z",
-        last_finished_at: "2026-03-16T09:00:10Z",
-        running_started_at: null,
-        consecutive_failures: 0,
-        last_retry_count: 0,
-        auto_disabled_until: null,
-        last_delivery: {
-          success: true,
-          message: "写入成功",
-          channel: "local_file",
-          target: "/tmp/lime/story-video-suite/brief.md",
-          output_kind: "document",
-          output_schema: "text",
-          output_format: "text",
-          output_preview: "# brief",
-          delivery_attempt_id: "delivery-sceneapp-1",
-          run_id: "run-sceneapp-1",
-          execution_retry_count: 0,
-          delivery_attempts: 1,
-          attempted_at: "2026-03-16T09:00:10Z",
-        },
-        created_at: "2026-03-16T00:00:00Z",
-        updated_at: "2026-03-16T00:00:00Z",
-      },
-    ]);
-    mockGetAutomationRunHistory.mockResolvedValueOnce([
-      {
-        id: "run-sceneapp-1",
-        source: "automation",
-        source_ref: "job-sceneapp-1",
-        session_id: "session-sceneapp-1",
-        status: "success",
-        started_at: "2026-03-16T08:59:00Z",
-        finished_at: "2026-03-16T09:00:10Z",
-        duration_ms: 70_000,
-        error_code: null,
-        error_message: null,
-        metadata: JSON.stringify({
-          sceneapp: {
-            id: "story-video-suite",
-          },
-        }),
-        created_at: "2026-03-16T08:59:00Z",
-        updated_at: "2026-03-16T09:00:10Z",
-      },
-    ]);
-    mockGetSceneAppDescriptor.mockResolvedValue(createSceneAppDescriptorMock());
-    mockGetSceneAppScorecard.mockResolvedValue({
-      sceneappId: "story-video-suite",
-      updatedAt: "2026-03-16T09:05:00Z",
-      summary: "这条场景的整包交付率稳定，可继续保留在自动化闭环里。",
-      metrics: [
-        {
-          key: "complete_pack_rate",
-          label: "整包交付率",
-          value: 100,
-          status: "good",
-        },
-      ],
-      recommendedAction: "keep",
-      observedFailureSignals: [],
-      topFailureSignal: null,
-    });
-    mockPlanSceneAppLaunch.mockResolvedValue(createSceneAppPlanResultMock());
-    const sceneAppRunSummary = {
-      runId: "run-sceneapp-1",
-      sceneappId: "story-video-suite",
-      status: "success",
-      source: "automation",
-      sourceRef: "job-sceneapp-1",
-      sessionId: "session-sceneapp-1",
-      startedAt: "2026-03-16T08:59:00Z",
-      finishedAt: "2026-03-16T09:00:10Z",
-      artifactCount: 1,
-      deliveryArtifactRefs: [
-        {
-          relativePath: "artifacts/brief.md",
-          absolutePath: "/tmp/lime/story-video-suite/artifacts/brief.md",
-          partKey: "brief",
-          projectId: "workspace-default",
-          workspaceId: "workspace-default",
-          source: "runtime_evidence",
-        },
-      ],
-      governanceArtifactRefs: [
-        {
-          kind: "evidence_summary",
-          label: "证据摘要",
-          relativePath:
-            ".lime/harness/sessions/session-sceneapp-1/evidence/summary.md",
-          absolutePath:
-            "/tmp/lime/story-video-suite/.lime/harness/sessions/session-sceneapp-1/evidence/summary.md",
-          projectId: "workspace-default",
-          workspaceId: "workspace-default",
-          source: "session_governance",
-        },
-      ],
-      deliveryRequiredParts: ["brief", "script"],
-      deliveryCompletedParts: ["brief"],
-      deliveryMissingParts: ["script"],
-      deliveryCompletionRate: 50,
-      deliveryPartCoverageKnown: true,
-      failureSignal: null,
-      runtimeEvidenceUsed: true,
-      evidenceKnownGaps: [],
-      verificationFailureOutcomes: [],
-      requestTelemetryAvailable: true,
-      requestTelemetryMatchedCount: 1,
-      artifactValidatorApplicable: true,
-      artifactValidatorIssueCount: 0,
-      artifactValidatorRecoveredCount: 0,
-    };
-    mockListSceneAppRuns.mockResolvedValue([sceneAppRunSummary]);
-    mockGetSceneAppRunSummary.mockResolvedValue(sceneAppRunSummary);
+    setupSceneAppAutomationMocks();
 
     await renderSettings({
       mode: "workspace",
@@ -1302,5 +1331,40 @@ describe("AutomationSettings", () => {
         entryBannerMessage: expect.stringContaining("已从自动化详情打开结果包文件"),
       }),
     );
-  });
+
+    const continueReviewButton = document.body.querySelector(
+      "[data-testid='automation-sceneapp-destination-action-task-center']",
+    ) as HTMLButtonElement | null;
+    await act(async () => {
+      continueReviewButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agentEntry: "claw",
+        projectId: "workspace-default",
+        initialInputCapability: expect.objectContaining({
+          capabilityRoute: expect.objectContaining({
+            kind: "curated_task",
+            taskId: "account-project-review",
+            referenceEntries: expect.arrayContaining([
+              expect.objectContaining({
+                sourceKind: "sceneapp_execution_summary",
+              }),
+            ]),
+          }),
+        }),
+        initialSceneAppExecutionSummary: expect.objectContaining({
+          sceneappId: "story-video-suite",
+          runtimeBackflow: expect.objectContaining({
+            runId: "run-sceneapp-1",
+          }),
+        }),
+      }),
+    );
+  }, 10_000);
 });

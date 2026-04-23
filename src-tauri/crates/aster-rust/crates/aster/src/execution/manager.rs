@@ -483,7 +483,7 @@ impl AgentManager {
     ) -> Result<Self> {
         let schedule_file_path = Paths::data_dir().join("schedule.json");
 
-        let scheduler = Scheduler::new(schedule_file_path).await?;
+        let scheduler: Arc<dyn SchedulerTrait> = Scheduler::new(schedule_file_path).await?;
 
         let capacity = NonZeroUsize::new(max_sessions.unwrap_or(DEFAULT_MAX_SESSION))
             .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
@@ -568,13 +568,12 @@ mod tests {
     use crate::execution::{manager::AgentManager, SessionExecutionMode};
 
     async fn test_manager() -> Arc<AgentManager> {
+        let thread_runtime_store: Arc<dyn crate::session::ThreadRuntimeStore> =
+            Arc::new(crate::session::InMemoryThreadRuntimeStore::default());
         Arc::new(
-            AgentManager::new_with_thread_runtime_store(
-                None,
-                Arc::new(crate::session::InMemoryThreadRuntimeStore::default()),
-            )
-            .await
-            .unwrap(),
+            AgentManager::new_with_thread_runtime_store(None, thread_runtime_store)
+                .await
+                .unwrap(),
         )
     }
 
@@ -732,8 +731,9 @@ mod tests {
         // Create an empty test provider (will fail on actual use but that's ok for this test)
         let test_provider = TestProvider::new_replaying(&temp_file)
             .unwrap_or_else(|_| TestProvider::new_replaying("/tmp/dummy.json").unwrap());
+        let test_provider: Arc<dyn crate::providers::base::Provider> = Arc::new(test_provider);
 
-        manager.set_default_provider(Arc::new(test_provider)).await;
+        manager.set_default_provider(test_provider).await;
 
         let session = String::from("provider-test");
         let _agent = manager.get_or_create_agent(session.clone()).await.unwrap();
@@ -808,7 +808,8 @@ mod tests {
         );
         let test_provider = TestProvider::new_replaying(&temp_file)
             .unwrap_or_else(|_| TestProvider::new_replaying("/tmp/dummy.json").unwrap());
-        manager.set_default_provider(Arc::new(test_provider)).await;
+        let test_provider: Arc<dyn crate::providers::base::Provider> = Arc::new(test_provider);
+        manager.set_default_provider(test_provider).await;
 
         let response = super::spawn_agent_with_runtime(
             manager.runtime_handle(),
@@ -900,7 +901,8 @@ mod tests {
         );
         let test_provider = TestProvider::new_replaying(&temp_file)
             .unwrap_or_else(|_| TestProvider::new_replaying("/tmp/dummy.json").unwrap());
-        manager.set_default_provider(Arc::new(test_provider)).await;
+        let test_provider: Arc<dyn crate::providers::base::Provider> = Arc::new(test_provider);
+        manager.set_default_provider(test_provider).await;
 
         let lead_agent = manager.get_or_create_agent(lead.id.clone()).await.unwrap();
         let lead_context =
@@ -968,6 +970,7 @@ mod tests {
 
         let send_message_args = json!({
             "to": peers[0]["sendTo"].as_str().expect("sendTo should be string"),
+            "summary": "继续验证 verifier",
             "message": "继续验证 team 主线"
         });
         let send_message_call = CallToolRequestParam {

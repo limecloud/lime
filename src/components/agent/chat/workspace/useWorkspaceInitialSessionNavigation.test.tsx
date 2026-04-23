@@ -13,6 +13,7 @@ interface ProbeProps {
     topicId: string,
     options?: {
       forceRefresh?: boolean;
+      resumeSessionStartHooks?: boolean;
     },
   ) => Promise<unknown>;
 }
@@ -85,6 +86,7 @@ describe("useWorkspaceInitialSessionNavigation", () => {
 
     expect(switchTopic).toHaveBeenCalledWith("session-42", {
       forceRefresh: true,
+      resumeSessionStartHooks: true,
     });
   });
 
@@ -120,9 +122,11 @@ describe("useWorkspaceInitialSessionNavigation", () => {
 
     expect(switchTopic).toHaveBeenNthCalledWith(1, "session-42", {
       forceRefresh: true,
+      resumeSessionStartHooks: true,
     });
     expect(switchTopic).toHaveBeenNthCalledWith(2, "session-99", {
       forceRefresh: true,
+      resumeSessionStartHooks: true,
     });
   });
 });

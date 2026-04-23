@@ -19,6 +19,7 @@ import {
   exportAgentRuntimeReviewDecisionTemplate,
   saveAgentRuntimeReviewDecision,
   getAsterAgentStatus,
+  generateAgentRuntimeTitle,
   generateAgentRuntimeSessionTitle,
   getAgentRuntimeSession,
   getAgentRuntimeThreadRead,
@@ -197,6 +198,27 @@ describe("Agent API 治理护栏", () => {
         request: {
           session_id: "session-runtime-access",
           recent_access_mode: "full-access",
+        },
+      },
+    );
+  });
+
+  it("updateAgentRuntimeSession 应透传 provider_selector", async () => {
+    mockSafeInvoke.mockResolvedValueOnce(undefined);
+
+    await updateAgentRuntimeSession({
+      session_id: "session-runtime-provider",
+      provider_selector: "custom-cae6e762-fb45-4f71-878c-3106510ade78",
+      model_name: "mimo-v2-pro",
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_update_session",
+      {
+        request: {
+          session_id: "session-runtime-provider",
+          provider_selector: "custom-cae6e762-fb45-4f71-878c-3106510ade78",
+          model_name: "mimo-v2-pro",
         },
       },
     );
@@ -720,6 +742,27 @@ describe("Agent API 治理护栏", () => {
     });
     expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_get_session", {
       sessionId: "session-runtime-2",
+    });
+  });
+
+  it("getAgentRuntimeSession 应支持透传 resume hooks 标记", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      id: "session-runtime-resume",
+      messages: [],
+    });
+
+    await expect(
+      getAgentRuntimeSession("session-runtime-resume", {
+        resumeSessionStartHooks: true,
+      }),
+    ).resolves.toMatchObject({
+      id: "session-runtime-resume",
+      messages: [],
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_get_session", {
+      sessionId: "session-runtime-resume",
+      resumeSessionStartHooks: true,
     });
   });
 
@@ -1492,6 +1535,23 @@ describe("Agent API 治理护栏", () => {
     );
     expect(mockSafeInvoke).toHaveBeenNthCalledWith(3, "agent_generate_title", {
       sessionId: "session-runtime-3",
+      titleKind: "session",
+    });
+  });
+
+  it("generateAgentRuntimeTitle 应支持图片任务命名预览", async () => {
+    mockSafeInvoke.mockResolvedValueOnce("城市夜景主视觉");
+
+    await expect(
+      generateAgentRuntimeTitle({
+        previewText: "赛博朋克风城市夜景主视觉",
+        titleKind: "image_task",
+      }),
+    ).resolves.toBe("城市夜景主视觉");
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith("agent_generate_title", {
+      previewText: "赛博朋克风城市夜景主视觉",
+      titleKind: "image_task",
     });
   });
 

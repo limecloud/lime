@@ -232,6 +232,7 @@ fn get_legacy_ids(provider_id: &str) -> Vec<String> {
         "yi" => vec!["zeroone".to_string()],
         "infini" => vec!["infiniai".to_string()],
         "doubao" => vec!["volcengine".to_string()],
+        "airgate-openai-images" => vec!["airgate".to_string(), "k8ray".to_string()],
         "baidu-cloud" => vec!["wenxin".to_string()],
         "tencent-cloud-ti" => vec!["tencentcloud".to_string()],
         _ => vec![],

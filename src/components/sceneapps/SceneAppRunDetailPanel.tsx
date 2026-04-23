@@ -1,5 +1,7 @@
 import { type SceneAppRunDetailViewModel } from "@/lib/sceneapp";
+import type { CuratedTaskRecommendationSignal } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import { cn } from "@/lib/utils";
+import { SceneAppReviewFeedbackBanner } from "./SceneAppReviewFeedbackBanner";
 import type { SceneAppQuickReviewAction } from "./useSceneAppsPageRuntime";
 
 interface SceneAppRunDetailPanelProps {
@@ -7,6 +9,8 @@ interface SceneAppRunDetailPanelProps {
   runDetailView: SceneAppRunDetailViewModel | null;
   loading: boolean;
   error?: string | null;
+  latestReviewFeedbackSignal?: CuratedTaskRecommendationSignal | null;
+  onContinueReviewFeedback?: (taskId: string) => void;
   humanReviewAvailable?: boolean;
   humanReviewLoading?: boolean;
   quickReviewActions?: SceneAppQuickReviewAction[];
@@ -50,6 +54,8 @@ export function SceneAppRunDetailPanel({
   runDetailView,
   loading,
   error,
+  latestReviewFeedbackSignal = null,
+  onContinueReviewFeedback,
   humanReviewAvailable = false,
   humanReviewLoading = false,
   quickReviewActions = [],
@@ -410,6 +416,11 @@ export function SceneAppRunDetailPanel({
                     {runDetailView.contextBaseline.tasteSummary}
                   </div>
                 ) : null}
+                <SceneAppReviewFeedbackBanner
+                  signal={latestReviewFeedbackSignal}
+                  dataTestId="sceneapp-run-detail-review-feedback-banner"
+                  onContinueReviewFeedback={onContinueReviewFeedback}
+                />
                 {runDetailView.contextBaseline.feedbackSummary ? (
                   <div
                     data-testid="sceneapp-run-detail-context-feedback-summary"

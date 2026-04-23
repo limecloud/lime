@@ -1,5 +1,13 @@
 import { resolveOemCloudRuntimeContext } from "./oemCloudRuntime";
 import type { OemCloudCurrentSessionLike } from "@/lib/oemCloudSession";
+import type {
+  ModelAliasSource,
+  ModelDeploymentSource,
+  ModelManagementPlane,
+  ModelModality,
+  ModelRuntimeFeature,
+  ModelTaskFamily,
+} from "@/lib/types/modelRegistry";
 
 export type OemCloudProviderSource = "local" | "oem_cloud";
 export type OemCloudProviderOfferState =
@@ -123,6 +131,15 @@ export interface OemCloudProviderModelItem {
   displayName: string;
   description?: string;
   abilities: string[];
+  task_families?: ModelTaskFamily[];
+  input_modalities?: ModelModality[];
+  output_modalities?: ModelModality[];
+  runtime_features?: ModelRuntimeFeature[];
+  deployment_source?: ModelDeploymentSource;
+  management_plane?: ModelManagementPlane;
+  canonical_model_id?: string;
+  provider_model_id?: string;
+  alias_source?: ModelAliasSource | null;
   recommended: boolean;
   status: string;
   sort: number;
@@ -268,6 +285,19 @@ function normalizeStringArray(value: unknown): string[] {
     .filter((item): item is string => Boolean(item));
 }
 
+function normalizeTypedStringArray<T extends string>(
+  value: unknown,
+  acceptedValues: Set<T>,
+): T[] {
+  return Array.from(
+    new Set(
+      normalizeStringArray(value).filter((item): item is T =>
+        acceptedValues.has(item as T),
+      ),
+    ),
+  );
+}
+
 function normalizeBoolean(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -293,6 +323,59 @@ const PARTNER_HUB_CONFIG_MODE_SET = new Set<OemCloudPartnerHubConfigMode>([
 const PARTNER_HUB_MODELS_SOURCE_SET = new Set<OemCloudPartnerHubModelsSource>([
   "hub_catalog",
   "manual",
+]);
+
+const MODEL_TASK_FAMILY_SET = new Set<ModelTaskFamily>([
+  "chat",
+  "reasoning",
+  "vision_understanding",
+  "image_generation",
+  "image_edit",
+  "speech_to_text",
+  "text_to_speech",
+  "embedding",
+  "rerank",
+  "moderation",
+]);
+
+const MODEL_MODALITY_SET = new Set<ModelModality>([
+  "text",
+  "image",
+  "audio",
+  "video",
+  "file",
+  "embedding",
+  "json",
+]);
+
+const MODEL_RUNTIME_FEATURE_SET = new Set<ModelRuntimeFeature>([
+  "streaming",
+  "tool_calling",
+  "json_schema",
+  "reasoning",
+  "prompt_cache",
+  "responses_api",
+  "chat_completions_api",
+  "images_api",
+]);
+
+const MODEL_DEPLOYMENT_SOURCE_SET = new Set<ModelDeploymentSource>([
+  "local",
+  "user_cloud",
+  "oem_cloud",
+]);
+
+const MODEL_MANAGEMENT_PLANE_SET = new Set<ModelManagementPlane>([
+  "local_settings",
+  "oem_control_plane",
+  "hybrid",
+]);
+
+const MODEL_ALIAS_SOURCE_SET = new Set<ModelAliasSource>([
+  "official",
+  "relay",
+  "oem",
+  "local",
 ]);
 
 function parsePartnerHubAccessMode(
@@ -347,6 +430,33 @@ function parsePartnerHubModelsSource(
   }
 
   throw new OemCloudControlPlaneError("服务商模型来源格式非法");
+}
+
+function parseOptionalModelDeploymentSource(
+  value: unknown,
+): ModelDeploymentSource | undefined {
+  const normalized = normalizeText(value) as ModelDeploymentSource | undefined;
+  return normalized && MODEL_DEPLOYMENT_SOURCE_SET.has(normalized)
+    ? normalized
+    : undefined;
+}
+
+function parseOptionalModelManagementPlane(
+  value: unknown,
+): ModelManagementPlane | undefined {
+  const normalized = normalizeText(value) as ModelManagementPlane | undefined;
+  return normalized && MODEL_MANAGEMENT_PLANE_SET.has(normalized)
+    ? normalized
+    : undefined;
+}
+
+function parseOptionalModelAliasSource(
+  value: unknown,
+): ModelAliasSource | undefined {
+  const normalized = normalizeText(value) as ModelAliasSource | undefined;
+  return normalized && MODEL_ALIAS_SOURCE_SET.has(normalized)
+    ? normalized
+    : undefined;
 }
 
 function unwrapEnvelope<T>(payload: unknown): {
@@ -607,6 +717,31 @@ function parseProviderModelItem(value: unknown): OemCloudProviderModelItem {
     displayName,
     description: normalizeText(value.description),
     abilities: normalizeStringArray(value.abilities),
+    task_families: normalizeTypedStringArray(
+      value.task_families,
+      MODEL_TASK_FAMILY_SET,
+    ),
+    input_modalities: normalizeTypedStringArray(
+      value.input_modalities,
+      MODEL_MODALITY_SET,
+    ),
+    output_modalities: normalizeTypedStringArray(
+      value.output_modalities,
+      MODEL_MODALITY_SET,
+    ),
+    runtime_features: normalizeTypedStringArray(
+      value.runtime_features,
+      MODEL_RUNTIME_FEATURE_SET,
+    ),
+    deployment_source: parseOptionalModelDeploymentSource(
+      value.deployment_source,
+    ),
+    management_plane: parseOptionalModelManagementPlane(
+      value.management_plane,
+    ),
+    canonical_model_id: normalizeText(value.canonical_model_id),
+    provider_model_id: normalizeText(value.provider_model_id),
+    alias_source: parseOptionalModelAliasSource(value.alias_source) ?? null,
     recommended: normalizeBoolean(value.recommended),
     status: normalizeText(value.status) ?? "active",
     sort: typeof value.sort === "number" ? value.sort : 0,

@@ -493,6 +493,16 @@ where
     use futures::StreamExt;
     use serde::{Deserialize, Serialize};
 
+    fn build_stream_message(message_id: &Option<String>, content: MessageContent) -> Message {
+        let mut message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![content],
+        );
+        message.id = message_id.clone();
+        message
+    }
+
     #[derive(Serialize, Deserialize, Debug)]
     struct StreamingEvent {
         #[serde(rename = "type")]
@@ -565,6 +575,20 @@ where
                                     accumulated_tool_calls.insert(id.to_string(), (name.to_string(), String::new()));
                                 }
                             }
+                        } else if content_block.get("type") == Some(&json!(THINKING_TYPE)) {
+                            if let Some(thinking) =
+                                content_block.get(THINKING_TYPE).and_then(|v| v.as_str())
+                            {
+                                if !thinking.is_empty() {
+                                    yield (
+                                        Some(build_stream_message(
+                                            &message_id,
+                                            MessageContent::thinking(thinking.to_string(), ""),
+                                        )),
+                                        None,
+                                    );
+                                }
+                            }
                         }
                     }
                     continue;
@@ -584,6 +608,20 @@ where
                                 );
                                 message.id = message_id.clone();
                                 yield (Some(message), None);
+                            }
+                        } else if delta.get("type") == Some(&json!("thinking_delta")) {
+                            if let Some(thinking) =
+                                delta.get(THINKING_TYPE).and_then(|v| v.as_str())
+                            {
+                                if !thinking.is_empty() {
+                                    yield (
+                                        Some(build_stream_message(
+                                            &message_id,
+                                            MessageContent::thinking(thinking.to_string(), ""),
+                                        )),
+                                        None,
+                                    );
+                                }
                             }
                         } else if delta.get("type") == Some(&json!("input_json_delta")) {
                             // Tool input delta
@@ -732,6 +770,7 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
+    use futures::StreamExt;
     use rmcp::object;
     use serde_json::json;
 
@@ -1078,5 +1117,53 @@ mod tests {
             "Error: -32603: Tool failed"
         );
         assert_eq!(spec[1]["content"][0]["is_error"], true);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_message_emits_thinking_delta_messages() {
+        let stream = futures::stream::iter([
+            Ok(String::from(
+                "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_test\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"mimo-v2-pro\",\"content\":[],\"usage\":{\"input_tokens\":0,\"output_tokens\":0}}}",
+            )),
+            Ok(String::from(
+                "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\"}}",
+            )),
+            Ok(String::from(
+                "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"先分析问题\"},\"index\":0}",
+            )),
+            Ok(String::from(
+                "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"，再组织回答。\"},\"index\":0}",
+            )),
+            Ok(String::from(
+                "data: {\"type\":\"message_stop\"}",
+            )),
+            Ok(String::from("data: [DONE]")),
+        ]);
+
+        let outputs = response_to_streaming_message(stream)
+            .collect::<Vec<_>>()
+            .await;
+
+        let messages = outputs
+            .into_iter()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("stream should parse");
+
+        let thinking_messages = messages
+            .into_iter()
+            .filter_map(|(message, _usage)| message)
+            .collect::<Vec<_>>();
+
+        assert_eq!(thinking_messages.len(), 2);
+        assert_eq!(thinking_messages[0].id.as_deref(), Some("msg_test"));
+        assert_eq!(thinking_messages[1].id.as_deref(), Some("msg_test"));
+        assert!(matches!(
+            &thinking_messages[0].content[0],
+            MessageContent::Thinking(content) if content.thinking == "先分析问题"
+        ));
+        assert!(matches!(
+            &thinking_messages[1].content[0],
+            MessageContent::Thinking(content) if content.thinking == "，再组织回答。"
+        ));
     }
 }

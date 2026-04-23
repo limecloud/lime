@@ -333,6 +333,27 @@ describe("MessageList", () => {
     expect(streamingTexts).toEqual(["好的，我继续处理。"]);
   });
 
+  it("user peer 包络正文应直接渲染为专门协作卡片", () => {
+    const container = render([
+      {
+        id: "msg-user-peer",
+        role: "user",
+        content: `<teammate-message teammate_id="researcher" summary="同步结果">
+继续验证
+</teammate-message>`,
+      } as Message,
+    ]);
+
+    expect(
+      container.querySelector('[data-testid="runtime-peer-message-cards"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("协作者消息");
+    expect(container.textContent).toContain("来自 researcher");
+    expect(container.textContent).toContain("同步结果");
+    expect(container.textContent).toContain("继续验证");
+    expect(container.textContent).not.toContain("teammate-message");
+  });
+
   it("应向助手消息透传内联 A2UI 开关", () => {
     const now = new Date();
     const messages: Message[] = [

@@ -25,11 +25,12 @@ export type {
   QuotaExceededConfig,
   RemoteManagementConfig,
   ResponseCacheConfig,
+  ServiceModelPreferenceConfig,
+  ServiceModelsConfig,
   ShellImportPreview,
   TlsConfig,
   ToolCallingConfig,
   UserProfile,
-  VoiceConfig,
   WorkspacePreferencesConfig,
 } from "./appConfigTypes";
 

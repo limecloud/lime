@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   SceneAppCompatType,
-  SceneAppCurrentDescriptor as SceneAppDescriptor,
+  SceneAppDescriptor,
 } from "./types";
 import {
   collectSceneAppInfraPresentationLabels,

@@ -6,8 +6,8 @@ import {
 } from "@/lib/api/automation";
 import {
   planSceneAppLaunch,
-  type SceneAppCurrentDescriptor as SceneAppDescriptor,
-  type SceneAppCurrentPlanResult as SceneAppPlanResult,
+  type SceneAppDescriptor,
+  type SceneAppPlanResult,
 } from "@/lib/api/sceneapp";
 import type { Project } from "@/lib/api/project";
 import type {

@@ -82,7 +82,18 @@ Lime 的命令体系固定按以下关系理解：
 
 对图片任务再补一条固定约束：
 
-`@配图/@修图/@重绘` 原始文本必须先进入 Agent turn，再由 `harness.image_skill_launch` 辅助首刀 `Skill(image_generate)`；文稿 inline 配图、封面位、图片工作台编辑/变体这类显式图片动作也一样，必须先组装 `image_task` 上下文后再复用统一发送主线。不要把 current 主链重新改回前端预翻 slash skill、前端直建任务或“按钮直调 task API”。图片 launch 还必须显式压制 `ToolSearch / WebSearch / Read / Glob / Grep` 这类通用偏航工具，并在必要时直接从当前 session tool surface 移除这些 detour tools，避免模型在“搜技能目录”里空转或把权限错误暴露给用户。默认 `Bash -> lime media image generate --json` 入口也必须把 task file 真正推进到完成态；兼容入口 `lime task create image --json` 现在也必须复用同一条图片执行链，不能再只停在“任务已创建 / pending_submit”。即使退回 compat 的 `lime_create_image_generation_task`，也必须委托同一条 task artifact + worker 执行链，并禁止把任务改写到 `outputPath` / markdown 文稿。
+`@配图/@修图/@重绘` 原始文本必须先进入 Agent turn，再由 `harness.image_skill_launch` 辅助首刀 `Skill(image_generate)`；文稿 inline 配图、封面位、图片工作台编辑/变体这类显式图片动作也一样，必须先组装 `image_task` 上下文后再复用统一发送主线。不要把 current 主链重新改回前端预翻 slash skill、前端直建任务或“按钮直调 task API”。图片 launch 还必须显式压制 `ToolSearch / WebSearch / Read / Glob / Grep` 这类通用偏航工具，并在必要时直接从当前 session tool surface 移除这些 detour tools，避免模型在“搜技能目录”里空转或把权限错误暴露给用户。当前 `image_generate` 的唯一 current 执行面是 `Skill(image_generate) -> lime_create_image_generation_task -> 标准 image task artifact + worker`；旧的 `Bash -> lime media image generate --json` / `lime task create image --json` 只允许停留在 compat 或手工 CLI 场景，不能再作为 `@配图` 首发路径。即使经过 compat 入口，最终也必须委托同一条 task artifact + worker 执行链，并禁止把任务改写到 `outputPath` / markdown 文稿。
+
+对所有 skills 再补一条全局约束：
+
+- 是否走 `Bash CLI`，由 binding / executor / runtime 或显式操作者决定，不由模型在首刀自由写 shell。
+- 全局优先级固定为：原生结构化 binding > 类型化 `local_cli` binding > 自由形态 `Bash CLI` compat / ops 路线。
+- 第一判断维度不是 `key` 在本地还是 OEM 云端，而是“谁真正执行、正式真相源写到哪里、viewer 读谁”。
+- 如果只是凭证托管在 OEM 云端，但执行仍在客户端，本质上不等于“应该走本地 CLI”；它可能仍是 `server_api` 或 `hybrid`。
+- 如果执行本身就在 OEM / 服务端 runtime，当前应优先走 `server_api` 或 `hybrid`，而不是为了统一表面形式强行绕回 `Bash CLI`。
+- 只有当参数已经定稿、CLI 是唯一稳定执行 facade、且输出能稳定映射回同一真相源时，才允许把 CLI 作为 direct entry。
+- 只要当前还需要模型做补参、作用域绑定、viewer 回填或结构化 metadata 投影，就不要把 CLI 当 current 首发路径。
+- 共享决策锚点见 `docs/roadmap/gongneng/command-runtime/architecture.md`；单功能如 `@配图` 还要继续服从各自 `docs/prd/gongneng/<feature>/architecture.md`。
 
 - 显式图片动作允许先在前端补 `image_skill_launch` metadata，但发送前的 `session_id` 绑定仍必须走统一发送边界；如果 metadata 里暂时还是本地 draft key，必须在真正发起 send 时替换成真实会话 ID，而不是在图片动作入口提前额外建一个图片专用会话。
 - `.lime/tasks/**/*.json` 继续作为图片主链的唯一恢复事实源，但它们属于内部任务快照，默认不应直接渲染成用户可见 artifact 卡片或时间线文件卡；用户面看到的应该是轻结果卡、工具过程和右侧查看。
@@ -222,7 +233,7 @@ Lime 的命令体系固定按以下关系理解：
 - 命令仍必须先进入 `Agent -> Skill(modal_resource_search)` 主链
 - 当 `resource_type=image` 且关键词明确时，skill 应优先调用 `lime_search_web_images`，直接复用现有 `Pexels API Key` 设置返回候选
 - `lime_search_web_images` 命中后，聊天区应直接展示真实 tool result 生成的素材轻卡与缩略图，点击后在右侧打开同回合 artifact document，而不是只留一段文本总结
-- 当资源类型是 `bgm / sfx / video`，或图片直搜失败时，再回退 `Bash -> lime task create resource-search --json` / `lime_create_modal_resource_search_task`
+- 当资源类型是 `bgm / sfx / video`，或图片直搜失败时，再进入 `modal_resource_search` 的 task 型 binding；若该 binding family 是 `typed local_cli`，由 runtime 结构化组装 `lime task create resource-search --json`，CLI 不可用时再回退 `lime_create_modal_resource_search_task`
 - 无论走直搜还是 task，都必须保留真实 `tool_timeline`，不能回到前端直连图库或隐藏底层 tools
 
 ### 2. `Agent + ServiceSkill`

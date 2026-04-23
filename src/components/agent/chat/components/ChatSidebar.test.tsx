@@ -168,7 +168,7 @@ describe("ChatSidebar", () => {
     );
   });
 
-  it("生成侧栏应在顶部展示继续上次生成与最近结果入口", async () => {
+  it("生成侧栏应在顶部展示最近会话恢复与最近结果入口", async () => {
     mockGetProject.mockImplementation(async (projectId: string) => {
       if (projectId === "project-waiting") {
         return {
@@ -226,14 +226,15 @@ describe("ChatSidebar", () => {
       '[data-testid="task-center-continuation-panel"]',
     ) as HTMLElement | null;
     expect(panel).toBeTruthy();
-    expect(panel?.textContent).toContain("继续上次生成");
+    expect(panel?.textContent).toContain("继续最近会话");
     expect(panel?.textContent).toContain(
-      "上次生成到哪、结果留在哪个项目里，这里会直接告诉你。",
+      "最近一次停在哪、当前在等什么，这里会直接带你回到现场。",
     );
     expect(panel?.textContent).toContain("待继续任务");
     expect(panel?.textContent).toContain("品牌项目");
     expect(panel?.textContent).toContain("最近回访任务");
     expect(panel?.textContent).toContain("活动项目");
+    expect(panel?.textContent).toContain("继续最近会话");
 
     const primaryButton = container.querySelector(
       '[data-testid="task-center-primary-continuation"]',
@@ -306,7 +307,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("更早记录");
   });
 
-  it("生成侧栏 continuation fallback 应使用打开现场口径", async () => {
+  it("生成侧栏 continuation fallback 应使用打开最近会话口径", async () => {
     const container = renderSidebar({
       contextVariant: "task-center",
       currentTopicId: null,
@@ -327,7 +328,7 @@ describe("ChatSidebar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("打开现场");
+    expect(container.textContent).toContain("打开最近会话");
   });
 
   it("子任务和任务列表应处于同一滚动区域", () => {

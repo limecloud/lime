@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_stream::try_stream;
@@ -22,7 +23,7 @@ use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EX
 use crate::agents::subagent_tool::AGENT_TOOL_NAME;
 use crate::session::{apply_session_update, query_session, SessionStore, TokenStatsUpdate};
 #[cfg(test)]
-use crate::session::{SessionManager, SessionType};
+use crate::session::{SessionManager, SessionType, TurnContextOverride};
 use rmcp::model::Tool;
 
 const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
@@ -98,6 +99,78 @@ fn is_local_workspace_tool(tool_name: &str) -> bool {
     LOCAL_WORKSPACE_TOOL_NAMES
         .iter()
         .any(|candidate| candidate.eq_ignore_ascii_case(tool_name))
+}
+
+fn normalize_turn_metadata_tool_list(value: Option<&Value>) -> Vec<String> {
+    let Some(items) = value.and_then(Value::as_array) else {
+        return Vec::new();
+    };
+
+    let mut normalized = Vec::new();
+    for item in items {
+        let Some(name) = item
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+        if normalized
+            .iter()
+            .any(|existing: &String| existing.eq_ignore_ascii_case(name))
+        {
+            continue;
+        }
+        normalized.push(name.to_string());
+    }
+    normalized
+}
+
+fn extract_turn_scoped_tool_scope(metadata: &HashMap<String, Value>) -> (Vec<String>, Vec<String>) {
+    let scope = metadata
+        .get("tool_scope")
+        .or_else(|| metadata.get("toolScope"))
+        .and_then(Value::as_object)
+        .or_else(|| metadata.get("subagent").and_then(Value::as_object));
+
+    let allowed_tools = normalize_turn_metadata_tool_list(scope.and_then(|value| {
+        value
+            .get("allowed_tools")
+            .or_else(|| value.get("allowedTools"))
+    }));
+    let disallowed_tools = normalize_turn_metadata_tool_list(scope.and_then(|value| {
+        value
+            .get("disallowed_tools")
+            .or_else(|| value.get("disallowedTools"))
+    }));
+
+    (allowed_tools, disallowed_tools)
+}
+
+fn matches_turn_tool_scope(tool_name: &str, scope: &[String]) -> bool {
+    scope
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(tool_name))
+}
+
+fn resolve_turn_tool_scope() -> (Vec<String>, Vec<String>) {
+    current_turn_context()
+        .map(|context| extract_turn_scoped_tool_scope(&context.metadata))
+        .unwrap_or_default()
+}
+
+fn filter_tools_for_turn_scope(
+    mut tools: Vec<Tool>,
+    allowed_tools: &[String],
+    disallowed_tools: &[String],
+) -> Vec<Tool> {
+    if !allowed_tools.is_empty() {
+        tools.retain(|tool| matches_turn_tool_scope(&tool.name, allowed_tools));
+    }
+    if !disallowed_tools.is_empty() {
+        tools.retain(|tool| !matches_turn_tool_scope(&tool.name, disallowed_tools));
+    }
+    tools
 }
 
 fn filter_tools_for_turn_surface(
@@ -221,6 +294,8 @@ impl Agent {
 
         let turn_tool_surface_mode = resolve_turn_tool_surface_mode();
         tools = filter_tools_for_turn_surface(tools, turn_tool_surface_mode.as_deref());
+        let (turn_allowed_tools, turn_disallowed_tools) = resolve_turn_tool_scope();
+        tools = filter_tools_for_turn_scope(tools, &turn_allowed_tools, &turn_disallowed_tools);
         let subagents_enabled = tools.iter().any(|tool| tool.name == AGENT_TOOL_NAME);
 
         // Stable tool ordering is important for multi session prompt caching.
@@ -805,6 +880,25 @@ mod tests {
         }
     }
 
+    fn build_turn_context_with_tool_scope(
+        allowed_tools: Vec<&str>,
+        disallowed_tools: Vec<&str>,
+    ) -> TurnContextOverride {
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            "subagent".to_string(),
+            json!({
+                "allowed_tools": allowed_tools,
+                "disallowed_tools": disallowed_tools,
+            }),
+        );
+
+        TurnContextOverride {
+            metadata,
+            ..TurnContextOverride::default()
+        }
+    }
+
     #[tokio::test]
     async fn prepare_tools_and_prompt_hides_all_tools_for_direct_answer_turn_surface(
     ) -> anyhow::Result<()> {
@@ -886,6 +980,91 @@ mod tests {
 
         assert!(!tools.is_empty());
         assert!(tools.iter().all(|tool| is_local_workspace_tool(&tool.name)));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn prepare_tools_and_prompt_filters_turn_scoped_allowed_tools() -> anyhow::Result<()> {
+        let agent = crate::agents::Agent::new();
+
+        let session = SessionManager::create_session(
+            std::path::PathBuf::default(),
+            "test-turn-scoped-allowed-tools".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
+        let model_config = ModelConfig::new("test-model").unwrap();
+        let provider = std::sync::Arc::new(MockProvider {
+            model_config,
+            observed_models: None,
+        });
+        agent.update_provider(provider, &session.id).await?;
+
+        let working_dir = std::env::current_dir()?;
+        let (tools, _toolshim_tools, _system_prompt) = crate::session_context::with_turn_context(
+            Some(build_turn_context_with_tool_scope(
+                vec!["Read", "Grep"],
+                Vec::new(),
+            )),
+            async {
+                agent
+                    .prepare_tools_and_prompt(
+                        &working_dir,
+                        None,
+                        &ModelConfig::new("test-model").unwrap(),
+                    )
+                    .await
+            },
+        )
+        .await?;
+
+        let names: Vec<String> = tools.iter().map(|tool| tool.name.to_string()).collect();
+        assert_eq!(names, vec!["Grep".to_string(), "Read".to_string()]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn prepare_tools_and_prompt_filters_turn_scoped_disallowed_tools() -> anyhow::Result<()> {
+        let agent = crate::agents::Agent::new();
+
+        let session = SessionManager::create_session(
+            std::path::PathBuf::default(),
+            "test-turn-scoped-disallowed-tools".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
+        let model_config = ModelConfig::new("test-model").unwrap();
+        let provider = std::sync::Arc::new(MockProvider {
+            model_config,
+            observed_models: None,
+        });
+        agent.update_provider(provider, &session.id).await?;
+
+        let working_dir = std::env::current_dir()?;
+        let (tools, _toolshim_tools, _system_prompt) = crate::session_context::with_turn_context(
+            Some(build_turn_context_with_tool_scope(
+                Vec::new(),
+                vec!["Read", "Grep"],
+            )),
+            async {
+                agent
+                    .prepare_tools_and_prompt(
+                        &working_dir,
+                        None,
+                        &ModelConfig::new("test-model").unwrap(),
+                    )
+                    .await
+            },
+        )
+        .await?;
+
+        let names: Vec<String> = tools.iter().map(|tool| tool.name.to_string()).collect();
+        assert!(!names.iter().any(|name| name == "Read"));
+        assert!(!names.iter().any(|name| name == "Grep"));
+
         Ok(())
     }
 

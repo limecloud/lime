@@ -537,6 +537,34 @@ impl SessionStore for HookAgentSessionStore {
         Ok(())
     }
 
+    async fn update_working_dir(
+        &self,
+        _session_id: &str,
+        working_dir: PathBuf,
+    ) -> anyhow::Result<()> {
+        let mut session = match self.session.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        session.working_dir = working_dir;
+        session.updated_at = chrono::Utc::now();
+        Ok(())
+    }
+
+    async fn update_session_type(
+        &self,
+        _session_id: &str,
+        session_type: SessionType,
+    ) -> anyhow::Result<()> {
+        let mut session = match self.session.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        session.session_type = session_type;
+        session.updated_at = chrono::Utc::now();
+        Ok(())
+    }
+
     async fn update_extension_data(
         &self,
         _session_id: &str,

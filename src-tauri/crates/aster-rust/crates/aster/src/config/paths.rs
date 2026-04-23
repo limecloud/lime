@@ -83,6 +83,10 @@ pub fn initialize_path_root(root: PathBuf) -> Result<PathBuf, String> {
     }
 }
 
+pub fn initialized_path_root() -> Option<PathBuf> {
+    resolve_path_root_override()
+}
+
 fn resolve_path_root_override() -> Option<PathBuf> {
     PATH_ROOT_OVERRIDE.get().cloned()
 }

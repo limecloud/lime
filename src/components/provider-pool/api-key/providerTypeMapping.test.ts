@@ -123,4 +123,15 @@ describe("providerTypeMapping", () => {
 
     expect(resolved).toBe("minimax");
   });
+
+  it("MiMo 的 Anthropic 兼容 Host 应映射到 Xiaomi 模型目录", () => {
+    const resolved = resolveRegistryProviderId("custom-mimo-provider", {
+      providerType: "anthropic-compatible",
+      apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
+      catalogAliasMap: null,
+      validRegistryProviders: ["anthropic", "xiaomi"],
+    });
+
+    expect(resolved).toBe("xiaomi");
+  });
 });

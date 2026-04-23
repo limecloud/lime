@@ -110,6 +110,7 @@ interface InputbarProps extends SkillSelectionSourceProps {
   sessionId?: string | null;
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
+  inputCompletionEnabled?: boolean;
 }
 
 export const Inputbar: React.FC<InputbarProps> = ({
@@ -166,6 +167,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
   sessionId = null,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
+  inputCompletionEnabled = true,
 }) => {
   const {
     textareaRef,
@@ -222,6 +224,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
     workflowSteps,
     workflowRunState,
     onEnableSuggestedTeam,
+    projectId,
+    sessionId,
     skills,
     serviceSkills,
     serviceSkillGroups,
@@ -315,6 +319,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onPromoteQueuedTurn={onPromoteQueuedTurn}
         onRemoveQueuedTurn={onRemoveQueuedTurn}
         contextVariant={contextVariant}
+        inputCompletionEnabled={inputCompletionEnabled}
       />
       {dialogLayer}
     </InputbarSurface>

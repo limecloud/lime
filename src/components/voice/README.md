@@ -10,7 +10,6 @@
 | `AsrCredentialCard.tsx` | ASR 凭证卡片组件 |
 | `AddAsrCredentialModal.tsx` | 添加 ASR 凭证模态框 |
 | `AsrProviderSection.tsx` | ASR Provider 管理区域 |
-| `VoiceSettings.tsx` | 语音输入设置组件 |
 | `InstructionEditor.tsx` | 自定义指令编辑器组件 |
 | `index.ts` | 模块导出 |
 

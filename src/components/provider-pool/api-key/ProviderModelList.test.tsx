@@ -160,6 +160,224 @@ describe("ProviderModelList", () => {
     expect(container.textContent).toContain("支持多模态");
   });
 
+  it("应支持按能力页签筛选图片生成模型", async () => {
+    mockUseModelRegistry.mockReturnValue({
+      models: [
+        {
+          id: "gpt-4o",
+          display_name: "GPT-4o",
+          provider_id: "openai",
+          provider_name: "OpenAI",
+          family: "gpt-4o",
+          tier: "pro",
+          capabilities: {
+            vision: true,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: false,
+          },
+          task_families: ["chat", "vision_understanding"],
+          input_modalities: ["text", "image"],
+          output_modalities: ["text"],
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: "2026-03-01",
+          is_latest: true,
+          description: null,
+          source: "local",
+          created_at: 0,
+          updated_at: 0,
+        },
+        {
+          id: "gpt-images-2",
+          display_name: "GPT Images 2",
+          provider_id: "openai",
+          provider_name: "OpenAI",
+          family: "gpt-image",
+          tier: "pro",
+          capabilities: {
+            vision: false,
+            tools: false,
+            streaming: true,
+            json_mode: false,
+            function_calling: false,
+            reasoning: false,
+          },
+          task_families: ["image_generation"],
+          input_modalities: ["text"],
+          output_modalities: ["image"],
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: "2026-03-02",
+          is_latest: true,
+          description: "relay alias",
+          source: "local",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    const container = renderProviderModelList({
+      providerId: "relay-openai",
+      providerType: "custom",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const trigger = container.querySelector(
+      '[data-testid="provider-model-filter-image_generation"]',
+    );
+    expect(trigger).toBeTruthy();
+
+    await act(async () => {
+      trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("GPT Images 2");
+    expect(container.textContent).not.toContain(
+      "GPT-4o输入：文本 / 图片 · 输出：文本",
+    );
+  });
+
+  it("代理别名模型应显示别名标记与上游映射", async () => {
+    mockUseModelRegistry.mockReturnValue({
+      models: [
+        {
+          id: "gpt-images-2",
+          display_name: "GPT Images 2",
+          provider_id: "openai",
+          provider_name: "OpenAI",
+          family: "gpt-image",
+          tier: "pro",
+          capabilities: {
+            vision: false,
+            tools: false,
+            streaming: true,
+            json_mode: false,
+            function_calling: false,
+            reasoning: false,
+          },
+          task_families: ["image_generation"],
+          input_modalities: ["text"],
+          output_modalities: ["image"],
+          runtime_features: ["images_api"],
+          deployment_source: "user_cloud",
+          management_plane: "local_settings",
+          canonical_model_id: "gpt-image-1",
+          provider_model_id: "gpt-images-2",
+          alias_source: "relay",
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: "2026-03-02",
+          is_latest: true,
+          description: "relay alias",
+          source: "local",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    const container = renderProviderModelList({
+      providerId: "relay-openai",
+      providerType: "custom",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("代理别名");
+    expect(container.textContent).toContain(
+      "实际映射：gpt-images-2 → gpt-image-1",
+    );
+  });
+
+  it("官方映射模型不应误显示为代理别名", async () => {
+    mockUseModelRegistry.mockReturnValue({
+      models: [
+        {
+          id: "gpt-4.1",
+          display_name: "GPT-4.1",
+          provider_id: "openai",
+          provider_name: "OpenAI",
+          family: "gpt-4.1",
+          tier: "pro",
+          capabilities: {
+            vision: true,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: false,
+          },
+          task_families: ["chat", "vision_understanding"],
+          input_modalities: ["text", "image"],
+          output_modalities: ["text", "json"],
+          runtime_features: ["streaming", "tool_calling", "json_schema"],
+          deployment_source: "user_cloud",
+          management_plane: "local_settings",
+          canonical_model_id: "openai/gpt-4.1",
+          provider_model_id: "gpt-4.1",
+          alias_source: "official",
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: "2026-03-01",
+          is_latest: true,
+          description: null,
+          source: "embedded",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    const container = renderProviderModelList();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("代理别名");
+    expect(container.textContent).not.toContain("实际映射：");
+  });
+
   it("官方供应商即使未配置 Key 也应显式展示获取最新模型按钮", async () => {
     const container = renderProviderModelList({
       providerId: "gemini",
@@ -192,6 +410,126 @@ describe("ProviderModelList", () => {
 
     expect(container.textContent ?? "").toContain("请先添加可用 API Key");
     expect(container.textContent ?? "").not.toContain("GPT-4.1");
+  });
+
+  it("已知官方 anthropic-compatible Host 在未拉取实时目录前应先展示本地厂商目录", async () => {
+    mockUseModelRegistry.mockReturnValue({
+      models: [
+        {
+          id: "mimo-v2-pro",
+          display_name: "MiMo-V2-Pro",
+          provider_id: "xiaomi",
+          provider_name: "Xiaomi",
+          family: "mimo-v2-pro",
+          tier: "max",
+          capabilities: {
+            vision: false,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: "2026-03-18",
+          is_latest: true,
+          description: null,
+          source: "embedded",
+          created_at: 0,
+          updated_at: 0,
+        },
+        {
+          id: "mimo-v2-omni",
+          display_name: "MiMo-V2-Omni",
+          provider_id: "xiaomi",
+          provider_name: "Xiaomi",
+          family: "mimo-v2-omni",
+          tier: "pro",
+          capabilities: {
+            vision: true,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: "2026-03-18",
+          is_latest: true,
+          description: null,
+          source: "embedded",
+          created_at: 0,
+          updated_at: 0,
+        },
+        {
+          id: "mimo-v2-flash",
+          display_name: "MiMo-V2-Flash",
+          provider_id: "xiaomi",
+          provider_name: "Xiaomi",
+          family: "mimo-v2-flash",
+          tier: "mini",
+          capabilities: {
+            vision: false,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: "2025-12-17",
+          is_latest: true,
+          description: null,
+          source: "embedded",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+    mockGetModelRegistryProviderIds.mockResolvedValueOnce([
+      "anthropic",
+      "xiaomi",
+    ]);
+
+    const container = renderProviderModelList({
+      providerId: "custom-mimo-provider",
+      providerType: "anthropic-compatible",
+      apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
+      hasApiKey: true,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("MiMo-V2-Pro");
+    expect(container.textContent).toContain("MiMo-V2-Omni");
+    expect(container.textContent).toContain("MiMo-V2-Flash");
+    expect(container.textContent).not.toContain("尚未获取模型目录");
   });
 
   it("Ollama 在未配置 Key 时也应允许直接获取最新模型", async () => {
@@ -431,7 +769,8 @@ describe("ProviderModelList", () => {
         },
       ],
       source: "LocalFallback",
-      error: "当前 Anthropic 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。",
+      error:
+        "当前 Anthropic 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。",
       request_url: "https://api.minimaxi.com/anthropic/v1/models",
       diagnostic_hint: null,
       should_prompt_error: false,
@@ -473,6 +812,82 @@ describe("ProviderModelList", () => {
     expect(warningBanner).toBeTruthy();
     expect(warningBanner?.className).toContain("bg-amber-50/80");
     expect(warningBanner?.className).not.toContain("dark:bg-amber-950/20");
+  });
+
+  it("OpenAI 兼容 Provider 回退到本地模型时，应继续展示 LocalFallback 模型", async () => {
+    mockFetchProviderModelsAuto.mockResolvedValueOnce({
+      models: [
+        {
+          id: "gpt-4.1",
+          display_name: "GPT-4.1",
+          provider_id: "openai",
+          provider_name: "OpenAI",
+          family: "gpt-4.1",
+          tier: "pro",
+          capabilities: {
+            vision: true,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: false,
+          },
+          task_families: ["chat", "vision_understanding"],
+          input_modalities: ["text", "image"],
+          output_modalities: ["text", "json"],
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: "2026-03-01",
+          is_latest: true,
+          description: null,
+          source: "embedded",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      source: "LocalFallback",
+      error:
+        "API 获取失败: API 返回错误 404 Not Found，已使用本地数据",
+      request_url: "https://gateway.example.com/proxy/v1/models",
+      diagnostic_hint:
+        "当前 API Host 看起来是具体接口地址而不是基础地址。Lime 已自动回退到 `https://gateway.example.com/proxy/v1/models` 尝试模型枚举；如果上游本身不提供 `/models`，请改填基础 API Host，或直接在 Provider 中填写自定义模型。",
+      should_prompt_error: true,
+    });
+
+    const container = renderProviderModelList({
+      providerId: "custom-openai-provider",
+      providerType: "openai",
+      apiHost: "https://gateway.example.com/proxy/responses",
+      hasApiKey: true,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("获取最新模型"),
+    );
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("GPT-4.1");
+    expect(container.textContent).toContain("本地");
+    expect(container.textContent).toContain("API 获取失败");
+    expect(container.textContent).not.toContain(
+      "检测到 Provider 配置错误，请优先修正 Base URL 或鉴权配置",
+    );
   });
 
   it("Provider 模型缓存应在 TTL 后过期", () => {

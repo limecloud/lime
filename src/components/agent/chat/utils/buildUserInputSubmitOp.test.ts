@@ -182,4 +182,47 @@ describe("buildUserInputSubmitOp", () => {
       },
     });
   });
+
+  it("provider 发生切换时应同时提交 provider/model 偏好", () => {
+    const op = buildUserInputSubmitOp({
+      content: "使用翻译服务模型",
+      images: [],
+      sessionId: "session-translation-1",
+      eventName: "aster_stream_translation",
+      executionRuntime: {
+        session_id: "session-translation-1",
+        source: "runtime_snapshot",
+        provider_selector: "openai",
+        model_name: "gpt-4.1",
+        execution_strategy: "react",
+        recent_preferences: {
+          webSearch: false,
+          thinking: false,
+          task: false,
+          subagent: false,
+        },
+      },
+      syncedRecentPreferences: {
+        webSearch: false,
+        thinking: false,
+        task: false,
+        subagent: false,
+      },
+      syncedSessionModelPreference: {
+        providerType: "openai",
+        model: "gpt-4.1",
+      },
+      syncedExecutionStrategy: "react",
+      effectiveExecutionStrategy: "react",
+      effectiveAccessMode: "current",
+      effectiveProviderType: "translation-provider",
+      effectiveModel: "translation-model",
+      modelOverride: "translation-model",
+      webSearch: false,
+      thinking: false,
+    });
+
+    expect(op.preferences?.providerPreference).toBe("translation-provider");
+    expect(op.preferences?.modelPreference).toBe("translation-model");
+  });
 });

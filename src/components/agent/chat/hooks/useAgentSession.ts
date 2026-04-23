@@ -894,6 +894,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       topicId: string,
       options?: {
         forceRefresh?: boolean;
+        resumeSessionStartHooks?: boolean;
       },
     ) => {
       if (
@@ -927,7 +928,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           topicId,
           workspaceId,
         });
-        const detail = await runtime.getSession(topicId);
+        const detail =
+          options?.resumeSessionStartHooks === true
+            ? await runtime.getSession(topicId, {
+                resumeSessionStartHooks: true,
+              })
+            : await runtime.getSession(topicId);
         const runtimePreference =
           createSessionModelPreferenceFromExecutionRuntime(
             detail.execution_runtime,
@@ -1183,7 +1189,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       );
 
       if (targetSessionId) {
-        await switchTopic(targetSessionId, { forceRefresh: true });
+        await switchTopic(targetSessionId, {
+          forceRefresh: true,
+          resumeSessionStartHooks: true,
+        });
         if (sessionIdRef.current) {
           return sessionIdRef.current;
         }
@@ -1207,6 +1216,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         targetSessionId,
         applySessionDetail,
         markSessionExecutionStrategySynced,
+        persistSessionAccessMode,
+        setAccessModeState,
         onWarn: (error) => {
           console.warn("[AsterChat] 刷新会话详情失败:", error);
         },
@@ -1215,8 +1226,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     [
       applySessionDetail,
       markSessionExecutionStrategySynced,
+      persistSessionAccessMode,
       runtime,
       sessionIdRef,
+      setAccessModeState,
     ],
   );
 
@@ -1324,7 +1337,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       topicsCount: topics.length,
       workspaceId: resolvedWorkspaceId,
     });
-    switchTopic(targetSessionId)
+    switchTopic(targetSessionId, {
+      resumeSessionStartHooks: true,
+    })
       .catch((error) => {
         console.warn("[AsterChat] 自动恢复会话失败:", error);
         logAgentDebug(
@@ -1481,7 +1496,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       workspaceId,
     });
 
-    switchTopic(sessionId, { forceRefresh: true }).catch((error) => {
+    switchTopic(sessionId, {
+      forceRefresh: true,
+      resumeSessionStartHooks: true,
+    }).catch((error) => {
       console.warn("[AsterChat] 会话水合失败:", error);
       logAgentDebug(
         "useAgentSession",

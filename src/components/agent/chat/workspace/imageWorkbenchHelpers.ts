@@ -24,6 +24,8 @@ export interface ImageWorkbenchTask extends ImageWorkbenchTaskView {
   sessionId: string;
   hookImageIds: string[];
   applyTarget: ImageWorkbenchApplyTarget | null;
+  taskFilePath?: string | null;
+  artifactPath?: string | null;
 }
 
 export interface ImageWorkbenchOutput extends ImageWorkbenchOutputView {
@@ -248,8 +250,10 @@ export function buildImageWorkbenchProcessDescriptor(
   };
 }
 
-export function collapseWhitespace(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
+export function collapseWhitespace(
+  value: string | null | undefined,
+): string {
+  return (value || "").replace(/\s+/g, " ").trim();
 }
 
 function extractImagePromptSnippet(content: string, maxLength = 120): string {

@@ -148,4 +148,38 @@ describe("internalImagePlaceholder", () => {
       }),
     ).toBe("已经找到关键线索。");
   });
+
+  it("应把跨会话协作包络清洗成可读文案", () => {
+    const text = `<teammate-message teammate_id="researcher" summary="同步结果">
+继续验证
+</teammate-message>`;
+
+    expect(
+      sanitizeMessageTextForDisplay(text, {
+        role: "user",
+      }),
+    ).toBe("协作消息 · researcher · 同步结果\n\n继续验证");
+  });
+
+  it("应同步清洗 contentParts 里的协作包络文本", () => {
+    const contentParts: ContentPart[] = [
+      {
+        type: "text",
+        text: `<cross-session-message from="uds:session-a">
+继续验证
+</cross-session-message>`,
+      },
+    ];
+
+    expect(
+      sanitizeContentPartsForDisplay(contentParts, {
+        role: "assistant",
+      }),
+    ).toEqual([
+      {
+        type: "text",
+        text: "跨会话消息 · uds:session-a\n\n继续验证",
+      },
+    ]);
+  });
 });

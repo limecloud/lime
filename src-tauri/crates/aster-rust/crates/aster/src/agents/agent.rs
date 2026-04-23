@@ -52,8 +52,8 @@ use crate::session::{
     apply_session_update, load_managed_session_runtime_snapshot, query_session,
     replace_session_conversation, require_shared_session_runtime_store, save_summary,
     InMemoryThreadRuntimeStore, ItemRuntime, ItemRuntimePayload, ItemStatus, Session,
-    SessionManager, SessionRuntimeSnapshot, SessionStore, SessionType, TeamMembershipState,
-    TeamSessionState, ThreadRuntime, ThreadRuntimeStore, TurnContextOverride,
+    SessionManager, SessionPlanModeState, SessionRuntimeSnapshot, SessionStore, SessionType,
+    TeamMembershipState, TeamSessionState, ThreadRuntime, ThreadRuntimeStore, TurnContextOverride,
     TurnOutputSchemaRuntime, TurnOutputSchemaSource, TurnOutputSchemaStrategy, TurnRuntime,
     TurnStatus,
 };
@@ -412,6 +412,10 @@ fn session_allows_subagent_teammate_tools(session: &Session) -> bool {
             || TeamSessionState::from_session(session).is_some())
 }
 
+fn session_plan_mode_active(session: &Session) -> bool {
+    SessionPlanModeState::from_session(session).is_some_and(|state| state.active)
+}
+
 fn collect_string_values(value: &Value) -> Vec<String> {
     match value {
         Value::String(text) => {
@@ -685,23 +689,7 @@ fn prepare_callback_backed_agent_spawn(
     session: &Session,
 ) -> Result<Option<CallbackBackedAgentSpawn>, ErrorData> {
     let mode = normalize_agent_optional_text(request.mode.clone());
-    if mode.is_some() {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            "mode is not supported in the current runtime".to_string(),
-            None,
-        ));
-    }
-
     let isolation = normalize_agent_optional_text(request.isolation.clone());
-    if isolation.is_some() {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            "isolation is not supported in the current runtime".to_string(),
-            None,
-        ));
-    }
-
     let name = normalize_agent_optional_text(request.name.clone());
     let team_name = normalize_agent_optional_text(request.team_name.clone());
     let cwd = normalize_agent_cwd(request.cwd.clone())?;
@@ -728,6 +716,8 @@ fn prepare_callback_backed_agent_spawn(
         && (request.run_in_background
             || name.is_some()
             || team_name.is_some()
+            || mode.is_some()
+            || isolation.is_some()
             || cwd.is_some()
             || !allowed_tools.is_empty()
             || !disallowed_tools.is_empty());
@@ -1466,6 +1456,12 @@ impl Agent {
 
     pub fn with_thread_runtime_store(mut self, store: Arc<dyn ThreadRuntimeStore>) -> Self {
         self.thread_runtime_store = store;
+        self
+    }
+
+    pub fn with_shared_native_tool_surface_from(mut self, other: &Agent) -> Self {
+        self.tool_registry = other.tool_registry.clone();
+        self.file_read_history = other.file_read_history.clone();
         self
     }
 
@@ -3114,7 +3110,10 @@ impl Agent {
                 resources_supported,
                 tool_gates,
                 subagent_teammate_tools_enabled,
-                crate::tools::plan_mode_tool::current_plan_mode_active(),
+                current_session
+                    .as_ref()
+                    .map(session_plan_mode_active)
+                    .unwrap_or_else(crate::tools::plan_mode_tool::current_plan_mode_active),
             )
         });
 
@@ -3135,6 +3134,23 @@ impl Agent {
 
     pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
         self.extension_manager.get_extension_configs().await
+    }
+
+    pub async fn inherit_runtime_tool_surface_from(&self, other: &Agent) -> Result<()> {
+        for config in other.get_extension_configs().await {
+            self.add_extension(config).await?;
+        }
+
+        let frontend_tools = other.frontend_tools.lock().await.clone();
+        let frontend_instructions = other.frontend_instructions.lock().await.clone();
+
+        {
+            let mut own_frontend_tools = self.frontend_tools.lock().await;
+            *own_frontend_tools = frontend_tools;
+        }
+
+        *self.frontend_instructions.lock().await = frontend_instructions;
+        Ok(())
     }
 
     /// Handle a confirmation response for a tool request
@@ -4436,6 +4452,24 @@ mod tests {
             _name: String,
             _user_set: bool,
         ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_working_dir(&self, _session_id: &str, working_dir: PathBuf) -> Result<()> {
+            let mut session = self.session.lock().expect("锁测试 session");
+            session.working_dir = working_dir;
+            session.updated_at = chrono::Utc::now();
+            Ok(())
+        }
+
+        async fn update_session_type(
+            &self,
+            _session_id: &str,
+            session_type: SessionType,
+        ) -> Result<()> {
+            let mut session = self.session.lock().expect("锁测试 session");
+            session.session_type = session_type;
+            session.updated_at = chrono::Utc::now();
             Ok(())
         }
 
@@ -6513,6 +6547,88 @@ mod tests {
             captured_request.cwd.as_deref(),
             Some(cwd.path().to_string_lossy().as_ref())
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_agent_tool_routes_mode_and_isolation_through_callbacks() -> Result<()> {
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+
+        let captured = Arc::new(std::sync::Mutex::new(None::<SpawnAgentRequest>));
+        let captured_clone = captured.clone();
+        let spawn_agent_callback = Arc::new(move |request: SpawnAgentRequest| {
+            *captured_clone.lock().expect("capture lock") = Some(request.clone());
+            Box::pin(async move {
+                Ok(SpawnAgentResponse {
+                    agent_id: "agent-mode-isolation".to_string(),
+                    nickname: Some("mode-isolation-agent".to_string()),
+                    extra: std::collections::BTreeMap::new(),
+                })
+            })
+                as Pin<Box<dyn Future<Output = Result<SpawnAgentResponse, String>> + Send>>
+        });
+
+        let agent =
+            Agent::with_tool_config(ToolRegistrationConfig::new().with_agent_control_tools(
+                AgentControlToolConfig::new().with_spawn_agent_callback(spawn_agent_callback),
+            ));
+        let session = SessionManager::create_session(
+            PathBuf::from("."),
+            "agent-mode-isolation-callback-surface".to_string(),
+            SessionType::User,
+        )
+        .await?;
+        agent
+            .update_provider(Arc::new(NativeOutputSchemaProvider), &session.id)
+            .await?;
+
+        let arguments = serde_json::json!({
+            "description": "权限与隔离验证",
+            "prompt": "把 mode 与 isolation 透传给宿主 runtime",
+            "mode": "acceptEdits",
+            "isolation": "worktree"
+        });
+        let tool_call = CallToolRequestParam {
+            name: AGENT_TOOL_NAME.into(),
+            arguments: Some(
+                arguments
+                    .as_object()
+                    .cloned()
+                    .expect("agent tool arguments should be an object"),
+            ),
+        };
+
+        let (_request_id, tool_result) = agent
+            .dispatch_tool_call(
+                tool_call,
+                "req-agent-mode-isolation".to_string(),
+                None,
+                &session,
+            )
+            .await;
+        let tool_result = tool_result.expect("agent dispatch should succeed");
+        let call_result = tool_result
+            .result
+            .await
+            .expect("callback-backed agent result");
+
+        assert_eq!(
+            call_result
+                .structured_content
+                .as_ref()
+                .and_then(|value| value.get("status"))
+                .and_then(Value::as_str),
+            Some("async_launched")
+        );
+
+        let captured_request = captured
+            .lock()
+            .expect("capture lock")
+            .clone()
+            .expect("spawn callback should capture request");
+        assert_eq!(captured_request.mode.as_deref(), Some("acceptEdits"));
+        assert_eq!(captured_request.isolation.as_deref(), Some("worktree"));
 
         Ok(())
     }

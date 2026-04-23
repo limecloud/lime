@@ -102,6 +102,34 @@ pub fn delete_voice_instruction(id: &str) -> Result<(), String> {
     }
 
     voice_config.instructions.retain(|item| item.id != id);
+
+    if !voice_config
+        .instructions
+        .iter()
+        .any(|item| item.id == voice_config.processor.default_instruction_id)
+    {
+        voice_config.processor.default_instruction_id = voice_config
+            .instructions
+            .iter()
+            .find(|item| item.id == "default")
+            .or_else(|| voice_config.instructions.first())
+            .map(|item| item.id.clone())
+            .unwrap_or_else(|| "default".to_string());
+    }
+
+    if !voice_config
+        .instructions
+        .iter()
+        .any(|item| item.id == voice_config.translate_instruction_id)
+    {
+        voice_config.translate_instruction_id = voice_config
+            .instructions
+            .iter()
+            .find(|item| item.id == "translate_en")
+            .map(|item| item.id.clone())
+            .unwrap_or_else(|| voice_config.processor.default_instruction_id.clone());
+    }
+
     save_voice_config(voice_config)
 }
 

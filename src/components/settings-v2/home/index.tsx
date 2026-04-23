@@ -97,8 +97,8 @@ const quickAccessMeta: Partial<
     icon: Blocks,
   },
   [SettingsTabs.MediaServices]: {
-    title: "媒体服务",
-    description: "集中管理图片、视频与语音默认策略",
+    title: "服务模型",
+    description: "统一管理助理、媒体与语音识别模型",
     icon: ImageIcon,
   },
 };

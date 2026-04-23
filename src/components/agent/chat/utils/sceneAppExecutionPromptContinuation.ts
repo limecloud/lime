@@ -92,6 +92,7 @@ export function buildSceneAppExecutionPromptActionPayload(params: {
 
   return {
     prompt,
+    bannerMessage: `已切到“${params.action.label}”这条下一步，可继续改写后发送。`,
     ...(capabilityRoute
       ? {
           capabilityRoute,

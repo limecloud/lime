@@ -128,7 +128,7 @@ export function useSettingsCategory(): CategoryGroup[] {
         },
         {
           key: SettingsTabs.MediaServices,
-          label: t("settings.tab.mediaServices", "媒体服务"),
+          label: t("settings.tab.mediaServices", "服务模型"),
           icon: Image,
         },
       ],

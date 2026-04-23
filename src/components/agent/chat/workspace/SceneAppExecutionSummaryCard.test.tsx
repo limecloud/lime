@@ -177,6 +177,38 @@ function renderCard(
           scorecardFailureSignals: [
             { key: "publish_stalled", label: "发布卡点" },
           ],
+          scorecardAggregate: {
+            status: "risk",
+            statusLabel: "先补复核与修复",
+            summary:
+              "这套做法最近一轮还没形成可直接放大的复盘闭环，当前主要卡在复核阻塞。",
+            nextAction:
+              "优先准备周会复盘包，补齐复核结论、结果校验问题或验证失败项，再决定是否继续放大这套做法。",
+            actionLabel: "建议继续优化",
+            topFailureSignalLabel: "复核阻塞",
+            profileRef: "story-video-scorecard",
+            metricKeys: [
+              { key: "delivery_readiness", label: "交付就绪度" },
+            ],
+            failureSignals: [
+              { key: "publish_stalled", label: "发布卡点" },
+            ],
+            observedFailureSignals: [
+              { key: "review_blocked", label: "复核阻塞" },
+            ],
+            destinations: [
+              {
+                key: "weekly-review",
+                label: "周会复盘",
+                description: "把证据摘要和人工复核记录带去业务复盘。",
+              },
+              {
+                key: "task-center",
+                label: "生成 / 看板",
+                description: "继续把结构化复盘材料带回生成工作台。",
+              },
+            ],
+          },
           notes: ["已装配 2 条参考素材和 1 条 memory 引用。"],
           descriptorSnapshot: {
             deliveryContract: "project_pack",
@@ -263,6 +295,16 @@ describe("SceneAppExecutionSummaryCard", () => {
     ).toContain("story-video-scorecard");
     expect(
       container.querySelector(
+        '[data-testid="sceneapp-execution-summary-scorecard-aggregate"]',
+      )?.textContent,
+    ).toContain("先补复核与修复");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-execution-summary-scorecard-destinations"]',
+      )?.textContent,
+    ).toContain("周会复盘");
+    expect(
+      container.querySelector(
         '[data-testid="sceneapp-execution-summary-runtime-backflow"]',
       )?.textContent,
     ).toContain("当前已接入会话证据");
@@ -271,6 +313,75 @@ describe("SceneAppExecutionSummaryCard", () => {
         '[data-testid="sceneapp-execution-summary-active-layers"]',
       )?.textContent,
     ).toContain("Taste");
+  });
+
+  it("命中最近复盘时，结果卡应显影复盘建议横幅", () => {
+    const container = renderCard({
+      onContinueReviewFeedback: vi.fn(),
+      latestReviewFeedbackSignal: {
+        source: "review_feedback",
+        category: "experience",
+        title: "短视频编排 · 补证据",
+        summary:
+          "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
+        tags: ["复盘", "补证据"],
+        preferredTaskIds: ["account-project-review", "viral-content-breakdown"],
+        createdAt: 1_776_869_588_097,
+        projectId: "project-1",
+        sessionId: "session-1",
+      },
+    });
+
+    const reviewBanner = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-review-feedback-banner"]',
+    ) as HTMLElement | null;
+    expect(reviewBanner).not.toBeNull();
+    expect(reviewBanner?.textContent).toContain("围绕最近复盘");
+    expect(reviewBanner?.textContent).toContain(
+      "最近复盘已更新：短视频编排 · 补证据",
+    );
+    expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
+    expect(reviewBanner?.textContent).toContain(
+      "复盘这个账号/项目 / 拆解一条爆款内容",
+    );
+    expect(
+      reviewBanner?.querySelector(
+        '[data-testid="sceneapp-execution-summary-review-feedback-action"]',
+      )?.textContent,
+    ).toContain("继续去「复盘这个账号/项目」");
+  });
+
+  it("点击最近复盘建议时，应继续切到对应结果模板", () => {
+    const onContinueReviewFeedback = vi.fn();
+    const container = renderCard({
+      latestReviewFeedbackSignal: {
+        source: "review_feedback",
+        category: "experience",
+        title: "短视频编排 · 补证据",
+        summary:
+          "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
+        tags: ["复盘", "补证据"],
+        preferredTaskIds: ["account-project-review", "viral-content-breakdown"],
+        createdAt: 1_776_869_588_097,
+        projectId: "project-1",
+        sessionId: "session-1",
+      },
+      onContinueReviewFeedback,
+    });
+
+    const actionButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-review-feedback-action"]',
+    );
+    expect(actionButton).not.toBeNull();
+
+    act(() => {
+      actionButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onContinueReviewFeedback).toHaveBeenCalledTimes(1);
+    expect(onContinueReviewFeedback).toHaveBeenCalledWith(
+      "account-project-review",
+    );
   });
 
   it("应在生成主执行面展示最近可消费结果并支持打开文件", () => {
@@ -624,6 +735,143 @@ describe("SceneAppExecutionSummaryCard", () => {
     expect(onPromptAction).toHaveBeenCalledWith(
       expect.objectContaining({
         key: "fill_missing_parts",
+      }),
+    );
+  });
+
+  it("结果去向卡应支持直接续接到周会复盘、生成工作台、持续流程和主结果", () => {
+    const onReviewCurrentProject = vi.fn();
+    const onGovernanceAction = vi.fn();
+    const onEntryAction = vi.fn();
+    const onDeliveryArtifactAction = vi.fn();
+    const container = renderCard({
+      onReviewCurrentProject,
+      onGovernanceAction,
+      onEntryAction,
+      onDeliveryArtifactAction,
+      latestPackResultDetailView: createLatestPackResultDetailView({
+        governanceActionEntries: [
+          {
+            key: "weekly-review-pack",
+            label: "准备周会复盘包",
+            helperText: "把证据摘要和人工复核记录一起带去业务复盘。",
+            primaryArtifactKind: "review_decision_markdown",
+            primaryArtifactLabel: "人工复核记录",
+            artifactKinds: ["evidence_summary", "review_decision_markdown"],
+          },
+          {
+            key: "structured-governance-pack",
+            label: "整理结构化复盘包",
+            helperText: "把结构化复盘材料带回生成工作台继续推进下一步。",
+            primaryArtifactKind: "review_decision_json",
+            primaryArtifactLabel: "复核 JSON",
+            artifactKinds: ["review_decision_json"],
+          },
+        ],
+        governanceArtifactEntries: [
+          {
+            key: "evidence_summary:.lime/harness/sessions/session-1/evidence/summary.md",
+            label: "证据摘要",
+            pathLabel: ".lime/harness/sessions/session-1/evidence/summary.md",
+            helperText: "查看当前运行对应的证据摘要。",
+            artifactRef: {
+              kind: "evidence_summary",
+              label: "证据摘要",
+              relativePath: ".lime/harness/sessions/session-1/evidence/summary.md",
+              absolutePath: "/tmp/summary.md",
+              projectId: "project-1",
+              workspaceId: "project-1",
+              source: "session_governance",
+            },
+          },
+          {
+            key: "review_decision_markdown:.lime/harness/sessions/session-1/review/decision.md",
+            label: "人工复核记录",
+            pathLabel: ".lime/harness/sessions/session-1/review/decision.md",
+            helperText: "查看人工复核记录。",
+            artifactRef: {
+              kind: "review_decision_markdown",
+              label: "人工复核记录",
+              relativePath: ".lime/harness/sessions/session-1/review/decision.md",
+              absolutePath: "/tmp/decision.md",
+              projectId: "project-1",
+              workspaceId: "project-1",
+              source: "session_governance",
+            },
+          },
+          {
+            key: "review_decision_json:.lime/harness/sessions/session-1/review/decision.json",
+            label: "复核 JSON",
+            pathLabel: ".lime/harness/sessions/session-1/review/decision.json",
+            helperText: "查看结构化复盘记录。",
+            artifactRef: {
+              kind: "review_decision_json",
+              label: "复核 JSON",
+              relativePath: ".lime/harness/sessions/session-1/review/decision.json",
+              absolutePath: "/tmp/decision.json",
+              projectId: "project-1",
+              workspaceId: "project-1",
+              source: "session_governance",
+            },
+          },
+        ],
+        entryAction: {
+          kind: "open_automation_job",
+          label: "查看持续流程",
+          helperText: "跳到当前持续任务查看调度与结果。",
+          jobId: "automation-job-1",
+        },
+      }),
+    });
+
+    const weeklyReviewButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-destination-action-weekly-review"]',
+    );
+    const taskCenterButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-destination-action-task-center"]',
+    );
+    const automationButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-destination-action-automation-job"]',
+    );
+    const deliveryButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-destination-action-delivery-editing"]',
+    );
+
+    expect(weeklyReviewButton).not.toBeNull();
+    expect(taskCenterButton).not.toBeNull();
+    expect(automationButton).not.toBeNull();
+    expect(deliveryButton).not.toBeNull();
+
+    act(() => {
+      weeklyReviewButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      taskCenterButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      automationButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      deliveryButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(onGovernanceAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "weekly-review-pack",
+      }),
+    );
+    expect(onReviewCurrentProject).toHaveBeenCalledTimes(1);
+    expect(onEntryAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "open_automation_job",
+        jobId: "automation-job-1",
+      }),
+    );
+    expect(onDeliveryArtifactAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "brief-0",
       }),
     );
   });

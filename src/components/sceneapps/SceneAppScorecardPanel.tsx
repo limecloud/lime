@@ -2,8 +2,10 @@ import {
   type SceneAppRunDetailViewModel,
   type SceneAppScorecardViewModel,
 } from "@/lib/sceneapp";
+import type { CuratedTaskRecommendationSignal } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import { cn } from "@/lib/utils";
 import { SceneAppProjectPackRuntimePanel } from "./SceneAppProjectPackRuntimePanel";
+import { SceneAppReviewFeedbackBanner } from "./SceneAppReviewFeedbackBanner";
 
 interface SceneAppScorecardPanelProps {
   scorecardView: SceneAppScorecardViewModel | null;
@@ -12,12 +14,21 @@ interface SceneAppScorecardPanelProps {
   packRuntimeUsesFallback?: boolean;
   loading: boolean;
   error?: string | null;
+  latestReviewFeedbackSignal?: CuratedTaskRecommendationSignal | null;
+  onContinueReviewFeedback?: (taskId: string) => void;
   onPackRuntimeArtifactAction?: (
     action: SceneAppRunDetailViewModel["deliveryArtifactEntries"][number],
   ) => void;
 }
 
 const METRIC_STATUS_CLASSNAMES = {
+  good: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  watch: "border-amber-200 bg-amber-50 text-amber-700",
+  risk: "border-rose-200 bg-rose-50 text-rose-700",
+} as const;
+
+const AGGREGATE_STATUS_CLASSNAMES = {
+  idle: "border-slate-200 bg-slate-50 text-slate-600",
   good: "border-emerald-200 bg-emerald-50 text-emerald-700",
   watch: "border-amber-200 bg-amber-50 text-amber-700",
   risk: "border-rose-200 bg-rose-50 text-rose-700",
@@ -30,6 +41,8 @@ export function SceneAppScorecardPanel({
   packRuntimeUsesFallback = false,
   loading,
   error,
+  latestReviewFeedbackSignal = null,
+  onContinueReviewFeedback,
   onPackRuntimeArtifactAction,
 }: SceneAppScorecardPanelProps) {
   return (
@@ -41,9 +54,9 @@ export function SceneAppScorecardPanel({
             用统一标准判断这套做法值不值得继续放大、先修哪里，还是先停下来。
           </p>
         </div>
-        {scorecardView?.hasRuntimeScorecard && scorecardView.actionLabel ? (
+        {scorecardView?.aggregate?.actionLabel || scorecardView?.actionLabel ? (
           <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-            {scorecardView.actionLabel}
+            {scorecardView?.aggregate?.actionLabel ?? scorecardView?.actionLabel}
           </span>
         ) : null}
       </div>
@@ -64,6 +77,54 @@ export function SceneAppScorecardPanel({
         )
       ) : (
         <>
+          {scorecardView.aggregate ? (
+            <div
+              className="mt-5 rounded-[22px] border border-slate-200 bg-slate-50/80 p-4"
+              data-testid="sceneapp-scorecard-aggregate-summary"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                    AGGREGATE_STATUS_CLASSNAMES[scorecardView.aggregate.status],
+                  )}
+                >
+                  {scorecardView.aggregate.statusLabel}
+                </span>
+                {scorecardView.aggregate.actionLabel ? (
+                  <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                    {scorecardView.aggregate.actionLabel}
+                  </span>
+                ) : null}
+                {scorecardView.aggregate.topFailureSignalLabel ? (
+                  <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-medium text-amber-700">
+                    {scorecardView.aggregate.topFailureSignalLabel}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-800">
+                {scorecardView.aggregate.summary}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {scorecardView.aggregate.nextAction}
+              </p>
+              {scorecardView.aggregate.destinations.length ? (
+                <div
+                  className="mt-3 flex flex-wrap gap-2"
+                  data-testid="sceneapp-scorecard-destinations"
+                >
+                  {scorecardView.aggregate.destinations.map((destination) => (
+                    <span
+                      key={destination.key}
+                      className="rounded-full border border-white bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700"
+                    >
+                      {destination.label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {error ? (
             <div
               data-testid="sceneapp-scorecard-error-banner"
@@ -249,6 +310,11 @@ export function SceneAppScorecardPanel({
                       {scorecardView.contextBaseline.tasteSummary}
                     </div>
                   ) : null}
+                  <SceneAppReviewFeedbackBanner
+                    signal={latestReviewFeedbackSignal}
+                    dataTestId="sceneapp-scorecard-review-feedback-banner"
+                    onContinueReviewFeedback={onContinueReviewFeedback}
+                  />
                   {scorecardView.contextBaseline.feedbackSummary ? (
                     <div
                       data-testid="sceneapp-scorecard-context-feedback-summary"

@@ -457,6 +457,22 @@ fn build_service_scene_launch_system_prompt(
     if let Some(value) = context.execution_location.as_deref() {
         lines.push(format!("- 当前 execution_location：{value}。"));
     }
+    if let Some(value) = context.preferred_provider_id.as_deref() {
+        lines.push(format!("- 当前首选 provider_id：{value}。"));
+    }
+    if let Some(value) = context.preferred_model_id.as_deref() {
+        lines.push(format!("- 当前首选模型：{value}。"));
+    }
+    if let Some(value) = context.allow_fallback {
+        lines.push(format!(
+            "- 当前服务回退策略：{}。",
+            if value {
+                "首选服务不可用时允许自动回退"
+            } else {
+                "首选服务不可用时不允许自动回退"
+            }
+        ));
+    }
     if let Some(value) = render_json_inline(context.slot_values.as_ref()) {
         lines.push(format!("- 当前 slot_values(JSON)：{value}。"));
     }
@@ -1020,7 +1036,7 @@ pub(crate) fn build_team_preference_system_prompt(
     }
 
     lines.push(
-        "- Agent 支持这些结构化字段：description、prompt、subagent_type、model、run_in_background、name、team_name（别名 teamName）、reasoning_effort、fork_context、blueprint_role_id（别名 blueprintRoleId）、blueprint_role_label、profile_id、profile_name、role_key、skill_ids、skill_directories、team_preset_id、theme、system_overlay、output_contract、cwd、mode、isolation。team_name 需要与 name 搭配，并依附现有 team 上下文；当前 runtime 对 mode 只支持 default / acceptEdits / dontAsk 子集，plan / bypassPermissions 仍会被拒绝；isolation 当前只支持 worktree，remote 仍会被拒绝，且 cwd 目前不能与 worktree 同时使用。"
+        "- Agent 支持这些结构化字段：description、prompt、subagent_type、model、run_in_background、name、team_name（别名 teamName）、reasoning_effort、fork_context、blueprint_role_id（别名 blueprintRoleId）、blueprint_role_label、profile_id、profile_name、role_key、skill_ids、skill_directories、team_preset_id、theme、system_overlay、output_contract、cwd、mode、isolation。team_name 需要与 name 搭配；若当前 session 已有 lead-side team 上下文，省略 team_name 也会沿用当前 team，把命名子代理解析成 teammate。当前 runtime 对 mode 支持 default / acceptEdits / dontAsk，以及仅限 team teammate 的 plan 子集；bypassPermissions 仍会被拒绝。isolation 当前只支持 worktree，remote 仍会被拒绝；如果同时提供 cwd 与 isolation=worktree，目前只支持父会话同一 Git 仓库内、可映射到 child worktree 的目录，进入后实际执行目录会切到 child worktree 内对应子目录。"
             .to_string(),
     );
     lines.push(

@@ -8,6 +8,7 @@
 use super::error::{
     create_auth_error, create_config_error, create_token_refresh_error, ProviderError,
 };
+use lime_core::api_host_utils::is_openai_responses_endpoint;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -459,6 +460,10 @@ impl CodexProvider {
 
     pub fn build_responses_url(base_url: &str) -> String {
         let base = base_url.trim_end_matches('/');
+
+        if is_openai_responses_endpoint(base) {
+            return base.to_string();
+        }
 
         // 规则说明：
         // - 如果 base_url 以 /v1 结尾：直接拼 /responses
@@ -1660,6 +1665,10 @@ mod tests {
         assert_eq!(
             CodexProvider::build_responses_url("https://yunyi.cfd/codex"),
             "https://yunyi.cfd/codex/responses"
+        );
+        assert_eq!(
+            CodexProvider::build_responses_url("https://gateway.example.com/proxy/responses"),
+            "https://gateway.example.com/proxy/responses"
         );
     }
 

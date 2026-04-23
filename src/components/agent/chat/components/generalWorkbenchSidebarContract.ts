@@ -25,6 +25,7 @@ export type BranchMode = "topic" | "version";
 export interface GeneralWorkbenchFollowUpActionPayload {
   prompt: string;
   capabilityRoute?: InputCapabilitySendRoute;
+  bannerMessage?: string;
 }
 
 export interface GeneralWorkbenchSidebarShellContract {
@@ -35,6 +36,8 @@ export interface GeneralWorkbenchSidebarShellContract {
 }
 
 export interface GeneralWorkbenchSidebarWorkflowContract {
+  projectId?: string | null;
+  sessionId?: string | null;
   onNewTopic: () => void;
   onSwitchTopic: (topicId: string) => void;
   onDeleteTopic: (topicId: string) => void;

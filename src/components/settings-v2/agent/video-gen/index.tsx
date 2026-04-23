@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Film, CheckCircle2, AlertCircle } from "lucide-react";
-import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
-import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
+import {
+  findConfiguredProviderBySelection,
+  useConfiguredProviders,
+} from "@/hooks/useConfiguredProviders";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import { cn } from "@/lib/utils";
 import {
@@ -13,15 +15,12 @@ import {
 } from "@/lib/mediaGeneration";
 import { MediaPreferenceSection } from "../shared/MediaPreferenceSection";
 
-const AUTO_VALUE = "__auto__";
 const DEFAULT_PREFERENCE: MediaGenerationPreference = {
   allowFallback: true,
 };
-const NOTICE_CARD_CLASS =
-  "flex items-start gap-2 rounded-[22px] border border-sky-200/70 bg-sky-50/70 p-4 text-xs leading-6 text-slate-600";
 
 export function VideoGenSettings() {
-  const { providers, loading: providersLoading } = useApiKeyProvider();
+  const { providers, loading: providersLoading } = useConfiguredProviders();
   const [config, setConfig] = useState<Config | null>(null);
   const [videoPreference, setVideoPreference] =
     useState<MediaGenerationPreference>(DEFAULT_PREFERENCE);
@@ -49,18 +48,17 @@ export function VideoGenSettings() {
     () =>
       providers.filter(
         (provider) =>
-          provider.enabled &&
-          provider.api_key_count > 0 &&
-          isVideoProvider(provider.id),
+          isVideoProvider(provider.providerId ?? provider.key),
       ),
     [providers],
   );
 
   const selectedProvider = useMemo(
     () =>
-      videoProviders.find(
-        (provider) => provider.id === videoPreference.preferredProviderId,
-      ) ?? null,
+      findConfiguredProviderBySelection(
+        videoProviders,
+        videoPreference.preferredProviderId,
+      ),
     [videoPreference.preferredProviderId, videoProviders],
   );
 
@@ -69,8 +67,8 @@ export function VideoGenSettings() {
       return [];
     }
     return getVideoModelsForProvider(
-      selectedProvider.id,
-      selectedProvider.custom_models,
+      selectedProvider.providerId ?? selectedProvider.key,
+      selectedProvider.customModels,
     );
   }, [selectedProvider]);
 
@@ -116,17 +114,21 @@ export function VideoGenSettings() {
   };
 
   const handleProviderChange = (value: string) => {
-    const preferredProviderId = value === AUTO_VALUE ? undefined : value;
-    const nextProvider = videoProviders.find(
-      (provider) => provider.id === preferredProviderId,
+    const preferredProviderId = value.trim() || undefined;
+    const nextProvider = findConfiguredProviderBySelection(
+      videoProviders,
+      preferredProviderId,
     );
     const nextModels = nextProvider
-      ? getVideoModelsForProvider(nextProvider.id, nextProvider.custom_models)
+      ? getVideoModelsForProvider(
+          nextProvider.providerId ?? nextProvider.key,
+          nextProvider.customModels,
+        )
       : [];
     const preferredModelId = preferredProviderId
       ? nextModels.includes(videoPreference.preferredModelId || "")
         ? videoPreference.preferredModelId
-        : nextModels[0]
+        : undefined
       : undefined;
 
     void savePreference({
@@ -139,7 +141,7 @@ export function VideoGenSettings() {
   const handleModelChange = (value: string) => {
     void savePreference({
       ...videoPreference,
-      preferredModelId: value === AUTO_VALUE ? undefined : value,
+      preferredModelId: value.trim() || undefined,
       allowFallback: videoPreference.allowFallback ?? true,
     });
   };
@@ -155,59 +157,40 @@ export function VideoGenSettings() {
     void savePreference(DEFAULT_PREFERENCE);
   };
 
-  return (
-    <div className="space-y-5 max-w-[980px]">
-      <div className={NOTICE_CARD_CLASS}>
-        <Film className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
-        <div className="flex items-center gap-2">
-          <span>全局默认视频服务说明已收纳</span>
-          <WorkbenchInfoTip
-            ariaLabel="全局默认视频服务说明"
-            content="这里配置的是全局默认视频服务。未在项目中单独覆盖时，视频素材与 AI 视频任务都会优先使用这里的 Provider / 模型。"
-            tone="slate"
-          />
-        </div>
-      </div>
+  const providerHint = providersLoading
+    ? "仅展示当前已识别为视频能力的 Provider。"
+    : videoProviders.length === 0
+      ? "当前没有可用视频 Provider；请先在凭证管理中配置可生成视频的服务。"
+      : "视频设置和图片、语音共用同一套服务模型骨架，后续新增来源时无需再做第二套页面。";
 
+  return (
+    <div className="max-w-[820px] space-y-4">
       <MediaPreferenceSection
-        title="全局默认视频服务"
-        description="新项目默认继承这里的设置；项目里留空时会继续跟随这里。"
-        providerLabel="默认视频 Provider"
-        providerValue={videoPreference.preferredProviderId ?? AUTO_VALUE}
-        providerAutoLabel="自动选择"
-        onProviderChange={handleProviderChange}
-        providers={videoProviders.map((provider) => ({
-          value: provider.id,
-          label: provider.name,
-        }))}
-        providerUnavailableLabel={providerUnavailableLabel}
-        modelLabel="默认视频模型"
-        modelValue={videoPreference.preferredModelId ?? AUTO_VALUE}
-        modelAutoLabel="自动选择"
-        onModelChange={handleModelChange}
-        models={availableModels.map((model) => ({
-          value: model,
-          label: model,
-        }))}
-        modelUnavailableLabel={modelUnavailableLabel}
-        modelHint="仅在指定全局默认视频 Provider 时生效；未指定模型时沿用自动匹配策略。"
+        title="视频服务模型"
+        description="这里配置视频任务的默认 Provider、模型与回退策略，保持和图片、语音一致的简洁设置结构。"
+        selectorLabel="默认模型"
+        selectorDescription="统一使用聊天页同款模型选择器；未指定时沿用自动匹配策略。"
+        selectionWarningText={providerUnavailableLabel ?? modelUnavailableLabel}
+        providerType={videoPreference.preferredProviderId ?? ""}
+        setProviderType={handleProviderChange}
+        model={videoPreference.preferredModelId ?? ""}
+        setModel={handleModelChange}
+        providerFilter={(provider) =>
+          isVideoProvider(provider.providerId ?? provider.key)
+        }
+        modelFilter={(model, provider) =>
+          getVideoModelsForProvider(
+            provider.providerId ?? provider.key,
+            provider.customModels,
+          ).includes(model.id)
+        }
         allowFallback={videoPreference.allowFallback ?? true}
         onAllowFallbackChange={handleFallbackChange}
-        fallbackTitle="默认视频服务不可用时自动回退"
-        fallbackDescription="关闭后，若全局默认视频服务缺失、被禁用或无可用 Key，将直接提示错误。"
-        emptyHint={
-          providersLoading
-            ? "正在加载视频 Provider..."
-            : videoProviders.length === 0
-              ? "暂无可用视频 Provider，请先到凭证管理中配置可生成视频的服务。"
-              : "未指定时将沿用现有自动匹配规则。"
-        }
+        fallbackTitle="Provider 不可用时自动回退"
+        fallbackDescription="关闭后，若当前默认视频服务缺失、被禁用或无可用 Key，将直接提示错误。"
+        emptyStateTitle="暂无可用视频模型"
+        emptyStateDescription={providerHint}
         disabled={!config}
-        modelDisabled={
-          providersLoading ||
-          !videoPreference.preferredProviderId ||
-          availableModels.length === 0
-        }
         onReset={handleResetPreference}
         resetLabel="恢复默认"
         resetDisabled={!hasMediaGenerationPreferenceOverride(videoPreference)}
@@ -216,7 +199,7 @@ export function VideoGenSettings() {
       {message ? (
         <div
           className={cn(
-            "flex items-center gap-2 rounded-[20px] border p-3",
+            "flex items-center gap-2 rounded-[20px] border px-4 py-3",
             message.type === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : "border-rose-200 bg-rose-50 text-rose-700",

@@ -2,7 +2,9 @@ import type {
   SceneAppGovernancePanelViewModel,
   SceneAppRunDetailViewModel,
 } from "@/lib/sceneapp";
+import type { CuratedTaskRecommendationSignal } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import { cn } from "@/lib/utils";
+import { SceneAppReviewFeedbackBanner } from "./SceneAppReviewFeedbackBanner";
 import type { SceneAppQuickReviewAction } from "./useSceneAppsPageRuntime";
 
 interface SceneAppGovernancePanelProps {
@@ -10,6 +12,8 @@ interface SceneAppGovernancePanelProps {
   governanceView: SceneAppGovernancePanelViewModel | null;
   loading: boolean;
   error?: string | null;
+  latestReviewFeedbackSignal?: CuratedTaskRecommendationSignal | null;
+  onContinueReviewFeedback?: (taskId: string) => void;
   humanReviewAvailable?: boolean;
   humanReviewLoading?: boolean;
   quickReviewActions?: SceneAppQuickReviewAction[];
@@ -55,6 +59,8 @@ export function SceneAppGovernancePanel({
   governanceView,
   loading,
   error,
+  latestReviewFeedbackSignal = null,
+  onContinueReviewFeedback,
   humanReviewAvailable = false,
   humanReviewLoading = false,
   quickReviewActions = [],
@@ -249,6 +255,11 @@ export function SceneAppGovernancePanel({
                 {governanceView.contextBaseline.tasteSummary}
               </div>
             ) : null}
+            <SceneAppReviewFeedbackBanner
+              signal={latestReviewFeedbackSignal}
+              dataTestId="sceneapp-governance-review-feedback-banner"
+              onContinueReviewFeedback={onContinueReviewFeedback}
+            />
             {governanceView.contextBaseline.feedbackSummary ? (
               <div
                 data-testid="sceneapp-governance-context-feedback-summary"

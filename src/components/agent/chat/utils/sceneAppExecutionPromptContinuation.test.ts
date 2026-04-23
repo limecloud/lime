@@ -15,6 +15,7 @@ describe("sceneAppExecutionPromptContinuation", () => {
       }),
     ).toEqual({
       prompt: "@发布合规 请基于当前结果做发布前检查。",
+      bannerMessage: "已切到“发布前检查”这条下一步，可继续改写后发送。",
       capabilityRoute: {
         kind: "builtin_command",
         commandKey: "publish_compliance",
@@ -34,6 +35,7 @@ describe("sceneAppExecutionPromptContinuation", () => {
       }),
     ).toEqual({
       prompt: "@发布 请基于当前结果整理最终发布稿。",
+      bannerMessage: "已切到“进入发布整理”这条下一步，可继续改写后发送。",
       capabilityRoute: {
         kind: "builtin_command",
         commandKey: "publish_runtime",
@@ -53,6 +55,7 @@ describe("sceneAppExecutionPromptContinuation", () => {
       }),
     ).toEqual({
       prompt: "@渠道预览 请基于当前结果生成渠道预览稿。",
+      bannerMessage: "已切到“生成渠道预览稿”这条下一步，可继续改写后发送。",
       capabilityRoute: {
         kind: "builtin_command",
         commandKey: "channel_preview_runtime",
@@ -72,6 +75,7 @@ describe("sceneAppExecutionPromptContinuation", () => {
       }),
     ).toEqual({
       prompt: "@上传 请基于当前结果整理上传稿。",
+      bannerMessage: "已切到“整理上传稿”这条下一步，可继续改写后发送。",
       capabilityRoute: {
         kind: "builtin_command",
         commandKey: "upload_runtime",
@@ -116,6 +120,7 @@ describe("sceneAppExecutionPromptContinuation", () => {
       }),
     ).toEqual({
       prompt: "请基于当前结果继续补齐缺失部件。",
+      bannerMessage: "已切到“补齐缺失部件”这条下一步，可继续改写后发送。",
       capabilityRoute: {
         kind: "runtime_scene",
         sceneKey: "story-video-suite",
@@ -137,6 +142,7 @@ describe("sceneAppExecutionPromptContinuation", () => {
       }),
     ).toEqual({
       prompt: "请基于当前结果继续补齐缺失部件。",
+      bannerMessage: "已切到“补齐缺失部件”这条下一步，可继续改写后发送。",
     });
   });
 

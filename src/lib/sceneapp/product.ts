@@ -2,8 +2,8 @@ import type {
   SceneAppDeliveryArtifactRef,
   SceneAppBrowserRuntimeRef,
   SceneAppServiceSceneRuntimeRef,
-  SceneAppCurrentDescriptor as SceneAppDescriptor,
-  SceneAppCurrentPlanResult as SceneAppPlanResult,
+  SceneAppDescriptor,
+  SceneAppPlanResult,
   SceneAppDeliveryContract,
   SceneAppGovernanceArtifactKind,
   SceneAppGovernanceArtifactRef,
@@ -152,6 +152,7 @@ export interface SceneAppCatalogCardViewModel {
   latestRunLabel?: string;
   scorecardActionLabel?: string;
   topFailureSignalLabel?: string;
+  scorecardAggregate?: SceneAppScorecardAggregateViewModel | null;
   actionLabel: string;
 }
 
@@ -259,6 +260,7 @@ export interface SceneAppExecutionSummaryViewModel {
   scorecardProfileRef?: string;
   scorecardMetricKeys: SceneAppDeliveryPartViewModel[];
   scorecardFailureSignals: SceneAppDeliveryPartViewModel[];
+  scorecardAggregate?: SceneAppScorecardAggregateViewModel | null;
   notes: string[];
   descriptorSnapshot?: SceneAppExecutionSummaryDescriptorSnapshot;
   runtimeBackflow?: SceneAppExecutionRuntimeBackflowViewModel | null;
@@ -308,6 +310,7 @@ export interface SceneAppScorecardMetricViewModel {
 
 export interface SceneAppScorecardViewModel {
   hasRuntimeScorecard: boolean;
+  aggregate: SceneAppScorecardAggregateViewModel | null;
   profileRef?: string;
   metricKeys: SceneAppDeliveryPartViewModel[];
   failureSignals: SceneAppDeliveryPartViewModel[];
@@ -385,6 +388,20 @@ export interface SceneAppOperatingSummaryViewModel {
   nextAction: string;
   scorecardActionLabel?: string;
   topFailureSignalLabel?: string;
+  destinations: SceneAppGovernancePanelDestinationViewModel[];
+}
+
+export interface SceneAppScorecardAggregateViewModel {
+  status: SceneAppOperatingSummaryViewModel["status"];
+  statusLabel: string;
+  summary: string;
+  nextAction: string;
+  actionLabel?: string;
+  topFailureSignalLabel?: string;
+  profileRef?: string;
+  metricKeys: SceneAppDeliveryPartViewModel[];
+  failureSignals: SceneAppDeliveryPartViewModel[];
+  observedFailureSignals: SceneAppDeliveryPartViewModel[];
   destinations: SceneAppGovernancePanelDestinationViewModel[];
 }
 
@@ -486,6 +503,7 @@ export interface SceneAppAutomationWorkspaceCardViewModel {
   scorecardActionLabel?: string;
   topFailureSignalLabel?: string;
   destinations: SceneAppGovernancePanelDestinationViewModel[];
+  scorecardAggregate?: SceneAppScorecardAggregateViewModel | null;
   automationSummary: string;
   latestAutomationLabel: string;
 }
@@ -1653,6 +1671,11 @@ export function buildSceneAppCatalogCardViewModel(params: {
     latestRunLabel,
     scorecardActionLabel: operatingSummary.scorecardActionLabel,
     topFailureSignalLabel: operatingSummary.topFailureSignalLabel,
+    scorecardAggregate: buildSceneAppScorecardAggregateViewModel({
+      descriptor,
+      scorecard: scorecard ?? null,
+      run: run ?? null,
+    }),
     actionLabel: copy.actionLabel,
   };
 }
@@ -1841,6 +1864,12 @@ export function buildSceneAppExecutionSummaryViewModel(params: {
     scorecardProfileRef: detailView.scorecardProfileRef,
     scorecardMetricKeys: detailView.scorecardMetricKeys,
     scorecardFailureSignals: detailView.scorecardFailureSignals,
+    scorecardAggregate: buildSceneAppScorecardAggregateViewModel({
+      descriptor: params.descriptor,
+      scorecard: null,
+      run: null,
+      planResult: params.planResult,
+    }),
     notes: dedupeNonEmptyLines([
       ...detailView.planning.warnings,
       ...(detailView.contextPlan?.notes ?? []),
@@ -2021,6 +2050,30 @@ export function backfillSceneAppExecutionSummaryViewModel(params: {
 
   return {
     ...params.summary,
+    scorecardAggregate: buildSceneAppScorecardAggregateViewModel({
+      descriptor: {
+        title: params.summary.title,
+        deliveryContract:
+          resolveSceneAppExecutionSummaryDeliveryContract(params.summary),
+        deliveryProfile: params.summary.descriptorSnapshot?.deliveryProfile,
+        scorecardProfile:
+          params.summary.scorecardProfileRef ||
+          params.summary.scorecardMetricKeys.length > 0 ||
+          params.summary.scorecardFailureSignals.length > 0
+            ? {
+                profileRef: params.summary.scorecardProfileRef,
+                metricKeys: params.summary.scorecardMetricKeys.map(
+                  (item) => item.key,
+                ),
+                failureSignals: params.summary.scorecardFailureSignals.map(
+                  (item) => item.key,
+                ),
+              }
+            : undefined,
+      },
+      scorecard: params.scorecard ?? null,
+      run: params.run ?? null,
+    }),
     runtimeBackflow,
   };
 }
@@ -2028,12 +2081,13 @@ export function backfillSceneAppExecutionSummaryViewModel(params: {
 export function buildSceneAppScorecardViewModel(params: {
   descriptor: SceneAppDescriptor | null;
   scorecard: SceneAppScorecard | null;
+  run?: SceneAppRunSummary | null;
   planResult?: Pick<
     SceneAppPlanResult,
     "projectPackPlan" | "contextOverlay"
   > | null;
 }): SceneAppScorecardViewModel | null {
-  const { descriptor, scorecard } = params;
+  const { descriptor, scorecard, run = null } = params;
   if (!descriptor && !scorecard) {
     return null;
   }
@@ -2052,6 +2106,12 @@ export function buildSceneAppScorecardViewModel(params: {
   if (!scorecard) {
     return {
       hasRuntimeScorecard: false,
+      aggregate: buildSceneAppScorecardAggregateViewModel({
+        descriptor,
+        scorecard,
+        run,
+        planResult: params.planResult,
+      }),
       profileRef: descriptor?.scorecardProfile?.profileRef,
       metricKeys: buildLabeledItems(
         descriptor?.scorecardProfile?.metricKeys,
@@ -2083,6 +2143,12 @@ export function buildSceneAppScorecardViewModel(params: {
 
   return {
     hasRuntimeScorecard: true,
+    aggregate: buildSceneAppScorecardAggregateViewModel({
+      descriptor,
+      scorecard,
+      run,
+      planResult: params.planResult,
+    }),
     profileRef: descriptor?.scorecardProfile?.profileRef,
     metricKeys: buildLabeledItems(
       descriptor?.scorecardProfile?.metricKeys,
@@ -2447,7 +2513,10 @@ export function buildSceneAppGovernancePanelViewModel(params: {
 }
 
 export function buildSceneAppOperatingSummaryViewModel(params: {
-  descriptor: SceneAppDescriptor;
+  descriptor: Pick<
+    SceneAppDescriptor,
+    "title" | "deliveryContract" | "deliveryProfile" | "scorecardProfile"
+  >;
   scorecard: SceneAppScorecard | null;
   run: SceneAppRunSummary | null;
   planResult?: Pick<
@@ -2553,6 +2622,144 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
   };
 }
 
+function buildSceneAppFallbackOperatingSummaryViewModel(params: {
+  scorecard: SceneAppScorecard | null;
+  run: SceneAppRunSummary | null;
+}): SceneAppOperatingSummaryViewModel {
+  const { scorecard, run } = params;
+  const scorecardActionLabel = scorecard
+    ? getSceneAppScorecardActionLabel(scorecard.recommendedAction)
+    : undefined;
+  const topFailureSignalLabel = getFailureSignalLabel(
+    scorecard?.topFailureSignal ?? run?.failureSignal,
+  );
+
+  if (!run && !scorecard) {
+    return {
+      status: "idle",
+      statusLabel: "等待首轮运行",
+      summary: "当前还没有可复盘样本，先跑出第一轮结果再看经营判断。",
+      nextAction: "先跑出一轮结果，后续再决定是否进入复盘和继续放大。",
+      scorecardActionLabel,
+      topFailureSignalLabel,
+      destinations: [],
+    };
+  }
+
+  if (scorecard?.recommendedAction === "retire") {
+    return {
+      status: "risk",
+      statusLabel: "建议限制投入",
+      summary:
+        "当前经营信号更偏向限制投入，先不要继续扩大这套做法的曝光。",
+      nextAction:
+        "先把失败信号和复核结论沉淀成结构化材料，再决定是重做、降级还是退出主推。",
+      scorecardActionLabel,
+      topFailureSignalLabel,
+      destinations: [],
+    };
+  }
+
+  if (
+    run?.status === "error" ||
+    run?.status === "timeout" ||
+    topFailureSignalLabel
+  ) {
+    return {
+      status: "risk",
+      statusLabel: "先补复核与修复",
+      summary: topFailureSignalLabel
+        ? `当前主要卡在${topFailureSignalLabel}，暂时不适合直接放大。`
+        : "当前仍有运行或复核问题，暂时不适合直接放大。",
+      nextAction:
+        "优先补齐复核与修复动作，再决定是否继续沿当前结果推进。",
+      scorecardActionLabel,
+      topFailureSignalLabel,
+      destinations: [],
+    };
+  }
+
+  if (run?.status === "queued" || run?.status === "running") {
+    return {
+      status: "watch",
+      statusLabel: "等待当前运行收口",
+      summary: "当前这轮还在推进中，经营判断会随结果和复盘材料继续更新。",
+      nextAction: "先等这轮运行收口，再决定是否继续放大或回到复盘。",
+      scorecardActionLabel,
+      topFailureSignalLabel,
+      destinations: [],
+    };
+  }
+
+  return {
+    status: "good",
+    statusLabel: "当前可继续复用",
+    summary: "当前这轮已经形成可继续消费的样本，可以继续带着结果往下走。",
+    nextAction:
+      scorecardActionLabel != null
+        ? `${scorecardActionLabel}，并继续把这轮结果沉淀成后续复盘基线。`
+        : "继续把这轮结果沉淀成后续复盘基线。",
+    scorecardActionLabel,
+    topFailureSignalLabel,
+    destinations: [],
+  };
+}
+
+export function buildSceneAppScorecardAggregateViewModel(params: {
+  descriptor:
+    | Pick<
+        SceneAppDescriptor,
+        "title" | "deliveryContract" | "deliveryProfile" | "scorecardProfile"
+      >
+    | null;
+  scorecard: SceneAppScorecard | null;
+  run: SceneAppRunSummary | null;
+  planResult?: Pick<
+    SceneAppPlanResult,
+    "projectPackPlan" | "contextOverlay"
+  > | null;
+}): SceneAppScorecardAggregateViewModel | null {
+  const { descriptor, scorecard, run } = params;
+  if (!descriptor && !scorecard && !run) {
+    return null;
+  }
+
+  const operatingSummary = descriptor
+    ? buildSceneAppOperatingSummaryViewModel({
+        descriptor,
+        scorecard,
+        run,
+        planResult: params.planResult,
+      })
+    : buildSceneAppFallbackOperatingSummaryViewModel({
+        scorecard,
+        run,
+      });
+
+  return {
+    status: operatingSummary.status,
+    statusLabel: operatingSummary.statusLabel,
+    summary: operatingSummary.summary,
+    nextAction: operatingSummary.nextAction,
+    actionLabel: operatingSummary.scorecardActionLabel,
+    topFailureSignalLabel: operatingSummary.topFailureSignalLabel,
+    profileRef: descriptor?.scorecardProfile?.profileRef,
+    metricKeys: buildLabeledItems(
+      descriptor?.scorecardProfile?.metricKeys,
+      SCORECARD_SIGNAL_LABELS,
+    ),
+    failureSignals: buildLabeledItems(
+      descriptor?.scorecardProfile?.failureSignals,
+      SCORECARD_SIGNAL_LABELS,
+    ),
+    observedFailureSignals: buildLabeledItems(
+      buildRuntimeFeedbackSignals(run, scorecard),
+      SCORECARD_SIGNAL_LABELS,
+    ),
+    destinations: operatingSummary.destinations,
+  };
+}
+
 export function buildSceneAppAutomationWorkspaceCardViewModel(params: {
   descriptor: SceneAppDescriptor;
   scorecard: SceneAppScorecard | null;
@@ -2585,6 +2792,11 @@ export function buildSceneAppAutomationWorkspaceCardViewModel(params: {
     typeLabel: getSceneAppTypeLabel(params.descriptor.sceneappType),
     patternSummary: getSceneAppPatternSummary(params.descriptor),
     ...operatingSummary,
+    scorecardAggregate: buildSceneAppScorecardAggregateViewModel({
+      descriptor: params.descriptor,
+      scorecard: params.scorecard,
+      run: params.run,
+    }),
     automationSummary: `${params.jobCount} 条自动化任务 · ${enabledLabel} · ${riskLabel}`,
     latestAutomationLabel: params.latestJobName
       ? params.latestJobStatusLabel

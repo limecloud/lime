@@ -1,5 +1,6 @@
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 import { normalizeThemeType } from "@/lib/workspace/workbenchContract";
+import { modelSupportsTaskFamily } from "@/lib/model/inferModelCapabilities";
 
 export interface ThemeModelFilterResult {
   models: EnhancedModelMetadata[];
@@ -66,6 +67,13 @@ function buildModelSearchText(model: EnhancedModelMetadata): string {
 }
 
 function looksLikeImageGenerationModel(model: EnhancedModelMetadata): boolean {
+  if (
+    modelSupportsTaskFamily(model, "image_generation") ||
+    modelSupportsTaskFamily(model, "image_edit")
+  ) {
+    return true;
+  }
+
   const text = buildModelSearchText(model);
 
   if (
@@ -88,6 +96,28 @@ function looksLikeImageGenerationModel(model: EnhancedModelMetadata): boolean {
 }
 
 function looksLikeChatModel(model: EnhancedModelMetadata): boolean {
+  if (looksLikeImageGenerationModel(model)) {
+    return false;
+  }
+
+  if (
+    modelSupportsTaskFamily(model, "embedding") ||
+    modelSupportsTaskFamily(model, "rerank") ||
+    modelSupportsTaskFamily(model, "moderation") ||
+    modelSupportsTaskFamily(model, "speech_to_text") ||
+    modelSupportsTaskFamily(model, "text_to_speech")
+  ) {
+    return false;
+  }
+
+  if (
+    modelSupportsTaskFamily(model, "chat") ||
+    modelSupportsTaskFamily(model, "reasoning") ||
+    modelSupportsTaskFamily(model, "vision_understanding")
+  ) {
+    return true;
+  }
+
   const text = buildModelSearchText(model);
 
   if (containsAnyKeyword(text, NON_CHAT_KEYWORDS)) {

@@ -42,6 +42,14 @@ import {
 import { getLatestSelectableModel } from "./ProviderConfigForm.utils";
 import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
 import {
+  getModelAliasSource,
+  getModelDeploymentSource,
+  getModelInputModalities,
+  getModelOutputModalities,
+  getModelTaskFamilies,
+  modelSupportsTaskFamily,
+} from "@/lib/model/inferModelCapabilities";
+import {
   buildProviderModelsCacheKey,
   isProviderModelsCacheExpired,
 } from "./providerModelListCache";
@@ -129,6 +137,136 @@ interface ModelItemProps {
   onSelect?: (modelId: string) => void;
 }
 
+type CapabilityFilter =
+  | "all"
+  | "chat"
+  | "vision_understanding"
+  | "image_generation"
+  | "audio"
+  | "embedding";
+
+const CAPABILITY_FILTERS: Array<{
+  value: CapabilityFilter;
+  label: string;
+}> = [
+  { value: "all", label: "全部" },
+  { value: "chat", label: "对话与推理" },
+  { value: "vision_understanding", label: "视觉理解" },
+  { value: "image_generation", label: "图片生成" },
+  { value: "audio", label: "音频" },
+  { value: "embedding", label: "Embedding / 检索" },
+];
+
+const TASK_FAMILY_BADGE_CLASS: Record<string, string> = {
+  chat: "border-slate-200 bg-slate-50 text-slate-700",
+  reasoning: "border-violet-200 bg-violet-50 text-violet-700",
+  vision_understanding: "border-sky-200 bg-sky-50 text-sky-700",
+  image_generation: "border-amber-200 bg-amber-50 text-amber-700",
+  image_edit: "border-orange-200 bg-orange-50 text-orange-700",
+  speech_to_text: "border-cyan-200 bg-cyan-50 text-cyan-700",
+  text_to_speech: "border-teal-200 bg-teal-50 text-teal-700",
+  embedding: "border-indigo-200 bg-indigo-50 text-indigo-700",
+  rerank: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
+  moderation: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+function formatTaskFamilyLabel(value: string): string {
+  switch (value) {
+    case "chat":
+      return "对话";
+    case "reasoning":
+      return "思考";
+    case "vision_understanding":
+      return "视觉理解";
+    case "image_generation":
+      return "图片生成";
+    case "image_edit":
+      return "图片编辑";
+    case "speech_to_text":
+      return "语音转写";
+    case "text_to_speech":
+      return "语音合成";
+    case "embedding":
+      return "Embedding";
+    case "rerank":
+      return "检索重排";
+    case "moderation":
+      return "审核";
+    default:
+      return value;
+  }
+}
+
+function formatModalityLabel(value: string): string {
+  switch (value) {
+    case "text":
+      return "文本";
+    case "image":
+      return "图片";
+    case "audio":
+      return "音频";
+    case "video":
+      return "视频";
+    case "file":
+      return "文件";
+    case "embedding":
+      return "向量";
+    case "json":
+      return "JSON";
+    default:
+      return value;
+  }
+}
+
+function formatDeploymentSourceLabel(model: EnhancedModelMetadata): string {
+  switch (getModelDeploymentSource(model)) {
+    case "local":
+      return "本地";
+    case "oem_cloud":
+      return "OEM 云端";
+    case "user_cloud":
+    default:
+      return "云端";
+  }
+}
+
+function isProxyAliasSource(aliasSource: string | null): boolean {
+  return aliasSource === "relay" || aliasSource === "oem";
+}
+
+function matchesCapabilityFilter(
+  model: EnhancedModelMetadata,
+  filter: CapabilityFilter,
+): boolean {
+  switch (filter) {
+    case "chat":
+      return (
+        modelSupportsTaskFamily(model, "chat") ||
+        modelSupportsTaskFamily(model, "reasoning")
+      );
+    case "vision_understanding":
+      return modelSupportsTaskFamily(model, "vision_understanding");
+    case "image_generation":
+      return (
+        modelSupportsTaskFamily(model, "image_generation") ||
+        modelSupportsTaskFamily(model, "image_edit")
+      );
+    case "audio":
+      return (
+        modelSupportsTaskFamily(model, "speech_to_text") ||
+        modelSupportsTaskFamily(model, "text_to_speech")
+      );
+    case "embedding":
+      return (
+        modelSupportsTaskFamily(model, "embedding") ||
+        modelSupportsTaskFamily(model, "rerank")
+      );
+    case "all":
+    default:
+      return true;
+  }
+}
+
 /**
  * 单个模型项
  */
@@ -138,6 +276,13 @@ const ModelItem: React.FC<ModelItemProps> = ({
   isLatest,
   onSelect,
 }) => {
+  const taskFamilies = getModelTaskFamilies(model).slice(0, 3);
+  const inputModalities = getModelInputModalities(model);
+  const outputModalities = getModelOutputModalities(model);
+  const aliasSource = getModelAliasSource(model);
+  const sourceLabel = formatDeploymentSourceLabel(model);
+  const showProxyAlias = isProxyAliasSource(aliasSource);
+
   return (
     <div
       className={cn(
@@ -145,9 +290,7 @@ const ModelItem: React.FC<ModelItemProps> = ({
         onSelect
           ? "cursor-pointer hover:border-slate-300 hover:bg-slate-50"
           : "hover:bg-slate-50",
-        isDefault
-          ? DEFAULT_MODEL_CARD_CLASS
-          : "border-slate-200/80 bg-white",
+        isDefault ? DEFAULT_MODEL_CARD_CLASS : "border-slate-200/80 bg-white",
       )}
       onClick={onSelect ? () => onSelect(model.id) : undefined}
       role={onSelect ? "button" : undefined}
@@ -165,18 +308,57 @@ const ModelItem: React.FC<ModelItemProps> = ({
       data-testid={`model-item-${model.id}`}
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium">
             {model.display_name}
           </span>
           {isLatest ? <Badge variant="outline">最新</Badge> : null}
           {isDefault ? <Badge variant="secondary">默认</Badge> : null}
+          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
+            {sourceLabel}
+          </span>
+          {showProxyAlias ? (
+            <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] text-violet-700">
+              代理别名
+            </span>
+          ) : null}
         </div>
         <div className="truncate text-xs text-muted-foreground">{model.id}</div>
+        {taskFamilies.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {taskFamilies.map((family) => (
+              <span
+                key={`${model.id}-${family}`}
+                className={cn(
+                  "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                  TASK_FAMILY_BADGE_CLASS[family] ??
+                    "border-slate-200 bg-slate-50 text-slate-700",
+                )}
+              >
+                {formatTaskFamilyLabel(family)}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <ModelCapabilityBadges
           capabilities={model.capabilities}
           className="mt-2"
         />
+        <p className="mt-2 text-[11px] leading-5 text-slate-500">
+          输入：
+          {inputModalities.map(formatModalityLabel).join(" / ") || "未标注"}
+          {" · "}
+          输出：
+          {outputModalities.map(formatModalityLabel).join(" / ") || "未标注"}
+        </p>
+        {showProxyAlias &&
+        model.provider_model_id &&
+        model.canonical_model_id &&
+        model.provider_model_id !== model.canonical_model_id ? (
+          <p className="mt-1 text-[11px] leading-5 text-violet-600">
+            实际映射：{model.provider_model_id} → {model.canonical_model_id}
+          </p>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-2 pt-1">
@@ -243,6 +425,8 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
     : (autoFetchCapability.unsupportedReason ??
       "当前协议暂不支持自动获取最新模型");
   const [searchQuery, setSearchQuery] = useState("");
+  const [capabilityFilter, setCapabilityFilter] =
+    useState<CapabilityFilter>("all");
   const [catalogAliasMap, setCatalogAliasMap] = useState<Record<
     string,
     string
@@ -339,9 +523,7 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
   );
   const [apiSource, setApiSource] = useState<
     "Api" | "Catalog" | "CustomModels" | "LocalFallback" | null
-  >(
-    null,
-  );
+  >(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [apiRequestUrl, setApiRequestUrl] = useState<string | null>(null);
   const [apiDiagnosticHint, setApiDiagnosticHint] = useState<string | null>(
@@ -407,10 +589,11 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
 
       if (result && result.models) {
         const shouldDisplayFetchedModels =
+          result.models.length > 0 &&
           (normalizedSource === "Api" ||
             normalizedSource === "Catalog" ||
-            normalizedSource === "CustomModels") &&
-          result.models.length > 0;
+            normalizedSource === "CustomModels" ||
+            normalizedSource === "LocalFallback");
         const nextModels = shouldDisplayFetchedModels ? result.models : [];
 
         setApiModels(nextModels);
@@ -449,32 +632,66 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
   }, [autoFetchCapability.supported, cacheKey, providerId]);
 
   // 使用 API 模型或本地模型
-  const displayModelsSource = useMemo(
-    () =>
-      autoFetchCapability.supported
-        ? (apiModels ?? [])
-        : registryTruthError
-          ? []
-          : models,
-    [apiModels, autoFetchCapability.supported, models, registryTruthError],
-  );
+  const displayModelsSource = useMemo(() => {
+    if (registryTruthError) {
+      return [];
+    }
+
+    if (!autoFetchCapability.supported) {
+      return models;
+    }
+
+    if (autoFetchCapability.requiresLiveModelTruth) {
+      return apiModels ?? [];
+    }
+
+    if (apiModels && apiModels.length > 0) {
+      return apiModels;
+    }
+
+    return models;
+  }, [
+    apiModels,
+    autoFetchCapability.requiresLiveModelTruth,
+    autoFetchCapability.supported,
+    models,
+    registryTruthError,
+  ]);
   const filteredModelsSource = useMemo(() => {
+    const capabilityFilteredModels = displayModelsSource.filter((model) =>
+      matchesCapabilityFilter(model, capabilityFilter),
+    );
     if (!searchQuery.trim()) {
-      return displayModelsSource;
+      return capabilityFilteredModels;
     }
 
     const query = searchQuery.trim().toLowerCase();
-    return displayModelsSource.filter(
+    return capabilityFilteredModels.filter(
       (model) =>
         model.display_name.toLowerCase().includes(query) ||
-        model.id.toLowerCase().includes(query),
+        model.id.toLowerCase().includes(query) ||
+        getModelTaskFamilies(model).some((family) =>
+          formatTaskFamilyLabel(family).toLowerCase().includes(query),
+        ),
     );
-  }, [displayModelsSource, searchQuery]);
+  }, [capabilityFilter, displayModelsSource, searchQuery]);
+  const capabilityFilterCounts = useMemo(() => {
+    return Object.fromEntries(
+      CAPABILITY_FILTERS.map((filter) => [
+        filter.value,
+        displayModelsSource.filter((model) =>
+          matchesCapabilityFilter(model, filter.value),
+        ).length,
+      ]),
+    ) as Record<CapabilityFilter, number>;
+  }, [displayModelsSource]);
   const apiDiagnosticLines = buildApiDiagnosticLines({
     error: apiError,
     request_url: apiRequestUrl,
     diagnostic_hint: apiDiagnosticHint,
   });
+  const showBlockingApiPromptError =
+    apiShouldPromptError && displayModelsSource.length === 0;
   const registryDiagnosticLines = registryTruthError
     ? [
         "模型真相源异常：无法校验当前 Provider 是否存在于内置 registry。",
@@ -638,7 +855,7 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
         )}
         {apiError && (
           <div className="rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-left text-xs text-amber-700">
-            {apiShouldPromptError ? (
+            {showBlockingApiPromptError ? (
               <div className="mb-1 font-semibold text-red-600">
                 检测到 Provider 配置错误，请优先修正 Base URL 或鉴权配置
               </div>
@@ -683,7 +900,7 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
                             ? "bg-sky-100 text-sky-700"
                             : apiSource === "CustomModels"
                               ? "bg-violet-100 text-violet-700"
-                            : "bg-amber-100 text-amber-700",
+                              : "bg-amber-100 text-amber-700",
                       )}
                     >
                       {apiSource === "Api" ? (
@@ -716,7 +933,7 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
                         ? "数据来自厂商目录"
                         : apiSource === "CustomModels"
                           ? "数据来自当前 Provider 已配置的自定义模型"
-                        : "API 获取失败，使用本地数据"}
+                          : "API 获取失败，使用本地数据"}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -766,10 +983,41 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
         </div>
       </div>
 
+      <div
+        role="tablist"
+        aria-label="模型能力筛选"
+        className="flex h-auto flex-wrap justify-start gap-2 rounded-[18px] border border-slate-200/80 bg-slate-50/80 p-2"
+      >
+        {CAPABILITY_FILTERS.map((filter) => {
+          const active = capabilityFilter === filter.value;
+          return (
+            <button
+              key={filter.value}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              data-testid={`provider-model-filter-${filter.value}`}
+              onClick={() => setCapabilityFilter(filter.value)}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                active
+                  ? "border-emerald-200 bg-white text-slate-900"
+                  : "border-transparent text-slate-600 hover:border-slate-200 hover:bg-white/80 hover:text-slate-900",
+              )}
+            >
+              {filter.label}
+              <span className="ml-1 text-[10px] text-slate-500">
+                {capabilityFilterCounts[filter.value] ?? 0}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* API 错误提示 */}
       {apiError && (
         <div className="mb-2 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700">
-          {apiShouldPromptError ? (
+          {showBlockingApiPromptError ? (
             <div className="mb-1 font-semibold text-red-600">
               检测到 Provider 配置错误，请优先修正 Base URL 或鉴权配置
             </div>
@@ -808,7 +1056,11 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
 
       {filteredModelsSource.length === 0 ? (
         <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-          {searchQuery ? "没有匹配的模型" : "暂无模型数据"}
+          {searchQuery
+            ? "没有匹配的模型"
+            : capabilityFilter !== "all"
+              ? "当前能力分组下暂无模型"
+              : "暂无模型数据"}
         </div>
       ) : (
         <div className="space-y-3">

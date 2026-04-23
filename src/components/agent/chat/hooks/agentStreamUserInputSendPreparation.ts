@@ -80,8 +80,12 @@ export function prepareAgentStreamUserInputSend(
 
   const effectiveExecutionStrategy =
     executionStrategyOverride || env.executionStrategy;
-  const effectiveProviderType = env.providerTypeRef.current;
-  const effectiveModel = modelOverride?.trim() || env.modelRef.current;
+  const resolvedProviderOverride = sendOptions?.providerOverride?.trim();
+  const resolvedModelOverride =
+    sendOptions?.modelOverride?.trim() || modelOverride?.trim();
+  const effectiveProviderType =
+    resolvedProviderOverride || env.providerTypeRef.current;
+  const effectiveModel = resolvedModelOverride || env.modelRef.current;
   const currentSessionId = env.sessionIdRef.current;
   const syncedSessionModelPreference = currentSessionId
     ? env.getSyncedSessionModelPreference(currentSessionId)
@@ -125,7 +129,7 @@ export function prepareAgentStreamUserInputSend(
     effectiveExecutionStrategy,
     effectiveProviderType,
     effectiveModel,
-    modelOverride,
+    modelOverride: resolvedModelOverride,
     autoContinue,
     systemPrompt,
     syncedSessionModelPreference,

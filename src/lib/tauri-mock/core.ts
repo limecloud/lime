@@ -6,13 +6,12 @@ import type { AutomationJobRecord } from "../api/automation";
 import type { CompanionPetStatus } from "../api/companion";
 import type { AgentRun } from "../api/executionRun";
 import type {
-  SceneAppCurrentBindingFamily,
-  SceneAppCurrentCatalog as SceneAppCatalog,
+  SceneAppCatalog,
   SceneAppContextOverlay,
-  SceneAppCurrentDescriptor as SceneAppDescriptor,
-  SceneAppCurrentPlanResult as SceneAppPlanResult,
+  SceneAppDescriptor,
+  SceneAppPlanResult,
   SceneAppProjectPackPlan,
-  SceneAppCurrentRuntimeAdapterPlan as SceneAppRuntimeAdapterPlan,
+  SceneAppRuntimeAdapterPlan,
   SceneAppScorecard,
 } from "../api/sceneapp";
 
@@ -2251,8 +2250,8 @@ function buildMockSceneAppPlanResult(
 }
 
 function normalizeMockSceneAppAdapterKind(
-  adapterKind: SceneAppCurrentBindingFamily,
-): SceneAppCurrentBindingFamily {
+  adapterKind: SceneAppRuntimeAdapterPlan["adapterKind"],
+): SceneAppRuntimeAdapterPlan["adapterKind"] {
   return adapterKind;
 }
 
@@ -3924,12 +3923,13 @@ const defaultMocks: Record<string, any> = {
       image_search_pixabay_api_key: "",
     },
     workspace_preferences: {
-      schema_version: 1,
+      schema_version: 2,
       media_defaults: {},
       companion_defaults: {},
+      service_models: {},
     },
     navigation: {
-      schema_version: 1,
+      schema_version: 2,
       enabled_items: [],
     },
     crash_reporting: {
@@ -6353,18 +6353,71 @@ const defaultMocks: Record<string, any> = {
   get_voice_input_config: () => ({
     enabled: false,
     shortcut: "CommandOrControl+Shift+V",
+    translate_shortcut: "CommandOrControl+Shift+T",
     processor: {
       polish_enabled: true,
+      polish_provider: "openai",
+      polish_model: "gpt-4.1-mini",
       default_instruction_id: "default",
     },
     output: {
       mode: "type",
       type_delay_ms: 10,
     },
-    instructions: [],
+    instructions: [
+      {
+        id: "default",
+        name: "默认润色",
+        prompt: "{{text}}",
+        is_preset: true,
+      },
+      {
+        id: "translate_en",
+        name: "翻译为英文",
+        prompt: "{{text}}",
+        is_preset: true,
+      },
+      {
+        id: "raw",
+        name: "原始输出",
+        prompt: "{{text}}",
+        is_preset: true,
+      },
+    ],
+    selected_device_id: undefined,
     sound_enabled: true,
-    translate_instruction_id: "default",
+    translate_instruction_id: "translate_en",
   }),
+  get_asr_credentials: () => [
+    {
+      id: "openai-default",
+      provider: "openai",
+      name: "OpenAI Whisper 默认凭证",
+      is_default: true,
+      disabled: false,
+      language: "zh-CN",
+    },
+  ],
+  get_voice_instructions: () => [
+    {
+      id: "default",
+      name: "默认润色",
+      prompt: "{{text}}",
+      is_preset: true,
+    },
+    {
+      id: "translate_en",
+      name: "翻译为英文",
+      prompt: "{{text}}",
+      is_preset: true,
+    },
+    {
+      id: "raw",
+      name: "原始输出",
+      prompt: "{{text}}",
+      is_preset: true,
+    },
+  ],
   get_voice_shortcut_runtime_status: () => ({
     shortcut_registered: false,
     registered_shortcut: null,
@@ -6372,6 +6425,22 @@ const defaultMocks: Record<string, any> = {
     registered_translate_shortcut: null,
   }),
   save_voice_input_config: () => ({}),
+  save_voice_instruction: () => ({}),
+  delete_voice_instruction: () => ({}),
+  list_audio_devices: () => [
+    {
+      id: "builtin-mic",
+      name: "MacBook Pro 麦克风",
+      is_default: true,
+    },
+  ],
+  start_recording: () => ({}),
+  cancel_recording: () => ({}),
+  get_recording_status: () => ({
+    is_recording: false,
+    volume: 0,
+    duration: 0,
+  }),
 
   // Screenshot Chat 相关
   send_screenshot_chat: () => ({ success: true }),

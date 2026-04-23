@@ -59,6 +59,8 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
   const currentAssistantMsgIdRef = useRef<string | null>(null);
   const currentStreamingSessionIdRef = useRef<string | null>(null);
   const currentStreamingEventNameRef = useRef<string | null>(null);
+  const autoTitleInFlightSessionIdRef = useRef<string | null>(null);
+  const autoTitleCompletedSessionIdsRef = useRef<Set<string>>(new Set());
   const sendMessageRef = useRef<SendMessageFn | null>(null);
   const resetPendingActionsRef = useRef<(() => void) | null>(null);
   const topicsUpdaterRef = useRef<
@@ -257,11 +259,105 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     isSending: stream.isSending,
     pendingActionCount: tools.pendingActions.length,
     queuedTurnCount: session.queuedTurns.length,
+    threadStatus:
+      session.threadRead?.status ??
+      (session.currentTurnId ? "running" : null),
     workspaceId,
     workspacePathMissing: Boolean(context.workspacePathMissing),
     topicsCount: session.topics.length,
     updateTopicSnapshot: session.updateTopicSnapshot,
   });
+
+  const sessionMessages = session.messages;
+  const sessionTopics = session.topics;
+  const sessionSetTopics = session.setTopics;
+  const currentSessionId = session.sessionId;
+
+  useEffect(() => {
+    const activeSessionId = currentSessionId?.trim();
+    if (!activeSessionId || stream.isSending || !runtime.generateSessionTitle) {
+      return;
+    }
+
+    const activeTopic = sessionTopics.find((topic) => topic.id === activeSessionId);
+    const activeTitle = activeTopic?.title?.trim() || "";
+    const shouldAutoGenerateTitle =
+      activeTitle === "" ||
+      activeTitle === "新任务" ||
+      activeTitle === "新话题";
+    if (!shouldAutoGenerateTitle) {
+      autoTitleCompletedSessionIdsRef.current.add(activeSessionId);
+      return;
+    }
+
+    const hasUserMessage = sessionMessages.some(
+      (message) =>
+        message.role === "user" &&
+        typeof message.content === "string" &&
+        message.content.trim().length > 0,
+    );
+    if (!hasUserMessage) {
+      return;
+    }
+
+    if (
+      autoTitleCompletedSessionIdsRef.current.has(activeSessionId) ||
+      autoTitleInFlightSessionIdRef.current === activeSessionId
+    ) {
+      return;
+    }
+
+    autoTitleInFlightSessionIdRef.current = activeSessionId;
+    let cancelled = false;
+    let titleApplied = false;
+
+    void (async () => {
+      try {
+        const generatedTitle = (await runtime.generateSessionTitle?.(activeSessionId))?.trim();
+        if (
+          cancelled ||
+          !generatedTitle ||
+          generatedTitle === "新任务" ||
+          generatedTitle === "新话题"
+        ) {
+          return;
+        }
+
+        await runtime.renameSession(activeSessionId, generatedTitle);
+        sessionSetTopics((previous) =>
+          previous.map((topic) =>
+            topic.id === activeSessionId
+              ? {
+                  ...topic,
+                  title: generatedTitle,
+                }
+              : topic,
+          ),
+        );
+        titleApplied = true;
+      } catch (error) {
+        console.warn("[AsterChat] 自动生成会话标题失败:", error);
+      } finally {
+        if (!cancelled && titleApplied) {
+          autoTitleCompletedSessionIdsRef.current.add(activeSessionId);
+        }
+        if (autoTitleInFlightSessionIdRef.current === activeSessionId) {
+          autoTitleInFlightSessionIdRef.current = null;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentSessionId,
+    runtime,
+    sessionMessages,
+    sessionSetTopics,
+    sessionTopics,
+    stream.isSending,
+  ]);
 
   useAgentChatStateSnapshotDebug({
     hasActiveTopic,

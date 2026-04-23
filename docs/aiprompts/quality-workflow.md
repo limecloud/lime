@@ -48,6 +48,8 @@
    - 本轮改动对应的路线图节点
    - 本轮校验覆盖了哪条主线风险
    - 当前距离该路线图阶段完成还差什么
+4. 用户问“完成了么”时，先回答主线目标是否已经达到可交付门槛；额外校验、顺手清理、可选优化单独列出，不要反向覆盖主线结论
+5. 校验的上限是证明当前主线可交付；一旦已经覆盖本轮真实风险，就不要因为还有更重的检查可跑而无限追加验证
 
 ## 执行硬规则
 
@@ -208,10 +210,11 @@ CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge
 - 检查 harness metadata / execution runtime / 后端 request metadata 的关键字段是否漂移
 - 检查浏览器桥接 / mock 优先路径是否同步
 - 检查 `DevBridge` 是否可用
-- 检查纯文本 `Claw @配图` 是否已经走 `原始用户消息 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> Bash/lime media image generate --json 或 lime_create_image_generation_task -> task/timeline` 主链，以及显式图片动作是否也已经走 `synthetic user message / displayContent -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task/timeline`，而不是回流前端直连图片服务、卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，或让 `lime media image generate --json` / `lime task create image --json` 只停在 `pending_submit`
+- 检查 task / service / workflow 类能力是否命中了各自的 current binding family；若某能力当前属于 `typed local_cli`，验证 runtime 是否结构化组装 `Lime CLI` 并回写统一真相源；若属于 `server_api / hybrid`，验证 run/job/task snapshot 是否正确回流，而不是把“模型有没有先写 Bash”当成通过条件
+- 检查纯文本 `Claw @配图` 是否已经走 `原始用户消息 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> lime_create_image_generation_task -> task/timeline` 主链，以及显式图片动作是否也已经走 `synthetic user message / displayContent -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task/timeline`，而不是回流前端直连图片服务、卡在 `ToolSearch / WebSearch / Read / Glob / Grep`、退回旧的 `Bash/lime media image generate --json` / `lime task create image --json` 旁路，或把 `任务 ID：{task_id}` 这类模板占位原样显示出来
 - 检查纯文本 `Claw @封面` 是否已经走 `原始用户消息 -> harness.cover_skill_launch -> Agent 首刀 Skill(cover_generate) -> task file` 主链，而不是回流成普通图片命令、卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，或前端本地伪造结果
-- 检查纯文本 `Claw @海报` 是否已经走 `原始用户消息 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> Bash/lime media image generate --json 或 lime_create_image_generation_task -> task/timeline` 主链，而不是回流成普通聊天或另一套海报协议、卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，或前端本地伪造结果；同时确认默认 `entry_source=at_poster_command`、默认尺寸 `4:5 -> 864x1152` 与“海报设计”语义补齐仍然成立
-- 检查纯文本 `Claw @视频` 是否已经走 `原始用户消息 -> harness.video_skill_launch -> Agent 首刀 Skill(video_generate) -> Bash/lime media video generate --json 或 create_video_generation_task -> task/timeline` 主链，而不是卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，或前端本地伪造结果
+- 检查纯文本 `Claw @海报` 是否已经走 `原始用户消息 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> lime_create_image_generation_task -> task/timeline` 主链，而不是回流成普通聊天、另一套海报协议、旧的 Bash/CLI 图片旁路，卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，或前端本地伪造结果；同时确认默认 `entry_source=at_poster_command`、默认尺寸 `4:5 -> 864x1152` 与“海报设计”语义补齐仍然成立
+- 检查纯文本 `Claw @视频` 是否已经走 `原始用户消息 -> harness.video_skill_launch -> Agent 首刀 Skill(video_generate) -> current binding -> task/timeline` 主链；如果当前 binding family 是 `typed local_cli`，应看到 runtime 结构化组装的 `lime media video generate --json`；如果当前 binding family 是原生结构化 binding，则应看到对应的 create task 调用。无论哪种都不能退化成模型自由写 Bash、卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，或前端本地伪造结果
 - 检查纯文本 `Claw @播报` 是否已经走 `原始用户消息 -> harness.broadcast_skill_launch -> Agent 首刀 Skill(broadcast_generate) -> task file` 主链，而不是退回普通聊天改写、卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，或前端本地伪造结果
 - 检查纯文本 `Claw @素材` 是否已经走 `原始用户消息 -> harness.resource_search_skill_launch -> Agent 首刀 Skill(modal_resource_search) -> 图片直搜时优先 lime_search_web_images / 其余情况走 task file` 主链，而不是回流到前端本地素材页逻辑、卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，或把 session permission 拒绝直接暴露给用户
 - 检查纯文本 `Claw @搜索` 是否已经走 `原始用户消息 -> harness.research_skill_launch -> Agent 首刀 Skill(research) -> search_query / tool timeline` 主链，而不是直接凭模型记忆回答、卡在 `ToolSearch / Read / Glob / Grep` 这类工具目录/本地文件偏航，或把 session permission 拒绝直接暴露给用户
@@ -262,7 +265,7 @@ CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge
 - 修改 `get_model_registry_provider_ids`、Provider 模型映射或 `src-tauri/resources/models/index.json` 真相源读取语义
 - 修改 `create_image_generation_task_artifact`、`get_media_task_artifact`、`list_media_task_artifacts`、`cancel_media_task_artifact`、`src/lib/api/mediaTasks.ts`、`src/lib/api/skill-execution.ts`、`useWorkspaceSendActions`、`useWorkspaceImageWorkbenchActionRuntime`、`runtime_turn`，或调整 `Claw @配图 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task/timeline` 的异步图片任务主链
 - 修改 `@封面` parser、`useWorkspaceSendActions`、`runtime_turn`、`cover_skill_launch`、`lime task create cover`、`cover_generate` skill 或 `lime_create_cover_generation_task`，尤其是调整 `Claw @封面 -> harness.cover_skill_launch -> Agent 首刀 Skill(cover_generate) -> task file` 主链
-- 修改 `@海报` parser、`useWorkspaceSendActions`、`runtime_turn`、`image_skill_launch`、`lime media image generate --json`、`image_generate` skill 或相关图片 timeline 展示，尤其是调整 `Claw @海报 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task/timeline` 主链
+- 修改 `@海报` parser、`useWorkspaceSendActions`、`runtime_turn`、`image_skill_launch`、`lime_create_image_generation_task`、`image_generate` skill 或相关图片 timeline 展示，尤其是调整 `Claw @海报 -> harness.image_skill_launch -> Agent 首刀 Skill(image_generate) -> task/timeline` 主链
 - 修改 `@播报` parser、`useWorkspaceSendActions`、`runtime_turn`、`broadcast_skill_launch`、`lime task create broadcast`、`broadcast_generate` skill 或 `lime_create_broadcast_generation_task`，尤其是调整 `Claw @播报 -> harness.broadcast_skill_launch -> Agent 首刀 Skill(broadcast_generate) -> task file` 主链
 - 修改 `@素材` parser、`useWorkspaceSendActions`、`runtime_turn`、`resource_search_skill_launch`、`lime task create resource-search`、`modal_resource_search` skill 或 `lime_create_modal_resource_search_task`，尤其是调整 `Claw @素材 -> harness.resource_search_skill_launch -> Agent 首刀 Skill(modal_resource_search) -> task file` 主链
 - 修改 `@搜索` parser、`useWorkspaceSendActions`、`runtime_turn`、`research_skill_launch`、`research` 默认 skill 或相关 tool timeline 展示，尤其是调整 `Claw @搜索 -> harness.research_skill_launch -> Agent 首刀 Skill(research) -> search_query / timeline` 主链
@@ -500,7 +503,7 @@ CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge
 
 补充说明：
 
-- 如果这次改动新增或调整公开 CLI（例如 `@lime/cli`、`lime media ...`），至少补受影响 crate 的定向测试；媒体 CLI 主链当前最低建议为 `cargo test --manifest-path src-tauri/Cargo.toml -p lime-media-runtime -p lime-cli`。如果 CLI 结果会回流 Workbench/Agent，再补对应 Rust 或前端定向回归。
+- 如果这次改动新增或调整公开 CLI，或改变某个能力的 `typed local_cli` binding（例如 `@lime/cli`、`lime media ...`），至少补受影响 crate 的定向测试；媒体 `Lime CLI` 主链当前最低建议为 `cargo test --manifest-path src-tauri/Cargo.toml -p lime-media-runtime -p lime-cli`。如果 CLI 结果会回流 Workbench/Agent，再补对应 Rust 或前端定向回归。
 - 如果这次改动把 `ServiceSkill -> automation_job -> agent_turn` 接到 Artifact 主线，除了常规 `verify:local` / `test:contracts` 之外，还应至少补一条稳定回归，证明 `content_id + request_metadata.artifact` 没在表单编辑或执行链路里丢失。
 - 如果这次改动影响 `Claw` 与站点技能的直跑门禁，还应补回归证明：阻断停留在技能入口层，不再把浏览器准备态注入成对话里的继续执行确认。
 - 如果这次改动把 `content_id` steady-state 从“每回合显式提交”后移到 `session/runtime`，除了契约检查之外，还应补 Hook/UI 回归，证明：

@@ -20,6 +20,9 @@ use tauri::State;
 
 use crate::agent::build_auxiliary_session_config;
 use crate::commands::aster_agent_cmd::ensure_browser_mcp_tools_registered;
+use crate::commands::auxiliary_model_selection::{
+    prepare_auxiliary_provider_scope, AuxiliaryServiceModelSlot,
+};
 use crate::database::DbConnection;
 use crate::models::project_model::{CreatePersonaRequest, Persona, PersonaTemplate, PersonaUpdate};
 use crate::services::memory_profile_prompt_service::{build_memory_prompt, MemoryPromptContext};
@@ -285,6 +288,12 @@ pub async fn generate_persona(
 ) -> Result<GeneratedPersona, String> {
     use aster::conversation::message::Message;
     use futures::StreamExt;
+    const PERSONA_FALLBACK_PROVIDER_CHAIN: [(&str, &str); 4] = [
+        ("deepseek", "deepseek-chat"),
+        ("openai", "gpt-4o-mini"),
+        ("anthropic", "claude-3-haiku-20240307"),
+        ("kiro", "anthropic.claude-3-haiku-20240307-v1:0"),
+    ];
 
     tracing::info!("[Persona] AI 生成人设: prompt={}", prompt);
 
@@ -296,49 +305,15 @@ pub async fn generate_persona(
 
     // 创建临时会话 ID
     let session_id = format!("persona-gen-{}", uuid::Uuid::new_v4());
-
-    // 如果 Provider 未配置，自动从凭证池选择一个
-    if !agent_state.is_provider_configured().await {
-        tracing::info!("[Persona] Provider 未配置，尝试从凭证池自动选择");
-
-        // 尝试按优先级选择 Provider: deepseek > openai > anthropic > kiro
-        let provider_types = ["deepseek", "openai", "anthropic", "kiro"];
-        let default_models = [
-            "deepseek-chat",
-            "gpt-4o-mini",
-            "claude-3-haiku-20240307",
-            "anthropic.claude-3-haiku-20240307-v1:0",
-        ];
-
-        let mut configured = false;
-        for (provider_type, model) in provider_types.iter().zip(default_models.iter()) {
-            match agent_state
-                .configure_provider_from_pool(&db, provider_type, model, &session_id)
-                .await
-            {
-                Ok(_) => {
-                    tracing::info!(
-                        "[Persona] 自动配置 Provider 成功: {} / {}",
-                        provider_type,
-                        model
-                    );
-                    configured = true;
-                    break;
-                }
-                Err(e) => {
-                    tracing::debug!(
-                        "[Persona] 尝试 {} 失败: {}, 继续尝试下一个",
-                        provider_type,
-                        e
-                    );
-                }
-            }
-        }
-
-        if !configured {
-            return Err("没有可用的 AI 凭证，请先在设置中添加凭证".to_string());
-        }
-    }
+    let provider_scope = prepare_auxiliary_provider_scope(
+        &agent_state,
+        &db,
+        &config_manager,
+        &session_id,
+        AuxiliaryServiceModelSlot::AgentMeta,
+        &PERSONA_FALLBACK_PROVIDER_CHAIN,
+    )
+    .await?;
 
     let system_prompt = r#"你是一个专业的内容创作人设设计师。根据用户的描述，生成一个完整的创作人设配置。
 
@@ -353,78 +328,84 @@ pub async fn generate_persona(
 
     let user_prompt = format!("{system_prompt}\n\n请为以下描述生成人设配置：{prompt}");
 
-    let cancel_token = agent_state.create_cancel_token(&session_id).await;
+    let result = async {
+        let cancel_token = agent_state.create_cancel_token(&session_id).await;
 
-    let user_message = Message::user().with_text(&user_prompt);
-    let base_runtime_prompt = merge_system_prompt_with_runtime_agents(None, None);
-    let merged_prompt = if let Some(memory_prompt) =
-        build_memory_prompt(&config_manager.config(), MemoryPromptContext::default())
-    {
-        match base_runtime_prompt {
-            Some(base) => Some(format!("{base}\n\n{memory_prompt}")),
-            None => Some(memory_prompt),
-        }
-    } else {
-        base_runtime_prompt
-    };
-    let session_config = build_auxiliary_session_config(&session_id, merged_prompt, true);
+        let user_message = Message::user().with_text(&user_prompt);
+        let base_runtime_prompt = merge_system_prompt_with_runtime_agents(None, None);
+        let merged_prompt = if let Some(memory_prompt) =
+            build_memory_prompt(&config_manager.config(), MemoryPromptContext::default())
+        {
+            match base_runtime_prompt {
+                Some(base) => Some(format!("{base}\n\n{memory_prompt}")),
+                None => Some(memory_prompt),
+            }
+        } else {
+            base_runtime_prompt
+        };
+        let session_config = build_auxiliary_session_config(&session_id, merged_prompt, true);
 
-    // 获取 Agent 引用
-    let agent_arc = agent_state.get_agent_arc();
-    let guard = agent_arc.read().await;
-    let agent = guard.as_ref().ok_or("Agent 未初始化")?;
+        // 获取 Agent 引用
+        let agent_arc = agent_state.get_agent_arc();
+        let guard = agent_arc.read().await;
+        let agent = guard.as_ref().ok_or("Agent 未初始化")?;
 
-    // 调用 Agent
-    let stream_result = agent
-        .reply(user_message, session_config, Some(cancel_token.clone()))
-        .await;
+        // 调用 Agent
+        let stream_result = agent
+            .reply(user_message, session_config, Some(cancel_token.clone()))
+            .await;
 
-    let mut full_content = String::new();
+        let mut full_content = String::new();
 
-    match stream_result {
-        Ok(mut stream) => {
-            while let Some(event_result) = stream.next().await {
-                match event_result {
-                    Ok(agent_event) => {
-                        // 提取文本内容
-                        if let aster::agents::AgentEvent::Message(message) = agent_event {
-                            for content in &message.content {
-                                if let aster::conversation::message::MessageContent::Text(
-                                    text_content,
-                                ) = content
-                                {
-                                    full_content.push_str(&text_content.text);
+        match stream_result {
+            Ok(mut stream) => {
+                while let Some(event_result) = stream.next().await {
+                    match event_result {
+                        Ok(agent_event) => {
+                            // 提取文本内容
+                            if let aster::agents::AgentEvent::Message(message) = agent_event {
+                                for content in &message.content {
+                                    if let aster::conversation::message::MessageContent::Text(
+                                        text_content,
+                                    ) = content
+                                    {
+                                        full_content.push_str(&text_content.text);
+                                    }
                                 }
                             }
                         }
-                    }
-                    Err(e) => {
-                        tracing::error!("[Persona] 流错误: {}", e);
+                        Err(e) => {
+                            tracing::error!("[Persona] 流错误: {}", e);
+                        }
                     }
                 }
             }
+            Err(e) => {
+                agent_state.remove_cancel_token(&session_id).await;
+                return Err(format!("AI 调用失败: {e}"));
+            }
         }
-        Err(e) => {
-            agent_state.remove_cancel_token(&session_id).await;
-            return Err(format!("AI 调用失败: {e}"));
+
+        // 清理取消令牌
+        agent_state.remove_cancel_token(&session_id).await;
+
+        if full_content.is_empty() {
+            return Err("AI 返回空内容".to_string());
         }
+
+        tracing::debug!("[Persona] AI 返回内容: {}", full_content);
+
+        // 解析 AI 返回的 JSON
+        let persona: GeneratedPersona = parse_persona_json(&full_content)?;
+
+        tracing::info!("[Persona] AI 生成人设成功: name={}", persona.name);
+
+        Ok(persona)
     }
+    .await;
 
-    // 清理取消令牌
-    agent_state.remove_cancel_token(&session_id).await;
-
-    if full_content.is_empty() {
-        return Err("AI 返回空内容".to_string());
-    }
-
-    tracing::debug!("[Persona] AI 返回内容: {}", full_content);
-
-    // 解析 AI 返回的 JSON
-    let persona: GeneratedPersona = parse_persona_json(&full_content)?;
-
-    tracing::info!("[Persona] AI 生成人设成功: name={}", persona.name);
-
-    Ok(persona)
+    provider_scope.restore(&agent_state, &db).await;
+    result
 }
 
 /// 解析 AI 返回的人设 JSON

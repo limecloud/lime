@@ -16,6 +16,91 @@ function createUrlPattern(): RegExp {
   return new RegExp(URL_PATTERN_SOURCE, "gi");
 }
 
+function extractBalancedJsonSnippets(rawText: string): string[] {
+  const snippets: string[] = [];
+  const stack: string[] = [];
+  let startIndex = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < rawText.length; index += 1) {
+    const current = rawText[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (current === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (current === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (current === "{" || current === "[") {
+      if (stack.length === 0) {
+        startIndex = index;
+      }
+      stack.push(current);
+      continue;
+    }
+
+    if (current !== "}" && current !== "]") {
+      continue;
+    }
+
+    const opening = stack[stack.length - 1];
+    const matchesPair =
+      (opening === "{" && current === "}") ||
+      (opening === "[" && current === "]");
+    if (!matchesPair) {
+      stack.length = 0;
+      startIndex = -1;
+      continue;
+    }
+
+    stack.pop();
+    if (stack.length === 0 && startIndex >= 0) {
+      snippets.push(rawText.slice(startIndex, index + 1));
+      startIndex = -1;
+    }
+  }
+
+  return snippets;
+}
+
+function collectJsonParseCandidates(rawText: string): string[] {
+  const candidates = new Set<string>();
+
+  const pushCandidate = (value?: string) => {
+    const normalized = value?.trim();
+    if (normalized) {
+      candidates.add(normalized);
+    }
+  };
+
+  pushCandidate(rawText);
+
+  const fencedMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  pushCandidate(fencedMatch?.[1]);
+
+  for (const source of [rawText, fencedMatch?.[1] || ""]) {
+    for (const snippet of extractBalancedJsonSnippets(source)) {
+      pushCandidate(snippet);
+    }
+  }
+
+  return Array.from(candidates);
+}
+
 function normalizeUrlCandidate(rawUrl: string): {
   url: string;
   trailing: string;
@@ -63,12 +148,19 @@ function extractSearchResultFromRecord(
   record: Record<string, unknown>,
   index: number,
 ): SearchResultPreviewItem | null {
+  const locator =
+    record.locator && typeof record.locator === "object"
+      ? (record.locator as Record<string, unknown>)
+      : null;
   const url =
     (typeof record.url === "string" && record.url.trim()) ||
     (typeof record.link === "string" && record.link.trim()) ||
     (typeof record.href === "string" && record.href.trim()) ||
     (typeof record.sourceUrl === "string" && record.sourceUrl.trim()) ||
     (typeof record.source_url === "string" && record.source_url.trim()) ||
+    (typeof record.targetUrl === "string" && record.targetUrl.trim()) ||
+    (typeof record.target_url === "string" && record.target_url.trim()) ||
+    (typeof locator?.url === "string" && locator.url.trim()) ||
     "";
   if (!url) {
     return null;
@@ -79,6 +171,7 @@ function extractSearchResultFromRecord(
     (typeof record.name === "string" && normalizeSearchText(record.name)) ||
     (typeof record.headline === "string" &&
       normalizeSearchText(record.headline)) ||
+    (typeof record.label === "string" && normalizeSearchText(record.label)) ||
     getHostnameFromUrl(url);
   const snippet =
     (typeof record.summary === "string" &&
@@ -109,14 +202,8 @@ function parseSearchResultRecords(rawText: string): SearchResultPreviewItem[] {
     return [];
   }
 
-  const candidates = [trimmed];
-  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fencedMatch?.[1]) {
-    candidates.unshift(fencedMatch[1]);
-  }
-
   const seenUrls = new Set<string>();
-  for (const candidate of candidates) {
+  for (const candidate of collectJsonParseCandidates(trimmed)) {
     try {
       const parsed = JSON.parse(candidate) as unknown;
       const queue: unknown[] = [parsed];
@@ -147,15 +234,8 @@ function parseSearchResultRecords(rawText: string): SearchResultPreviewItem[] {
           }
         }
 
-        for (const key of [
-          "results",
-          "items",
-          "sources",
-          "citations",
-          "data",
-        ]) {
-          const nested = record[key];
-          if (nested) {
+        for (const nested of Object.values(record)) {
+          if (nested && typeof nested === "object") {
             queue.push(nested);
           }
         }

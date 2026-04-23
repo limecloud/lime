@@ -20,6 +20,52 @@ export interface ModelCapabilities {
   reasoning: boolean;
 }
 
+/** 模型任务族 */
+export type ModelTaskFamily =
+  | "chat"
+  | "reasoning"
+  | "vision_understanding"
+  | "image_generation"
+  | "image_edit"
+  | "speech_to_text"
+  | "text_to_speech"
+  | "embedding"
+  | "rerank"
+  | "moderation";
+
+/** 模型输入/输出模态 */
+export type ModelModality =
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+  | "file"
+  | "embedding"
+  | "json";
+
+/** 运行时特性 */
+export type ModelRuntimeFeature =
+  | "streaming"
+  | "tool_calling"
+  | "json_schema"
+  | "reasoning"
+  | "prompt_cache"
+  | "responses_api"
+  | "chat_completions_api"
+  | "images_api";
+
+/** 模型部署来源 */
+export type ModelDeploymentSource = "local" | "user_cloud" | "oem_cloud";
+
+/** 模型管理面 */
+export type ModelManagementPlane =
+  | "local_settings"
+  | "oem_control_plane"
+  | "hybrid";
+
+/** 模型别名来源 */
+export type ModelAliasSource = "official" | "relay" | "oem" | "local";
+
 /** 模型定价 */
 export interface ModelPricing {
   /** 输入价格（每百万 token） */
@@ -59,7 +105,12 @@ export type ModelStatus =
 export type ModelTier = "mini" | "pro" | "max";
 
 /** 模型数据来源 */
-export type ModelSource = "models.dev" | "local" | "custom";
+export type ModelSource =
+  | "embedded"
+  | "models.dev"
+  | "local"
+  | "custom"
+  | "api";
 
 /** 增强的模型元数据 */
 export interface EnhancedModelMetadata {
@@ -77,6 +128,24 @@ export interface EnhancedModelMetadata {
   tier: ModelTier;
   /** 模型能力 */
   capabilities: ModelCapabilities;
+  /** 任务族 */
+  task_families?: ModelTaskFamily[];
+  /** 输入模态 */
+  input_modalities?: ModelModality[];
+  /** 输出模态 */
+  output_modalities?: ModelModality[];
+  /** 运行时特性 */
+  runtime_features?: ModelRuntimeFeature[];
+  /** 部署来源 */
+  deployment_source?: ModelDeploymentSource;
+  /** 管理面 */
+  management_plane?: ModelManagementPlane;
+  /** 规范化模型 ID */
+  canonical_model_id?: string | null;
+  /** 实际 Provider 返回的模型 ID */
+  provider_model_id?: string | null;
+  /** 别名来源 */
+  alias_source?: ModelAliasSource | null;
   /** 定价信息 */
   pricing: ModelPricing | null;
   /** 限制信息 */

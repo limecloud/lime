@@ -20,7 +20,10 @@ import {
 } from "@/components/agent/chat/utils/curatedTaskTemplates";
 import { listUnifiedMemories } from "@/lib/api/unifiedMemory";
 import { cn } from "@/lib/utils";
-import { subscribeCuratedTaskRecommendationSignalsChanged } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
+import {
+  listCuratedTaskRecommendationSignals,
+  subscribeCuratedTaskRecommendationSignalsChanged,
+} from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import {
   buildCuratedTaskLaunchInputPrefillFromReferenceEntries,
   buildCuratedTaskReferenceEntries,
@@ -31,10 +34,16 @@ import {
   type CuratedTaskReferenceEntry,
   type CuratedTaskReferenceSelection,
 } from "@/components/agent/chat/utils/curatedTaskReferenceSelection";
+import {
+  buildSceneAppExecutionReviewPrefillHighlights,
+  buildSceneAppExecutionReviewPrefillSnapshot,
+} from "@/components/agent/chat/utils/sceneAppCuratedTaskReference";
 
 interface CuratedTaskLauncherDialogProps {
   open: boolean;
   task: CuratedTaskTemplateItem | null;
+  projectId?: string | null;
+  sessionId?: string | null;
   initialInputValues?: CuratedTaskInputValues | null;
   initialReferenceMemoryIds?: string[] | null;
   initialReferenceEntries?: CuratedTaskReferenceEntry[] | null;
@@ -52,6 +61,8 @@ const MAX_REFERENCE_SELECTION_COUNT = 3;
 export function CuratedTaskLauncherDialog({
   open,
   task,
+  projectId,
+  sessionId,
   initialInputValues,
   initialReferenceMemoryIds,
   initialReferenceEntries,
@@ -244,6 +255,68 @@ export function CuratedTaskLauncherDialog({
     return `我会先给你 ${task.outputHint}。`;
   }, [task]);
 
+  const latestReviewTaskSignal = useMemo(() => {
+    if (!task) {
+      return null;
+    }
+
+    return (
+      listCuratedTaskRecommendationSignals({
+        projectId,
+        sessionId,
+      })
+        .filter(
+          (signal) =>
+            signal.source === "review_feedback" &&
+            signal.preferredTaskIds?.includes(task.id),
+        )
+        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
+    );
+  }, [projectId, sessionId, task]);
+
+  const activeReviewBaselineSnapshot = useMemo(() => {
+    if (!task) {
+      return null;
+    }
+
+    const activeReferenceEntries =
+      selectedReferenceEntries.length > 0
+        ? selectedReferenceEntries
+        : seededReferenceEntries;
+
+    return buildSceneAppExecutionReviewPrefillSnapshot({
+      referenceEntries: activeReferenceEntries,
+      taskId: task.id,
+    });
+  }, [seededReferenceEntries, selectedReferenceEntries, task]);
+
+  const activeReviewBaselineHighlights = useMemo(
+    () =>
+      buildSceneAppExecutionReviewPrefillHighlights(
+        activeReviewBaselineSnapshot,
+      ),
+    [activeReviewBaselineSnapshot],
+  );
+
+  const activeReviewBaselineCarryHint = useMemo(() => {
+    if (!activeReviewBaselineSnapshot || !task) {
+      return null;
+    }
+
+    const carriedFields: string[] = [];
+    if ((inputValues.project_goal ?? "").trim()) {
+      carriedFields.push("账号或项目目标");
+    }
+    if ((inputValues.existing_results ?? "").trim()) {
+      carriedFields.push("已有结果或数据");
+    }
+    if (carriedFields.length === 0) {
+      return null;
+    }
+
+    return `下面的 ${carriedFields.join(" / ")} 已按这轮结果自动带入，你可以直接改成这次真正想复盘的版本。`;
+  }, [activeReviewBaselineSnapshot, inputValues, task]);
+
   const handleValueChange = (key: string, value: string) => {
     setInputValues((current) => ({
       ...current,
@@ -312,6 +385,54 @@ export function CuratedTaskLauncherDialog({
                 <div className="rounded-[18px] border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-xs leading-5 text-emerald-700">
                   {prefillHint}
                 </div>
+              ) : null}
+              {latestReviewTaskSignal ? (
+                <div
+                  className="rounded-[18px] border border-sky-200 bg-sky-50/80 px-4 py-3"
+                  data-testid="curated-task-launcher-review-feedback-banner"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                      围绕最近复盘
+                    </span>
+                    <div className="text-xs font-semibold leading-5 text-slate-900">
+                      最近复盘已更新：{latestReviewTaskSignal.title}
+                    </div>
+                  </div>
+                  <div className="mt-1.5 text-xs leading-5 text-slate-600">
+                    {latestReviewTaskSignal.summary}
+                  </div>
+                </div>
+              ) : null}
+              {activeReviewBaselineSnapshot ? (
+                <section
+                  className="rounded-[20px] border border-emerald-200 bg-emerald-50/80 px-4 py-4"
+                  data-testid="curated-task-launcher-sceneapp-baseline-card"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                      当前结果基线
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                      项目结果
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-slate-900">
+                    {activeReviewBaselineSnapshot.sourceTitle}
+                  </div>
+                  {activeReviewBaselineHighlights.length > 0 ? (
+                    <div className="mt-2 space-y-1.5 text-xs leading-5 text-emerald-900">
+                      {activeReviewBaselineHighlights.map((item) => (
+                        <div key={`baseline-${item}`}>{item}</div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {activeReviewBaselineCarryHint ? (
+                    <div className="mt-2 text-xs leading-5 text-emerald-700">
+                      {activeReviewBaselineCarryHint}
+                    </div>
+                  ) : null}
+                </section>
               ) : null}
               <section className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -423,6 +544,17 @@ export function CuratedTaskLauncherDialog({
                         !selected &&
                         selectedReferenceEntryIds.length >=
                           MAX_REFERENCE_SELECTION_COUNT;
+                      const entryReviewSnapshot =
+                        task
+                          ? buildSceneAppExecutionReviewPrefillSnapshot({
+                              referenceEntries: [entry],
+                              taskId: task.id,
+                            })
+                          : null;
+                      const entryReviewHighlights =
+                        buildSceneAppExecutionReviewPrefillHighlights(
+                          entryReviewSnapshot,
+                        );
 
                       return (
                         <button
@@ -465,6 +597,19 @@ export function CuratedTaskLauncherDialog({
                               <div className="text-xs leading-5 text-slate-600">
                                 {entry.summary}
                               </div>
+                              {entryReviewHighlights.length > 0 ? (
+                                <div className="rounded-[14px] border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs leading-5 text-emerald-900">
+                                  <div className="font-medium text-emerald-900">
+                                    当前结果基线：
+                                    {entryReviewSnapshot?.sourceTitle || entry.title}
+                                  </div>
+                                  <div className="mt-1 space-y-1">
+                                    {entryReviewHighlights.map((item) => (
+                                      <div key={`${entry.id}-${item}`}>{item}</div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                             <div
                               className={cn(

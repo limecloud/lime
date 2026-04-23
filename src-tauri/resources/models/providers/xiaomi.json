@@ -6,6 +6,58 @@
   },
   "models": [
     {
+      "id": "mimo-v2-pro",
+      "name": "MiMo-V2-Pro",
+      "family": "mimo-v2-pro",
+      "tier": "max",
+      "capabilities": {
+        "vision": false,
+        "tools": true,
+        "streaming": true,
+        "json_mode": true,
+        "function_calling": true,
+        "reasoning": true
+      },
+      "pricing": {
+        "input": 1,
+        "output": 3,
+        "currency": "USD"
+      },
+      "limits": {
+        "context": 1000000,
+        "max_output": 131072
+      },
+      "status": "active",
+      "release_date": "2026-03-18",
+      "is_latest": true
+    },
+    {
+      "id": "mimo-v2-omni",
+      "name": "MiMo-V2-Omni",
+      "family": "mimo-v2-omni",
+      "tier": "pro",
+      "capabilities": {
+        "vision": true,
+        "tools": true,
+        "streaming": true,
+        "json_mode": true,
+        "function_calling": true,
+        "reasoning": true
+      },
+      "pricing": {
+        "input": 0.4,
+        "output": 2,
+        "currency": "USD"
+      },
+      "limits": {
+        "context": 256000,
+        "max_output": 32768
+      },
+      "status": "active",
+      "release_date": "2026-03-18",
+      "is_latest": true
+    },
+    {
       "id": "mimo-v2-flash",
       "name": "MiMo-V2-Flash",
       "family": "mimo-v2-flash",
@@ -32,6 +84,6 @@
       "is_latest": false
     }
   ],
-  "updated_at": "2026-01-06T10:24:55.357Z",
+  "updated_at": "2026-04-22T10:50:00.000Z",
   "source": "models.dev"
 }

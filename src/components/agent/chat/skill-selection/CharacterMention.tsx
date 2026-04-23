@@ -128,6 +128,8 @@ interface CharacterMentionProps {
   ) => void;
   /** 跳转到设置页安装技能 */
   onNavigateToSettings?: () => void;
+  /** 是否启用输入自动补全与联想面板 */
+  inputCompletionEnabled?: boolean;
 }
 
 type TriggerMode = "mention" | "slash";
@@ -268,6 +270,7 @@ export function CharacterMention({
   defaultCuratedTaskReferenceEntries = [],
   onSelectBuiltinCommand,
   onNavigateToSettings,
+  inputCompletionEnabled = true,
 }: CharacterMentionProps) {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
@@ -329,6 +332,12 @@ export function CharacterMention({
   );
 
   const updateMentionState = useCallback(() => {
+    if (!inputCompletionEnabled) {
+      setMentionQuery("");
+      setShowMentions(false);
+      return;
+    }
+
     const textarea = inputRef.current;
     if (!textarea) {
       setShowMentions(false);
@@ -371,9 +380,14 @@ export function CharacterMention({
         120,
       ),
     });
-  }, [inputRef]);
+  }, [inputCompletionEnabled, inputRef]);
 
   useEffect(() => {
+    if (!inputCompletionEnabled) {
+      setShowMentions(false);
+      return;
+    }
+
     const textarea = inputRef.current;
     if (!textarea) return;
     textarea.addEventListener("input", updateMentionState);
@@ -385,7 +399,7 @@ export function CharacterMention({
       textarea.removeEventListener("click", updateMentionState);
       textarea.removeEventListener("keyup", updateMentionState);
     };
-  }, [inputRef, updateMentionState]);
+  }, [inputCompletionEnabled, inputRef, updateMentionState]);
 
   useEffect(() => {
     updateMentionState();
@@ -1178,6 +1192,8 @@ export function CharacterMention({
       <CuratedTaskLauncherDialog
         open={Boolean(pendingCuratedTaskLaunch)}
         task={pendingCuratedTaskLaunch?.task ?? null}
+        projectId={projectId}
+        sessionId={sessionId}
         initialInputValues={pendingCuratedTaskLaunch?.initialInputValues}
         initialReferenceMemoryIds={
           pendingCuratedTaskLaunch?.initialReferenceMemoryIds ??

@@ -60,6 +60,24 @@ export interface MediaGenerationDefaultsConfig {
   voice?: MediaGenerationPreferenceConfig;
 }
 
+export interface ServiceModelPreferenceConfig {
+  preferredProviderId?: string;
+  preferredModelId?: string;
+  enabled?: boolean;
+  customPrompt?: string;
+}
+
+export interface ServiceModelsConfig {
+  topic?: ServiceModelPreferenceConfig;
+  generation_topic?: ServiceModelPreferenceConfig;
+  translation?: ServiceModelPreferenceConfig;
+  history_compress?: ServiceModelPreferenceConfig;
+  agent_meta?: ServiceModelPreferenceConfig;
+  input_completion?: ServiceModelPreferenceConfig;
+  prompt_rewrite?: ServiceModelPreferenceConfig;
+  resource_prompt_rewrite?: ServiceModelPreferenceConfig;
+}
+
 export interface CompanionDefaultsConfig {
   general?: MediaGenerationPreferenceConfig;
   tts?: MediaGenerationPreferenceConfig;
@@ -69,6 +87,7 @@ export interface WorkspacePreferencesConfig {
   schema_version?: number;
   media_defaults?: MediaGenerationDefaultsConfig;
   companion_defaults?: CompanionDefaultsConfig;
+  service_models?: ServiceModelsConfig;
 }
 
 export type NavigationEnabledItemId = "plugins" | "openclaw" | "companion";
@@ -89,19 +108,6 @@ export interface ChatAppearanceConfig {
 
 export interface DeveloperConfig {
   workspace_harness_enabled?: boolean;
-}
-
-export interface VoiceConfig {
-  tts_service?: "openai" | "azure" | "google" | "edge" | "macos";
-  stt_service?: "openai" | "azure" | "google" | "whisper";
-  tts_voice?: string;
-  tts_rate?: number;
-  tts_pitch?: number;
-  tts_volume?: number;
-  stt_language?: string;
-  stt_auto_stop?: boolean;
-  voice_input_enabled?: boolean;
-  voice_output_enabled?: boolean;
 }
 
 export interface ImageGenConfig {
@@ -245,7 +251,6 @@ export interface Config {
     multi_search?: MultiSearchConfig;
   };
   memory?: MemoryConfig;
-  voice?: VoiceConfig;
   image_gen?: ImageGenConfig;
   user_profile?: UserProfile;
   developer?: DeveloperConfig;

@@ -13,10 +13,17 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::hooks::FrontmatterHooks;
-use crate::session::{query_session, resolve_named_subagent_child_session, resolve_team_context};
+use crate::session::{
+    query_session, resolve_named_subagent_child_session, resolve_team_context, TEAM_LEAD_NAME,
+};
 use crate::tools::base::Tool;
 use crate::tools::context::{ToolContext, ToolResult};
 use crate::tools::error::ToolError;
+use crate::tools::peer_address_surface::{
+    is_cross_session_local_peer_address, parse_peer_address, peer_address_scheme_key,
+    ParsedPeerAddress, PeerAddressScheme, BRIDGE_PEER_UNSUPPORTED_MESSAGE,
+    SEND_MESSAGE_TOOL_DESCRIPTION, SEND_MESSAGE_TO_FIELD_DESCRIPTION,
+};
 use crate::tools::registry::ToolRegistry;
 
 type CallbackFuture<T> = Pin<Box<dyn Future<Output = Result<T, String>> + Send>>;
@@ -193,6 +200,33 @@ enum StructuredMessage {
     },
 }
 
+fn build_shutdown_response_delivery_message(
+    sender: &str,
+    request_id: &str,
+    approve: bool,
+    reason: Option<&str>,
+) -> Result<String, ToolError> {
+    serde_json::to_string(&if approve {
+        json!({
+            "type": "shutdown_approved",
+            "request_id": request_id,
+            "from": sender,
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        })
+    } else {
+        json!({
+            "type": "shutdown_rejected",
+            "request_id": request_id,
+            "from": sender,
+            "reason": reason.unwrap_or_default(),
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        })
+    })
+    .map_err(|error| {
+        ToolError::invalid_params(format!("SendMessage 无法序列化 shutdown_response: {error}"))
+    })
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageRouting {
@@ -249,18 +283,6 @@ pub struct SendInputResponse {
     pub submission_id: String,
     #[serde(flatten, default)]
     pub extra: BTreeMap<String, Value>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PeerAddressScheme {
-    Uds,
-    Bridge,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ParsedPeerAddress {
-    scheme: PeerAddressScheme,
-    target: String,
 }
 
 fn normalize_required_text(value: &str, field_name: &str) -> Result<String, ToolError> {
@@ -436,14 +458,14 @@ impl Tool for SendInputTool {
     }
 
     fn description(&self) -> &str {
-        "Send a message to another agent. 优先复用已有 agent 的上下文继续推进任务，而不是重复创建新 agent；当前 Lime runtime 支持直接发送给 agent id、命名子 session、活跃 team 内按名字或 `*` 广播路由，并支持 synthetic `uds:<session-id>` 本机会话投递。`bridge:` 跨机会话 peer address 仍只做显式识别，不会误当作普通 agent id 投递。"
+        SEND_MESSAGE_TOOL_DESCRIPTION
     }
 
     fn input_schema(&self) -> Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "to": { "type": "string", "description": "目标 agent 标识。可传 agent id、命名子 session 名称；若当前 session 属于活跃 team，也可传 teammate 名称或 `*` 广播给所有其他 team 成员。本机会话 peer 请使用 ListPeers 返回的 `send_to`，形如 `uds:<session-id>`；`bridge:` 当前仍返回未实现失败。" },
+                "to": { "type": "string", "description": SEND_MESSAGE_TO_FIELD_DESCRIPTION },
                 "summary": { "type": "string", "description": "纯字符串 team / agent 消息必填的 5-10 词预览摘要；显式 `uds:<session-id>` 本机会话投递可省略。当前 runtime 仅保留到 metadata，不参与路由。" },
                 "message": {
                     "description": "发送给目标 agent 的消息内容。字符串会直接发送；结构化 JSON 会被序列化为字符串后发送。",
@@ -472,11 +494,7 @@ impl Tool for SendInputTool {
             .as_ref()
             .is_some_and(|address| address.scheme == PeerAddressScheme::Bridge)
         {
-            return send_message_unsupported_peer_result(
-                &target,
-                summary,
-                PeerAddressScheme::Bridge,
-            );
+            return send_message_unsupported_bridge_peer_result(&target, summary);
         }
 
         let canonical_target = if let Some(address) = parsed_peer_address.as_ref() {
@@ -486,7 +504,7 @@ impl Tool for SendInputTool {
         };
         let is_local_peer_target = parsed_peer_address
             .as_ref()
-            .is_some_and(|address| address.scheme == PeerAddressScheme::Uds);
+            .is_some_and(is_cross_session_local_peer_address);
         if input.message.is_string() && input.summary.as_deref().unwrap_or("").trim().is_empty() {
             if !is_local_peer_target {
                 return Err(ToolError::invalid_params(
@@ -496,6 +514,7 @@ impl Tool for SendInputTool {
         }
         let structured_message =
             serde_json::from_value::<StructuredMessage>(input.message.clone()).ok();
+        let sender = resolve_sender_name(&context.session_id).await;
         if structured_message.is_some() && is_local_peer_target {
             return Err(ToolError::invalid_params(
                 "structured messages cannot be sent cross-session — only plain text",
@@ -557,6 +576,16 @@ impl Tool for SendInputTool {
                     "SendMessage 无法序列化 shutdown_request: {error}"
                 ))
             })?,
+            Some(StructuredMessage::ShutdownResponse {
+                request_id,
+                approve,
+                reason,
+            }) => build_shutdown_response_delivery_message(
+                &sender,
+                request_id,
+                *approve,
+                reason.as_deref(),
+            )?,
             Some(_) => serde_json::to_string(&input.message).map_err(|error| {
                 ToolError::invalid_params(format!("SendMessage 无法序列化结构化消息: {error}"))
             })?,
@@ -587,17 +616,24 @@ impl Tool for SendInputTool {
             .then(|| build_cross_session_sender_address(&context.session_id));
         let mut deliveries = Vec::with_capacity(resolved_targets.len());
         for resolved_target in &resolved_targets {
+            let delivery_message = match resolved_target.delivery_kind {
+                ResolvedSendTargetKind::Agent => message.clone(),
+                ResolvedSendTargetKind::CrossSessionLocal => build_cross_session_message(
+                    cross_session_sender
+                        .as_deref()
+                        .expect("cross-session sender should exist for uds targets"),
+                    &message,
+                ),
+            };
+            let delivery_message =
+                if resolved_target.wrap_as_teammate_message && structured_message.is_none() {
+                    build_teammate_message(&sender, summary.as_deref(), &delivery_message)
+                } else {
+                    delivery_message
+                };
             let request = SendInputRequest {
                 id: resolved_target.agent_id.clone(),
-                message: match resolved_target.delivery_kind {
-                    ResolvedSendTargetKind::Agent => message.clone(),
-                    ResolvedSendTargetKind::CrossSessionLocal => build_cross_session_message(
-                        cross_session_sender
-                            .as_deref()
-                            .expect("cross-session sender should exist for uds targets"),
-                        &message,
-                    ),
-                },
+                message: delivery_message,
                 interrupt: false,
             };
             let response = (self.callback)(request)
@@ -611,7 +647,6 @@ impl Tool for SendInputTool {
             }));
         }
 
-        let sender = resolve_sender_name(&context.session_id).await;
         let routing = if target == "*" {
             Some(MessageRouting {
                 sender,
@@ -765,6 +800,7 @@ struct ResolvedSendTarget {
     agent_id: String,
     routing_target: String,
     delivery_kind: ResolvedSendTargetKind,
+    wrap_as_teammate_message: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -773,35 +809,13 @@ enum ResolvedSendTargetKind {
     CrossSessionLocal,
 }
 
-fn parse_peer_address(target: &str) -> Option<ParsedPeerAddress> {
-    if let Some(value) = target.strip_prefix("uds:") {
-        return Some(ParsedPeerAddress {
-            scheme: PeerAddressScheme::Uds,
-            target: value.trim().to_string(),
-        });
-    }
-    if let Some(value) = target.strip_prefix("bridge:") {
-        return Some(ParsedPeerAddress {
-            scheme: PeerAddressScheme::Bridge,
-            target: value.trim().to_string(),
-        });
-    }
-
-    None
-}
-
-fn send_message_unsupported_peer_result(
+fn send_message_unsupported_bridge_peer_result(
     target: &str,
     summary: Option<String>,
-    scheme: PeerAddressScheme,
 ) -> Result<ToolResult, ToolError> {
-    let message = match scheme {
-        PeerAddressScheme::Uds => "Known upstream peer address surface (`uds:`), but the current Lime runtime does not expose cross-session local peer messaging through SendMessage yet.",
-        PeerAddressScheme::Bridge => "Known upstream peer address surface (`bridge:`), but the current Lime runtime does not expose cross-session remote peer messaging through SendMessage yet.",
-    };
     let output = serde_json::to_value(MessageOutput {
         success: false,
-        message: message.to_string(),
+        message: BRIDGE_PEER_UNSUPPORTED_MESSAGE.to_string(),
         routing: None,
     })
     .map_err(|error| {
@@ -819,13 +833,7 @@ fn send_message_unsupported_peer_result(
     metadata.insert("target".to_string(), Value::String(target.to_string()));
     metadata.insert(
         "unsupportedTargetScheme".to_string(),
-        Value::String(
-            match scheme {
-                PeerAddressScheme::Bridge => "bridge",
-                PeerAddressScheme::Uds => "uds",
-            }
-            .to_string(),
-        ),
+        Value::String(peer_address_scheme_key(PeerAddressScheme::Bridge).to_string()),
     );
 
     Ok(ToolResult::success(pretty_json(&output)?)
@@ -859,6 +867,20 @@ fn build_cross_session_message(sender: &str, message: &str) -> String {
     format!(
         "<cross-session-message from=\"{}\">\n{}\n</cross-session-message>",
         escape_xml_attribute(sender),
+        message
+    )
+}
+
+fn build_teammate_message(sender: &str, summary: Option<&str>, message: &str) -> String {
+    let summary_attr = summary
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| format!(" summary=\"{}\"", escape_xml_attribute(value)))
+        .unwrap_or_default();
+    format!(
+        "<teammate-message teammate_id=\"{}\"{}>\n{}\n</teammate-message>",
+        escape_xml_attribute(sender),
+        summary_attr,
         message
     )
 }
@@ -931,6 +953,8 @@ async fn resolve_send_targets(
                     agent_id: member.agent_id,
                     routing_target,
                     delivery_kind: ResolvedSendTargetKind::Agent,
+                    wrap_as_teammate_message: !team_context.is_lead
+                        && member.name == TEAM_LEAD_NAME,
                 }
             })
             .collect::<Vec<_>>();
@@ -953,6 +977,7 @@ async fn resolve_send_targets(
                 agent_id: member.agent_id.clone(),
                 routing_target: format!("@{}", member.name),
                 delivery_kind: ResolvedSendTargetKind::Agent,
+                wrap_as_teammate_message: !team_context.is_lead && member.name == TEAM_LEAD_NAME,
             }]);
         }
     }
@@ -968,6 +993,7 @@ async fn resolve_send_targets(
             agent_id: child_session.id,
             routing_target: target.to_string(),
             delivery_kind: ResolvedSendTargetKind::Agent,
+            wrap_as_teammate_message: false,
         }]);
     }
 
@@ -976,6 +1002,7 @@ async fn resolve_send_targets(
         agent_id: target.to_string(),
         routing_target: target.to_string(),
         delivery_kind: ResolvedSendTargetKind::Agent,
+        wrap_as_teammate_message: false,
     }])
 }
 
@@ -1005,6 +1032,7 @@ async fn resolve_local_peer_target(
         agent_id: session_id.clone(),
         routing_target: format!("uds:{session_id}"),
         delivery_kind: ResolvedSendTargetKind::CrossSessionLocal,
+        wrap_as_teammate_message: false,
     })
 }
 
@@ -1325,7 +1353,10 @@ mod tests {
             let expected_target_id = expected_target_id.clone();
             Box::pin(async move {
                 assert_eq!(request.id, expected_target_id);
-                assert_eq!(request.message, "继续同步结果");
+                assert_eq!(
+                    request.message,
+                    "<teammate-message teammate_id=\"researcher\" summary=\"同步给 lead\">\n继续同步结果\n</teammate-message>"
+                );
                 Ok(SendInputResponse {
                     submission_id: "submission-display-id".to_string(),
                     extra: BTreeMap::new(),
@@ -1618,7 +1649,7 @@ mod tests {
         assert!(output["message"]
             .as_str()
             .unwrap()
-            .contains("does not expose cross-session remote peer messaging"));
+            .contains("remote peer host / session ingress"));
         assert_eq!(
             result.metadata["send_message"]["unsupportedTargetScheme"],
             json!("bridge")
@@ -1746,8 +1777,8 @@ mod tests {
             Box::pin(async move {
                 assert_eq!(request.id, expected_target_id);
                 let payload: Value = serde_json::from_str(&request.message).unwrap();
-                assert_eq!(payload["type"], json!("shutdown_response"));
-                assert_eq!(payload["approve"], json!(true));
+                assert_eq!(payload["type"], json!("shutdown_approved"));
+                assert_eq!(payload["from"], json!("researcher"));
                 assert_eq!(payload["request_id"], json!("req-1"));
                 Ok(SendInputResponse {
                     submission_id: "submission-display-response".to_string(),
@@ -1774,6 +1805,90 @@ mod tests {
         let output: Value = serde_json::from_str(result.output.as_deref().unwrap()).unwrap();
         assert_eq!(output["success"], json!(true));
         assert_eq!(output["request_id"], json!("req-1"));
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_send_message_translates_rejected_shutdown_response_for_team_lead() {
+        let temp_dir = tempdir().unwrap();
+        let lead = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            format!("team-display-reject-lead-{}", Uuid::new_v4()),
+            SessionType::Hidden,
+        )
+        .await
+        .unwrap();
+        let teammate = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            format!("team-display-reject-child-{}", Uuid::new_v4()),
+            SessionType::SubAgent,
+        )
+        .await
+        .unwrap();
+
+        let team_state = TeamSessionState {
+            team_name: "alpha".to_string(),
+            description: None,
+            lead_session_id: lead.id.clone(),
+            members: vec![
+                TeamMember::lead(lead.id.clone(), Some("leader".to_string())),
+                TeamMember::teammate(
+                    teammate.id.clone(),
+                    "researcher",
+                    Some("explorer".to_string()),
+                ),
+            ],
+        };
+        save_team_state(&lead.id, Some(team_state)).await.unwrap();
+        save_team_membership(
+            &teammate.id,
+            Some(TeamMembershipState {
+                team_name: "alpha".to_string(),
+                lead_session_id: lead.id.clone(),
+                agent_id: teammate.id.clone(),
+                name: "researcher".to_string(),
+                agent_type: Some("explorer".to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        let expected_target_id = lead.id.clone();
+        let tool = SendInputTool::new(Arc::new(move |request| {
+            let expected_target_id = expected_target_id.clone();
+            Box::pin(async move {
+                assert_eq!(request.id, expected_target_id);
+                let payload: Value = serde_json::from_str(&request.message).unwrap();
+                assert_eq!(payload["type"], json!("shutdown_rejected"));
+                assert_eq!(payload["from"], json!("researcher"));
+                assert_eq!(payload["request_id"], json!("req-2"));
+                assert_eq!(payload["reason"], json!("还有未完成验证"));
+                Ok(SendInputResponse {
+                    submission_id: "submission-display-reject".to_string(),
+                    extra: BTreeMap::new(),
+                })
+            })
+        }));
+
+        let result = tool
+            .execute(
+                serde_json::json!({
+                    "to": "team-lead@alpha",
+                    "message": {
+                        "type": "shutdown_response",
+                        "request_id": "req-2",
+                        "approve": false,
+                        "reason": "还有未完成验证"
+                    }
+                }),
+                &create_context(&teammate.id),
+            )
+            .await
+            .unwrap();
+
+        let output: Value = serde_json::from_str(result.output.as_deref().unwrap()).unwrap();
+        assert_eq!(output["success"], json!(true));
+        assert_eq!(output["request_id"], json!("req-2"));
     }
 
     #[tokio::test]

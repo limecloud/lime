@@ -16,6 +16,7 @@ import type {
   AsterExecutionStrategy,
   AsterSessionDetail,
   AsterSessionInfo,
+  AgentRuntimeGetSessionOptions,
   AgentRuntimeUpdateSessionRequest,
 } from "./types";
 
@@ -107,10 +108,16 @@ export function createSessionClient({
 
   async function getAgentRuntimeSession(
     sessionId: string,
+    options?: AgentRuntimeGetSessionOptions,
   ): Promise<AsterSessionDetail> {
     const detail = await invokeCommand<AsterSessionDetail>(
       AGENT_RUNTIME_COMMANDS.getSession,
-      { sessionId },
+      {
+        sessionId,
+        ...(options?.resumeSessionStartHooks === true
+          ? { resumeSessionStartHooks: true }
+          : {}),
+      },
     );
     const normalizedDetail = detail as AsterSessionDetail | null | undefined;
 

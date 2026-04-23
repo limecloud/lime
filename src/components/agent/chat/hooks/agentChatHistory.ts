@@ -350,6 +350,8 @@ function imageWorkbenchPreviewSignature(
     preview.status,
     preview.projectId,
     preview.contentId,
+    preview.taskFilePath,
+    preview.artifactPath,
     preview.imageUrl,
     preview.imageCount,
     preview.sourceImageUrl,
@@ -664,11 +666,30 @@ export const mergeHydratedMessagesWithLocalState = (
   const localAssistantMessages = localMessages.filter(
     (message) => message.role === "assistant",
   );
+  const localUserMessageIndexById = new Map<string, number>();
+  const localAssistantMessageIndexById = new Map<string, number>();
   const localImagePreviewByTaskId = new Map<
     string,
     MessageImageWorkbenchPreview
   >();
   const localTaskPreviewByTaskId = new Map<string, MessageTaskPreview>();
+  const hydratedMessageIds = new Set<string>();
+
+  localUserMessages.forEach((message, index) => {
+    if (message.id) {
+      localUserMessageIndexById.set(message.id, index);
+    }
+  });
+  localAssistantMessages.forEach((message, index) => {
+    if (message.id) {
+      localAssistantMessageIndexById.set(message.id, index);
+    }
+  });
+  hydratedMessages.forEach((message) => {
+    if (message.id) {
+      hydratedMessageIds.add(message.id);
+    }
+  });
 
   localMessages.forEach((message) => {
     if (message.role !== "assistant") {
@@ -707,28 +728,39 @@ export const mergeHydratedMessagesWithLocalState = (
 
   const mergedMessages = hydratedMessages.map((message) => {
     if (message.role === "assistant") {
-      const matchedAssistantIndex = findMatchingLocalAssistantMessageIndex(
-        localAssistantMessages,
-        message,
-        localAssistantCursor,
-      );
+      const matchedAssistantIndexById = message.id
+        ? (localAssistantMessageIndexById.get(message.id) ?? -1)
+        : -1;
+      const matchedAssistantIndex =
+        matchedAssistantIndexById >= 0
+          ? matchedAssistantIndexById
+          : findMatchingLocalAssistantMessageIndex(
+              localAssistantMessages,
+              message,
+              localAssistantCursor,
+            );
       const localAssistantMessage =
         matchedAssistantIndex >= 0
           ? localAssistantMessages[matchedAssistantIndex]
           : undefined;
       if (matchedAssistantIndex >= 0) {
-        localAssistantCursor = matchedAssistantIndex + 1;
+        localAssistantCursor = Math.max(
+          localAssistantCursor,
+          matchedAssistantIndex + 1,
+        );
         if (localAssistantMessage?.id) {
           matchedLocalMessageIds.add(localAssistantMessage.id);
         }
       }
 
-      const localImagePreview = message.imageWorkbenchPreview?.taskId
-        ? localImagePreviewByTaskId.get(message.imageWorkbenchPreview.taskId)
-        : undefined;
-      const localTaskPreview = message.taskPreview?.taskId
-        ? localTaskPreviewByTaskId.get(message.taskPreview.taskId)
-        : undefined;
+      const localImagePreview =
+        (message.imageWorkbenchPreview?.taskId
+          ? localImagePreviewByTaskId.get(message.imageWorkbenchPreview.taskId)
+          : undefined) ?? localAssistantMessage?.imageWorkbenchPreview;
+      const localTaskPreview =
+        (message.taskPreview?.taskId
+          ? localTaskPreviewByTaskId.get(message.taskPreview.taskId)
+          : undefined) ?? localAssistantMessage?.taskPreview;
 
       if (!localImagePreview && !localTaskPreview && !localAssistantMessage) {
         return message;
@@ -797,16 +829,22 @@ export const mergeHydratedMessagesWithLocalState = (
       return message;
     }
 
-    const matchedIndex = findMatchingLocalUserMessageIndex(
-      localUserMessages,
-      message,
-      localUserCursor,
-    );
+    const matchedIndexById = message.id
+      ? (localUserMessageIndexById.get(message.id) ?? -1)
+      : -1;
+    const matchedIndex =
+      matchedIndexById >= 0
+        ? matchedIndexById
+        : findMatchingLocalUserMessageIndex(
+            localUserMessages,
+            message,
+            localUserCursor,
+          );
     if (matchedIndex < 0) {
       return message;
     }
 
-    localUserCursor = matchedIndex + 1;
+    localUserCursor = Math.max(localUserCursor, matchedIndex + 1);
     const localMessage = localUserMessages[matchedIndex];
     if (localMessage?.id) {
       matchedLocalMessageIds.add(localMessage.id);
@@ -841,6 +879,9 @@ export const mergeHydratedMessagesWithLocalState = (
   const lastMatchedLocalMessage =
     lastMatchedLocalIndex >= 0 ? localMessages[lastMatchedLocalIndex] : null;
   const retainedLocalTail = localMessages.filter((message, index) => {
+    if (hydratedMessageIds.has(message.id)) {
+      return false;
+    }
     if (matchedLocalMessageIds.has(message.id)) {
       return false;
     }

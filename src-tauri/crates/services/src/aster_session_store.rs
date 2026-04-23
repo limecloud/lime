@@ -908,6 +908,37 @@ impl SessionStore for LimeSessionStore {
         Ok(())
     }
 
+    async fn update_working_dir(&self, session_id: &str, working_dir: PathBuf) -> Result<()> {
+        let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
+        let now = Utc::now().to_rfc3339();
+        let cached_working_dir = working_dir.clone();
+        conn.execute(
+            "UPDATE agent_sessions SET working_dir = ?1, updated_at = ?2 WHERE id = ?3",
+            rusqlite::params![working_dir.to_string_lossy().to_string(), now, session_id],
+        )?;
+        let updated_at = Self::parse_timestamp_or_now(&now);
+        self.update_cached_session_metadata(session_id, |session| {
+            session.working_dir = cached_working_dir;
+            session.updated_at = updated_at;
+        });
+        Ok(())
+    }
+
+    async fn update_session_type(&self, session_id: &str, session_type: SessionType) -> Result<()> {
+        let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
+        let now = Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE agent_sessions SET session_type = ?1, updated_at = ?2 WHERE id = ?3",
+            rusqlite::params![session_type.to_string(), now, session_id],
+        )?;
+        let updated_at = Self::parse_timestamp_or_now(&now);
+        self.update_cached_session_metadata(session_id, |session| {
+            session.session_type = session_type;
+            session.updated_at = updated_at;
+        });
+        Ok(())
+    }
+
     async fn update_extension_data(
         &self,
         session_id: &str,
@@ -1409,6 +1440,14 @@ mod tests {
             .await
             .expect("更新名称失败");
         store
+            .update_working_dir(&session.id, PathBuf::from("/tmp/lime-worktree-child"))
+            .await
+            .expect("更新 working_dir 失败");
+        store
+            .update_session_type(&session.id, SessionType::Hidden)
+            .await
+            .expect("更新 session_type 失败");
+        store
             .update_extension_data(&session.id, extension_data.clone())
             .await
             .expect("更新 extension_data 失败");
@@ -1470,7 +1509,11 @@ mod tests {
 
         assert_eq!(loaded.name, "已命名会话");
         assert!(loaded.user_set_name);
-        assert_eq!(loaded.session_type, SessionType::SubAgent);
+        assert_eq!(
+            loaded.working_dir,
+            PathBuf::from("/tmp/lime-worktree-child")
+        );
+        assert_eq!(loaded.session_type, SessionType::Hidden);
         assert_eq!(loaded.total_tokens, Some(100));
         assert_eq!(loaded.cached_input_tokens, Some(24));
         assert_eq!(loaded.cache_creation_input_tokens, Some(12));

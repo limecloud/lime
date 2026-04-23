@@ -5,6 +5,8 @@ import type {
 } from "@/lib/api/agentRuntime";
 import { normalizeQueuedTurnSnapshots } from "@/lib/api/queuedTurn";
 import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
+import type { AgentAccessMode } from "./agentChatStorage";
+import { createSessionAccessModeFromExecutionRuntime } from "../utils/sessionExecutionRuntime";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 
 export interface AgentSessionReadModelSnapshot {
@@ -34,6 +36,11 @@ interface RefreshAgentSessionDetailOptions {
     sessionId: string,
     executionStrategy: import("@/lib/api/agentRuntime").AsterExecutionStrategy,
   ) => void;
+  persistSessionAccessMode?: (
+    sessionId: string,
+    accessMode: AgentAccessMode,
+  ) => void;
+  setAccessModeState?: (accessMode: AgentAccessMode) => void;
   onWarn?: (error: unknown) => void;
 }
 
@@ -61,6 +68,13 @@ export async function refreshAgentSessionDetailState(
     applySessionDetail(resolvedSessionId, detail, {
       preserveExecutionStrategyOnMissingDetail: true,
     });
+    const runtimeAccessMode = createSessionAccessModeFromExecutionRuntime(
+      detail.execution_runtime,
+    );
+    if (runtimeAccessMode) {
+      options.persistSessionAccessMode?.(resolvedSessionId, runtimeAccessMode);
+      options.setAccessModeState?.(runtimeAccessMode);
+    }
     if (detail.execution_strategy) {
       markSessionExecutionStrategySynced(
         resolvedSessionId,

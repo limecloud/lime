@@ -19,6 +19,7 @@ use aster::hooks::{
     HookEvent, HookInput, HookRegistry, HookResult, HookRuntimeContext, McpHookConfig,
     SessionEndReason, SessionHookRegistrationReport, SessionSource,
 };
+use lime_agent::SessionExecutionRuntimeAccessMode;
 use rmcp::model::{CallToolRequestParam, CallToolResult, Content, ErrorData, RawContent};
 use std::collections::HashSet;
 use std::fs;
@@ -598,13 +599,12 @@ fn build_runtime_session_start_unsupported_warning_message(
     source: SessionSource,
 ) -> Option<String> {
     let source_label = match source {
-        SessionSource::Startup | SessionSource::Compact => return None,
-        SessionSource::Resume => "resume",
+        SessionSource::Startup | SessionSource::Compact | SessionSource::Resume => return None,
         SessionSource::Clear => "clear",
     };
 
     Some(format!(
-        "SessionStart hook 请求 source={source_label}，但 Lime 当前 runtime 只有 create_session(startup) 与 compact 的 honest host；本次不会执行这类 lifecycle hook"
+        "SessionStart hook 请求 source={source_label}，但 Lime 当前 runtime 只有 create_session(startup)、get_session(resume) 与 compact 的 honest host；本次不会执行这类 lifecycle hook"
     ))
 }
 
@@ -626,8 +626,19 @@ fn build_runtime_session_end_unsupported_warning_message(
 #[derive(Debug, Clone, PartialEq)]
 struct RuntimePermissionRequestHookRequest {
     decision: PermissionRequestHookDecision,
-    updated_permissions_requested: bool,
+    updated_permissions: Option<RuntimePermissionRequestHookUpdatedPermissions>,
     interrupt_requested: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum RuntimePermissionRequestHookUpdatedPermissions {
+    Supported(RuntimePermissionRequestHookSupportedPermissions),
+    Unsupported { reason: String },
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct RuntimePermissionRequestHookSupportedPermissions {
+    session_access_mode: Option<SessionExecutionRuntimeAccessMode>,
 }
 
 fn log_runtime_permission_request_hook_results(
@@ -650,6 +661,131 @@ fn log_runtime_permission_request_hook_results(
             );
         }
     }
+}
+
+fn resolve_runtime_permission_request_hook_access_mode(
+    mode: &str,
+) -> Result<SessionExecutionRuntimeAccessMode, String> {
+    let normalized_mode = mode.trim();
+    if normalized_mode.eq_ignore_ascii_case("default") {
+        return Ok(SessionExecutionRuntimeAccessMode::default_for_session());
+    }
+    if normalized_mode.eq_ignore_ascii_case("acceptEdits")
+        || normalized_mode.eq_ignore_ascii_case("accept_edits")
+    {
+        return Ok(SessionExecutionRuntimeAccessMode::Current);
+    }
+    if normalized_mode.eq_ignore_ascii_case("dontAsk")
+        || normalized_mode.eq_ignore_ascii_case("dont_ask")
+    {
+        return Ok(SessionExecutionRuntimeAccessMode::FullAccess);
+    }
+    if normalized_mode.eq_ignore_ascii_case("plan") {
+        return Err(
+            "updatedPermissions.setMode(session) 的 `plan` 仍无 child/session-scoped lifecycle host"
+                .to_string(),
+        );
+    }
+    if normalized_mode.eq_ignore_ascii_case("bypassPermissions")
+        || normalized_mode.eq_ignore_ascii_case("bypass_permissions")
+    {
+        return Err(
+            "updatedPermissions.setMode(session) 的 `bypassPermissions` 当前 runtime 无 honest host"
+                .to_string(),
+        );
+    }
+
+    Err(format!(
+        "updatedPermissions.setMode(session) 的 mode `{normalized_mode}` 当前只支持 default / acceptEdits / dontAsk"
+    ))
+}
+
+fn parse_runtime_permission_request_hook_updated_permissions(
+    value: Option<&serde_json::Value>,
+) -> Option<RuntimePermissionRequestHookUpdatedPermissions> {
+    let value = value?;
+    let updates = match value.as_array() {
+        Some(updates) => updates,
+        None => {
+            return Some(
+                RuntimePermissionRequestHookUpdatedPermissions::Unsupported {
+                    reason: "updatedPermissions 必须是 array".to_string(),
+                },
+            );
+        }
+    };
+
+    let mut supported = RuntimePermissionRequestHookSupportedPermissions::default();
+    for (index, update) in updates.iter().enumerate() {
+        let Some(object) = update.as_object() else {
+            return Some(
+                RuntimePermissionRequestHookUpdatedPermissions::Unsupported {
+                    reason: format!("updatedPermissions[{index}] 必须是 object"),
+                },
+            );
+        };
+        let Some(update_type) = object.get("type").and_then(serde_json::Value::as_str) else {
+            return Some(
+                RuntimePermissionRequestHookUpdatedPermissions::Unsupported {
+                    reason: format!("updatedPermissions[{index}].type 缺失或不是 string"),
+                },
+            );
+        };
+
+        match update_type {
+            "setMode" => {
+                let Some(destination) = object
+                    .get("destination")
+                    .and_then(serde_json::Value::as_str)
+                else {
+                    return Some(
+                        RuntimePermissionRequestHookUpdatedPermissions::Unsupported {
+                            reason: format!(
+                                "updatedPermissions[{index}].destination 缺失或不是 string"
+                            ),
+                        },
+                    );
+                };
+                if destination != "session" {
+                    return Some(RuntimePermissionRequestHookUpdatedPermissions::Unsupported {
+                        reason: format!(
+                            "updatedPermissions[{index}] 目标 `{destination}` 当前无 honest host；仅支持 destination=session"
+                        ),
+                    });
+                }
+
+                let Some(mode) = object.get("mode").and_then(serde_json::Value::as_str) else {
+                    return Some(
+                        RuntimePermissionRequestHookUpdatedPermissions::Unsupported {
+                            reason: format!("updatedPermissions[{index}].mode 缺失或不是 string"),
+                        },
+                    );
+                };
+                let access_mode = match resolve_runtime_permission_request_hook_access_mode(mode) {
+                    Ok(access_mode) => access_mode,
+                    Err(reason) => {
+                        return Some(
+                            RuntimePermissionRequestHookUpdatedPermissions::Unsupported { reason },
+                        );
+                    }
+                };
+                supported.session_access_mode = Some(access_mode);
+            }
+            other => {
+                return Some(
+                    RuntimePermissionRequestHookUpdatedPermissions::Unsupported {
+                        reason: format!(
+                            "updatedPermissions[{index}] 的 `{other}` 当前 runtime 无 honest host"
+                        ),
+                    },
+                );
+            }
+        }
+    }
+
+    Some(RuntimePermissionRequestHookUpdatedPermissions::Supported(
+        supported,
+    ))
 }
 
 fn parse_runtime_permission_request_hook_request(
@@ -678,9 +814,12 @@ fn parse_runtime_permission_request_hook_request(
                     }
                     None => None,
                 };
+                let updated_permissions = parse_runtime_permission_request_hook_updated_permissions(
+                    json.get("updatedPermissions"),
+                );
                 return Some(RuntimePermissionRequestHookRequest {
                     decision: PermissionRequestHookDecision::Allow { updated_input },
-                    updated_permissions_requested: json.get("updatedPermissions").is_some(),
+                    updated_permissions,
                     interrupt_requested: false,
                 });
             }
@@ -701,7 +840,7 @@ fn parse_runtime_permission_request_hook_request(
                 };
                 return Some(RuntimePermissionRequestHookRequest {
                     decision: PermissionRequestHookDecision::Deny { message },
-                    updated_permissions_requested: false,
+                    updated_permissions: None,
                     interrupt_requested,
                 });
             }
@@ -723,11 +862,13 @@ fn build_runtime_permission_request_interrupt_reason(message: Option<&str>) -> S
 fn should_fallback_to_native_permission_approval(
     request: &RuntimePermissionRequestHookRequest,
 ) -> bool {
-    request.updated_permissions_requested
-        && matches!(
-            request.decision,
-            PermissionRequestHookDecision::Allow { .. }
+    matches!(
+        (&request.decision, &request.updated_permissions),
+        (
+            PermissionRequestHookDecision::Allow { .. },
+            Some(RuntimePermissionRequestHookUpdatedPermissions::Unsupported { .. })
         )
+    )
 }
 
 fn normalize_runtime_permission_request_hook_request(
@@ -735,8 +876,14 @@ fn normalize_runtime_permission_request_hook_request(
 ) -> Option<RuntimePermissionRequestHookRequest> {
     let request = request?;
     if should_fallback_to_native_permission_approval(&request) {
+        let reason = match &request.updated_permissions {
+            Some(RuntimePermissionRequestHookUpdatedPermissions::Unsupported { reason }) => {
+                reason.as_str()
+            }
+            _ => "updatedPermissions 当前无 honest host",
+        };
         tracing::warn!(
-            "[AsterAgent] PermissionRequest hook 请求 allow + updatedPermissions，但 Lime 当前 runtime 仍无与 Claude Code 等价的 permission update host；为避免假对齐，本次回退到原生审批流，不执行 hook allow，也不会应用 updatedInput/updatedPermissions"
+            "[AsterAgent] PermissionRequest hook 请求 allow + updatedPermissions，但 {reason}；为避免假对齐，本次回退到原生审批流，不执行 hook allow，也不会应用 updatedInput/updatedPermissions"
         );
         return None;
     }
@@ -744,7 +891,28 @@ fn normalize_runtime_permission_request_hook_request(
     Some(request)
 }
 
-async fn apply_runtime_permission_request_hook_side_effects(
+async fn apply_runtime_permission_request_hook_allow_side_effects(
+    session_id: &str,
+    request: &RuntimePermissionRequestHookRequest,
+) -> Result<(), String> {
+    let Some(RuntimePermissionRequestHookUpdatedPermissions::Supported(updated_permissions)) =
+        request.updated_permissions.as_ref()
+    else {
+        return Ok(());
+    };
+
+    let Some(access_mode) = updated_permissions.session_access_mode else {
+        return Ok(());
+    };
+
+    AsterAgentWrapper::persist_session_recent_access_mode(session_id, access_mode)
+        .await
+        .map_err(|error| {
+            format!("持久化 PermissionRequest.updatedPermissions session accessMode 失败: {error}")
+        })
+}
+
+async fn apply_runtime_permission_request_hook_interrupt_side_effects(
     state: &AsterAgentState,
     session_id: &str,
     request: &RuntimePermissionRequestHookRequest,
@@ -885,7 +1053,21 @@ pub(crate) async fn decide_runtime_permission_request_project_hooks_with_runtime
     );
     log_runtime_permission_request_hook_results(&results, request.as_ref());
     if let Some(request) = request.as_ref() {
-        apply_runtime_permission_request_hook_side_effects(state, session_id, request).await;
+        if matches!(
+            request.decision,
+            PermissionRequestHookDecision::Allow { .. }
+        ) {
+            if let Err(error) =
+                apply_runtime_permission_request_hook_allow_side_effects(session_id, request).await
+            {
+                tracing::warn!(
+                    "[AsterAgent] PermissionRequest hook 的 updatedPermissions 应用失败：{error}；本次回退到原生审批流"
+                );
+                return Ok(None);
+            }
+        }
+        apply_runtime_permission_request_hook_interrupt_side_effects(state, session_id, request)
+            .await;
     }
     Ok(request.map(|value| value.decision))
 }
@@ -1878,7 +2060,7 @@ mod tests {
     }
 
     #[test]
-    fn build_runtime_session_start_unsupported_warning_message_should_allow_only_current_sources() {
+    fn build_runtime_session_start_unsupported_warning_message_should_allow_current_sources() {
         assert_eq!(
             build_runtime_session_start_unsupported_warning_message(SessionSource::Startup),
             None
@@ -1887,10 +2069,9 @@ mod tests {
             build_runtime_session_start_unsupported_warning_message(SessionSource::Compact),
             None
         );
-        assert!(
-            build_runtime_session_start_unsupported_warning_message(SessionSource::Resume)
-                .expect("resume 应提示 unsupported")
-                .contains("source=resume")
+        assert_eq!(
+            build_runtime_session_start_unsupported_warning_message(SessionSource::Resume),
+            None
         );
         assert!(
             build_runtime_session_start_unsupported_warning_message(SessionSource::Clear)
@@ -1900,8 +2081,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn run_runtime_session_start_project_hooks_for_session_should_skip_unsupported_resume_source(
-    ) {
+    async fn run_runtime_session_start_project_hooks_for_session_should_run_resume_source() {
         ensure_runtime_project_hooks_test_manager().await;
 
         let conn = Connection::open_in_memory().expect("创建内存数据库失败");
@@ -1938,9 +2118,23 @@ mod tests {
         )
         .await;
 
-        assert!(
-            !hook_output_path.exists(),
-            "unsupported SessionStart resume 不应执行任何 hook"
+        let hook_input: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(&hook_output_path).expect("应能读取 hook 输入"),
+        )
+        .expect("hook 输入应为有效 JSON");
+        assert_eq!(
+            hook_input.get("event").and_then(serde_json::Value::as_str),
+            Some("SessionStart")
+        );
+        assert_eq!(
+            hook_input.get("source").and_then(serde_json::Value::as_str),
+            Some("resume")
+        );
+        assert_eq!(
+            hook_input
+                .get("session_id")
+                .and_then(serde_json::Value::as_str),
+            Some(session_id.as_str())
         );
 
         delete_managed_session(&session_id)
@@ -2796,7 +2990,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn decide_runtime_permission_request_project_hooks_should_fallback_to_native_approval_when_allow_requests_updated_permissions(
+    async fn decide_runtime_permission_request_project_hooks_with_runtime_should_persist_session_access_mode_when_allow_requests_supported_updated_permissions(
     ) {
         ensure_runtime_project_hooks_test_manager().await;
 
@@ -2847,7 +3041,12 @@ mod tests {
         )
         .expect("创建 session 失败");
 
-        let decision = decide_runtime_permission_request_project_hooks(
+        let state = AsterAgentState::new();
+        let mcp_manager: McpManagerState = Arc::new(tokio::sync::Mutex::new(
+            crate::mcp::McpClientManager::new(None),
+        ));
+
+        let decision = decide_runtime_permission_request_project_hooks_with_runtime(
             &session_id,
             &workspace_root.to_string_lossy(),
             "Bash",
@@ -2856,9 +3055,107 @@ mod tests {
             })),
             "req-permission-updated-permissions",
             Some("default".to_string()),
+            &db,
+            &state,
+            &mcp_manager,
         )
         .await
         .expect("PermissionRequest updatedPermissions hook 执行不应失败");
+
+        assert_eq!(
+            decision,
+            Some(PermissionRequestHookDecision::Allow {
+                updated_input: Some({
+                    let mut updated_input = serde_json::Map::new();
+                    updated_input.insert(
+                        "command".to_string(),
+                        serde_json::Value::String("echo rewritten but unsupported".to_string()),
+                    );
+                    updated_input
+                }),
+            })
+        );
+
+        let detail = AsterAgentWrapper::get_runtime_session_detail(&db, &session_id)
+            .await
+            .expect("读取 session detail 失败");
+        assert_eq!(
+            detail
+                .execution_runtime
+                .and_then(|runtime| runtime.recent_access_mode),
+            Some(SessionExecutionRuntimeAccessMode::Current)
+        );
+
+        delete_managed_session(&session_id)
+            .await
+            .expect("清理测试 session 失败");
+    }
+
+    #[tokio::test]
+    async fn decide_runtime_permission_request_project_hooks_should_fallback_to_native_approval_when_allow_requests_unsupported_updated_permissions(
+    ) {
+        ensure_runtime_project_hooks_test_manager().await;
+
+        let conn = Connection::open_in_memory().expect("创建内存数据库失败");
+        create_tables(&conn).expect("初始化表结构失败");
+        let db = Arc::new(Mutex::new(conn));
+
+        let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+        let workspace_root = temp_dir
+            .path()
+            .join("permission-request-unsupported-updated-permissions-workspace");
+        std::fs::create_dir_all(&workspace_root).expect("创建 workspace 目录失败");
+        let hook_output_path = temp_dir
+            .path()
+            .join("permission-request-unsupported-updated-permissions.json");
+        write_permission_request_capture_hook(
+            &workspace_root,
+            &hook_output_path,
+            "allow",
+            None,
+            Some(serde_json::json!({
+                "command": "echo rewritten but unsupported"
+            })),
+            Some(serde_json::json!([
+                {
+                    "type": "addRules",
+                    "behavior": "allow",
+                    "destination": "session",
+                    "rules": ["Bash"]
+                }
+            ])),
+            None,
+        );
+
+        let manager = WorkspaceManager::new(db.clone());
+        let workspace = manager
+            .create(
+                "Runtime PermissionRequest Unsupported UpdatedPermissions Workspace".to_string(),
+                workspace_root.clone(),
+            )
+            .expect("创建 workspace 失败");
+
+        let session_id = AsterAgentWrapper::create_session_sync(
+            &db,
+            Some("Runtime PermissionRequest Unsupported UpdatedPermissions Session".to_string()),
+            Some(workspace_root.to_string_lossy().to_string()),
+            workspace.id.clone(),
+            Some(AsterExecutionStrategy::React.as_db_value().to_string()),
+        )
+        .expect("创建 session 失败");
+
+        let decision = decide_runtime_permission_request_project_hooks(
+            &session_id,
+            &workspace_root.to_string_lossy(),
+            "Bash",
+            Some(serde_json::json!({
+                "command": "echo original"
+            })),
+            "req-permission-unsupported-updated-permissions",
+            Some("default".to_string()),
+        )
+        .await
+        .expect("PermissionRequest unsupported updatedPermissions hook 执行不应失败");
 
         assert_eq!(decision, None);
 
@@ -2889,7 +3186,13 @@ mod tests {
                 decision: PermissionRequestHookDecision::Allow {
                     updated_input: None,
                 },
-                updated_permissions_requested: true,
+                updated_permissions: Some(
+                    RuntimePermissionRequestHookUpdatedPermissions::Supported(
+                        RuntimePermissionRequestHookSupportedPermissions {
+                            session_access_mode: Some(SessionExecutionRuntimeAccessMode::Current,),
+                        },
+                    ),
+                ),
                 interrupt_requested: false,
             })
         );

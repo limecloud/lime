@@ -17,6 +17,7 @@
 //! - `session`: 会话管理（限速、粘性路由）
 //! - `session_files`: 会话文件存储
 
+pub mod api_host_utils;
 pub mod app_bootstrap;
 pub mod app_paths;
 pub mod app_utils;

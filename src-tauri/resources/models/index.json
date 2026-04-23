@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updated_at": "2026-01-06T10:24:55.378Z",
+  "updated_at": "2026-04-22T10:50:00.000Z",
   "providers": [
     "abacus",
     "aihubmix",
@@ -80,7 +80,7 @@
     "zhipuai",
     "zhipuai-coding-plan"
   ],
-  "total_models": 2039,
+  "total_models": 2041,
   "sources": {
     "models_dev": "https://models.dev/api.json",
     "manual": []

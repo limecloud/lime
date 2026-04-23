@@ -21,7 +21,15 @@ vi.mock("../skill-selection/SkillBadge", () => ({
 }));
 
 vi.mock("../skill-selection/CuratedTaskBadge", () => ({
-  CuratedTaskBadge: () => <div data-testid="empty-state-curated-task-badge" />,
+  CuratedTaskBadge: (props: {
+    referenceEntries?: Array<{ id: string; sourceKind?: string }>;
+  }) => (
+    <div
+      data-testid="empty-state-curated-task-badge"
+      data-reference-count={String(props.referenceEntries?.length ?? 0)}
+      data-first-source-kind={props.referenceEntries?.[0]?.sourceKind ?? ""}
+    />
+  ),
 }));
 
 vi.mock("../skill-selection/SkillSelector", () => ({
@@ -341,6 +349,52 @@ describe("EmptyStateComposerPanel", () => {
 
     expect(container.textContent).toContain("参考");
     expect(container.textContent).toContain("品牌风格样本");
+  });
+
+  it("首页输入区已激活复盘模板时，应把 sceneapp 项目结果引用继续透传给 badge", () => {
+    const container = renderPanel({
+      activeCapability: {
+        kind: "curated_task",
+        task: {
+          id: "account-project-review",
+          title: "复盘这个账号/项目",
+          summary: "围绕已有结果做一次复盘。",
+          outputHint: "复盘摘要 + 下一步建议",
+          resultDestination: "复盘摘要会先回到当前内容。",
+          categoryLabel: "复盘与优化",
+          prompt: "请帮我复盘这个账号或项目",
+          requiredInputs: ["账号或项目目标", "已有结果或数据"],
+          requiredInputFields: [],
+          optionalReferences: ["最近内容链接"],
+          outputContract: ["复盘摘要", "下一轮动作建议"],
+          followUpActions: ["继续做趋势摘要"],
+          badge: "结果模板",
+          actionLabel: "进入生成",
+          statusLabel: "可直接开始",
+          statusTone: "emerald",
+          recentUsedAt: null,
+          isRecent: false,
+        },
+        referenceEntries: [
+          {
+            id: "sceneapp:content-pack:run:1",
+            sourceKind: "sceneapp_execution_summary",
+            title: "AI 内容周报",
+            summary: "当前已有一轮项目结果，可直接作为复盘基线。",
+            category: "experience",
+            categoryLabel: "成果",
+            tags: ["复盘"],
+          },
+        ],
+      },
+    });
+
+    const badge = container.querySelector(
+      '[data-testid="empty-state-curated-task-badge"]',
+    ) as HTMLDivElement | null;
+
+    expect(badge?.dataset.referenceCount).toBe("1");
+    expect(badge?.dataset.firstSourceKind).toBe("sceneapp_execution_summary");
   });
 
   it("通用对话且存在站点型 service skill 时不应再展示首页专属提示按钮", () => {

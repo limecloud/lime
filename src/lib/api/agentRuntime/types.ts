@@ -704,6 +704,10 @@ export interface AgentRuntimeResumeThreadRequest {
   session_id: string;
 }
 
+export interface AgentRuntimeGetSessionOptions {
+  resumeSessionStartHooks?: boolean;
+}
+
 export interface AgentRuntimeReplayRequestRequest {
   session_id: string;
   request_id: string;
@@ -768,6 +772,7 @@ export interface AgentRuntimeReplayedActionRequiredView {
 export interface AgentRuntimeUpdateSessionRequest {
   session_id: string;
   name?: string;
+  provider_selector?: string;
   provider_name?: string;
   model_name?: string;
   execution_strategy?: AsterExecutionStrategy;

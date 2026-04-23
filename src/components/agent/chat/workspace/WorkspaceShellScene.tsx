@@ -28,6 +28,7 @@ interface WorkspaceShellSceneProps {
   isSending: ComponentProps<typeof ChatSidebar>["isSending"];
   pendingActionCount: number;
   queuedTurnCount: number;
+  threadStatus?: ComponentProps<typeof ChatSidebar>["threadStatus"];
   workspaceError: boolean;
   childSubagentSessions: ComponentProps<
     typeof ChatSidebar
@@ -64,6 +65,7 @@ export function WorkspaceShellScene({
   isSending,
   pendingActionCount,
   queuedTurnCount,
+  threadStatus,
   workspaceError,
   childSubagentSessions,
   subagentParentContext,
@@ -85,6 +87,7 @@ export function WorkspaceShellScene({
           isSending,
           pendingActionCount,
           queuedTurnCount,
+          threadStatus,
           workspaceError,
           childSubagentSessions,
           subagentParentContext,

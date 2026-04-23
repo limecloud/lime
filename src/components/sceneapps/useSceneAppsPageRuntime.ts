@@ -15,15 +15,17 @@ import {
   saveSceneAppContextBaseline,
   prepareSceneAppRunGovernanceArtifact,
   prepareSceneAppRunGovernanceArtifacts,
-  type SceneAppCurrentCatalog as SceneAppCatalog,
-  type SceneAppCurrentDescriptor as SceneAppDescriptor,
-  type SceneAppCurrentPlanResult as SceneAppPlanResult,
+  type SceneAppCatalog,
+  type SceneAppDescriptor,
+  type SceneAppPlanResult,
   type SceneAppPattern,
   type SceneAppRunSummary,
   type SceneAppScorecard,
   type SceneAppType,
 } from "@/lib/api/sceneapp";
 import {
+  backfillSceneAppExecutionSummaryViewModel,
+  buildSceneAppExecutionSummaryViewModel,
   buildSceneAppCatalogCardViewModel,
   buildSceneAppQuickReviewDecisionRequest,
   buildSceneAppDetailViewModel,
@@ -58,6 +60,15 @@ import {
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
 import type { ChatToolPreferences } from "@/components/agent/chat/utils/chatToolPreferences";
 import { extractExplicitUrlFromText } from "@/components/agent/chat/utils/browserAssistIntent";
+import {
+  listCuratedTaskRecommendationSignals,
+  subscribeCuratedTaskRecommendationSignalsChanged,
+} from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
+import {
+  buildCuratedTaskReferenceEntryFromSceneAppExecution,
+  buildSceneAppExecutionCuratedTaskFollowUpAction,
+} from "@/components/agent/chat/utils/sceneAppCuratedTaskReference";
+import { buildRuntimeInitialInputCapabilityFromFollowUpAction } from "@/components/agent/chat/utils/inputCapabilityBootstrap";
 import type { Page, PageParams } from "@/types/page";
 
 export type SceneAppTypeFilter = "all" | SceneAppType;
@@ -202,6 +213,10 @@ export function useSceneAppsPageRuntime({
   const [catalogLatestRunMap, setCatalogLatestRunMap] = useState<
     Record<string, SceneAppRunSummary>
   >({});
+  const [
+    curatedTaskRecommendationSignalsVersion,
+    setCuratedTaskRecommendationSignalsVersion,
+  ] = useState(0);
   const [searchQuery, setSearchQuery] = useState(pageParams?.search ?? "");
   const [typeFilter, setTypeFilter] = useState<SceneAppTypeFilter>(
     normalizeSceneAppTypeFilter(pageParams?.typeFilter) ?? "all",
@@ -402,6 +417,12 @@ export function useSceneAppsPageRuntime({
   useEffect(() => {
     void refreshCatalog();
   }, [refreshCatalog]);
+
+  useEffect(() => {
+    return subscribeCuratedTaskRecommendationSignalsChanged(() => {
+      setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
+    });
+  }, []);
 
   const debouncedSearchQuery = useDebouncedValue(
     searchQuery,
@@ -925,9 +946,10 @@ export function useSceneAppsPageRuntime({
       buildSceneAppScorecardViewModel({
         descriptor: selectedDescriptor,
         scorecard,
+        run: selectedRunSummary,
         planResult: selectedPlanResult,
       }),
-    [scorecard, selectedDescriptor, selectedPlanResult],
+    [scorecard, selectedDescriptor, selectedPlanResult, selectedRunSummary],
   );
   const governanceView = useMemo(
     () =>
@@ -994,6 +1016,57 @@ export function useSceneAppsPageRuntime({
     [runs, selectedRunId, selectedRunSummary],
   );
   const selectedRunSessionId = selectedRunPreview?.sessionId?.trim() || "";
+  const latestPackResultSessionId =
+    latestPackResultRunSummary?.sessionId?.trim() || "";
+  const latestReviewFeedbackSignal = useMemo(() => {
+    void curatedTaskRecommendationSignalsVersion;
+    return (
+      listCuratedTaskRecommendationSignals({
+        projectId: selectedProjectId,
+        sessionId: selectedRunSessionId || latestPackResultSessionId,
+      })
+        .filter((signal) => signal.source === "review_feedback")
+        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
+    );
+  }, [
+    curatedTaskRecommendationSignalsVersion,
+    latestPackResultSessionId,
+    selectedProjectId,
+    selectedRunSessionId,
+  ]);
+  const selectedSceneAppExecutionSummary = useMemo(() => {
+    if (!selectedDescriptor || !selectedPlanResult) {
+      return null;
+    }
+
+    return backfillSceneAppExecutionSummaryViewModel({
+      summary: buildSceneAppExecutionSummaryViewModel({
+        descriptor: selectedDescriptor,
+        planResult: selectedPlanResult,
+      }),
+      run: selectedRunSummary ?? latestPackResultRunSummary,
+      scorecard,
+    });
+  }, [
+    latestPackResultRunSummary,
+    scorecard,
+    selectedDescriptor,
+    selectedPlanResult,
+    selectedRunSummary,
+  ]);
+  const selectedSceneAppExecutionReferenceEntry = useMemo(
+    () =>
+      buildCuratedTaskReferenceEntryFromSceneAppExecution({
+        summary: selectedSceneAppExecutionSummary,
+        latestRunDetailView:
+          selectedRunDetailView ?? latestPackResultDetailView,
+      }),
+    [
+      latestPackResultDetailView,
+      selectedRunDetailView,
+      selectedSceneAppExecutionSummary,
+    ],
+  );
   const canOpenSelectedRunHumanReview =
     selectedRunSessionId.length > 0 &&
     Boolean(
@@ -1039,6 +1112,52 @@ export function useSceneAppsPageRuntime({
       }
     })();
   }, [resolveSelectedRunReviewDecisionTemplate, selectedRunSessionId]);
+  const handleContinueReviewFeedback = useCallback(
+    (taskId: string) => {
+      if (!selectedSceneAppExecutionReferenceEntry) {
+        toast.error("当前还没有足够的项目结果基线，暂时无法直接继续这条建议。");
+        return;
+      }
+
+      const followUpAction = buildSceneAppExecutionCuratedTaskFollowUpAction({
+        referenceEntries: [selectedSceneAppExecutionReferenceEntry],
+        taskId,
+      });
+      if (!followUpAction) {
+        toast.error("当前复盘建议还缺少可继续的结果模板。");
+        return;
+      }
+
+      const initialInputCapability =
+        buildRuntimeInitialInputCapabilityFromFollowUpAction({
+          payload: followUpAction,
+          requestKey: Date.now(),
+        });
+      if (!initialInputCapability) {
+        toast.error("当前建议暂时缺少可恢复的输入能力。");
+        return;
+      }
+
+      onNavigate("agent", {
+        agentEntry: "claw",
+        projectId: selectedProjectId?.trim() || undefined,
+        initialInputCapability,
+        entryBannerMessage: followUpAction.bannerMessage,
+        ...(selectedSceneAppExecutionSummary
+          ? {
+              initialSceneAppExecutionSummary:
+                selectedSceneAppExecutionSummary,
+            }
+          : {}),
+      });
+    },
+    [
+      onNavigate,
+      selectedProjectId,
+      selectedSceneAppExecutionReferenceEntry,
+      selectedSceneAppExecutionSummary,
+    ],
+  );
 
   const persistSelectedRunHumanReview = useCallback(
     async (
@@ -1634,6 +1753,8 @@ export function useSceneAppsPageRuntime({
     selectedRunDetailView,
     latestPackResultDetailView,
     latestPackResultUsesFallback,
+    latestReviewFeedbackSignal,
+    handleContinueReviewFeedback,
     selectedRunLoading,
     selectedRunError,
     canOpenSelectedRunHumanReview,

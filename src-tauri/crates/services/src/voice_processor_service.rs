@@ -15,7 +15,7 @@ pub fn process_text(text: &str, instruction: &VoiceInstruction) -> String {
 pub async fn polish_text(
     text: &str,
     instruction: &VoiceInstruction,
-    _provider: Option<&str>,
+    provider: Option<&str>,
     model: Option<&str>,
 ) -> Result<String, String> {
     if instruction.id == "raw" {
@@ -23,12 +23,13 @@ pub async fn polish_text(
     }
 
     let prompt = process_text(text, instruction);
-    call_local_llm(&prompt, model, &instruction.id).await
+    call_local_llm(&prompt, provider, model, &instruction.id).await
 }
 
 /// 调用本地 API 服务器进行 LLM 推理
 async fn call_local_llm(
     prompt: &str,
+    provider: Option<&str>,
     model: Option<&str>,
     instruction_id: &str,
 ) -> Result<String, String> {
@@ -42,6 +43,7 @@ async fn call_local_llm(
         &base_url,
         api_key,
         prompt,
+        provider,
         model,
         instruction_id,
     )

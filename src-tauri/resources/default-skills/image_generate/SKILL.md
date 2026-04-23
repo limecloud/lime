@@ -1,11 +1,11 @@
 ---
 name: image_generate
 description: 根据文本描述生成配图素材（非封面场景）。
-allowed-tools: Bash, lime_create_image_generation_task
+allowed-tools: lime_create_image_generation_task
 metadata:
   lime_argument_hint: 输入主题、画面主体、风格、构图、数量、尺寸。
   lime_when_to_use: 用户需要普通配图、插图或概念图时使用；封面需求优先交给 cover_generate。
-  lime_version: 1.3.1
+  lime_version: 1.3.2
   lime_execution_mode: prompt
   lime_surface: workbench
   lime_category: media
@@ -26,11 +26,10 @@ metadata:
 - 若调用方在结构化上下文里提供了 `image_task`，必须优先复用其中的 `mode`、`reference_images`、`target_output_*`、`session_id`、`project_id`、`content_id`、`entry_source`、`requested_target` 等字段，不要擅自丢失。
 - 若上下文已提供 `provider_id` 或 `model`，提交任务时也要原样透传，不要降级成匿名默认值。
 - 若用户给了参考素材，需体现在参数中；若 `reference_images` 已经是文件路径、URL 或输入图片物化路径，直接原样透传。
-- 优先调用 `Bash` 执行 `lime media image generate --json` 提交任务。
-- 如果当前环境实际走到 `lime task create image --json` 兼容入口，也必须确认它复用同一条图片执行链，而不是只写一个 `pending_submit` 任务文件后停止。
-- 若当前环境暂时无法执行 `lime` CLI，再回退到 `lime_create_image_generation_task`。
-- 回退 `lime_create_image_generation_task` 时，仍必须复用同一条图片任务执行链；不要传 `outputPath`，不要把任务写成 markdown 文稿。
-- `lime media image generate --json` 与 `lime task create image --json` 的任务结果都必须兼容同一份图片任务文件契约。
+- 必须直接调用 `lime_create_image_generation_task` 创建真实图片任务。
+- 不要通过 `Bash` 拼接 `lime media image generate --json`、`lime task create image --json` 或任何 `/tmp/lime_task_image_*.json` 临时任务文件。
+- `lime_create_image_generation_task` 返回后，应依赖同一份图片任务文件契约推进执行与结果回填；不要另起一套 markdown“提交成功”假产物。
+- 调用 `lime_create_image_generation_task` 时不要传 `outputPath`，不要把任务写成 markdown 文稿。
 - `payload` 中至少包含：`prompt`、`style`、`size`、`count`、`usage`；如有上下文，还应携带 `mode`、`provider_id`、`model`、`reference_images`、`target_output_id`、`target_output_ref_id`、`session_id`、`project_id`、`content_id`、`entry_source`、`requested_target`。
 
 ## 输出格式（固定）

@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/agentRuntimeEvents";
 import {
   createAgentRuntimeClient,
+  type AgentRuntimeGetSessionOptions,
   type AgentRuntimeReplayedActionRequiredView,
   type AgentRuntimeClient,
   type AsterAgentStatus,
@@ -40,7 +41,10 @@ export interface AgentRuntimeAdapter {
     executionStrategy?: AsterExecutionStrategy,
   ): Promise<string>;
   listSessions(): Promise<AsterSessionInfo[]>;
-  getSession(sessionId: string): Promise<AsterSessionDetail>;
+  getSession(
+    sessionId: string,
+    options?: AgentRuntimeGetSessionOptions,
+  ): Promise<AsterSessionDetail>;
   getSessionReadModel(
     sessionId: string,
   ): Promise<AsterSessionDetail["thread_read"]>;
@@ -63,6 +67,7 @@ export interface AgentRuntimeAdapter {
     providerType: string,
     model: string,
   ): Promise<void>;
+  generateSessionTitle?(sessionId: string): Promise<string>;
   submitOp(op: AgentOp): Promise<void>;
   compactSession(sessionId: string, eventName: string): Promise<void>;
   interruptTurn(sessionId: string): Promise<boolean>;
@@ -86,6 +91,7 @@ export interface AgentRuntimeAdapterDeps {
     | "compactAgentRuntimeSession"
     | "createAgentRuntimeSession"
     | "deleteAgentRuntimeSession"
+    | "generateAgentRuntimeSessionTitle"
     | "getAgentRuntimeSession"
     | "getAgentRuntimeThreadRead"
     | "initAsterAgent"
@@ -120,8 +126,8 @@ export function createAgentRuntimeAdapter({
     async listSessions() {
       return client.listAgentRuntimeSessions();
     },
-    async getSession(sessionId) {
-      return client.getAgentRuntimeSession(sessionId);
+    async getSession(sessionId, options) {
+      return client.getAgentRuntimeSession(sessionId, options);
     },
     async getSessionReadModel(sessionId) {
       return client.getAgentRuntimeThreadRead(sessionId);
@@ -156,9 +162,12 @@ export function createAgentRuntimeAdapter({
     async setSessionProviderSelection(sessionId, providerType, model) {
       await client.updateAgentRuntimeSession({
         session_id: sessionId,
-        provider_name: providerType,
+        provider_selector: providerType,
         model_name: model,
       });
+    },
+    async generateSessionTitle(sessionId) {
+      return client.generateAgentRuntimeSessionTitle(sessionId);
     },
     async submitOp(op) {
       switch (op.type) {

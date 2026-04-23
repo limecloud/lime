@@ -213,6 +213,23 @@ describe("StreamingRenderer", () => {
     expect(container.textContent).not.toContain("file_path");
   });
 
+  it("应把 runtime 协作包络渲染成专门消息卡片", () => {
+    const { container } = renderHarness({
+      content: `<teammate-message teammate_id="researcher" summary="同步结果">
+继续验证
+</teammate-message>`,
+    });
+
+    expect(
+      container.querySelector('[data-testid="runtime-peer-message-cards"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("协作者消息");
+    expect(container.textContent).toContain("来自 researcher");
+    expect(container.textContent).toContain("同步结果");
+    expect(container.textContent).toContain("继续验证");
+    expect(container.textContent).not.toContain("teammate-message");
+  });
+
   it("纯文本内容应短路跳过结构化解析", () => {
     renderHarness({
       content: "这是普通文本输出，不包含结构化标签。",
@@ -816,6 +833,39 @@ describe("StreamingRenderer", () => {
     });
 
     expect(container.textContent).toContain("先生成一版草稿");
+  });
+
+  it("思考块应压平被切碎成多行的过程 prose", () => {
+    renderHarness({
+      content: "",
+      thinkingContent: [
+        "目录",
+        "",
+        "也",
+        "",
+        "不存在。",
+        "",
+        "可能",
+        "",
+        "整个",
+        "",
+        ".lime",
+        "",
+        "目录",
+        "",
+        "都不",
+        "",
+        "存在。",
+      ].join("\n"),
+      isStreaming: true,
+    });
+
+    expect(mockMarkdownRenderer).toHaveBeenCalled();
+    const latestCall =
+      mockMarkdownRenderer.mock.calls[mockMarkdownRenderer.mock.calls.length - 1];
+    expect(latestCall?.[0]?.content).toBe(
+      "目录也不存在。可能整个 .lime 目录都不存在。",
+    );
   });
 
   it("过程组中的思考块应切换为轻量行内样式", () => {

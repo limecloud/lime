@@ -8,6 +8,7 @@ interface UseWorkspaceInitialSessionNavigationParams {
     topicId: string,
     options?: {
       forceRefresh?: boolean;
+      resumeSessionStartHooks?: boolean;
     },
   ) => Promise<unknown>;
 }
@@ -53,6 +54,7 @@ export function useWorkspaceInitialSessionNavigation({
 
     void switchTopic(normalizedInitialSessionId, {
       forceRefresh: true,
+      resumeSessionStartHooks: true,
     }).catch((error) => {
       appliedInitialSessionIdRef.current = null;
       logAgentDebug(

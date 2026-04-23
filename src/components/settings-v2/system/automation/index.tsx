@@ -53,6 +53,8 @@ import type { AgentRun } from "@/lib/api/executionRun";
 import { LatestRunStatusBadge } from "@/components/execution/LatestRunStatusBadge";
 import { AutomationHealthPanel } from "./AutomationHealthPanel";
 import { AutomationJobDetailsDialog } from "./AutomationJobDetailsDialog";
+import { AutomationJobFocusStrip } from "./AutomationJobFocusStrip";
+import { AutomationOverviewFocusCard } from "./AutomationOverviewFocusCard";
 import {
   AutomationJobDialog,
   AutomationJobDialogSubmit,
@@ -79,11 +81,21 @@ import {
 } from "./automationPresentation";
 import { useAutomationSceneAppRuntime } from "./useAutomationSceneAppRuntime";
 import {
+  backfillSceneAppExecutionSummaryViewModel,
   buildSceneAppAutomationWorkspaceCardViewModel,
+  buildSceneAppExecutionSummaryViewModel,
   buildSceneAppRunDetailViewModel,
   formatSceneAppErrorMessage,
   normalizeSceneAppsPageParams,
+  resolveSceneAppAutomationContext,
+  resolveSceneAppRunEntryNavigationTarget,
 } from "@/lib/sceneapp";
+import type { SceneAppRunDetailViewModel } from "@/lib/sceneapp";
+import {
+  buildCuratedTaskReferenceEntryFromSceneAppExecution,
+  buildSceneAppExecutionCuratedTaskFollowUpAction,
+} from "@/components/agent/chat/utils/sceneAppCuratedTaskReference";
+import { buildRuntimeInitialInputCapabilityFromFollowUpAction } from "@/components/agent/chat/utils/inputCapabilityBootstrap";
 import type {
   AutomationWorkspaceTab,
   Page,
@@ -93,6 +105,74 @@ import type {
 
 const AUTOMATION_CORE_LOAD_TIMEOUT_MS = 8000;
 const AUTOMATION_AUXILIARY_LOAD_TIMEOUT_MS = 5000;
+
+function isAutomationJobAtRisk(
+  job: AutomationJobRecord,
+  riskyJobMessageMap: Map<string, string>,
+): boolean {
+  if (riskyJobMessageMap.has(job.id) || Boolean(job.auto_disabled_until)) {
+    return true;
+  }
+
+  return ["error", "timeout", "waiting_for_human", "human_controlling"].includes(
+    job.last_status ?? "",
+  );
+}
+
+function resolveAutomationJobSortTime(job: AutomationJobRecord): number {
+  const candidates = [
+    job.last_run_at,
+    job.last_finished_at,
+    job.updated_at,
+    job.created_at,
+    job.next_run_at,
+  ];
+
+  for (const value of candidates) {
+    if (!value) {
+      continue;
+    }
+
+    const timestamp = Date.parse(value);
+    if (Number.isFinite(timestamp)) {
+      return timestamp;
+    }
+  }
+
+  return 0;
+}
+
+function buildAutomationSceneAppPageParams(params: {
+  job: AutomationJobRecord | null;
+  runtime: Pick<
+    ReturnType<typeof useAutomationSceneAppRuntime>,
+    "sceneAppContext" | "linkedRun"
+  >;
+  view?: SceneAppsPageParams["view"];
+}): SceneAppsPageParams | null {
+  if (!params.job || !params.runtime.sceneAppContext) {
+    return null;
+  }
+
+  const resolvedView =
+    params.view === "governance" && params.runtime.linkedRun
+      ? "governance"
+      : "detail";
+
+  return normalizeSceneAppsPageParams({
+    view: resolvedView,
+    sceneappId: params.runtime.sceneAppContext.sceneappId,
+    runId:
+      resolvedView === "governance"
+        ? params.runtime.linkedRun?.runId
+        : undefined,
+    projectId:
+      params.runtime.sceneAppContext.projectId ??
+      params.runtime.sceneAppContext.workspaceId ??
+      params.job.workspace_id,
+    referenceMemoryIds: params.runtime.sceneAppContext.referenceMemoryIds,
+  });
+}
 
 type AutomationWorkspaceTemplate = {
   id: string;
@@ -284,11 +364,81 @@ export function AutomationSettings({
         : null,
     [selectedJobId, serviceSkillContextByJobId],
   );
+  const riskyJobMessageMap = useMemo(() => {
+    const mapping = new Map<string, string>();
+    health?.risky_jobs.forEach((job) => {
+      if (job.detail_message?.trim()) {
+        mapping.set(job.job_id, job.detail_message.trim());
+      }
+    });
+    return mapping;
+  }, [health]);
+  const sceneAppAutomationContextByJobId = useMemo(() => {
+    const mapping = new Map<
+      string,
+      NonNullable<ReturnType<typeof resolveSceneAppAutomationContext>>
+    >();
+    jobs.forEach((job) => {
+      const context = resolveSceneAppAutomationContext(job.payload);
+      if (context) {
+        mapping.set(job.id, context);
+      }
+    });
+    return mapping;
+  }, [jobs]);
+  const overviewFocusJob = useMemo(() => {
+    if (selectedJob && sceneAppAutomationContextByJobId.has(selectedJob.id)) {
+      return selectedJob;
+    }
+
+    const candidates = jobs.filter((job) =>
+      sceneAppAutomationContextByJobId.has(job.id),
+    );
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    return [...candidates].sort((left, right) => {
+      const leftRisky = isAutomationJobAtRisk(left, riskyJobMessageMap);
+      const rightRisky = isAutomationJobAtRisk(right, riskyJobMessageMap);
+      if (leftRisky !== rightRisky) {
+        return leftRisky ? -1 : 1;
+      }
+      if (left.enabled !== right.enabled) {
+        return left.enabled ? -1 : 1;
+      }
+      return resolveAutomationJobSortTime(right) - resolveAutomationJobSortTime(left);
+    })[0] ?? null;
+  }, [
+    jobs,
+    riskyJobMessageMap,
+    sceneAppAutomationContextByJobId,
+    selectedJob,
+  ]);
+  const shouldLoadOverviewSceneAppRuntime =
+    showWorkspacePanels &&
+    Boolean(overviewFocusJob) &&
+    (workspaceTab === "overview" || workspaceTab === "tasks");
+  const shouldReuseSelectedSceneAppRuntimeForOverview =
+    detailDialogOpen &&
+    Boolean(selectedJob?.id) &&
+    overviewFocusJob?.id === selectedJob?.id;
   const selectedSceneAppRuntime = useAutomationSceneAppRuntime({
     job: selectedJob,
     jobRuns,
     enabled: showWorkspacePanels && detailDialogOpen,
   });
+  const overviewSceneAppRuntime = useAutomationSceneAppRuntime({
+    job: overviewFocusJob,
+    jobRuns: [],
+    enabled:
+      shouldLoadOverviewSceneAppRuntime &&
+      !shouldReuseSelectedSceneAppRuntimeForOverview,
+  });
+  const effectiveOverviewSceneAppRuntime =
+    shouldReuseSelectedSceneAppRuntimeForOverview
+      ? selectedSceneAppRuntime
+      : overviewSceneAppRuntime;
   const legacyBrowserJobCount = useMemo(
     () => jobs.filter((job) => isLegacyBrowserAutomation(job)).length,
     [jobs],
@@ -301,29 +451,12 @@ export function AutomationSettings({
     });
     return mapping;
   }, [workspaces]);
-  const riskyJobMessageMap = useMemo(() => {
-    const mapping = new Map<string, string>();
-    health?.risky_jobs.forEach((job) => {
-      if (job.detail_message?.trim()) {
-        mapping.set(job.job_id, job.detail_message.trim());
-      }
-    });
-    return mapping;
-  }, [health]);
   const selectedJobRiskyCount = useMemo(() => {
     if (!selectedJob) {
       return 0;
     }
 
-    if (riskyJobMessageMap.has(selectedJob.id) || selectedJob.auto_disabled_until) {
-      return 1;
-    }
-
-    return ["error", "timeout", "waiting_for_human", "human_controlling"].includes(
-      selectedJob.last_status ?? "",
-    )
-      ? 1
-      : 0;
+    return isAutomationJobAtRisk(selectedJob, riskyJobMessageMap) ? 1 : 0;
   }, [riskyJobMessageMap, selectedJob]);
   const selectedSceneAppSummaryCard = useMemo(() => {
     if (!selectedJob || !selectedSceneAppRuntime.descriptor) {
@@ -368,6 +501,111 @@ export function AutomationSettings({
     selectedSceneAppRuntime.linkedRun,
     selectedSceneAppRuntime.planResult,
   ]);
+  const selectedSceneAppExecutionSummary = useMemo(() => {
+    if (
+      !selectedSceneAppRuntime.descriptor ||
+      !selectedSceneAppRuntime.planResult
+    ) {
+      return null;
+    }
+
+    return backfillSceneAppExecutionSummaryViewModel({
+      summary: buildSceneAppExecutionSummaryViewModel({
+        descriptor: selectedSceneAppRuntime.descriptor,
+        planResult: selectedSceneAppRuntime.planResult,
+      }),
+      run: selectedSceneAppRuntime.linkedRun,
+      scorecard: selectedSceneAppRuntime.scorecard,
+    });
+  }, [
+    selectedSceneAppRuntime.descriptor,
+    selectedSceneAppRuntime.linkedRun,
+    selectedSceneAppRuntime.planResult,
+    selectedSceneAppRuntime.scorecard,
+  ]);
+  const selectedSceneAppExecutionReferenceEntry = useMemo(
+    () =>
+      buildCuratedTaskReferenceEntryFromSceneAppExecution({
+        summary: selectedSceneAppExecutionSummary,
+        latestRunDetailView: selectedSceneAppRunDetailView,
+      }),
+    [selectedSceneAppExecutionSummary, selectedSceneAppRunDetailView],
+  );
+  const overviewSceneAppSummaryCard = useMemo(() => {
+    if (!overviewFocusJob || !effectiveOverviewSceneAppRuntime.descriptor) {
+      return null;
+    }
+
+    return buildSceneAppAutomationWorkspaceCardViewModel({
+      descriptor: effectiveOverviewSceneAppRuntime.descriptor,
+      scorecard: effectiveOverviewSceneAppRuntime.scorecard,
+      run: effectiveOverviewSceneAppRuntime.linkedRun,
+      jobCount: 1,
+      enabledJobCount: overviewFocusJob.enabled ? 1 : 0,
+      riskyJobCount: isAutomationJobAtRisk(overviewFocusJob, riskyJobMessageMap)
+        ? 1
+        : 0,
+      latestJobName: overviewFocusJob.name,
+      latestJobStatusLabel: statusLabel(overviewFocusJob.last_status),
+    });
+  }, [
+    effectiveOverviewSceneAppRuntime.descriptor,
+    effectiveOverviewSceneAppRuntime.linkedRun,
+    effectiveOverviewSceneAppRuntime.scorecard,
+    overviewFocusJob,
+    riskyJobMessageMap,
+  ]);
+  const overviewSceneAppRunDetailView = useMemo(() => {
+    if (
+      !effectiveOverviewSceneAppRuntime.descriptor ||
+      !effectiveOverviewSceneAppRuntime.linkedRun
+    ) {
+      return null;
+    }
+
+    return {
+      ...buildSceneAppRunDetailViewModel({
+        descriptor: effectiveOverviewSceneAppRuntime.descriptor,
+        run: effectiveOverviewSceneAppRuntime.linkedRun,
+        planResult: effectiveOverviewSceneAppRuntime.planResult,
+      }),
+      entryAction: null,
+    };
+  }, [
+    effectiveOverviewSceneAppRuntime.descriptor,
+    effectiveOverviewSceneAppRuntime.linkedRun,
+    effectiveOverviewSceneAppRuntime.planResult,
+  ]);
+  const overviewSceneAppExecutionSummary = useMemo(() => {
+    if (
+      !effectiveOverviewSceneAppRuntime.descriptor ||
+      !effectiveOverviewSceneAppRuntime.planResult
+    ) {
+      return null;
+    }
+
+    return backfillSceneAppExecutionSummaryViewModel({
+      summary: buildSceneAppExecutionSummaryViewModel({
+        descriptor: effectiveOverviewSceneAppRuntime.descriptor,
+        planResult: effectiveOverviewSceneAppRuntime.planResult,
+      }),
+      run: effectiveOverviewSceneAppRuntime.linkedRun,
+      scorecard: effectiveOverviewSceneAppRuntime.scorecard,
+    });
+  }, [
+    effectiveOverviewSceneAppRuntime.descriptor,
+    effectiveOverviewSceneAppRuntime.linkedRun,
+    effectiveOverviewSceneAppRuntime.planResult,
+    effectiveOverviewSceneAppRuntime.scorecard,
+  ]);
+  const overviewSceneAppExecutionReferenceEntry = useMemo(
+    () =>
+      buildCuratedTaskReferenceEntryFromSceneAppExecution({
+        summary: overviewSceneAppExecutionSummary,
+        latestRunDetailView: overviewSceneAppRunDetailView,
+      }),
+    [overviewSceneAppExecutionSummary, overviewSceneAppRunDetailView],
+  );
 
   const refreshAll = useCallback(
     async (silent: boolean = false) => {
@@ -468,6 +706,15 @@ export function AutomationSettings({
           }
           return null;
         });
+        if (
+          showWorkspacePanels &&
+          initialSelectedJobId &&
+          nextJobs.some((job) => job.id === initialSelectedJobId) &&
+          autoOpenedInitialJobIdRef.current !== initialSelectedJobId
+        ) {
+          setDetailDialogOpen(true);
+          autoOpenedInitialJobIdRef.current = initialSelectedJobId;
+        }
         if (coreErrors.length > 0) {
           toast.error(`自动化页面存在部分数据未加载：${coreErrors.join("；")}`);
         }
@@ -755,37 +1002,161 @@ export function AutomationSettings({
 
   const handleOpenSelectedJobSceneApp = useCallback(
     (view: SceneAppsPageParams["view"] = "detail") => {
-      if (!onNavigate || !selectedSceneAppRuntime.sceneAppContext) {
+      if (!onNavigate) {
         return;
       }
 
-      const resolvedView =
-        view === "governance" && selectedSceneAppRuntime.linkedRun
-          ? "governance"
-          : "detail";
-      onNavigate(
-        "sceneapps",
-        normalizeSceneAppsPageParams({
-          view: resolvedView,
-          sceneappId: selectedSceneAppRuntime.sceneAppContext.sceneappId,
-          runId:
-            resolvedView === "governance"
-              ? selectedSceneAppRuntime.linkedRun?.runId
-              : undefined,
-          projectId:
-            selectedSceneAppRuntime.sceneAppContext.projectId ??
-            selectedSceneAppRuntime.sceneAppContext.workspaceId ??
-            selectedJob?.workspace_id,
-          referenceMemoryIds:
-            selectedSceneAppRuntime.sceneAppContext.referenceMemoryIds,
-        }),
-      );
+      const params = buildAutomationSceneAppPageParams({
+        job: selectedJob,
+        runtime: selectedSceneAppRuntime,
+        view,
+      });
+      if (!params) {
+        return;
+      }
+
+      onNavigate("sceneapps", params);
+    },
+    [
+      onNavigate,
+      selectedJob,
+      selectedSceneAppRuntime,
+    ],
+  );
+
+  const handleContinueSelectedSceneAppReview = useCallback(
+    (taskId: string) => {
+      if (!onNavigate) {
+        toast.error("当前入口暂不支持直接回到生成工作台。");
+        return;
+      }
+      if (!selectedSceneAppExecutionReferenceEntry) {
+        toast.error("当前还没有足够的结果基线，暂时无法直接继续这条建议。");
+        return;
+      }
+
+      const followUpAction = buildSceneAppExecutionCuratedTaskFollowUpAction({
+        referenceEntries: [selectedSceneAppExecutionReferenceEntry],
+        taskId,
+      });
+      if (!followUpAction) {
+        toast.error("当前结果还缺少可恢复的下一步动作。");
+        return;
+      }
+
+      const initialInputCapability =
+        buildRuntimeInitialInputCapabilityFromFollowUpAction({
+          payload: followUpAction,
+          requestKey: Date.now(),
+        });
+      if (!initialInputCapability) {
+        toast.error("当前建议暂时缺少可恢复的输入能力。");
+        return;
+      }
+
+      onNavigate("agent", {
+        agentEntry: "claw",
+        projectId:
+          selectedSceneAppRuntime.sceneAppContext?.projectId ??
+          selectedSceneAppRuntime.sceneAppContext?.workspaceId ??
+          selectedJob?.workspace_id ??
+          undefined,
+        initialInputCapability,
+        entryBannerMessage: followUpAction.bannerMessage,
+        ...(selectedSceneAppExecutionSummary
+          ? {
+              initialSceneAppExecutionSummary:
+                selectedSceneAppExecutionSummary,
+            }
+          : {}),
+      });
     },
     [
       onNavigate,
       selectedJob?.workspace_id,
-      selectedSceneAppRuntime.linkedRun,
+      selectedSceneAppExecutionReferenceEntry,
+      selectedSceneAppExecutionSummary,
       selectedSceneAppRuntime.sceneAppContext,
+    ],
+  );
+
+  const handleOpenOverviewSceneApp = useCallback(
+    (view: SceneAppsPageParams["view"] = "detail") => {
+      if (!onNavigate) {
+        return;
+      }
+
+      const params = buildAutomationSceneAppPageParams({
+        job: overviewFocusJob,
+        runtime: effectiveOverviewSceneAppRuntime,
+        view,
+      });
+      if (!params) {
+        return;
+      }
+
+      onNavigate("sceneapps", params);
+    },
+    [
+      effectiveOverviewSceneAppRuntime,
+      onNavigate,
+      overviewFocusJob,
+    ],
+  );
+
+  const handleContinueOverviewSceneAppReview = useCallback(
+    (taskId: string) => {
+      if (!onNavigate) {
+        toast.error("当前入口暂不支持直接回到生成工作台。");
+        return;
+      }
+      if (!overviewSceneAppExecutionReferenceEntry) {
+        toast.error("当前经营焦点还没有足够的结果基线，暂时无法直接继续。");
+        return;
+      }
+
+      const followUpAction = buildSceneAppExecutionCuratedTaskFollowUpAction({
+        referenceEntries: [overviewSceneAppExecutionReferenceEntry],
+        taskId,
+      });
+      if (!followUpAction) {
+        toast.error("当前经营焦点还缺少可恢复的下一步动作。");
+        return;
+      }
+
+      const initialInputCapability =
+        buildRuntimeInitialInputCapabilityFromFollowUpAction({
+          payload: followUpAction,
+          requestKey: Date.now(),
+        });
+      if (!initialInputCapability) {
+        toast.error("当前建议暂时缺少可恢复的输入能力。");
+        return;
+      }
+
+      onNavigate("agent", {
+        agentEntry: "claw",
+        projectId:
+          effectiveOverviewSceneAppRuntime.sceneAppContext?.projectId ??
+          effectiveOverviewSceneAppRuntime.sceneAppContext?.workspaceId ??
+          overviewFocusJob?.workspace_id ??
+          undefined,
+        initialInputCapability,
+        entryBannerMessage: followUpAction.bannerMessage,
+        ...(overviewSceneAppExecutionSummary
+          ? {
+              initialSceneAppExecutionSummary:
+                overviewSceneAppExecutionSummary,
+            }
+          : {}),
+      });
+    },
+    [
+      onNavigate,
+      effectiveOverviewSceneAppRuntime.sceneAppContext,
+      overviewFocusJob?.workspace_id,
+      overviewSceneAppExecutionReferenceEntry,
+      overviewSceneAppExecutionSummary,
     ],
   );
 
@@ -973,6 +1344,44 @@ export function AutomationSettings({
       openSelectedSceneAppFileEntry,
       selectedSceneAppRunDetailView,
       selectedSceneAppRuntime,
+    ],
+  );
+
+  const handleOpenSelectedSceneAppEntryAction = useCallback(
+    (action: NonNullable<SceneAppRunDetailViewModel["entryAction"]>) => {
+      if (!onNavigate) {
+        return;
+      }
+
+      const target = resolveSceneAppRunEntryNavigationTarget({
+        action,
+        sceneappId:
+          selectedSceneAppRuntime.linkedRun?.sceneappId ??
+          selectedSceneAppRuntime.descriptor?.id ??
+          "",
+        sceneTitle: selectedSceneAppRuntime.descriptor?.title,
+        sourceLabel: "持续流程",
+        projectId:
+          selectedSceneAppRuntime.sceneAppContext?.projectId ??
+          selectedSceneAppRuntime.sceneAppContext?.workspaceId ??
+          selectedJob?.workspace_id,
+        linkedServiceSkillId:
+          selectedSceneAppRuntime.descriptor?.linkedServiceSkillId,
+        linkedSceneKey: selectedSceneAppRuntime.descriptor?.linkedSceneKey,
+      });
+      if (!target) {
+        toast.error("当前运行缺少可恢复的入口上下文。");
+        return;
+      }
+
+      onNavigate(target.page, target.params);
+    },
+    [
+      onNavigate,
+      selectedJob?.workspace_id,
+      selectedSceneAppRuntime.descriptor,
+      selectedSceneAppRuntime.linkedRun?.sceneappId,
+      selectedSceneAppRuntime.sceneAppContext,
     ],
   );
 
@@ -1379,14 +1788,17 @@ export function AutomationSettings({
                             : null;
                           const legacyBrowserJob =
                             isLegacyBrowserAutomation(job);
+                          const isOverviewFocusRow = overviewFocusJob?.id === job.id;
                           return (
                             <TableRow
                               key={job.id}
                               data-testid={`automation-job-row-${job.id}`}
                               className={
-                                selectedJobId === job.id
-                                  ? "cursor-pointer bg-slate-50"
-                                  : "cursor-pointer"
+                                isOverviewFocusRow
+                                  ? "cursor-pointer bg-sky-50/70"
+                                  : selectedJobId === job.id
+                                    ? "cursor-pointer bg-slate-50"
+                                    : "cursor-pointer"
                               }
                               onClick={() => openJobDetails(job.id)}
                             >
@@ -1441,6 +1853,23 @@ export function AutomationSettings({
                                       ) : null}
                                     </div>
                                   ) : null}
+                                  {isOverviewFocusRow ? (
+                                    <AutomationJobFocusStrip
+                                      jobId={job.id}
+                                      summaryCard={overviewSceneAppSummaryCard}
+                                      runDetailView={overviewSceneAppRunDetailView}
+                                      loading={effectiveOverviewSceneAppRuntime.loading}
+                                      error={effectiveOverviewSceneAppRuntime.error}
+                                      onReviewCurrentProject={() =>
+                                        handleContinueOverviewSceneAppReview(
+                                          "account-project-review",
+                                        )
+                                      }
+                                      onOpenSceneAppGovernance={() =>
+                                        handleOpenOverviewSceneApp("governance")
+                                      }
+                                    />
+                                  ) : null}
                                 </div>
                               </TableCell>
                               <TableCell className="align-top text-sm text-slate-500">
@@ -1468,6 +1897,14 @@ export function AutomationSettings({
                                     ) : null}
                                     {!job.enabled ? (
                                       <Badge variant="outline">已停用</Badge>
+                                    ) : null}
+                                    {isOverviewFocusRow ? (
+                                      <Badge
+                                        variant="outline"
+                                        className="border-sky-200 bg-sky-50 text-sky-700"
+                                      >
+                                        当前经营焦点
+                                      </Badge>
                                     ) : null}
                                     {job.auto_disabled_until ? (
                                       <Badge variant="destructive">
@@ -1641,6 +2078,31 @@ export function AutomationSettings({
               </CardContent>
             </Card>
 
+            <AutomationOverviewFocusCard
+              job={overviewFocusJob}
+              workspaceName={
+                overviewFocusJob
+                  ? (workspaceNameMap.get(overviewFocusJob.workspace_id) ?? null)
+                  : null
+              }
+              summaryCard={overviewSceneAppSummaryCard}
+              runDetailView={overviewSceneAppRunDetailView}
+              loading={effectiveOverviewSceneAppRuntime.loading}
+              error={effectiveOverviewSceneAppRuntime.error}
+              onOpenJobDetails={
+                overviewFocusJob
+                  ? () => openJobDetails(overviewFocusJob.id)
+                  : undefined
+              }
+              onOpenSceneAppDetail={() => handleOpenOverviewSceneApp("detail")}
+              onOpenSceneAppGovernance={() =>
+                handleOpenOverviewSceneApp("governance")
+              }
+              onReviewCurrentProject={() =>
+                handleContinueOverviewSceneAppReview("account-project-review")
+              }
+            />
+
             <AutomationHealthPanel health={health} status={status} />
           </TabsContent>
         </Tabs>
@@ -1676,6 +2138,9 @@ export function AutomationSettings({
         onOpenSceneAppGovernance={() =>
           handleOpenSelectedJobSceneApp("governance")
         }
+        onReviewCurrentProject={() =>
+          handleContinueSelectedSceneAppReview("account-project-review")
+        }
         onSceneAppDeliveryArtifactAction={
           handleOpenSelectedSceneAppDeliveryArtifact
         }
@@ -1683,6 +2148,7 @@ export function AutomationSettings({
           handleOpenSelectedSceneAppGovernanceArtifact
         }
         onSceneAppGovernanceAction={handleRunSelectedSceneAppGovernanceAction}
+        onSceneAppEntryAction={handleOpenSelectedSceneAppEntryAction}
         onRefreshHistory={refreshHistory}
       />
     </div>

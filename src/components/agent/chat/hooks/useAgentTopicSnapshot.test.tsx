@@ -38,6 +38,7 @@ async function mountHook(props?: Partial<HookProps>): Promise<HookHarness> {
     isSending: false,
     pendingActionCount: 0,
     queuedTurnCount: 0,
+    threadStatus: null,
     workspaceId: "ws-1",
     workspacePathMissing: false,
     topicsCount: 1,
@@ -208,6 +209,40 @@ describe("useAgentTopicSnapshot", () => {
         "session-1",
         expect.objectContaining({
           lastPreview: "已完成当前整理，并继续补充更多背景与结论。",
+          status: "running",
+        }),
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("线程仍在运行时，应维持 running snapshot", async () => {
+    const updateTopicSnapshot = vi.fn();
+    const harness = await mountHook({
+      updateTopicSnapshot,
+      isSending: false,
+      threadStatus: "running",
+      messages: [
+        createMessage({
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-1",
+              name: "WebSearch",
+              arguments: '{"query":"AI agent trends"}',
+              status: "running",
+              startTime: new Date("2026-04-22T10:59:16.000Z"),
+            },
+          ],
+        }),
+      ],
+    });
+
+    try {
+      expect(updateTopicSnapshot).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({
           status: "running",
         }),
       );

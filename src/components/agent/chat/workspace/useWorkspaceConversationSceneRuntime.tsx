@@ -278,6 +278,10 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleLaunchSceneApp?: ConversationScenePresentationParams["scene"]["onLaunchSceneApp"];
   canResumeRecentSceneApp?: ConversationScenePresentationParams["scene"]["canResumeRecentSceneApp"];
   handleResumeRecentSceneApp?: ConversationScenePresentationParams["scene"]["onResumeRecentSceneApp"];
+  recentSessionTitle?: ConversationScenePresentationParams["scene"]["recentSessionTitle"];
+  recentSessionSummary?: ConversationScenePresentationParams["scene"]["recentSessionSummary"];
+  recentSessionActionLabel?: ConversationScenePresentationParams["scene"]["recentSessionActionLabel"];
+  handleResumeRecentSession?: ConversationScenePresentationParams["scene"]["onResumeRecentSession"];
   handleOpenSceneAppsDirectory?: ConversationScenePresentationParams["scene"]["onOpenSceneAppsDirectory"];
   projectId: string | null;
   hideHistoryToggle: boolean;
@@ -421,6 +425,10 @@ export function useWorkspaceConversationSceneRuntime({
   handleLaunchSceneApp,
   canResumeRecentSceneApp,
   handleResumeRecentSceneApp,
+  recentSessionTitle,
+  recentSessionSummary,
+  recentSessionActionLabel,
+  handleResumeRecentSession,
   handleOpenSceneAppsDirectory,
   projectId,
   hideHistoryToggle,
@@ -818,8 +826,13 @@ export function useWorkspaceConversationSceneRuntime({
       onLaunchSceneApp: handleLaunchSceneApp,
       canResumeRecentSceneApp,
       onResumeRecentSceneApp: handleResumeRecentSceneApp,
+      recentSessionTitle,
+      recentSessionSummary,
+      recentSessionActionLabel,
+      onResumeRecentSession: handleResumeRecentSession,
       onOpenSceneAppsDirectory: handleOpenSceneAppsDirectory,
       projectId,
+      sessionId,
       onProjectChange: navigationActions.handleProjectChange,
       onOpenSettings: navigationActions.handleOpenAppearanceSettings,
       runtimeToolAvailability: inputbarScene.runtimeToolAvailability,

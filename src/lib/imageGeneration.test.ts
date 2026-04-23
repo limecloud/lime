@@ -19,9 +19,27 @@ const providers: MockProvider[] = [
 ];
 
 describe("imageGeneration", () => {
-  it("应识别图片 Provider", () => {
+  it("应只把内置或显式声明图片能力的 Provider 识别为图片 Provider", () => {
     expect(isImageProvider("new-api", "openai")).toBe(true);
+    expect(isImageProvider("openai", "openai-response")).toBe(true);
     expect(isImageProvider("fal", "fal")).toBe(true);
+    expect(
+      isImageProvider("relay-openai", "openai", ["gpt-images-2"]),
+    ).toBe(true);
+    expect(
+      isImageProvider("lime-hub", "openai", ["gpt-images-2"]),
+    ).toBe(true);
+    expect(
+      isImageProvider(
+        "custom-f0181b00-35b6-4731-94e2-24f17fd247c9",
+        "openai",
+        ["mimo-v2-pro"],
+      ),
+    ).toBe(false);
+    expect(isImageProvider("deepseek", "openai", ["deepseek-reasoner"])).toBe(
+      false,
+    );
+    expect(isImageProvider("keyword-only-openai", "custom")).toBe(false);
     expect(isImageProvider("tts-only", "audio")).toBe(false);
   });
 
@@ -50,12 +68,28 @@ describe("imageGeneration", () => {
 
   it("应解析 Provider 可用模型列表", () => {
     expect(getImageModelsForProvider("new-api", "openai")[0]?.id).toBe(
-      "dall-e-3",
+      "gpt-image-1",
     );
+    expect(
+      getImageModelsForProvider("new-api", "openai").some(
+        (model) => model.id === "gpt-images-2",
+      ),
+    ).toBe(true);
     expect(
       getImageModelsForProvider("custom-provider", "openai", ["gpt-image-1"])[0]
         ?.id,
     ).toBe("gpt-image-1");
+    expect(
+      getImageModelsForProvider("custom-provider", "openai", ["gpt-images-2"])[0]
+        ?.id,
+    ).toBe("gpt-images-2");
+    expect(
+      getImageModelsForProvider(
+        "custom-f0181b00-35b6-4731-94e2-24f17fd247c9",
+        "openai",
+        ["mimo-v2-pro"],
+      ),
+    ).toEqual([]);
   });
 
   it("Fal Provider 的自定义模型应过滤掉文本模型并回退到内置图片模型", () => {

@@ -4,7 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CuratedTaskLauncherDialog } from "./CuratedTaskLauncherDialog";
 import { findCuratedTaskTemplateById } from "@/components/agent/chat/utils/curatedTaskTemplates";
-import { CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
+import {
+  CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT,
+  recordCuratedTaskRecommendationSignalFromReviewDecision,
+} from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import type { UnifiedMemory } from "@/lib/api/unifiedMemory";
 
 const mockListUnifiedMemories = vi.hoisted(() =>
@@ -38,6 +41,7 @@ describe("CuratedTaskLauncherDialog", () => {
     container.remove();
     mockListUnifiedMemories.mockReset();
     mockListUnifiedMemories.mockResolvedValue([]);
+    window.localStorage.clear();
     document.body.innerHTML = "";
   });
 
@@ -127,6 +131,137 @@ describe("CuratedTaskLauncherDialog", () => {
     expect(dialog?.textContent).toContain("灵感库");
     expect(dialog?.textContent).toContain("AI 内容周报");
     expect(dialog?.textContent).toContain("品牌风格样本");
+  });
+
+  it("命中最近复盘偏好的结果模板时，应在 launcher 内显影复盘提示", async () => {
+    const task = findCuratedTaskTemplateById("account-project-review");
+    expect(task).not.toBeNull();
+
+    recordCuratedTaskRecommendationSignalFromReviewDecision(
+      {
+        session_id: "session-review-needs-evidence",
+        decision_status: "needs_more_evidence",
+        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
+        risk_level: "medium",
+        risk_tags: ["证据不足", "需要复盘"],
+        followup_actions: ["补账号数据复盘", "拆解一条高表现内容"],
+      },
+      {
+        projectId: "project-review",
+        sceneTitle: "短视频编排",
+      },
+    );
+
+    await act(async () => {
+      root.render(
+        <CuratedTaskLauncherDialog
+          open
+          task={task}
+          projectId="project-review"
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />,
+      );
+    });
+
+    const banner = document.body.querySelector(
+      '[data-testid="curated-task-launcher-review-feedback-banner"]',
+    );
+    expect(banner?.textContent).toContain("围绕最近复盘");
+    expect(banner?.textContent).toContain("最近复盘已更新：短视频编排 · 补证据");
+    expect(banner?.textContent).toContain("这轮结果还缺证据");
+  });
+
+  it("复盘模板 launcher 应在启动确认层显影当前结果基线的经营摘要", async () => {
+    const task = findCuratedTaskTemplateById("account-project-review");
+    expect(task).not.toBeNull();
+
+    await act(async () => {
+      root.render(
+        <CuratedTaskLauncherDialog
+          open
+          task={task}
+          initialReferenceEntries={[
+            {
+              id: "sceneapp:content-pack:run:1",
+              sourceKind: "sceneapp_execution_summary",
+              title: "AI 内容周报",
+              summary: "当前已有一轮项目结果，可直接作为复盘基线。",
+              category: "experience",
+              categoryLabel: "成果",
+              tags: ["复盘"],
+              taskPrefillByTaskId: {
+                "account-project-review": {
+                  project_goal: "AI 内容周报",
+                  existing_results:
+                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                },
+              },
+            },
+          ]}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const baselineCard = document.body.querySelector(
+      '[data-testid="curated-task-launcher-sceneapp-baseline-card"]',
+    );
+    expect(baselineCard?.textContent).toContain("当前结果基线");
+    expect(baselineCard?.textContent).toContain("AI 内容周报");
+    expect(baselineCard?.textContent).toContain("当前判断：先补复核与修复");
+    expect(baselineCard?.textContent).toContain("当前卡点：复核阻塞");
+    expect(baselineCard?.textContent).toContain("更适合去向：周会复盘");
+    expect(document.body.textContent).toContain(
+      "下面的 账号或项目目标 / 已有结果或数据 已按这轮结果自动带入",
+    );
+  });
+
+  it("切到下游结果模板后，launcher 仍应显影 sceneapp 基线摘要", async () => {
+    const task = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(task).not.toBeNull();
+
+    await act(async () => {
+      root.render(
+        <CuratedTaskLauncherDialog
+          open
+          task={task}
+          initialReferenceEntries={[
+            {
+              id: "sceneapp:content-pack:run:1",
+              sourceKind: "sceneapp_execution_summary",
+              title: "AI 内容周报",
+              summary: "当前已有一轮项目结果，可直接作为后续生成基线。",
+              category: "experience",
+              categoryLabel: "成果",
+              tags: ["复盘"],
+              taskPrefillByTaskId: {
+                "account-project-review": {
+                  project_goal: "AI 内容周报",
+                  existing_results:
+                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                },
+              },
+            },
+          ]}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const baselineCard = document.body.querySelector(
+      '[data-testid="curated-task-launcher-sceneapp-baseline-card"]',
+    );
+    expect(baselineCard?.textContent).toContain("当前结果基线");
+    expect(baselineCard?.textContent).toContain("AI 内容周报");
+    expect(baselineCard?.textContent).toContain("当前判断：先补复核与修复");
+    expect(baselineCard?.textContent).toContain("当前卡点：复核阻塞");
+    expect(baselineCard?.textContent).toContain("更适合去向：周会复盘");
   });
 
   it("launcher 打开时收到灵感回流信号，应即时刷新最近参考对象且不清掉已选种子", async () => {

@@ -34,6 +34,7 @@ const mockCharacterMention =
         categoryLabel: string;
         tags: string[];
       }>;
+      inputCompletionEnabled?: boolean;
     }) => React.ReactNode
   >();
 const mockInputbarCore = vi.fn(
@@ -107,17 +108,18 @@ vi.mock("../../skill-selection/CharacterMention", () => ({
       capability: InputCapabilitySelection,
       options?: { replayText?: string },
     ) => void;
-    onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
-    defaultCuratedTaskReferenceMemoryIds?: string[];
-    defaultCuratedTaskReferenceEntries?: Array<{
-      id: string;
-      title: string;
+      onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+      defaultCuratedTaskReferenceMemoryIds?: string[];
+      defaultCuratedTaskReferenceEntries?: Array<{
+        id: string;
+        title: string;
       summary: string;
       category: string;
-      categoryLabel: string;
-      tags: string[];
-    }>;
-  }) => {
+        categoryLabel: string;
+        tags: string[];
+      }>;
+      inputCompletionEnabled?: boolean;
+    }) => {
     mockCharacterMention(props);
     return <div data-testid="character-mention-stub" />;
   },
@@ -137,10 +139,22 @@ vi.mock("../../skill-selection/CuratedTaskBadge", () => ({
       title?: string;
       followUpActions?: string[];
     };
+    projectId?: string | null;
+    sessionId?: string | null;
+    referenceEntries?: Array<{
+      id: string;
+      sourceKind?: string;
+    }>;
     onEdit?: () => void;
     onClear?: () => void;
   }) => (
-    <div data-testid="curated-task-badge">
+    <div
+      data-testid="curated-task-badge"
+      data-project-id={props.projectId ?? ""}
+      data-session-id={props.sessionId ?? ""}
+      data-reference-count={String(props.referenceEntries?.length ?? 0)}
+      data-first-source-kind={props.referenceEntries?.[0]?.sourceKind ?? ""}
+    >
       <span>{props.task?.title}</span>
       <span>{props.task?.followUpActions?.join("、")}</span>
       <button
@@ -171,6 +185,8 @@ vi.mock("../CuratedTaskLauncherDialog", () => ({
         label: string;
       }>;
     } | null;
+    projectId?: string | null;
+    sessionId?: string | null;
     initialInputValues?: Record<string, string> | null;
     initialReferenceMemoryIds?: string[] | null;
     initialReferenceEntries?: Array<{
@@ -239,7 +255,11 @@ vi.mock("../CuratedTaskLauncherDialog", () => ({
     }
 
     return (
-      <div data-testid="curated-task-launcher-dialog">
+      <div
+        data-testid="curated-task-launcher-dialog"
+        data-project-id={props.projectId ?? ""}
+        data-session-id={props.sessionId ?? ""}
+      >
         {props.task.requiredInputFields.map((field) => (
           <label key={field.key}>
             {field.label}
@@ -490,6 +510,23 @@ describe("Inputbar", () => {
       ][0];
     expect(latestCall.characters).toEqual([]);
     expect(latestCall.skills).toEqual([]);
+  });
+
+  it("应把输入自动补全开关透传给现有 CharacterMention 主链", async () => {
+    renderInputbar({
+      inputCompletionEnabled: false,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ][0];
+
+    expect(latestCall.inputCompletionEnabled).toBe(false);
   });
 
   it("应把当前带入的灵感引用默认值透传给 CharacterMention", async () => {
@@ -1090,6 +1127,121 @@ describe("Inputbar", () => {
           },
         },
       }),
+    );
+  });
+
+  it("输入条已激活结果模板时，应把 projectId/sessionId 透传给 badge 和编辑态 launcher", async () => {
+    const initialLaunchInputValues = {
+      theme_target: "AI 内容创作",
+      platform_region: "X 与 TikTok 北美区",
+    };
+    const initialPrompt = buildCuratedTaskLaunchPrompt({
+      task: {
+        prompt:
+          "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+        requiredInputFields: [
+          {
+            key: "theme_target",
+            label: "主题或赛道",
+            placeholder: "",
+            type: "text",
+          },
+          {
+            key: "platform_region",
+            label: "希望关注的平台/地域",
+            placeholder: "",
+            type: "text",
+          },
+        ],
+        outputContract: ["趋势摘要", "3 个优先选题", "代表案例线索"],
+      },
+      inputValues: initialLaunchInputValues,
+    });
+
+    renderInputbar({
+      input: initialPrompt,
+      activeTheme: "general",
+      projectId: "project-review-chain",
+      sessionId: "session-review-chain",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt: initialPrompt,
+          launchInputValues: initialLaunchInputValues,
+        },
+        requestKey: 2026042201,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const curatedTaskBadge = document.querySelector(
+      '[data-testid="curated-task-badge"]',
+    ) as HTMLDivElement | null;
+    expect(curatedTaskBadge?.dataset.projectId).toBe("project-review-chain");
+    expect(curatedTaskBadge?.dataset.sessionId).toBe("session-review-chain");
+
+    const editButton = document.querySelector(
+      '[data-testid="curated-task-badge-edit"]',
+    ) as HTMLButtonElement | null;
+    expect(editButton).toBeTruthy();
+
+    await act(async () => {
+      editButton?.click();
+      await Promise.resolve();
+    });
+
+    const launcherDialog = document.querySelector(
+      '[data-testid="curated-task-launcher-dialog"]',
+    ) as HTMLDivElement | null;
+    expect(launcherDialog?.dataset.projectId).toBe("project-review-chain");
+    expect(launcherDialog?.dataset.sessionId).toBe("session-review-chain");
+  });
+
+  it("输入条已激活复盘模板时，应把 sceneapp 项目结果引用透传给 badge", async () => {
+    renderInputbar({
+      input: "请帮我复盘这个账号或项目",
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "account-project-review",
+          taskTitle: "复盘这个账号/项目",
+          prompt: "请帮我复盘这个账号或项目",
+          launchInputValues: {
+            project_goal: "AI 内容周报",
+            existing_results: "当前已有一轮项目结果，可直接作为复盘基线。",
+          },
+          referenceEntries: [
+            {
+              id: "sceneapp:content-pack:run:1",
+              sourceKind: "sceneapp_execution_summary",
+              title: "AI 内容周报",
+              summary: "当前已有一轮项目结果，可直接作为复盘基线。",
+              category: "experience",
+              categoryLabel: "成果",
+              tags: ["复盘"],
+            },
+          ],
+        },
+        requestKey: 2026042301,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const curatedTaskBadge = document.querySelector(
+      '[data-testid="curated-task-badge"]',
+    ) as HTMLDivElement | null;
+    expect(curatedTaskBadge?.dataset.referenceCount).toBe("1");
+    expect(curatedTaskBadge?.dataset.firstSourceKind).toBe(
+      "sceneapp_execution_summary",
     );
   });
 

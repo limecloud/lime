@@ -24,6 +24,8 @@ export interface MessageImageWorkbenchPreview {
   status: "running" | "complete" | "partial" | "failed" | "cancelled";
   projectId?: string | null;
   contentId?: string | null;
+  taskFilePath?: string | null;
+  artifactPath?: string | null;
   imageUrl?: string | null;
   imageCount?: number;
   sourceImageUrl?: string | null;

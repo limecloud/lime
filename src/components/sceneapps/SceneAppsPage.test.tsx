@@ -6,10 +6,11 @@ import { SceneAppsPage } from "./SceneAppsPage";
 import {
   listSceneAppRecentVisits,
   recordSceneAppRecentVisit,
-  type SceneAppCurrentCatalog as SceneAppCatalog,
-  type SceneAppCurrentPlanResult as SceneAppPlanResult,
+  type SceneAppCatalog,
+  type SceneAppPlanResult,
   type SceneAppsPageParams,
 } from "@/lib/sceneapp";
+import { recordCuratedTaskRecommendationSignal } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import type { Page, PageParams } from "@/types/page";
 
 type SceneAppPlanResultOverrides = {
@@ -1456,6 +1457,21 @@ describe("SceneAppsPage", () => {
     ).toContain("整包交付率");
     expect(
       container.querySelector(
+        '[data-testid="sceneapp-scorecard-aggregate-summary"]',
+      )?.textContent,
+    ).toContain("先补复盘材料");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-aggregate-summary"]',
+      )?.textContent,
+    ).toContain("结构化复盘包");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-aggregate-summary"]',
+      )?.textContent,
+    ).toContain("复核阻塞");
+    expect(
+      container.querySelector(
         '[data-testid="sceneapp-scorecard-delivery-parts"]',
       )?.textContent,
     ).toContain("复核意见");
@@ -1636,10 +1652,12 @@ describe("SceneAppsPage", () => {
     expect(storyVideoCard?.textContent).toContain("先补复盘材料");
     expect(storyVideoCard?.textContent).toContain("建议继续优化");
     expect(storyVideoCard?.textContent).toContain("复核阻塞");
+    expect(storyVideoCard?.textContent).toContain("再继续进入周会、生成页或统计面");
     expect(storyVideoCard?.textContent).toContain("最近运行：人工试跑");
     expect(storyVideoCard?.textContent).toContain(
       "复盘材料还没完全齐，暂时不适合直接放大",
     );
+    expect(storyVideoCard?.textContent).toContain("先准备结构化复盘包");
   });
 
   it("生成准备与评分页应提供最近可消费结果入口", async () => {
@@ -2554,6 +2572,127 @@ describe("SceneAppsPage", () => {
       },
       entryBannerMessage: "已从做法复盘打开治理动作：复核 JSON。",
     });
+  });
+
+  it("sceneapps 深层结果面应显影最近复盘建议横幅", async () => {
+    recordCuratedTaskRecommendationSignal({
+      source: "review_feedback",
+      category: "experience",
+      title: "短视频编排 · 可继续复用",
+      summary: "这轮先补一版更克制的封面，再继续推进下一轮内容方案。",
+      tags: ["复盘", "可继续复用"],
+      preferredTaskIds: ["social-post-starter", "account-project-review"],
+      createdAt: Date.now(),
+      projectId: "project-1",
+      sessionId: "session-story-video-1",
+    });
+
+    const { container } = renderSceneAppsPage();
+    await flushEffects();
+    await openSceneAppsView(container, "detail");
+
+    const scorecardBanner = container.querySelector(
+      '[data-testid="sceneapp-scorecard-review-feedback-banner"]',
+    );
+    expect(scorecardBanner?.textContent).toContain("最近复盘已更新：短视频编排 · 可继续复用");
+    expect(scorecardBanner?.textContent).toContain("内容主稿生成");
+    expect(scorecardBanner?.textContent).toContain("复盘这个账号/项目");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-review-feedback-banner-action"]',
+      )?.textContent,
+    ).toContain("继续去「内容主稿生成」");
+
+    await openSceneAppsView(container, "governance");
+
+    const seededRunItem = container.querySelector(
+      '[data-testid="sceneapp-run-item-story-video-suite-run-1"]',
+    ) as HTMLButtonElement | null;
+    expect(seededRunItem).toBeTruthy();
+
+    act(() => {
+      seededRunItem?.click();
+    });
+    await flushEffects();
+
+    const governanceBanner = container.querySelector(
+      '[data-testid="sceneapp-governance-review-feedback-banner"]',
+    );
+    expect(governanceBanner?.textContent).toContain("最近复盘已更新：短视频编排 · 可继续复用");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-review-feedback-banner-action"]',
+      )?.textContent,
+    ).toContain("继续去「内容主稿生成」");
+
+    const runDetailBanner = container.querySelector(
+      '[data-testid="sceneapp-run-detail-review-feedback-banner"]',
+    );
+    expect(runDetailBanner?.textContent).toContain("最近复盘已更新：短视频编排 · 可继续复用");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-review-feedback-banner-action"]',
+      )?.textContent,
+    ).toContain("继续去「内容主稿生成」");
+  });
+
+  it("sceneapps 深层 review 横幅应支持直接续接到 agent 结果模板", async () => {
+    recordCuratedTaskRecommendationSignal({
+      source: "review_feedback",
+      category: "experience",
+      title: "短视频编排 · 可继续复用",
+      summary: "这轮先补一版更克制的封面，再继续推进下一轮内容方案。",
+      tags: ["复盘", "可继续复用"],
+      preferredTaskIds: ["social-post-starter", "account-project-review"],
+      createdAt: Date.now(),
+      projectId: "project-1",
+      sessionId: "session-story-video-1",
+    });
+
+    const { container, onNavigate } = renderSceneAppsPage();
+    await flushEffects();
+    await openSceneAppsView(container, "governance");
+
+    const seededRunItem = container.querySelector(
+      '[data-testid="sceneapp-run-item-story-video-suite-run-1"]',
+    ) as HTMLButtonElement | null;
+    expect(seededRunItem).toBeTruthy();
+
+    act(() => {
+      seededRunItem?.click();
+    });
+    await flushEffects();
+
+    const actionButton = container.querySelector(
+      '[data-testid="sceneapp-run-detail-review-feedback-banner-action"]',
+    ) as HTMLButtonElement | null;
+    expect(actionButton?.textContent).toContain("继续去「内容主稿生成」");
+
+    act(() => {
+      actionButton?.click();
+    });
+    await flushEffects();
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agentEntry: "claw",
+        projectId: "project-1",
+        entryBannerMessage:
+          "已切到“内容主稿生成”这条下一步，并带着当前结果继续生成。",
+        initialSceneAppExecutionSummary: expect.objectContaining({
+          title: "短视频编排",
+        }),
+        initialInputCapability: expect.objectContaining({
+          capabilityRoute: expect.objectContaining({
+            kind: "curated_task",
+            taskId: "social-post-starter",
+            taskTitle: "内容主稿生成",
+            prompt: expect.stringContaining("当前结果基线：短视频编排"),
+          }),
+        }),
+      }),
+    );
   });
 
   it("保存人工复核后应刷新当前做法 planning 基线", async () => {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   listSceneAppCatalog,
-  type SceneAppCurrentCatalog as SceneAppCatalog,
+  type SceneAppCatalog,
 } from "@/lib/api/sceneapp";
 import {
   buildSceneAppEntryCard,

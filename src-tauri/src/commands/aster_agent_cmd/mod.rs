@@ -616,6 +616,10 @@ impl RuntimeCommandContext {
         &self.db
     }
 
+    pub(crate) fn mcp_manager(&self) -> &McpManagerState {
+        &self.mcp_manager
+    }
+
     pub(crate) async fn submit_runtime_turn(
         &self,
         queued_task: QueuedTurnTask<serde_json::Value>,

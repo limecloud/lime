@@ -34,13 +34,6 @@ const {
   mockGetWindowsStartupDiagnostics: vi.fn(),
 }));
 
-const { mockGetVoiceInputConfig, mockSaveVoiceInputConfig } = vi.hoisted(
-  () => ({
-    mockGetVoiceInputConfig: vi.fn(),
-    mockSaveVoiceInputConfig: vi.fn(),
-  }),
-);
-
 const { mockApplyCrashReportingSettings } = vi.hoisted(() => ({
   mockApplyCrashReportingSettings: vi.fn(),
 }));
@@ -96,11 +89,6 @@ vi.mock("@/lib/api/serverRuntime", () => ({
   getWindowsStartupDiagnostics: mockGetWindowsStartupDiagnostics,
 }));
 
-vi.mock("@/lib/api/asrProvider", () => ({
-  getVoiceInputConfig: mockGetVoiceInputConfig,
-  saveVoiceInputConfig: mockSaveVoiceInputConfig,
-}));
-
 vi.mock("@/lib/crashReporting", () => ({
   applyCrashReportingSettings: mockApplyCrashReportingSettings,
 }));
@@ -137,10 +125,6 @@ vi.mock("@/components/smart-input/ShortcutSettings", () => ({
 
 vi.mock("./UpdateCheckSettings", () => ({
   UpdateCheckSettings: () => <div>更新设置占位</div>,
-}));
-
-vi.mock("@/components/voice", () => ({
-  VoiceSettings: () => <div>语音设置占位</div>,
 }));
 
 vi.mock("../shared/ClipboardPermissionGuideCard", () => ({
@@ -261,23 +245,6 @@ beforeEach(() => {
   mockUpdateScreenshotShortcut.mockResolvedValue(undefined);
   mockValidateShortcut.mockResolvedValue(true);
 
-  mockGetVoiceInputConfig.mockResolvedValue({
-    enabled: false,
-    shortcut: "CommandOrControl+Shift+V",
-    processor: {
-      polish_enabled: true,
-      default_instruction_id: "default",
-    },
-    output: {
-      mode: "type",
-      type_delay_ms: 10,
-    },
-    instructions: [],
-    sound_enabled: true,
-    translate_instruction_id: "default",
-  });
-  mockSaveVoiceInputConfig.mockResolvedValue(undefined);
-
   mockGetConfig.mockResolvedValue({
     tool_calling: {
       enabled: true,
@@ -394,8 +361,8 @@ describe("ExperimentalSettings", () => {
 
     const text = getText(container);
     expect(text).toContain("更新设置占位");
-    expect(text).toContain("语音设置占位");
     expect(text).toContain("工作区自愈占位");
+    expect(text).not.toContain("语音设置占位");
   });
 
   it("应展示默认关闭的 WebMCP 预留开关", async () => {

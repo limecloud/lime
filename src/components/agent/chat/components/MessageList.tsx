@@ -34,6 +34,7 @@ import {
   MessageActions,
 } from "../styles";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { RuntimePeerMessageCards } from "./RuntimePeerMessageCards";
 import { StreamingRenderer } from "./StreamingRenderer";
 import { TokenUsageDisplay } from "./TokenUsageDisplay";
 import { AgentThreadTimeline } from "./AgentThreadTimeline";
@@ -82,6 +83,7 @@ import {
   resolveSiteSavedContentTargetRelativePath,
 } from "../utils/siteToolResultSummary";
 import { type ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
+import { isPureRuntimePeerMessageText } from "../utils/runtimePeerMessageDisplay";
 import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 
 interface MessageListProps {
@@ -755,6 +757,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
       role: msg.role,
       hasImages,
     });
+    const rawRuntimePeerContent = (msg.content || "").trim();
+    const shouldRenderRuntimePeerCards =
+      rawRuntimePeerContent.length > 0 &&
+      isPureRuntimePeerMessageText(rawRuntimePeerContent);
     const displayContentParts = sanitizeContentPartsForDisplay(
       msg.contentParts,
       {
@@ -1037,6 +1043,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
                   <StreamingRenderer
                     content={displayContent}
+                    rawContent={msg.content || ""}
                     isStreaming={msg.isThinking}
                     toolCalls={conversationToolCalls}
                     showCursor={msg.isThinking && !displayContent}
@@ -1153,15 +1160,19 @@ const MessageListInner: React.FC<MessageListProps> = ({
                   ) : null}
                 </>
               ) : displayContent ? (
-                <MarkdownRenderer
-                  content={displayContent}
-                  onA2UISubmit={
-                    onA2UISubmit
-                      ? (formData) => onA2UISubmit(formData, msg.id)
-                      : undefined
-                  }
-                  renderA2UIInline={renderA2UIInline}
-                />
+                shouldRenderRuntimePeerCards ? (
+                  <RuntimePeerMessageCards text={rawRuntimePeerContent} />
+                ) : (
+                  <MarkdownRenderer
+                    content={displayContent}
+                    onA2UISubmit={
+                      onA2UISubmit
+                        ? (formData) => onA2UISubmit(formData, msg.id)
+                        : undefined
+                    }
+                    renderA2UIInline={renderA2UIInline}
+                  />
+                )
               ) : null}
 
               {msg.images && msg.images.length > 0 && (

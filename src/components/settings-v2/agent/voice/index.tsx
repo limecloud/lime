@@ -1,24 +1,32 @@
-/**
- * 语音服务配置设置组件
- *
- * 参考成熟产品的 TTS/STT 实现
- * 功能包括：TTS 服务商选择、STT 服务商选择、语音参数配置等
- */
-
-import { useState, useEffect, useMemo } from "react";
 import {
-  Mic,
-  Volume2,
-  Play,
-  Settings2,
-  Info,
-  CheckCircle2,
-  AlertCircle,
-} from "lucide-react";
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
+import { AlertCircle, CheckCircle2, Mic, Wand2, type LucideIcon } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
-import { cn } from "@/lib/utils";
-import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
+import { ShortcutSettings } from "@/components/smart-input/ShortcutSettings";
+import { MicrophoneTest } from "@/components/voice/MicrophoneTest";
+import { InstructionEditor } from "@/components/voice/InstructionEditor";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
+import {
+  getAsrCredentials,
+  getVoiceInputConfig,
+  saveVoiceInputConfig,
+  type AsrCredentialEntry,
+  type VoiceInputConfig,
+  type VoiceInstruction,
+} from "@/lib/api/asrProvider";
+import { validateShortcut } from "@/lib/api/experimentalFeatures";
+import {
+  getVoiceShortcutRuntimeStatus,
+  type VoiceShortcutRuntimeStatus,
+} from "@/lib/api/hotkeys";
 import {
   buildPersistedMediaGenerationPreference,
   getTtsModelsForProvider,
@@ -26,724 +34,783 @@ import {
   isTtsProvider,
   type MediaGenerationPreference,
 } from "@/lib/mediaGeneration";
+import { modelSupportsTaskFamily } from "@/lib/model/inferModelCapabilities";
+import { cn } from "@/lib/utils";
+import {
+  findConfiguredProviderBySelection,
+  useConfiguredProviders,
+} from "@/hooks/useConfiguredProviders";
 import { MediaPreferenceSection } from "../shared/MediaPreferenceSection";
+import { SettingModelSelectorField } from "../shared/SettingModelSelectorField";
 
-type TTSService = "openai" | "azure" | "google" | "edge" | "macos";
-type STTService = "openai" | "azure" | "google" | "whisper";
-
-interface VoiceConfig {
-  /** TTS 服务商 */
-  tts_service?: TTSService;
-  /** STT 服务商 */
-  stt_service?: STTService;
-  /** TTS 语音 */
-  tts_voice?: string;
-  /** TTS 语速 (0.1-2.0) */
-  tts_rate?: number;
-  /** TTS 音调 (0.1-2.0) */
-  tts_pitch?: number;
-  /** TTS 音量 (0-1) */
-  tts_volume?: number;
-  /** STT 语言 */
-  stt_language?: string;
-  /** 自动停止录音 */
-  stt_auto_stop?: boolean;
-  /** 启用语音输入 */
-  voice_input_enabled?: boolean;
-  /** 启用语音输出 */
-  voice_output_enabled?: boolean;
-}
-
-const DEFAULT_VOICE_CONFIG: VoiceConfig = {
-  tts_service: "openai",
-  stt_service: "openai",
-  tts_voice: "alloy",
-  tts_rate: 1.0,
-  tts_pitch: 1.0,
-  tts_volume: 1.0,
-  stt_language: "zh-CN",
-  stt_auto_stop: true,
-  voice_input_enabled: false,
-  voice_output_enabled: false,
-};
-
-const TTS_SERVICES = [
-  { value: "openai" as TTSService, label: "OpenAI", desc: "使用 OpenAI TTS" },
-  { value: "azure" as TTSService, label: "Azure", desc: "使用 Azure TTS" },
-  { value: "google" as TTSService, label: "Google", desc: "使用 Google TTS" },
-  { value: "edge" as TTSService, label: "Edge", desc: "使用 Edge TTS" },
-  { value: "macos" as TTSService, label: "macOS", desc: "使用系统 TTS" },
-];
-
-const STT_SERVICES = [
-  {
-    value: "openai" as STTService,
-    label: "OpenAI",
-    desc: "使用 OpenAI Whisper",
-  },
-  { value: "azure" as STTService, label: "Azure", desc: "使用 Azure Speech" },
-  {
-    value: "google" as STTService,
-    label: "Google",
-    desc: "使用 Google Speech",
-  },
-  {
-    value: "whisper" as STTService,
-    label: "Whisper",
-    desc: "使用本地 Whisper",
-  },
-];
-
-const TTS_VOICES = {
-  openai: [
-    { value: "alloy", label: "Alloy" },
-    { value: "echo", label: "Echo" },
-    { value: "fable", label: "Fable" },
-    { value: "onyx", label: "Onyx" },
-    { value: "nova", label: "Nova" },
-    { value: "shimmer", label: "Shimmer" },
-  ],
-  azure: [
-    { value: "zh-CN-XiaoxiaoNeural", label: "晓晓 (女)" },
-    { value: "zh-CN-YunxiNeural", label: "云希 (男)" },
-    { value: "zh-CN-YunyangNeural", label: "云扬 (男)" },
-  ],
-  google: [
-    { value: "zh-CN-Wavenet-A", label: "WaveNet A" },
-    { value: "zh-CN-Wavenet-B", label: "WaveNet B" },
-    { value: "zh-CN-Standard-A", label: "Standard A" },
-  ],
-  edge: [
-    { value: "zh-CN-XiaoxiaoNeural", label: "晓晓 (女)" },
-    { value: "zh-CN-YunxiNeural", label: "云希 (男)" },
-  ],
-  macos: [
-    { value: "Ting-Ting", label: "婷婷" },
-    { value: "Mei-Jia", label: "美佳" },
-    { value: "Sin-ji", label: "欣怡" },
-  ],
-};
-
-const STT_LANGUAGES = [
-  { value: "zh-CN", label: "中文 (简体)" },
-  { value: "zh-TW", label: "中文 (繁体)" },
-  { value: "en-US", label: "英语 (美国)" },
-  { value: "en-GB", label: "英语 (英国)" },
-  { value: "ja-JP", label: "日语" },
-  { value: "ko-KR", label: "韩语" },
-];
-
-const AUTO_VALUE = "__auto__";
 const DEFAULT_MEDIA_PREFERENCE: MediaGenerationPreference = {
   allowFallback: true,
 };
-const PANEL_CARD_CLASS =
-  "rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5";
-const CHOICE_BUTTON_CLASS =
-  "rounded-[18px] border px-3 py-3 text-left text-sm transition";
-const ACTIVE_CHOICE_BUTTON_CLASS =
-  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_54%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
-const INACTIVE_CHOICE_BUTTON_CLASS =
-  "border-slate-200 bg-white text-slate-700 hover:border-sky-200 hover:bg-sky-50/70 hover:text-slate-900";
-const INFO_CARD_CLASS =
-  "flex items-start gap-2 rounded-[22px] border border-slate-200/80 bg-slate-50/85 p-4 text-xs leading-6 text-slate-600";
-const RANGE_INPUT_CLASS =
-  "h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-emerald-500";
-const CHECKBOX_INPUT_CLASS =
-  "h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-200";
+
+type PillTone = "neutral" | "success" | "warning";
+
+function normalizeOptionalText(value?: string | null): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function ensureValidVoiceInstructionSelection(
+  config: VoiceInputConfig,
+): VoiceInputConfig {
+  if (config.instructions.length === 0) {
+    return config;
+  }
+
+  const hasInstruction = (id?: string | null) =>
+    Boolean(
+      id && config.instructions.some((instruction) => instruction.id === id),
+    );
+
+  const fallbackDefaultInstructionId = hasInstruction("default")
+    ? "default"
+    : (config.instructions[0]?.id ?? config.processor.default_instruction_id);
+
+  const nextDefaultInstructionId = hasInstruction(
+    config.processor.default_instruction_id,
+  )
+    ? config.processor.default_instruction_id
+    : fallbackDefaultInstructionId;
+
+  const fallbackTranslateInstructionId = hasInstruction("translate_en")
+    ? "translate_en"
+    : nextDefaultInstructionId;
+
+  const nextTranslateInstructionId = hasInstruction(config.translate_instruction_id)
+    ? config.translate_instruction_id
+    : fallbackTranslateInstructionId;
+
+  if (
+    nextDefaultInstructionId === config.processor.default_instruction_id &&
+    nextTranslateInstructionId === config.translate_instruction_id
+  ) {
+    return config;
+  }
+
+  return {
+    ...config,
+    processor: {
+      ...config.processor,
+      default_instruction_id: nextDefaultInstructionId,
+    },
+    translate_instruction_id: nextTranslateInstructionId,
+  };
+}
+
+function StatusPill({
+  tone,
+  children,
+}: {
+  tone: PillTone;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium",
+        tone === "success" &&
+          "border-emerald-200 bg-emerald-50 text-emerald-700",
+        tone === "warning" && "border-amber-200 bg-amber-50 text-amber-700",
+        tone === "neutral" && "border-slate-200 bg-slate-50 text-slate-600",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function SettingCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-visible rounded-[24px] border border-slate-200/80 bg-white shadow-sm shadow-slate-950/5">
+      <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-sky-600" />
+          <h3 className="text-base font-semibold tracking-tight text-slate-900">
+            {title}
+          </h3>
+          <WorkbenchInfoTip
+            ariaLabel={`${title}说明`}
+            content={description}
+            tone="slate"
+          />
+        </div>
+      </div>
+      <div className="divide-y divide-slate-200/80 border-t border-slate-200/80">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function SettingRow({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid gap-3 px-5 py-4 md:grid-cols-[220px_minmax(0,1fr)] md:items-start">
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium text-slate-800">{label}</Label>
+        <p className="text-xs leading-5 text-slate-500">{description}</p>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="max-w-[820px] space-y-4">
+      <div className="h-[220px] animate-pulse rounded-[24px] border border-slate-200/80 bg-slate-50" />
+      <div className="h-[260px] animate-pulse rounded-[24px] border border-slate-200/80 bg-white" />
+      <div className="h-[200px] animate-pulse rounded-[24px] border border-slate-200/80 bg-white" />
+    </div>
+  );
+}
+
+function buildPrimaryShortcutStatus(
+  voiceConfig: VoiceInputConfig | null,
+  runtimeStatus: VoiceShortcutRuntimeStatus | null,
+): { text: string; tone: PillTone } {
+  if (!voiceConfig) {
+    return { text: "加载中", tone: "neutral" };
+  }
+
+  if (!voiceConfig.enabled) {
+    return { text: "未启用，不会注册全局快捷键", tone: "neutral" };
+  }
+
+  if (
+    runtimeStatus?.shortcut_registered &&
+    runtimeStatus.registered_shortcut === voiceConfig.shortcut
+  ) {
+    return { text: "运行时已注册", tone: "success" };
+  }
+
+  return { text: "配置已保存，但运行时尚未注册", tone: "warning" };
+}
+
+function buildTranslateShortcutStatus(
+  voiceConfig: VoiceInputConfig | null,
+  runtimeStatus: VoiceShortcutRuntimeStatus | null,
+): { text: string; tone: PillTone } {
+  if (!voiceConfig) {
+    return { text: "加载中", tone: "neutral" };
+  }
+
+  if (!voiceConfig.translate_shortcut) {
+    return { text: "未设置翻译模式快捷键", tone: "neutral" };
+  }
+
+  if (!voiceConfig.enabled) {
+    return { text: "需先启用语音输入", tone: "warning" };
+  }
+
+  const hasInstruction = voiceConfig.instructions.some(
+    (instruction) => instruction.id === voiceConfig.translate_instruction_id,
+  );
+  if (!hasInstruction) {
+    return { text: "请先选择翻译模式指令", tone: "warning" };
+  }
+
+  if (
+    runtimeStatus?.translate_shortcut_registered &&
+    runtimeStatus.registered_translate_shortcut === voiceConfig.translate_shortcut
+  ) {
+    return { text: "翻译模式快捷键已注册", tone: "success" };
+  }
+
+  return { text: "翻译模式配置已保存，但运行时尚未注册", tone: "warning" };
+}
 
 export function VoiceSettings() {
   const [config, setConfig] = useState<Config | null>(null);
-  const [voiceConfig, setVoiceConfig] =
-    useState<VoiceConfig>(DEFAULT_VOICE_CONFIG);
-  const [loading, setLoading] = useState(true);
-  const [_saving, setSaving] = useState<Record<string, boolean>>({});
-  const [testingTTS, setTestingTTS] = useState(false);
+  const [voiceConfig, setVoiceConfig] = useState<VoiceInputConfig | null>(null);
+  const [voiceShortcutStatus, setVoiceShortcutStatus] =
+    useState<VoiceShortcutRuntimeStatus | null>(null);
+  const [asrCredentials, setAsrCredentials] = useState<AsrCredentialEntry[]>([]);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
-  const { providers, loading: providersLoading } = useApiKeyProvider();
+  const [loading, setLoading] = useState(true);
   const [globalVoicePreference, setGlobalVoicePreference] =
     useState<MediaGenerationPreference>(DEFAULT_MEDIA_PREFERENCE);
+  const { providers, loading: providersLoading } = useConfiguredProviders();
 
-  // 加载配置
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
-  const loadConfig = async () => {
+  const loadVoiceSettings = useCallback(async () => {
     setLoading(true);
+
     try {
-      const c = await getConfig();
-      setConfig(c);
-      setVoiceConfig(c.voice || DEFAULT_VOICE_CONFIG);
+      const [nextConfig, nextVoiceConfig, nextVoiceShortcutStatus, nextAsr] =
+        await Promise.all([
+          getConfig(),
+          getVoiceInputConfig(),
+          getVoiceShortcutRuntimeStatus().catch(() => null),
+          getAsrCredentials().catch(() => []),
+        ]);
+
+      const normalizedVoiceConfig =
+        ensureValidVoiceInstructionSelection(nextVoiceConfig);
+
+      setConfig(nextConfig);
+      setVoiceConfig(normalizedVoiceConfig);
+      setVoiceShortcutStatus(nextVoiceShortcutStatus);
+      setAsrCredentials(nextAsr);
       setGlobalVoicePreference(
-        c.workspace_preferences?.media_defaults?.voice ??
+        nextConfig.workspace_preferences?.media_defaults?.voice ??
           DEFAULT_MEDIA_PREFERENCE,
       );
-    } catch (e) {
-      console.error("加载语音配置失败:", e);
+    } catch (error) {
+      console.error("加载语音设置失败:", error);
+      setMessage({ type: "error", text: "加载语音设置失败" });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // 保存配置
-  const saveVoiceConfig = async (key: keyof VoiceConfig, value: any) => {
-    if (!config) return;
-    setSaving((prev) => ({ ...prev, [key]: true }));
+  useEffect(() => {
+    void loadVoiceSettings();
+  }, [loadVoiceSettings]);
 
-    try {
-      const newConfig = {
-        ...voiceConfig,
-        [key]: value,
-      };
-      const updatedFullConfig = {
-        ...config,
-        voice: newConfig,
-      };
-      await saveConfig(updatedFullConfig);
-      setConfig(updatedFullConfig);
-      setVoiceConfig(newConfig);
-
-      showMessage("success", "设置已保存");
-    } catch (e) {
-      console.error("保存语音配置失败:", e);
-      showMessage("error", "保存失败");
-    } finally {
-      setSaving((prev) => ({ ...prev, [key]: false }));
-    }
-  };
-
-  // 测试 TTS
-  const handleTestTTS = async () => {
-    setTestingTTS(true);
-    try {
-      // TODO: 实现 TTS 测试 API
-      // await testTTS(voiceConfig.tts_service, voiceConfig.tts_voice);
-
-      // 模拟测试
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      showMessage("success", "语音测试成功");
-    } catch (e) {
-      console.error("TTS 测试失败:", e);
-      showMessage("error", "测试失败");
-    } finally {
-      setTestingTTS(false);
-    }
-  };
-
-  const saveGlobalVoicePreference = async (
-    nextPreference: MediaGenerationPreference,
-  ) => {
-    if (!config) return;
-
-    try {
-      const persistedPreference =
-        buildPersistedMediaGenerationPreference(nextPreference);
-      const updatedFullConfig: Config = {
-        ...config,
-        workspace_preferences: {
-          ...config.workspace_preferences,
-          media_defaults: {
-            ...config.workspace_preferences?.media_defaults,
-            voice: persistedPreference,
-          },
-        },
-      };
-      await saveConfig(updatedFullConfig);
-      setConfig(updatedFullConfig);
-      setGlobalVoicePreference(nextPreference);
-      showMessage("success", "设置已保存");
-    } catch (e) {
-      console.error("保存全局语音服务配置失败:", e);
-      showMessage("error", "保存失败");
-    }
-  };
-
-  const showMessage = (type: "success" | "error", text: string) => {
+  const showMessage = useCallback((type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
-  };
+  }, []);
 
-  const ttsProviders = useMemo(
+  const persistVoiceConfig = useCallback(
+    async (updater: (current: VoiceInputConfig) => VoiceInputConfig) => {
+      if (!voiceConfig) {
+        return;
+      }
+
+      try {
+        const nextVoiceConfig = ensureValidVoiceInstructionSelection(
+          updater(voiceConfig),
+        );
+        await saveVoiceInputConfig(nextVoiceConfig);
+        setVoiceConfig(nextVoiceConfig);
+        const nextRuntimeStatus = await getVoiceShortcutRuntimeStatus().catch(
+          () => null,
+        );
+        setVoiceShortcutStatus(nextRuntimeStatus);
+        showMessage("success", "语音设置已保存");
+      } catch (error) {
+        console.error("保存语音设置失败:", error);
+        showMessage("error", "保存语音设置失败");
+      }
+    },
+    [showMessage, voiceConfig],
+  );
+
+  const persistGlobalVoicePreference = useCallback(
+    async (nextPreference: MediaGenerationPreference) => {
+      if (!config) {
+        return;
+      }
+
+      try {
+        const persistedPreference =
+          buildPersistedMediaGenerationPreference(nextPreference);
+        const nextConfig: Config = {
+          ...config,
+          workspace_preferences: {
+            ...config.workspace_preferences,
+            media_defaults: {
+              ...config.workspace_preferences?.media_defaults,
+              voice: persistedPreference,
+            },
+          },
+        };
+        await saveConfig(nextConfig);
+        setConfig(nextConfig);
+        setGlobalVoicePreference(nextPreference);
+        showMessage("success", "语音生成偏好已保存");
+      } catch (error) {
+        console.error("保存语音生成偏好失败:", error);
+        showMessage("error", "保存语音生成偏好失败");
+      }
+    },
+    [config, showMessage],
+  );
+
+  const enabledAsrCredentials = useMemo(
+    () => asrCredentials.filter((credential) => !credential.disabled),
+    [asrCredentials],
+  );
+  const defaultAsrCredential = useMemo(
     () =>
-      providers.filter(
-        (provider) =>
-          provider.enabled &&
-          provider.api_key_count > 0 &&
-          isTtsProvider(provider.id, provider.type),
+      enabledAsrCredentials.find((credential) => credential.is_default) ?? null,
+    [enabledAsrCredentials],
+  );
+
+  const voiceProviders = useMemo(
+    () =>
+      providers.filter((provider) =>
+        isTtsProvider(provider.providerId ?? provider.key, provider.type),
       ),
     [providers],
   );
 
-  const selectedGlobalVoiceProvider = useMemo(
+  const polishProvider = useMemo(
     () =>
-      ttsProviders.find(
-        (provider) => provider.id === globalVoicePreference.preferredProviderId,
-      ) ?? null,
-    [globalVoicePreference.preferredProviderId, ttsProviders],
+      voiceConfig
+        ? findConfiguredProviderBySelection(
+            providers,
+            voiceConfig.processor.polish_provider,
+          )
+        : null,
+    [providers, voiceConfig],
   );
 
-  const availableGlobalVoiceModels = useMemo(() => {
-    if (!selectedGlobalVoiceProvider) {
-      return [];
+  const polishProviderWarning = voiceConfig?.processor.polish_provider
+    ? !polishProvider
+      ? `当前润色 Provider 不可用：${voiceConfig.processor.polish_provider}`
+      : undefined
+    : undefined;
+
+  const polishModelWarning =
+    voiceConfig?.processor.polish_model &&
+    polishProvider?.customModels?.length &&
+    !polishProvider.customModels.includes(voiceConfig.processor.polish_model)
+      ? `当前润色模型不在 ${polishProvider.label} 的已配置模型中：${voiceConfig.processor.polish_model}`
+      : undefined;
+
+  const primaryShortcutStatus = useMemo(
+    () => buildPrimaryShortcutStatus(voiceConfig, voiceShortcutStatus),
+    [voiceConfig, voiceShortcutStatus],
+  );
+
+  const translateShortcutStatus = useMemo(
+    () => buildTranslateShortcutStatus(voiceConfig, voiceShortcutStatus),
+    [voiceConfig, voiceShortcutStatus],
+  );
+
+  const voiceInstructions = voiceConfig?.instructions ?? [];
+  const defaultInstructionId = voiceConfig?.processor.default_instruction_id ?? "";
+  const translateInstructionId = voiceConfig?.translate_instruction_id ?? "";
+
+  const defaultInstructionLabel =
+    voiceInstructions.find((instruction) => instruction.id === defaultInstructionId)
+      ?.name ?? "请选择默认润色指令";
+
+  const translateInstructionLabel =
+    voiceInstructions.find(
+      (instruction) => instruction.id === translateInstructionId,
+    )?.name ?? "请选择翻译模式指令";
+
+  const providerHint = providersLoading
+    ? "正在识别当前可用于配音 / TTS 的 Provider。"
+    : voiceProviders.length === 0
+      ? "当前没有可用语音生成 Provider；请先在凭证管理中配置支持 TTS 的服务。"
+      : "这里只配置配音 / 语音生成任务的默认 Provider、模型与回退策略。";
+
+  const llmModelHint = providersLoading
+    ? "正在加载可用的润色模型。"
+    : providers.length === 0
+      ? "当前没有可用的对话模型；请先配置至少一个 LLM Provider。"
+      : "默认润色和翻译模式共用同一组模型选择；统一复用聊天页的模型选择器。";
+
+  const handleVoiceEnabledChange = (enabled: boolean) => {
+    void persistVoiceConfig((current) => ({
+      ...current,
+      enabled,
+    }));
+  };
+
+  const handleSoundEnabledChange = (soundEnabled: boolean) => {
+    void persistVoiceConfig((current) => ({
+      ...current,
+      sound_enabled: soundEnabled,
+    }));
+  };
+
+  const handleDeviceChange = (selectedDeviceId?: string) => {
+    void persistVoiceConfig((current) => ({
+      ...current,
+      selected_device_id: selectedDeviceId,
+    }));
+  };
+
+  const handlePrimaryShortcutChange = async (shortcut: string) => {
+    const normalizedShortcut = shortcut.trim();
+    if (!normalizedShortcut) {
+      return;
     }
-    return getTtsModelsForProvider(selectedGlobalVoiceProvider.custom_models);
-  }, [selectedGlobalVoiceProvider]);
 
-  const providerUnavailableLabel =
-    globalVoicePreference.preferredProviderId && !selectedGlobalVoiceProvider
-      ? "当前配置不可用：" + globalVoicePreference.preferredProviderId
-      : undefined;
+    await persistVoiceConfig((current) => ({
+      ...current,
+      shortcut: normalizedShortcut,
+    }));
+  };
 
-  const modelUnavailableLabel =
-    globalVoicePreference.preferredModelId &&
-    !availableGlobalVoiceModels.includes(globalVoicePreference.preferredModelId)
-      ? "当前配置不可用：" + globalVoicePreference.preferredModelId
-      : undefined;
+  const handleTranslateShortcutChange = async (shortcut: string) => {
+    await persistVoiceConfig((current) => ({
+      ...current,
+      translate_shortcut: normalizeOptionalText(shortcut),
+    }));
+  };
 
-  const handleGlobalVoiceProviderChange = (value: string) => {
-    const preferredProviderId = value === AUTO_VALUE ? undefined : value;
-    const nextProvider = ttsProviders.find(
-      (provider) => provider.id === preferredProviderId,
+  const handlePolishEnabledChange = (enabled: boolean) => {
+    void persistVoiceConfig((current) => ({
+      ...current,
+      processor: {
+        ...current.processor,
+        polish_enabled: enabled,
+      },
+    }));
+  };
+
+  const handlePolishProviderChange = (value: string) => {
+    const nextProviderId = normalizeOptionalText(value);
+
+    void persistVoiceConfig((current) => ({
+      ...current,
+      processor: {
+        ...current.processor,
+        polish_provider: nextProviderId,
+        polish_model:
+          nextProviderId === current.processor.polish_provider
+            ? current.processor.polish_model
+            : undefined,
+      },
+    }));
+  };
+
+  const handlePolishModelChange = (value: string) => {
+    void persistVoiceConfig((current) => ({
+      ...current,
+      processor: {
+        ...current.processor,
+        polish_model: normalizeOptionalText(value),
+      },
+    }));
+  };
+
+  const handleDefaultInstructionChange = (instructionId: string) => {
+    void persistVoiceConfig((current) => ({
+      ...current,
+      processor: {
+        ...current.processor,
+        default_instruction_id: instructionId,
+      },
+    }));
+  };
+
+  const handleTranslateInstructionChange = (
+    event: ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const instructionId = event.target.value;
+    void persistVoiceConfig((current) => ({
+      ...current,
+      translate_instruction_id: instructionId,
+    }));
+  };
+
+  const handleInstructionSnapshot = (instructions: VoiceInstruction[]) => {
+    setVoiceConfig((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return ensureValidVoiceInstructionSelection({
+        ...current,
+        instructions,
+      });
+    });
+  };
+
+  const handleDefaultInstructionSelect = (
+    event: ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const instructionId = event.target.value;
+    handleDefaultInstructionChange(instructionId);
+  };
+
+  const handleMediaProviderChange = (value: string) => {
+    const preferredProviderId = normalizeOptionalText(value);
+    const nextProvider = findConfiguredProviderBySelection(
+      voiceProviders,
+      preferredProviderId,
     );
     const nextModels = nextProvider
-      ? getTtsModelsForProvider(nextProvider.custom_models)
+      ? getTtsModelsForProvider(nextProvider.customModels)
       : [];
     const preferredModelId = preferredProviderId
       ? nextModels.includes(globalVoicePreference.preferredModelId || "")
         ? globalVoicePreference.preferredModelId
-        : nextModels[0]
+        : undefined
       : undefined;
 
-    void saveGlobalVoicePreference({
+    void persistGlobalVoicePreference({
       preferredProviderId,
       preferredModelId,
       allowFallback: globalVoicePreference.allowFallback ?? true,
     });
   };
 
-  const handleGlobalVoiceModelChange = (value: string) => {
-    void saveGlobalVoicePreference({
+  const handleMediaModelChange = (value: string) => {
+    void persistGlobalVoicePreference({
       ...globalVoicePreference,
-      preferredModelId: value === AUTO_VALUE ? undefined : value,
+      preferredModelId: normalizeOptionalText(value),
       allowFallback: globalVoicePreference.allowFallback ?? true,
     });
   };
 
-  const handleGlobalVoiceFallbackChange = (value: boolean) => {
-    void saveGlobalVoicePreference({
+  const handleFallbackChange = (value: boolean) => {
+    void persistGlobalVoicePreference({
       ...globalVoicePreference,
       allowFallback: value,
     });
   };
 
-  const handleResetGlobalVoicePreference = () => {
-    void saveGlobalVoicePreference(DEFAULT_MEDIA_PREFERENCE);
+  const handleResetPreference = () => {
+    void persistGlobalVoicePreference(DEFAULT_MEDIA_PREFERENCE);
   };
 
-  const availableVoices = TTS_VOICES[voiceConfig.tts_service || "openai"] || [];
+  if (loading) {
+    return <LoadingSkeleton />;
+  }
 
   return (
-    <div className="space-y-5 max-w-[980px]">
-      <MediaPreferenceSection
-        title="全局默认语音服务"
-        description="新项目默认继承这里的设置；项目里留空时会继续跟随这里。"
-        providerLabel="默认语音 Provider"
-        providerValue={globalVoicePreference.preferredProviderId ?? AUTO_VALUE}
-        providerAutoLabel="自动选择"
-        onProviderChange={handleGlobalVoiceProviderChange}
-        providers={ttsProviders.map((provider) => ({
-          value: provider.id,
-          label: provider.name,
-        }))}
-        providerUnavailableLabel={providerUnavailableLabel}
-        modelLabel="默认语音模型"
-        modelValue={globalVoicePreference.preferredModelId ?? AUTO_VALUE}
-        modelAutoLabel="自动选择"
-        onModelChange={handleGlobalVoiceModelChange}
-        models={availableGlobalVoiceModels.map((model) => ({
-          value: model,
-          label: model,
-        }))}
-        modelUnavailableLabel={modelUnavailableLabel}
-        modelHint="配音、BGM 与音效生成会优先使用这里的 Provider / 模型；未指定时沿用自动匹配策略。"
-        allowFallback={globalVoicePreference.allowFallback ?? true}
-        onAllowFallbackChange={handleGlobalVoiceFallbackChange}
-        fallbackTitle="默认语音服务不可用时自动回退"
-        fallbackDescription="关闭后，若全局默认语音服务缺失、被禁用或无可用 Key，将直接提示错误。"
-        emptyHint={
-          providersLoading
-            ? "正在加载语音 Provider..."
-            : ttsProviders.length === 0
-              ? "暂无可用语音 Provider，请先到凭证管理中配置可配音 / TTS 的服务。"
-              : "未指定时将沿用现有自动匹配规则。"
-        }
-        disabled={!config}
-        modelDisabled={
-          providersLoading ||
-          !globalVoicePreference.preferredProviderId ||
-          availableGlobalVoiceModels.length === 0
-        }
-        onReset={handleResetGlobalVoicePreference}
-        resetLabel="恢复默认"
-        resetDisabled={
-          !hasMediaGenerationPreferenceOverride(globalVoicePreference)
-        }
-      />
-
-      {/* 语音总开关 */}
-      <div className={PANEL_CARD_CLASS}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Settings2 className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium">语音功能</h3>
-                <WorkbenchInfoTip
-                  ariaLabel="语音功能说明"
-                  content="控制语音输入和输出功能。"
-                  tone="slate"
-                />
-              </div>
-            </div>
-          </div>
+    <div className="max-w-[820px] space-y-4">
+      {voiceConfig?.enabled && !defaultAsrCredential ? (
+        <div className="rounded-[22px] border border-amber-200 bg-amber-50/85 px-4 py-3 text-sm text-amber-800">
+          语音输入已启用，但当前没有默认的语音识别凭证；请先在凭证管理的“语音服务”里设置默认 ASR 服务。
         </div>
+      ) : null}
 
-        <div className="space-y-2">
-          <label className="flex items-center justify-between py-1.5 cursor-pointer">
-            <span className="text-sm">语音输入 (STT)</span>
-            <input
-              type="checkbox"
-              checked={voiceConfig.voice_input_enabled ?? false}
-              onChange={(e) =>
-                saveVoiceConfig("voice_input_enabled", e.target.checked)
-              }
-              disabled={loading}
-              className="w-4 h-4 rounded border-gray-300"
-            />
-          </label>
-
-          <label className="flex items-center justify-between py-1.5 cursor-pointer border-t">
-            <span className="text-sm">语音输出 (TTS)</span>
-            <input
-              type="checkbox"
-              checked={voiceConfig.voice_output_enabled ?? false}
-              onChange={(e) =>
-                saveVoiceConfig("voice_output_enabled", e.target.checked)
-              }
-              disabled={loading}
-              className="w-4 h-4 rounded border-gray-300"
-            />
-          </label>
-        </div>
-      </div>
-
-      {/* TTS 服务商 */}
-      <div className={PANEL_CARD_CLASS}>
-        <div className="flex items-center gap-2 mb-3">
-          <Volume2 className="h-4 w-4 text-muted-foreground" />
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-medium">文字转语音 (TTS)</h3>
-              <WorkbenchInfoTip
-                ariaLabel="文字转语音说明"
-                content="选择语音合成服务商和参数。"
-                tone="slate"
-              />
+      <SettingCard
+        title="语音输入"
+        description="管理语音输入的启用状态、全局快捷键、麦克风设备和录音音效。这里的改动会直接影响输入栏听写、悬浮语音窗和翻译模式。"
+        icon={Mic}
+      >
+        <SettingRow
+          label="启用语音输入"
+          description="关闭后不会注册语音相关全局快捷键，输入栏听写和语音悬浮窗也不会继续工作。"
+        >
+          <div className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-200/80 bg-slate-50/80 px-4 py-3">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-slate-800">
+                当前默认识别服务
+              </p>
+              <p className="text-xs leading-5 text-slate-500">
+                {defaultAsrCredential
+                  ? `${defaultAsrCredential.name || defaultAsrCredential.provider}（已设为默认）`
+                  : "尚未配置默认语音识别凭证"}
+              </p>
             </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {/* 服务商选择 */}
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">
-              服务商
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {TTS_SERVICES.map((service) => (
-                <button
-                  key={service.value}
-                  onClick={() => saveVoiceConfig("tts_service", service.value)}
-                  className={cn(
-                    CHOICE_BUTTON_CLASS,
-                    voiceConfig.tts_service === service.value
-                      ? ACTIVE_CHOICE_BUTTON_CLASS
-                      : INACTIVE_CHOICE_BUTTON_CLASS,
-                  )}
-                >
-                  <div className="font-medium">{service.label}</div>
-                  <div className="mt-1">
-                    <WorkbenchInfoTip
-                      ariaLabel={`${service.label} TTS 说明`}
-                      content={service.desc}
-                      tone={
-                        voiceConfig.tts_service === service.value
-                          ? "mint"
-                          : "slate"
-                      }
-                    />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 语音选择 */}
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">
-              语音
-            </label>
-            <select
-              value={voiceConfig.tts_voice || "alloy"}
-              onChange={(e) => saveVoiceConfig("tts_voice", e.target.value)}
-              disabled={loading}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm shadow-slate-950/5 outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
-            >
-              {availableVoices.map((voice) => (
-                <option key={voice.value} value={voice.value}>
-                  {voice.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 语速 */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs text-muted-foreground">语速</label>
-              <span className="text-xs text-primary">
-                {voiceConfig.tts_rate?.toFixed(1) || "1.0"}x
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0.1}
-              max={2.0}
-              step={0.1}
-              value={voiceConfig.tts_rate || 1.0}
-              onChange={(e) => {
-                const value = parseFloat(e.target.value);
-                setVoiceConfig((prev) => ({ ...prev, tts_rate: value }));
-              }}
-              onChangeCapture={(e) => {
-                saveVoiceConfig(
-                  "tts_rate",
-                  parseFloat((e.target as HTMLInputElement).value),
-                );
-              }}
-              className={RANGE_INPUT_CLASS}
-            />
-            <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-              <span>0.5x</span>
-              <span>1.0x</span>
-              <span>2.0x</span>
-            </div>
-          </div>
-
-          {/* 音调 */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs text-muted-foreground">音调</label>
-              <span className="text-xs text-primary">
-                {voiceConfig.tts_pitch?.toFixed(1) || "1.0"}x
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0.1}
-              max={2.0}
-              step={0.1}
-              value={voiceConfig.tts_pitch || 1.0}
-              onChange={(e) => {
-                const value = parseFloat(e.target.value);
-                setVoiceConfig((prev) => ({ ...prev, tts_pitch: value }));
-              }}
-              onChangeCapture={(e) => {
-                saveVoiceConfig(
-                  "tts_pitch",
-                  parseFloat((e.target as HTMLInputElement).value),
-                );
-              }}
-              className={RANGE_INPUT_CLASS}
-            />
-            <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-              <span>低</span>
-              <span>中</span>
-              <span>高</span>
-            </div>
-          </div>
-
-          {/* 音量 */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs text-muted-foreground">音量</label>
-              <span className="text-xs text-primary">
-                {Math.round((voiceConfig.tts_volume || 1.0) * 100)}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.1}
-              value={voiceConfig.tts_volume || 1.0}
-              onChange={(e) => {
-                const value = parseFloat(e.target.value);
-                setVoiceConfig((prev) => ({ ...prev, tts_volume: value }));
-              }}
-              onChangeCapture={(e) => {
-                saveVoiceConfig(
-                  "tts_volume",
-                  parseFloat((e.target as HTMLInputElement).value),
-                );
-              }}
-              className={RANGE_INPUT_CLASS}
+            <Switch
+              checked={voiceConfig?.enabled ?? false}
+              onCheckedChange={handleVoiceEnabledChange}
+              disabled={!voiceConfig}
+              aria-label="切换语音输入"
             />
           </div>
+        </SettingRow>
 
-          {/* 测试按钮 */}
-          <button
-            onClick={handleTestTTS}
-            disabled={
-              loading ||
-              testingTTS ||
-              !(voiceConfig.voice_output_enabled ?? false)
-            }
-            className="flex w-full items-center justify-center gap-2 rounded-[18px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+        <SettingRow
+          label="主快捷键"
+          description="用于唤起语音输入的全局快捷键。保存时会同步更新运行时注册状态。"
+        >
+          <div className="space-y-3">
+            <ShortcutSettings
+              currentShortcut={voiceConfig?.shortcut ?? ""}
+              onShortcutChange={handlePrimaryShortcutChange}
+              onValidate={validateShortcut}
+              disabled={!voiceConfig}
+            />
+            <StatusPill tone={primaryShortcutStatus.tone}>
+              {primaryShortcutStatus.text}
+            </StatusPill>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label="翻译模式快捷键"
+          description="可选。设置后会直接以翻译模式启动语音输入，并使用下方指定的翻译指令。"
+        >
+          <div className="space-y-3">
+            <ShortcutSettings
+              currentShortcut={voiceConfig?.translate_shortcut ?? ""}
+              onShortcutChange={handleTranslateShortcutChange}
+              onValidate={validateShortcut}
+              disabled={!voiceConfig}
+              emptyLabel="未设置翻译模式快捷键"
+              allowClear
+            />
+            <StatusPill tone={translateShortcutStatus.tone}>
+              {translateShortcutStatus.text}
+            </StatusPill>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label="麦克风设备"
+          description="录音时优先使用这里选定的设备；如果留空则回退到系统默认输入设备。"
+        >
+          <MicrophoneTest
+            selectedDeviceId={voiceConfig?.selected_device_id}
+            onDeviceChange={handleDeviceChange}
+            disabled={!voiceConfig}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label="交互音效"
+          description="控制开始录音、结束录音等反馈音效；会同时影响输入栏和悬浮语音窗。"
+        >
+          <div className="flex items-center justify-end">
+            <Switch
+              checked={voiceConfig?.sound_enabled ?? true}
+              onCheckedChange={handleSoundEnabledChange}
+              disabled={!voiceConfig}
+              aria-label="切换交互音效"
+            />
+          </div>
+        </SettingRow>
+      </SettingCard>
+
+      <SettingCard
+        title="语音处理"
+        description="统一管理默认润色、翻译模式和语音指令。润色与翻译共用同一组 LLM 模型选择，继续复用聊天页的模型选择器。"
+        icon={Wand2}
+      >
+        <SettingRow
+          label="默认启用 AI 润色"
+          description="开启后，普通语音输入会自动按默认润色指令进行后处理；翻译模式不受这个开关影响。"
+        >
+          <div className="flex items-center justify-end">
+            <Switch
+              checked={voiceConfig?.processor.polish_enabled ?? true}
+              onCheckedChange={handlePolishEnabledChange}
+              disabled={!voiceConfig}
+              aria-label="切换 AI 润色"
+            />
+          </div>
+        </SettingRow>
+
+        <SettingModelSelectorField
+          label="润色与翻译模型"
+          description={llmModelHint}
+          warningText={polishProviderWarning ?? polishModelWarning}
+          providerType={voiceConfig?.processor.polish_provider ?? ""}
+          setProviderType={handlePolishProviderChange}
+          model={voiceConfig?.processor.polish_model ?? ""}
+          setModel={handlePolishModelChange}
+          providerFilter={() => true}
+          modelFilter={(model) =>
+            modelSupportsTaskFamily(model, "chat") ||
+            modelSupportsTaskFamily(model, "reasoning")
+          }
+          emptyStateTitle="暂无可用润色模型"
+          emptyStateDescription={llmModelHint}
+          disabled={!voiceConfig}
+        />
+
+        <SettingRow
+          label="默认润色指令"
+          description="普通语音输入在开启 AI 润色时会使用这里指定的指令。"
+        >
+          <select
+            aria-label="默认润色指令"
+            className="h-11 w-full rounded-[16px] border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-sky-400"
+            value={defaultInstructionId}
+            onChange={handleDefaultInstructionSelect}
+            disabled={!voiceConfig || voiceInstructions.length === 0}
           >
-            {testingTTS ? (
-              <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                测试中...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4" />
-                测试语音
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+            <option value="" disabled>
+              {defaultInstructionLabel}
+            </option>
+            {voiceInstructions.map((instruction) => (
+              <option key={instruction.id} value={instruction.id}>
+                {instruction.name}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
 
-      {/* STT 服务商 */}
-      <div className={PANEL_CARD_CLASS}>
-        <div className="flex items-center gap-2 mb-3">
-          <Mic className="h-4 w-4 text-muted-foreground" />
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-medium">语音转文字 (STT)</h3>
-              <WorkbenchInfoTip
-                ariaLabel="语音转文字说明"
-                content="选择语音识别服务商和参数。"
-                tone="slate"
-              />
-            </div>
-          </div>
-        </div>
+        <SettingRow
+          label="翻译模式指令"
+          description="翻译模式快捷键会执行这里选择的指令；建议指向“翻译为英文”或自定义翻译模板。"
+        >
+          <select
+            aria-label="翻译模式指令"
+            className="h-11 w-full rounded-[16px] border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none transition focus:border-sky-400"
+            value={translateInstructionId}
+            onChange={handleTranslateInstructionChange}
+            disabled={!voiceConfig || voiceInstructions.length === 0}
+          >
+            <option value="" disabled>
+              {translateInstructionLabel}
+            </option>
+            {voiceInstructions.map((instruction) => (
+              <option key={instruction.id} value={instruction.id}>
+                {instruction.name}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
 
-        <div className="space-y-3">
-          {/* 服务商选择 */}
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">
-              服务商
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {STT_SERVICES.map((service) => (
-                <button
-                  key={service.value}
-                  onClick={() => saveVoiceConfig("stt_service", service.value)}
-                  className={cn(
-                    CHOICE_BUTTON_CLASS,
-                    voiceConfig.stt_service === service.value
-                      ? ACTIVE_CHOICE_BUTTON_CLASS
-                      : INACTIVE_CHOICE_BUTTON_CLASS,
-                  )}
-                >
-                  <div className="font-medium">{service.label}</div>
-                  <div className="mt-1">
-                    <WorkbenchInfoTip
-                      ariaLabel={`${service.label} STT 说明`}
-                      content={service.desc}
-                      tone={
-                        voiceConfig.stt_service === service.value
-                          ? "mint"
-                          : "slate"
-                      }
-                    />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 语言选择 */}
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">
-              识别语言
-            </label>
-            <select
-              value={voiceConfig.stt_language || "zh-CN"}
-              onChange={(e) => saveVoiceConfig("stt_language", e.target.value)}
-              disabled={loading}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm shadow-slate-950/5 outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
-            >
-              {STT_LANGUAGES.map((lang) => (
-                <option key={lang.value} value={lang.value}>
-                  {lang.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 自动停止 */}
-          <label className="flex items-center justify-between py-1.5 cursor-pointer border-t">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm">自动停止录音</span>
-                <WorkbenchInfoTip
-                  ariaLabel="自动停止录音说明"
-                  content="检测到停止说话时自动结束录音。"
-                  tone="slate"
-                />
-              </div>
-            </div>
-            <input
-              type="checkbox"
-              checked={voiceConfig.stt_auto_stop ?? true}
-              onChange={(e) =>
-                saveVoiceConfig("stt_auto_stop", e.target.checked)
-              }
-              disabled={loading}
-              className={CHECKBOX_INPUT_CLASS}
-            />
-          </label>
-        </div>
-      </div>
-
-      {/* 提示信息 */}
-      <div className={INFO_CARD_CLASS}>
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
-        <div className="flex items-center gap-2">
-          <span>语音链路说明已收纳</span>
-          <WorkbenchInfoTip
-            ariaLabel="语音链路说明"
-            content="语音功能需要先启用相应的开关。TTS 用于将 AI 的回复转换为语音播放，STT 用于将你的语音转换为文字输入。不同的服务商可能有不同的费用和效果。"
-            tone="slate"
+        <div className="px-5 py-4">
+          <InstructionEditor
+            defaultInstructionId={defaultInstructionId}
+            onDefaultChange={handleDefaultInstructionChange}
+            onInstructionsChange={handleInstructionSnapshot}
+            disabled={!voiceConfig}
           />
         </div>
-      </div>
+      </SettingCard>
 
-      {/* 消息提示 */}
-      {message && (
+      <MediaPreferenceSection
+        title="语音服务模型"
+        description="这里只配置配音 / 语音生成任务的默认 Provider、模型与回退策略；语音输入本身的识别、快捷键和润色逻辑请在上方设置。"
+        selectorLabel="默认模型"
+        selectorDescription="统一使用聊天页同款模型选择器；未指定时沿用自动匹配策略。"
+        providerType={globalVoicePreference.preferredProviderId ?? ""}
+        setProviderType={handleMediaProviderChange}
+        model={globalVoicePreference.preferredModelId ?? ""}
+        setModel={handleMediaModelChange}
+        providerFilter={(provider) =>
+          isTtsProvider(provider.providerId ?? provider.key, provider.type)
+        }
+        modelFilter={(model, provider) =>
+          getTtsModelsForProvider(provider.customModels).includes(model.id)
+        }
+        allowFallback={globalVoicePreference.allowFallback ?? true}
+        onAllowFallbackChange={handleFallbackChange}
+        fallbackTitle="Provider 不可用时自动回退"
+        fallbackDescription="关闭后，若当前默认语音服务缺失、被禁用或无可用 Key，将直接提示错误。"
+        emptyStateTitle="暂无可用语音模型"
+        emptyStateDescription={providerHint}
+        disabled={!config}
+        onReset={handleResetPreference}
+        resetLabel="恢复默认"
+        resetDisabled={!hasMediaGenerationPreferenceOverride(globalVoicePreference)}
+      />
+
+      {message ? (
         <div
           className={cn(
-            "flex items-center gap-2 rounded-[20px] border p-3",
+            "flex items-center gap-2 rounded-[20px] border px-4 py-3",
             message.type === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : "border-rose-200 bg-rose-50 text-rose-700",
@@ -756,7 +823,7 @@ export function VoiceSettings() {
           )}
           <span className="text-sm">{message.text}</span>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

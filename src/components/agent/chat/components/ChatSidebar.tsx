@@ -32,6 +32,7 @@ import type {
 import {
   deriveTaskLiveState,
   extractTaskPreviewFromMessages,
+  resolveRecentTopicActionLabel,
   type Topic,
   type TaskStatus,
   type TaskStatusReason,
@@ -138,6 +139,7 @@ interface ChatSidebarProps {
   isSending?: boolean;
   pendingActionCount?: number;
   queuedTurnCount?: number;
+  threadStatus?: string | null;
   workspaceError?: boolean;
   childSubagentSessions?: AsterSubagentSessionInfo[];
   subagentParentContext?: AsterSubagentParentContext | null;
@@ -252,16 +254,7 @@ function resolveTaskCenterContinuationBadge(
 function resolveTaskCenterContinuationActionLabel(
   item: TaskCardViewModel,
 ): string {
-  if (isResumableTask(item)) {
-    return "继续任务";
-  }
-  if (item.status === "done") {
-    return "回看结果";
-  }
-  if (item.status === "running") {
-    return "查看进展";
-  }
-  return "打开现场";
+  return resolveRecentTopicActionLabel(item);
 }
 
 function areProjectNameMapsEqual(
@@ -336,6 +329,7 @@ function resolveTaskStatus(params: {
   isSending: boolean;
   pendingActionCount: number;
   queuedTurnCount: number;
+  threadStatus?: string | null;
   workspaceError: boolean;
 }) {
   const {
@@ -345,6 +339,7 @@ function resolveTaskStatus(params: {
     isSending,
     pendingActionCount,
     queuedTurnCount,
+    threadStatus,
     workspaceError,
   } = params;
 
@@ -354,6 +349,7 @@ function resolveTaskStatus(params: {
       isSending,
       pendingActionCount,
       queuedTurnCount,
+      threadStatus,
       workspaceError,
     });
   }
@@ -585,6 +581,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   isSending = false,
   pendingActionCount = 0,
   queuedTurnCount = 0,
+  threadStatus = null,
   workspaceError = false,
   childSubagentSessions = [],
   subagentParentContext = null,
@@ -632,6 +629,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         isSending,
         pendingActionCount,
         queuedTurnCount,
+        threadStatus,
         workspaceError,
       });
 
@@ -670,6 +668,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     isSending,
     pendingActionCount,
     queuedTurnCount,
+    threadStatus,
     pinnedTaskIdSet,
     topics,
     workspaceError,
@@ -1137,16 +1136,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 data-testid="task-center-continuation-panel"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                    <div className="min-w-0">
                     <div className="text-[11px] font-semibold tracking-[0.12em] text-emerald-700">
-                      继续上次生成
+                      继续最近会话
                     </div>
                     <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                      上次生成到哪、结果留在哪个项目里，这里会直接告诉你。
+                      最近一次停在哪、当前在等什么，这里会直接带你回到现场。
                     </p>
                   </div>
                   <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">
-                    沉淀已保留
+                    上下文已保留
                   </Badge>
                 </div>
 

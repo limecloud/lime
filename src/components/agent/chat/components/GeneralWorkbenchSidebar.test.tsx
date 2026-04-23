@@ -3,6 +3,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GeneralWorkbenchSidebar } from "./GeneralWorkbenchSidebar";
+import {
+  recordCuratedTaskRecommendationSignal,
+  recordCuratedTaskRecommendationSignalFromReviewDecision,
+} from "../utils/curatedTaskRecommendationSignals";
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 const mockWriteClipboardText = vi.fn();
@@ -73,6 +77,7 @@ afterEach(() => {
     mounted.container.remove();
   }
   vi.clearAllMocks();
+  window.localStorage.clear();
 });
 
 function renderSidebar(
@@ -1061,6 +1066,551 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(followUpHint?.textContent).toContain("每日趋势摘要");
   });
 
+  it("复盘结果带着 sceneapp 基线时，应在当前进展里显影当前结果基线", () => {
+    const { container } = renderSidebar({
+      activeRunDetail: {
+        id: "run-sceneapp-baseline-workflow",
+        source: "skill",
+        source_ref: "account-project-review",
+        session_id: "session-sceneapp-baseline-workflow",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "account-project-review",
+              task_title: "复盘这个账号/项目",
+              reference_entries: [
+                {
+                  id: "sceneapp:ai-weekly:run:1",
+                  source_kind: "sceneapp_execution_summary",
+                  title: "AI 内容周报",
+                  summary: "已有一轮可继续放量的结果。",
+                  category: "experience",
+                  tags: ["复盘", "增长"],
+                  task_prefill_by_task_id: {
+                    "account-project-review": {
+                      project_goal: "AI 内容周报",
+                      existing_results:
+                        "当前判断：适合继续放量 经营动作：保留品牌联名方向 更适合去向：内容主稿生成 / 渠道改写",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const baselineCard = container.querySelector(
+      '[data-testid="workflow-sidebar-sceneapp-baseline-card"]',
+    ) as HTMLElement | null;
+    expect(baselineCard).toBeTruthy();
+    expect(baselineCard?.textContent).toContain("当前结果基线");
+    expect(baselineCard?.textContent).toContain("AI 内容周报");
+    expect(baselineCard?.textContent).toContain("当前判断：适合继续放量");
+    expect(baselineCard?.textContent).toContain(
+      "经营动作：保留品牌联名方向",
+    );
+    expect(baselineCard?.textContent).toContain(
+      "更适合去向：内容主稿生成 / 渠道改写",
+    );
+  });
+
+  it("切到下游结果模板后，当前进展仍应显影 sceneapp 基线", () => {
+    const { container } = renderSidebar({
+      activeRunDetail: {
+        id: "run-sceneapp-baseline-follow-up",
+        source: "skill",
+        source_ref: "daily-trend-briefing",
+        session_id: "session-sceneapp-baseline-follow-up",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "daily-trend-briefing",
+              task_title: "每日趋势摘要",
+              reference_entries: [
+                {
+                  id: "sceneapp:ai-weekly:run:1",
+                  source_kind: "sceneapp_execution_summary",
+                  title: "AI 内容周报",
+                  summary: "已有一轮可继续放量的结果。",
+                  category: "experience",
+                  tags: ["复盘", "增长"],
+                  task_prefill_by_task_id: {
+                    "account-project-review": {
+                      project_goal: "AI 内容周报",
+                      existing_results:
+                        "当前判断：适合继续放量 经营动作：保留品牌联名方向 更适合去向：内容主稿生成 / 渠道改写",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const baselineCard = container.querySelector(
+      '[data-testid="workflow-sidebar-sceneapp-baseline-card"]',
+    ) as HTMLElement | null;
+    expect(baselineCard).toBeTruthy();
+    expect(baselineCard?.textContent).toContain("当前结果基线");
+    expect(baselineCard?.textContent).toContain("AI 内容周报");
+    expect(baselineCard?.textContent).toContain("当前判断：适合继续放量");
+    expect(baselineCard?.textContent).toContain(
+      "经营动作：保留品牌联名方向",
+    );
+  });
+
+  it("命中最近复盘偏好模板时，应在当前进展里显影复盘建议", () => {
+    recordCuratedTaskRecommendationSignalFromReviewDecision(
+      {
+        session_id: "session-review-workflow",
+        decision_status: "needs_more_evidence",
+        decision_summary: "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
+        chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
+        risk_level: "medium",
+        risk_tags: ["证据不足", "需要复盘"],
+        followup_actions: ["补账号数据复盘", "拆解高表现内容"],
+      },
+      {
+        projectId: "project-review-workflow",
+        sceneTitle: "短视频编排",
+      },
+    );
+
+    const { container } = renderSidebar({
+      projectId: "project-review-workflow",
+      activeRunDetail: {
+        id: "run-review-feedback-workflow",
+        source: "skill",
+        source_ref: "account-project-review",
+        session_id: "session-review-workflow",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "account-project-review",
+              task_title: "复盘这个账号/项目",
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const reviewBanner = container.querySelector(
+      '[data-testid="workflow-sidebar-review-feedback-banner"]',
+    ) as HTMLElement | null;
+    expect(reviewBanner).toBeTruthy();
+    expect(reviewBanner?.textContent).toContain("围绕最近复盘");
+    expect(reviewBanner?.textContent).toContain(
+      "最近复盘已更新：短视频编排 · 补证据",
+    );
+    expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
+    expect(reviewBanner?.textContent).toContain("围绕「复盘这个账号/项目」继续推进");
+  });
+
+  it("复盘结果带着 sceneapp 基线时，应在当前查看运行里继续显影当前结果基线", () => {
+    const { container } = renderSidebar({
+      activeRunDetail: {
+        id: "run-sceneapp-baseline-run-detail",
+        source: "skill",
+        source_ref: "account-project-review",
+        session_id: "session-sceneapp-baseline-run-detail",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "account-project-review",
+              task_title: "复盘这个账号/项目",
+              reference_entries: [
+                {
+                  id: "sceneapp:ai-weekly:run:2",
+                  source_kind: "sceneapp_execution_summary",
+                  title: "AI 内容周报",
+                  summary: "已有一轮可继续放量的结果。",
+                  category: "experience",
+                  tags: ["复盘", "增长"],
+                  task_prefill_by_task_id: {
+                    "account-project-review": {
+                      project_goal: "AI 内容周报",
+                      existing_results:
+                        "当前判断：适合继续放量 经营动作：保留品牌联名方向 更适合去向：内容主稿生成 / 渠道改写",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const activityToggle = container.querySelector(
+      "button[aria-label='切换执行经过']",
+    ) as HTMLButtonElement | null;
+    if (activityToggle) {
+      act(() => {
+        activityToggle.click();
+      });
+    }
+
+    const baselineCard = container.querySelector(
+      '[data-testid="workflow-run-detail-sceneapp-baseline-card"]',
+    ) as HTMLElement | null;
+    expect(baselineCard).toBeTruthy();
+    expect(baselineCard?.textContent).toContain("当前结果基线");
+    expect(baselineCard?.textContent).toContain("AI 内容周报");
+    expect(baselineCard?.textContent).toContain("当前判断：适合继续放量");
+    expect(baselineCard?.textContent).toContain(
+      "经营动作：保留品牌联名方向",
+    );
+    expect(baselineCard?.textContent).toContain(
+      "更适合去向：内容主稿生成 / 渠道改写",
+    );
+  });
+
+  it("命中最近复盘偏好模板时，应在当前查看运行里继续显影复盘建议", () => {
+    recordCuratedTaskRecommendationSignalFromReviewDecision(
+      {
+        session_id: "session-review-run-detail",
+        decision_status: "needs_more_evidence",
+        decision_summary: "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
+        chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
+        risk_level: "medium",
+        risk_tags: ["证据不足", "需要复盘"],
+        followup_actions: ["补账号数据复盘", "拆解高表现内容"],
+      },
+      {
+        projectId: "project-review-run-detail",
+        sceneTitle: "短视频编排",
+      },
+    );
+
+    const { container } = renderSidebar({
+      projectId: "project-review-run-detail",
+      activeRunDetail: {
+        id: "run-review-run-detail",
+        source: "skill",
+        source_ref: "account-project-review",
+        session_id: "session-review-run-detail",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "account-project-review",
+              task_title: "复盘这个账号/项目",
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const activityToggle = container.querySelector(
+      "button[aria-label='切换执行经过']",
+    ) as HTMLButtonElement | null;
+    if (activityToggle) {
+      act(() => {
+        activityToggle.click();
+      });
+    }
+
+    const reviewBanner = container.querySelector(
+      '[data-testid="workflow-run-detail-review-feedback-banner"]',
+    ) as HTMLElement | null;
+    expect(reviewBanner).toBeTruthy();
+    expect(reviewBanner?.textContent).toContain("围绕最近复盘");
+    expect(reviewBanner?.textContent).toContain(
+      "最近复盘已更新：短视频编排 · 补证据",
+    );
+    expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
+    expect(reviewBanner?.textContent).toContain("围绕「复盘这个账号/项目」继续推进");
+  });
+
+  it("点击当前进展里的复盘建议时，应把结果基线 continuation 回传给工作区", () => {
+    const onApplyFollowUpAction = vi.fn();
+    recordCuratedTaskRecommendationSignal({
+      source: "review_feedback",
+      category: "experience",
+      title: "AI 内容周报 · 转成主稿",
+      summary: "这轮判断已经清楚，建议直接回到内容主稿生成继续往下做。",
+      tags: ["复盘", "主稿"],
+      preferredTaskIds: ["social-post-starter", "account-project-review"],
+      createdAt: Date.now(),
+      projectId: "project-review-feedback-sidebar",
+      sessionId: "session-review-feedback-sidebar",
+    });
+
+    const { container } = renderSidebar({
+      projectId: "project-review-feedback-sidebar",
+      onApplyFollowUpAction,
+      activeRunDetail: {
+        id: "run-review-feedback-sidebar",
+        source: "skill",
+        source_ref: "account-project-review",
+        session_id: "session-review-feedback-sidebar",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "account-project-review",
+              task_title: "复盘这个账号/项目",
+              reference_entries: [
+                {
+                  id: "sceneapp:ai-weekly:run:3",
+                  source_kind: "sceneapp_execution_summary",
+                  title: "AI 内容周报",
+                  summary: "当前已有一轮结果，可直接进入下游主稿。",
+                  category: "experience",
+                  tags: ["复盘", "周报"],
+                  task_prefill_by_task_id: {
+                    "account-project-review": {
+                      project_goal: "AI 内容周报",
+                      existing_results:
+                        "当前判断：适合继续放量 当前卡点：封面信息过密 经营动作：保留品牌联名方向 更适合去向：内容主稿生成",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const actionButton = container.querySelector(
+      '[data-testid="workflow-sidebar-review-feedback-banner-action"]',
+    ) as HTMLButtonElement | null;
+    expect(actionButton?.textContent).toContain("继续去「内容主稿生成」");
+
+    if (actionButton) {
+      act(() => {
+        actionButton.click();
+      });
+    }
+
+    expect(onApplyFollowUpAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bannerMessage:
+          "已切到“内容主稿生成”这条下一步，并带着当前结果继续生成。",
+        capabilityRoute: expect.objectContaining({
+          kind: "curated_task",
+          taskId: "social-post-starter",
+          taskTitle: "内容主稿生成",
+          prompt: expect.stringContaining("当前结果基线：AI 内容周报"),
+          referenceEntries: [
+            expect.objectContaining({
+              sourceKind: "sceneapp_execution_summary",
+              title: "AI 内容周报",
+            }),
+          ],
+        }),
+        prompt: expect.stringContaining("继续沿这轮项目结果基线推进"),
+      }),
+    );
+  });
+
+  it("点击当前查看运行里的复盘建议时，也应把 continuation 回传给工作区", () => {
+    const onApplyFollowUpAction = vi.fn();
+    recordCuratedTaskRecommendationSignal({
+      source: "review_feedback",
+      category: "experience",
+      title: "AI 内容周报 · 转成主稿",
+      summary: "这轮判断已经清楚，建议直接回到内容主稿生成继续往下做。",
+      tags: ["复盘", "主稿"],
+      preferredTaskIds: ["social-post-starter", "account-project-review"],
+      createdAt: Date.now(),
+      projectId: "project-review-feedback-run-detail",
+      sessionId: "session-review-feedback-run-detail",
+    });
+
+    const { container } = renderSidebar({
+      projectId: "project-review-feedback-run-detail",
+      onApplyFollowUpAction,
+      activeRunDetail: {
+        id: "run-review-feedback-run-detail",
+        source: "skill",
+        source_ref: "account-project-review",
+        session_id: "session-review-feedback-run-detail",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "account-project-review",
+              task_title: "复盘这个账号/项目",
+              reference_entries: [
+                {
+                  id: "sceneapp:ai-weekly:run:4",
+                  source_kind: "sceneapp_execution_summary",
+                  title: "AI 内容周报",
+                  summary: "当前已有一轮结果，可直接进入下游主稿。",
+                  category: "experience",
+                  tags: ["复盘", "周报"],
+                  task_prefill_by_task_id: {
+                    "account-project-review": {
+                      project_goal: "AI 内容周报",
+                      existing_results:
+                        "当前判断：适合继续放量 当前卡点：封面信息过密 经营动作：保留品牌联名方向 更适合去向：内容主稿生成",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const activityToggle = container.querySelector(
+      "button[aria-label='切换执行经过']",
+    ) as HTMLButtonElement | null;
+    if (activityToggle) {
+      act(() => {
+        activityToggle.click();
+      });
+    }
+
+    const actionButton = container.querySelector(
+      '[data-testid="workflow-run-detail-review-feedback-banner-action"]',
+    ) as HTMLButtonElement | null;
+    expect(actionButton?.textContent).toContain("继续去「内容主稿生成」");
+
+    if (actionButton) {
+      act(() => {
+        actionButton.click();
+      });
+    }
+
+    expect(onApplyFollowUpAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bannerMessage:
+          "已切到“内容主稿生成”这条下一步，并带着当前结果继续生成。",
+        capabilityRoute: expect.objectContaining({
+          kind: "curated_task",
+          taskId: "social-post-starter",
+          taskTitle: "内容主稿生成",
+          prompt: expect.stringContaining("当前结果基线：AI 内容周报"),
+        }),
+        prompt: expect.stringContaining("继续沿这轮项目结果基线推进"),
+      }),
+    );
+  });
+
   it("点击建议下一步应把 continuation prompt 回传给工作区", () => {
     const onApplyFollowUpAction = vi.fn();
     const { container } = renderSidebar({
@@ -1124,6 +1674,8 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(onApplyFollowUpAction).toHaveBeenCalledWith(
       {
         prompt: "请基于「每日趋势摘要」这轮结果继续：继续展开其中一个选题",
+        bannerMessage:
+          "已按“继续展开其中一个选题”接着推进「每日趋势摘要」，可继续改写后发送。",
         capabilityRoute: {
           kind: "curated_task",
           taskId: "daily-trend-briefing",
@@ -1211,6 +1763,8 @@ describe("GeneralWorkbenchSidebar", () => {
         prompt: expect.stringContaining(
           "请承接这轮复盘结论，直接生成下一轮最值得执行的内容方案。",
         ),
+        bannerMessage:
+          "已切到“内容主稿生成”这条下一步，并带着这轮结果继续生成。",
         capabilityRoute: expect.objectContaining({
           kind: "curated_task",
           taskId: "social-post-starter",
@@ -1299,6 +1853,8 @@ describe("GeneralWorkbenchSidebar", () => {
 
     expect(onApplyFollowUpAction).toHaveBeenCalledWith(
       expect.objectContaining({
+        bannerMessage:
+          "已切到“内容主稿生成”这条下一步，并带着这轮结果继续生成。",
         capabilityRoute: expect.objectContaining({
           kind: "curated_task",
           taskId: "social-post-starter",

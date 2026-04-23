@@ -8,6 +8,8 @@ export interface BuildGeneralWorkbenchWorkflowPanelPropsParams {
   activeRunDetailLoading: GeneralWorkbenchSidebarWorkflowPanelProps["activeRunDetailLoading"];
   branchItems: GeneralWorkbenchSidebarWorkflowPanelProps["branchItems"];
   creationTaskEventsCount: GeneralWorkbenchSidebarWorkflowPanelProps["creationTaskEventsCount"];
+  projectId?: GeneralWorkbenchSidebarWorkflowPanelProps["projectId"];
+  sessionId?: GeneralWorkbenchSidebarWorkflowPanelProps["sessionId"];
   onAddImage?: GeneralWorkbenchSidebarWorkflowPanelProps["onAddImage"];
   onApplyFollowUpAction?: GeneralWorkbenchSidebarWorkflowPanelProps["onApplyFollowUpAction"];
   onDeleteTopic: GeneralWorkbenchSidebarWorkflowPanelProps["onDeleteTopic"];
@@ -32,6 +34,8 @@ export function buildGeneralWorkbenchWorkflowPanelProps({
   isVersionMode,
   branchItems,
   creationTaskEventsCount,
+  projectId,
+  sessionId,
   onAddImage,
   onApplyFollowUpAction,
   onDeleteTopic,
@@ -49,6 +53,8 @@ export function buildGeneralWorkbenchWorkflowPanelProps({
 }: BuildGeneralWorkbenchWorkflowPanelPropsParams): GeneralWorkbenchSidebarWorkflowPanelProps {
   return {
     isVersionMode,
+    projectId,
+    sessionId,
     onNewTopic,
     onSwitchTopic,
     onDeleteTopic,

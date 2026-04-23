@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import { useWorkspaceSceneAppEntryActions } from "./useWorkspaceSceneAppEntryActions";
 import type {
-  SceneAppCurrentCatalog as SceneAppCatalog,
-  SceneAppCurrentPlanResult as SceneAppPlanResult,
+  SceneAppCatalog,
+  SceneAppPlanResult,
 } from "@/lib/sceneapp";
 
 type SceneAppPlanResultOverrides = {

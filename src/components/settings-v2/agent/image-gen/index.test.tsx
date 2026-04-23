@@ -12,9 +12,38 @@ vi.mock("@/lib/api/appConfig", () => ({
   saveConfig: mockSaveConfig,
 }));
 
+vi.mock("@/components/input-kit", () => ({
+  ModelSelector: ({
+    providerType,
+    model,
+    placeholderLabel,
+  }: {
+    providerType: string;
+    model: string;
+    placeholderLabel?: string;
+  }) => {
+    const providerLabel =
+      providerType === "relay-openai" ? "Relay OpenAI" : providerType;
+    return (
+      <div data-testid="image-model-selector">
+        {providerLabel || placeholderLabel || "自动选择"} /{" "}
+        {model || placeholderLabel || "自动选择"}
+      </div>
+    );
+  },
+}));
+
 vi.mock("@/hooks/useApiKeyProvider", () => ({
   useApiKeyProvider: () => ({
     providers: [
+      {
+        id: "relay-openai",
+        type: "openai",
+        name: "Relay OpenAI",
+        enabled: true,
+        api_key_count: 1,
+        custom_models: ["gpt-images-2"],
+      },
       {
         id: "fal",
         type: "fal",
@@ -22,6 +51,14 @@ vi.mock("@/hooks/useApiKeyProvider", () => ({
         enabled: true,
         api_key_count: 1,
         custom_models: ["fal-ai/nano-banana-pro"],
+      },
+      {
+        id: "tts-only",
+        type: "audio",
+        name: "TTS Only",
+        enabled: true,
+        api_key_count: 1,
+        custom_models: ["gpt-4o-mini-tts"],
       },
     ],
     loading: false,
@@ -48,9 +85,11 @@ function renderComponent(): HTMLDivElement {
   return container;
 }
 
-async function flushEffects() {
+async function flushEffects(times = 2) {
   await act(async () => {
-    await Promise.resolve();
+    for (let index = 0; index < times; index += 1) {
+      await Promise.resolve();
+    }
   });
 }
 
@@ -89,6 +128,20 @@ function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   return target as HTMLButtonElement;
 }
 
+function findSection(container: HTMLElement, title: string): HTMLElement {
+  const heading = Array.from(container.querySelectorAll("h3")).find((node) =>
+    node.textContent?.includes(title),
+  );
+  if (!heading) {
+    throw new Error(`未找到区块标题: ${title}`);
+  }
+  const section = heading.closest("section");
+  if (!section) {
+    throw new Error(`未找到区块容器: ${title}`);
+  }
+  return section as HTMLElement;
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -102,21 +155,15 @@ beforeEach(() => {
     workspace_preferences: {
       media_defaults: {
         image: {
-          preferredProviderId: "fal",
-          preferredModelId: "fal-ai/nano-banana-pro",
+          preferredProviderId: "relay-openai",
+          preferredModelId: "gpt-images-2",
           allowFallback: true,
         },
       },
     },
     image_gen: {
-      default_service: "dall_e",
-      default_count: 1,
-      default_size: "1024x1024",
-      default_quality: "standard",
-      default_style: "vivid",
-      enable_enhancement: false,
-      auto_download: false,
-      image_search_pexels_api_key: "old-key",
+      default_count: 3,
+      default_quality: "hd",
     },
   });
   mockSaveConfig.mockResolvedValue(undefined);
@@ -135,70 +182,53 @@ afterEach(() => {
 });
 
 describe("ImageGenSettings", () => {
-  it("应加载图像生成配置", async () => {
+  it("应加载简化后的图片服务模型设置，并保留 gpt-images-2 选择", async () => {
     const container = renderComponent();
-    await flushEffects();
-    await flushEffects();
+    await flushEffects(3);
 
-    expect(container.textContent).toContain("全局默认图片服务");
-    expect(container.textContent).toContain("默认图像生成服务");
-    expect(container.textContent).toContain("默认图像数量");
+    expect(container.textContent).toContain("图片服务模型");
+    expect(container.textContent).toContain("Relay OpenAI");
+    expect(container.textContent).toContain("gpt-images-2");
+    expect(container.textContent).not.toContain("默认图像生成服务");
+    expect(container.textContent).not.toContain("默认图像数量");
+    expect(container.textContent).not.toContain("图像质量");
+
+    const section = findSection(container, "图片服务模型");
+    expect(section.className).toContain("overflow-visible");
+    expect(section.className).not.toContain("overflow-hidden");
   });
 
-  it("应把图像设置补充说明收进 tips", async () => {
+  it("应把图片设置补充说明收进 tips", async () => {
     renderComponent();
-    await flushEffects();
-    await flushEffects();
+    await flushEffects(3);
 
     expect(getBodyText()).not.toContain(
-      "这里配置的是全局默认图片服务与常用出图参数。新项目会优先继承这些默认值，未单独覆盖时也会继续跟随这里。",
+      "这里只配置图片生成任务的默认 Provider、模型与回退策略；默认图片数量等全局参数统一收口到同页下方的 AI 图片设置。",
     );
     expect(getBodyText()).not.toContain(
-      "关闭后，若全局默认图片服务缺失、被禁用或无可用 Key，将直接提示错误。",
+      "关闭后，若当前默认图片服务缺失、被禁用或无可用 Key，将直接提示错误。",
     );
 
-    const globalTip = await hoverTip("全局默认图片服务说明");
+    const sectionTip = await hoverTip("图片服务模型说明");
     expect(getBodyText()).toContain(
-      "这里配置的是全局默认图片服务与常用出图参数。新项目会优先继承这些默认值，未单独覆盖时也会继续跟随这里。",
+      "这里只配置图片生成任务的默认 Provider、模型与回退策略；默认图片数量等全局参数统一收口到同页下方的 AI 图片设置。",
     );
-    await leaveTip(globalTip);
+    await leaveTip(sectionTip);
 
-    const fallbackTip = await hoverTip("默认图片服务不可用时自动回退说明");
+    const fallbackTip = await hoverTip("Provider 不可用时自动回退说明");
     expect(getBodyText()).toContain(
-      "关闭后，若全局默认图片服务缺失、被禁用或无可用 Key，将直接提示错误。",
+      "关闭后，若当前默认图片服务缺失、被禁用或无可用 Key，将直接提示错误。",
     );
     await leaveTip(fallbackTip);
   });
 
-  it("修改默认图像数量后应调用保存配置", async () => {
+  it("恢复默认后应清空图片服务覆盖", async () => {
     const container = renderComponent();
-    await flushEffects();
-    await flushEffects();
-
-    await act(async () => {
-      findButton(container, "3").click();
-      await flushEffects();
-    });
-
-    expect(mockSaveConfig).toHaveBeenCalledTimes(1);
-    expect(mockSaveConfig).toHaveBeenCalledWith(
-      expect.objectContaining({
-        image_gen: expect.objectContaining({
-          default_count: 3,
-        }),
-      }),
-    );
-    expect(container.textContent).toContain("设置已保存");
-  });
-
-  it("恢复全局默认后应清空图片服务覆盖", async () => {
-    const container = renderComponent();
-    await flushEffects();
-    await flushEffects();
+    await flushEffects(3);
 
     await act(async () => {
       findButton(container, "恢复默认").click();
-      await flushEffects();
+      await flushEffects(2);
     });
 
     expect(mockSaveConfig).toHaveBeenCalledTimes(1);

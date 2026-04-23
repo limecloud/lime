@@ -159,6 +159,214 @@ async function leaveTip(trigger: HTMLButtonElement | null) {
 }
 
 describe("AutomationJobDetailsDialog", () => {
+  it("做法闭环应复用统一经营判断摘要", async () => {
+    await renderDialog({
+      sceneAppSummaryCard: {
+        sceneappId: "story-video-suite",
+        title: "短视频编排",
+        businessLabel: "内容闭环",
+        typeLabel: "多模态组合",
+        patternSummary: "步骤链",
+        status: "risk",
+        statusLabel: "先补复核与修复",
+        summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
+        nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+        scorecardActionLabel: "建议继续优化",
+        topFailureSignalLabel: "复核阻塞",
+        destinations: [
+          {
+            key: "weekly-review",
+            label: "周会复盘",
+            description: "带着证据摘要和人工复核记录一起讨论。",
+          },
+          {
+            key: "task-center",
+            label: "生成 / 看板",
+            description: "把结构化材料带回生成工作台或看板。",
+          },
+        ],
+        scorecardAggregate: {
+          status: "risk",
+          statusLabel: "先补复核与修复",
+          summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
+          nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+          actionLabel: "建议继续优化",
+          topFailureSignalLabel: "复核阻塞",
+          profileRef: "story-video-scorecard",
+          metricKeys: [
+            { key: "complete_pack_rate", label: "整包交付率" },
+          ],
+          failureSignals: [
+            { key: "review_blocked", label: "复核阻塞" },
+          ],
+          observedFailureSignals: [
+            { key: "artifact_validation_issue", label: "结果结构校验问题" },
+          ],
+          destinations: [
+            {
+              key: "weekly-review",
+              label: "周会复盘",
+              description: "带着证据摘要和人工复核记录一起讨论。",
+            },
+            {
+              key: "task-center",
+              label: "生成 / 看板",
+              description: "把结构化材料带回生成工作台或看板。",
+            },
+          ],
+        },
+        automationSummary: "1 条自动化任务 · 1 条启用中 · 1 条带风险提醒",
+        latestAutomationLabel: "最近投放任务：浏览器巡检 · 等待人工接管",
+      },
+    });
+
+    expect(getBodyText()).toContain("经营判断");
+    expect(getBodyText()).toContain("先补复核与修复");
+    expect(getBodyText()).toContain("建议继续优化");
+    expect(getBodyText()).toContain("复核阻塞");
+    expect(getBodyText()).toContain("周会复盘");
+    expect(getBodyText()).toContain("生成 / 看板");
+  });
+
+  it("做法闭环里的业务去向应支持直接执行", async () => {
+    const onReviewCurrentProject = vi.fn();
+    const onSceneAppDeliveryArtifactAction = vi.fn();
+    const onSceneAppGovernanceAction = vi.fn();
+
+    await renderDialog({
+      sceneAppSummaryCard: {
+        sceneappId: "story-video-suite",
+        title: "短视频编排",
+        businessLabel: "内容闭环",
+        typeLabel: "多模态组合",
+        patternSummary: "步骤链",
+        status: "risk",
+        statusLabel: "先补复核与修复",
+        summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
+        nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+        scorecardActionLabel: "建议继续优化",
+        topFailureSignalLabel: "复核阻塞",
+        destinations: [],
+        scorecardAggregate: {
+          status: "risk",
+          statusLabel: "先补复核与修复",
+          summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
+          nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+          actionLabel: "建议继续优化",
+          topFailureSignalLabel: "复核阻塞",
+          profileRef: "story-video-scorecard",
+          metricKeys: [],
+          failureSignals: [],
+          observedFailureSignals: [],
+          destinations: [
+            {
+              key: "weekly-review",
+              label: "周会复盘",
+              description: "带着证据摘要和人工复核记录一起讨论。",
+            },
+            {
+              key: "task-center",
+              label: "生成 / 看板",
+              description: "把结构化材料带回生成工作台或看板。",
+            },
+          ],
+        },
+        automationSummary: "1 条自动化任务 · 1 条启用中 · 1 条带风险提醒",
+        latestAutomationLabel: "最近投放任务：浏览器巡检 · 等待人工接管",
+      },
+      sceneAppRunDetailView: {
+        runId: "run-sceneapp-1",
+        status: "success",
+        statusLabel: "成功",
+        stageLabel: "结果已回流",
+        summary: "最近一轮结果已经回到做法主链。",
+        nextAction: "继续复盘或打开主结果。",
+        sourceLabel: "自动化调度",
+        artifactCount: 1,
+        deliveryCompletionLabel: "已生成 1 份主结果",
+        deliverySummary: "结果包已经可消费。",
+        deliveryRequiredParts: [],
+        deliveryCompletedParts: [],
+        deliveryMissingParts: [],
+        deliveryPartCoverageKnown: true,
+        plannedDeliveryRequiredParts: [],
+        packPlanNotes: [],
+        contextBaseline: null,
+        deliveryArtifactEntries: [
+          {
+            key: "brief-0",
+            label: "主结果",
+            helperText: "打开 brief",
+            isPrimary: true,
+            artifactRef: {
+              partKey: "brief",
+              relativePath: "artifacts/brief.md",
+              absolutePath: "/tmp/lime/artifacts/brief.md",
+              projectId: "workspace-default",
+            },
+          },
+        ],
+        governanceActionEntries: [
+          {
+            key: "weekly-review-pack",
+            label: "周会复盘包",
+            helperText: "准备证据摘要与人工复核记录。",
+            primaryArtifactKind: "review_decision_markdown",
+            primaryArtifactLabel: "人工复核记录",
+            artifactKinds: ["evidence_summary", "review_decision_markdown"],
+          },
+          {
+            key: "structured-governance-pack",
+            label: "结构化复盘包",
+            helperText: "准备 JSON 复盘材料。",
+            primaryArtifactKind: "review_decision_json",
+            primaryArtifactLabel: "复盘 JSON",
+            artifactKinds: ["review_decision_json"],
+          },
+        ],
+        governanceArtifactEntries: [],
+        failureSignalLabel: undefined,
+        evidenceSourceLabel: "当前已接入会话证据",
+        requestTelemetryLabel: "1 条请求遥测",
+        artifactValidatorLabel: "已完成结果校验",
+        evidenceKnownGaps: [],
+        verificationFailureOutcomes: [],
+        startedAtLabel: "2026-03-16 09:00",
+        finishedAtLabel: "2026-03-16 09:10",
+        durationLabel: "10 分钟",
+        entryAction: null,
+      } as any,
+      onReviewCurrentProject,
+      onSceneAppDeliveryArtifactAction,
+      onSceneAppGovernanceAction,
+    });
+
+    const reviewButton = document.body.querySelector(
+      "[data-testid='automation-sceneapp-destination-action-task-center']",
+    ) as HTMLButtonElement | null;
+    const deliveryButton = document.body.querySelector(
+      "[data-testid='automation-sceneapp-destination-action-delivery-editing']",
+    ) as HTMLButtonElement | null;
+    const weeklyReviewButton = document.body.querySelector(
+      "[data-testid='automation-sceneapp-destination-action-weekly-review']",
+    ) as HTMLButtonElement | null;
+
+    await act(async () => {
+      reviewButton?.click();
+      deliveryButton?.click();
+      weeklyReviewButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onReviewCurrentProject).toHaveBeenCalledTimes(1);
+    expect(onSceneAppDeliveryArtifactAction).toHaveBeenCalledTimes(1);
+    expect(onSceneAppGovernanceAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "weekly-review-pack",
+      }),
+    );
+  });
+
   it("应把头部长说明收进 tip 并展示轻量摘要", async () => {
     await renderDialog();
 

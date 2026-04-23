@@ -22,6 +22,7 @@ use crate::services::runtime_review_decision_service::{
     RuntimeReviewDecisionContent, RuntimeReviewDecisionTemplateExportResult,
 };
 use crate::services::thread_reliability_projection_service::sync_thread_reliability_projection;
+use aster::hooks::SessionSource;
 use std::path::PathBuf;
 async fn resume_runtime_queue_with_warning(
     runtime: &RuntimeCommandContext,
@@ -95,12 +96,14 @@ pub async fn agent_runtime_compact_session(
     app: AppHandle,
     state: State<'_, AsterAgentState>,
     db: State<'_, DbConnection>,
+    config_manager: State<'_, GlobalConfigManagerState>,
     request: AgentRuntimeCompactSessionRequest,
 ) -> Result<(), String> {
     crate::commands::aster_agent_cmd::runtime_turn::compact_runtime_session_internal(
         &app,
         state.inner(),
         db.inner(),
+        config_manager.inner(),
         request,
     )
     .await
@@ -149,6 +152,7 @@ pub async fn agent_runtime_get_session(
     mcp_manager: State<'_, McpManagerState>,
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
+    resume_session_start_hooks: Option<bool>,
 ) -> Result<AgentRuntimeSessionDetail, String> {
     let runtime = build_runtime_command_context(
         app,
@@ -164,6 +168,16 @@ pub async fn agent_runtime_get_session(
     resume_runtime_queue_with_warning(&runtime, &session_id, "获取会话后").await;
 
     let detail = AsterAgentWrapper::get_runtime_session_detail(runtime.db(), &session_id).await?;
+    if resume_session_start_hooks.unwrap_or(false) {
+        crate::commands::aster_agent_cmd::runtime_project_hooks::run_runtime_session_start_project_hooks_for_session_with_runtime(
+            runtime.db(),
+            runtime.state(),
+            runtime.mcp_manager(),
+            &session_id,
+            SessionSource::Resume,
+        )
+        .await;
+    }
     let queued_turns = list_runtime_queue_snapshots_service(&session_id).await?;
     let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
     let interrupt_marker = runtime.state().get_interrupt_marker(&session_id).await;

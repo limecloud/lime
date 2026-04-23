@@ -1,5 +1,9 @@
 # LimeNext V2 文件系统阻塞记录（2026-04-22）
 
+> 后续状态说明：本文是当日权限阻塞的历史记录，不再代表 current 现状。  
+> 现役事实源以 [../roadmap/limenextv2/sceneapp-current-boundary.md](../roadmap/limenextv2/sceneapp-current-boundary.md) 与 [./limenext-progress.md](./limenext-progress.md) 的最新条目为准。  
+> 文中提到的临时命名如 `SceneAppCurrentPresentationDescriptor`，现已落回 `SceneAppPresentationDescriptor`；对象级 `SceneAppCurrent*` 也已全部删除。
+
 ## 背景
 
 当前主线仍是把 `LimeNext V2` 的 current 对象边界继续收口，尤其是：
@@ -91,19 +95,19 @@
 本轮通过 Finder 旁路，已经实际完成：
 
 1. `src/lib/sceneapp/types.ts`
-   - `SceneAppBindingFamily` 当前已拆成：
-     - `SceneAppCurrentBindingFamily`
+   - 执行族当前已拆成：
+     - `SceneAppExecutorBindingFamily`
      - `SceneAppCompatBindingFamily`
    - 因此“当前执行族”和“只为兼容旧目录保留的 cloud_scene”不再混在单一别名里
 2. `src/lib/sceneapp/catalog.ts`
-   - `normalizeCompatSceneAppBindingFamily(...)` 当前已显式返回 `SceneAppCurrentBindingFamily`
+   - `normalizeCompatSceneAppBindingFamily(...)` 当前已显式返回 current 执行族
    - `resolveDistinctBindingFamilies(...)` 当前也已收窄到 current 执行族数组
 3. `src/lib/sceneapp/launch.ts`
-   - `SceneAppWorkspaceExecutionDraft.adapterKind` 当前已收窄到 `SceneAppCurrentBindingFamily`
+   - `SceneAppWorkspaceExecutionDraft.adapterKind` 当前已收窄到 current 执行族
    - `normalizeWorkspaceAdapterKind(...)` 当前也已显式返回 current 执行族
 4. `src/lib/sceneapp/types.ts`
    - `SceneAppLaunchRequirementKind` 当前已拆成：
-     - `SceneAppCurrentLaunchRequirementKind`
+     - `SceneAppLaunchRequirementCoreKind`
      - `SceneAppCompatLaunchRequirementKind`
    - 因此“当前允许的启动前置”和“只为兼容旧目录保留的 cloud_session”不再混在同一个裸联合注释里
 5. `src/lib/sceneapp/types.ts`
@@ -130,7 +134,7 @@
 在常规权限恢复后，优先继续下面这组剩余收口：
 
 1. `src/lib/sceneapp/types.ts`
-   - 保持 `SceneAppType = SceneAppCurrentType`
+   - 保持 `SceneAppType` 直接作为 current 类型事实源
    - 不要把 `SceneAppDescriptor` 再改宽回 compat 联合类型
 2. 然后补跑 repo 内正式校验：
    - `npx eslint "src/lib/sceneapp/types.ts" "src/lib/sceneapp/presentation.ts" "src/lib/sceneapp/presentation.test.ts"`

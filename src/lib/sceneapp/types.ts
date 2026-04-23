@@ -21,7 +21,7 @@ export type {
   TasteProfile,
 } from "@/lib/context-layer";
 
-export type SceneAppCurrentType =
+export type SceneAppType =
   | "local_instant"
   | "local_durable"
   | "browser_grounded"
@@ -29,7 +29,6 @@ export type SceneAppCurrentType =
 
 // legacy compat only：旧目录可能仍返回 cloud_managed，但 current 页面状态不应再主动写出它。
 export type SceneAppCompatType = "cloud_managed";
-export type SceneAppType = SceneAppCurrentType;
 
 export type SceneAppPattern =
   | "pipeline"
@@ -38,7 +37,7 @@ export type SceneAppPattern =
   | "inversion"
   | "tool_wrapper";
 
-export type SceneAppCurrentBindingFamily = ServiceSkillCurrentExecutorBinding;
+export type SceneAppExecutorBindingFamily = ServiceSkillCurrentExecutorBinding;
 export type SceneAppCompatBindingFamily = ServiceSkillCompatExecutorBinding;
 export type SceneAppBindingFamily = ServiceSkillAnyExecutorBinding;
 
@@ -47,7 +46,7 @@ export type SceneAppDeliveryContract =
   | "project_pack"
   | "table_report";
 
-export type SceneAppCurrentLaunchRequirementKind =
+export type SceneAppLaunchRequirementCoreKind =
   | "user_input"
   | "project"
   | "browser_session"
@@ -58,7 +57,7 @@ export type SceneAppCompatLaunchRequirementKind =
   "cloud_session";
 
 export type SceneAppLaunchRequirementKind =
-  | SceneAppCurrentLaunchRequirementKind
+  | SceneAppLaunchRequirementCoreKind
   | SceneAppCompatLaunchRequirementKind;
 
 export type SceneAppEntryBindingKind =
@@ -69,7 +68,7 @@ export type SceneAppEntryBindingKind =
 
 export interface SceneAppEntryBinding {
   kind: SceneAppEntryBindingKind;
-  bindingFamily: SceneAppBindingFamily;
+  bindingFamily: SceneAppExecutorBindingFamily;
   serviceSkillId?: string;
   skillKey?: string;
   sceneKey?: string;
@@ -77,9 +76,19 @@ export interface SceneAppEntryBinding {
   aliases?: string[];
 }
 
+export interface SceneAppCompatEntryBindingInput
+  extends Omit<SceneAppEntryBinding, "bindingFamily"> {
+  bindingFamily: SceneAppBindingFamily;
+}
+
 export interface SceneAppLaunchRequirement {
-  kind: SceneAppLaunchRequirementKind;
+  kind: SceneAppLaunchRequirementCoreKind;
   message: string;
+}
+
+export interface SceneAppCompatLaunchRequirementInput
+  extends Omit<SceneAppLaunchRequirement, "kind"> {
+  kind: SceneAppLaunchRequirementKind;
 }
 
 export interface SceneAppDeliveryProfile {
@@ -93,6 +102,11 @@ export interface SceneAppCompositionStepDescriptor {
   id: string;
   order: number;
   bindingProfileRef?: string;
+  bindingFamily?: SceneAppExecutorBindingFamily;
+}
+
+export interface SceneAppCompatCompositionStepDescriptorInput
+  extends Omit<SceneAppCompositionStepDescriptor, "bindingFamily"> {
   bindingFamily?: SceneAppBindingFamily;
 }
 
@@ -100,6 +114,11 @@ export interface SceneAppCompositionProfile {
   blueprintRef?: string;
   stepCount: number;
   steps: SceneAppCompositionStepDescriptor[];
+}
+
+export interface SceneAppCompatCompositionProfileInput
+  extends Omit<SceneAppCompositionProfile, "steps"> {
+  steps: SceneAppCompatCompositionStepDescriptorInput[];
 }
 
 export interface SceneAppScorecardProfile {
@@ -133,10 +152,26 @@ export interface SceneAppDescriptor {
   sourcePackageVersion: string;
 }
 
+export interface SceneAppCompatDescriptorInput
+  extends Omit<
+    SceneAppDescriptor,
+    "sceneappType" | "entryBindings" | "launchRequirements" | "compositionProfile"
+  > {
+  sceneappType: SceneAppType | SceneAppCompatType;
+  entryBindings: SceneAppCompatEntryBindingInput[];
+  launchRequirements: SceneAppCompatLaunchRequirementInput[];
+  compositionProfile?: SceneAppCompatCompositionProfileInput;
+}
+
 export interface SceneAppCatalog {
   version: string;
   generatedAt: string;
   items: SceneAppDescriptor[];
+}
+
+export interface SceneAppCompatCatalogInput
+  extends Omit<SceneAppCatalog, "items"> {
+  items: SceneAppCompatDescriptorInput[];
 }
 
 export interface SceneAppRuntimeContext {
@@ -191,10 +226,10 @@ export interface SceneAppLaunchIntent {
 export interface SceneAppExecutionPlanStep {
   id: string;
   title: string;
-  bindingFamily: SceneAppBindingFamily;
+  bindingFamily: SceneAppExecutorBindingFamily;
 }
 
-export type SceneAppCurrentRuntimeAction =
+export type SceneAppExecutionRuntimeAction =
   | "submit_agent_turn"
   | "launch_browser_assist"
   | "create_automation_job"
@@ -206,12 +241,12 @@ export type SceneAppCompatRuntimeAction =
   "launch_cloud_scene";
 
 export type SceneAppRuntimeAction =
-  | SceneAppCurrentRuntimeAction
+  | SceneAppExecutionRuntimeAction
   | SceneAppCompatRuntimeAction;
 
 export interface SceneAppRuntimeAdapterPlan {
-  adapterKind: SceneAppBindingFamily;
-  runtimeAction: SceneAppRuntimeAction;
+  adapterKind: SceneAppExecutorBindingFamily;
+  runtimeAction: SceneAppExecutionRuntimeAction;
   targetRef: string;
   targetLabel: string;
   linkedServiceSkillId?: string;
@@ -222,10 +257,16 @@ export interface SceneAppRuntimeAdapterPlan {
   notes: string[];
 }
 
+export interface SceneAppCompatRuntimeAdapterPlanInput
+  extends Omit<SceneAppRuntimeAdapterPlan, "adapterKind" | "runtimeAction"> {
+  adapterKind: SceneAppBindingFamily;
+  runtimeAction: SceneAppRuntimeAction;
+}
+
 export interface SceneAppExecutionPlan {
   sceneappId: string;
-  executorKind: SceneAppBindingFamily;
-  bindingFamily: SceneAppBindingFamily;
+  executorKind: SceneAppExecutorBindingFamily;
+  bindingFamily: SceneAppExecutorBindingFamily;
   stepPlan: SceneAppExecutionPlanStep[];
   adapterPlan: SceneAppRuntimeAdapterPlan;
   storageStrategy: string;
@@ -234,9 +275,25 @@ export interface SceneAppExecutionPlan {
   warnings: string[];
 }
 
+export interface SceneAppCompatExecutionPlanInput
+  extends Omit<
+    SceneAppExecutionPlan,
+    "executorKind" | "bindingFamily" | "stepPlan" | "adapterPlan"
+  > {
+  executorKind: SceneAppBindingFamily;
+  bindingFamily: SceneAppBindingFamily;
+  stepPlan: SceneAppCompatExecutionPlanStepInput[];
+  adapterPlan: SceneAppCompatRuntimeAdapterPlanInput;
+}
+
 export interface SceneAppReadiness {
   ready: boolean;
   unmetRequirements: SceneAppLaunchRequirement[];
+}
+
+export interface SceneAppCompatReadinessInput
+  extends Omit<SceneAppReadiness, "unmetRequirements"> {
+  unmetRequirements: SceneAppCompatLaunchRequirementInput[];
 }
 
 export interface SceneAppProjectPackPlan {
@@ -256,87 +313,17 @@ export interface SceneAppPlanResult {
   projectPackPlan?: SceneAppProjectPackPlan;
 }
 
-export type SceneAppCurrentEntryBinding = Omit<
-  SceneAppEntryBinding,
-  "bindingFamily"
-> & {
-  bindingFamily: SceneAppCurrentBindingFamily;
-};
+export interface SceneAppCompatPlanResultInput
+  extends Omit<SceneAppPlanResult, "descriptor" | "readiness" | "plan"> {
+  descriptor: SceneAppCompatDescriptorInput;
+  readiness: SceneAppCompatReadinessInput;
+  plan: SceneAppCompatExecutionPlanInput;
+}
 
-export type SceneAppCurrentLaunchRequirement = Omit<
-  SceneAppLaunchRequirement,
-  "kind"
-> & {
-  kind: SceneAppCurrentLaunchRequirementKind;
-};
-
-export type SceneAppCurrentCompositionStepDescriptor = Omit<
-  SceneAppCompositionStepDescriptor,
-  "bindingFamily"
-> & {
-  bindingFamily?: SceneAppCurrentBindingFamily;
-};
-
-export type SceneAppCurrentCompositionProfile = Omit<
-  SceneAppCompositionProfile,
-  "steps"
-> & {
-  steps: SceneAppCurrentCompositionStepDescriptor[];
-};
-
-export type SceneAppCurrentDescriptor = Omit<
-  SceneAppDescriptor,
-  "entryBindings" | "launchRequirements" | "compositionProfile"
-> & {
-  entryBindings: SceneAppCurrentEntryBinding[];
-  launchRequirements: SceneAppCurrentLaunchRequirement[];
-  compositionProfile?: SceneAppCurrentCompositionProfile;
-};
-
-export type SceneAppCurrentCatalog = Omit<SceneAppCatalog, "items"> & {
-  items: SceneAppCurrentDescriptor[];
-};
-
-export type SceneAppCurrentExecutionPlanStep = Omit<
-  SceneAppExecutionPlanStep,
-  "bindingFamily"
-> & {
-  bindingFamily: SceneAppCurrentBindingFamily;
-};
-
-export type SceneAppCurrentRuntimeAdapterPlan = Omit<
-  SceneAppRuntimeAdapterPlan,
-  "adapterKind" | "runtimeAction"
-> & {
-  adapterKind: SceneAppCurrentBindingFamily;
-  runtimeAction: SceneAppCurrentRuntimeAction;
-};
-
-export type SceneAppCurrentExecutionPlan = Omit<
-  SceneAppExecutionPlan,
-  "executorKind" | "bindingFamily" | "stepPlan" | "adapterPlan"
-> & {
-  executorKind: SceneAppCurrentBindingFamily;
-  bindingFamily: SceneAppCurrentBindingFamily;
-  stepPlan: SceneAppCurrentExecutionPlanStep[];
-  adapterPlan: SceneAppCurrentRuntimeAdapterPlan;
-};
-
-export type SceneAppCurrentReadiness = Omit<
-  SceneAppReadiness,
-  "unmetRequirements"
-> & {
-  unmetRequirements: SceneAppCurrentLaunchRequirement[];
-};
-
-export type SceneAppCurrentPlanResult = Omit<
-  SceneAppPlanResult,
-  "descriptor" | "readiness" | "plan"
-> & {
-  descriptor: SceneAppCurrentDescriptor;
-  readiness: SceneAppCurrentReadiness;
-  plan: SceneAppCurrentExecutionPlan;
-};
+export interface SceneAppCompatExecutionPlanStepInput
+  extends Omit<SceneAppExecutionPlanStep, "bindingFamily"> {
+  bindingFamily: SceneAppBindingFamily;
+}
 
 export interface SceneAppAutomationIntent {
   launchIntent: SceneAppLaunchIntent;

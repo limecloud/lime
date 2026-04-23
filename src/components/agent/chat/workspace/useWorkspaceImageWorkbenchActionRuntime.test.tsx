@@ -14,10 +14,24 @@ const { toast } = vi.hoisted(() => ({
     warning: vi.fn(),
   },
 }));
+const { mockGenerateAgentRuntimeTitle } = vi.hoisted(() => ({
+  mockGenerateAgentRuntimeTitle: vi.fn(),
+}));
 
 vi.mock("sonner", () => ({
   toast,
 }));
+
+vi.mock("@/lib/api/agentRuntime", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/api/agentRuntime")>();
+
+  return {
+    ...actual,
+    generateAgentRuntimeTitle: (...args: unknown[]) =>
+      mockGenerateAgentRuntimeTitle(...args),
+  };
+});
 
 type HookProps = Parameters<typeof useWorkspaceImageWorkbenchActionRuntime>[0];
 
@@ -149,6 +163,8 @@ beforeEach(() => {
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
 
+  mockGenerateAgentRuntimeTitle.mockReset();
+  mockGenerateAgentRuntimeTitle.mockResolvedValue("城市夜景主视觉");
   toast.error.mockReset();
   toast.info.mockReset();
   toast.success.mockReset();
@@ -197,6 +213,7 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
       requestContext: expect.objectContaining({
         kind: "image_task",
         image_task: expect.objectContaining({
+          title: "城市夜景主视觉",
           mode: "generate",
           prompt: "城市夜景主视觉",
           size: "1024x1024",
@@ -207,6 +224,10 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
           requested_target: "generate",
         }),
       }),
+    });
+    expect(mockGenerateAgentRuntimeTitle).toHaveBeenCalledWith({
+      previewText: "城市夜景主视觉",
+      titleKind: "image_task",
     });
     expect(createImageGenerationTask).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
@@ -481,6 +502,116 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
     expect(cancelImageTask).toHaveBeenCalledWith({
       projectRootPath: "/workspace/project-1",
       taskRef: "task-image-2",
+    });
+  });
+
+  it("跨根目录图片任务应优先使用 task file 进行重试与取消", async () => {
+    const externalTaskPath =
+      "/Users/youmin/.lime/tasks/image_generate/task-image-external-1.json";
+    const externalArtifactPath =
+      ".lime/tasks/image_generate/task-image-external-1.json";
+    const currentImageWorkbenchState = {
+      ...createInitialSessionImageWorkbenchState(),
+      tasks: [
+        {
+          id: "task-image-external-1",
+          sessionId: "task-image-external-1",
+          mode: "generate" as const,
+          status: "cancelled" as const,
+          prompt: "跨根目录任务",
+          rawText: "跨根目录任务",
+          expectedCount: 1,
+          outputIds: [],
+          targetOutputId: null,
+          createdAt: 100,
+          hookImageIds: [],
+          applyTarget: null,
+          taskFilePath: externalTaskPath,
+          artifactPath: externalArtifactPath,
+        },
+      ],
+    };
+    const getImageTask = vi.fn().mockResolvedValue({
+      success: true,
+      task_id: "task-image-external-1",
+      task_type: "image_generate",
+      task_family: "image",
+      status: "cancelled",
+      normalized_status: "cancelled",
+      path: externalArtifactPath,
+      absolute_path: externalTaskPath,
+      artifact_path: externalArtifactPath,
+      absolute_artifact_path: externalTaskPath,
+      reused_existing: false,
+      record: {
+        task_id: "task-image-external-1",
+        task_type: "image_generate",
+        task_family: "image",
+        payload: {
+          prompt: "跨根目录任务",
+          mode: "generate",
+          raw_text: "@配图 生成 跨根目录任务",
+          size: "1024x1024",
+          count: 1,
+          usage: "claw-image-workbench",
+          session_id: "session-1",
+          project_id: "project-1",
+          entry_source: "at_image_command",
+          requested_target: "generate",
+          reference_images: [],
+        },
+        status: "cancelled",
+        normalized_status: "cancelled",
+        created_at: "2026-04-04T12:10:00Z",
+      },
+    });
+    const createImageGenerationTask = vi.fn().mockResolvedValue({
+      task_id: "task-image-external-new",
+      task_type: "image_generate",
+      status: "pending_submit",
+    });
+    const cancelImageTask = vi.fn().mockResolvedValue({
+      task_id: "task-image-external-1",
+      task_type: "image_generate",
+      status: "cancelled",
+    });
+    const { render } = renderHook({
+      currentImageWorkbenchState,
+      getImageTask,
+      createImageGenerationTask,
+      cancelImageTask,
+    });
+
+    await render();
+
+    await act(async () => {
+      emitImageWorkbenchTaskAction({
+        action: "retry",
+        taskId: "task-image-external-1",
+        projectId: "project-1",
+        contentId: null,
+      });
+      emitImageWorkbenchTaskAction({
+        action: "cancel",
+        taskId: "task-image-external-1",
+        projectId: "project-1",
+        contentId: null,
+      });
+      await Promise.resolve();
+    });
+
+    expect(getImageTask).toHaveBeenCalledWith({
+      projectRootPath: "/Users/youmin",
+      taskRef: externalTaskPath,
+    });
+    expect(createImageGenerationTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectRootPath: "/Users/youmin",
+      }),
+    );
+    expect(cancelImageTask).toHaveBeenCalledWith({
+      projectRootPath: "/Users/youmin",
+      taskRef: externalTaskPath,
     });
   });
 

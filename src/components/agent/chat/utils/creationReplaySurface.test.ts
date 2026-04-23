@@ -63,7 +63,7 @@ describe("buildCreationReplaySurfaceModel", () => {
     });
   });
 
-  it("技能草稿回放应继续保持原有前台文案", () => {
+  it("技能草稿回放应收口为做法草稿前台文案", () => {
     const result = buildCreationReplaySurfaceModel({
       version: 1,
       kind: "skill_scaffold",
@@ -79,11 +79,11 @@ describe("buildCreationReplaySurfaceModel", () => {
 
     expect(result).toEqual({
       kind: "skill_scaffold",
-      eyebrow: "当前带入技能草稿",
-      badgeLabel: "技能草稿",
+      eyebrow: "当前带入做法草稿",
+      badgeLabel: "做法草稿",
       title: "账号复盘方法",
       summary: "把结果复盘成下一轮增长方案。",
-      hint: "当前生成会继续沿用这份技能草稿的上下文。",
+      hint: "这轮会先沿着这份做法草稿继续生成，跑顺后可回到我的方法继续整理。",
       defaultReferenceMemoryIds: [],
       defaultReferenceEntries: [],
     });

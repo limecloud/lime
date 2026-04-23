@@ -8,6 +8,9 @@
 use crate::provider_type_mapping::pool_provider_type_to_api_type;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
+use lime_core::api_host_utils::{
+    is_openai_responses_endpoint, normalize_openai_compatible_api_host,
+};
 use lime_core::database::dao::api_key_provider::{
     infer_managed_provider_type, ApiKeyEntry, ApiKeyProvider, ApiKeyProviderDao,
     ApiProviderPromptCacheMode, ApiProviderType, ProviderGroup, ProviderWithKeys,
@@ -286,6 +289,93 @@ data: [DONE]\n";
 
         let none = ApiKeyProviderService::pick_test_model(None, &[], &[]);
         assert!(none.is_none());
+    }
+
+    #[test]
+    fn test_openai_image_connection_test_detection_prefers_explicit_or_image_only_providers() {
+        assert!(
+            ApiKeyProviderService::should_use_openai_image_connection_test(
+                Some("gpt-images-2"),
+                &[],
+                &[]
+            )
+        );
+        assert!(
+            ApiKeyProviderService::should_use_openai_image_connection_test(
+                None,
+                &["gpt-images-2".to_string()],
+                &[]
+            )
+        );
+        assert!(
+            !ApiKeyProviderService::should_use_openai_image_connection_test(
+                None,
+                &["gpt-images-2".to_string(), "gpt-5.2".to_string()],
+                &[]
+            )
+        );
+        assert!(
+            !ApiKeyProviderService::should_use_openai_image_connection_test(
+                Some("gpt-5.2"),
+                &["gpt-images-2".to_string()],
+                &[]
+            )
+        );
+    }
+
+    #[test]
+    fn test_pick_openai_image_test_model_prefers_image_candidates() {
+        assert_eq!(
+            ApiKeyProviderService::pick_openai_image_test_model(
+                Some("gpt-images-2".to_string()),
+                &[],
+                &[],
+            )
+            .as_deref(),
+            Some("gpt-images-2")
+        );
+        assert_eq!(
+            ApiKeyProviderService::pick_openai_image_test_model(
+                None,
+                &["gpt-images-2".to_string(), "gpt-5.2".to_string()],
+                &[],
+            )
+            .as_deref(),
+            Some("gpt-images-2")
+        );
+        assert_eq!(
+            ApiKeyProviderService::pick_openai_image_test_model(
+                None,
+                &[],
+                &["dall-e-3".to_string(), "gpt-4.1".to_string()],
+            )
+            .as_deref(),
+            Some("dall-e-3")
+        );
+        assert!(ApiKeyProviderService::pick_openai_image_test_model(
+            Some("gpt-5.2".to_string()),
+            &["gpt-5.2".to_string()],
+            &[],
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn test_build_openai_images_url_reuses_existing_v1_path() {
+        assert_eq!(
+            ApiKeyProviderService::build_openai_images_url("https://airgate.k8ray.com/v1"),
+            "https://airgate.k8ray.com/v1/images/generations"
+        );
+        assert_eq!(
+            ApiKeyProviderService::build_openai_images_url("https://api.openai.com"),
+            "https://api.openai.com/v1/images/generations"
+        );
+        assert_eq!(
+            ApiKeyProviderService::build_openai_images_url(
+                "https://gateway.example.com/proxy/responses"
+            ),
+            "https://gateway.example.com/proxy/v1/images/generations"
+        );
     }
 
     #[test]
@@ -1164,6 +1254,11 @@ impl ApiKeyProviderService {
         matches!(provider_type, ApiProviderType::OpenaiResponse)
     }
 
+    #[inline]
+    fn prefers_openai_responses_endpoint(api_host: &str) -> bool {
+        is_openai_responses_endpoint(api_host)
+    }
+
     fn pick_preferred_fallback_model(fallback_models: &[String]) -> Option<String> {
         const PREFERRED_MARKERS: &[&str] =
             &["nano", "mini", "flash-lite", "flash", "haiku", "lite"];
@@ -1213,6 +1308,119 @@ impl ApiKeyProviderService {
                     (!normalized.is_empty()).then(|| normalized.to_string())
                 })
             })
+    }
+
+    fn looks_like_openai_image_model(model: &str) -> bool {
+        let normalized = model.trim().to_ascii_lowercase();
+        !normalized.is_empty()
+            && (normalized.contains("gpt-image")
+                || normalized.contains("gpt-images")
+                || normalized.contains("dall-e")
+                || normalized.contains("dalle"))
+    }
+
+    fn should_use_openai_image_connection_test(
+        model_name: Option<&str>,
+        custom_models: &[String],
+        fallback_models: &[String],
+    ) -> bool {
+        if let Some(explicit_model) = model_name.map(str::trim).filter(|model| !model.is_empty()) {
+            return Self::looks_like_openai_image_model(explicit_model);
+        }
+
+        let normalized_custom_models: Vec<&str> = custom_models
+            .iter()
+            .map(|model| model.trim())
+            .filter(|model| !model.is_empty())
+            .collect();
+        if !normalized_custom_models.is_empty() {
+            return normalized_custom_models
+                .iter()
+                .all(|model| Self::looks_like_openai_image_model(model));
+        }
+
+        let normalized_fallback_models: Vec<&str> = fallback_models
+            .iter()
+            .map(|model| model.trim())
+            .filter(|model| !model.is_empty())
+            .collect();
+
+        !normalized_fallback_models.is_empty()
+            && normalized_fallback_models
+                .iter()
+                .all(|model| Self::looks_like_openai_image_model(model))
+    }
+
+    fn pick_openai_image_test_model(
+        model_name: Option<String>,
+        custom_models: &[String],
+        fallback_models: &[String],
+    ) -> Option<String> {
+        let explicit_model = model_name.and_then(|model| {
+            let normalized = model.trim();
+            (Self::looks_like_openai_image_model(normalized)).then(|| normalized.to_string())
+        });
+        if explicit_model.is_some() {
+            return explicit_model;
+        }
+
+        let fallback_model_set: HashSet<String> = fallback_models
+            .iter()
+            .map(|model| model.trim().to_lowercase())
+            .filter(|model| !model.is_empty())
+            .collect();
+
+        let matching_custom_model = custom_models.iter().find_map(|model| {
+            let normalized = model.trim();
+            (!normalized.is_empty()
+                && Self::looks_like_openai_image_model(normalized)
+                && fallback_model_set.contains(&normalized.to_lowercase()))
+            .then(|| normalized.to_string())
+        });
+
+        matching_custom_model
+            .or_else(|| {
+                fallback_models.iter().find_map(|model| {
+                    let normalized = model.trim();
+                    (!normalized.is_empty() && Self::looks_like_openai_image_model(normalized))
+                        .then(|| normalized.to_string())
+                })
+            })
+            .or_else(|| {
+                custom_models.iter().find_map(|model| {
+                    let normalized = model.trim();
+                    (!normalized.is_empty() && Self::looks_like_openai_image_model(normalized))
+                        .then(|| normalized.to_string())
+                })
+            })
+    }
+
+    fn build_openai_images_url(api_host: &str) -> String {
+        let normalized_host = normalize_openai_compatible_api_host(api_host);
+        let trimmed = normalized_host.trim().trim_end_matches('/');
+        let normalized = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+            trimmed.to_string()
+        } else if trimmed.is_empty() {
+            "https://api.openai.com".to_string()
+        } else {
+            format!("https://{trimmed}")
+        };
+
+        let has_version = normalized
+            .rsplit('/')
+            .next()
+            .map(|segment| {
+                segment.starts_with('v')
+                    && segment.len() >= 2
+                    && segment[1..].chars().all(|char| char.is_ascii_digit())
+            })
+            .unwrap_or(false);
+
+        if has_version {
+            format!("{normalized}/images/generations")
+        } else {
+            format!("{normalized}/v1/images/generations")
+        }
     }
 
     async fn test_openai_chat_once(
@@ -2851,7 +3059,10 @@ impl ApiKeyProviderService {
                 .await
                 .map(|_| vec![test_model])
             }
-            provider_type if Self::uses_openai_responses_protocol(provider_type) => {
+            provider_type
+                if Self::uses_openai_responses_protocol(provider_type)
+                    || Self::prefers_openai_responses_endpoint(&provider.api_host) =>
+            {
                 let test_model = Self::pick_test_model(
                     model_name.clone(),
                     &provider.custom_models,
@@ -2862,9 +3073,14 @@ impl ApiKeyProviderService {
                     self.test_openai_responses_once(&api_key, &provider.api_host, &test_model, "hi")
                         .await
                         .map(|_| vec![test_model])
-                } else {
+                } else if Self::uses_openai_responses_protocol(provider_type) {
                     self.test_openai_models_endpoint(&api_key, &provider.api_host)
                         .await
+                } else {
+                    Err(
+                        "当前 API Host 指向 /responses 终端点，请先在自定义模型中填写一个模型名。"
+                            .to_string(),
+                    )
                 }
             }
             _ => {
@@ -2879,36 +3095,63 @@ impl ApiKeyProviderService {
                     fallback_models.len()
                 );
 
-                let models_result = self
-                    .test_openai_models_endpoint(&api_key, &provider.api_host)
-                    .await;
-
-                eprintln!("[TEST_CONNECTION] models_result: {models_result:?}");
-
-                // 如果 /models 端点失败：
-                // 1) 优先用传入的 model_name
-                // 2) 否则使用 Provider 配置的 custom_models
-                // 3) 再使用本地模型注册表兜底
-                if models_result.is_err() {
-                    let test_model = Self::pick_test_model(
+                if Self::should_use_openai_image_connection_test(
+                    model_name.as_deref(),
+                    &provider.custom_models,
+                    &fallback_models,
+                ) {
+                    let image_test_model = Self::pick_openai_image_test_model(
                         model_name.clone(),
                         &provider.custom_models,
                         &fallback_models,
-                    );
+                    )
+                    .unwrap_or_else(|| "gpt-images-2".to_string());
 
-                    eprintln!("[TEST_CONNECTION] fallback test_model: {test_model:?}");
+                    let image_result = self
+                        .test_openai_image_generation_endpoint(
+                            &api_key,
+                            &provider.api_host,
+                            &image_test_model,
+                        )
+                        .await;
+                    eprintln!("[TEST_CONNECTION] image_generation result: {image_result:?}");
+                    image_result
+                } else {
+                    let models_result = self
+                        .test_openai_models_endpoint(&api_key, &provider.api_host)
+                        .await;
 
-                    if let Some(test_model) = test_model {
-                        let chat_result = self
-                            .test_openai_chat_completion(&api_key, &provider.api_host, &test_model)
-                            .await;
-                        eprintln!("[TEST_CONNECTION] chat_completion result: {chat_result:?}");
-                        chat_result
+                    eprintln!("[TEST_CONNECTION] models_result: {models_result:?}");
+
+                    // 如果 /models 端点失败：
+                    // 1) 优先用传入的 model_name
+                    // 2) 否则使用 Provider 配置的 custom_models
+                    // 3) 再使用本地模型注册表兜底
+                    if models_result.is_err() {
+                        let test_model = Self::pick_test_model(
+                            model_name.clone(),
+                            &provider.custom_models,
+                            &fallback_models,
+                        );
+
+                        eprintln!("[TEST_CONNECTION] fallback test_model: {test_model:?}");
+
+                        if let Some(test_model) = test_model {
+                            let chat_result = self
+                                .test_openai_chat_completion(
+                                    &api_key,
+                                    &provider.api_host,
+                                    &test_model,
+                                )
+                                .await;
+                            eprintln!("[TEST_CONNECTION] chat_completion result: {chat_result:?}");
+                            chat_result
+                        } else {
+                            models_result
+                        }
                     } else {
                         models_result
                     }
-                } else {
-                    models_result
                 }
             }
         };
@@ -2974,6 +3217,66 @@ impl ApiKeyProviderService {
         self.test_openai_chat_once(api_key, api_host, model, "hi", ApiProviderType::Openai)
             .await
             .map(|_| vec![model.to_string()])
+    }
+
+    async fn test_openai_image_generation_endpoint(
+        &self,
+        api_key: &str,
+        api_host: &str,
+        model: &str,
+    ) -> Result<Vec<String>, String> {
+        let url = Self::build_openai_images_url(api_host);
+        let request = serde_json::json!({
+            "model": model,
+            "prompt": "生成一个简单的蓝色渐变方块测试图",
+            "n": 1,
+            "size": "1024x1024",
+            "response_format": "b64_json"
+        });
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(240))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        let resp = client
+            .post(&url)
+            .header("Authorization", format!("Bearer {api_key}"))
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| format!("图片生成接口调用失败: {e}"))?;
+
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(format!(
+                "图片生成接口返回错误: {}",
+                Self::format_http_api_error(status, &body)
+            ));
+        }
+
+        let parsed: serde_json::Value =
+            serde_json::from_str(&body).map_err(|e| format!("解析响应失败: {e} - {body}"))?;
+        let has_image = parsed["data"].as_array().is_some_and(|items| {
+            items.iter().any(|item| {
+                item.get("url")
+                    .and_then(|value| value.as_str())
+                    .map(|value| !value.trim().is_empty())
+                    .unwrap_or(false)
+                    || item
+                        .get("b64_json")
+                        .and_then(|value| value.as_str())
+                        .map(|value| !value.trim().is_empty())
+                        .unwrap_or(false)
+            })
+        });
+
+        if !has_image {
+            return Err("图片生成接口调用成功，但未返回可解析图片数据".to_string());
+        }
+
+        Ok(vec![model.to_string()])
     }
 
     /// 测试 Claude Key 的客户端兼容性

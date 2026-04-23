@@ -55,7 +55,7 @@ describe("appConfig API", () => {
     vi.mocked(safeInvoke).mockResolvedValueOnce({
       default_provider: "claude",
       workspace_preferences: {
-        schema_version: 1,
+        schema_version: 2,
         media_defaults: {
           image: {
             preferredProviderId: "fal",
@@ -65,6 +65,15 @@ describe("appConfig API", () => {
           general: {
             preferredProviderId: "deepseek",
             preferredModelId: "deepseek-chat",
+          },
+        },
+        service_models: {
+          topic: {
+            preferredProviderId: "openai",
+            preferredModelId: "gpt-5.4-mini",
+          },
+          prompt_rewrite: {
+            enabled: false,
           },
         },
       },
@@ -85,6 +94,15 @@ describe("appConfig API", () => {
               preferredModelId: "deepseek-chat",
             }),
           }),
+          service_models: expect.objectContaining({
+            topic: expect.objectContaining({
+              preferredProviderId: "openai",
+              preferredModelId: "gpt-5.4-mini",
+            }),
+            prompt_rewrite: expect.objectContaining({
+              enabled: false,
+            }),
+          }),
         }),
       }),
     );
@@ -102,6 +120,15 @@ describe("appConfig API", () => {
             preferredModelId: "deepseek-chat",
           }),
         }),
+        service_models: expect.objectContaining({
+          topic: expect.objectContaining({
+            preferredProviderId: "openai",
+            preferredModelId: "gpt-5.4-mini",
+          }),
+          prompt_rewrite: expect.objectContaining({
+            enabled: false,
+          }),
+        }),
       }),
     );
   });
@@ -117,6 +144,12 @@ describe("appConfig API", () => {
         },
         companion_defaults: {
           general: { preferredProviderId: "deepseek" },
+        },
+        service_models: {
+          topic: {
+            preferredProviderId: "openai",
+            preferredModelId: "gpt-5.4-mini",
+          },
         },
       },
     } as never;

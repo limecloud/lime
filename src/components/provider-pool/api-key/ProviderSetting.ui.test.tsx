@@ -139,6 +139,24 @@ describe("ProviderSetting", () => {
     ).not.toBeNull();
   });
 
+  it("anthropic-compatible Provider 不应误显示必须等待真实模型目录", () => {
+    const container = renderSetting(
+      createProvider({
+        id: "mimo-anthropic-no-model",
+        name: "MiMo Anthropic",
+        type: "anthropic-compatible",
+        api_host: "https://token-plan-cn.xiaomimimo.com/anthropic",
+        custom_models: [],
+      }),
+    );
+
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("默认：未设置");
+    expect(text).not.toContain("读取真实模型目录前，不展示旧模型");
+    expect(text).not.toContain("模型待同步");
+  });
+
   it("服务商工作台应保留原分栏，并允许模型区头部自然换行", () => {
     const container = renderSetting(createProvider());
     const workbenchGrid = container.querySelector<HTMLElement>(
@@ -236,9 +254,10 @@ describe("ProviderSetting", () => {
 
     expect(container.textContent ?? "").toContain("MiniMax-M2.7");
     expect(container.textContent ?? "").toContain("可测试");
-    expect(container.textContent ?? "").toContain(
+    expect(container.textContent ?? "").not.toContain(
       "已保存默认模型，可先用于连接验证",
     );
+    expect(container.textContent ?? "").not.toContain("模型待同步");
     expect(
       container
         .querySelector('[data-testid="connection-test-button-stub"]')

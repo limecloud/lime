@@ -324,6 +324,8 @@ export function SceneAppsPage({
                 packRuntimeUsesFallback={runtime.latestPackResultUsesFallback}
                 loading={runtime.scorecardLoading}
                 error={runtime.scorecardError}
+                latestReviewFeedbackSignal={runtime.latestReviewFeedbackSignal}
+                onContinueReviewFeedback={runtime.handleContinueReviewFeedback}
                 onPackRuntimeArtifactAction={
                   runtime.handleOpenSelectedRunDeliveryArtifact
                 }
@@ -399,6 +401,8 @@ export function SceneAppsPage({
                   governanceView={runtime.governanceView}
                   loading={runtime.selectedRunLoading}
                   error={runtime.selectedRunError}
+                  latestReviewFeedbackSignal={runtime.latestReviewFeedbackSignal}
+                  onContinueReviewFeedback={runtime.handleContinueReviewFeedback}
                   humanReviewAvailable={runtime.canOpenSelectedRunHumanReview}
                   humanReviewLoading={runtime.reviewDecisionLoading}
                   quickReviewActions={runtime.quickReviewActions}
@@ -419,6 +423,8 @@ export function SceneAppsPage({
                   runDetailView={runtime.selectedRunDetailView}
                   loading={runtime.selectedRunLoading}
                   error={runtime.selectedRunError}
+                  latestReviewFeedbackSignal={runtime.latestReviewFeedbackSignal}
+                  onContinueReviewFeedback={runtime.handleContinueReviewFeedback}
                   humanReviewAvailable={runtime.canOpenSelectedRunHumanReview}
                   humanReviewLoading={runtime.reviewDecisionLoading}
                   quickReviewActions={runtime.quickReviewActions}

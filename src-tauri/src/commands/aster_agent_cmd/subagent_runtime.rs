@@ -1,10 +1,16 @@
 use super::*;
+use chrono::Utc;
 use lime_agent::restore_aster_runtime_queued_turns;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
+use serde_json::json;
+use std::ffi::OsStr;
+use std::process::Output;
+use tokio::process::Command;
 
 const SUBAGENT_RUNTIME_EVENT_PREFIX: &str = "agent_subagent_stream";
 const SUBAGENT_STATUS_EVENT_PREFIX: &str = "agent_subagent_status";
 const SUBAGENT_CONTROL_CLOSE_REASON: &str = "close_agent";
+const DEFAULT_MANAGED_SESSION_EVENT_NAME: &str = "agent_stream";
 const DEFAULT_WAIT_AGENT_TIMEOUT_MS: i64 = 30_000;
 const MIN_WAIT_AGENT_TIMEOUT_MS: i64 = 1_000;
 const MAX_WAIT_AGENT_TIMEOUT_MS: i64 = 300_000;
@@ -28,6 +34,14 @@ fn resolve_spawn_working_dir(
     Ok(path)
 }
 
+fn resolve_subagent_session_bootstrap_working_dir(
+    _parent_working_dir: &Path,
+    execution_working_dir: &Path,
+    _effective_isolation: Option<&str>,
+) -> PathBuf {
+    execution_working_dir.to_path_buf()
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct SubagentStatusChangedEvent {
     #[serde(rename = "type")]
@@ -37,6 +51,68 @@ struct SubagentStatusChangedEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
     parent_session_id: Option<String>,
     status: SubagentRuntimeStatusKind,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum RuntimeControlMessage {
+    PlanApprovalRequest {
+        from: String,
+        #[serde(alias = "requestId")]
+        request_id: String,
+        #[serde(alias = "planFilePath")]
+        plan_file_path: String,
+        #[serde(alias = "planContent")]
+        plan_content: String,
+        timestamp: Option<String>,
+    },
+    PlanApprovalResponse {
+        #[serde(alias = "requestId")]
+        request_id: String,
+        #[serde(alias = "approved")]
+        approve: bool,
+        #[serde(default)]
+        feedback: Option<String>,
+        #[serde(default, alias = "permissionMode")]
+        permission_mode: Option<String>,
+        timestamp: Option<String>,
+    },
+    ShutdownResponse {
+        #[serde(alias = "requestId")]
+        request_id: String,
+        approve: bool,
+        #[serde(default)]
+        reason: Option<String>,
+    },
+    ShutdownApproved {
+        from: String,
+        #[serde(alias = "requestId")]
+        request_id: String,
+        timestamp: Option<String>,
+    },
+    ShutdownRejected {
+        from: String,
+        #[serde(alias = "requestId")]
+        request_id: String,
+        reason: String,
+        timestamp: Option<String>,
+    },
+}
+
+fn parse_runtime_control_message(message: &str) -> Option<RuntimeControlMessage> {
+    serde_json::from_str::<RuntimeControlMessage>(message).ok()
+}
+
+fn reject_unsupported_managed_session_control_message(message: &str) -> Option<String> {
+    match parse_runtime_control_message(message) {
+        Some(RuntimeControlMessage::ShutdownResponse { .. }) => Some(
+            "当前 runtime 尚未支持把 shutdown_response 路由给 managed session lead；目前仅 teammate 的 plan_approval_request 与 plain-text / xml-wrapped peer messages 已进入 current".to_string(),
+        ),
+        Some(RuntimeControlMessage::PlanApprovalResponse { .. }) => Some(
+            "plan_approval_response 必须发送回等待审批的 teammate session，不能发给 managed session".to_string(),
+        ),
+        _ => None,
+    }
 }
 
 pub(crate) struct SubagentControlRuntime {
@@ -238,8 +314,25 @@ fn register_runtime_subagent_frontmatter_hooks(
 fn validate_spawn_request_surface(
     request: &AgentRuntimeSpawnSubagentRequest,
 ) -> Result<(), String> {
+    if normalize_optional_text(request.team_name.clone()).is_some()
+        && normalize_optional_text(request.name.clone()).is_none()
+    {
+        return Err("team_name 需要同时提供 name".to_string());
+    }
+
+    if spawn_request_requests_plan_mode(request)
+        && normalize_optional_text(request.name.clone()).is_some()
+    {
+        resolve_spawn_request_access_mode_override(
+            normalize_optional_text(request.mode.clone()).as_deref(),
+            true,
+        )?;
+        return Ok(());
+    }
+
     resolve_spawn_request_access_mode_override(
         normalize_optional_text(request.mode.clone()).as_deref(),
+        false,
     )?;
 
     Ok(())
@@ -258,6 +351,75 @@ fn build_subagent_session_name(
         .or_else(|| normalize_optional_text(profile_name.map(ToString::to_string)))
         .or_else(|| build_subagent_task_summary(message))
         .unwrap_or_else(|| "子代理".to_string())
+}
+
+fn spawn_request_requests_plan_mode(request: &AgentRuntimeSpawnSubagentRequest) -> bool {
+    normalize_optional_text(request.mode.clone())
+        .as_deref()
+        .is_some_and(|mode| mode.eq_ignore_ascii_case("plan"))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ResolvedTeammateSpawnRequest {
+    teammate_name: Option<String>,
+    team_name: Option<String>,
+    teammate_plan_mode: bool,
+}
+
+async fn resolve_effective_teammate_spawn_request(
+    parent_session_id: &str,
+    request: &AgentRuntimeSpawnSubagentRequest,
+) -> Result<ResolvedTeammateSpawnRequest, String> {
+    let teammate_name = normalize_optional_text(request.name.clone());
+    let explicit_team_name = normalize_optional_text(request.team_name.clone());
+    if explicit_team_name.is_some() && teammate_name.is_none() {
+        return Err("team_name 需要同时提供 name".to_string());
+    }
+
+    let plan_mode_requested = spawn_request_requests_plan_mode(request);
+    let team_context = if explicit_team_name.is_some() || teammate_name.is_some() {
+        aster::session::resolve_team_context(parent_session_id)
+            .await
+            .map_err(|error| format!("读取 team 状态失败: {error}"))?
+    } else {
+        None
+    };
+    let inferred_team_name = if explicit_team_name.is_none() && teammate_name.is_some() {
+        team_context
+            .as_ref()
+            .filter(|context| context.is_lead)
+            .map(|context| context.team_state.team_name.clone())
+    } else {
+        None
+    };
+    let effective_team_name = explicit_team_name.or(inferred_team_name);
+
+    if let Some(team_name) = effective_team_name.as_deref() {
+        let Some(team_context) = team_context.as_ref() else {
+            return Err("当前 session 还没有 team 上下文，请先建立 team".to_string());
+        };
+        if !team_context.is_lead {
+            return Err("当前 runtime 只允许 team lead session 创建 teammate".to_string());
+        }
+        if team_context.team_state.team_name != team_name {
+            return Err(format!(
+                "team_name 不匹配：当前 team 为 {}，但请求的是 {}",
+                team_context.team_state.team_name, team_name
+            ));
+        }
+    }
+
+    if plan_mode_requested && (teammate_name.is_none() || effective_team_name.is_none()) {
+        return Err(
+            "mode `plan` is only supported for team teammates in the current runtime".to_string(),
+        );
+    }
+
+    Ok(ResolvedTeammateSpawnRequest {
+        teammate_name,
+        team_name: effective_team_name,
+        teammate_plan_mode: plan_mode_requested,
+    })
 }
 
 fn resolve_subagent_role_hint(
@@ -525,6 +687,21 @@ pub(crate) fn build_subagent_customization_system_prompt(
     ))
 }
 
+fn build_runtime_subagent_system_prompt(
+    customization: Option<&SubagentCustomizationState>,
+    plan_mode_active: bool,
+) -> Result<Option<String>, String> {
+    let base_prompt = build_subagent_customization_system_prompt(customization)?;
+    if !plan_mode_active {
+        return Ok(base_prompt);
+    }
+
+    Ok(merge_optional_prompt_sections(
+        base_prompt.as_deref(),
+        Some(aster::prompt::templates::permission_modes::PLAN),
+    ))
+}
+
 #[derive(Debug, Clone)]
 struct PreparedRuntimeSubagentSession {
     session: aster::session::Session,
@@ -533,6 +710,7 @@ struct PreparedRuntimeSubagentSession {
     access_mode: lime_agent::SessionExecutionRuntimeAccessMode,
     effective_run_in_background: bool,
     effective_isolation: Option<String>,
+    effective_team_name: Option<String>,
 }
 
 fn build_subagent_runtime_event_name(session_id: &str) -> String {
@@ -560,6 +738,7 @@ fn resolve_subagent_request_access_mode(
 
 fn resolve_spawn_request_access_mode_override(
     mode: Option<&str>,
+    allow_teammate_plan_mode: bool,
 ) -> Result<Option<lime_agent::SessionExecutionRuntimeAccessMode>, String> {
     let Some(mode) = mode.map(str::trim).filter(|value| !value.is_empty()) else {
         return Ok(None);
@@ -577,9 +756,11 @@ fn resolve_spawn_request_access_mode_override(
         ));
     }
     if mode.eq_ignore_ascii_case("plan") {
+        if allow_teammate_plan_mode {
+            return Ok(None);
+        }
         return Err(
-            "mode `plan` is not supported in the current runtime; use EnterPlanMode/ExitPlanMode instead"
-                .to_string(),
+            "mode `plan` is only supported for team teammates in the current runtime".to_string(),
         );
     }
     if mode.eq_ignore_ascii_case("bypassPermissions")
@@ -597,9 +778,12 @@ fn resolve_spawn_request_access_mode(
     session_id: &str,
     session: &aster::session::Session,
     request_mode: Option<&str>,
+    allow_teammate_plan_mode: bool,
 ) -> Result<lime_agent::SessionExecutionRuntimeAccessMode, String> {
-    Ok(resolve_spawn_request_access_mode_override(request_mode)?
-        .unwrap_or_else(|| resolve_subagent_request_access_mode(session_id, session)))
+    Ok(
+        resolve_spawn_request_access_mode_override(request_mode, allow_teammate_plan_mode)?
+            .unwrap_or_else(|| resolve_subagent_request_access_mode(session_id, session)),
+    )
 }
 
 fn should_emit_subagent_status_for_runtime_event(event: &RuntimeAgentEvent) -> bool {
@@ -651,6 +835,266 @@ pub(crate) async fn emit_subagent_status_changed_events(app: &AppHandle, session
             );
         }
     }
+}
+
+fn build_target_runtime_event_name(session: &aster::session::Session) -> String {
+    if matches!(session.session_type, SessionType::SubAgent) {
+        build_subagent_runtime_event_name(&session.id)
+    } else {
+        DEFAULT_MANAGED_SESSION_EVENT_NAME.to_string()
+    }
+}
+
+fn build_runtime_control_submission_id(prefix: &str, session_id: &str, request_id: &str) -> String {
+    format!("{prefix}:{session_id}:{request_id}")
+}
+
+fn escape_xml_attribute(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn build_runtime_teammate_message(sender: &str, message: &str) -> String {
+    format!(
+        "<teammate-message teammate_id=\"{}\">\n{}\n</teammate-message>",
+        escape_xml_attribute(sender),
+        message
+    )
+}
+
+fn extract_runtime_request_target(request_id: &str) -> Option<&str> {
+    let (_, target) = request_id.rsplit_once('@')?;
+    let target = target.trim();
+    if target.is_empty() {
+        None
+    } else {
+        Some(target)
+    }
+}
+
+async fn maybe_handle_plan_approval_request_for_lead(
+    runtime: &SubagentControlRuntime,
+    session: &aster::session::Session,
+    message: &str,
+) -> Result<Option<AgentRuntimeSendSubagentInputResponse>, String> {
+    let Some(RuntimeControlMessage::PlanApprovalRequest {
+        from, request_id, ..
+    }) = parse_runtime_control_message(message)
+    else {
+        return Ok(None);
+    };
+
+    let Some(team_context) = aster::session::resolve_team_context(&session.id)
+        .await
+        .map_err(|error| format!("读取 team 状态失败: {error}"))?
+    else {
+        return Ok(None);
+    };
+    if !team_context.is_lead {
+        return Ok(None);
+    }
+    let Some(teammate) = team_context.team_state.find_member_by_name(&from) else {
+        return Err(format!(
+            "team `{}` 中不存在名为 `{from}` 的成员",
+            team_context.team_state.team_name
+        ));
+    };
+
+    let response_message = serde_json::to_string(&json!({
+        "type": "plan_approval_response",
+        "request_id": request_id,
+        "approve": true,
+        "timestamp": Utc::now().to_rfc3339(),
+    }))
+    .map_err(|error| format!("序列化计划审批响应失败: {error}"))?;
+    let response = Box::pin(agent_runtime_send_subagent_input_internal(
+        runtime,
+        AgentRuntimeSendSubagentInputRequest {
+            id: teammate.agent_id.clone(),
+            message: response_message,
+            interrupt: false,
+        },
+    ))
+    .await?;
+
+    Ok(Some(AgentRuntimeSendSubagentInputResponse {
+        submission_id: if response.submission_id.trim().is_empty() {
+            build_runtime_control_submission_id("plan_approval_request", &session.id, &request_id)
+        } else {
+            response.submission_id
+        },
+    }))
+}
+
+async fn maybe_handle_plan_approval_response_for_teammate(
+    runtime: &SubagentControlRuntime,
+    session: &aster::session::Session,
+    message: &str,
+) -> Result<Option<AgentRuntimeSendSubagentInputResponse>, String> {
+    let Some(RuntimeControlMessage::PlanApprovalResponse {
+        request_id,
+        approve,
+        ..
+    }) = parse_runtime_control_message(message)
+    else {
+        return Ok(None);
+    };
+
+    let Some(state) = aster::session::SessionPlanModeState::from_session(session) else {
+        return Ok(None);
+    };
+    if !state.active
+        || !state.awaiting_leader_approval
+        || state.pending_request_id.as_deref() != Some(request_id.as_str())
+    {
+        return Ok(None);
+    }
+
+    let next_state = if approve {
+        None
+    } else {
+        Some(aster::session::SessionPlanModeState {
+            active: true,
+            plan_file: state.plan_file.clone(),
+            plan_id: state.plan_id.clone(),
+            awaiting_leader_approval: false,
+            pending_request_id: None,
+        })
+    };
+    aster::session::save_session_plan_mode_state(&session.id, next_state)
+        .await
+        .map_err(|error| format!("更新 teammate plan mode 状态失败: {error}"))?;
+    if matches!(session.session_type, SessionType::SubAgent) {
+        emit_subagent_status_changed_events(&runtime.app_handle, &session.id).await;
+    }
+
+    Ok(Some(AgentRuntimeSendSubagentInputResponse {
+        submission_id: build_runtime_control_submission_id(
+            "plan_approval_response",
+            &session.id,
+            &request_id,
+        ),
+    }))
+}
+
+async fn maybe_handle_shutdown_response_for_lead(
+    runtime: &SubagentControlRuntime,
+    runtime_command_context: &RuntimeCommandContext,
+    session: &aster::session::Session,
+    message: &str,
+) -> Result<Option<AgentRuntimeSendSubagentInputResponse>, String> {
+    let (sender, request_id, should_close) = match parse_runtime_control_message(message) {
+        Some(RuntimeControlMessage::ShutdownApproved {
+            from, request_id, ..
+        }) => (from, request_id, true),
+        Some(RuntimeControlMessage::ShutdownRejected {
+            from, request_id, ..
+        }) => (from, request_id, false),
+        _ => return Ok(None),
+    };
+
+    let Some(team_context) = aster::session::resolve_team_context(&session.id)
+        .await
+        .map_err(|error| format!("读取 team 状态失败: {error}"))?
+    else {
+        return Ok(None);
+    };
+    if !team_context.is_lead {
+        return Ok(None);
+    }
+
+    let Some(teammate) = team_context.team_state.find_member_by_name(&sender) else {
+        return Err(format!(
+            "team `{}` 中不存在名为 `{sender}` 的成员",
+            team_context.team_state.team_name
+        ));
+    };
+
+    if let Some(target) = extract_runtime_request_target(&request_id) {
+        if target != sender && target != teammate.agent_id {
+            return Err(format!(
+                "shutdown response request_id `{request_id}` 与 sender `{sender}` 不匹配"
+            ));
+        }
+    }
+
+    if should_close {
+        let _ = agent_runtime_close_subagent_internal(
+            runtime,
+            AgentRuntimeCloseSubagentRequest {
+                id: teammate.agent_id.clone(),
+            },
+        )
+        .await?;
+    }
+
+    submit_runtime_message_to_managed_session(
+        runtime,
+        runtime_command_context,
+        session,
+        build_runtime_teammate_message(&sender, message),
+        false,
+    )
+    .await
+    .map(Some)
+}
+
+async fn submit_runtime_message_to_managed_session(
+    runtime: &SubagentControlRuntime,
+    runtime_command_context: &RuntimeCommandContext,
+    session: &aster::session::Session,
+    message: String,
+    interrupt: bool,
+) -> Result<AgentRuntimeSendSubagentInputResponse, String> {
+    let session_id = session.id.clone();
+    let access_mode = resolve_subagent_request_access_mode(&session_id, session);
+    if interrupt {
+        let _ = runtime.state.cancel_session(&session_id).await;
+        let _ = runtime_command_context
+            .clear_runtime_queue(&session_id)
+            .await?;
+    }
+
+    let workspace_id =
+        resolve_workspace_id_for_working_dir(&runtime.db, session.working_dir.as_path())?;
+    let queued_task = build_queued_turn_task(AsterChatRequest {
+        message,
+        session_id: session_id.clone(),
+        event_name: build_target_runtime_event_name(session),
+        images: None,
+        provider_config: None,
+        provider_preference: None,
+        model_preference: None,
+        thinking_enabled: None,
+        approval_policy: Some(access_mode.approval_policy().to_string()),
+        sandbox_policy: Some(access_mode.sandbox_policy().to_string()),
+        project_id: None,
+        workspace_id,
+        web_search: None,
+        search_mode: None,
+        execution_strategy: None,
+        auto_continue: None,
+        system_prompt: None,
+        metadata: Some(serde_json::json!({
+            "peer_message": {
+                "origin_tool": "SendMessage",
+                "interrupt": interrupt,
+                "target_session_type": format!("{:?}", session.session_type),
+            }
+        })),
+        turn_id: None,
+        queue_if_busy: Some(true),
+        queued_turn_id: None,
+    })?;
+    let submission_id = queued_task.queued_turn_id.clone();
+    runtime_command_context
+        .submit_runtime_turn(queued_task, true)
+        .await?;
+
+    Ok(AgentRuntimeSendSubagentInputResponse { submission_id })
 }
 
 pub(crate) async fn maybe_emit_subagent_status_for_runtime_event(
@@ -730,6 +1174,137 @@ fn canonicalize_best_effort(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
+#[derive(Debug, Clone)]
+struct SubagentWorktreeCwdMapping {
+    requested_cwd_display: String,
+    relative_path: PathBuf,
+}
+
+async fn run_subagent_git<I, S>(cwd: &Path, args: I) -> Result<Output, String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .await
+        .map_err(|error| format!("启动 git 失败: {error}"))
+}
+
+fn subagent_git_command_failure_text(output: &Output) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if !stderr.is_empty() {
+        return stderr;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !stdout.is_empty() {
+        return stdout;
+    }
+
+    "unknown git failure".to_string()
+}
+
+async fn subagent_git_stdout<I, S>(cwd: &Path, args: I) -> Result<String, String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let output = run_subagent_git(cwd, args).await?;
+    if !output.status.success() {
+        return Err(format!(
+            "git 命令失败: {}",
+            subagent_git_command_failure_text(&output)
+        ));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+async fn resolve_subagent_git_worktree_root(path: &Path) -> Result<PathBuf, String> {
+    let show_toplevel = subagent_git_stdout(path, ["rev-parse", "--show-toplevel"]).await?;
+    Ok(canonicalize_best_effort(Path::new(show_toplevel.trim())))
+}
+
+async fn resolve_subagent_canonical_git_root(path: &Path) -> Result<PathBuf, String> {
+    let show_toplevel = subagent_git_stdout(path, ["rev-parse", "--show-toplevel"]).await?;
+    let git_common_dir = subagent_git_stdout(
+        path,
+        ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    )
+    .await?;
+
+    let worktree_root = canonicalize_best_effort(Path::new(show_toplevel.trim()));
+    let common_dir = canonicalize_best_effort(Path::new(git_common_dir.trim()));
+
+    Ok(match common_dir.file_name().and_then(OsStr::to_str) {
+        Some(".git") => common_dir
+            .parent()
+            .map(canonicalize_best_effort)
+            .unwrap_or(worktree_root),
+        _ => worktree_root,
+    })
+}
+
+async fn resolve_subagent_worktree_cwd_mapping(
+    parent_working_dir: &Path,
+    requested_working_dir: &Path,
+    effective_isolation: Option<&str>,
+    requested_cwd: Option<&str>,
+) -> Result<Option<SubagentWorktreeCwdMapping>, String> {
+    if effective_isolation != Some("worktree") {
+        return Ok(None);
+    }
+
+    let Some(requested_cwd_display) = requested_cwd
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+    else {
+        return Ok(None);
+    };
+
+    let parent_git_root = resolve_subagent_canonical_git_root(parent_working_dir)
+        .await
+        .map_err(|error| {
+            format!(
+                "cwd 当前只能与 isolation=worktree 组合在父会话同一 Git 仓库内；父会话目录无法解析 Git 根目录: {error}"
+            )
+        })?;
+    let requested_git_root = resolve_subagent_canonical_git_root(requested_working_dir)
+        .await
+        .map_err(|error| {
+            format!(
+                "cwd 当前只能与 isolation=worktree 组合在 Git 仓库目录内；当前 cwd 无法解析 Git 根目录: {error}"
+            )
+        })?;
+
+    if canonicalize_best_effort(parent_git_root.as_path())
+        != canonicalize_best_effort(requested_git_root.as_path())
+    {
+        return Err(format!(
+            "cwd 当前只能与 isolation=worktree 组合在父会话同一 Git 仓库内；当前 cwd 不属于同一仓库: {requested_cwd_display}"
+        ));
+    }
+
+    let source_worktree_root = resolve_subagent_git_worktree_root(requested_working_dir)
+        .await
+        .map_err(|error| format!("解析 cwd 对应的 worktree 根目录失败: {error}"))?;
+    let canonical_requested_working_dir = canonicalize_best_effort(requested_working_dir);
+    let canonical_source_worktree_root = canonicalize_best_effort(source_worktree_root.as_path());
+    let relative_path = canonical_requested_working_dir
+        .strip_prefix(canonical_source_worktree_root.as_path())
+        .map_err(|error| format!("计算 cwd 在 worktree 内的相对路径失败: {error}"))?
+        .to_path_buf();
+
+    Ok(Some(SubagentWorktreeCwdMapping {
+        requested_cwd_display,
+        relative_path,
+    }))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SubagentWorktreeCloseOutcome {
     NotEnabled,
@@ -755,6 +1330,7 @@ async fn maybe_enter_subagent_worktree(
     session_id: &str,
     working_dir: &Path,
     effective_isolation: Option<&str>,
+    cwd_mapping: Option<&SubagentWorktreeCwdMapping>,
 ) -> Result<(), String> {
     if effective_isolation != Some("worktree") {
         return Ok(());
@@ -770,8 +1346,22 @@ async fn maybe_enter_subagent_worktree(
             &context,
         )
         .await
-        .map(|_| ())
-        .map_err(|error| format!("创建 subagent worktree 失败: {error}"))
+        .map_err(|error| format!("创建 subagent worktree 失败: {error}"))?;
+
+    if let Some(mapping) = cwd_mapping {
+        if let Err(error) = remap_subagent_worktree_cwd_after_enter(session_id, mapping).await {
+            if let Err(rollback_error) =
+                rollback_subagent_worktree_after_spawn_failure(session_id).await
+            {
+                return Err(format!(
+                    "{error}；另外回滚刚创建的 subagent worktree 失败: {rollback_error}"
+                ));
+            }
+            return Err(error);
+        }
+    }
+
+    Ok(())
 }
 
 fn should_preserve_subagent_worktree_on_close(error_text: &str) -> bool {
@@ -808,6 +1398,77 @@ async fn cleanup_subagent_worktree_for_close(
                 );
                 SubagentWorktreeCloseOutcome::CleanupFailed
             }
+        }
+    }
+}
+
+fn resolve_subagent_worktree_mapped_working_dir(
+    state: &aster::session::WorktreeSessionState,
+    mapping: &SubagentWorktreeCwdMapping,
+) -> Result<PathBuf, String> {
+    let worktree_path = PathBuf::from(&state.worktree_path);
+    let mapped_working_dir = if mapping.relative_path.as_os_str().is_empty() {
+        worktree_path
+    } else {
+        worktree_path.join(&mapping.relative_path)
+    };
+
+    if !mapped_working_dir.is_dir() {
+        return Err(format!(
+            "cwd 当前不能与 isolation=worktree 组合：新建 worktree 中缺少对应目录 {}（原 cwd: {}）；当前仅支持仓库内可直接映射的已有目录",
+            mapped_working_dir.display(),
+            mapping.requested_cwd_display
+        ));
+    }
+
+    Ok(mapped_working_dir)
+}
+
+async fn remap_subagent_worktree_cwd_after_enter(
+    session_id: &str,
+    mapping: &SubagentWorktreeCwdMapping,
+) -> Result<(), String> {
+    let session = read_session(
+        session_id,
+        false,
+        "创建 subagent worktree 后读取 child session 失败",
+    )
+    .await?;
+    let Some(state) =
+        aster::session::WorktreeSessionState::from_extension_data(&session.extension_data)
+    else {
+        return Err("创建 subagent worktree 后缺少 worktree session state".to_string());
+    };
+
+    let mapped_working_dir = resolve_subagent_worktree_mapped_working_dir(&state, mapping)?;
+    if mapped_working_dir == session.working_dir {
+        return Ok(());
+    }
+
+    aster::session::apply_session_update(session_id, |update| {
+        update.working_dir(mapped_working_dir.clone())
+    })
+    .await
+    .map_err(|error| format!("切换 child session 到 worktree 子目录失败: {error}"))
+}
+
+async fn rollback_subagent_worktree_after_spawn_failure(session_id: &str) -> Result<(), String> {
+    let session = read_session(
+        session_id,
+        false,
+        "回滚 subagent worktree 前读取 child session 失败",
+    )
+    .await?;
+
+    match cleanup_subagent_worktree_for_close(&session).await {
+        SubagentWorktreeCloseOutcome::RemovedClean | SubagentWorktreeCloseOutcome::NotEnabled => {
+            Ok(())
+        }
+        SubagentWorktreeCloseOutcome::KeptDirty => {
+            Err("spawn 失败后回滚 subagent worktree 时检测到意外改动".to_string())
+        }
+        SubagentWorktreeCloseOutcome::CleanupFailed => {
+            Err("spawn 失败后回滚 subagent worktree 失败".to_string())
         }
     }
 }
@@ -1058,35 +1719,41 @@ async fn create_runtime_subagent_session(
     let parent_session_id =
         normalize_required_text(&request.parent_session_id, "parent_session_id")?;
     let message = normalize_required_text(&request.message, "message")?;
-    let teammate_name = normalize_optional_text(request.name.clone());
-    let team_name = normalize_optional_text(request.team_name.clone());
-    if team_name.is_some() && teammate_name.is_none() {
-        return Err("team_name 需要同时提供 name".to_string());
-    }
     enforce_team_spawn_limits(&parent_session_id).await?;
     let parent_session = read_session(&parent_session_id, false, "读取父会话失败").await?;
+    let resolved_teammate_spawn =
+        resolve_effective_teammate_spawn_request(&parent_session_id, request).await?;
     let access_mode = resolve_spawn_request_access_mode(
         &parent_session_id,
         &parent_session,
         normalize_optional_text(request.mode.clone()).as_deref(),
+        resolved_teammate_spawn.teammate_plan_mode,
     )?;
-    let working_dir =
-        resolve_spawn_working_dir(parent_session.working_dir.as_path(), request.cwd.clone())?;
+    let requested_cwd = normalize_optional_text(request.cwd.clone());
+    let execution_working_dir =
+        resolve_spawn_working_dir(parent_session.working_dir.as_path(), requested_cwd.clone())?;
     let plugin_agent = resolve_requested_runtime_plugin_agent_definition(
         normalize_optional_text(request.agent_type.clone()).as_deref(),
-        working_dir.as_path(),
+        execution_working_dir.as_path(),
         dirs::home_dir().as_deref(),
     )?;
     let effective_run_in_background =
         resolve_effective_run_in_background(request, plugin_agent.as_ref());
     let effective_isolation = resolve_effective_isolation(request, plugin_agent.as_ref());
-    validate_effective_spawn_isolation(
+    validate_effective_spawn_isolation(effective_isolation.as_deref(), requested_cwd.as_deref())?;
+    let worktree_cwd_mapping = resolve_subagent_worktree_cwd_mapping(
+        parent_session.working_dir.as_path(),
+        execution_working_dir.as_path(),
         effective_isolation.as_deref(),
-        normalize_optional_text(request.cwd.clone()).as_deref(),
-    )?;
+        requested_cwd.as_deref(),
+    )
+    .await?;
     let customization =
         build_subagent_customization_state_with_plugin_agent(request, plugin_agent.as_ref())?;
-    let system_prompt = build_subagent_customization_system_prompt(customization.as_ref())?;
+    let system_prompt = build_runtime_subagent_system_prompt(
+        customization.as_ref(),
+        resolved_teammate_spawn.teammate_plan_mode,
+    )?;
     let profile_name = customization
         .as_ref()
         .and_then(|state| state.profile_name.as_deref());
@@ -1098,9 +1765,13 @@ async fn create_runtime_subagent_session(
     });
 
     let session = create_subagent_session(
-        working_dir,
+        resolve_subagent_session_bootstrap_working_dir(
+            parent_session.working_dir.as_path(),
+            execution_working_dir.as_path(),
+            effective_isolation.as_deref(),
+        ),
         build_subagent_session_name(
-            teammate_name.as_deref(),
+            resolved_teammate_spawn.teammate_name.as_deref(),
             &message,
             request.agent_type.as_deref(),
             customization
@@ -1149,10 +1820,14 @@ async fn create_runtime_subagent_session(
         &session.id,
         session.working_dir.as_path(),
         effective_isolation.as_deref(),
+        worktree_cwd_mapping.as_ref(),
     )
     .await?;
     AsterAgentWrapper::persist_session_recent_access_mode(&session.id, access_mode).await?;
-    if let (Some(team_name), Some(teammate_name)) = (team_name, teammate_name.clone()) {
+    if let (Some(team_name), Some(teammate_name)) = (
+        resolved_teammate_spawn.team_name.clone(),
+        resolved_teammate_spawn.teammate_name.clone(),
+    ) {
         register_spawned_teammate(
             &parent_session_id,
             &session.id,
@@ -1176,7 +1851,19 @@ async fn create_runtime_subagent_session(
             .as_ref()
             .and_then(|state| state.hooks.as_ref()),
     );
-    let session = read_session(&session.id, false, "读取子代理 session 失败").await?;
+    let mut session = read_session(&session.id, false, "读取子代理 session 失败").await?;
+    if resolved_teammate_spawn.teammate_plan_mode {
+        aster::session::save_session_plan_mode_state(
+            &session.id,
+            Some(aster::session::SessionPlanModeState::active(
+                Some(session.working_dir.join("PLAN.md").display().to_string()),
+                Some(aster::tools::plan_mode_tool::PlanPersistenceManager::generate_plan_id()),
+            )),
+        )
+        .await
+        .map_err(|error| format!("持久化 teammate plan mode 状态失败: {error}"))?;
+        session = read_session(&session.id, false, "刷新 teammate plan mode session 失败").await?;
+    }
 
     Ok(PreparedRuntimeSubagentSession {
         session,
@@ -1185,6 +1872,7 @@ async fn create_runtime_subagent_session(
         access_mode,
         effective_run_in_background,
         effective_isolation,
+        effective_team_name: resolved_teammate_spawn.team_name,
     })
 }
 
@@ -1205,22 +1893,14 @@ fn resolve_effective_isolation(
 
 fn validate_effective_spawn_isolation(
     effective_isolation: Option<&str>,
-    requested_cwd: Option<&str>,
+    _requested_cwd: Option<&str>,
 ) -> Result<(), String> {
     match effective_isolation
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
         None => Ok(()),
-        Some("worktree") => {
-            if requested_cwd.is_some() {
-                return Err(
-                    "cwd 目前不能与 isolation=worktree 组合；当前 persistent subagent runtime 还不能诚实承接这组 upstream 语义"
-                        .to_string(),
-                );
-            }
-            Ok(())
-        }
+        Some("worktree") => Ok(()),
         Some("remote") => {
             Err("isolation `remote` is not supported in the current runtime".to_string())
         }
@@ -1261,6 +1941,7 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
         access_mode,
         effective_run_in_background,
         effective_isolation,
+        effective_team_name,
     } = create_runtime_subagent_session(runtime, &request).await?;
     let child_session_id = child_session.id.clone();
     let workspace_id =
@@ -1289,7 +1970,7 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
                 "subagent": {
                     "parent_session_id": request.parent_session_id,
                     "name": request.name,
-                    "team_name": request.team_name,
+                    "team_name": effective_team_name,
                     "agent_type": request.agent_type,
                     "run_in_background": effective_run_in_background,
                     "reasoning_effort": request.reasoning_effort,
@@ -1333,6 +2014,39 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
     let runtime_command_context = runtime.runtime_command_context();
     let session_id = normalize_required_text(&request.id, "id")?;
     let message = normalize_required_text(&request.message, "message")?;
+    let session = read_session(&session_id, false, "读取目标会话失败")
+        .await
+        .map_err(|error| format!("目标会话不存在或无法读取: {session_id} ({error})"))?;
+
+    if !matches!(session.session_type, SessionType::SubAgent) {
+        if let Some(response) =
+            maybe_handle_plan_approval_request_for_lead(runtime, &session, &message).await?
+        {
+            return Ok(response);
+        }
+        if let Some(response) = maybe_handle_shutdown_response_for_lead(
+            runtime,
+            &runtime_command_context,
+            &session,
+            &message,
+        )
+        .await?
+        {
+            return Ok(response);
+        }
+        if let Some(error) = reject_unsupported_managed_session_control_message(&message) {
+            return Err(error);
+        }
+        return submit_runtime_message_to_managed_session(
+            runtime,
+            &runtime_command_context,
+            &session,
+            message,
+            request.interrupt,
+        )
+        .await;
+    }
+
     let status = load_subagent_runtime_status(&session_id).await?;
     match status.kind {
         SubagentRuntimeStatusKind::NotFound => {
@@ -1344,11 +2058,20 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
         _ => {}
     }
 
-    let (session, _) = read_subagent_control_state(&session_id).await?;
     let session = restore_missing_subagent_worktree_if_needed(session).await?;
+    if let Some(response) =
+        maybe_handle_plan_approval_response_for_teammate(runtime, &session, &message).await?
+    {
+        return Ok(response);
+    }
+
     let access_mode = resolve_subagent_request_access_mode(&session_id, &session);
     let customization = SubagentCustomizationState::from_session(&session);
-    let system_prompt = build_subagent_customization_system_prompt(customization.as_ref())?;
+    let system_prompt = build_runtime_subagent_system_prompt(
+        customization.as_ref(),
+        aster::session::SessionPlanModeState::from_session(&session)
+            .is_some_and(|state| state.active),
+    )?;
     if request.interrupt {
         let _ = runtime.state.cancel_session(&session_id).await;
         let _ = runtime_command_context
@@ -1361,7 +2084,7 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
     let queued_task = build_queued_turn_task(AsterChatRequest {
         message,
         session_id: session_id.clone(),
-        event_name: build_subagent_runtime_event_name(&session_id),
+        event_name: build_target_runtime_event_name(&session),
         images: None,
         provider_config: None,
         provider_preference: None,
@@ -1571,7 +2294,7 @@ pub(crate) async fn agent_runtime_close_subagent_internal(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aster::session::WorktreeSessionState;
+    use aster::session::{SessionType, WorktreeSessionState};
     use lime_core::database::schema::create_tables;
     use rusqlite::Connection;
     use std::sync::{Arc, Mutex};
@@ -1580,6 +2303,30 @@ mod tests {
         let conn = Connection::open_in_memory().expect("open in-memory db");
         create_tables(&conn).expect("create schema");
         Arc::new(Mutex::new(conn))
+    }
+
+    async fn run_subagent_git_ok<const N: usize>(cwd: &Path, args: [&str; N]) {
+        let output = run_subagent_git(cwd, args).await.expect("run git command");
+        assert!(
+            output.status.success(),
+            "git command failed: {}",
+            subagent_git_command_failure_text(&output)
+        );
+    }
+
+    async fn init_subagent_git_repo() -> tempfile::TempDir {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        run_subagent_git_ok(temp_dir.path(), ["init"]).await;
+        run_subagent_git_ok(
+            temp_dir.path(),
+            ["config", "user.email", "test@example.com"],
+        )
+        .await;
+        run_subagent_git_ok(temp_dir.path(), ["config", "user.name", "test"]).await;
+        std::fs::write(temp_dir.path().join("README.md"), "hello\n").expect("write readme");
+        run_subagent_git_ok(temp_dir.path(), ["add", "."]).await;
+        run_subagent_git_ok(temp_dir.path(), ["commit", "-m", "init"]).await;
+        temp_dir
     }
 
     #[test]
@@ -1645,6 +2392,25 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_subagent_session_bootstrap_working_dir_keeps_execution_working_dir() {
+        let parent = tempfile::tempdir().expect("parent tempdir");
+        let child = tempfile::tempdir().expect("child tempdir");
+
+        assert_eq!(
+            resolve_subagent_session_bootstrap_working_dir(
+                parent.path(),
+                child.path(),
+                Some("worktree"),
+            ),
+            child.path()
+        );
+        assert_eq!(
+            resolve_subagent_session_bootstrap_working_dir(parent.path(), child.path(), None),
+            child.path()
+        );
+    }
+
+    #[test]
     fn test_validate_spawn_request_surface_accepts_supported_modes_and_rejects_unsupported_values()
     {
         let request = AgentRuntimeSpawnSubagentRequest {
@@ -1699,8 +2465,16 @@ mod tests {
         };
         assert_eq!(
             validate_spawn_request_surface(&unsupported_mode_request).unwrap_err(),
-            "mode `plan` is not supported in the current runtime; use EnterPlanMode/ExitPlanMode instead"
+            "mode `plan` is only supported for team teammates in the current runtime"
         );
+
+        let teammate_plan_request = AgentRuntimeSpawnSubagentRequest {
+            name: Some("researcher".to_string()),
+            mode: Some("plan".to_string()),
+            ..request.clone()
+        };
+        validate_spawn_request_surface(&teammate_plan_request)
+            .expect("named team candidate should allow plan mode at surface layer");
 
         let bypass_request = AgentRuntimeSpawnSubagentRequest {
             mode: Some("bypassPermissions".to_string()),
@@ -1745,20 +2519,288 @@ mod tests {
             .expect("persist access mode");
 
         assert_eq!(
-            resolve_spawn_request_access_mode("child-3", &session, Some("acceptEdits"))
+            resolve_spawn_request_access_mode("child-3", &session, Some("acceptEdits"), false)
                 .expect("acceptEdits should be supported"),
             lime_agent::SessionExecutionRuntimeAccessMode::Current
         );
         assert_eq!(
-            resolve_spawn_request_access_mode("child-3", &session, Some("dontAsk"))
+            resolve_spawn_request_access_mode("child-3", &session, Some("dontAsk"), false)
                 .expect("dontAsk should be supported"),
             lime_agent::SessionExecutionRuntimeAccessMode::FullAccess
         );
         assert_eq!(
-            resolve_spawn_request_access_mode("child-3", &session, Some("default"))
+            resolve_spawn_request_access_mode("child-3", &session, Some("default"), false)
                 .expect("default should inherit"),
             lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly
         );
+        assert_eq!(
+            resolve_spawn_request_access_mode("child-3", &session, Some("plan"), true)
+                .expect("team teammate plan mode should inherit parent access mode"),
+            lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_effective_teammate_spawn_request_infers_team_name_from_lead_context() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let lead = aster::session::create_managed_session(
+            temp_dir.path().to_path_buf(),
+            "team-lead".to_string(),
+            SessionType::Hidden,
+        )
+        .await
+        .expect("create lead session");
+        aster::session::save_team_state(
+            &lead.id,
+            Some(aster::session::TeamSessionState::new(
+                "delivery-team",
+                lead.id.clone(),
+                None,
+                None,
+            )),
+        )
+        .await
+        .expect("save team state");
+
+        let resolved = resolve_effective_teammate_spawn_request(
+            &lead.id,
+            &AgentRuntimeSpawnSubagentRequest {
+                parent_session_id: lead.id.clone(),
+                message: "定位当前 team runtime 差异".to_string(),
+                name: Some("researcher".to_string()),
+                team_name: None,
+                agent_type: None,
+                model: None,
+                run_in_background: false,
+                reasoning_effort: None,
+                fork_context: false,
+                blueprint_role_id: None,
+                blueprint_role_label: None,
+                profile_id: None,
+                profile_name: None,
+                role_key: None,
+                skill_ids: Vec::new(),
+                skill_directories: Vec::new(),
+                team_preset_id: None,
+                theme: None,
+                system_overlay: None,
+                output_contract: None,
+                hooks: None,
+                allowed_tools: Vec::new(),
+                disallowed_tools: Vec::new(),
+                mode: Some("plan".to_string()),
+                isolation: None,
+                cwd: None,
+            },
+        )
+        .await
+        .expect("lead team context should infer team name");
+
+        assert_eq!(resolved.teammate_name.as_deref(), Some("researcher"));
+        assert_eq!(resolved.team_name.as_deref(), Some("delivery-team"));
+        assert!(resolved.teammate_plan_mode);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_effective_teammate_spawn_request_rejects_plan_without_team_context() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let parent = aster::session::create_managed_session(
+            temp_dir.path().to_path_buf(),
+            "plain-parent".to_string(),
+            SessionType::Hidden,
+        )
+        .await
+        .expect("create parent session");
+
+        let error = resolve_effective_teammate_spawn_request(
+            &parent.id,
+            &AgentRuntimeSpawnSubagentRequest {
+                parent_session_id: parent.id.clone(),
+                message: "定位当前 team runtime 差异".to_string(),
+                name: Some("researcher".to_string()),
+                team_name: None,
+                agent_type: None,
+                model: None,
+                run_in_background: false,
+                reasoning_effort: None,
+                fork_context: false,
+                blueprint_role_id: None,
+                blueprint_role_label: None,
+                profile_id: None,
+                profile_name: None,
+                role_key: None,
+                skill_ids: Vec::new(),
+                skill_directories: Vec::new(),
+                team_preset_id: None,
+                theme: None,
+                system_overlay: None,
+                output_contract: None,
+                hooks: None,
+                allowed_tools: Vec::new(),
+                disallowed_tools: Vec::new(),
+                mode: Some("plan".to_string()),
+                isolation: None,
+                cwd: None,
+            },
+        )
+        .await
+        .expect_err("plan mode without current team context should stay rejected");
+
+        assert_eq!(
+            error,
+            "mode `plan` is only supported for team teammates in the current runtime"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_effective_teammate_spawn_request_rejects_non_lead_sessions() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let lead = aster::session::create_managed_session(
+            temp_dir.path().to_path_buf(),
+            "team-lead".to_string(),
+            SessionType::Hidden,
+        )
+        .await
+        .expect("create lead session");
+        let child = aster::session::create_managed_session(
+            temp_dir.path().to_path_buf(),
+            "team-child".to_string(),
+            SessionType::SubAgent,
+        )
+        .await
+        .expect("create child session");
+        aster::session::save_team_state(
+            &lead.id,
+            Some(aster::session::TeamSessionState::new(
+                "delivery-team",
+                lead.id.clone(),
+                None,
+                None,
+            )),
+        )
+        .await
+        .expect("save team state");
+        aster::session::save_team_membership(
+            &child.id,
+            Some(aster::session::TeamMembershipState {
+                team_name: "delivery-team".to_string(),
+                lead_session_id: lead.id.clone(),
+                agent_id: child.id.clone(),
+                name: "researcher".to_string(),
+                agent_type: Some("explorer".to_string()),
+            }),
+        )
+        .await
+        .expect("save team membership");
+
+        let error = resolve_effective_teammate_spawn_request(
+            &child.id,
+            &AgentRuntimeSpawnSubagentRequest {
+                parent_session_id: child.id.clone(),
+                message: "继续拆分 teammate".to_string(),
+                name: Some("planner".to_string()),
+                team_name: Some("delivery-team".to_string()),
+                agent_type: None,
+                model: None,
+                run_in_background: false,
+                reasoning_effort: None,
+                fork_context: false,
+                blueprint_role_id: None,
+                blueprint_role_label: None,
+                profile_id: None,
+                profile_name: None,
+                role_key: None,
+                skill_ids: Vec::new(),
+                skill_directories: Vec::new(),
+                team_preset_id: None,
+                theme: None,
+                system_overlay: None,
+                output_contract: None,
+                hooks: None,
+                allowed_tools: Vec::new(),
+                disallowed_tools: Vec::new(),
+                mode: Some("plan".to_string()),
+                isolation: None,
+                cwd: None,
+            },
+        )
+        .await
+        .expect_err("non-lead sessions should not create teammates");
+
+        assert_eq!(error, "当前 runtime 只允许 team lead session 创建 teammate");
+    }
+
+    #[test]
+    fn test_build_runtime_subagent_system_prompt_appends_plan_mode_guidance() {
+        let prompt = build_runtime_subagent_system_prompt(None, true)
+            .expect("build plan prompt")
+            .expect("plan prompt should exist");
+        assert!(prompt.contains("You are running in plan mode."));
+    }
+
+    #[test]
+    fn test_parse_runtime_control_message_accepts_upstream_plan_response_shape() {
+        let message = parse_runtime_control_message(
+            r#"{"type":"plan_approval_response","requestId":"req-1","approved":true,"permissionMode":"default"}"#,
+        )
+        .expect("should parse upstream approval response");
+
+        assert!(matches!(
+            message,
+            RuntimeControlMessage::PlanApprovalResponse {
+                request_id,
+                approve: true,
+                ..
+            } if request_id == "req-1"
+        ));
+    }
+
+    #[test]
+    fn test_parse_runtime_control_message_accepts_shutdown_approved_shape() {
+        let message = parse_runtime_control_message(
+            r#"{"type":"shutdown_approved","request_id":"req-1","from":"researcher"}"#,
+        )
+        .expect("should parse shutdown approved message");
+
+        assert!(matches!(
+            message,
+            RuntimeControlMessage::ShutdownApproved {
+                request_id,
+                from,
+                ..
+            } if request_id == "req-1" && from == "researcher"
+        ));
+    }
+
+    #[test]
+    fn test_extract_runtime_request_target_reads_suffix_after_at() {
+        assert_eq!(
+            extract_runtime_request_target("shutdown-123@researcher"),
+            Some("researcher")
+        );
+        assert_eq!(extract_runtime_request_target("shutdown-123"), None);
+    }
+
+    #[test]
+    fn test_reject_unsupported_managed_session_control_message_blocks_shutdown_response() {
+        let error = reject_unsupported_managed_session_control_message(
+            r#"{"type":"shutdown_response","request_id":"req-1","approve":true}"#,
+        )
+        .expect("shutdown response should stay fail-closed");
+
+        assert!(error.contains("shutdown_response"));
+    }
+
+    #[test]
+    fn test_reject_unsupported_managed_session_control_message_allows_wrapped_peer_text() {
+        assert!(reject_unsupported_managed_session_control_message(
+            "<teammate-message teammate_id=\"researcher\" summary=\"同步结果\">\n继续验证\n</teammate-message>",
+        )
+        .is_none());
+        assert!(reject_unsupported_managed_session_control_message(
+            "<cross-session-message from=\"uds:session-a\">\n继续验证\n</cross-session-message>",
+        )
+        .is_none());
     }
 
     #[test]
@@ -2041,15 +3083,75 @@ mod tests {
     fn test_validate_effective_spawn_isolation_accepts_worktree_and_rejects_unsupported_values() {
         assert!(validate_effective_spawn_isolation(None, None).is_ok());
         assert!(validate_effective_spawn_isolation(Some("worktree"), None).is_ok());
+        assert!(validate_effective_spawn_isolation(Some("worktree"), Some("/tmp/project")).is_ok());
         assert_eq!(
             validate_effective_spawn_isolation(Some("remote"), None).unwrap_err(),
             "isolation `remote` is not supported in the current runtime"
         );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_subagent_worktree_cwd_mapping_rejects_cross_repo_cwd() {
+        let parent_repo = init_subagent_git_repo().await;
+        let other_repo = init_subagent_git_repo().await;
+        let other_cwd = other_repo.path().display().to_string();
+
+        let error = resolve_subagent_worktree_cwd_mapping(
+            parent_repo.path(),
+            other_repo.path(),
+            Some("worktree"),
+            Some(other_cwd.as_str()),
+        )
+        .await
+        .expect_err("cross-repo cwd should fail");
+
+        assert!(error.contains("同一 Git 仓库"));
+    }
+
+    #[tokio::test]
+    async fn test_maybe_enter_subagent_worktree_remaps_requested_cwd_into_child_worktree() {
+        let repo = init_subagent_git_repo().await;
+        let nested = repo.path().join("packages/app");
+        std::fs::create_dir_all(&nested).expect("create nested dir");
+        std::fs::write(nested.join("index.txt"), "hello\n").expect("write nested file");
+        run_subagent_git_ok(repo.path(), ["add", "."]).await;
+        run_subagent_git_ok(repo.path(), ["commit", "-m", "add nested"]).await;
+
+        let requested_cwd = nested.display().to_string();
+        let mapping = resolve_subagent_worktree_cwd_mapping(
+            repo.path(),
+            nested.as_path(),
+            Some("worktree"),
+            Some(requested_cwd.as_str()),
+        )
+        .await
+        .expect("resolve mapping should succeed")
+        .expect("mapping should exist");
+        let session = create_subagent_session(nested.clone(), "subagent-worktree-cwd".to_string())
+            .await
+            .expect("create child session");
+
+        maybe_enter_subagent_worktree(
+            &session.id,
+            session.working_dir.as_path(),
+            Some("worktree"),
+            Some(&mapping),
+        )
+        .await
+        .expect("enter worktree should succeed");
+
+        let session = read_session(&session.id, false, "refresh child session")
+            .await
+            .expect("refresh child session");
+        let state = WorktreeSessionState::from_extension_data(&session.extension_data)
+            .expect("worktree state should exist");
+
+        assert_eq!(state.original_cwd, requested_cwd);
         assert_eq!(
-            validate_effective_spawn_isolation(Some("worktree"), Some("/tmp/project"))
-                .unwrap_err(),
-            "cwd 目前不能与 isolation=worktree 组合；当前 persistent subagent runtime 还不能诚实承接这组 upstream 语义"
+            session.working_dir,
+            PathBuf::from(&state.worktree_path).join("packages/app")
         );
+        assert!(session.working_dir.is_dir());
     }
 
     #[test]

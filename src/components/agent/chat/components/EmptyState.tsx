@@ -29,7 +29,10 @@ import {
   type CuratedTaskInputValues,
   type CuratedTaskTemplateItem,
 } from "../utils/curatedTaskTemplates";
-import { subscribeCuratedTaskRecommendationSignalsChanged } from "../utils/curatedTaskRecommendationSignals";
+import {
+  listCuratedTaskRecommendationSignals,
+  subscribeCuratedTaskRecommendationSignalsChanged,
+} from "../utils/curatedTaskRecommendationSignals";
 import {
   extractCuratedTaskReferenceMemoryIds,
   mergeCuratedTaskReferenceEntries,
@@ -40,6 +43,7 @@ import type {
   CuratedTaskReferenceSelection,
 } from "../utils/curatedTaskReferenceSelection";
 import { CuratedTaskLauncherDialog } from "./CuratedTaskLauncherDialog";
+import { CreationReplaySurfaceBanner } from "./CreationReplaySurfaceBanner";
 import { EmptyStateComposerPanel } from "./EmptyStateComposerPanel";
 import { EmptyStateHero } from "./EmptyStateHero";
 import { EmptyStateQuickActions } from "./EmptyStateQuickActions";
@@ -93,6 +97,10 @@ import type { AgentTaskRuntimeCardModel } from "../utils/agentTaskRuntime";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";
 import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
 import { buildInstalledSkillCapabilityDescription } from "@/components/skills/installedSkillPresentation";
+import {
+  buildSceneAppExecutionReviewPrefillHighlights,
+  buildSceneAppExecutionReviewPrefillSnapshot,
+} from "../utils/sceneAppCuratedTaskReference";
 
 const contentReveal = keyframes`
   from {
@@ -193,6 +201,48 @@ const RecommendationShelfEmptyState = styled.div`
   line-height: 1.5;
   color: rgb(148 163 184);
   padding: 0.1rem 0;
+`;
+
+const RecommendationSignalBanner = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  border-radius: 18px;
+  border: 1px solid rgba(191, 219, 254, 0.95);
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(186, 230, 253, 0.26),
+      rgba(255, 255, 255, 0) 48%
+    ),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98));
+  padding: 0.9rem 0.95rem;
+`;
+
+const RecommendationSignalBannerHeader = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+`;
+
+const RecommendationSignalBannerTitle = styled.div`
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: rgb(15 23 42);
+`;
+
+const RecommendationSignalBannerSummary = styled.div`
+  font-size: 12px;
+  line-height: 1.65;
+  color: rgb(71 85 105);
+`;
+
+const RecommendationSignalBannerFootnote = styled.div`
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgb(14 116 144);
 `;
 
 const RecommendationLeadCard = styled.button`
@@ -504,10 +554,20 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   canResumeRecentSceneApp?: boolean;
   /** 恢复最近一次 SceneApp 上下文 */
   onResumeRecentSceneApp?: () => void;
+  /** 最近会话标题 */
+  recentSessionTitle?: string | null;
+  /** 最近会话摘要 */
+  recentSessionSummary?: string | null;
+  /** 最近会话恢复动作文案 */
+  recentSessionActionLabel?: string;
+  /** 恢复最近一次会话上下文 */
+  onResumeRecentSession?: () => void;
   /** 打开 SceneApp 目录页 */
   onOpenSceneAppsDirectory?: () => void;
   /** 当前项目 ID */
   projectId?: string | null;
+  /** 当前会话 ID */
+  sessionId?: string | null;
   /** 项目切换 */
   onProjectChange?: (projectId: string) => void;
   /** 打开设置 */
@@ -541,6 +601,9 @@ type RecommendationShelfItem =
       badge: string;
       hint: string;
       meta: string;
+      contextSummary?: string;
+      reasonLabel?: string;
+      reasonSummary?: string;
       testId: string;
       onSelect: () => void;
     }
@@ -552,6 +615,9 @@ type RecommendationShelfItem =
       badge: string;
       hint: string;
       meta: string;
+      contextSummary?: string;
+      reasonLabel?: string;
+      reasonSummary?: string;
       testId: string;
       onSelect: () => void;
     };
@@ -624,6 +690,52 @@ function formatMethodSummaryLabel(summaryLabel: string): string {
   return summaryLabel;
 }
 
+function resolveResultShelfTitle(
+  creationReplaySurface?: CreationReplaySurfaceModel | null,
+): string {
+  return creationReplaySurface ? "沿着当前上下文继续" : "从这里开始";
+}
+
+function resolveResultShelfDescription(
+  creationReplaySurface?: CreationReplaySurfaceModel | null,
+): string {
+  if (!creationReplaySurface) {
+    return "先拿一个结果开工，后面继续补参考、改方向、扩成更多版本，都还在同一轮里推进。";
+  }
+
+  if (creationReplaySurface.kind === "skill_scaffold") {
+    return "这轮会先沿着当前带入的做法草稿继续生成；先拿一个结果开工，跑顺后再回到我的方法继续整理。";
+  }
+
+  return "这轮会默认带着当前参考一起生成；你选的结果模板会自动沿用这份上下文。";
+}
+
+function resolveLeadRecommendationEyebrow(
+  creationReplaySurface?: CreationReplaySurfaceModel | null,
+): string {
+  if (!creationReplaySurface) {
+    return "我建议先做这个";
+  }
+
+  return creationReplaySurface.kind === "skill_scaffold"
+    ? "先沿着当前做法开工"
+    : "先沿着当前参考开工";
+}
+
+function buildRecommendationContextSummary(
+  segments: Array<string | null | undefined>,
+): string | undefined {
+  const normalizedSegments = segments
+    .map((segment) => segment?.trim())
+    .filter((segment): segment is string => Boolean(segment));
+
+  if (normalizedSegments.length === 0) {
+    return undefined;
+  }
+
+  return normalizedSegments.join(" · ");
+}
+
 export const EmptyState: React.FC<EmptyStateProps> = ({
   input,
   setInput,
@@ -673,8 +785,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onLaunchSceneApp,
   canResumeRecentSceneApp = false,
   onResumeRecentSceneApp,
+  recentSessionTitle = null,
+  recentSessionSummary = null,
+  recentSessionActionLabel = "继续最近会话",
+  onResumeRecentSession,
   onOpenSceneAppsDirectory,
   projectId = null,
+  sessionId = null,
   onProjectChange,
   onOpenSettings,
   isLoading = false,
@@ -893,6 +1010,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     curatedTaskRecommendationSignalsVersion,
     curatedTaskTemplatesVersion,
   ]);
+
+  const latestReviewRecommendationSignal = useMemo(() => {
+    void curatedTaskRecommendationSignalsVersion;
+    return listCuratedTaskRecommendationSignals({
+      projectId,
+    })
+      .filter((signal) => signal.source === "review_feedback")
+      .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
+  }, [curatedTaskRecommendationSignalsVersion, projectId]);
 
   const recentSceneUsageBySceneKey = useMemo(() => {
     void slashEntryUsageVersion;
@@ -1241,33 +1367,63 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       },
     ).map((featured) => {
       const template = featured.template;
+      const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(template);
+      const reviewPrefillSnapshot = buildSceneAppExecutionReviewPrefillSnapshot({
+        referenceEntries: [
+          ...effectiveDefaultCuratedTaskReferenceEntries,
+          ...(launchPrefill?.referenceEntries ?? []),
+        ],
+        taskId: template.id,
+      });
       const metaPrefix = featured.reasonSummary
         ? `${featured.reasonSummary} · `
         : "";
 
       return {
-          kind: "solution" as const,
-          key: template.id,
-          title: template.title,
-          summary: template.summary,
-          badge: featured.badgeLabel,
-          hint: template.outputHint,
-          meta: `${metaPrefix}${buildCuratedTaskCapabilityDescription(template, {
-            includeSummary: false,
-            includeResultDestination: true,
-            includeFollowUpActions: true,
-            followUpLimit: 1,
-          })}`,
-          testId: `entry-recommended-${template.id}`,
-          onSelect: () =>
-            handleCuratedTaskLauncherRequest(
-              template,
-              null,
-              effectiveDefaultCuratedTaskReferenceMemoryIds,
-              effectiveDefaultCuratedTaskReferenceEntries,
-            ),
-        };
-      });
+        kind: "solution" as const,
+        key: template.id,
+        title: template.title,
+        summary: template.summary,
+        badge: featured.badgeLabel,
+        hint: template.outputHint,
+        meta: `${metaPrefix}${buildCuratedTaskCapabilityDescription(template, {
+          includeSummary: false,
+          includeResultDestination: true,
+          includeFollowUpActions: true,
+          followUpLimit: 1,
+        })}`,
+        contextSummary: buildRecommendationContextSummary(
+          reviewPrefillSnapshot
+            ? [
+                `当前结果基线：${reviewPrefillSnapshot.sourceTitle}`,
+                reviewPrefillSnapshot.statusLabel
+                  ? `当前判断：${reviewPrefillSnapshot.statusLabel}`
+                  : null,
+                reviewPrefillSnapshot.failureSignalLabel
+                  ? `当前卡点：${reviewPrefillSnapshot.failureSignalLabel}`
+                  : null,
+                reviewPrefillSnapshot.destinationsLabel
+                  ? `更适合去向：${reviewPrefillSnapshot.destinationsLabel}`
+                  : reviewPrefillSnapshot.operatingAction
+                    ? `经营动作：${reviewPrefillSnapshot.operatingAction}`
+                    : null,
+              ]
+            : buildSceneAppExecutionReviewPrefillHighlights(
+                reviewPrefillSnapshot,
+              ),
+        ),
+        reasonLabel: featured.reasonLabel,
+        reasonSummary: featured.reasonSummary,
+        testId: `entry-recommended-${template.id}`,
+        onSelect: () =>
+          handleCuratedTaskLauncherRequest(
+            template,
+            null,
+            effectiveDefaultCuratedTaskReferenceMemoryIds,
+            effectiveDefaultCuratedTaskReferenceEntries,
+          ),
+      };
+    });
 
     const featuredServiceSkills = listFeaturedHomeServiceSkills(
       serviceSkills ?? [],
@@ -1342,6 +1498,25 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       .filter((item) => item.key !== leadKey)
       .slice(0, 5);
   }, [leadRecommendationItem?.key, recommendationSolutionItems]);
+
+  const reviewFeedbackBanner = useMemo(() => {
+    if (!latestReviewRecommendationSignal) {
+      return null;
+    }
+
+    const highlightedRecommendations = recommendationSolutionItems
+      .filter((item) => item.reasonLabel === "围绕最近复盘")
+      .slice(0, 2);
+    if (highlightedRecommendations.length === 0) {
+      return null;
+    }
+
+    return {
+      title: latestReviewRecommendationSignal.title,
+      summary: truncatePrompt(latestReviewRecommendationSignal.summary, 108),
+      nextSteps: highlightedRecommendations.map((item) => item.title).join(" / "),
+    };
+  }, [latestReviewRecommendationSignal, recommendationSolutionItems]);
 
   const continuationShelfItems = useMemo<ContinuationShelfItem[]>(() => {
     const recentTemplateItems = curatedTaskTemplates
@@ -1614,6 +1789,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       }
       creationReplaySurface={creationReplaySurface}
       projectId={projectId}
+      sessionId={sessionId}
       defaultCuratedTaskReferenceMemoryIds={
         effectiveDefaultCuratedTaskReferenceMemoryIds
       }
@@ -1661,10 +1837,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       <RecommendationShelfHeader>
         <RecommendationShelfHeaderBody>
           <RecommendationShelfHeaderTitle>
-            从这里开始
+            {resolveResultShelfTitle(creationReplaySurface)}
           </RecommendationShelfHeaderTitle>
           <RecommendationShelfHeaderDescription>
-            先拿一个结果开工，后面继续补参考、改方向、扩成更多版本，都还在同一轮里推进。
+            {resolveResultShelfDescription(creationReplaySurface)}
           </RecommendationShelfHeaderDescription>
         </RecommendationShelfHeaderBody>
         {selectedTextPreview ? (
@@ -1677,6 +1853,27 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         ) : null}
       </RecommendationShelfHeader>
 
+      {creationReplaySurface ? (
+        <CreationReplaySurfaceBanner surface={creationReplaySurface} />
+      ) : null}
+
+      {reviewFeedbackBanner ? (
+        <RecommendationSignalBanner data-testid="entry-review-feedback-banner">
+          <RecommendationSignalBannerHeader>
+            <RecommendationShelfBadge>围绕最近复盘</RecommendationShelfBadge>
+            <RecommendationSignalBannerTitle>
+              最近复盘已更新：{reviewFeedbackBanner.title}
+            </RecommendationSignalBannerTitle>
+          </RecommendationSignalBannerHeader>
+          <RecommendationSignalBannerSummary>
+            {reviewFeedbackBanner.summary}
+          </RecommendationSignalBannerSummary>
+          <RecommendationSignalBannerFootnote>
+            更适合继续：{reviewFeedbackBanner.nextSteps}
+          </RecommendationSignalBannerFootnote>
+        </RecommendationSignalBanner>
+      ) : null}
+
       {leadRecommendationItem ? (
         <RecommendationLeadCard
           type="button"
@@ -1687,7 +1884,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           }}
         >
           <RecommendationLeadEyebrowRow>
-            <RecommendationLeadEyebrow>我建议先做这个</RecommendationLeadEyebrow>
+            <RecommendationLeadEyebrow>
+              {resolveLeadRecommendationEyebrow(creationReplaySurface)}
+            </RecommendationLeadEyebrow>
             <RecommendationShelfInlineBadge>
               {leadRecommendationItem.badge}
             </RecommendationShelfInlineBadge>
@@ -1698,6 +1897,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           <RecommendationLeadSummary>
             {leadRecommendationItem.summary}
           </RecommendationLeadSummary>
+          {leadRecommendationItem.contextSummary ? (
+            <RecommendationLeadMeta>
+              {leadRecommendationItem.contextSummary}
+            </RecommendationLeadMeta>
+          ) : null}
           <RecommendationLeadMeta>{leadRecommendationItem.meta}</RecommendationLeadMeta>
           <RecommendationLeadFooter>
             开始这一轮
@@ -1738,7 +1942,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                       </RecommendationShelfInlineBadge>
                     </RecommendationAssistCardHeader>
                     <RecommendationAssistCardSummary>
-                      {item.meta}
+                      {item.contextSummary
+                        ? `${item.contextSummary} · ${item.meta}`
+                        : item.meta}
                     </RecommendationAssistCardSummary>
                   </RecommendationAssistCard>
                 ))}
@@ -1798,8 +2004,28 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     Boolean(onLaunchBrowserAssist) ||
     hasAutoLaunchSiteSkill ||
     hasReusableMethodContinuation;
+  const hasRecentSessionContinuation = Boolean(
+    recentSessionTitle && onResumeRecentSession,
+  );
   const shouldShowSupplementalPanel =
-    shouldShowSceneAppsPanel || shouldShowCapabilitySummaryPanel;
+    shouldShowSceneAppsPanel ||
+    shouldShowCapabilitySummaryPanel ||
+    hasRecentSessionContinuation;
+  const recentSessionLinkLabel = useMemo(() => {
+    const normalizedTitle = truncatePrompt(recentSessionTitle || "", 18);
+    if (!normalizedTitle) {
+      return recentSessionActionLabel;
+    }
+    return `${recentSessionActionLabel} · ${normalizedTitle}`;
+  }, [recentSessionActionLabel, recentSessionTitle]);
+  const recentSessionLinkTitle = useMemo(
+    () =>
+      [recentSessionTitle, recentSessionSummary]
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value))
+        .join(" · "),
+    [recentSessionSummary, recentSessionTitle],
+  );
 
   const supplementalSceneAppItems = useMemo(
     () => featuredSceneApps.slice(0, 2),
@@ -1812,6 +2038,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         如果你已经知道怎么接着做，也可以直接从这里续上。
       </RecommendationSupplementalLabel>
       <RecommendationSupplementalRow>
+        {recentSessionTitle && onResumeRecentSession ? (
+          <RecommendationSupplementalLink
+            type="button"
+            data-testid="entry-recent-session-resume"
+            title={recentSessionLinkTitle || undefined}
+            onClick={onResumeRecentSession}
+          >
+            {recentSessionLinkLabel}
+          </RecommendationSupplementalLink>
+        ) : null}
+
         {canResumeRecentSceneApp && onResumeRecentSceneApp ? (
           <RecommendationSupplementalLink
             type="button"
@@ -1954,6 +2191,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       <CuratedTaskLauncherDialog
         open={Boolean(curatedTaskLauncherTask)}
         task={curatedTaskLauncherTask}
+        projectId={projectId}
+        sessionId={sessionId}
         initialInputValues={curatedTaskLauncherInitialInputValues}
         initialReferenceMemoryIds={curatedTaskLauncherInitialReferenceMemoryIds}
         initialReferenceEntries={curatedTaskLauncherInitialReferenceEntries}

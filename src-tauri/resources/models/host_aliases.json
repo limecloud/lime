@@ -86,7 +86,7 @@
     },
     {
       "contains": "xiaomimimo.com",
-      "providers": ["minimax-cn", "minimax"]
+      "providers": ["xiaomi"]
     },
     {
       "contains": "dashscope.aliyuncs.com",

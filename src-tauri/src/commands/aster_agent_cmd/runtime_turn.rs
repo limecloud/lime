@@ -9,6 +9,9 @@ use super::runtime_project_hooks::{
 };
 use super::service_skill_launch::build_service_skill_preload_tool_projection;
 use super::*;
+use crate::commands::auxiliary_model_selection::{
+    prepare_auxiliary_provider_scope, AuxiliaryServiceModelSlot,
+};
 use aster::hooks::{CompactTrigger, SessionSource};
 use aster::session::TurnContextOverride;
 use aster::tools::ConfigTool;
@@ -36,6 +39,12 @@ const AUTO_RUNTIME_MEMORY_MIN_ASSISTANT_CHARS: usize = 48;
 const AUTO_RUNTIME_MEMORY_MIN_TOTAL_CHARS: usize = 160;
 const AUTO_RUNTIME_MEMORY_SESSION_MESSAGE_LIMIT: usize = 8;
 const AUTO_RUNTIME_MEMORY_SESSION_MIN_MESSAGE_LENGTH: usize = 18;
+const COMPACTION_FALLBACK_PROVIDER_CHAIN: [(&str, &str); 4] = [
+    ("deepseek", "deepseek-chat"),
+    ("openai", "gpt-4o-mini"),
+    ("anthropic", "claude-3-haiku-20240307"),
+    ("kiro", "anthropic.claude-3-haiku-20240307-v1:0"),
+];
 
 fn emit_runtime_events(app: &AppHandle, event_name: &str, events: Vec<RuntimeAgentEvent>) {
     for event in events {
@@ -1145,6 +1154,7 @@ async fn prepare_runtime_turn_submit_bootstrap(
         app,
         state,
         db,
+        config_manager,
         session_id,
         &request.event_name,
         workspace_settings,
@@ -4049,21 +4059,36 @@ async fn maybe_auto_compact_runtime_session_before_turn(
     app: &AppHandle,
     state: &AsterAgentState,
     db: &DbConnection,
+    config_manager: &GlobalConfigManagerState,
     session_id: &str,
     request_event_name: &str,
     workspace_settings: &WorkspaceSettings,
 ) -> Result<(), String> {
     let session = read_session(session_id, true, "读取自动压缩会话失败").await?;
-    let agent_arc = state.get_agent_arc();
-    let guard = agent_arc.read().await;
-    let agent = guard.as_ref().ok_or("Agent not initialized")?;
-    let provider = agent
-        .provider()
-        .await
-        .map_err(|error| format!("读取自动压缩 provider 失败: {error}"))?;
-    if !should_auto_compact_runtime_session(provider.as_ref(), &session, workspace_settings, None)
-        .await?
-    {
+    let provider_scope = prepare_auxiliary_provider_scope(
+        state,
+        db,
+        config_manager,
+        session_id,
+        AuxiliaryServiceModelSlot::HistoryCompress,
+        &COMPACTION_FALLBACK_PROVIDER_CHAIN,
+    )
+    .await?;
+    let should_compact_result = async {
+        let agent_arc = state.get_agent_arc();
+        let guard = agent_arc.read().await;
+        let agent = guard.as_ref().ok_or("Agent not initialized")?;
+        let provider = agent
+            .provider()
+            .await
+            .map_err(|error| format!("读取自动压缩 provider 失败: {error}"))?;
+        should_auto_compact_runtime_session(provider.as_ref(), &session, workspace_settings, None)
+            .await
+    }
+    .await;
+    provider_scope.restore(state, db).await;
+
+    if !should_compact_result? {
         return Ok(());
     }
 
@@ -4072,6 +4097,7 @@ async fn maybe_auto_compact_runtime_session_before_turn(
         app,
         state,
         db,
+        config_manager,
         session_id.to_string(),
         auto_event_name,
         RuntimeSessionCompactionTrigger::Auto,
@@ -4099,6 +4125,7 @@ async fn compact_runtime_session_with_trigger(
     app: &AppHandle,
     state: &AsterAgentState,
     db: &DbConnection,
+    config_manager: &GlobalConfigManagerState,
     session_id: String,
     event_name: String,
     trigger: RuntimeSessionCompactionTrigger,
@@ -4120,6 +4147,15 @@ async fn compact_runtime_session_with_trigger(
         &session_id,
         pre_compact_current_tokens,
         resolve_pre_compact_hook_trigger(trigger),
+    )
+    .await?;
+    let provider_scope = prepare_auxiliary_provider_scope(
+        state,
+        db,
+        config_manager,
+        &session_id,
+        AuxiliaryServiceModelSlot::HistoryCompress,
+        &COMPACTION_FALLBACK_PROVIDER_CHAIN,
     )
     .await?;
 
@@ -4249,6 +4285,8 @@ async fn compact_runtime_session_with_trigger(
         Ok(())
     };
 
+    provider_scope.restore(state, db).await;
+
     match final_result {
         Ok(()) => {
             let terminal_events = {
@@ -4319,6 +4357,7 @@ pub(crate) async fn compact_runtime_session_internal(
     app: &AppHandle,
     state: &AsterAgentState,
     db: &DbConnection,
+    config_manager: &GlobalConfigManagerState,
     request: AgentRuntimeCompactSessionRequest,
 ) -> Result<(), String> {
     let session_id = normalize_required_text(&request.session_id, "session_id")?;
@@ -4327,6 +4366,7 @@ pub(crate) async fn compact_runtime_session_internal(
         app,
         state,
         db,
+        config_manager,
         session_id,
         event_name,
         RuntimeSessionCompactionTrigger::Manual,

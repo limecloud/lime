@@ -754,6 +754,15 @@ pub fn get_system_providers() -> Vec<SystemProviderDef> {
             sort_order: 69,
             api_version: None,
         },
+        SystemProviderDef {
+            id: "airgate-openai-images",
+            name: "OpenAI-gpt-images-2",
+            provider_type: ApiProviderType::Openai,
+            api_host: "https://airgate.k8ray.com/v1",
+            group: ProviderGroup::Aggregator,
+            sort_order: 70,
+            api_version: None,
+        },
         // =========================================================================
         // 本地/自托管服务 (5个) - Requirements 3.5
         // =========================================================================
@@ -887,9 +896,43 @@ pub fn to_api_key_provider(def: &SystemProviderDef) -> ApiKeyProvider {
         project: None,
         location: None,
         region: None,
-        custom_models: Vec::new(),
+        custom_models: default_custom_models_for_system_provider(def.id),
         prompt_cache_mode: None,
         created_at: now,
         updated_at: now,
+    }
+}
+
+fn default_custom_models_for_system_provider(provider_id: &str) -> Vec<String> {
+    match provider_id {
+        "airgate-openai-images" => vec!["gpt-images-2".to_string()],
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{get_system_providers, to_api_key_provider};
+
+    #[test]
+    fn test_airgate_openai_images_system_provider_is_registered() {
+        let provider = get_system_providers()
+            .into_iter()
+            .find(|provider| provider.id == "airgate-openai-images")
+            .expect("airgate system provider should exist");
+
+        assert_eq!(provider.name, "OpenAI-gpt-images-2");
+        assert_eq!(provider.api_host, "https://airgate.k8ray.com/v1");
+    }
+
+    #[test]
+    fn test_airgate_openai_images_system_provider_includes_default_image_model() {
+        let provider = get_system_providers()
+            .into_iter()
+            .find(|provider| provider.id == "airgate-openai-images")
+            .expect("airgate system provider should exist");
+        let api_provider = to_api_key_provider(&provider);
+
+        assert_eq!(api_provider.custom_models, vec!["gpt-images-2".to_string()]);
     }
 }

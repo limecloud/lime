@@ -67,8 +67,28 @@ export const DEFAULT_SIZES: ImageSize[] = [
   { value: "1024x1792", label: "1024x1792" },
 ];
 
+const OPENAI_IMAGE_MODELS: ImageGenModel[] = [
+  {
+    id: "gpt-image-1",
+    name: "GPT Image 1",
+    supportedSizes: ["1024x1024", "1792x1024", "1024x1792"],
+  },
+  {
+    id: "gpt-images-2",
+    name: "GPT Images 2",
+    supportedSizes: ["1024x1024", "1792x1024", "1024x1792"],
+  },
+  {
+    id: "dall-e-3",
+    name: "DALL-E 3",
+    supportedSizes: ["1024x1024", "1792x1024", "1024x1792"],
+  },
+];
+
 /** 图片生成模型映射（根据 Provider ID 或类型） */
 export const IMAGE_GEN_MODELS: Record<string, ImageGenModel[]> = {
+  openai: OPENAI_IMAGE_MODELS,
+  "openai-response": OPENAI_IMAGE_MODELS,
   // 智谱 AI
   zhipuai: [
     {
@@ -190,13 +210,7 @@ export const IMAGE_GEN_MODELS: Record<string, ImageGenModel[]> = {
     },
   ],
   // New API
-  "new-api": [
-    {
-      id: "dall-e-3",
-      name: "DALL-E 3",
-      supportedSizes: ["1024x1024", "1792x1024", "1024x1792"],
-    },
-  ],
+  "new-api": OPENAI_IMAGE_MODELS,
   // Fal
   fal: [
     {

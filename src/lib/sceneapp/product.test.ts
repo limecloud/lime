@@ -2,17 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   backfillSceneAppExecutionSummaryViewModel,
   buildSceneAppAutomationWorkspaceCardViewModel,
+  buildSceneAppCatalogCardViewModel,
   buildSceneAppDetailViewModel,
   buildSceneAppExecutionSummaryViewModel,
   buildSceneAppGovernancePanelViewModel,
   buildSceneAppOperatingSummaryViewModel,
   buildSceneAppRunDetailViewModel,
+  buildSceneAppScorecardAggregateViewModel,
   buildSceneAppScorecardViewModel,
   buildSceneAppWorkbenchStatItems,
 } from "./product";
 import type {
-  SceneAppCurrentDescriptor as SceneAppDescriptor,
-  SceneAppCurrentPlanResult as SceneAppPlanResult,
+  SceneAppDescriptor,
+  SceneAppPlanResult,
   SceneAppRunSummary,
   SceneAppScorecard,
 } from "./types";
@@ -555,6 +557,20 @@ describe("sceneapp product", () => {
         }),
       ]),
     );
+    expect(runtimeBackfilledSummary.scorecardAggregate).toEqual(
+      expect.objectContaining({
+        status: "risk",
+        statusLabel: "先补复核与修复",
+        actionLabel: "建议继续优化",
+        topFailureSignalLabel: "复核阻塞",
+      }),
+    );
+    expect(runtimeBackfilledSummary.scorecardAggregate?.destinations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "weekly-review", label: "周会复盘" }),
+        expect.objectContaining({ key: "task-center", label: "生成 / 看板" }),
+      ]),
+    );
   });
 
   it("应把 descriptor 与 scorecard 装配成统一评分模型", () => {
@@ -567,6 +583,7 @@ describe("sceneapp product", () => {
     const scorecardView = buildSceneAppScorecardViewModel({
       descriptor: createDescriptor(),
       scorecard: createScorecard(),
+      run: createRun(),
       planResult,
     });
 
@@ -649,6 +666,14 @@ describe("sceneapp product", () => {
           label: "复核阻塞",
         }),
       ]),
+    );
+    expect(scorecardView?.aggregate).toEqual(
+      expect.objectContaining({
+        status: "risk",
+        statusLabel: "先补复核与修复",
+        actionLabel: "建议继续优化",
+        topFailureSignalLabel: "复核阻塞",
+      }),
     );
   });
 
@@ -1039,6 +1064,46 @@ describe("sceneapp product", () => {
     );
   });
 
+  it("应把 SceneScorecard 聚合成可跨入口复用的经营摘要对象", () => {
+    const aggregate = buildSceneAppScorecardAggregateViewModel({
+      descriptor: createDescriptor(),
+      scorecard: createScorecard(),
+      run: createRun(),
+      planResult: createPlanResult(),
+    });
+
+    expect(aggregate).toEqual(
+      expect.objectContaining({
+        status: "risk",
+        statusLabel: "先补复核与修复",
+        actionLabel: "建议继续优化",
+        topFailureSignalLabel: "复核阻塞",
+        profileRef: "story-video-scorecard",
+      }),
+    );
+    expect(aggregate?.metricKeys).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "complete_pack_rate" }),
+      ]),
+    );
+    expect(aggregate?.failureSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "review_blocked" }),
+      ]),
+    );
+    expect(aggregate?.observedFailureSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "artifact_validation_issue" }),
+      ]),
+    );
+    expect(aggregate?.destinations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "weekly-review" }),
+        expect.objectContaining({ key: "task-center" }),
+      ]),
+    );
+  });
+
   it("应把 SceneApp 自动化卡片翻译成业务向自动化摘要", () => {
     const card = buildSceneAppAutomationWorkspaceCardViewModel({
       descriptor: createDescriptor(),
@@ -1076,6 +1141,42 @@ describe("sceneapp product", () => {
       "最近投放任务：短视频编排｜定时投放 · 成功",
     );
     expect(card.patternSummary).toContain("步骤链");
+    expect(card.scorecardAggregate).toEqual(
+      expect.objectContaining({
+        status: "good",
+        actionLabel: "建议维持现状",
+      }),
+    );
+  });
+
+  it("应把目录卡片也对齐到统一经营摘要对象", () => {
+    const card = buildSceneAppCatalogCardViewModel({
+      descriptor: createDescriptor(),
+      scorecard: createScorecard(),
+      run: createRun(),
+    });
+
+    expect(card).toEqual(
+      expect.objectContaining({
+        status: "risk",
+        statusLabel: "先补复核与修复",
+        scorecardActionLabel: "建议继续优化",
+        topFailureSignalLabel: "复核阻塞",
+      }),
+    );
+    expect(card.scorecardAggregate).toEqual(
+      expect.objectContaining({
+        status: "risk",
+        statusLabel: "先补复核与修复",
+        actionLabel: "建议继续优化",
+      }),
+    );
+    expect(card.scorecardAggregate?.destinations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "weekly-review", label: "周会复盘" }),
+        expect.objectContaining({ key: "task-center", label: "生成 / 看板" }),
+      ]),
+    );
   });
 
   it("没有 runtime evidence 时应明确说明当前仍在 metadata 回退", () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getConfig } from "@/lib/api/appConfig";
+import { getConfig, subscribeAppConfigChanged } from "@/lib/api/appConfig";
 import type { MediaGenerationDefaults } from "@/lib/mediaGeneration";
 
 interface UseGlobalMediaGenerationDefaultsResult {
@@ -16,10 +16,12 @@ export function useGlobalMediaGenerationDefaults(): UseGlobalMediaGenerationDefa
   useEffect(() => {
     let active = true;
 
-    const load = async () => {
+    const load = async (forceRefresh = false) => {
       setLoading(true);
       try {
-        const config = await getConfig();
+        const config = await getConfig(
+          forceRefresh ? { forceRefresh: true } : undefined,
+        );
         if (!active) {
           return;
         }
@@ -37,8 +39,14 @@ export function useGlobalMediaGenerationDefaults(): UseGlobalMediaGenerationDefa
     };
 
     void load();
+
+    const unsubscribe = subscribeAppConfigChanged(() => {
+      void load(true);
+    });
+
     return () => {
       active = false;
+      unsubscribe();
     };
   }, []);
 

@@ -43,6 +43,8 @@ interface InstructionEditorProps {
   defaultInstructionId?: string;
   /** 默认指令变更回调 */
   onDefaultChange?: (id: string) => void;
+  /** 指令列表变更回调 */
+  onInstructionsChange?: (instructions: VoiceInstruction[]) => void;
   /** 是否禁用 */
   disabled?: boolean;
 }
@@ -498,6 +500,7 @@ function EditForm({
 export function InstructionEditor({
   defaultInstructionId,
   onDefaultChange,
+  onInstructionsChange,
   disabled = false,
 }: InstructionEditorProps) {
   // 状态
@@ -516,12 +519,13 @@ export function InstructionEditor({
     try {
       const list = await getVoiceInstructions();
       setInstructions(list);
+      onInstructionsChange?.(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onInstructionsChange]);
 
   useEffect(() => {
     loadInstructions();

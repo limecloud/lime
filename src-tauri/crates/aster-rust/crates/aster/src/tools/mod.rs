@@ -36,6 +36,7 @@ pub mod lsp;
 pub mod mcp_resource_tools;
 pub mod notebook_edit_tool;
 pub mod path_guard;
+mod peer_address_surface;
 pub mod plan_mode_tool;
 pub mod powershell_tool;
 pub mod remote_trigger_tool;

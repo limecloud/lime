@@ -410,9 +410,6 @@ pub struct Config {
     /// 记忆管理配置
     #[serde(default)]
     pub memory: MemoryConfig,
-    /// 语音服务配置
-    #[serde(default)]
-    pub voice: VoiceConfig,
     /// 图像生成服务配置
     #[serde(default)]
     pub image_gen: ImageGenConfig,
@@ -646,10 +643,13 @@ pub struct WorkspacePreferencesConfig {
     /// 桌宠能力偏好设置
     #[serde(default)]
     pub companion_defaults: CompanionDefaultsConfig,
+    /// 服务模型设置
+    #[serde(default, skip_serializing_if = "ServiceModelsConfig::is_default")]
+    pub service_models: ServiceModelsConfig,
 }
 
 fn current_workspace_preferences_schema_version() -> u8 {
-    1
+    2
 }
 
 impl Default for WorkspacePreferencesConfig {
@@ -658,6 +658,7 @@ impl Default for WorkspacePreferencesConfig {
             schema_version: current_workspace_preferences_schema_version(),
             media_defaults: MediaGenerationDefaultsConfig::default(),
             companion_defaults: CompanionDefaultsConfig::default(),
+            service_models: ServiceModelsConfig::default(),
         }
     }
 }
@@ -704,6 +705,91 @@ pub struct CompanionDefaultsConfig {
     pub general: MediaGenerationPreferenceConfig,
     #[serde(default)]
     pub tts: MediaGenerationPreferenceConfig,
+}
+
+fn default_service_model_enabled() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceModelPreferenceConfig {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "preferred_provider_id"
+    )]
+    pub preferred_provider_id: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "preferred_model_id"
+    )]
+    pub preferred_model_id: Option<String>,
+    #[serde(default = "default_service_model_enabled", alias = "enabled")]
+    pub enabled: bool,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "custom_prompt"
+    )]
+    pub custom_prompt: Option<String>,
+}
+
+impl ServiceModelPreferenceConfig {
+    pub fn is_default(value: &Self) -> bool {
+        value == &Self::default()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ServiceModelsConfig {
+    #[serde(
+        default,
+        skip_serializing_if = "ServiceModelPreferenceConfig::is_default"
+    )]
+    pub topic: ServiceModelPreferenceConfig,
+    #[serde(
+        default,
+        skip_serializing_if = "ServiceModelPreferenceConfig::is_default"
+    )]
+    pub generation_topic: ServiceModelPreferenceConfig,
+    #[serde(
+        default,
+        skip_serializing_if = "ServiceModelPreferenceConfig::is_default"
+    )]
+    pub translation: ServiceModelPreferenceConfig,
+    #[serde(
+        default,
+        skip_serializing_if = "ServiceModelPreferenceConfig::is_default"
+    )]
+    pub history_compress: ServiceModelPreferenceConfig,
+    #[serde(
+        default,
+        skip_serializing_if = "ServiceModelPreferenceConfig::is_default"
+    )]
+    pub agent_meta: ServiceModelPreferenceConfig,
+    #[serde(
+        default,
+        skip_serializing_if = "ServiceModelPreferenceConfig::is_default"
+    )]
+    pub input_completion: ServiceModelPreferenceConfig,
+    #[serde(
+        default,
+        skip_serializing_if = "ServiceModelPreferenceConfig::is_default"
+    )]
+    pub prompt_rewrite: ServiceModelPreferenceConfig,
+    #[serde(
+        default,
+        skip_serializing_if = "ServiceModelPreferenceConfig::is_default"
+    )]
+    pub resource_prompt_rewrite: ServiceModelPreferenceConfig,
+}
+
+impl ServiceModelsConfig {
+    pub fn is_default(value: &Self) -> bool {
+        value == &Self::default()
+    }
 }
 
 // ============ 导航栏配置类型 ============
@@ -2108,7 +2194,6 @@ impl Default for Config {
             environment: EnvironmentConfig::default(),
             web_search: WebSearchConfig::default(),
             memory: MemoryConfig::default(),
-            voice: VoiceConfig::default(),
             image_gen: ImageGenConfig::default(),
             user_profile: UserProfile::default(),
             developer: DeveloperConfig::default(),
@@ -2574,41 +2659,6 @@ pub struct MemoryConfig {
     pub resolve: MemoryResolveConfig,
 }
 
-/// 语音服务配置
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct VoiceConfig {
-    /// TTS 服务商
-    #[serde(default)]
-    pub tts_service: Option<String>,
-    /// STT 服务商
-    #[serde(default)]
-    pub stt_service: Option<String>,
-    /// TTS 语音
-    #[serde(default)]
-    pub tts_voice: Option<String>,
-    /// TTS 语速 (0.1-2.0)
-    #[serde(default)]
-    pub tts_rate: Option<f32>,
-    /// TTS 音调 (0.1-2.0)
-    #[serde(default)]
-    pub tts_pitch: Option<f32>,
-    /// TTS 音量 (0-1)
-    #[serde(default)]
-    pub tts_volume: Option<f32>,
-    /// STT 语言
-    #[serde(default)]
-    pub stt_language: Option<String>,
-    /// 自动停止录音
-    #[serde(default)]
-    pub stt_auto_stop: Option<bool>,
-    /// 启用语音输入
-    #[serde(default)]
-    pub voice_input_enabled: Option<bool>,
-    /// 启用语音输出
-    #[serde(default)]
-    pub voice_output_enabled: Option<bool>,
-}
-
 /// 图像生成服务配置
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ImageGenConfig {
@@ -2693,8 +2743,14 @@ mod unit_tests {
         assert_eq!(config.crash_reporting.environment, "production");
         assert_eq!(config.crash_reporting.sample_rate, 1.0);
         assert!(!config.crash_reporting.send_pii);
-        assert_eq!(config.workspace_preferences.schema_version, 1);
-        assert_eq!(config.navigation.schema_version, 1);
+        assert_eq!(
+            config.workspace_preferences.schema_version,
+            current_workspace_preferences_schema_version()
+        );
+        assert_eq!(
+            config.navigation.schema_version,
+            current_workspace_preferences_schema_version()
+        );
         assert!(config.navigation.enabled_items.is_empty());
         assert!(config.agent.tool_execution.tool_overrides.is_empty());
     }
@@ -2777,8 +2833,14 @@ mod unit_tests {
         let changed = config.normalize_workspace_preferences();
 
         assert!(changed);
-        assert_eq!(config.workspace_preferences.schema_version, 1);
-        assert_eq!(config.navigation.schema_version, 1);
+        assert_eq!(
+            config.workspace_preferences.schema_version,
+            current_workspace_preferences_schema_version()
+        );
+        assert_eq!(
+            config.navigation.schema_version,
+            current_workspace_preferences_schema_version()
+        );
         assert!(config.navigation.enabled_items.is_empty());
     }
 
@@ -2792,8 +2854,14 @@ mod unit_tests {
         let changed = config.normalize_workspace_preferences();
 
         assert!(changed);
-        assert_eq!(config.workspace_preferences.schema_version, 1);
-        assert_eq!(config.navigation.schema_version, 1);
+        assert_eq!(
+            config.workspace_preferences.schema_version,
+            current_workspace_preferences_schema_version()
+        );
+        assert_eq!(
+            config.navigation.schema_version,
+            current_workspace_preferences_schema_version()
+        );
         assert_eq!(
             config.navigation.enabled_items,
             vec!["plugins".to_string(), "companion".to_string()]
@@ -2894,6 +2962,71 @@ mod unit_tests {
                 .preferred_provider_id
                 .as_deref(),
             Some("openai-tts")
+        );
+    }
+
+    #[test]
+    fn test_workspace_preferences_supports_service_models_roundtrip() {
+        let mut config = Config::default();
+        config
+            .workspace_preferences
+            .service_models
+            .topic
+            .preferred_provider_id = Some("openai".to_string());
+        config
+            .workspace_preferences
+            .service_models
+            .topic
+            .preferred_model_id = Some("gpt-5.4-mini".to_string());
+        config
+            .workspace_preferences
+            .service_models
+            .prompt_rewrite
+            .enabled = false;
+        config
+            .workspace_preferences
+            .service_models
+            .resource_prompt_rewrite
+            .custom_prompt = Some("请优先按资料库上下文重写提示词".to_string());
+
+        let value = serde_json::to_value(&config)
+            .expect("config should serialize service model preferences");
+        let parsed: Config = serde_json::from_value(value)
+            .expect("config should deserialize service model preferences");
+
+        assert_eq!(
+            parsed
+                .workspace_preferences
+                .service_models
+                .topic
+                .preferred_provider_id
+                .as_deref(),
+            Some("openai")
+        );
+        assert_eq!(
+            parsed
+                .workspace_preferences
+                .service_models
+                .topic
+                .preferred_model_id
+                .as_deref(),
+            Some("gpt-5.4-mini")
+        );
+        assert!(
+            !parsed
+                .workspace_preferences
+                .service_models
+                .prompt_rewrite
+                .enabled
+        );
+        assert_eq!(
+            parsed
+                .workspace_preferences
+                .service_models
+                .resource_prompt_rewrite
+                .custom_prompt
+                .as_deref(),
+            Some("请优先按资料库上下文重写提示词")
         );
     }
 

@@ -42,9 +42,9 @@ pub use types::{
     ToolCallingConfig, ToolExecutionOverrideConfig, ToolExecutionPolicyConfig,
     ToolExecutionRestrictionProfileConfig, ToolExecutionSandboxProfileConfig,
     ToolExecutionWarningPolicyConfig, UpdateCheckConfig, UserProfile, VertexApiKeyEntry,
-    VertexModelAlias, VoiceConfig, VoiceInputConfig, VoiceInstruction, VoiceOutputConfig,
-    VoiceOutputMode, VoiceProcessorConfig, WebSearchConfig, WebSearchProvider, WechatAccountConfig,
-    WechatBotConfig, WechatGroupConfig, WhisperLocalConfig, WhisperModelSize,
-    WorkspacePreferencesConfig, WorkspaceSandboxConfig, XunfeiConfig, DEFAULT_API_KEY,
+    VertexModelAlias, VoiceInputConfig, VoiceInstruction, VoiceOutputConfig, VoiceOutputMode,
+    VoiceProcessorConfig, WebSearchConfig, WebSearchProvider, WechatAccountConfig, WechatBotConfig,
+    WechatGroupConfig, WhisperLocalConfig, WhisperModelSize, WorkspacePreferencesConfig,
+    WorkspaceSandboxConfig, XunfeiConfig, DEFAULT_API_KEY,
 };
 pub use yaml::{load_config, save_config, ConfigError, ConfigManager, YamlService};

@@ -13,10 +13,12 @@ interface PendingTopicSwitchState {
   topicId: string;
   targetProjectId: string;
   forceRefresh?: boolean;
+  resumeSessionStartHooks?: boolean;
 }
 
 interface TopicSwitchOptions {
   forceRefresh?: boolean;
+  resumeSessionStartHooks?: boolean;
 }
 
 interface UseWorkspaceTopicSwitchParams {
@@ -58,7 +60,15 @@ export function useWorkspaceTopicSwitch({
   const runTopicSwitch = useCallback(
     async (topicId: string, options?: TopicSwitchOptions) => {
       const forwardedOptions =
-        options?.forceRefresh === true ? { forceRefresh: true } : undefined;
+        options?.forceRefresh === true ||
+        options?.resumeSessionStartHooks === true
+          ? {
+              ...(options?.forceRefresh === true ? { forceRefresh: true } : {}),
+              ...(options?.resumeSessionStartHooks === true
+                ? { resumeSessionStartHooks: true }
+                : {}),
+            }
+          : undefined;
       const startedAt = Date.now();
       logAgentDebug("AgentChatPage", "runTopicSwitch.start", {
         currentProjectId: projectId ?? null,
@@ -217,11 +227,13 @@ export function useWorkspaceTopicSwitch({
     const currentProjectId = normalizeProjectId(projectId);
     logAgentDebug("AgentChatPage", "switchTopic.resumePending", {
       forceRefresh: pending.forceRefresh === true,
+      resumeSessionStartHooks: pending.resumeSessionStartHooks === true,
       projectId: currentProjectId,
       topicId: pending.topicId,
     });
     runTopicSwitch(pending.topicId, {
       forceRefresh: pending.forceRefresh === true,
+      resumeSessionStartHooks: pending.resumeSessionStartHooks === true,
     }).catch((error) => {
       console.error("[AgentChatPage] 执行待切换任务失败:", error);
       logAgentDebug(
@@ -230,6 +242,7 @@ export function useWorkspaceTopicSwitch({
         {
           error,
           forceRefresh: pending.forceRefresh === true,
+          resumeSessionStartHooks: pending.resumeSessionStartHooks === true,
           projectId: currentProjectId,
           topicId: pending.topicId,
         },

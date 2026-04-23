@@ -11,7 +11,10 @@ import {
   importMaterialFromUrl,
   type ImportMaterialFromUrlRequest,
 } from "@/lib/api/materials";
-import { getImageModelsForProvider } from "@/lib/imageGeneration";
+import {
+  getImageModelsForProvider,
+  isImageProvider,
+} from "@/lib/imageGeneration";
 import { isDebugFlagEnabled } from "@/lib/perfDebug";
 import { setStoredResourceProjectId } from "@/lib/resourceProjectSelection";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
@@ -2008,13 +2011,14 @@ async function requestImageFromFal(
 
 /**
  * 检查 Provider 是否支持图片生成
- * 通过 Provider ID 或 type 匹配
+ * 优先按统一能力目录判断，保留旧关键字列表作为兜底调试信息。
  */
-function isImageGenProvider(providerId: string, providerType: string): boolean {
-  return (
-    IMAGE_GEN_PROVIDER_IDS.includes(providerId) ||
-    IMAGE_GEN_PROVIDER_IDS.includes(providerType)
-  );
+function isImageGenProvider(provider: {
+  id: string;
+  type: string;
+  custom_models?: string[];
+}): boolean {
+  return isImageProvider(provider.id, provider.type, provider.custom_models);
 }
 
 function isFalProviderLike(provider: {
@@ -2095,13 +2099,12 @@ export function useImageGen(options: UseImageGenOptions = {}) {
         type: p.type,
         enabled: p.enabled,
         api_key_count: p.api_key_count,
-        isImageGen: isImageGenProvider(p.id, p.type),
+        isImageGen: isImageGenProvider(p),
       })),
     );
 
     const filtered = providers.filter(
-      (p) =>
-        p.enabled && p.api_key_count > 0 && isImageGenProvider(p.id, p.type),
+      (p) => p.enabled && p.api_key_count > 0 && isImageGenProvider(p),
     );
 
     imageGenDebugLog(

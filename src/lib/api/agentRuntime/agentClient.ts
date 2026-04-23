@@ -12,6 +12,12 @@ export interface AgentRuntimeAgentClientDeps {
   bridgeInvoke?: AgentRuntimeBridgeInvoke;
 }
 
+export interface GenerateAgentRuntimeTitleRequest {
+  sessionId?: string;
+  previewText?: string;
+  titleKind?: "session" | "image_task";
+}
+
 export function createAgentClient({
   bridgeInvoke = invokeAgentRuntimeBridge,
 }: AgentRuntimeAgentClientDeps = {}) {
@@ -27,11 +33,29 @@ export function createAgentClient({
     return await bridgeInvoke("agent_get_process_status");
   }
 
+  async function generateAgentRuntimeTitle(
+    request: GenerateAgentRuntimeTitleRequest,
+  ): Promise<string> {
+    const payload: Record<string, string> = {};
+    if (request.sessionId?.trim()) {
+      payload.sessionId = request.sessionId.trim();
+    }
+    if (request.previewText?.trim()) {
+      payload.previewText = request.previewText.trim();
+    }
+    if (request.titleKind?.trim()) {
+      payload.titleKind = request.titleKind.trim();
+    }
+
+    return await bridgeInvoke("agent_generate_title", payload);
+  }
+
   async function generateAgentRuntimeSessionTitle(
     sessionId: string,
   ): Promise<string> {
-    return await bridgeInvoke("agent_generate_title", {
+    return await generateAgentRuntimeTitle({
       sessionId,
+      titleKind: "session",
     });
   }
 
@@ -55,6 +79,7 @@ export function createAgentClient({
 
   return {
     configureAsterProvider,
+    generateAgentRuntimeTitle,
     generateAgentRuntimeSessionTitle,
     getAgentProcessStatus,
     getAsterAgentStatus,
@@ -66,6 +91,7 @@ export function createAgentClient({
 
 export const {
   configureAsterProvider,
+  generateAgentRuntimeTitle,
   generateAgentRuntimeSessionTitle,
   getAgentProcessStatus,
   getAsterAgentStatus,

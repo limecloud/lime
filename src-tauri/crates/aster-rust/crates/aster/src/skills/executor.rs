@@ -447,6 +447,8 @@ impl<P: LlmProvider> SkillExecutor<P> {
                     command_name: Some(skill.skill_name.clone()),
                     allowed_tools: skill.allowed_tools.clone(),
                     model: skill.model.clone(),
+                    forwarded_tool_name: None,
+                    forwarded_tool_metadata: None,
                 })
             }
             Err(e) => {
@@ -463,6 +465,8 @@ impl<P: LlmProvider> SkillExecutor<P> {
                     command_name: Some(skill.skill_name.clone()),
                     allowed_tools: skill.allowed_tools.clone(),
                     model: skill.model.clone(),
+                    forwarded_tool_name: None,
+                    forwarded_tool_metadata: None,
                 })
             }
         }
@@ -586,6 +590,8 @@ impl<P: LlmProvider> SkillExecutor<P> {
                             command_name: Some(skill.skill_name.clone()),
                             allowed_tools: skill.allowed_tools.clone(),
                             model: skill.model.clone(),
+                            forwarded_tool_name: None,
+                            forwarded_tool_metadata: None,
                         });
                     }
                 }
@@ -614,6 +620,8 @@ impl<P: LlmProvider> SkillExecutor<P> {
             command_name: Some(skill.skill_name.clone()),
             allowed_tools: skill.allowed_tools.clone(),
             model: skill.model.clone(),
+            forwarded_tool_name: None,
+            forwarded_tool_metadata: None,
         })
     }
 

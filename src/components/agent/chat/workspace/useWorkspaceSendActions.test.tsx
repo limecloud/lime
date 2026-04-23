@@ -20,6 +20,7 @@ const mockGetSkillCatalog = vi.hoisted(() => vi.fn());
 const mockListSkillCatalogSceneEntries = vi.hoisted(() => vi.fn());
 const mockGetOrCreateDefaultProject = vi.hoisted(() => vi.fn());
 const mockResolveOemCloudRuntimeContext = vi.hoisted(() => vi.fn());
+const mockUseGlobalMediaGenerationDefaults = vi.hoisted(() => vi.fn());
 
 vi.mock("../utils/browserAssistPreheat", () => ({
   preheatBrowserAssistInBackground: mockPreheatBrowserAssistInBackground,
@@ -40,6 +41,10 @@ vi.mock("@/lib/api/skillCatalog", async () => {
 
 vi.mock("@/lib/api/oemCloudRuntime", () => ({
   resolveOemCloudRuntimeContext: () => mockResolveOemCloudRuntimeContext(),
+}));
+
+vi.mock("@/hooks/useGlobalMediaGenerationDefaults", () => ({
+  useGlobalMediaGenerationDefaults: () => mockUseGlobalMediaGenerationDefaults(),
 }));
 
 vi.mock("@/lib/api/project", async () => {
@@ -438,6 +443,10 @@ describe("useWorkspaceSendActions", () => {
       id: "project-default",
     });
     mockResolveOemCloudRuntimeContext.mockReturnValue(null);
+    mockUseGlobalMediaGenerationDefaults.mockReturnValue({
+      mediaDefaults: {},
+      loading: false,
+    });
     mockOpenRuntimeSceneGate.mockResolvedValue(undefined);
   });
 
@@ -478,6 +487,43 @@ describe("useWorkspaceSendActions", () => {
             session_mode: "default",
           }),
         },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("显式改写类 purpose 应复用 prompt_rewrite 服务模型", async () => {
+    const harness = mountHook({
+      input: "请改写这段文案",
+      serviceModels: {
+        prompt_rewrite: {
+          preferredProviderId: "rewrite-provider",
+          preferredModelId: "rewrite-model",
+        },
+      },
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend(
+          [],
+          false,
+          false,
+          "请改写这段文案",
+          "react",
+          undefined,
+          {
+            purpose: "style_rewrite",
+          },
+        );
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        purpose: "style_rewrite",
+        providerOverride: "rewrite-provider",
+        modelOverride: "rewrite-model",
       });
     } finally {
       harness.unmount();
@@ -1542,6 +1588,43 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("@素材 应把资源库提词重写配置注入到 metadata 与发送覆盖", async () => {
+    const harness = mountHook({
+      input: "@素材 类型:图片 关键词:咖啡馆木桌背景 用途:公众号头图 数量:8",
+      serviceModels: {
+        resource_prompt_rewrite: {
+          preferredProviderId: "resource-provider",
+          preferredModelId: "resource-model",
+          customPrompt: "请先结合资料库语义补齐检索意图",
+        },
+      },
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        providerOverride: "resource-provider",
+        modelOverride: "resource-model",
+        requestMetadata: {
+          harness: {
+            resource_search_skill_launch: {
+              resource_search_task: {
+                prompt:
+                  "请先结合资料库语义补齐检索意图\n\n咖啡馆木桌背景 公众号头图",
+              },
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@搜索 应保留原始消息，并通过 research_skill_launch metadata 交给 Agent 调度技能", async () => {
     const harness = mountHook({
       input:
@@ -2454,6 +2537,33 @@ describe("useWorkspaceSendActions", () => {
             "内容:hello world 原语言:英语 目标语言:中文 风格:产品文案 输出:只输出译文",
         }),
       ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@翻译 应把 translation 服务模型写入发送覆盖", async () => {
+    const harness = mountHook({
+      input:
+        "@翻译 内容:hello world 原语言:英语 目标语言:中文 风格:产品文案 输出:只输出译文",
+      serviceModels: {
+        translation: {
+          preferredProviderId: "translation-provider",
+          preferredModelId: "translation-model",
+        },
+      },
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        providerOverride: "translation-provider",
+        modelOverride: "translation-model",
+      });
     } finally {
       harness.unmount();
     }
@@ -3879,6 +3989,16 @@ describe("useWorkspaceSendActions", () => {
   });
 
   it("@配音 应保留原始消息，并通过本地 service scene launch 注入配音 prompt", async () => {
+    mockUseGlobalMediaGenerationDefaults.mockReturnValue({
+      mediaDefaults: {
+        voice: {
+          preferredProviderId: "openai-tts",
+          preferredModelId: "gpt-4o-mini-tts",
+          allowFallback: false,
+        },
+      },
+      loading: false,
+    });
     const harness = mountHook({
       input: "@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
       serviceSkills: [createCloudSceneSkill()],
@@ -3897,6 +4017,8 @@ describe("useWorkspaceSendActions", () => {
       );
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
         displayContent: "@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
+        providerOverride: "openai-tts",
+        modelOverride: "gpt-4o-mini-tts",
         requestMetadata: {
           harness: {
             service_scene_launch: {
@@ -3911,6 +4033,9 @@ describe("useWorkspaceSendActions", () => {
                 project_id: "project-1",
                 target_language: "英文",
                 voice_style: "科技感",
+                preferred_provider_id: "openai-tts",
+                preferred_model_id: "gpt-4o-mini-tts",
+                allow_fallback: false,
               }),
             },
           },
@@ -3935,6 +4060,45 @@ describe("useWorkspaceSendActions", () => {
           },
         }),
       ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@配音 当只声明首选 provider 且未显式选模型时，不应误注入发送覆盖", async () => {
+    mockUseGlobalMediaGenerationDefaults.mockReturnValue({
+      mediaDefaults: {
+        voice: {
+          preferredProviderId: "openai-tts",
+          allowFallback: true,
+        },
+      },
+      loading: false,
+    });
+    const harness = mountHook({
+      input: "@配音 给这个新品视频做一版发布配音稿",
+      serviceSkills: [createCloudSceneSkill()],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            service_scene_launch: {
+              service_scene_run: expect.objectContaining({
+                preferred_provider_id: "openai-tts",
+              }),
+            },
+          },
+        },
+      });
+      expect(mockSendMessage.mock.calls[0]?.[8]?.providerOverride).toBeUndefined();
+      expect(mockSendMessage.mock.calls[0]?.[8]?.modelOverride).toBeUndefined();
     } finally {
       harness.unmount();
     }

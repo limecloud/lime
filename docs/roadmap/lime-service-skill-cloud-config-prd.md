@@ -12,7 +12,7 @@
 
 - `cloud_required`
 - `executionLocation`
-- `scene-orchestrator-svc` 作为特例执行器
+- 旧的云执行器命名（如 `scene-orchestrator-svc` / `remote run plane`）作为特例执行器
 - 目录命中后服务端 run / poll
 
 现在这条叙事已经不再成立。
@@ -92,7 +92,7 @@
 
 ### 4.3 非目标
 
-1. 不把 `scene-orchestrator-svc` 写成当前主链执行器
+1. 不把旧云执行器命名写成当前主链执行器
 2. 不继续使用 `executionLocation = cloud_required`
 3. 不在本阶段做服务端代跑内容生成
 4. 不把目录控制面和执行面重新混在一起
@@ -230,7 +230,7 @@ flowchart TB
 
 - `cloud_required`
 - 目录命中后服务端创建 run
-- `scene-orchestrator-svc` 作为服务型技能执行器
+- 旧云执行器命名 / 任何远端 run plane 作为服务型技能执行器
 - 把 `lime_run_service_skill` 解释成云端调用入口
 
 ## 8. 对客户端实现的直接要求

@@ -6,6 +6,7 @@ export type {
 export {
   configureAsterProvider,
   createAgentClient,
+  generateAgentRuntimeTitle,
   generateAgentRuntimeSessionTitle,
   getAgentProcessStatus,
   getAsterAgentStatus,

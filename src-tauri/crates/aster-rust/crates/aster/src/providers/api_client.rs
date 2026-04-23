@@ -305,6 +305,11 @@ impl ApiClient {
         self.request(path).response_get().await
     }
 
+    #[cfg(test)]
+    pub(crate) fn default_headers_for_test(&self) -> &HeaderMap {
+        &self.default_headers
+    }
+
     fn build_url(&self, path: &str) -> Result<url::Url> {
         use url::Url;
         let mut base_url =

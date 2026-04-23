@@ -154,12 +154,12 @@ pub fn create_subagent_tool(sub_recipes: &[SubRecipe]) -> Tool {
             },
             "mode": {
                 "type": "string",
-                "description": "Optional teammate permission mode. Not supported in the current runtime."
+                "description": "Optional teammate permission mode. Callback-backed runtimes forward it to the host runtime, which decides which values are supported."
             },
             "isolation": {
                 "type": "string",
                 "enum": ["worktree", "remote"],
-                "description": "Optional isolation mode. Not supported in the current runtime."
+                "description": "Optional isolation mode. Callback-backed runtimes forward it to the host runtime, which decides which values are supported."
             },
             "cwd": {
                 "type": "string",
@@ -203,7 +203,7 @@ fn build_tool_description(sub_recipes: &[SubRecipe]) -> String {
          Provide a short `description` plus a detailed `prompt`.\n\
          `subagent_type` is optional: when it matches a local subrecipe, the runtime uses that specialized flow; otherwise it becomes a role hint for a general delegated agent.\n\n\
          Without a callback-backed agent runtime, delegated agents execute only in the foreground. `run_in_background`, `team_name`, `mode`, and `isolation` are rejected, while `cwd` must be an absolute existing directory.\n\
-         When callback-backed agent control is available, top-level sessions can launch async named or team-routed agents and honor `cwd` overrides.\n\
+         When callback-backed agent control is available, top-level sessions can launch async named or team-routed agents, forward `mode` / `isolation` to the host runtime, and honor `cwd` overrides.\n\
          Team subagents keep only the current synchronous nested-agent surface: they may call `Agent`, but must omit `run_in_background`, `name`, and `team_name`.",
     );
 
@@ -896,6 +896,11 @@ mod tests {
             .description
             .as_ref()
             .unwrap()
+            .contains("forward `mode` / `isolation` to the host runtime"));
+        assert!(tool
+            .description
+            .as_ref()
+            .unwrap()
             .contains("Team subagents keep only the current synchronous nested-agent surface"));
 
         assert_eq!(
@@ -908,6 +913,18 @@ mod tests {
             tool.input_schema["properties"]["team_name"]["description"].as_str(),
             Some(
                 "Optional team name for teammate spawning. Requires `name` plus a callback-backed agent runtime with an existing team context. Team subagents must omit it."
+            )
+        );
+        assert_eq!(
+            tool.input_schema["properties"]["mode"]["description"].as_str(),
+            Some(
+                "Optional teammate permission mode. Callback-backed runtimes forward it to the host runtime, which decides which values are supported."
+            )
+        );
+        assert_eq!(
+            tool.input_schema["properties"]["isolation"]["description"].as_str(),
+            Some(
+                "Optional isolation mode. Callback-backed runtimes forward it to the host runtime, which decides which values are supported."
             )
         );
     }

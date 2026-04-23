@@ -111,10 +111,21 @@ describe("providerPromptCacheSupport", () => {
       ),
     ).toBe("minimax");
     expect(
+      getRegistryIdFromType(
+        "anthropic-compatible",
+        "https://token-plan-cn.xiaomimimo.com/anthropic",
+      ),
+    ).toBe("xiaomi");
+    expect(
       resolveKnownAnthropicCompatibleProvider(
         "https://open.bigmodel.cn/api/anthropic",
       ),
     ).toBe("zhipuai");
+    expect(
+      resolveKnownAnthropicCompatibleProvider(
+        "https://token-plan-cn.xiaomimimo.com/anthropic",
+      ),
+    ).toBe("xiaomi");
     expect(getProviderPromptCacheMode("anthropic-compatible")).toBe(
       "explicit_only",
     );

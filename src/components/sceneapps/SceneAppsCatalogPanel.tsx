@@ -239,6 +239,9 @@ export function SceneAppsCatalogPanel({
         <div className="grid gap-3 xl:grid-cols-2">
           {items.map((item) => {
             const isSelected = item.id === selectedSceneAppId;
+            const aggregate = item.scorecardAggregate ?? null;
+            const aggregateSummary = aggregate?.summary ?? item.operatingSummary;
+            const aggregateNextAction = aggregate?.nextAction;
 
             return (
               <div
@@ -285,7 +288,7 @@ export function SceneAppsCatalogPanel({
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      {item.scorecardActionLabel ? (
+                      {aggregate?.actionLabel || item.scorecardActionLabel ? (
                         <span
                           className={cn(
                             "rounded-full border px-2.5 py-1 text-[11px] font-medium",
@@ -294,7 +297,7 @@ export function SceneAppsCatalogPanel({
                               : "border-slate-200 bg-slate-50 text-slate-700",
                           )}
                         >
-                          {item.scorecardActionLabel}
+                          {aggregate?.actionLabel ?? item.scorecardActionLabel}
                         </span>
                       ) : null}
                       <span
@@ -324,8 +327,18 @@ export function SceneAppsCatalogPanel({
                       isSelected ? "text-slate-600" : "text-slate-600",
                     )}
                   >
-                    {item.operatingSummary}
+                    {aggregateSummary}
                   </div>
+                  {aggregateNextAction ? (
+                    <div
+                      className={cn(
+                        "mt-2 text-sm leading-6",
+                        isSelected ? "text-slate-500" : "text-slate-500",
+                      )}
+                    >
+                      {aggregateNextAction}
+                    </div>
+                  ) : null}
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span
@@ -348,7 +361,8 @@ export function SceneAppsCatalogPanel({
                     >
                       {item.infraSummary}
                     </span>
-                    {item.topFailureSignalLabel ? (
+                    {(aggregate?.topFailureSignalLabel ||
+                      item.topFailureSignalLabel) ? (
                       <span
                         className={cn(
                           "rounded-full border px-2.5 py-1 text-[11px] font-medium",
@@ -357,9 +371,23 @@ export function SceneAppsCatalogPanel({
                             : "border-amber-200 bg-amber-50 text-amber-700",
                         )}
                       >
-                        {item.topFailureSignalLabel}
+                        {aggregate?.topFailureSignalLabel ??
+                          item.topFailureSignalLabel}
                       </span>
                     ) : null}
+                    {aggregate?.destinations?.map((destination) => (
+                      <span
+                        key={`${item.id}-${destination.key}`}
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                          isSelected
+                            ? "border-slate-200 bg-white text-slate-700"
+                            : "border-slate-200 bg-white text-slate-700",
+                        )}
+                      >
+                        {destination.label}
+                      </span>
+                    ))}
                   </div>
 
                   <div

@@ -13,6 +13,7 @@ interface UseAgentTopicSnapshotOptions {
   isSending: boolean;
   pendingActionCount: number;
   queuedTurnCount: number;
+  threadStatus?: string | null;
   workspaceId: string;
   workspacePathMissing: boolean;
   topicsCount: number;
@@ -40,6 +41,7 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
     isSending,
     pendingActionCount,
     queuedTurnCount,
+    threadStatus,
     workspaceId,
     workspacePathMissing,
     topicsCount,
@@ -142,6 +144,7 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
       isSending,
       pendingActionCount,
       queuedTurnCount,
+      threadStatus,
       workspaceError: workspacePathMissing,
     });
 
@@ -212,6 +215,7 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
     pendingActionCount,
     queuedTurnCount,
     sessionId,
+    threadStatus,
     topicsCount,
     updateTopicSnapshot,
     workspaceId,

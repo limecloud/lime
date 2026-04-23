@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ChevronDown,
@@ -29,9 +29,24 @@ import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 import {
   buildCuratedTaskFollowUpDescription,
   buildCuratedTaskLaunchPrompt,
+  findCuratedTaskTemplateById,
   resolveCuratedTaskFollowUpActionTarget,
 } from "../utils/curatedTaskTemplates";
+import {
+  listCuratedTaskRecommendationSignals,
+  subscribeCuratedTaskRecommendationSignalsChanged,
+} from "../utils/curatedTaskRecommendationSignals";
 import { buildCuratedTaskLaunchInputPrefillFromReferenceEntries } from "../utils/curatedTaskReferenceSelection";
+import {
+  buildReviewFeedbackProjection,
+  type ReviewFeedbackProjection,
+} from "../utils/reviewFeedbackProjection";
+import {
+  buildSceneAppExecutionCuratedTaskFollowUpAction,
+  buildSceneAppExecutionReviewPrefillHighlights,
+  buildSceneAppExecutionReviewPrefillSnapshot,
+  type SceneAppExecutionReviewPrefillSnapshot,
+} from "../utils/sceneAppCuratedTaskReference";
 import {
   buildWorkflowStepSnapshot,
   buildWorkflowSummaryText,
@@ -47,6 +62,8 @@ import type { GeneralWorkbenchFollowUpActionPayload } from "./generalWorkbenchSi
 
 interface GeneralWorkbenchWorkflowPanelProps {
   isVersionMode: boolean;
+  projectId?: string | null;
+  sessionId?: string | null;
   onNewTopic: () => void;
   onSwitchTopic: (topicId: string) => void;
   onDeleteTopic: (topicId: string) => void;
@@ -562,6 +579,169 @@ function buildCuratedTaskFollowUpHintText(
   return null;
 }
 
+function ReviewFeedbackProjectionCard({
+  projection,
+  dataTestId,
+  className,
+  onApplyAction,
+}: {
+  projection: ReviewFeedbackProjection;
+  dataTestId?: string;
+  className?: string;
+  onApplyAction?: () => void;
+}) {
+  const primarySuggestedTask = projection.suggestedTasks[0] ?? null;
+
+  return (
+    <div
+      className={cn(
+        "mt-2 rounded-[12px] border border-sky-200/80 bg-sky-50/70 px-3 py-2",
+        className,
+      )}
+      data-testid={dataTestId}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+          围绕最近复盘
+        </span>
+        {!projection.matchedCurrentTask &&
+        projection.suggestedTaskTitles.length > 0 ? (
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500">
+            {projection.suggestedTaskTitles.join(" / ")}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-1 text-[11px] font-medium leading-5 text-slate-900">
+        最近复盘已更新：{projection.signal.title}
+      </div>
+      <div className="mt-1 text-[11px] leading-5 text-slate-500">
+        {projection.signal.summary}
+      </div>
+      <div className="mt-1 text-[11px] leading-5 text-slate-500">
+        {projection.suggestionText}
+      </div>
+      {primarySuggestedTask && onApplyAction ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50"
+            data-testid={dataTestId ? `${dataTestId}-action` : undefined}
+            onClick={onApplyAction}
+          >
+            继续去「{primarySuggestedTask.title}」
+          </button>
+          <span className="text-[10px] leading-5 text-slate-500">
+            会继续带着这轮结果与参考对象，不用重新整理一遍。
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function buildReviewFeedbackFollowUpActionPayload(params: {
+  projection: ReviewFeedbackProjection;
+  curatedTask: GeneralWorkbenchRunMetadataSummary["curatedTask"];
+}): GeneralWorkbenchFollowUpActionPayload | null {
+  const primarySuggestedTask = params.projection.suggestedTasks[0];
+  if (!primarySuggestedTask) {
+    return null;
+  }
+
+  const referenceEntries = params.curatedTask?.referenceEntries;
+  const referenceMemoryIds = params.curatedTask?.referenceMemoryIds;
+  const launchInputValues = params.curatedTask?.launchInputValues;
+  const sceneAppPayload = buildSceneAppExecutionCuratedTaskFollowUpAction({
+    taskId: primarySuggestedTask.taskId,
+    inputValues: launchInputValues,
+    referenceEntries,
+  });
+  if (sceneAppPayload) {
+    return sceneAppPayload;
+  }
+
+  const targetTask = findCuratedTaskTemplateById(primarySuggestedTask.taskId);
+  if (!targetTask) {
+    return null;
+  }
+
+  const prompt = buildCuratedTaskLaunchPrompt({
+    task: targetTask,
+    inputValues: launchInputValues ?? {},
+    referenceEntries,
+  }).trim();
+  if (!prompt) {
+    return null;
+  }
+
+  return {
+    prompt,
+    bannerMessage: `已切到“${targetTask.title}”这条下一步，并带着这轮结果继续生成。`,
+    capabilityRoute: {
+      kind: "curated_task",
+      taskId: targetTask.id,
+      taskTitle: targetTask.title,
+      prompt,
+      ...(launchInputValues
+        ? {
+            launchInputValues,
+          }
+        : {}),
+      ...(referenceMemoryIds
+        ? {
+            referenceMemoryIds,
+          }
+        : {}),
+      ...(referenceEntries
+        ? {
+            referenceEntries,
+          }
+        : {}),
+    },
+  };
+}
+
+function SceneAppReviewBaselineCard({
+  snapshot,
+  highlights,
+  dataTestId,
+  className,
+}: {
+  snapshot: SceneAppExecutionReviewPrefillSnapshot;
+  highlights: string[];
+  dataTestId?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "mt-2 rounded-[12px] border border-emerald-200/80 bg-emerald-50/70 px-3 py-2",
+        className,
+      )}
+      data-testid={dataTestId}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+          当前结果基线
+        </span>
+        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500">
+          项目结果
+        </span>
+      </div>
+      <div className="mt-1 text-[11px] font-medium leading-5 text-slate-900">
+        {snapshot.sourceTitle}
+      </div>
+      {highlights.length > 0 ? (
+        <div className="mt-1 space-y-1 text-[11px] leading-5 text-emerald-900">
+          {highlights.map((item) => (
+            <div key={`sceneapp-baseline-${item}`}>{item}</div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function listVisibleCuratedTaskFollowUpActions(
   curatedTask: GeneralWorkbenchRunMetadataSummary["curatedTask"],
   limit = 2,
@@ -593,6 +773,29 @@ function buildCuratedTaskFollowUpPrompt(params: {
     return `请基于「${taskTitle}」这轮结果继续：${normalizedAction}`;
   }
   return `请基于当前结果继续：${normalizedAction}`;
+}
+
+function buildCuratedTaskFollowUpBannerMessage(params: {
+  action: string;
+  curatedTask: GeneralWorkbenchRunMetadataSummary["curatedTask"];
+  targetTask?: { title: string } | null;
+}): string | undefined {
+  const normalizedAction = params.action.trim();
+  if (!normalizedAction) {
+    return undefined;
+  }
+
+  const targetTaskTitle = params.targetTask?.title?.trim();
+  if (targetTaskTitle) {
+    return `已切到“${targetTaskTitle}”这条下一步，并带着这轮结果继续生成。`;
+  }
+
+  const currentTaskTitle = params.curatedTask?.taskTitle?.trim();
+  if (currentTaskTitle) {
+    return `已按“${normalizedAction}”接着推进「${currentTaskTitle}」，可继续改写后发送。`;
+  }
+
+  return `已按“${normalizedAction}”把这轮结果带回输入区，可继续改写后发送。`;
 }
 
 function buildCuratedTaskFollowUpActionPayload(params: {
@@ -667,6 +870,11 @@ function buildCuratedTaskFollowUpActionPayload(params: {
 
   return {
     prompt,
+    bannerMessage: buildCuratedTaskFollowUpBannerMessage({
+      action: normalizedAction,
+      curatedTask: params.curatedTask,
+      targetTask,
+    }),
     ...(capabilityRoute
       ? {
           capabilityRoute,
@@ -1036,6 +1244,8 @@ function CuratedTaskFollowUpActions({
 
 function GeneralWorkbenchWorkflowPanelComponent({
   isVersionMode,
+  projectId,
+  sessionId,
   onNewTopic,
   onSwitchTopic,
   onDeleteTopic,
@@ -1066,6 +1276,15 @@ function GeneralWorkbenchWorkflowPanelComponent({
   onRevealArtifactInFinder,
   onOpenArtifactWithDefaultApp,
 }: GeneralWorkbenchWorkflowPanelProps) {
+  const [recommendationSignalsVersion, setRecommendationSignalsVersion] =
+    useState(0);
+
+  useEffect(() => {
+    return subscribeCuratedTaskRecommendationSignalsChanged(() => {
+      setRecommendationSignalsVersion((previous) => previous + 1);
+    });
+  }, []);
+
   const workflowSnapshot = buildWorkflowStepSnapshot(workflowSteps, 3);
   const currentWorkflowStep = workflowSnapshot.leadingStep;
   const remainingSteps = workflowSnapshot.remainingCount;
@@ -1132,6 +1351,61 @@ function GeneralWorkbenchWorkflowPanelComponent({
   });
   const curatedTaskFollowUpHintText = buildCuratedTaskFollowUpHintText(
     runMetadataSummary.curatedTask,
+  );
+  const latestReviewSignal = useMemo(() => {
+    void recommendationSignalsVersion;
+    return (
+      listCuratedTaskRecommendationSignals({
+        projectId,
+        sessionId,
+      })
+        .filter((signal) => signal.source === "review_feedback")
+        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
+    );
+  }, [projectId, recommendationSignalsVersion, sessionId]);
+  const reviewFeedbackProjection = useMemo(
+    () =>
+      buildReviewFeedbackProjection({
+        signal: latestReviewSignal,
+        currentTaskId: runMetadataSummary.curatedTask?.taskId,
+        currentTaskTitle: runMetadataSummary.curatedTask?.taskTitle,
+      }),
+    [latestReviewSignal, runMetadataSummary.curatedTask],
+  );
+  const reviewFeedbackFollowUpActionPayload = useMemo(() => {
+    if (!reviewFeedbackProjection) {
+      return null;
+    }
+
+    return buildReviewFeedbackFollowUpActionPayload({
+      projection: reviewFeedbackProjection,
+      curatedTask: runMetadataSummary.curatedTask,
+    });
+  }, [reviewFeedbackProjection, runMetadataSummary.curatedTask]);
+  const sceneAppReviewBaselineSnapshot = useMemo(() => {
+    if (!runMetadataSummary.curatedTask?.taskId) {
+      return null;
+    }
+
+    return buildSceneAppExecutionReviewPrefillSnapshot({
+      referenceEntries: runMetadataSummary.curatedTask?.referenceEntries,
+      taskId: runMetadataSummary.curatedTask.taskId,
+    });
+  }, [
+    runMetadataSummary.curatedTask?.referenceEntries,
+    runMetadataSummary.curatedTask?.taskId,
+  ]);
+  const sceneAppReviewBaselineHighlights = useMemo(
+    () =>
+      buildSceneAppExecutionReviewPrefillHighlights(
+        sceneAppReviewBaselineSnapshot,
+      ),
+    [sceneAppReviewBaselineSnapshot],
+  );
+  const shouldShowFollowUpHint = Boolean(
+    reviewFeedbackProjection ||
+      curatedTaskFollowUpHintText ||
+      sceneAppReviewBaselineSnapshot,
   );
   const activitySectionSummary = buildActivitySectionSummary({
     groups: groupedActivityLogs,
@@ -1221,7 +1495,7 @@ function GeneralWorkbenchWorkflowPanelComponent({
                   {workflowResultHandoffText}
                 </div>
               </div>
-              {curatedTaskFollowUpHintText ? (
+              {shouldShowFollowUpHint ? (
                 <div
                   className={WORKFLOW_RESULT_HANDOFF_HINT_CLASSNAME}
                   data-testid="workflow-sidebar-follow-up-hint"
@@ -1236,13 +1510,40 @@ function GeneralWorkbenchWorkflowPanelComponent({
                       </span>
                     ) : null}
                   </div>
-                  <div className="mt-1 text-[11px] leading-5 text-slate-500">
-                    {curatedTaskFollowUpHintText}
-                  </div>
-                  <CuratedTaskFollowUpActions
-                    curatedTask={runMetadataSummary.curatedTask}
-                    onApplyFollowUpAction={onApplyFollowUpAction}
-                  />
+                  {sceneAppReviewBaselineSnapshot ? (
+                    <SceneAppReviewBaselineCard
+                      snapshot={sceneAppReviewBaselineSnapshot}
+                      highlights={sceneAppReviewBaselineHighlights}
+                      dataTestId="workflow-sidebar-sceneapp-baseline-card"
+                    />
+                  ) : null}
+                  {reviewFeedbackProjection ? (
+                    <ReviewFeedbackProjectionCard
+                      projection={reviewFeedbackProjection}
+                      dataTestId="workflow-sidebar-review-feedback-banner"
+                      onApplyAction={
+                        reviewFeedbackFollowUpActionPayload &&
+                        onApplyFollowUpAction
+                          ? () => {
+                              onApplyFollowUpAction(
+                                reviewFeedbackFollowUpActionPayload,
+                              );
+                            }
+                          : undefined
+                      }
+                    />
+                  ) : null}
+                  {curatedTaskFollowUpHintText ? (
+                    <>
+                      <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                        {curatedTaskFollowUpHintText}
+                      </div>
+                      <CuratedTaskFollowUpActions
+                        curatedTask={runMetadataSummary.curatedTask}
+                        onApplyFollowUpAction={onApplyFollowUpAction}
+                      />
+                    </>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -1595,6 +1896,29 @@ function GeneralWorkbenchWorkflowPanelComponent({
                     activeRunStagesLabel,
                   })}
                 </RunDetailSummary>
+                {sceneAppReviewBaselineSnapshot ? (
+                  <SceneAppReviewBaselineCard
+                    snapshot={sceneAppReviewBaselineSnapshot}
+                    highlights={sceneAppReviewBaselineHighlights}
+                    dataTestId="workflow-run-detail-sceneapp-baseline-card"
+                  />
+                ) : null}
+                {reviewFeedbackProjection ? (
+                  <ReviewFeedbackProjectionCard
+                    projection={reviewFeedbackProjection}
+                    dataTestId="workflow-run-detail-review-feedback-banner"
+                    onApplyAction={
+                      reviewFeedbackFollowUpActionPayload &&
+                      onApplyFollowUpAction
+                        ? () => {
+                            onApplyFollowUpAction(
+                              reviewFeedbackFollowUpActionPayload,
+                            );
+                          }
+                        : undefined
+                    }
+                  />
+                ) : null}
                 {curatedTaskFollowUpHintText ? (
                   <>
                     <RunDetailSummary>{curatedTaskFollowUpHintText}</RunDetailSummary>
