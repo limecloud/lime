@@ -594,12 +594,12 @@ jobs:
             find "$bundle_dir" -maxdepth 4 -type f | sort
           done
 
-      - name: Fail when macOS notarized build is unavailable
+      - name: Fail when macOS release build is unavailable
         if: startsWith(matrix.platform, 'macos') && steps.build_macos_primary.outcome == 'failure' && steps.build_macos_retry.outcome == 'failure'
         shell: bash
         run: |
           set -euo pipefail
-          echo "::error::macOS notarization failed twice. Blocking release instead of publishing a signed-only artifact."
+          echo "::error::macOS release build failed twice before a notarized artifact became available. See the previous build attempt logs for the actual error."
           exit 1
 
       - name: Resolve macOS bundle dir

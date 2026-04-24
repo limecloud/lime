@@ -559,7 +559,7 @@ type RecommendationShelfItem =
       key: string;
       title: string;
       summary: string;
-      badge: string;
+      badge?: string;
       hint: string;
       meta: string;
       contextSummary?: string;
@@ -573,7 +573,7 @@ type RecommendationShelfItem =
       key: string;
       title: string;
       summary: string;
-      badge: string;
+      badge?: string;
       hint: string;
       meta: string;
       contextSummary?: string;
@@ -587,7 +587,7 @@ interface ContinuationShelfItem {
   key: string;
   title: string;
   summary: string;
-  badge: string;
+  badge?: string;
   usedAt: number;
   testId: string;
   onSelect: () => void;
@@ -1309,7 +1309,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         key: template.id,
         title: template.title,
         summary: template.summary,
-        badge: featured.badgeLabel,
         hint: template.outputHint,
         meta: `${metaPrefix}${buildCuratedTaskCapabilityDescription(template, {
           includeSummary: false,
@@ -1489,7 +1488,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           ]
             .filter((segment) => segment.length > 0)
             .join(" · "),
-          badge: "结果模板",
           usedAt: template.recentUsedAt as number,
           testId: `entry-continuation-solution-${template.id}`,
           onSelect: () =>
@@ -1525,7 +1523,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           ]
             .filter((segment) => segment.length > 0)
             .join(" · "),
-          badge: "我的方法",
           usedAt,
           testId: `entry-continuation-method-${skill.key}`,
           onSelect: () => {
@@ -1572,7 +1569,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                 ]
                   .filter((segment) => segment.length > 0)
                   .join(" · "),
-                badge: "我的方法",
                 usedAt,
                 testId: `entry-continuation-method-${skill.id}`,
                 onSelect: () => {
@@ -1815,7 +1811,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       {reviewFeedbackBanner ? (
         <RecommendationSignalBanner data-testid="entry-review-feedback-banner">
           <RecommendationSignalBannerHeader>
-            <RecommendationShelfBadge>围绕最近复盘</RecommendationShelfBadge>
             <RecommendationSignalBannerTitle>
               最近复盘已更新：{reviewFeedbackBanner.title}
             </RecommendationSignalBannerTitle>
@@ -1847,7 +1842,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <RecommendationLeadCard
           type="button"
           data-testid={leadRecommendationItem.testId}
-          title={`${leadRecommendationItem.badge} · ${leadRecommendationItem.summary} · ${leadRecommendationItem.meta}`}
+          title={[leadRecommendationItem.summary, leadRecommendationItem.meta]
+            .filter((segment) => segment.trim().length > 0)
+            .join(" · ")}
           onClick={() => {
             leadRecommendationItem.onSelect();
           }}
@@ -1856,9 +1853,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             <RecommendationLeadEyebrow>
               {resolveLeadRecommendationEyebrow(creationReplaySurface)}
             </RecommendationLeadEyebrow>
-            <RecommendationShelfInlineBadge>
-              {leadRecommendationItem.badge}
-            </RecommendationShelfInlineBadge>
+            {leadRecommendationItem.badge ? (
+              <RecommendationShelfInlineBadge>
+                {leadRecommendationItem.badge}
+              </RecommendationShelfInlineBadge>
+            ) : null}
           </RecommendationLeadEyebrowRow>
           <RecommendationLeadTitle>
             {leadRecommendationItem.title}
@@ -1897,7 +1896,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                     key={item.key}
                     type="button"
                     data-testid={item.testId}
-                    title={`${item.badge} · ${item.summary} · ${item.meta}`}
+                    title={[item.summary, item.meta]
+                      .filter((segment) => segment.trim().length > 0)
+                      .join(" · ")}
                     onClick={() => {
                       item.onSelect();
                     }}
@@ -1906,9 +1907,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                       <RecommendationAssistCardTitle>
                         {item.title}
                       </RecommendationAssistCardTitle>
-                      <RecommendationShelfInlineBadge>
-                        {item.badge}
-                      </RecommendationShelfInlineBadge>
+                      {item.badge ? (
+                        <RecommendationShelfInlineBadge>
+                          {item.badge}
+                        </RecommendationShelfInlineBadge>
+                      ) : null}
                     </RecommendationAssistCardHeader>
                     <RecommendationAssistCardSummary>
                       {item.contextSummary
@@ -1934,7 +1937,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                     key={item.key}
                     type="button"
                     data-testid={item.testId}
-                    title={`${item.badge} · ${item.summary}`}
+                    title={item.summary}
                     onClick={() => {
                       item.onSelect();
                     }}
@@ -1943,7 +1946,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                       <RecommendationAssistCardTitle>
                         {item.title}
                       </RecommendationAssistCardTitle>
-                      <RecommendationShelfBadge>{item.badge}</RecommendationShelfBadge>
+                      {item.badge ? (
+                        <RecommendationShelfBadge>{item.badge}</RecommendationShelfBadge>
+                      ) : null}
                     </RecommendationAssistCardHeader>
                     <RecommendationAssistCardSummary>
                       {item.summary}

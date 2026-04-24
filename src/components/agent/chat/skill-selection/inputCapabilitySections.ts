@@ -110,7 +110,7 @@ export interface InputCapabilitySection {
   heading: string;
   items: InputCapabilityDescriptor[];
   banner?: {
-    badge: string;
+    badge?: string;
     title: string;
     summary: string;
     footnote?: string;
@@ -1276,8 +1276,6 @@ function buildSlashCapabilitySections(
         }),
         icon: "sparkles" as const,
         iconClassName: "mr-2 h-4 w-4 text-amber-600",
-        kindLabel:
-          featuredCuratedTaskTemplateMap.get(task.id)?.badgeLabel ?? task.badge,
         task,
         launchInputValues: launchContext.launchPrefill?.inputValues,
         referenceMemoryIds: launchContext.mergedReferenceMemoryIds,
@@ -1311,7 +1309,6 @@ function buildSlashCapabilitySections(
                 null;
 
               return {
-                badge: "围绕最近复盘",
                 title: `最近复盘已更新：${latestReviewSignal.title}`,
                 summary: truncateSectionBannerText(
                   [

@@ -6,7 +6,7 @@
 
 - 本次发布目标 tag 为 `v1.18.0`。
 - 本说明按当前待递交工作树重新整理，覆盖这次准备一起递交的版本同步、Rust/runtime、前端工作台、SceneApp、Memory、automation、bridge、roadmap 文档与 Playwright 复盘材料，不再沿用旧版“只写版本号”的简化摘要。
-- 截至本次整理，待递交范围包含 `154` 个已跟踪文件改动、`27` 个未跟踪新增项，总计 `16506` 行新增、`1787` 行删除。
+- 本次重新发布还补充纳入了聊天空态、技能入口、图片预览容错，以及 macOS release workflow 诊断文案修正，确保 `v1.18.0` 对外指向的是当前完整提交状态。
 
 ### 递交范围
 
@@ -22,6 +22,13 @@
 - 本次 release note 以“整批递交”视角书写，默认上述内容均属于本轮提交范围。
 
 ### 重点更新
+
+#### 0. 补充收口：发布前端构建阻断与 release 诊断信息校正
+
+- `src/components/agent/chat/components/{EmptyState,ImageTaskViewer}.tsx`、`src/components/agent/chat/skill-selection/{CharacterMentionPanel,inputCapabilitySections}.ts` 与配套测试继续收口聊天空态、技能入口和图片预览体验。
+- `src/components/provider-pool/api-key/ProviderModelList.tsx` 修正 provider 模型来源判断的类型收窄问题，避免 release 构建因前端 TypeScript 报错提前中断。
+- `ImageTaskViewer.tsx` 为补图预览和弹窗预览统一补齐 `RenderableTaskImage` 的 fallback 渲染，避免新 props 约束下的构建失败。
+- `.github/workflows/release.yml` 将原先误导性的 “macOS notarization failed twice” 兜底报错改成“release build failed before notarized artifact became available”，方便后续直接定位真实前序构建错误，而不是被公证文案误导。
 
 #### 1. Agent runtime、任务层与模型层主线继续 current 化
 

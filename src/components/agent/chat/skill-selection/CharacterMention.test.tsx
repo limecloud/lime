@@ -2707,7 +2707,6 @@ describe("CharacterMention", () => {
 
     await typeSlashAndWait(textarea);
 
-    expect(document.body.textContent).toContain("围绕最近成果");
     expect(document.body.textContent).toContain("成果：本周账号复盘线索");
 
     const resultTemplateSection = Array.from(
@@ -2757,7 +2756,6 @@ describe("CharacterMention", () => {
     const banner = document.body.querySelector(
       '[data-testid="input-capability-section-banner-result-templates"]',
     );
-    expect(banner?.textContent).toContain("围绕最近复盘");
     expect(banner?.textContent).toContain("最近复盘已更新：短视频编排 · 补证据");
     expect(banner?.textContent).toContain("这轮结果还缺证据");
     expect(banner?.textContent).toContain("这轮复盘更建议优先回到");

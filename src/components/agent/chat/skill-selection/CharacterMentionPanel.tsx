@@ -333,9 +333,11 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        {section.banner.badge}
-                      </span>
+                      {section.banner.badge ? (
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                          {section.banner.badge}
+                        </span>
+                      ) : null}
                       <div className="text-xs font-semibold leading-5 text-slate-900">
                         {section.banner.title}
                       </div>

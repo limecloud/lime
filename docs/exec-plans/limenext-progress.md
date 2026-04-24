@@ -5842,3 +5842,23 @@
   - `vitest` 通过：`3 files / 43 tests passed`
   - `eslint` 通过
   - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+- 首页 `EmptyState` 与 slash 首屏当前又继续前推了一刀，避免 `我的方法` 页已经收成前台起手层，但首页推荐 shelf 和 `/` 首屏里还残留 `围绕最近成果 / 围绕最近复盘 / 结果模板 / 我的方法` 这类 badge-first 呈现：
+  - `EmptyState` 当前已把结果卡和续接卡的 badge 降为可选辅助字段；默认不再把 `结果模板 / 我的方法 / 围绕最近...` 顶在卡头
+  - 首页推荐卡当前继续保留“为什么推荐这条”，但这层信息已退回正文 `meta / contextSummary`，不再用 badge 抢标题层
+  - slash `先拿结果` 当前已把 curated task 行项目右侧 `kindLabel` 收掉；分组标题负责解释“这是结果模板”，行内只保留标题和合同描述
+  - slash 里的最近复盘横幅当前也已去掉 badge pill，只保留 `最近复盘已更新`、摘要和 `继续去...` 动作
+- 因此用户当前沿着 `首页 -> 结果入口` 和 `slash -> 先拿结果` 两条主链时，看到的更接近“为什么现在该从这条开始”，而不是“这是哪个标签下的哪个对象”：
+  - 首页结果入口当前会先展示动作对象与推荐原因
+  - slash 首屏当前会先展示结果模板本身与启动合同，不再把标签塞到标题右侧
+  - 最近复盘 / 当前参考 / 最近成果这些高价值信号当前仍保留，但统一退到了正文说明层
+- 这一步继续遵守 P1 / P2 的 current 边界：
+  - 不新增首页专属推荐状态机
+  - 不新增 slash 首屏第二套结果模板协议
+  - 不改结果模板排序、launcher、`onSelectCuratedTask` 与现有 route 主链，只做前台呈现减法
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.test.ts"`
+  - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/inputCapabilitySections.test.ts" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+  - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - `vitest` 通过：`3 files / 140 tests passed`
+  - `eslint` 通过
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`

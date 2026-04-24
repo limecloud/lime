@@ -592,10 +592,9 @@ describe("EmptyState", () => {
     );
 
     expect(reviewCard?.textContent).toContain("复盘这个账号/项目");
-    expect(reviewCard?.textContent).toContain("围绕最近复盘");
     expect(reviewCard?.textContent).toContain("复盘：短视频编排");
     expect(breakdownCard?.textContent).toContain("拆解一条爆款内容");
-    expect(breakdownCard?.textContent).toContain("围绕最近复盘");
+    expect(breakdownCard?.textContent).toContain("复盘：短视频编排");
     expect(reviewBanner?.textContent).toContain("最近复盘已更新");
     expect(reviewBanner?.textContent).toContain("短视频编排 · 补证据");
     expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
@@ -2156,7 +2155,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("围绕当前参考");
+    expect(container.textContent).toContain("参考：品牌风格样本");
     expect(container.textContent).toContain("内容主稿生成");
   });
 
@@ -2221,7 +2220,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("围绕最近成果");
+    expect(container.textContent).toContain("成果：账号复盘结论");
     expect(container.textContent).toContain("复盘这个账号/项目");
   });
 

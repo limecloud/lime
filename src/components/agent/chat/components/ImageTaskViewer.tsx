@@ -846,6 +846,21 @@ export function ImageTaskViewer({
                   src={selectedOutput.url}
                   alt={selectedOutput.prompt || "图片任务结果"}
                   className="h-full w-full object-contain"
+                  renderFallback={(reason) => (
+                    <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center">
+                      <div className="max-w-sm space-y-3">
+                        <Sparkles className="mx-auto h-8 w-8 text-slate-400" />
+                        <div className="text-sm font-semibold text-slate-900">
+                          {reason === "error" ? "预览加载失败" : "暂无可预览图片"}
+                        </div>
+                        <div className="text-sm leading-6 text-slate-500">
+                          {reason === "error"
+                            ? "这张图片暂时无法在预览窗口中展示，请稍后重试或在新窗口打开。"
+                            : "当前没有可展示的图片结果。"}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 />
               ) : null}
               {selectedTaskOutputs.length > 1 ? (
@@ -925,6 +940,18 @@ export function ImageTaskViewer({
                             className={cn(
                               "w-full object-cover",
                               resolveOutputTileAspectClass(selectedTask?.layoutHint),
+                            )}
+                            renderFallback={() => (
+                              <div
+                                className={cn(
+                                  "flex w-full items-center justify-center bg-slate-50 px-3 text-center text-[11px] font-medium text-slate-400",
+                                  resolveOutputTileAspectClass(
+                                    selectedTask?.layoutHint,
+                                  ),
+                                )}
+                              >
+                                预览失败
+                              </div>
                             )}
                           />
                           <span className="absolute left-2 top-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 px-1.5 text-[11px] font-semibold text-slate-700 shadow-sm shadow-slate-950/5">

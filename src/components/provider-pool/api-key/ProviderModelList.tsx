@@ -593,7 +593,6 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
         preservesCurrentProviderCustomModels ||
         (!autoFetchCapability.requiresLiveModelTruth &&
           (normalizedSource === "Catalog" ||
-            normalizedSource === "CustomModels" ||
             normalizedSource === "LocalFallback"));
 
       if (result && result.models) {
