@@ -353,7 +353,24 @@ function imageWorkbenchPreviewSignature(
     preview.taskFilePath,
     preview.artifactPath,
     preview.imageUrl,
+    preview.previewImages?.join("|"),
     preview.imageCount,
+    preview.expectedImageCount,
+    preview.layoutHint,
+    preview.storyboardSlots
+      ?.map((slot) =>
+        [
+          slot.slotId,
+          slot.slotIndex,
+          slot.label,
+          slot.prompt,
+          slot.shotType,
+          slot.status,
+        ]
+          .map(normalizePreviewSignatureValue)
+          .join("|"),
+      )
+      .join("||"),
     preview.sourceImageUrl,
     preview.sourceImagePrompt,
     preview.sourceImageRef,

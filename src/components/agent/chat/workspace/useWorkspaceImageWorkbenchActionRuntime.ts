@@ -52,6 +52,9 @@ interface UseWorkspaceImageWorkbenchActionRuntimeParams {
   ) => Promise<MediaTaskArtifactOutput>;
   cancelImageTask: (request: MediaTaskLookupRequest) => Promise<unknown>;
   currentImageWorkbenchState: SessionImageWorkbenchState;
+  imageWorkbenchPreferredModelId?: string;
+  imageWorkbenchPreferredProviderId?: string;
+  imageWorkbenchPreferredProviderUnavailable?: boolean;
   imageWorkbenchSelectedModelId?: string;
   imageWorkbenchSelectedProviderId?: string;
   imageWorkbenchSelectedSize: string;
@@ -262,6 +265,9 @@ export function useWorkspaceImageWorkbenchActionRuntime({
   createImageGenerationTask,
   getImageTask,
   currentImageWorkbenchState,
+  imageWorkbenchPreferredModelId,
+  imageWorkbenchPreferredProviderId,
+  imageWorkbenchPreferredProviderUnavailable,
   imageWorkbenchSelectedModelId,
   imageWorkbenchSelectedProviderId,
   imageWorkbenchSelectedSize,
@@ -274,6 +280,48 @@ export function useWorkspaceImageWorkbenchActionRuntime({
   setInput,
   updateCurrentImageWorkbenchState,
 }: UseWorkspaceImageWorkbenchActionRuntimeParams) {
+  const imageWorkbenchRequestProviderId = useMemo(() => {
+    const selectedProviderId = imageWorkbenchSelectedProviderId?.trim();
+    if (selectedProviderId) {
+      return selectedProviderId;
+    }
+
+    if (imageWorkbenchPreferredProviderUnavailable) {
+      return undefined;
+    }
+
+    const preferredProviderId = imageWorkbenchPreferredProviderId?.trim();
+    return preferredProviderId || undefined;
+  }, [
+    imageWorkbenchPreferredProviderId,
+    imageWorkbenchPreferredProviderUnavailable,
+    imageWorkbenchSelectedProviderId,
+  ]);
+
+  const imageWorkbenchRequestModelId = useMemo(() => {
+    const selectedModelId = imageWorkbenchSelectedModelId?.trim();
+    if (selectedModelId) {
+      return selectedModelId;
+    }
+
+    const preferredModelId = imageWorkbenchPreferredModelId?.trim();
+    if (!preferredModelId) {
+      return undefined;
+    }
+
+    const preferredProviderId = imageWorkbenchPreferredProviderId?.trim();
+    if (!preferredProviderId || preferredProviderId === imageWorkbenchRequestProviderId) {
+      return preferredModelId;
+    }
+
+    return undefined;
+  }, [
+    imageWorkbenchPreferredModelId,
+    imageWorkbenchPreferredProviderId,
+    imageWorkbenchRequestProviderId,
+    imageWorkbenchSelectedModelId,
+  ]);
+
   const resolveImageWorkbenchSessionKey = useCallback(
     async (params: { preferredSessionKey?: string | null }) => {
       const normalizedPreferredSessionKey =
@@ -385,6 +433,10 @@ export function useWorkspaceImageWorkbenchActionRuntime({
           mode: resolveReplayMode(payload.mode ?? payload.task_mode),
           rawText:
             readTaskPayloadString(payload, ["raw_text", "rawText"]) || prompt,
+          layoutHint: readTaskPayloadString(payload, [
+            "layout_hint",
+            "layoutHint",
+          ]),
           size:
             readTaskPayloadString(payload, ["size"]) ||
             imageWorkbenchSelectedSize,
@@ -720,8 +772,8 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         images: params.images,
         title: resolvedTaskTitle,
         currentImageWorkbenchState,
-        imageWorkbenchSelectedModelId,
-        imageWorkbenchSelectedProviderId,
+        imageWorkbenchSelectedModelId: imageWorkbenchRequestModelId,
+        imageWorkbenchSelectedProviderId: imageWorkbenchRequestProviderId,
         imageWorkbenchSelectedSize,
         imageWorkbenchSessionKey,
         sessionIdOverride: resolvedSessionKey,
@@ -747,8 +799,8 @@ export function useWorkspaceImageWorkbenchActionRuntime({
     [
       contentId,
       currentImageWorkbenchState,
-      imageWorkbenchSelectedModelId,
-      imageWorkbenchSelectedProviderId,
+      imageWorkbenchRequestModelId,
+      imageWorkbenchRequestProviderId,
       imageWorkbenchSelectedSize,
       imageWorkbenchSessionKey,
       projectId,
@@ -781,8 +833,8 @@ export function useWorkspaceImageWorkbenchActionRuntime({
       resolveImageWorkbenchSkillRequest({
         ...params,
         currentImageWorkbenchState,
-        imageWorkbenchSelectedModelId,
-        imageWorkbenchSelectedProviderId,
+        imageWorkbenchSelectedModelId: imageWorkbenchRequestModelId,
+        imageWorkbenchSelectedProviderId: imageWorkbenchRequestProviderId,
         imageWorkbenchSelectedSize,
         imageWorkbenchSessionKey,
         projectId,

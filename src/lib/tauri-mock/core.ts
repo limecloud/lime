@@ -92,9 +92,16 @@ const MOCK_SCENEAPP_REFERENCE_MEMORY_FIXTURES: Record<
 };
 
 function normalizeMockMediaTaskId(taskRef?: string): string {
-  const normalized = (taskRef || "task-image-mock-1")
-    .trim()
-    .replace(/[^a-zA-Z0-9_-]+/g, "-");
+  const raw = (taskRef || "task-image-mock-1").trim();
+  if (!raw) {
+    return "task-image-mock-1";
+  }
+
+  const normalizedPath = raw.replace(/\\/g, "/");
+  const lastSegment =
+    normalizedPath.split("/").filter(Boolean).pop()?.trim() || normalizedPath;
+  const baseName = lastSegment.replace(/\.json$/i, "").trim() || lastSegment;
+  const normalized = baseName.replace(/[^a-zA-Z0-9_-]+/g, "-");
   return normalized || "task-image-mock-1";
 }
 
@@ -3941,7 +3948,8 @@ const defaultMocks: Record<string, any> = {
     },
   }),
 
-  save_config: (config: any) => {
+  save_config: (args: any) => {
+    const config = args?.config ?? args;
     logMockInfo("[Mock] Config saved:", config);
     return { success: true };
   },

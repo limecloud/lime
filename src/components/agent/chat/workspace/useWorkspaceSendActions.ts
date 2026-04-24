@@ -654,6 +654,9 @@ function resolveMentionCommandUsageLaunchUserInput(
 function resolveImageMentionCommandKey(
   trigger: ParsedImageWorkbenchCommand["trigger"],
 ): string | null {
+  if (trigger === "@分镜") {
+    return "image_storyboard";
+  }
   if (trigger === "@修图") {
     return "image_edit";
   }

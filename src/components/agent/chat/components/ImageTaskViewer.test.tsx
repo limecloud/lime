@@ -120,7 +120,7 @@ describe("ImageTaskViewer", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("点击大图应调用 onOpenImage", () => {
+  it("点击大图应打开应用内逐张预览，而不是直接外跳", () => {
     const onOpenImage = vi.fn();
     const { container } = renderComponent({ onOpenImage });
 
@@ -131,6 +131,37 @@ describe("ImageTaskViewer", () => {
 
     act(() => {
       openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onOpenImage).not.toHaveBeenCalled();
+    expect(
+      document.body.querySelector('[data-testid="image-task-viewer-open-external"]'),
+    ).toBeTruthy();
+    expect(document.body.textContent).toContain("在新窗口打开");
+  });
+
+  it("预览弹窗里的外链按钮应复用 onOpenImage 打开当前图片", () => {
+    const onOpenImage = vi.fn();
+    const { container } = renderComponent({ onOpenImage });
+
+    const openButton = container.querySelector(
+      '[data-testid="image-task-viewer-open-image"]',
+    );
+    expect(openButton).toBeTruthy();
+
+    act(() => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const externalButton = document.body.querySelector(
+      '[data-testid="image-task-viewer-open-external"]',
+    );
+    expect(externalButton).toBeTruthy();
+
+    act(() => {
+      externalButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
 
     expect(onOpenImage).toHaveBeenCalledWith("https://example.com/image-1.png");
@@ -192,6 +223,182 @@ describe("ImageTaskViewer", () => {
     });
 
     expect(onSelectOutput).toHaveBeenCalledWith("output-2");
+  });
+
+  it("多图结果应展示当前选中位次与缩略编号", () => {
+    const { container } = renderComponent();
+
+    const outputGrid = container.querySelector(
+      '[data-testid="image-task-viewer-output-grid"]',
+    ) as HTMLDivElement | null;
+
+    expect(container.textContent).toContain("已选第 1 张");
+    expect(container.textContent).toContain("2 张结果");
+    expect(outputGrid?.textContent).toContain("1");
+    expect(outputGrid?.textContent).toContain("2");
+  });
+
+  it("3x3 分镜任务应使用九宫格缩略布局并展示编号", () => {
+    const outputs = Array.from({ length: 9 }, (_, index) => ({
+      id: `output-storyboard-${index + 1}`,
+      refId: `img-storyboard-${index + 1}`,
+      taskId: "task-storyboard-1",
+      url: `https://example.com/storyboard-${index + 1}.png`,
+      prompt: `分镜 ${index + 1}`,
+      slotIndex: index + 1,
+      slotLabel: `第 ${index + 1} 格`,
+      slotPrompt: `这是第 ${index + 1} 格的完整提示词`,
+      createdAt: index + 1,
+    }));
+
+    const { container } = renderComponent({
+      tasks: [
+        {
+          id: "task-storyboard-1",
+          mode: "generate",
+          status: "complete",
+          prompt: "三国主要人物分镜",
+          rawText: "@分镜 生成 三国主要人物分镜",
+          expectedCount: 9,
+          outputIds: outputs.map((output) => output.id),
+          layoutHint: "storyboard_3x3",
+          storyboardSlots: outputs.map((output, index) => ({
+            slotId: `storyboard-slot-${index + 1}`,
+            slotIndex: index + 1,
+            label: output.slotLabel,
+            prompt: output.slotPrompt,
+          })),
+          createdAt: 1,
+        },
+      ],
+      outputs,
+      selectedOutputId: outputs[0]?.id,
+    });
+
+    const outputGrid = container.querySelector(
+      '[data-testid="image-task-viewer-output-grid"]',
+    ) as HTMLDivElement | null;
+
+    expect(container.textContent).toContain("3x3 分镜");
+    expect(container.textContent).toContain("已选第 1 格");
+    expect(outputGrid?.className).toContain("grid-cols-3");
+    expect(outputGrid?.querySelectorAll("button")).toHaveLength(9);
+    expect(outputGrid?.textContent).toContain("1");
+    expect(outputGrid?.textContent).toContain("9");
+    expect(container.textContent).toContain("第 1 格");
+  });
+
+  it("3x3 分镜应支持逐张预览与缩略带切换", () => {
+    const onSelectOutput = vi.fn();
+    const outputs = Array.from({ length: 3 }, (_, index) => ({
+      id: `output-storyboard-preview-${index + 1}`,
+      refId: `img-storyboard-preview-${index + 1}`,
+      taskId: "task-storyboard-preview-1",
+      url: `https://example.com/storyboard-preview-${index + 1}.png`,
+      prompt: `分镜 ${index + 1}`,
+      slotIndex: index + 1,
+      slotLabel: [`刘备亮相`, `曹操压迫感`, `诸葛亮谋局`][index],
+      slotPrompt: `第 ${index + 1} 格完整提示词`,
+      createdAt: index + 1,
+    }));
+
+    const { container } = renderComponent({
+      tasks: [
+        {
+          id: "task-storyboard-preview-1",
+          mode: "generate",
+          status: "complete",
+          prompt: "三国主要人物分镜",
+          rawText: "@分镜 生成 三国主要人物分镜",
+          expectedCount: 3,
+          outputIds: outputs.map((output) => output.id),
+          layoutHint: "storyboard_3x3",
+          storyboardSlots: outputs.map((output, index) => ({
+            slotId: `storyboard-slot-${index + 1}`,
+            slotIndex: index + 1,
+            label: output.slotLabel,
+            prompt: output.slotPrompt,
+          })),
+          createdAt: 1,
+        },
+      ],
+      outputs,
+      selectedOutputId: outputs[0]?.id,
+      onSelectOutput,
+    });
+
+    const openButton = container.querySelector(
+      '[data-testid="image-task-viewer-open-image"]',
+    );
+    expect(openButton).toBeTruthy();
+
+    act(() => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(
+      document.body.querySelector('[data-testid="image-task-viewer-open-external"]'),
+    ).toBeTruthy();
+    expect(document.body.textContent).toContain("刘备亮相");
+
+    const nextButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.getAttribute("aria-label") === "查看下一张图片");
+    expect(nextButton).toBeTruthy();
+
+    act(() => {
+      nextButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onSelectOutput).toHaveBeenCalledWith("output-storyboard-preview-2");
+  });
+
+  it("运行中的 3x3 分镜任务应先渲染 9 个固定槽位", () => {
+    const outputs = [
+      {
+        id: "output-storyboard-running-1",
+        refId: "img-storyboard-running-1",
+        taskId: "task-storyboard-running-1",
+        url: "https://example.com/storyboard-running-1.png",
+        prompt: "分镜 1",
+        createdAt: 1,
+      },
+      {
+        id: "output-storyboard-running-2",
+        refId: "img-storyboard-running-2",
+        taskId: "task-storyboard-running-1",
+        url: "https://example.com/storyboard-running-2.png",
+        prompt: "分镜 2",
+        createdAt: 2,
+      },
+    ];
+
+    const { container } = renderComponent({
+      tasks: [
+        {
+          id: "task-storyboard-running-1",
+          mode: "generate",
+          status: "running",
+          prompt: "三国主要人物分镜",
+          rawText: "@分镜 生成 三国主要人物分镜",
+          expectedCount: 9,
+          outputIds: outputs.map((output) => output.id),
+          layoutHint: "storyboard_3x3",
+          createdAt: 1,
+        },
+      ],
+      outputs,
+      selectedOutputId: outputs[0]?.id,
+    });
+
+    const outputGrid = container.querySelector(
+      '[data-testid="image-task-viewer-output-grid"]',
+    ) as HTMLDivElement | null;
+
+    expect(outputGrid?.className).toContain("grid-cols-3");
+    expect(outputGrid?.querySelectorAll("button")).toHaveLength(9);
+    expect(container.textContent).toContain("2 / 9 张结果");
+    expect(container.textContent).toContain("等待生成");
   });
 
   it("修图任务应优先展示来源图输出与修图语义", () => {

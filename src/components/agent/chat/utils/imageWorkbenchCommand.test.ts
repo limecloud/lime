@@ -21,6 +21,55 @@ describe("parseImageWorkbenchCommand", () => {
     });
   });
 
+  it("@配图 未显式声明数量时应保持单张默认值", () => {
+    const result = parseImageWorkbenchCommand("@配图 生成 三国人物群像");
+
+    expect(result).toMatchObject({
+      trigger: "@配图",
+      mode: "generate",
+      count: 1,
+      prompt: "三国人物群像",
+    });
+  });
+
+  it("@分镜 未显式声明数量时应默认按九宫格分镜处理", () => {
+    const result = parseImageWorkbenchCommand("@分镜 生成 三国人物群像");
+
+    expect(result).toMatchObject({
+      trigger: "@分镜",
+      mode: "generate",
+      count: 9,
+      layoutHint: "storyboard_3x3",
+      prompt: "三国人物群像",
+    });
+  });
+
+  it("@分镜 遇到 3x3 分镜提示时应解析成九宫格布局", () => {
+    const result = parseImageWorkbenchCommand(
+      "@分镜 生成 三国主要人物，3x3 分镜，电影感",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@分镜",
+      mode: "generate",
+      count: 9,
+      layoutHint: "storyboard_3x3",
+      prompt: "三国主要人物，电影感",
+    });
+  });
+
+  it("@分镜 显式声明非九宫格数量时应保留通用多图数量", () => {
+    const result = parseImageWorkbenchCommand("@分镜 生成 三国人物群像，出 6 张");
+
+    expect(result).toMatchObject({
+      trigger: "@分镜",
+      mode: "generate",
+      count: 6,
+      layoutHint: undefined,
+      prompt: "三国人物群像",
+    });
+  });
+
   it("应解析编辑命令的目标图引用", () => {
     const result = parseImageWorkbenchCommand(
       "@image 编辑 #img-2 去掉文字，保留主体",
@@ -90,6 +139,22 @@ describe("parseImageWorkbenchCommand", () => {
     ).toBe(true);
     expect(buildImageGenerateSkillSlashCommand(parsed!)).toBe(
       "/image_generate 生成 公众号头图，科技感，16:9，出 4 张",
+    );
+  });
+
+  it("@分镜 纯文本生成命令也应复用 image_generate skill 主链", () => {
+    const parsed = parseImageWorkbenchCommand(
+      "@分镜 生成 三国主要人物，3x3 分镜",
+    );
+
+    expect(parsed).not.toBeNull();
+    expect(
+      shouldRouteImageWorkbenchCommandToSkill({
+        parsedCommand: parsed!,
+      }),
+    ).toBe(true);
+    expect(buildImageGenerateSkillSlashCommand(parsed!)).toBe(
+      "/image_generate 生成 三国主要人物，3x3 分镜",
     );
   });
 

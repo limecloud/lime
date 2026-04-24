@@ -753,6 +753,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     group: (typeof renderGroups)[number],
   ) => {
     const hasImages = Array.isArray(msg.images) && msg.images.length > 0;
+    const shouldSuppressImageProcessFlow = Boolean(msg.imageWorkbenchPreview);
     const displayContent = sanitizeMessageTextForDisplay(msg.content || "", {
       role: msg.role,
       hasImages,
@@ -859,7 +860,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
         )
       : [];
     const primaryTimeline =
-      timeline && primaryTimelineItems.length > 0
+      !shouldSuppressImageProcessFlow &&
+      timeline &&
+      primaryTimelineItems.length > 0
         ? { ...timeline, items: primaryTimelineItems }
         : null;
     const trailingTimeline =
@@ -1086,6 +1089,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
                       !primaryTimeline ||
                       inlineProcessCoverage.hasInlineProcessEntries
                     }
+                    suppressProcessFlow={shouldSuppressImageProcessFlow}
                     showContentBlockActions={Boolean(actionContent)}
                     onQuoteContent={
                       onQuoteMessage

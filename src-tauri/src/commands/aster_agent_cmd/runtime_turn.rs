@@ -10,11 +10,13 @@ use super::runtime_project_hooks::{
 use super::service_skill_launch::build_service_skill_preload_tool_projection;
 use super::*;
 use crate::commands::auxiliary_model_selection::{
-    prepare_auxiliary_provider_scope, AuxiliaryServiceModelSlot,
+    build_auxiliary_runtime_metadata, build_auxiliary_turn_context_override,
+    prepare_auxiliary_provider_scope, AuxiliaryProviderResolution, AuxiliaryServiceModelSlot,
 };
+use aster::agents::extension::PlatformExtensionContext;
 use aster::hooks::{CompactTrigger, SessionSource};
 use aster::session::TurnContextOverride;
-use aster::tools::ConfigTool;
+use aster::tools::{ConfigTool, SkillTool};
 use lime_agent::AgentEvent as RuntimeAgentEvent;
 use lime_core::workspace::WorkspaceSettings;
 use regex::Regex;
@@ -52,6 +54,23 @@ fn emit_runtime_events(app: &AppHandle, event_name: &str, events: Vec<RuntimeAge
             tracing::error!("[AsterAgent] 发送运行时事件失败: {}", error);
         }
     }
+}
+
+async fn sync_runtime_skill_source_agent(session_id: &str, agent: &Agent) -> Result<(), String> {
+    let donor = Agent::new().with_shared_native_tool_surface_from(agent);
+    donor
+        .extension_manager
+        .set_context(PlatformExtensionContext {
+            session_id: Some(session_id.to_string()),
+            extension_manager: Some(Arc::downgrade(&donor.extension_manager)),
+        })
+        .await;
+    donor
+        .inherit_runtime_tool_surface_from(agent)
+        .await
+        .map_err(|error| format!("继承 runtime tool surface 失败: {error}"))?;
+    SkillTool::register_source_agent_for_session(session_id.to_string(), Arc::new(donor)).await;
+    Ok(())
 }
 
 async fn ensure_host_backed_config_tool_registered(
@@ -940,6 +959,7 @@ impl RuntimeTurnExecutionContext {
             workspace_root,
             &runtime_status_session_config,
             session_id,
+            request_metadata,
             final_result,
         )
         .await
@@ -2160,6 +2180,12 @@ async fn execute_runtime_turn_submit(
 
     let guard = agent_arc.read().await;
     let agent = guard.as_ref().ok_or("Agent not initialized")?;
+    if let Err(error) = sync_runtime_skill_source_agent(session_id, agent).await {
+        tracing::warn!(
+            "[AsterAgent] 同步 runtime skill source agent 失败，已降级继续执行: {}",
+            error
+        );
+    }
     runtime_turn_prepared_execution
         .emit_prelude_and_execute(
             agent,
@@ -2232,7 +2258,7 @@ async fn execute_runtime_turn_pipeline(
     automation_state: &AutomationServiceState,
     mut request: AsterChatRequest,
 ) -> Result<(), String> {
-    prepare_runtime_turn_entry(app, state, db, mcp_manager).await?;
+    prepare_runtime_turn_entry(app, state, db, api_key_provider_service, mcp_manager).await?;
     let RuntimeTurnIngressContext {
         owned_session_id,
         workspace_id,
@@ -2304,6 +2330,7 @@ async fn prepare_runtime_turn_entry(
     app: &AppHandle,
     state: &AsterAgentState,
     db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
     mcp_manager: &McpManagerState,
 ) -> Result<(), String> {
     let is_init = state.is_initialized().await;
@@ -2324,7 +2351,8 @@ async fn prepare_runtime_turn_entry(
 
     ensure_host_backed_config_tool_registered(app, state).await?;
     ensure_runtime_permission_request_hook_handler_registered(state, db, mcp_manager).await?;
-    ensure_runtime_support_tools_registered(state, mcp_manager).await
+    ensure_runtime_support_tools_registered(app, state, db, api_key_provider_service, mcp_manager)
+        .await
 }
 
 async fn prepare_runtime_turn_ingress_context(
@@ -2350,8 +2378,8 @@ async fn prepare_runtime_turn_ingress_context(
         .is_none()
         || extract_harness_string(request.metadata.as_ref(), &["content_id", "contentId"])
             .is_none();
-    let provider_config_future =
-        resolve_runtime_request_provider_config(app, db, api_key_provider_service, request);
+    let provider_resolution_future =
+        resolve_runtime_request_provider_resolution(app, db, api_key_provider_service, request);
     let session_recent_harness_context_future = async {
         if should_resolve_session_recent_harness_context {
             resolve_session_recent_harness_context(&request.session_id).await
@@ -2359,12 +2387,20 @@ async fn prepare_runtime_turn_ingress_context(
             Ok(SessionRecentHarnessContext::default())
         }
     };
-    let (resolved_provider_config, session_recent_harness_context) = tokio::try_join!(
-        provider_config_future,
+    let (provider_resolution, session_recent_harness_context) = tokio::try_join!(
+        provider_resolution_future,
         session_recent_harness_context_future
     )?;
 
-    if let Some(resolved_provider_config) = resolved_provider_config {
+    request.metadata = merge_runtime_request_resolution_metadata(
+        request.metadata.take(),
+        &provider_resolution.task_profile,
+        &provider_resolution.routing_decision,
+        &provider_resolution.limit_state,
+        &provider_resolution.cost_state,
+        provider_resolution.limit_event.as_ref(),
+    );
+    if let Some(resolved_provider_config) = provider_resolution.provider_config {
         request.provider_config = Some(resolved_provider_config);
     }
     if let Some(provider_config) = request.provider_config.as_mut() {
@@ -2937,6 +2973,143 @@ fn merge_runtime_turn_tool_surface_metadata(
     );
 
     Some(serde_json::Value::Object(root))
+}
+
+fn merge_runtime_request_resolution_metadata(
+    request_metadata: Option<serde_json::Value>,
+    task_profile: &lime_agent::SessionExecutionRuntimeTaskProfile,
+    routing_decision: &lime_agent::SessionExecutionRuntimeRoutingDecision,
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+    cost_state: &lime_agent::SessionExecutionRuntimeCostState,
+    limit_event: Option<&lime_agent::SessionExecutionRuntimeLimitEvent>,
+) -> Option<serde_json::Value> {
+    let mut root = match request_metadata {
+        Some(serde_json::Value::Object(object)) => object,
+        Some(_) | None => serde_json::Map::new(),
+    };
+    let runtime_entry = root
+        .entry(LIME_RUNTIME_METADATA_KEY.to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    if !runtime_entry.is_object() {
+        *runtime_entry = serde_json::Value::Object(serde_json::Map::new());
+    }
+    let runtime_object = runtime_entry
+        .as_object_mut()
+        .expect("lime_runtime metadata should be an object");
+    insert_serialized_run_metadata(runtime_object, "task_profile", task_profile);
+    insert_serialized_run_metadata(runtime_object, "routing_decision", routing_decision);
+    insert_serialized_run_metadata(runtime_object, "limit_state", limit_state);
+    insert_serialized_run_metadata(runtime_object, "cost_state", cost_state);
+    if let Some(limit_event) = limit_event {
+        insert_serialized_run_metadata(runtime_object, "limit_event", limit_event);
+    }
+
+    Some(serde_json::Value::Object(root))
+}
+
+fn extract_runtime_resolution_payload<T: serde::de::DeserializeOwned>(
+    request_metadata: Option<&serde_json::Value>,
+    key: &str,
+) -> Option<T> {
+    let root = request_metadata?.as_object()?;
+    let runtime = root.get(LIME_RUNTIME_METADATA_KEY)?.as_object()?;
+    serde_json::from_value(runtime.get(key)?.clone()).ok()
+}
+
+fn collect_runtime_request_resolution_side_events(
+    request_metadata: Option<&serde_json::Value>,
+) -> Vec<RuntimeAgentEvent> {
+    let mut events = Vec::new();
+
+    if let Some(task_profile) = extract_runtime_resolution_payload::<
+        lime_agent::SessionExecutionRuntimeTaskProfile,
+    >(request_metadata, "task_profile")
+    {
+        events.push(RuntimeAgentEvent::TaskProfileResolved { task_profile });
+    }
+
+    let routing_decision = extract_runtime_resolution_payload::<
+        lime_agent::SessionExecutionRuntimeRoutingDecision,
+    >(request_metadata, "routing_decision");
+    if let Some(routing_decision) = routing_decision.clone() {
+        events.push(RuntimeAgentEvent::CandidateSetResolved {
+            routing_decision: routing_decision.clone(),
+        });
+        events.push(RuntimeAgentEvent::RoutingDecisionMade {
+            routing_decision: routing_decision.clone(),
+        });
+
+        if !routing_decision.fallback_chain.is_empty() {
+            events.push(RuntimeAgentEvent::RoutingFallbackApplied {
+                routing_decision: routing_decision.clone(),
+            });
+        }
+
+        if routing_decision.routing_mode == "no_candidate" {
+            events.push(RuntimeAgentEvent::RoutingNotPossible { routing_decision });
+        }
+    }
+
+    let limit_state = extract_runtime_resolution_payload::<
+        lime_agent::SessionExecutionRuntimeLimitState,
+    >(request_metadata, "limit_state");
+    if let Some(limit_state) = limit_state.clone() {
+        events.push(RuntimeAgentEvent::LimitStateUpdated {
+            limit_state: limit_state.clone(),
+        });
+
+        if limit_state.single_candidate_only {
+            events.push(RuntimeAgentEvent::SingleCandidateOnly {
+                limit_state: limit_state.clone(),
+            });
+
+            if limit_state.capability_gap.is_some() {
+                events.push(RuntimeAgentEvent::SingleCandidateCapabilityGap { limit_state });
+            }
+        }
+    }
+
+    if let Some(cost_state) = extract_runtime_resolution_payload::<
+        lime_agent::SessionExecutionRuntimeCostState,
+    >(request_metadata, "cost_state")
+    {
+        events.push(RuntimeAgentEvent::CostEstimated { cost_state });
+    }
+
+    if let Some(limit_event) = extract_runtime_resolution_payload::<
+        lime_agent::SessionExecutionRuntimeLimitEvent,
+    >(request_metadata, "limit_event")
+    {
+        events.push(map_runtime_limit_event_to_runtime_agent_event(limit_event));
+    }
+
+    events
+}
+
+fn emit_runtime_request_resolution_events(
+    app: &AppHandle,
+    event_name: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    workspace_root: &str,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    for event in collect_runtime_request_resolution_side_events(request_metadata) {
+        emit_runtime_side_event(app, event_name, timeline_recorder, workspace_root, event);
+    }
+}
+
+fn map_runtime_limit_event_to_runtime_agent_event(
+    limit_event: lime_agent::SessionExecutionRuntimeLimitEvent,
+) -> RuntimeAgentEvent {
+    match limit_event.event_kind.as_str() {
+        "quota_blocked" => RuntimeAgentEvent::QuotaBlocked { limit_event },
+        "quota_low" => RuntimeAgentEvent::QuotaLow { limit_event },
+        "rate_limit_hit" => RuntimeAgentEvent::RateLimitHit { limit_event },
+        _ => RuntimeAgentEvent::Warning {
+            code: Some("runtime_limit_event_unknown".to_string()),
+            message: limit_event.message,
+        },
+    }
 }
 
 fn resolve_turn_execution_profile(
@@ -3515,6 +3688,14 @@ async fn prepare_runtime_turn_prelude(
         .await;
     }
 
+    emit_runtime_request_resolution_events(
+        app,
+        &request.event_name,
+        timeline_recorder,
+        workspace_root,
+        request.metadata.as_ref(),
+    );
+
     if let Some(preload) = service_skill_preload {
         emit_service_skill_preload_runtime_events(
             app,
@@ -3620,6 +3801,7 @@ async fn finalize_runtime_turn_result(
     workspace_root: &str,
     runtime_status_session_config: &aster::agents::types::SessionConfig,
     session_id: &str,
+    request_metadata: Option<&serde_json::Value>,
     result: Result<String, String>,
 ) -> Result<(), String> {
     complete_runtime_status_projection(
@@ -3687,6 +3869,21 @@ async fn finalize_runtime_turn_result(
                         error
                     );
                 }
+
+                if let Some(cost_state) = extract_runtime_resolution_payload::<
+                    lime_agent::SessionExecutionRuntimeCostState,
+                >(request_metadata, "cost_state")
+                {
+                    emit_runtime_side_event(
+                        app,
+                        event_name,
+                        timeline_recorder,
+                        workspace_root,
+                        RuntimeAgentEvent::CostRecorded {
+                            cost_state: lime_agent::apply_usage_to_cost_state(cost_state, usage),
+                        },
+                    );
+                }
             }
             if let Err(error) = app.emit(event_name, &done_event) {
                 tracing::error!("[AsterAgent] 发送完成事件失败: {}", error);
@@ -3695,6 +3892,10 @@ async fn finalize_runtime_turn_result(
             Ok(())
         }
         Err(error) => {
+            if let Some(limit_event) = lime_agent::detect_runtime_limit_event(Some(&error)) {
+                let event = map_runtime_limit_event_to_runtime_agent_event(limit_event);
+                emit_runtime_side_event(app, event_name, timeline_recorder, workspace_root, event);
+            }
             let error_event = RuntimeAgentEvent::Error {
                 message: error.clone(),
             };
@@ -4019,13 +4220,30 @@ fn build_runtime_compaction_session_config(
     session_id: &str,
     thread_id: &str,
     turn_id: &str,
+    turn_context: Option<TurnContextOverride>,
 ) -> aster::agents::types::SessionConfig {
     // 压缩控制回合只需要稳定 thread/turn 锚点来写时间线和 session metrics；
     // 它不会走常规 turn prompt / tool / turn_context 组包链，避免再造第二份输入真相。
-    SessionConfigBuilder::new(session_id)
+    let mut session_config_builder = SessionConfigBuilder::new(session_id)
         .thread_id(thread_id.to_string())
-        .turn_id(turn_id.to_string())
-        .build()
+        .turn_id(turn_id.to_string());
+    if let Some(turn_context) = turn_context {
+        session_config_builder = session_config_builder.turn_context(turn_context);
+    }
+    session_config_builder.build()
+}
+
+fn build_history_compaction_runtime_metadata(
+    trigger: RuntimeSessionCompactionTrigger,
+    resolution: &AuxiliaryProviderResolution,
+) -> Option<serde_json::Value> {
+    build_auxiliary_runtime_metadata(
+        resolution,
+        &format!("context_compaction_{}", trigger.as_str()),
+        Some(trigger.as_str()),
+        &["service_model_slot", "internal_turn"],
+        &["当前为内部辅助任务，运行时只会使用一条已解析的 provider/model 路线。"],
+    )
 }
 
 async fn should_auto_compact_runtime_session(
@@ -4190,10 +4408,15 @@ async fn compact_runtime_session_with_trigger(
         resolved_turn_id.clone(),
         "压缩上下文",
     )?));
+    let compaction_request_metadata =
+        build_history_compaction_runtime_metadata(trigger, provider_scope.resolution());
+    let compaction_side_events =
+        collect_runtime_request_resolution_side_events(compaction_request_metadata.as_ref());
     let session_config = build_runtime_compaction_session_config(
         &session_id,
         &resolved_thread_id,
         &resolved_turn_id,
+        build_auxiliary_turn_context_override(compaction_request_metadata),
     );
 
     let final_result: Result<(), String> = {
@@ -4218,6 +4441,24 @@ async fn compact_runtime_session_with_trigger(
             }
             if let Err(error) = app.emit(&event_name, &event) {
                 tracing::error!("[AsterAgent] 发送压缩事件失败: {}", error);
+            }
+        }
+
+        for event in compaction_side_events.iter().cloned() {
+            {
+                let mut recorder = match timeline_recorder.lock() {
+                    Ok(guard) => guard,
+                    Err(error) => error.into_inner(),
+                };
+                if let Err(error) = recorder.record_runtime_event(app, &event_name, &event, "") {
+                    tracing::warn!(
+                        "[AsterAgent] 记录压缩路由时间线事件失败（已降级继续）: {}",
+                        error
+                    );
+                }
+            }
+            if let Err(error) = app.emit(&event_name, &event) {
+                tracing::error!("[AsterAgent] 发送压缩路由事件失败: {}", error);
             }
         }
 
@@ -6094,6 +6335,7 @@ mod tests {
             "session-compact",
             "thread-compact",
             "turn-compact",
+            None,
         );
 
         assert_eq!(session_config.id, "session-compact");
@@ -6102,6 +6344,114 @@ mod tests {
         assert_eq!(session_config.system_prompt, None);
         assert_eq!(session_config.include_context_trace, None);
         assert!(session_config.turn_context.is_none());
+    }
+
+    #[test]
+    fn build_runtime_compaction_session_config_should_attach_history_compress_turn_context() {
+        let metadata = build_history_compaction_runtime_metadata(
+            RuntimeSessionCompactionTrigger::Manual,
+            &AuxiliaryProviderResolution {
+                service_model_slot: "history_compress".to_string(),
+                task_kind: "history_compress".to_string(),
+                decision_source: "session_default".to_string(),
+                decision_reason:
+                    "当前未配置 service_models.history_compress，沿用当前 provider/model。"
+                        .to_string(),
+                selected_provider: Some("openai".to_string()),
+                selected_model: Some("gpt-4o-mini".to_string()),
+                requested_provider: None,
+                requested_model: None,
+                fallback_chain: Vec::new(),
+                settings_source: None,
+                estimated_cost_class: Some("low".to_string()),
+            },
+        );
+        let session_config = build_runtime_compaction_session_config(
+            "session-compact",
+            "thread-compact",
+            "turn-compact",
+            build_auxiliary_turn_context_override(metadata),
+        );
+
+        let turn_context = session_config.turn_context.expect("turn context");
+        let lime_runtime = turn_context
+            .metadata
+            .get("lime_runtime")
+            .and_then(serde_json::Value::as_object)
+            .expect("lime runtime");
+        let task_profile = lime_runtime
+            .get("task_profile")
+            .and_then(serde_json::Value::as_object)
+            .expect("task profile");
+
+        assert_eq!(
+            task_profile.get("kind").and_then(serde_json::Value::as_str),
+            Some("history_compress")
+        );
+        assert_eq!(
+            task_profile
+                .get("source")
+                .and_then(serde_json::Value::as_str),
+            Some("context_compaction_manual")
+        );
+    }
+
+    #[test]
+    fn build_history_compaction_runtime_metadata_should_project_history_compress_route() {
+        let metadata = build_history_compaction_runtime_metadata(
+            RuntimeSessionCompactionTrigger::Auto,
+            &AuxiliaryProviderResolution {
+                service_model_slot: "history_compress".to_string(),
+                task_kind: "history_compress".to_string(),
+                decision_source: "service_model_setting".to_string(),
+                decision_reason: "命中 service_models.history_compress".to_string(),
+                selected_provider: Some("openai".to_string()),
+                selected_model: Some("gpt-5.4-mini".to_string()),
+                requested_provider: Some("openai".to_string()),
+                requested_model: Some("gpt-5.4-mini".to_string()),
+                fallback_chain: Vec::new(),
+                settings_source: Some("service_models.history_compress".to_string()),
+                estimated_cost_class: Some("low".to_string()),
+            },
+        )
+        .expect("metadata");
+
+        let task_profile = extract_runtime_resolution_payload::<
+            lime_agent::SessionExecutionRuntimeTaskProfile,
+        >(Some(&metadata), "task_profile")
+        .expect("task profile");
+        let routing_decision = extract_runtime_resolution_payload::<
+            lime_agent::SessionExecutionRuntimeRoutingDecision,
+        >(Some(&metadata), "routing_decision")
+        .expect("routing decision");
+        let limit_state = extract_runtime_resolution_payload::<
+            lime_agent::SessionExecutionRuntimeLimitState,
+        >(Some(&metadata), "limit_state")
+        .expect("limit state");
+        let cost_state = extract_runtime_resolution_payload::<
+            lime_agent::SessionExecutionRuntimeCostState,
+        >(Some(&metadata), "cost_state")
+        .expect("cost state");
+
+        assert_eq!(task_profile.kind, "history_compress");
+        assert_eq!(task_profile.source, "context_compaction_auto");
+        assert_eq!(
+            task_profile.service_model_slot.as_deref(),
+            Some("history_compress")
+        );
+        assert_eq!(routing_decision.routing_mode, "single_candidate");
+        assert_eq!(routing_decision.decision_source, "service_model_setting");
+        assert_eq!(
+            routing_decision.settings_source.as_deref(),
+            Some("service_models.history_compress")
+        );
+        assert_eq!(
+            routing_decision.selected_model.as_deref(),
+            Some("gpt-5.4-mini")
+        );
+        assert!(limit_state.single_candidate_only);
+        assert!(limit_state.settings_locked);
+        assert_eq!(cost_state.estimated_cost_class.as_deref(), Some("low"));
     }
 
     #[test]
@@ -6174,5 +6524,146 @@ mod tests {
                 "artifact_stage": "stage2"
             })),
         ));
+    }
+
+    #[test]
+    fn collect_runtime_request_resolution_side_events_should_emit_routing_chain() {
+        let metadata = json!({
+            "lime_runtime": {
+                "task_profile": {
+                    "kind": "translation",
+                    "source": "translation_skill_launch",
+                    "traits": ["service_model_slot"],
+                    "serviceModelSlot": "translation"
+                },
+                "routing_decision": {
+                    "routingMode": "single_candidate",
+                    "decisionSource": "service_model_setting",
+                    "decisionReason": "命中 service_models.translation",
+                    "selectedProvider": "openai",
+                    "selectedModel": "gpt-4.1-mini",
+                    "candidateCount": 1,
+                    "fallbackChain": ["service_models.translation -> session_default"]
+                },
+                "limit_state": {
+                    "status": "single_candidate_only",
+                    "singleCandidateOnly": true,
+                    "providerLocked": true,
+                    "settingsLocked": true,
+                    "oemLocked": false,
+                    "candidateCount": 1,
+                    "capabilityGap": "tools_missing"
+                },
+                "cost_state": {
+                    "status": "estimated",
+                    "estimatedCostClass": "low"
+                },
+                "limit_event": {
+                    "eventKind": "quota_low",
+                    "message": "OEM 云端额度偏低",
+                    "retryable": true
+                }
+            }
+        });
+
+        let events = collect_runtime_request_resolution_side_events(Some(&metadata))
+            .into_iter()
+            .map(|event| {
+                serde_json::to_value(event)
+                    .ok()
+                    .and_then(|value| {
+                        value
+                            .get("type")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .expect("应能序列化 runtime event")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            events,
+            vec![
+                "task_profile_resolved".to_string(),
+                "candidate_set_resolved".to_string(),
+                "routing_decision_made".to_string(),
+                "routing_fallback_applied".to_string(),
+                "limit_state_updated".to_string(),
+                "single_candidate_only".to_string(),
+                "single_candidate_capability_gap".to_string(),
+                "cost_estimated".to_string(),
+                "quota_low".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn collect_runtime_request_resolution_side_events_should_emit_routing_not_possible() {
+        let metadata = json!({
+            "lime_runtime": {
+                "routing_decision": {
+                    "routingMode": "no_candidate",
+                    "decisionSource": "auto_default",
+                    "decisionReason": "当前没有可用候选",
+                    "candidateCount": 0
+                },
+                "limit_state": {
+                    "status": "no_candidate",
+                    "singleCandidateOnly": false,
+                    "providerLocked": false,
+                    "settingsLocked": false,
+                    "oemLocked": false,
+                    "candidateCount": 0
+                }
+            }
+        });
+
+        let events = collect_runtime_request_resolution_side_events(Some(&metadata))
+            .into_iter()
+            .map(|event| {
+                serde_json::to_value(event)
+                    .ok()
+                    .and_then(|value| {
+                        value
+                            .get("type")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .expect("应能序列化 runtime event")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            events,
+            vec![
+                "candidate_set_resolved".to_string(),
+                "routing_decision_made".to_string(),
+                "routing_not_possible".to_string(),
+                "limit_state_updated".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn map_runtime_limit_event_to_runtime_agent_event_should_cover_quota_low() {
+        let event = map_runtime_limit_event_to_runtime_agent_event(
+            lime_agent::SessionExecutionRuntimeLimitEvent {
+                event_kind: "quota_low".to_string(),
+                message: "额度偏低".to_string(),
+                retryable: true,
+            },
+        );
+
+        let event_type = serde_json::to_value(event)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .expect("应能序列化 runtime limit event");
+
+        assert_eq!(event_type, "quota_low");
     }
 }

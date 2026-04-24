@@ -547,11 +547,15 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
 }
 
 pub(crate) async fn ensure_runtime_support_tools_registered(
+    app_handle: &AppHandle,
     state: &AsterAgentState,
+    db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
     mcp_manager: &McpManagerState,
 ) -> Result<(), String> {
     ensure_tool_search_tool_registered(state).await?;
     ensure_mcp_resource_tools_registered(state, mcp_manager).await?;
+    ensure_creation_task_tools_registered(state, db, api_key_provider_service, app_handle).await?;
     Ok(())
 }
 

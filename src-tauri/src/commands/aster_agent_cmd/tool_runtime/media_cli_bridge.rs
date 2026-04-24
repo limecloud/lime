@@ -85,7 +85,9 @@ pub(crate) fn emit_media_creation_task_event(app_handle: &AppHandle, output: &Me
         "prompt": read_payload_string(payload_record, &["prompt"]),
         "size": read_payload_string(payload_record, &["size", "resolution"]),
         "mode": read_payload_string(payload_record, &["mode"]),
+        "layout_hint": read_payload_string(payload_record, &["layout_hint", "layoutHint"]),
         "count": read_payload_u64(payload_record, &["count", "image_count", "imageCount"]),
+        "storyboard_slots": payload_record.get("storyboard_slots").cloned(),
         "raw_text": read_payload_string(payload_record, &["raw_text", "rawText"]),
         "session_id": read_payload_string(payload_record, &["session_id", "sessionId"]),
         "project_id": read_payload_string(payload_record, &["project_id", "projectId"]),
@@ -137,6 +139,17 @@ pub(crate) fn attach_media_task_metadata(
                 &output.record.payload,
                 &["size", "resolution"]
             )),
+        )
+        .with_metadata(
+            "layout_hint",
+            serde_json::json!(read_payload_string(
+                &output.record.payload,
+                &["layout_hint", "layoutHint"]
+            )),
+        )
+        .with_metadata(
+            "storyboard_slots",
+            serde_json::json!(output.record.payload.get("storyboard_slots").cloned()),
         )
         .with_metadata(
             "project_id",

@@ -1,4 +1,19 @@
-import { LoaderCircle, Sparkles, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  LoaderCircle,
+  Sparkles,
+  X,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { RenderableTaskImage } from "./RenderableTaskImage";
 import type { ImageTaskViewerProps } from "./imageWorkbenchTypes";
@@ -33,6 +48,69 @@ function resolveFollowUpLabel(mode?: string): string {
     return "继续重绘";
   }
   return "基于此图重绘";
+}
+
+function resolveLayoutLabel(layoutHint?: string | null): string | null {
+  return layoutHint === "storyboard_3x3" ? "3x3 分镜" : null;
+}
+
+function resolveOutputGridClassName(params: {
+  layoutHint?: string | null;
+  outputCount: number;
+}): string {
+  if (params.layoutHint === "storyboard_3x3") {
+    return "grid-cols-3";
+  }
+  if (params.outputCount <= 4) {
+    return "grid-cols-2";
+  }
+  if (params.outputCount <= 9) {
+    return "grid-cols-2 sm:grid-cols-3";
+  }
+  return "grid-cols-2 sm:grid-cols-3 xl:grid-cols-4";
+}
+
+function resolveOutputTileAspectClass(layoutHint?: string | null): string {
+  return layoutHint === "storyboard_3x3" ? "aspect-square" : "aspect-[4/3]";
+}
+
+function resolveSelectedOutputLabel(params: {
+  selectedIndex: number;
+  outputCount: number;
+  layoutHint?: string | null;
+}): string | null {
+  if (params.selectedIndex < 0 || params.outputCount <= 1) {
+    return null;
+  }
+
+  return params.layoutHint === "storyboard_3x3"
+    ? `已选第 ${params.selectedIndex + 1} 格`
+    : `已选第 ${params.selectedIndex + 1} 张`;
+}
+
+function resolveOutputDisplayIndex(
+  outputIndex: number,
+  slotIndex?: number | null,
+): number {
+  return slotIndex && slotIndex > 0 ? slotIndex : outputIndex + 1;
+}
+
+function resolveStoryboardSlotLabel(params: {
+  layoutHint?: string | null;
+  outputIndex: number;
+  slotIndex?: number | null;
+  slotLabel?: string | null;
+  taskSlotLabel?: string | null;
+}): string | null {
+  if (params.layoutHint !== "storyboard_3x3") {
+    return null;
+  }
+
+  return (
+    params.slotLabel?.trim() ||
+    params.taskSlotLabel?.trim() ||
+    `第 ${resolveOutputDisplayIndex(params.outputIndex, params.slotIndex)} 格`
+  );
 }
 
 function buildFollowUpCommand(params: {
@@ -205,6 +283,7 @@ export function ImageTaskViewer({
   onOpenImage,
   onClose,
 }: ImageTaskViewerProps) {
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const selectedOutput =
     outputs.find((item) => item.id === selectedOutputId) ?? outputs[0] ?? null;
   const selectedTask =
@@ -216,10 +295,56 @@ export function ImageTaskViewer({
   const selectedTaskOutputs = selectedTask
     ? outputs.filter((item) => item.taskId === selectedTask.id)
     : outputs;
+  const expectedOutputCount = Math.max(
+    selectedTask?.expectedCount ?? 0,
+    selectedTaskOutputs.length,
+  );
+  const outputGridSlots = Array.from(
+    { length: expectedOutputCount },
+    (_, index) => selectedTaskOutputs[index] ?? null,
+  );
+  const selectedOutputIndex = selectedOutput
+    ? selectedTaskOutputs.findIndex((item) => item.id === selectedOutput.id)
+    : -1;
+  const selectedStoryboardSlot = useMemo(() => {
+    if (!selectedTask || selectedOutputIndex < 0) {
+      return null;
+    }
+
+    const selectedSlotIndex =
+      selectedOutput?.slotIndex ?? selectedOutputIndex + 1;
+    const taskSlot = selectedTask.storyboardSlots?.find(
+      (slot) => slot.slotIndex === selectedSlotIndex,
+    );
+
+    return {
+      slotIndex: selectedSlotIndex,
+      label: resolveStoryboardSlotLabel({
+        layoutHint: selectedTask.layoutHint,
+        outputIndex: selectedOutputIndex,
+        slotIndex: selectedSlotIndex,
+        slotLabel: selectedOutput?.slotLabel,
+        taskSlotLabel: taskSlot?.label,
+      }),
+      prompt: selectedOutput?.slotPrompt || taskSlot?.prompt || null,
+    };
+  }, [
+    selectedOutput?.slotIndex,
+    selectedOutput?.slotLabel,
+    selectedOutput?.slotPrompt,
+    selectedOutputIndex,
+    selectedTask,
+  ]);
   const statusLabel = resolveStatusLabel(
     selectedTask?.status,
     selectedTask?.mode,
   );
+  const layoutLabel = resolveLayoutLabel(selectedTask?.layoutHint);
+  const selectedOutputLabel = resolveSelectedOutputLabel({
+    selectedIndex: selectedOutputIndex,
+    outputCount: expectedOutputCount,
+    layoutHint: selectedTask?.layoutHint,
+  });
   const prompt =
     selectedOutput?.prompt?.trim() ||
     selectedTask?.prompt?.trim() ||
@@ -260,6 +385,37 @@ export function ImageTaskViewer({
     prompt: selectedTask?.prompt,
   });
   const canContinueEdit = Boolean(followUpCommand && onSeedFollowUpCommand);
+  const handleOpenSelectedImagePreview = () => {
+    if (!selectedOutput) {
+      return;
+    }
+    setPreviewDialogOpen(true);
+  };
+  const handleOpenSelectedImageInNewTab = () => {
+    if (!selectedOutput) {
+      return;
+    }
+    if (onOpenImage) {
+      onOpenImage(selectedOutput.url);
+      return;
+    }
+    window.open(selectedOutput.url, "_blank", "noopener,noreferrer");
+  };
+  const handlePreviewStep = (direction: -1 | 1) => {
+    if (selectedOutputIndex < 0 || selectedTaskOutputs.length <= 1) {
+      return;
+    }
+
+    const nextIndex =
+      (selectedOutputIndex + direction + selectedTaskOutputs.length) %
+      selectedTaskOutputs.length;
+    const nextOutput = selectedTaskOutputs[nextIndex];
+    if (!nextOutput) {
+      return;
+    }
+
+    onSelectOutput(nextOutput.id);
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5">
@@ -319,7 +475,7 @@ export function ImageTaskViewer({
                   <button
                     type="button"
                     className="group relative flex h-full w-full items-center justify-center overflow-hidden rounded-[18px] border border-slate-200/80 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.12),transparent_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98))] p-4"
-                    onClick={() => onOpenImage?.(selectedOutput.url)}
+                    onClick={handleOpenSelectedImagePreview}
                     data-testid="image-task-viewer-open-image"
                   >
                     <img
@@ -329,6 +485,16 @@ export function ImageTaskViewer({
                         imageProps.className,
                       )}
                     />
+                    <span className="pointer-events-none absolute inset-x-4 bottom-4 rounded-[14px] bg-slate-950/66 px-3 py-2 text-left text-xs leading-5 text-white backdrop-blur-[1px]">
+                      <span className="font-medium">
+                        {selectedStoryboardSlot?.label || "点击逐张预览"}
+                      </span>
+                      {selectedStoryboardSlot?.prompt ? (
+                        <span className="mt-0.5 line-clamp-2 block text-white/80">
+                          {selectedStoryboardSlot.prompt}
+                        </span>
+                      ) : null}
+                    </span>
                   </button>
                 )}
                 renderFallback={(reason) => (
@@ -437,6 +603,21 @@ export function ImageTaskViewer({
         ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {layoutLabel ? (
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 font-medium text-sky-700">
+              {layoutLabel}
+            </span>
+          ) : null}
+          {selectedOutputLabel ? (
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+              {selectedOutputLabel}
+            </span>
+          ) : null}
+          {selectedStoryboardSlot?.label ? (
+            <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 font-medium text-violet-700">
+              {selectedStoryboardSlot.label}
+            </span>
+          ) : null}
           {selectedOutput?.providerName ? (
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
               {selectedOutput.providerName}
@@ -452,9 +633,11 @@ export function ImageTaskViewer({
               {selectedOutput.size}
             </span>
           ) : null}
-          {selectedTaskOutputs.length > 0 ? (
+          {expectedOutputCount > 0 ? (
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-              {selectedTaskOutputs.length} 张结果
+              {expectedOutputCount > selectedTaskOutputs.length
+                ? `${selectedTaskOutputs.length} / ${expectedOutputCount} 张结果`
+                : `${selectedTaskOutputs.length} 张结果`}
             </span>
           ) : null}
         </div>
@@ -519,38 +702,249 @@ export function ImageTaskViewer({
           </div>
         ) : null}
 
-        {selectedTaskOutputs.length > 1 ? (
-          <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-            {selectedTaskOutputs.map((output) => {
-              const active = output.id === selectedOutput?.id;
+        {expectedOutputCount > 1 ? (
+          <div
+            data-testid="image-task-viewer-output-grid"
+            className={cn(
+              "mt-4 grid max-h-[min(34vh,280px)] gap-3 overflow-y-auto pb-1 pr-1 [scrollbar-gutter:stable] [scrollbar-width:thin]",
+              resolveOutputGridClassName({
+                layoutHint: selectedTask?.layoutHint,
+                outputCount: expectedOutputCount,
+              }),
+            )}
+          >
+            {outputGridSlots.map((output, index) => {
+              const active = output?.id === selectedOutput?.id;
+              const taskSlotLabel = selectedTask?.storyboardSlots?.find(
+                (slot) =>
+                  slot.slotIndex ===
+                  resolveOutputDisplayIndex(index, output?.slotIndex),
+              )?.label;
+              const storyboardSlotLabel = resolveStoryboardSlotLabel({
+                layoutHint: selectedTask?.layoutHint,
+                outputIndex: index,
+                slotIndex: output?.slotIndex,
+                slotLabel: output?.slotLabel,
+                taskSlotLabel,
+              });
               return (
                 <button
-                  key={output.id}
+                  key={output?.id || `image-output-placeholder-${index + 1}`}
                   type="button"
-                  onClick={() => onSelectOutput(output.id)}
+                  disabled={!output}
+                  onClick={() => {
+                    if (!output) {
+                      return;
+                    }
+                    onSelectOutput(output.id);
+                  }}
                   className={cn(
-                    "overflow-hidden rounded-2xl border bg-white transition",
+                    "group overflow-hidden rounded-2xl border bg-white transition",
                     active
                       ? "border-sky-300 shadow-sm shadow-sky-500/10"
-                      : "border-slate-200 hover:border-slate-300",
+                      : output
+                        ? "border-slate-200 hover:border-slate-300"
+                        : "cursor-default border-dashed border-slate-200 bg-slate-50/80",
                   )}
                 >
-                  <RenderableTaskImage
-                    src={output.url}
-                    alt={output.prompt || "图片结果缩略图"}
-                    className="h-20 w-28 object-cover"
-                    renderFallback={() => (
-                      <div className="flex h-20 w-28 items-center justify-center bg-slate-50 px-3 text-center text-[11px] font-medium text-slate-400">
-                        预览失败
+                  <div className="relative">
+                    {output ? (
+                      <RenderableTaskImage
+                        src={output.url}
+                        alt={output.prompt || "图片结果缩略图"}
+                        className={cn(
+                          "w-full object-cover",
+                          resolveOutputTileAspectClass(selectedTask?.layoutHint),
+                        )}
+                        renderFallback={() => (
+                          <div
+                            className={cn(
+                              "flex w-full items-center justify-center bg-slate-50 px-3 text-center text-[11px] font-medium text-slate-400",
+                              resolveOutputTileAspectClass(
+                                selectedTask?.layoutHint,
+                              ),
+                            )}
+                          >
+                            预览失败
+                          </div>
+                        )}
+                      />
+                    ) : (
+                      <div
+                        className={cn(
+                          "flex w-full flex-col items-center justify-center gap-2 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98))] px-3 text-center",
+                          resolveOutputTileAspectClass(selectedTask?.layoutHint),
+                        )}
+                      >
+                        {selectedTask?.status === "queued" ||
+                        selectedTask?.status === "routing" ||
+                        selectedTask?.status === "running" ? (
+                          <LoaderCircle className="h-5 w-5 animate-spin text-sky-500" />
+                        ) : (
+                          <Sparkles className="h-5 w-5 text-slate-300" />
+                        )}
+                        <span className="text-[11px] font-medium text-slate-400">
+                          {selectedTask?.status === "error"
+                            ? "本格失败"
+                            : selectedTask?.status === "cancelled"
+                              ? "已取消"
+                              : "等待生成"}
+                        </span>
                       </div>
                     )}
-                  />
+                    {expectedOutputCount > 1 ? (
+                      <span
+                        className={cn(
+                          "absolute left-2 top-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full border px-1.5 text-[11px] font-semibold shadow-sm shadow-slate-950/5",
+                          layoutLabel || active
+                            ? "border-slate-200/80 bg-white/95 text-slate-700"
+                            : "border-slate-200 bg-slate-50/95 text-slate-600",
+                        )}
+                      >
+                        {resolveOutputDisplayIndex(index, output?.slotIndex)}
+                      </span>
+                    ) : null}
+                    {storyboardSlotLabel ? (
+                      <span className="pointer-events-none absolute inset-x-2 bottom-2 line-clamp-2 rounded-[12px] bg-slate-950/66 px-2 py-1 text-left text-[10px] font-medium leading-4 text-white backdrop-blur-[1px]">
+                        {storyboardSlotLabel}
+                      </span>
+                    ) : null}
+                    {active && output ? (
+                      <span className="absolute right-2 top-2 rounded-full bg-slate-950/68 px-2.5 py-1 text-[11px] font-medium text-white">
+                        当前选中
+                      </span>
+                    ) : null}
+                  </div>
                 </button>
               );
             })}
           </div>
         ) : null}
       </div>
+      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+        <DialogContent
+          maxWidth="max-w-6xl"
+          className="overflow-hidden border-slate-200 bg-white p-0"
+        >
+          <DialogHeader className="border-b border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] px-6 py-4">
+            <DialogTitle className="pr-10 text-xl font-semibold leading-8 text-slate-950">
+              {selectedStoryboardSlot?.label || prompt}
+            </DialogTitle>
+            <DialogDescription className="space-y-1 text-sm leading-6 text-slate-600">
+              <span className="block">{prompt}</span>
+              {selectedStoryboardSlot?.prompt ? (
+                <span className="block text-slate-500">
+                  {selectedStoryboardSlot.prompt}
+                </span>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex min-h-0 flex-1 flex-col px-6 py-5">
+            <div className="relative min-h-[min(68vh,640px)] flex-1 overflow-hidden rounded-[24px] border border-slate-200 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.10),transparent_40%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98))]">
+              {selectedOutput ? (
+                <RenderableTaskImage
+                  src={selectedOutput.url}
+                  alt={selectedOutput.prompt || "图片任务结果"}
+                  className="h-full w-full object-contain"
+                />
+              ) : null}
+              {selectedTaskOutputs.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="查看上一张图片"
+                    onClick={() => handlePreviewStep(-1)}
+                    className="absolute left-4 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/92 text-slate-700 shadow-sm shadow-slate-950/10 transition hover:border-slate-300 hover:text-slate-950"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="查看下一张图片"
+                    onClick={() => handlePreviewStep(1)}
+                    className="absolute right-4 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/92 text-slate-700 shadow-sm shadow-slate-950/10 transition hover:border-slate-300 hover:text-slate-950"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </>
+              ) : null}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600">
+                {selectedOutputLabel || `${selectedTaskOutputs.length} 张结果`}
+              </span>
+              {selectedOutput?.size ? (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600">
+                  {selectedOutput.size}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleOpenSelectedImageInNewTab}
+                data-testid="image-task-viewer-open-external"
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                在新窗口打开
+              </button>
+            </div>
+            {selectedTaskOutputs.length > 1 ? (
+              <div className="mt-4 max-h-[min(24vh,220px)] overflow-y-auto pr-1 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                  {selectedTaskOutputs.map((output, index) => {
+                    const active = output.id === selectedOutput?.id;
+                    const taskSlotLabel = selectedTask?.storyboardSlots?.find(
+                      (slot) =>
+                        slot.slotIndex ===
+                        resolveOutputDisplayIndex(index, output.slotIndex),
+                    )?.label;
+                    const storyboardSlotLabel = resolveStoryboardSlotLabel({
+                      layoutHint: selectedTask?.layoutHint,
+                      outputIndex: index,
+                      slotIndex: output.slotIndex,
+                      slotLabel: output.slotLabel,
+                      taskSlotLabel,
+                    });
+
+                    return (
+                      <button
+                        key={output.id}
+                        type="button"
+                        onClick={() => onSelectOutput(output.id)}
+                        className={cn(
+                          "overflow-hidden rounded-[18px] border bg-white text-left transition",
+                          active
+                            ? "border-sky-300 shadow-sm shadow-sky-500/10"
+                            : "border-slate-200 hover:border-slate-300",
+                        )}
+                      >
+                        <div className="relative">
+                          <RenderableTaskImage
+                            src={output.url}
+                            alt={output.prompt || "图片结果缩略图"}
+                            className={cn(
+                              "w-full object-cover",
+                              resolveOutputTileAspectClass(selectedTask?.layoutHint),
+                            )}
+                          />
+                          <span className="absolute left-2 top-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 px-1.5 text-[11px] font-semibold text-slate-700 shadow-sm shadow-slate-950/5">
+                            {resolveOutputDisplayIndex(index, output.slotIndex)}
+                          </span>
+                        </div>
+                        {storyboardSlotLabel ? (
+                          <div className="line-clamp-2 px-2.5 py-2 text-[11px] font-medium leading-4 text-slate-700">
+                            {storyboardSlotLabel}
+                          </div>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -33,9 +33,9 @@ const LOCAL_ACTION_LABELS: Record<ServiceSkillRunnerType, string> = {
 };
 
 const SERVICE_SKILL_TYPE_LABELS: Record<ServiceSkillType, string> = {
-  service: "创作技能",
-  site: "站点技能",
-  prompt: "提示技能",
+  service: "创作做法",
+  site: "站点做法",
+  prompt: "提示做法",
 };
 
 interface BuildServiceSkillCapabilityDescriptionOptions {
@@ -176,7 +176,7 @@ export function buildServiceSkillCapabilityDescription(
 
 export function getServiceSkillRunnerLabel(item: ServiceSkillItem): string {
   if (resolveServiceSkillType(item) === "site") {
-    return "浏览器采集";
+    return "接着浏览器继续";
   }
   return RUNNER_LABELS[item.runnerType];
 }
@@ -191,7 +191,7 @@ export function getServiceSkillRunnerDescription(
   item: ServiceSkillItem,
 ): string {
   if (resolveServiceSkillType(item) === "site") {
-    return "会复用当前浏览器里的真实登录态执行站点任务，并优先把结果沉淀到当前工作区。";
+    return "会接着当前浏览器里的已登录页面把这一步做完，并把结果带回当前工作区。";
   }
   return RUNNER_DESCRIPTIONS[item.runnerType];
 }
@@ -245,7 +245,7 @@ export function listServiceSkillDependencies(item: ServiceSkillItem): string[] {
     requirements.push("需要已选择可用模型。");
   }
   if (item.readinessRequirements?.requiresBrowser) {
-    requirements.push("需要当前浏览器里已有对应站点的登录态。");
+    requirements.push("需要当前浏览器里已经打开并登录对应站点。");
   }
   if (item.readinessRequirements?.requiresProject) {
     requirements.push("建议在目标项目内启动，便于结果直接回写。");

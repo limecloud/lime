@@ -11,6 +11,18 @@ import {
   type HarnessSessionModeInput,
 } from "./harnessSessionMode";
 
+export interface HarnessOemRoutingRequestMetadata {
+  tenant_id: string;
+  provider_source?: string;
+  provider_key?: string;
+  default_model?: string;
+  config_mode?: string;
+  offer_state?: string;
+  quota_status?: string;
+  fallback_to_local_allowed?: boolean;
+  can_invoke?: boolean;
+}
+
 export interface BuildHarnessRequestMetadataOptions {
   base?: Record<string, unknown>;
   theme: string;
@@ -44,6 +56,7 @@ export interface BuildHarnessRequestMetadataOptions {
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
   teamMemoryShadow?: TeamMemoryShadowRequestMetadata | null;
+  oemRouting?: HarnessOemRoutingRequestMetadata | null;
 }
 
 export function extractExistingHarnessMetadata(
@@ -117,6 +130,7 @@ export function buildHarnessRequestMetadata(
     selectedTeamSummary,
     selectedTeamRoles,
     teamMemoryShadow,
+    oemRouting,
   } = options;
 
   const serializeTeamRoles = (roles?: TeamRoleDefinition[] | null) =>
@@ -161,6 +175,7 @@ export function buildHarnessRequestMetadata(
     selected_team_summary: selectedTeamSummary || undefined,
     selected_team_roles: serializeTeamRoles(selectedTeamRoles),
     team_memory_shadow: teamMemoryShadow || undefined,
+    oem_routing: oemRouting || undefined,
     browser_requirement: browserRequirement || undefined,
     browser_requirement_reason: browserRequirementReason || undefined,
     browser_launch_url: browserLaunchUrl || undefined,

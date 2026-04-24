@@ -387,6 +387,7 @@ describe("SceneAppExecutionSummaryCard", () => {
   it("应在生成主执行面展示最近可消费结果并支持打开文件", () => {
     const onDeliveryArtifactAction = vi.fn();
     const onReviewCurrentProject = vi.fn();
+    const onSaveAsInspiration = vi.fn();
     const onSaveAsSkill = vi.fn();
     const onOpenSceneAppDetail = vi.fn();
     const onOpenSceneAppGovernance = vi.fn();
@@ -401,6 +402,7 @@ describe("SceneAppExecutionSummaryCard", () => {
       latestPackResultDetailView: createLatestPackResultDetailView(),
       latestPackResultUsesFallback: true,
       onReviewCurrentProject,
+      onSaveAsInspiration,
       onSaveAsSkill,
       onOpenSceneAppDetail,
       onOpenSceneAppGovernance,
@@ -524,6 +526,9 @@ describe("SceneAppExecutionSummaryCard", () => {
     const reviewCurrentProjectButton = container.querySelector(
       '[data-testid="sceneapp-execution-summary-review-current-project"]',
     );
+    const saveAsInspirationButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-save-as-inspiration"]',
+    );
     const saveAsSkillButton = container.querySelector(
       '[data-testid="sceneapp-execution-summary-save-as-skill"]',
     );
@@ -565,6 +570,7 @@ describe("SceneAppExecutionSummaryCard", () => {
     );
     expect(button).not.toBeNull();
     expect(reviewCurrentProjectButton).not.toBeNull();
+    expect(saveAsInspirationButton).not.toBeNull();
     expect(saveAsSkillButton).not.toBeNull();
     expect(detailButton).not.toBeNull();
     expect(governanceButton).not.toBeNull();
@@ -583,6 +589,9 @@ describe("SceneAppExecutionSummaryCard", () => {
     act(() => {
       button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       reviewCurrentProjectButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      saveAsInspirationButton?.dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
       saveAsSkillButton?.dispatchEvent(
@@ -633,6 +642,7 @@ describe("SceneAppExecutionSummaryCard", () => {
       }),
     );
     expect(onReviewCurrentProject).toHaveBeenCalledTimes(1);
+    expect(onSaveAsInspiration).toHaveBeenCalledTimes(1);
     expect(onSaveAsSkill).toHaveBeenCalledTimes(1);
     expect(onOpenSceneAppDetail).toHaveBeenCalledTimes(1);
     expect(onOpenSceneAppGovernance).toHaveBeenCalledTimes(1);
@@ -689,6 +699,46 @@ describe("SceneAppExecutionSummaryCard", () => {
         key: "upload_prepare",
       }),
     );
+  });
+
+  it("结果已沉淀后应把灵感按钮切成已保存状态", () => {
+    const container = renderCard({
+      latestPackResultDetailView: createLatestPackResultDetailView(),
+      savedAsInspiration: true,
+      onSaveAsInspiration: vi.fn(),
+    });
+
+    const saveButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-save-as-inspiration"]',
+    ) as HTMLButtonElement | null;
+    expect(saveButton?.textContent).toContain("已收进灵感库");
+    expect(saveButton?.disabled).toBe(true);
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-execution-summary-saved-inspiration-hint"]',
+      )?.textContent,
+    ).toContain("下一轮推荐会继续带上它");
+  });
+
+  it("结果已沉淀后应支持直接去灵感库继续", () => {
+    const onOpenInspirationLibrary = vi.fn();
+    const container = renderCard({
+      latestPackResultDetailView: createLatestPackResultDetailView(),
+      savedAsInspiration: true,
+      onSaveAsInspiration: vi.fn(),
+      onOpenInspirationLibrary,
+    });
+
+    const openButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-open-inspiration-library"]',
+    ) as HTMLButtonElement | null;
+    expect(openButton?.textContent).toContain("去灵感库继续");
+
+    act(() => {
+      openButton?.click();
+    });
+
+    expect(onOpenInspirationLibrary).toHaveBeenCalledTimes(1);
   });
 
   it("缺件时应在同聊推进里禁用进入发布整理并提示阻塞原因", () => {

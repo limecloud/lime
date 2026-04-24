@@ -136,6 +136,7 @@ vi.mock("../../skill-selection/SkillBadge", () => ({
 vi.mock("../../skill-selection/CuratedTaskBadge", () => ({
   CuratedTaskBadge: (props: {
     task?: {
+      id?: string;
       title?: string;
       followUpActions?: string[];
     };
@@ -146,10 +147,24 @@ vi.mock("../../skill-selection/CuratedTaskBadge", () => ({
       sourceKind?: string;
     }>;
     onEdit?: () => void;
+    onApplyReviewSuggestion?: (task: {
+      id: string;
+      title: string;
+      prompt: string;
+      requiredInputFields: Array<{
+        key: string;
+        label: string;
+        placeholder: string;
+        type: "text" | "textarea";
+      }>;
+      outputContract: string[];
+      followUpActions: string[];
+    }) => void;
     onClear?: () => void;
   }) => (
     <div
       data-testid="curated-task-badge"
+      data-task-id={props.task?.id ?? ""}
       data-project-id={props.projectId ?? ""}
       data-session-id={props.sessionId ?? ""}
       data-reference-count={String(props.referenceEntries?.length ?? 0)}
@@ -163,6 +178,20 @@ vi.mock("../../skill-selection/CuratedTaskBadge", () => ({
         onClick={props.onEdit}
       >
         编辑
+      </button>
+      <button
+        type="button"
+        data-testid="curated-task-badge-review-action"
+        onClick={() => {
+          const suggestedTask = findCuratedTaskTemplateById(
+            "account-project-review",
+          );
+          if (suggestedTask) {
+            props.onApplyReviewSuggestion?.(suggestedTask);
+          }
+        }}
+      >
+        改用复盘
       </button>
       <button
         type="button"
@@ -197,7 +226,34 @@ vi.mock("../CuratedTaskLauncherDialog", () => ({
       categoryLabel: string;
       tags: string[];
     }> | null;
+    prefillHint?: string | null;
     onOpenChange?: (open: boolean) => void;
+    onApplyReviewSuggestion?: (
+      task: {
+        id: string;
+        requiredInputFields: Array<{
+          key: string;
+          label: string;
+        }>;
+        prompt: string;
+        outputContract: string[];
+        followUpActions: string[];
+      },
+      options: {
+        inputValues: Record<string, string>;
+        referenceSelection: {
+          referenceMemoryIds: string[];
+          referenceEntries: Array<{
+            id: string;
+            title: string;
+            summary: string;
+            category: string;
+            categoryLabel: string;
+            tags: string[];
+          }>;
+        };
+      },
+    ) => void;
     onConfirm?: (
       task: {
         id: string;
@@ -257,9 +313,16 @@ vi.mock("../CuratedTaskLauncherDialog", () => ({
     return (
       <div
         data-testid="curated-task-launcher-dialog"
+        data-task-id={props.task.id}
         data-project-id={props.projectId ?? ""}
         data-session-id={props.sessionId ?? ""}
+        data-reference-memory-count={String(referenceMemoryIds.length)}
       >
+        {props.prefillHint ? (
+          <div data-testid="curated-task-launcher-prefill-hint">
+            {props.prefillHint}
+          </div>
+        ) : null}
         {props.task.requiredInputFields.map((field) => (
           <label key={field.key}>
             {field.label}
@@ -285,6 +348,39 @@ vi.mock("../CuratedTaskLauncherDialog", () => ({
           }
         >
           切换引用
+        </button>
+        <button
+          type="button"
+          data-testid="curated-task-dialog-review-action"
+          onClick={() => {
+            const suggestedTask = findCuratedTaskTemplateById(
+              "account-project-review",
+            );
+            if (!suggestedTask) {
+              return;
+            }
+
+            props.onApplyReviewSuggestion?.(suggestedTask, {
+              inputValues,
+              referenceSelection: {
+                referenceMemoryIds,
+                referenceEntries: referenceMemoryIds.includes("memory-1")
+                  ? [
+                      {
+                        id: "memory-1",
+                        title: "品牌风格样本",
+                        summary: "保留轻盈但专业的表达。",
+                        category: "context",
+                        categoryLabel: "参考",
+                        tags: ["品牌", "语气"],
+                      },
+                    ]
+                  : [],
+              },
+            });
+          }}
+        >
+          改用复盘
         </button>
         <button
           type="button"
@@ -1200,6 +1296,216 @@ describe("Inputbar", () => {
     ) as HTMLDivElement | null;
     expect(launcherDialog?.dataset.projectId).toBe("project-review-chain");
     expect(launcherDialog?.dataset.sessionId).toBe("session-review-chain");
+  });
+
+  it("输入条已激活结果模板时，应支持从 badge 直接切到最近复盘推荐模板", async () => {
+    const setInput = vi.fn();
+    const onSend = vi.fn();
+    const initialLaunchInputValues = {
+      theme_target: "AI 内容创作",
+      platform_region: "X 与 TikTok 北美区",
+    };
+    const initialPrompt = buildCuratedTaskLaunchPrompt({
+      task: {
+        prompt:
+          "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+        requiredInputFields: [
+          {
+            key: "theme_target",
+            label: "主题或赛道",
+            placeholder: "",
+            type: "text",
+          },
+          {
+            key: "platform_region",
+            label: "希望关注的平台/地域",
+            placeholder: "",
+            type: "text",
+          },
+        ],
+        outputContract: ["趋势摘要", "3 个优先选题", "代表案例线索"],
+      },
+      inputValues: initialLaunchInputValues,
+    });
+    const suggestedTask = findCuratedTaskTemplateById("account-project-review");
+    expect(suggestedTask).toBeTruthy();
+    const expectedPrompt = buildCuratedTaskLaunchPrompt({
+      task: suggestedTask!,
+      inputValues: initialLaunchInputValues,
+    });
+    const rendered = renderInputbar({
+      input: initialPrompt,
+      setInput,
+      onSend,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt: initialPrompt,
+          launchInputValues: initialLaunchInputValues,
+        },
+        requestKey: 2026042401,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const reviewAction = document.querySelector(
+      '[data-testid="curated-task-badge-review-action"]',
+    ) as HTMLButtonElement | null;
+    expect(reviewAction).toBeTruthy();
+
+    await act(async () => {
+      reviewAction?.click();
+      await Promise.resolve();
+    });
+
+    expect(setInput).toHaveBeenLastCalledWith(expectedPrompt);
+
+    const curatedTaskBadge = document.querySelector(
+      '[data-testid="curated-task-badge"]',
+    ) as HTMLDivElement | null;
+    expect(curatedTaskBadge?.dataset.taskId).toBe("account-project-review");
+
+    rendered.rerender({
+      input: expectedPrompt,
+      setInput,
+      onSend,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt: initialPrompt,
+          launchInputValues: initialLaunchInputValues,
+        },
+        requestKey: 2026042401,
+      },
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      expect.objectContaining({
+        capabilityRoute: expect.objectContaining({
+          kind: "curated_task",
+          taskId: "account-project-review",
+          prompt: expectedPrompt,
+          launchInputValues: initialLaunchInputValues,
+        }),
+        displayContent: expectedPrompt,
+      }),
+    );
+  });
+
+  it("输入条编辑态 launcher 按最近复盘切模板时，应保留参考选择并显示提示", async () => {
+    const initialLaunchInputValues = {
+      theme_target: "AI 内容创作",
+      platform_region: "X 与 TikTok 北美区",
+    };
+    const initialPrompt = buildCuratedTaskLaunchPrompt({
+      task: {
+        prompt:
+          "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+        requiredInputFields: [
+          {
+            key: "theme_target",
+            label: "主题或赛道",
+            placeholder: "",
+            type: "text",
+          },
+          {
+            key: "platform_region",
+            label: "希望关注的平台/地域",
+            placeholder: "",
+            type: "text",
+          },
+        ],
+        outputContract: ["趋势摘要", "3 个优先选题", "代表案例线索"],
+      },
+      inputValues: initialLaunchInputValues,
+    });
+
+    renderInputbar({
+      input: initialPrompt,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt: initialPrompt,
+          launchInputValues: initialLaunchInputValues,
+        },
+        requestKey: 2026042402,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const editButton = document.querySelector(
+      '[data-testid="curated-task-badge-edit"]',
+    ) as HTMLButtonElement | null;
+    expect(editButton).toBeTruthy();
+
+    await act(async () => {
+      editButton?.click();
+      await Promise.resolve();
+    });
+
+    const referenceToggle = document.querySelector(
+      '[data-testid="curated-task-dialog-reference-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(referenceToggle).toBeTruthy();
+
+    await act(async () => {
+      referenceToggle?.click();
+      await Promise.resolve();
+    });
+
+    const reviewAction = document.querySelector(
+      '[data-testid="curated-task-dialog-review-action"]',
+    ) as HTMLButtonElement | null;
+    expect(reviewAction).toBeTruthy();
+
+    await act(async () => {
+      reviewAction?.click();
+      await Promise.resolve();
+    });
+
+    const launcherDialog = document.querySelector(
+      '[data-testid="curated-task-launcher-dialog"]',
+    ) as HTMLDivElement | null;
+    expect(launcherDialog?.dataset.taskId).toBe("account-project-review");
+    expect(launcherDialog?.dataset.referenceMemoryCount).toBe("1");
+
+    const prefillHint = document.querySelector(
+      '[data-testid="curated-task-launcher-prefill-hint"]',
+    );
+    expect(prefillHint?.textContent).toContain(
+      "已按最近复盘切到更适合的结果模板",
+    );
   });
 
   it("输入条已激活复盘模板时，应把 sceneapp 项目结果引用透传给 badge", async () => {

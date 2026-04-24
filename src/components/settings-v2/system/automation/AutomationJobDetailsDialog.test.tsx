@@ -159,7 +159,7 @@ async function leaveTip(trigger: HTMLButtonElement | null) {
 }
 
 describe("AutomationJobDetailsDialog", () => {
-  it("做法闭环应复用统一经营判断摘要", async () => {
+  it("做法闭环应复用统一这轮判断摘要", async () => {
     await renderDialog({
       sceneAppSummaryCard: {
         sceneappId: "story-video-suite",
@@ -220,12 +220,10 @@ describe("AutomationJobDetailsDialog", () => {
       },
     });
 
-    expect(getBodyText()).toContain("经营判断");
+    expect(getBodyText()).toContain("这轮判断");
     expect(getBodyText()).toContain("先补复核与修复");
     expect(getBodyText()).toContain("建议继续优化");
     expect(getBodyText()).toContain("复核阻塞");
-    expect(getBodyText()).toContain("周会复盘");
-    expect(getBodyText()).toContain("生成 / 看板");
   });
 
   it("做法闭环里的业务去向应支持直接执行", async () => {
@@ -398,6 +396,152 @@ describe("AutomationJobDetailsDialog", () => {
     });
 
     expect(onRefreshHistory).toHaveBeenCalledWith("job-browser-1");
+  });
+
+  it("做法结果详情应支持直接保存到灵感库", async () => {
+    const onSaveSceneAppAsInspiration = vi.fn();
+
+    await renderDialog({
+      sceneAppSummaryCard: {
+        sceneappId: "story-video-suite",
+        title: "短视频编排",
+        businessLabel: "内容闭环",
+        typeLabel: "多模态组合",
+        patternSummary: "步骤链",
+        status: "risk",
+        statusLabel: "先补复核与修复",
+        summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
+        nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+        scorecardActionLabel: "建议继续优化",
+        topFailureSignalLabel: "复核阻塞",
+        destinations: [],
+        scorecardAggregate: null,
+        automationSummary: "1 条自动化任务 · 1 条启用中 · 1 条带风险提醒",
+        latestAutomationLabel: "最近投放任务：浏览器巡检 · 等待人工接管",
+      } as any,
+      sceneAppRunDetailView: {
+        runId: "sceneapp-run-1",
+        status: "success",
+        statusLabel: "成功",
+        stageLabel: "结果已交付",
+        summary: "最近一轮样本已经回流了可继续消费的结果文件。",
+        nextAction: "继续进入编辑或发布。",
+        sourceLabel: "自动化执行",
+        artifactCount: 2,
+        deliveryCompletionLabel: "整包已交齐 2/2 个部件",
+        deliverySummary: "当前结果包已完整回流。",
+        deliveryRequiredParts: [],
+        deliveryCompletedParts: [],
+        deliveryMissingParts: [],
+        deliveryPartCoverageKnown: true,
+        plannedDeliveryRequiredParts: [],
+        packPlanNotes: [],
+        deliveryArtifactEntries: [],
+        governanceActionEntries: [],
+        governanceArtifactEntries: [],
+        failureSignalLabel: null,
+        evidenceSourceLabel: "当前已接入会话证据",
+        requestTelemetryLabel: "已关联请求遥测。",
+        artifactValidatorLabel: "Artifact 校验没有发现阻塞问题。",
+        evidenceKnownGaps: [],
+        verificationFailureOutcomes: [],
+        startedAtLabel: "2026-03-16 00:00",
+        finishedAtLabel: "2026-03-16 00:03",
+        durationLabel: "3 分钟",
+        entryAction: null,
+      } as any,
+      onSaveSceneAppAsInspiration,
+    });
+
+    const saveButton = document.querySelector(
+      '[data-testid="sceneapp-run-detail-save-as-inspiration"]',
+    ) as HTMLButtonElement | null;
+    expect(saveButton).toBeTruthy();
+
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSaveSceneAppAsInspiration).toHaveBeenCalledTimes(1);
+  });
+
+  it("做法结果已沉淀到灵感库时应展示已保存提示", async () => {
+    const onOpenInspirationLibrary = vi.fn();
+    await renderDialog({
+      sceneAppSummaryCard: {
+        sceneappId: "story-video-suite",
+        title: "短视频编排",
+        businessLabel: "内容闭环",
+        typeLabel: "多模态组合",
+        patternSummary: "步骤链",
+        status: "healthy",
+        statusLabel: "可以继续",
+        summary: "这套做法最近一轮已经产出可继续消费的结果包。",
+        nextAction: "把这轮结果带回下一步继续放大。",
+        scorecardActionLabel: "继续放大",
+        topFailureSignalLabel: null,
+        destinations: [],
+        scorecardAggregate: null,
+        automationSummary: "1 条自动化任务 · 1 条启用中",
+        latestAutomationLabel: "最近投放任务：浏览器巡检",
+      } as any,
+      sceneAppRunDetailView: {
+        runId: "sceneapp-run-1",
+        status: "success",
+        statusLabel: "成功",
+        stageLabel: "结果已交付",
+        summary: "最近一轮样本已经回流了可继续消费的结果文件。",
+        nextAction: "继续进入编辑或发布。",
+        sourceLabel: "自动化执行",
+        artifactCount: 2,
+        deliveryCompletionLabel: "整包已交齐 2/2 个部件",
+        deliverySummary: "当前结果包已完整回流。",
+        deliveryRequiredParts: [],
+        deliveryCompletedParts: [],
+        deliveryMissingParts: [],
+        deliveryPartCoverageKnown: true,
+        plannedDeliveryRequiredParts: [],
+        packPlanNotes: [],
+        deliveryArtifactEntries: [],
+        governanceActionEntries: [],
+        governanceArtifactEntries: [],
+        failureSignalLabel: null,
+        evidenceSourceLabel: "当前已接入会话证据",
+        requestTelemetryLabel: "已关联请求遥测。",
+        artifactValidatorLabel: "Artifact 校验没有发现阻塞问题。",
+        evidenceKnownGaps: [],
+        verificationFailureOutcomes: [],
+        startedAtLabel: "2026-03-16 00:00",
+        finishedAtLabel: "2026-03-16 00:03",
+        durationLabel: "3 分钟",
+        entryAction: null,
+      } as any,
+      sceneAppSavedAsInspiration: true,
+      onSaveSceneAppAsInspiration: vi.fn(),
+      onOpenInspirationLibrary,
+    });
+
+    const savedButton = document.querySelector(
+      '[data-testid="sceneapp-run-detail-save-as-inspiration"]',
+    ) as HTMLButtonElement | null;
+    expect(savedButton?.textContent).toContain("已收进灵感库");
+    expect(savedButton?.disabled).toBe(true);
+    expect(getBodyText()).toContain(
+      "这轮结果已进入灵感库，下一轮推荐会继续带上它。",
+    );
+
+    const openButton = document.querySelector(
+      '[data-testid="sceneapp-run-detail-open-inspiration-library"]',
+    ) as HTMLButtonElement | null;
+    expect(openButton?.textContent).toContain("去灵感库继续");
+
+    await act(async () => {
+      openButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onOpenInspirationLibrary).toHaveBeenCalledTimes(1);
   });
 
   it("agent_turn 任务详情应展示解析后的权限模式", async () => {

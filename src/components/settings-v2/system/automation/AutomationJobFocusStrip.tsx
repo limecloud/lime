@@ -37,16 +37,11 @@ export function AutomationJobFocusStrip({
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge className="border-sky-200 bg-white text-sky-700 hover:bg-white">
-          当前经营焦点
+          现在先继续这条
         </Badge>
         {summaryCard?.title ? (
           <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
             {summaryCard.title}
-          </span>
-        ) : null}
-        {summaryCard?.businessLabel ? (
-          <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
-            {summaryCard.businessLabel}
           </span>
         ) : null}
         {summaryCard?.statusLabel ? (
@@ -58,13 +53,13 @@ export function AutomationJobFocusStrip({
 
       {loading && !primarySummary ? (
         <div className="mt-3 text-xs leading-6 text-slate-600">
-          正在整理这条持续流程的结果基线与经营判断…
+          正在整理这条做法最近一轮的结果和下一步…
         </div>
       ) : null}
 
       {primarySummary ? (
         <div className="mt-3 text-xs leading-6 text-slate-700">
-          当前判断：{primarySummary}
+          这轮判断：{primarySummary}
         </div>
       ) : null}
 
@@ -77,7 +72,7 @@ export function AutomationJobFocusStrip({
 
       {nextAction ? (
         <div className="mt-1 text-xs leading-6 text-slate-600">
-          下一步：{nextAction}
+          先做：{nextAction}
         </div>
       ) : null}
 
@@ -113,7 +108,7 @@ export function AutomationJobFocusStrip({
                 onOpenSceneAppGovernance();
               }}
             >
-              去做法复盘
+              看做法复盘
             </Button>
           ) : null}
         </div>

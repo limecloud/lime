@@ -19,6 +19,7 @@ import {
   exportAgentRuntimeReviewDecisionTemplate,
   saveAgentRuntimeReviewDecision,
   getAsterAgentStatus,
+  generateAgentRuntimeTitleResult,
   generateAgentRuntimeTitle,
   generateAgentRuntimeSessionTitle,
   getAgentRuntimeSession,
@@ -1552,6 +1553,78 @@ describe("Agent API 治理护栏", () => {
     expect(mockSafeInvoke).toHaveBeenCalledWith("agent_generate_title", {
       previewText: "赛博朋克风城市夜景主视觉",
       titleKind: "image_task",
+    });
+  });
+
+  it("generateAgentRuntimeTitleResult 应解析 runtime 诊断结果", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      title: "城市夜景主视觉",
+      sessionId: "title-gen-1",
+      executionRuntime: {
+        session_id: "title-gen-1",
+        source: "runtime_snapshot",
+        task_profile: {
+          kind: "generation_topic",
+          source: "auxiliary_generation_topic",
+        },
+        routing_decision: {
+          routingMode: "single_candidate",
+          decisionSource: "service_model_setting",
+          decisionReason: "命中 service_models.generation_topic",
+          candidateCount: 1,
+        },
+        limit_state: {
+          status: "single_candidate_only",
+          singleCandidateOnly: true,
+          providerLocked: true,
+          settingsLocked: true,
+          oemLocked: false,
+          candidateCount: 1,
+        },
+        cost_state: {
+          status: "estimated",
+          estimatedCostClass: "low",
+        },
+      },
+      usedFallback: false,
+    });
+
+    await expect(
+      generateAgentRuntimeTitleResult({
+        previewText: "赛博朋克风城市夜景主视觉",
+        titleKind: "image_task",
+      }),
+    ).resolves.toEqual({
+      title: "城市夜景主视觉",
+      sessionId: "title-gen-1",
+      executionRuntime: {
+        session_id: "title-gen-1",
+        source: "runtime_snapshot",
+        task_profile: {
+          kind: "generation_topic",
+          source: "auxiliary_generation_topic",
+        },
+        routing_decision: {
+          routingMode: "single_candidate",
+          decisionSource: "service_model_setting",
+          decisionReason: "命中 service_models.generation_topic",
+          candidateCount: 1,
+        },
+        limit_state: {
+          status: "single_candidate_only",
+          singleCandidateOnly: true,
+          providerLocked: true,
+          settingsLocked: true,
+          oemLocked: false,
+          candidateCount: 1,
+        },
+        cost_state: {
+          status: "estimated",
+          estimatedCostClass: "low",
+        },
+      },
+      usedFallback: false,
+      fallbackReason: null,
     });
   });
 

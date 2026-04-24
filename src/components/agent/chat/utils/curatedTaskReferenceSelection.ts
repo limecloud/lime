@@ -31,6 +31,25 @@ const CATEGORY_LABELS: Record<MemoryCategory, string> = {
   activity: "收藏",
 };
 
+const EXPERIENCE_MEMORY_REVIEW_TASK_ID = "account-project-review";
+const EXPERIENCE_MEMORY_TREND_TASK_ID = "daily-trend-briefing";
+const EXPERIENCE_MEMORY_SOCIAL_POST_TASK_ID = "social-post-starter";
+const EXPERIENCE_MEMORY_GOAL_LABELS = ["场景", "项目", "目标"] as const;
+const EXPERIENCE_MEMORY_PLATFORM_LABELS = [
+  "平台",
+  "目标平台",
+  "发布平台",
+  "渠道",
+  "发布渠道",
+] as const;
+const EXPERIENCE_MEMORY_REGION_LABELS = ["地区", "地域", "区域", "语种"] as const;
+const EXPERIENCE_MEMORY_AUDIENCE_LABELS = [
+  "目标受众",
+  "受众",
+  "目标用户",
+  "用户",
+] as const;
+
 export function getCuratedTaskReferenceCategoryLabel(
   category: MemoryCategory,
 ): string {
@@ -58,6 +77,196 @@ function truncateText(value: string, maxLength: number): string {
   }
 
   return `${value.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function dedupeNonEmptyText(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => normalizeOptionalText(value))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractStructuredContentLine(
+  source: string,
+  label: string,
+): string | undefined {
+  const match = source.match(
+    new RegExp(`(?:^|\\n)\\s*${escapeRegExp(label)}：\\s*(.+?)(?=\\n|$)`),
+  );
+  return normalizeOptionalText(match?.[1]);
+}
+
+function buildStructuredContentLine(
+  source: string,
+  label: string,
+): string | undefined {
+  const value = extractStructuredContentLine(source, label);
+  return value ? `${label}：${value}` : undefined;
+}
+
+function extractFirstStructuredContentLine(
+  source: string,
+  labels: readonly string[],
+): string | undefined {
+  for (const label of labels) {
+    const value = extractStructuredContentLine(source, label);
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function getNormalizedMemoryContent(memory: UnifiedMemory): string {
+  return typeof memory.content === "string"
+    ? memory.content.replace(/\r\n/g, "\n")
+    : "";
+}
+
+function normalizeExperienceMemoryProjectGoal(
+  memory: UnifiedMemory,
+): string | undefined {
+  const content = getNormalizedMemoryContent(memory);
+  const title = normalizeOptionalText(memory.title);
+  const structuredGoal = extractFirstStructuredContentLine(
+    content,
+    EXPERIENCE_MEMORY_GOAL_LABELS,
+  );
+  if (structuredGoal) {
+    return structuredGoal;
+  }
+  if (!title) {
+    return undefined;
+  }
+
+  const compactTitle = normalizeOptionalText(title.replace(/结果闭环$/, ""));
+  const strippedTitle =
+    compactTitle?.split(/\s*[·•｜|]\s*/)[0] ?? compactTitle;
+  return normalizeOptionalText(strippedTitle) || compactTitle;
+}
+
+function buildExperienceMemoryExistingResults(
+  memory: UnifiedMemory,
+): string | undefined {
+  const content = getNormalizedMemoryContent(memory);
+  const structuredSummary = dedupeNonEmptyText([
+    memory.summary,
+    buildStructuredContentLine(content, "结果摘要"),
+    buildStructuredContentLine(content, "当前交付"),
+    buildStructuredContentLine(content, "建议下一步"),
+    buildStructuredContentLine(content, "当前信号"),
+    buildStructuredContentLine(content, "最近反馈"),
+    buildStructuredContentLine(content, "运行态回流"),
+    buildStructuredContentLine(content, "当前判断"),
+  ]).join(" ");
+
+  if (structuredSummary) {
+    return truncateText(structuredSummary, 320);
+  }
+
+  const fallbackSummary = dedupeNonEmptyText([
+    memory.summary,
+    memory.content,
+  ]).join(" ");
+  return fallbackSummary ? truncateText(fallbackSummary, 320) : undefined;
+}
+
+function buildExperienceMemoryPlatformRegion(
+  memory: UnifiedMemory,
+): string | undefined {
+  const content = getNormalizedMemoryContent(memory);
+  const platform = extractFirstStructuredContentLine(
+    content,
+    EXPERIENCE_MEMORY_PLATFORM_LABELS,
+  );
+  const region = extractFirstStructuredContentLine(
+    content,
+    EXPERIENCE_MEMORY_REGION_LABELS,
+  );
+  if (platform && region) {
+    if (platform.includes(region)) {
+      return platform;
+    }
+
+    return `${platform}（${region}）`;
+  }
+
+  return platform || region;
+}
+
+function buildExperienceMemoryAudience(
+  memory: UnifiedMemory,
+): string | undefined {
+  return extractFirstStructuredContentLine(
+    getNormalizedMemoryContent(memory),
+    EXPERIENCE_MEMORY_AUDIENCE_LABELS,
+  );
+}
+
+function buildExperienceMemorySocialPostSubject(
+  memory: UnifiedMemory,
+): string | undefined {
+  const subject = dedupeNonEmptyText([
+    normalizeExperienceMemoryProjectGoal(memory)
+      ? `当前主题：${normalizeExperienceMemoryProjectGoal(memory)}`
+      : null,
+    buildExperienceMemoryExistingResults(memory)
+      ? `当前结果基线：${buildExperienceMemoryExistingResults(memory)}`
+      : null,
+  ]).join("\n");
+
+  return subject ? truncateText(subject, 600) : undefined;
+}
+
+function buildCuratedTaskPrefillByTaskIdFromMemory(
+  memory: UnifiedMemory,
+): Record<string, CuratedTaskInputValues> | undefined {
+  if (memory.category !== "experience") {
+    return undefined;
+  }
+
+  const projectGoal = normalizeExperienceMemoryProjectGoal(memory);
+  const existingResults = buildExperienceMemoryExistingResults(memory);
+  const platformRegion = buildExperienceMemoryPlatformRegion(memory);
+  const targetAudience = buildExperienceMemoryAudience(memory);
+  const subjectOrProduct = buildExperienceMemorySocialPostSubject(memory);
+  const reviewPrefill = normalizeCuratedTaskLaunchInputValues({
+    project_goal: projectGoal || "",
+    existing_results: existingResults || "",
+  });
+  const dailyTrendPrefill = normalizeCuratedTaskLaunchInputValues({
+    theme_target: projectGoal || "",
+    platform_region: platformRegion || "",
+  });
+  const socialPostPrefill = normalizeCuratedTaskLaunchInputValues({
+    subject_or_product: subjectOrProduct || "",
+    target_audience: targetAudience || "",
+  });
+
+  const prefillByTaskId: Record<string, CuratedTaskInputValues> = {};
+  if (reviewPrefill) {
+    prefillByTaskId[EXPERIENCE_MEMORY_REVIEW_TASK_ID] = reviewPrefill;
+  }
+  if (dailyTrendPrefill) {
+    prefillByTaskId[EXPERIENCE_MEMORY_TREND_TASK_ID] = dailyTrendPrefill;
+  }
+  if (socialPostPrefill) {
+    prefillByTaskId[EXPERIENCE_MEMORY_SOCIAL_POST_TASK_ID] = socialPostPrefill;
+  }
+
+  if (Object.keys(prefillByTaskId).length === 0) {
+    return undefined;
+  }
+
+  return prefillByTaskId;
 }
 
 function compactRecord<T extends Record<string, unknown>>(record: T): T {
@@ -275,6 +484,7 @@ export function buildCuratedTaskReferenceEntries(
         category: memory.category,
         categoryLabel: CATEGORY_LABELS[memory.category],
         tags: memory.tags,
+        taskPrefillByTaskId: buildCuratedTaskPrefillByTaskIdFromMemory(memory),
       };
     }),
   );

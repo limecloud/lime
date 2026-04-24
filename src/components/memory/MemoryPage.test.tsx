@@ -7,6 +7,10 @@ import {
   setReactActEnvironment,
   type MountedRoot,
 } from "@/components/image-gen/test-utils";
+import {
+  CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT,
+  recordCuratedTaskRecommendationSignalFromReviewDecision,
+} from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import { recordRuntimeMemoryPrefetchHistory } from "@/lib/runtimeMemoryPrefetchHistory";
 import { MemoryPage } from "./MemoryPage";
 
@@ -80,8 +84,10 @@ vi.mock("@/lib/workspace/navigation", () => ({
 const mountedRoots: MountedRoot[] = [];
 
 function renderPage(options?: {
-  section?: "home" | "identity" | "rules";
+  section?: "home" | "identity" | "rules" | "experience";
   onNavigate?: (page: string, params?: unknown) => void;
+  focusMemoryTitle?: string;
+  focusMemoryCategory?: "identity" | "context" | "preference" | "experience" | "activity";
   runtimeSessionId?: string;
   runtimeWorkingDir?: string;
   runtimeUserMessage?: string;
@@ -91,6 +97,8 @@ function renderPage(options?: {
       onNavigate={options?.onNavigate || vi.fn()}
       pageParams={{
         section: options?.section || "home",
+        focusMemoryTitle: options?.focusMemoryTitle,
+        focusMemoryCategory: options?.focusMemoryCategory,
         runtimeSessionId: options?.runtimeSessionId,
         runtimeWorkingDir: options?.runtimeWorkingDir,
         runtimeUserMessage: options?.runtimeUserMessage,
@@ -98,6 +106,25 @@ function renderPage(options?: {
     />,
     mountedRoots,
   ).container;
+}
+
+function updateFieldValue(
+  element: HTMLInputElement | HTMLTextAreaElement | null,
+  value: string,
+) {
+  expect(element).toBeTruthy();
+  if (!element) {
+    return;
+  }
+
+  const prototype =
+    element instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  setter?.call(element, value);
+  element.dispatchEvent(new Event("input", { bubbles: true }));
+  element.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 async function flushPageEffects(times = 4) {
@@ -305,6 +332,7 @@ describe("MemoryPage", () => {
 
     const bodyText = document.body.textContent ?? "";
     expect(bodyText).toContain("灵感库总览");
+    expect(bodyText).toContain("围绕当前灵感，先拿结果");
     expect(bodyText).toContain("可继续复用的灵感对象");
     expect(bodyText).toContain("这次可带上的参考素材");
     expect(bodyText).toContain("系统已提炼的创作倾向");
@@ -313,8 +341,335 @@ describe("MemoryPage", () => {
     expect(bodyText).toContain("0 条参考素材");
     expect(bodyText).toContain("4 个风格关键词");
     expect(bodyText).toContain("1 条来源已接入");
+    expect(bodyText).toContain("1 条参考对象");
+    expect(bodyText).toContain("内容主稿生成");
     expect(bodyText).toContain("风格层摘要");
     expect(bodyText).toContain("夏日短视频语气");
+  });
+
+  it("应支持从灵感库推荐结果模板进入共享 launcher，再带着参考对象进入生成", async () => {
+    const onNavigate = vi.fn();
+    renderPage({ onNavigate });
+    await flushPageEffects();
+
+    const launchButton = Array.from(document.body.querySelectorAll("button")).find(
+      (element) =>
+        element.textContent?.includes("开始这一步") &&
+        element.closest("article")?.textContent?.includes("内容主稿生成"),
+    );
+    expect(launchButton).toBeTruthy();
+
+    await act(async () => {
+      launchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await flushPageEffects();
+
+    expect(document.body.textContent ?? "").toContain("开始这一步前，我先确认几件事。");
+    expect(document.body.textContent ?? "").toContain("已选择 1 条参考对象");
+
+    const subjectField = document.body.querySelector(
+      'textarea[placeholder="输入主题、产品、活动或你已经掌握的关键信息"]',
+    ) as HTMLTextAreaElement | null;
+    const audienceField = document.body.querySelector(
+      'input[placeholder="例如 25-35 岁新消费品牌运营，或 正在找 AI 剪辑工具的创作者"]',
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(subjectField, "夏日饮品新品上线，需要一版小红书首发主稿");
+      updateFieldValue(audienceField, "喜欢轻快口播风格的小红书用户");
+      await Promise.resolve();
+    });
+
+    const confirmButton = document.body.querySelector(
+      '[data-testid="curated-task-launcher-confirm"]',
+    ) as HTMLButtonElement | null;
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agentEntry: "new-task",
+        projectId: "project-42",
+        entryBannerMessage:
+          "已从灵感库推荐“内容主稿生成”带着启动信息进入生成，可继续补充后发送。",
+        initialInputCapability: expect.objectContaining({
+          capabilityRoute: expect.objectContaining({
+            kind: "curated_task",
+            taskId: "social-post-starter",
+            taskTitle: "内容主稿生成",
+            launchInputValues: {
+              subject_or_product: "夏日饮品新品上线，需要一版小红书首发主稿",
+              target_audience: "喜欢轻快口播风格的小红书用户",
+            },
+            referenceMemoryIds: ["memory-1"],
+            referenceEntries: expect.arrayContaining([
+              expect.objectContaining({
+                id: "memory-1",
+                title: "夏日短视频语气",
+                category: "identity",
+              }),
+            ]),
+          }),
+        }),
+        initialRequestMetadata: expect.objectContaining({
+          harness: expect.objectContaining({
+            curated_task: expect.objectContaining({
+              task_id: "social-post-starter",
+              reference_memory_ids: ["memory-1"],
+            }),
+            creation_replay: expect.objectContaining({
+              kind: "memory_entry",
+              source: expect.objectContaining({
+                page: "memory",
+                entry_id: "memory-1",
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("灵感库 launcher 在当前模板不是复盘首选时，应可直接切到推荐模板且保留参考对象", async () => {
+    recordCuratedTaskRecommendationSignalFromReviewDecision(
+      {
+        session_id: "session-memory-review-switch",
+        decision_status: "needs_more_evidence",
+        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
+        risk_level: "medium",
+        risk_tags: ["证据不足", "需要复盘"],
+        followup_actions: ["补账号数据复盘", "拆解一条高表现内容"],
+      },
+      {
+        projectId: "project-42",
+        sceneTitle: "短视频编排",
+      },
+    );
+
+    renderPage();
+    await flushPageEffects();
+
+    const launchButton = Array.from(document.body.querySelectorAll("button")).find(
+      (element) => {
+        if (!element.textContent?.includes("开始这一步")) {
+          return false;
+        }
+        const articleText = element.closest("article")?.textContent ?? "";
+        return (
+          articleText.length > 0 &&
+          !articleText.includes("复盘这个账号/项目") &&
+          !articleText.includes("拆解一条爆款内容")
+        );
+      },
+    );
+    expect(launchButton).toBeTruthy();
+
+    await act(async () => {
+      launchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await flushPageEffects();
+
+    const actionButton = document.body.querySelector(
+      '[data-testid="curated-task-launcher-review-feedback-banner-action"]',
+    ) as HTMLButtonElement | null;
+    expect(actionButton?.textContent).toContain("改用「复盘这个账号/项目」");
+
+    await act(async () => {
+      actionButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("复盘这个账号/项目");
+    expect(bodyText).toContain("已按最近复盘切到更适合的结果模板");
+    expect(bodyText).toContain("已选择 1 条参考对象");
+  });
+
+  it("home 分区在存在成果条目时应显影当前续接成果，并优先推荐下一步", async () => {
+    mockGetUnifiedMemoryStats.mockResolvedValue({
+      total_entries: 2,
+      storage_used: 2048,
+      memory_count: 2,
+      categories: [
+        { category: "experience", count: 1 },
+        { category: "identity", count: 1 },
+      ],
+    });
+    mockListUnifiedMemories.mockResolvedValue([
+      {
+        id: "memory-2",
+        session_id: "session-1",
+        memory_type: "conversation",
+        category: "experience",
+        title: "短视频编排 · 复核阻塞",
+        summary: "当前结果包已完整回流，可继续进入下一轮。",
+        content: [
+          "场景：短视频编排",
+          "结果摘要：这轮内容已经产出一版完整结果包。",
+          "当前交付：已交付 3/4 个部件",
+          "建议下一步：先完成复核，再决定下一轮放量",
+          "当前信号：复核阻塞",
+        ].join("\n"),
+        updated_at: 1_712_345_779_000,
+        created_at: 1_712_345_700_000,
+        tags: ["短视频", "复核阻塞"],
+        metadata: {
+          source: "manual",
+        },
+      },
+      {
+        id: "memory-1",
+        session_id: "session-1",
+        memory_type: "conversation",
+        category: "identity",
+        title: "夏日短视频语气",
+        summary: "适合清爽、轻快、有镜头感的小红书口播开场。",
+        content:
+          "第一句先给画面感，再抛出反差点，整体节奏要短句、轻快、有停顿。",
+        updated_at: 1_712_345_678_900,
+        created_at: 1_712_300_000_000,
+        tags: ["小红书", "口播", "夏日氛围"],
+        metadata: {
+          source: "auto_extracted",
+        },
+      },
+    ]);
+
+    renderPage();
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("围绕当前灵感，先拿结果");
+    expect(bodyText).toContain("当前续接成果");
+    expect(bodyText).toContain("短视频编排 · 复核阻塞");
+    expect(bodyText).toContain("复盘这个账号/项目");
+    expect(bodyText).toContain("每日趋势摘要");
+    expect(bodyText).toContain("内容主稿生成");
+    expect(bodyText).toContain(
+      "先对齐「短视频编排 · 复核阻塞」这轮结果基线，再决定下一轮动作",
+    );
+    expect(bodyText).toContain(
+      "围绕「短视频编排 · 复核阻塞」这轮结果继续找趋势窗口",
+    );
+
+    const reviewCard = document.body.querySelector(
+      '[data-testid="memory-home-suggestion-panel-task-account-project-review"]',
+    ) as HTMLElement | null;
+    const trendCard = document.body.querySelector(
+      '[data-testid="memory-home-suggestion-panel-task-daily-trend-briefing"]',
+    ) as HTMLElement | null;
+    const socialCard = document.body.querySelector(
+      '[data-testid="memory-home-suggestion-panel-task-social-post-starter"]',
+    ) as HTMLElement | null;
+    const longformCard = document.body.querySelector(
+      '[data-testid="memory-home-suggestion-panel-task-longform-multiplatform-rewrite"]',
+    ) as HTMLElement | null;
+
+    expect(reviewCard?.textContent).toContain("围绕当前成果");
+    expect(trendCard?.textContent).toContain("承接当前结果");
+    expect(socialCard?.textContent).toContain("承接当前结果");
+    expect(longformCard).toBeNull();
+  });
+
+  it("收到推荐信号后应页内刷新灵感库快照与推荐区参考对象", async () => {
+    mockGetUnifiedMemoryStats
+      .mockResolvedValueOnce({
+        total_entries: 1,
+        storage_used: 1024,
+        memory_count: 1,
+        categories: [{ category: "identity", count: 1 }],
+      })
+      .mockResolvedValueOnce({
+        total_entries: 2,
+        storage_used: 2048,
+        memory_count: 2,
+        categories: [
+          { category: "identity", count: 1 },
+          { category: "context", count: 1 },
+        ],
+      });
+    mockListUnifiedMemories
+      .mockResolvedValueOnce([
+        {
+          id: "memory-1",
+          session_id: "session-1",
+          memory_type: "conversation",
+          category: "identity",
+          title: "夏日短视频语气",
+          summary: "适合清爽、轻快、有镜头感的小红书口播开场。",
+          content:
+            "第一句先给画面感，再抛出反差点，整体节奏要短句、轻快、有停顿。",
+          updated_at: 1_712_345_678_900,
+          created_at: 1_712_300_000_000,
+          tags: ["小红书", "口播", "夏日氛围"],
+          metadata: {
+            source: "auto_extracted",
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "memory-1",
+          session_id: "session-1",
+          memory_type: "conversation",
+          category: "identity",
+          title: "夏日短视频语气",
+          summary: "适合清爽、轻快、有镜头感的小红书口播开场。",
+          content:
+            "第一句先给画面感，再抛出反差点，整体节奏要短句、轻快、有停顿。",
+          updated_at: 1_712_345_678_900,
+          created_at: 1_712_300_000_000,
+          tags: ["小红书", "口播", "夏日氛围"],
+          metadata: {
+            source: "auto_extracted",
+          },
+        },
+        {
+          id: "memory-2",
+          session_id: "session-1",
+          memory_type: "conversation",
+          category: "context",
+          title: "新品视觉参考板",
+          summary: "更偏冷白背景、留白构图和产品近景。",
+          content: "主画面保持干净，强调瓶身细节和冰感材质。",
+          updated_at: 1_712_345_779_000,
+          created_at: 1_712_345_700_000,
+          tags: ["参考图", "冷白背景"],
+          metadata: {
+            source: "manual",
+          },
+        },
+      ]);
+
+    renderPage();
+    await flushPageEffects();
+
+    expect(document.body.textContent ?? "").toContain("0 条参考素材");
+    expect(document.body.textContent ?? "").toContain("1 条参考对象");
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent(CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT),
+      );
+      await Promise.resolve();
+    });
+    await flushPageEffects(6);
+
+    const bodyText = document.body.textContent ?? "";
+    expect(mockGetUnifiedMemoryStats).toHaveBeenCalledTimes(2);
+    expect(mockListUnifiedMemories).toHaveBeenCalledTimes(2);
+    expect(bodyText).toContain("1 条参考素材");
+    expect(bodyText).toContain("2 条参考对象");
+    expect(bodyText).toContain("新品视觉参考板");
   });
 
   it("rules 分区应展示来源分类、provider 与 memdir 类型标签", async () => {
@@ -464,6 +819,187 @@ describe("MemoryPage", () => {
       search: "夏日短视频语气",
       prefillIntent: expect.stringContaining("围绕这条风格灵感继续创作：夏日短视频语气"),
     });
+  });
+
+  it("应支持落到成果分区并对准当前续接的灵感条目", async () => {
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    const scrollIntoViewMock = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoViewMock,
+    });
+    mockListUnifiedMemories.mockResolvedValue([
+      {
+        id: "memory-2",
+        session_id: "session-1",
+        memory_type: "conversation",
+        category: "experience",
+        title: "短视频编排 · 复核阻塞",
+        summary: "当前结果包已完整回流，可继续进入下一轮。",
+        content: [
+          "场景：短视频编排",
+          "结果摘要：这轮内容已经产出一版完整结果包。",
+          "当前交付：已交付 3/4 个部件",
+          "建议下一步：先完成复核，再决定下一轮放量",
+          "当前信号：复核阻塞",
+        ].join("\n"),
+        updated_at: 1_712_345_779_000,
+        created_at: 1_712_345_700_000,
+        tags: ["短视频", "复核阻塞"],
+        metadata: {
+          source: "manual",
+        },
+      },
+    ]);
+
+    renderPage({
+      section: "experience",
+      focusMemoryTitle: "短视频编排 · 复核阻塞",
+      focusMemoryCategory: "experience",
+    });
+    try {
+      await flushPageEffects();
+
+      const focusedEntry = document.body.querySelector(
+        '[data-testid="memory-durable-entry-memory-2"]',
+      ) as HTMLElement | null;
+      expect(focusedEntry).toBeTruthy();
+      expect(focusedEntry?.className).toContain("border-emerald-300");
+      expect(focusedEntry?.textContent).toContain("当前续接");
+      expect(scrollIntoViewMock).toHaveBeenCalledTimes(1);
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+          configurable: true,
+          value: originalScrollIntoView,
+        });
+      } else {
+        delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+      }
+    }
+  });
+
+  it("应支持围绕当前续接成果直接开始下一步，并优先带上这条成果", async () => {
+    const onNavigate = vi.fn();
+    mockListUnifiedMemories.mockResolvedValue([
+      {
+        id: "memory-2",
+        session_id: "session-1",
+        memory_type: "conversation",
+        category: "experience",
+        title: "短视频编排 · 复核阻塞",
+        summary: "当前结果包已完整回流，可继续进入下一轮。",
+        content: [
+          "场景：短视频编排",
+          "结果摘要：这轮内容已经产出一版完整结果包。",
+          "当前交付：已交付 3/4 个部件",
+          "建议下一步：先完成复核，再决定下一轮放量",
+          "当前信号：复核阻塞",
+        ].join("\n"),
+        updated_at: 1_712_345_779_000,
+        created_at: 1_712_345_700_000,
+        tags: ["短视频", "复核阻塞"],
+        metadata: {
+          source: "manual",
+        },
+      },
+    ]);
+
+    renderPage({
+      section: "experience",
+      focusMemoryTitle: "短视频编排 · 复核阻塞",
+      focusMemoryCategory: "experience",
+      onNavigate,
+    });
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("围绕这条成果继续");
+    expect(bodyText).toContain("当前续接成果");
+    expect(bodyText).toContain("复盘这个账号/项目");
+
+    const reviewCard = document.body.querySelector(
+      '[data-testid="memory-focused-suggestion-panel-task-account-project-review"]',
+    ) as HTMLElement | null;
+    const trendCard = document.body.querySelector(
+      '[data-testid="memory-focused-suggestion-panel-task-daily-trend-briefing"]',
+    ) as HTMLElement | null;
+    const longformCard = document.body.querySelector(
+      '[data-testid="memory-focused-suggestion-panel-task-longform-multiplatform-rewrite"]',
+    ) as HTMLElement | null;
+
+    expect(reviewCard?.textContent).toContain("围绕当前成果");
+    expect(reviewCard?.textContent).toContain("复盘这个账号/项目");
+    expect(trendCard?.textContent).toContain("承接当前结果");
+    expect(trendCard?.textContent).toContain("每日趋势摘要");
+    expect(longformCard).toBeNull();
+
+    const launchButton = Array.from(
+      reviewCard?.querySelectorAll("button") ?? [],
+    ).find((element) => element.textContent?.includes("开始这一步"));
+    expect(launchButton).toBeTruthy();
+
+    await act(async () => {
+      launchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await flushPageEffects();
+
+    const goalField = document.body.querySelector(
+      'input[placeholder="例如 一个季度涨粉 1 万、提升新品转化、连续 30 天稳定输出"]',
+    ) as HTMLInputElement | null;
+    const resultField = document.body.querySelector(
+      'textarea[placeholder="贴关键数据、结果摘要、最近内容表现，或当前遇到的问题"]',
+    ) as HTMLTextAreaElement | null;
+
+    expect(goalField?.value).toBe("短视频编排");
+    expect(resultField?.value).toContain("当前结果包已完整回流，可继续进入下一轮。");
+    expect(resultField?.value).toContain("当前交付：已交付 3/4 个部件");
+    expect(resultField?.value).toContain("建议下一步：先完成复核，再决定下一轮放量");
+
+    const confirmButton = document.body.querySelector(
+      '[data-testid="curated-task-launcher-confirm"]',
+    ) as HTMLButtonElement | null;
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        initialInputCapability: expect.objectContaining({
+          capabilityRoute: expect.objectContaining({
+            taskId: "account-project-review",
+            referenceMemoryIds: ["memory-2"],
+            launchInputValues: {
+              project_goal: "短视频编排",
+              existing_results: expect.stringContaining(
+                "当前结果包已完整回流，可继续进入下一轮。",
+              ),
+            },
+            referenceEntries: expect.arrayContaining([
+              expect.objectContaining({
+                id: "memory-2",
+                title: "短视频编排 · 复核阻塞",
+                category: "experience",
+              }),
+            ]),
+          }),
+        }),
+        initialRequestMetadata: expect.objectContaining({
+          harness: expect.objectContaining({
+            creation_replay: expect.objectContaining({
+              source: expect.objectContaining({
+                entry_id: "memory-2",
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
   });
 
   it("应支持带着当前会话上下文打开运行时记忆命中预演", async () => {

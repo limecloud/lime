@@ -999,6 +999,37 @@ export function CharacterMention({
     },
     [inputRef, pendingCuratedTaskLaunch],
   );
+  const handleApplyCuratedTaskReviewSuggestion = useCallback(
+    (
+      task: CuratedTaskTemplateItem,
+      options: {
+        inputValues: CuratedTaskInputValues;
+        referenceSelection: CuratedTaskReferenceSelection;
+      },
+    ) => {
+      setPendingCuratedTaskLaunch((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          task,
+          initialInputValues: options.inputValues,
+          initialReferenceMemoryIds:
+            normalizeCuratedTaskReferenceMemoryIds(
+              options.referenceSelection.referenceMemoryIds,
+            ) ?? [],
+          initialReferenceEntries: mergeCuratedTaskReferenceEntries(
+            options.referenceSelection.referenceEntries,
+          ),
+          launcherPrefillHint:
+            "已按最近复盘切到更适合的结果模板，你可以继续改后再发。",
+        };
+      });
+    },
+    [],
+  );
 
   const handleConfirmCuratedTaskLaunch = useCallback(
     (
@@ -1210,6 +1241,7 @@ export function CharacterMention({
         }
         prefillHint={pendingCuratedTaskLaunch?.launcherPrefillHint}
         onOpenChange={handleCuratedTaskLauncherOpenChange}
+        onApplyReviewSuggestion={handleApplyCuratedTaskReviewSuggestion}
         onConfirm={handleConfirmCuratedTaskLaunch}
       />
     </>,

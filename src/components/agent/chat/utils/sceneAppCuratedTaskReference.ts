@@ -107,6 +107,19 @@ export interface SceneAppExecutionReviewPrefillSnapshot {
 
 const SCENEAPP_REVIEW_BASELINE_FALLBACK_TASK_ID = "account-project-review";
 
+function hasBaselinePrefillFields(
+  prefill?: CuratedTaskInputValues | null,
+): boolean {
+  if (!prefill) {
+    return false;
+  }
+
+  return Boolean(
+    normalizeOptionalText(prefill.project_goal) ||
+      normalizeOptionalText(prefill.existing_results),
+  );
+}
+
 export function buildSceneAppExecutionReviewPrefillSnapshot(params: {
   referenceEntries?: Array<CuratedTaskReferenceEntry | null | undefined> | null;
   taskId?: string | null;
@@ -120,10 +133,6 @@ export function buildSceneAppExecutionReviewPrefillSnapshot(params: {
   const referenceEntry = mergeCuratedTaskReferenceEntries(
     params.referenceEntries ?? [],
   ).find((entry) => {
-    if (entry.sourceKind !== "sceneapp_execution_summary") {
-      return false;
-    }
-
     return candidateTaskIds.some((candidateTaskId) =>
       Boolean(entry.taskPrefillByTaskId?.[candidateTaskId]),
     );
@@ -134,11 +143,17 @@ export function buildSceneAppExecutionReviewPrefillSnapshot(params: {
   }
 
   const matchedTaskId = candidateTaskIds.find((candidateTaskId) =>
-    Boolean(referenceEntry.taskPrefillByTaskId?.[candidateTaskId]),
+    hasBaselinePrefillFields(
+      referenceEntry.taskPrefillByTaskId?.[candidateTaskId],
+    ),
   );
   const prefill = matchedTaskId
     ? referenceEntry.taskPrefillByTaskId?.[matchedTaskId]
-    : undefined;
+    : candidateTaskIds
+        .map((candidateTaskId) =>
+          referenceEntry.taskPrefillByTaskId?.[candidateTaskId],
+        )
+        .find((item) => Boolean(item));
   const existingResults = normalizeOptionalText(prefill?.existing_results);
   const normalizedExistingResults = existingResults || "";
   const snapshot: SceneAppExecutionReviewPrefillSnapshot = {
@@ -149,14 +164,23 @@ export function buildSceneAppExecutionReviewPrefillSnapshot(params: {
       "经营动作",
       "更适合去向",
       "当前卡点",
+      "当前信号",
       "建议下一步",
     ]),
-    failureSignalLabel: extractMarkedSection(normalizedExistingResults, "当前卡点", [
-      "建议下一步",
-      "当前判断",
-      "经营动作",
-      "更适合去向",
-    ]),
+    failureSignalLabel:
+      extractMarkedSection(normalizedExistingResults, "当前卡点", [
+        "建议下一步",
+        "当前判断",
+        "经营动作",
+        "更适合去向",
+        "当前信号",
+      ]) ||
+      extractMarkedSection(normalizedExistingResults, "当前信号", [
+        "建议下一步",
+        "当前判断",
+        "经营动作",
+        "更适合去向",
+      ]),
     nextAction: extractMarkedSection(normalizedExistingResults, "建议下一步", [
       "当前判断",
       "经营动作",

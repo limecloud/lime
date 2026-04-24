@@ -406,6 +406,8 @@ mod tests {
         assert!(IMAGE_GENERATE_SKILL_CONTENT
             .contains("必须直接调用 `lime_create_image_generation_task` 创建真实图片任务"));
         assert!(IMAGE_GENERATE_SKILL_CONTENT
+            .contains("必须直接传扁平任务对象参数；不要包成 `{\"image_task\": ...}`"));
+        assert!(IMAGE_GENERATE_SKILL_CONTENT
             .contains("不要通过 `Bash` 拼接 `lime media image generate --json`"));
         assert!(!IMAGE_GENERATE_SKILL_CONTENT
             .contains("allowed-tools: Bash, lime_create_image_generation_task"));

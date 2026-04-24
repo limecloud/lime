@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CuratedTaskLauncherDialog } from "./CuratedTaskLauncherDialog";
 import { findCuratedTaskTemplateById } from "@/components/agent/chat/utils/curatedTaskTemplates";
+import { buildCuratedTaskReferenceEntries } from "@/components/agent/chat/utils/curatedTaskReferenceSelection";
 import {
   CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT,
   recordCuratedTaskRecommendationSignalFromReviewDecision,
@@ -17,6 +18,42 @@ const mockListUnifiedMemories = vi.hoisted(() =>
 vi.mock("@/lib/api/unifiedMemory", () => ({
   listUnifiedMemories: mockListUnifiedMemories,
 }));
+
+function buildExperienceMemoryReferenceEntry() {
+  return buildCuratedTaskReferenceEntries([
+    {
+      id: "memory-review-1",
+      session_id: "session-1",
+      memory_type: "conversation",
+      category: "experience",
+      title: "短视频编排 · 复核阻塞",
+      content: [
+        "场景：短视频编排",
+        "平台：X + TikTok",
+        "地区：北美",
+        "目标受众：正在复盘短视频增长的品牌运营",
+        "结果摘要：这轮内容已经产出一版完整结果包。",
+        "当前交付：已交付 3/4 个部件",
+        "建议下一步：先完成复核，再决定下一轮放量",
+        "当前信号：复核阻塞",
+        "当前判断：先补复核与修复",
+      ].join("\n"),
+      summary: "当前结果包已完整回流，可继续进入下一轮。",
+      tags: ["短视频", "复核阻塞"],
+      metadata: {
+        confidence: 0.9,
+        importance: 8,
+        access_count: 1,
+        last_accessed_at: null,
+        source: "manual",
+        embedding: null,
+      },
+      created_at: 1_712_345_670_000,
+      updated_at: 1_712_345_678_000,
+      archived: false,
+    },
+  ])[0];
+}
 
 describe("CuratedTaskLauncherDialog", () => {
   let container: HTMLDivElement;
@@ -70,6 +107,7 @@ describe("CuratedTaskLauncherDialog", () => {
     expect(scrollBody?.className).toContain("flex-1");
     expect(scrollBody?.className).toContain("overflow-y-auto");
     expect(dialog?.textContent).toContain("每日趋势摘要");
+    expect(dialog?.textContent).toContain("还差 2 项关键信息");
     expect(dialog?.textContent).toContain("开始这一步前，我先确认几件事。");
     expect(dialog?.textContent).toContain("想的话，再带几条参考");
     expect(dialog?.textContent).toContain(
@@ -173,6 +211,76 @@ describe("CuratedTaskLauncherDialog", () => {
     expect(banner?.textContent).toContain("这轮结果还缺证据");
   });
 
+  it("当前 launcher 不是最近复盘首选时，应允许直接切到推荐模板", async () => {
+    const task = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(task).not.toBeNull();
+    const onApplyReviewSuggestion = vi.fn();
+
+    recordCuratedTaskRecommendationSignalFromReviewDecision(
+      {
+        session_id: "session-review-switch",
+        decision_status: "needs_more_evidence",
+        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
+        risk_level: "medium",
+        risk_tags: ["证据不足", "需要复盘"],
+        followup_actions: ["补账号数据复盘", "拆解一条高表现内容"],
+      },
+      {
+        projectId: "project-review-switch",
+        sceneTitle: "短视频编排",
+      },
+    );
+
+    await act(async () => {
+      root.render(
+        <CuratedTaskLauncherDialog
+          open
+          task={task}
+          projectId="project-review-switch"
+          initialReferenceEntries={[
+            buildExperienceMemoryReferenceEntry(),
+          ]}
+          onOpenChange={() => undefined}
+          onApplyReviewSuggestion={onApplyReviewSuggestion}
+          onConfirm={() => undefined}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const banner = document.body.querySelector(
+      '[data-testid="curated-task-launcher-review-feedback-banner"]',
+    );
+    const actionButton = document.body.querySelector(
+      '[data-testid="curated-task-launcher-review-feedback-banner-action"]',
+    ) as HTMLButtonElement | null;
+
+    expect(banner?.textContent).toContain("最近复盘已更新：短视频编排 · 补证据");
+    expect(banner?.textContent).toContain("这轮复盘更适合先回到「复盘这个账号/项目」");
+    expect(actionButton?.textContent).toContain("改用「复盘这个账号/项目」");
+
+    await act(async () => {
+      actionButton?.click();
+    });
+
+    expect(onApplyReviewSuggestion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "account-project-review",
+        title: "复盘这个账号/项目",
+      }),
+      expect.objectContaining({
+        referenceSelection: expect.objectContaining({
+          referenceEntries: expect.arrayContaining([
+            expect.objectContaining({
+              id: "memory-review-1",
+            }),
+          ]),
+        }),
+      }),
+    );
+  });
+
   it("复盘模板 launcher 应在启动确认层显影当前结果基线的经营摘要", async () => {
     const task = findCuratedTaskTemplateById("account-project-review");
     expect(task).not.toBeNull();
@@ -262,6 +370,80 @@ describe("CuratedTaskLauncherDialog", () => {
     expect(baselineCard?.textContent).toContain("当前判断：先补复核与修复");
     expect(baselineCard?.textContent).toContain("当前卡点：复核阻塞");
     expect(baselineCard?.textContent).toContain("更适合去向：周会复盘");
+  });
+
+  it("成果类灵感 reference 进入下游结果模板时，也应带出基线和默认预填", async () => {
+    const task = findCuratedTaskTemplateById("daily-trend-briefing");
+    const memoryReferenceEntry = buildExperienceMemoryReferenceEntry();
+    expect(task).not.toBeNull();
+    expect(memoryReferenceEntry).toBeTruthy();
+
+    await act(async () => {
+      root.render(
+        <CuratedTaskLauncherDialog
+          open
+          task={task}
+          initialReferenceEntries={memoryReferenceEntry ? [memoryReferenceEntry] : []}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const baselineCard = document.body.querySelector(
+      '[data-testid="curated-task-launcher-sceneapp-baseline-card"]',
+    );
+    const themeField = document.body.querySelector(
+      '#curated-task-daily-trend-briefing-theme_target',
+    ) as HTMLInputElement | null;
+    const platformField = document.body.querySelector(
+      '#curated-task-daily-trend-briefing-platform_region',
+    ) as HTMLInputElement | null;
+
+    expect(baselineCard?.textContent).toContain("当前结果基线");
+    expect(baselineCard?.textContent).toContain("短视频编排 · 复核阻塞");
+    expect(baselineCard?.textContent).toContain("当前判断：先补复核与修复");
+    expect(baselineCard?.textContent).toContain("当前卡点：复核阻塞");
+    expect(themeField?.value).toBe("短视频编排");
+    expect(platformField?.value).toBe("X + TikTok（北美）");
+    expect(document.body.textContent).toContain(
+      "下面的 主题或赛道 / 希望关注的平台/地域 已按这轮结果自动带入，你可以直接改成这次真正想推进的版本。",
+    );
+  });
+
+  it("成果类灵感 reference 进入内容主稿模板时，也应默认带好主题基线", async () => {
+    const task = findCuratedTaskTemplateById("social-post-starter");
+    const memoryReferenceEntry = buildExperienceMemoryReferenceEntry();
+    expect(task).not.toBeNull();
+    expect(memoryReferenceEntry).toBeTruthy();
+
+    await act(async () => {
+      root.render(
+        <CuratedTaskLauncherDialog
+          open
+          task={task}
+          initialReferenceEntries={memoryReferenceEntry ? [memoryReferenceEntry] : []}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const subjectField = document.body.querySelector(
+      '#curated-task-social-post-starter-subject_or_product',
+    ) as HTMLTextAreaElement | null;
+    const audienceField = document.body.querySelector(
+      '#curated-task-social-post-starter-target_audience',
+    ) as HTMLInputElement | null;
+
+    expect(subjectField?.value).toContain("当前主题：短视频编排");
+    expect(subjectField?.value).toContain("当前结果基线：");
+    expect(audienceField?.value).toBe("正在复盘短视频增长的品牌运营");
+    expect(document.body.textContent).toContain(
+      "下面的 主题或产品信息 / 目标受众 已按这轮结果自动带入，你可以直接改成这次真正想推进的版本。",
+    );
   });
 
   it("launcher 打开时收到灵感回流信号，应即时刷新最近参考对象且不清掉已选种子", async () => {

@@ -26,7 +26,6 @@ const mockPriorityCommands = new Set<string>([
   "session_files_get_or_create",
   "session_files_update_meta",
   "session_files_list_files",
-  "session_files_save_file",
   "session_files_read_file",
   "session_files_delete_file",
   "save_exported_document",
@@ -135,6 +134,14 @@ const bridgeTruthCommands = new Set<string>([
   "get_all_alias_configs",
   "refresh_model_registry",
   "fetch_provider_models_auto",
+  "create_image_generation_task_artifact",
+  "get_media_task_artifact",
+  "list_media_task_artifacts",
+  "cancel_media_task_artifact",
+  "session_files_save_file",
+  "read_file_preview_cmd",
+  "session_files_resolve_file_path",
+  "upload_material",
 ]);
 
 export function shouldPreferMockInBrowser(cmd: string): boolean {

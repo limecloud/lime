@@ -203,6 +203,45 @@ describe("sceneAppCuratedTaskReference", () => {
     });
   });
 
+  it("成果类 memory reference 也应复用同一份结果基线摘要", () => {
+    const snapshot = buildSceneAppExecutionReviewPrefillSnapshot({
+      taskId: "social-post-starter",
+      referenceEntries: [
+        {
+          id: "memory-review-1",
+          sourceKind: "memory",
+          title: "短视频编排 · 复核阻塞",
+          summary: "当前结果包已完整回流，可继续进入下一轮。",
+          category: "experience",
+          categoryLabel: "成果",
+          tags: ["短视频", "复核阻塞"],
+          taskPrefillByTaskId: {
+            "account-project-review": {
+              project_goal: "短视频编排",
+              existing_results:
+                "当前结果包已完整回流，可继续进入下一轮。 当前卡点：复核阻塞 建议下一步：先完成复核，再决定下一轮放量 当前判断：先补复核与修复",
+            },
+            "social-post-starter": {
+              subject_or_product:
+                "当前主题：短视频编排\n当前结果基线：当前结果包已完整回流，可继续进入下一轮。",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(snapshot).toEqual({
+      sourceTitle: "短视频编排 · 复核阻塞",
+      projectGoal: "短视频编排",
+      existingResults: expect.stringContaining("当前结果包已完整回流"),
+      statusLabel: "先补复核与修复",
+      failureSignalLabel: "复核阻塞",
+      nextAction: "先完成复核，再决定下一轮放量",
+      operatingAction: undefined,
+      destinationsLabel: undefined,
+    });
+  });
+
   it("应把 sceneapp reference entry 编译成复盘 continuation action", () => {
     const referenceEntry = buildCuratedTaskReferenceEntryFromSceneAppExecution({
       summary: {

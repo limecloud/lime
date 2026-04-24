@@ -1,13 +1,17 @@
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
 use axum::http::StatusCode;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use lime_core::api_host_utils::normalize_openai_compatible_api_host;
+use futures::StreamExt;
+use lime_core::api_host_utils::{
+    is_openai_responses_compatible_host, normalize_openai_compatible_api_host,
+};
 use lime_core::config::ConfigManager;
 use lime_core::database::dao::api_key_provider::{
     ApiKeyProvider, ApiKeyProviderDao, ApiProviderType,
 };
 use lime_core::models::openai::{ImageData, ImageGenerationRequest, ImageGenerationResponse};
+use lime_providers::providers::codex::CodexProvider;
 use reqwest::{header::CONTENT_TYPE, Client};
 use serde_json::{json, Value};
 
@@ -16,6 +20,7 @@ use crate::AppState;
 const FAL_DEFAULT_HOST: &str = "https://fal.run";
 const FAL_DEFAULT_MODEL: &str = "fal-ai/nano-banana-pro";
 const FAL_QUEUE_DEFAULT_HOST: &str = "https://queue.fal.run";
+const OPENAI_RESPONSES_IMAGE_ORCHESTRATOR_MODEL: &str = "gpt-5.4";
 const IMAGE_PROVIDER_REQUEST_TIMEOUT_SECS: u64 = 240;
 const FAL_QUEUE_TIMEOUT_SECS: u64 = 180;
 const FAL_QUEUE_POLL_INTERVAL_MS: u64 = 1500;
@@ -37,6 +42,12 @@ struct ImageProviderRoutingConfig {
 enum ConfiguredImageProviderKind {
     Fal,
     OpenAiCompatible,
+}
+
+#[derive(Debug)]
+struct OpenAiImageEndpointError {
+    message: String,
+    is_endpoint_not_found: bool,
 }
 
 const IMAGE_MODEL_KEYWORDS: [&str; 20] = [
@@ -196,6 +207,7 @@ pub(crate) async fn try_generate_with_configured_provider(
 
             request_openai_compatible_images(
                 &client,
+                &provider,
                 &provider.api_host,
                 &api_key,
                 request,
@@ -338,6 +350,7 @@ fn supports_openai_image_provider(provider: &ApiKeyProvider) -> bool {
         provider.effective_provider_type(),
         ApiProviderType::Openai
             | ApiProviderType::OpenaiResponse
+            | ApiProviderType::Codex
             | ApiProviderType::NewApi
             | ApiProviderType::Gateway
     )
@@ -444,6 +457,511 @@ fn build_openai_image_request_payload(
     }
 
     payload
+}
+
+fn build_openai_responses_image_request_payload(
+    request: &ImageGenerationRequest,
+    orchestration_model: &str,
+    image_model: &str,
+    request_size: &str,
+) -> Value {
+    let tool_model = normalize_openai_responses_image_tool_model(image_model);
+    // 一些 Codex/OpenAI relay 对 n 字段兼容性较差，默认依赖上游单图默认值。
+    let mut tool = json!({
+        "type": "image_generation",
+        "model": tool_model,
+        "output_format": "png",
+    });
+
+    if !request_size.trim().is_empty() {
+        tool["size"] = Value::String(request_size.trim().to_string());
+    }
+
+    json!({
+        "model": orchestration_model,
+        "input": build_openai_responses_image_input(request),
+        "tools": [tool],
+        "stream": true,
+    })
+}
+
+fn build_openai_responses_image_input(request: &ImageGenerationRequest) -> String {
+    let prompt = request.prompt.trim();
+    let count = request.n.max(1);
+    if count <= 1 {
+        return prompt.to_string();
+    }
+
+    format!(
+        concat!(
+            "你是一名图片生成编排器。请调用 image_generation 工具恰好 {count} 次，",
+            "每次只生成 1 张独立图片。\n",
+            "- 不要只调用一次工具。\n",
+            "- 不要把多张图片拼成一张拼贴、九宫格、海报或联系单。\n",
+            "- 所有图片要保持同一主题与风格，但每张图都必须能单独使用，并且构图、主体或镜头要有变化。\n",
+            "- 如果原始要求里包含多个角色、物体或场景，请把它们合理分配到不同图片里，不要全部塞进同一张。\n",
+            "- 最终只返回工具结果，不要额外输出解释文本。\n\n",
+            "原始创作要求：{prompt}"
+        ),
+        count = count,
+        prompt = prompt,
+    )
+}
+
+fn normalize_openai_responses_image_tool_model(model: &str) -> String {
+    let trimmed = model.trim();
+    if let Some(version) = trimmed.strip_prefix("gpt-images-") {
+        return format!("gpt-image-{version}");
+    }
+
+    trimmed.to_string()
+}
+
+fn resolve_openai_responses_image_orchestration_model(
+    provider: &ApiKeyProvider,
+    image_model: &str,
+) -> String {
+    let trimmed = image_model.trim();
+    if !trimmed.is_empty() && !looks_like_image_generation_model(trimmed) {
+        return trimmed.to_string();
+    }
+
+    provider
+        .custom_models
+        .iter()
+        .map(String::as_str)
+        .map(str::trim)
+        .find(|candidate| !candidate.is_empty() && !looks_like_image_generation_model(candidate))
+        .map(ToString::to_string)
+        .unwrap_or_else(|| OPENAI_RESPONSES_IMAGE_ORCHESTRATOR_MODEL.to_string())
+}
+
+fn should_prefer_openai_responses_image_api(provider: &ApiKeyProvider) -> bool {
+    matches!(
+        provider.effective_provider_type(),
+        ApiProviderType::OpenaiResponse | ApiProviderType::Codex
+    ) || is_openai_responses_compatible_host(&provider.api_host)
+}
+
+fn is_not_found_status(status: StatusCode, body: &str) -> bool {
+    if status == StatusCode::NOT_FOUND {
+        return true;
+    }
+
+    let normalized = body.to_ascii_lowercase();
+    normalized.contains("not found")
+        || normalized.contains("page not found")
+        || body.contains("请求的接口不存在")
+}
+
+fn build_openai_responses_data_url(output_format: Option<&str>, b64: &str) -> String {
+    let mime = match output_format
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("png")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        _ => "image/png",
+    };
+
+    format!("data:{mime};base64,{b64}")
+}
+
+fn buffer_contains_responses_event(buffer: &str, event_name: &str) -> bool {
+    buffer.contains(event_name) || buffer.contains(&format!("event: {event_name}"))
+}
+
+fn try_finalize_openai_responses_image_stream(
+    buffer: &str,
+    response_format: &str,
+    expected_count: usize,
+) -> Result<Option<ImageGenerationResponse>, String> {
+    let has_completed = buffer_contains_responses_event(buffer, "response.completed");
+    let has_output_item_done = buffer_contains_responses_event(buffer, "response.output_item.done");
+
+    if !has_completed && !has_output_item_done {
+        return Ok(None);
+    }
+
+    let parsed = normalize_openai_responses_image_sse(buffer, response_format)?;
+    let expected = expected_count.max(1);
+
+    if has_completed || parsed.data.len() >= expected {
+        return Ok(Some(parsed));
+    }
+
+    Ok(None)
+}
+
+fn try_extract_partial_openai_responses_images(
+    buffer: &str,
+    response_format: &str,
+) -> Result<Option<ImageGenerationResponse>, String> {
+    if !buffer_contains_responses_event(buffer, "response.output_item.done") {
+        return Ok(None);
+    }
+
+    let parsed = normalize_openai_responses_image_sse(buffer, response_format)?;
+    if parsed.data.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(parsed))
+}
+
+fn normalize_openai_responses_image_payload(
+    payload: &Value,
+    response_format: &str,
+) -> Result<ImageGenerationResponse, String> {
+    let created_at = payload
+        .get("created_at")
+        .and_then(Value::as_i64)
+        .unwrap_or_else(|| chrono::Utc::now().timestamp());
+    let mut data = Vec::new();
+
+    if let Some(items) = payload.get("output").and_then(Value::as_array) {
+        for item in items {
+            if item.get("type").and_then(Value::as_str) != Some("image_generation_call") {
+                continue;
+            }
+
+            let revised_prompt = item
+                .get("revised_prompt")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| value.to_string());
+            let output_format = item
+                .get("output_format")
+                .and_then(Value::as_str)
+                .map(|value| value.to_string());
+            let b64 = item
+                .get("result")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| value.to_string())
+                .or_else(|| {
+                    item.get("partial_image_b64")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(|value| value.to_string())
+                });
+
+            let Some(b64) = b64 else {
+                continue;
+            };
+
+            if response_format == "b64_json" {
+                data.push(ImageData {
+                    b64_json: Some(b64),
+                    url: None,
+                    revised_prompt,
+                });
+            } else {
+                data.push(ImageData {
+                    b64_json: None,
+                    url: Some(build_openai_responses_data_url(
+                        output_format.as_deref(),
+                        &b64,
+                    )),
+                    revised_prompt,
+                });
+            }
+        }
+    }
+
+    if data.is_empty() {
+        return Err("Responses 图片接口未返回可解析图片字段".to_string());
+    }
+
+    Ok(ImageGenerationResponse {
+        created: created_at,
+        data,
+    })
+}
+
+fn normalize_openai_responses_image_sse(
+    body: &str,
+    response_format: &str,
+) -> Result<ImageGenerationResponse, String> {
+    #[derive(Debug)]
+    struct ParsedSseEvent {
+        event: Option<String>,
+        data: String,
+    }
+
+    fn parse_sse_events(body: &str) -> Vec<ParsedSseEvent> {
+        let mut events = Vec::new();
+        let mut current_event: Option<String> = None;
+        let mut data_lines: Vec<String> = Vec::new();
+
+        let flush_event = |events: &mut Vec<ParsedSseEvent>,
+                           current_event: &mut Option<String>,
+                           data_lines: &mut Vec<String>| {
+            if current_event.is_none() && data_lines.is_empty() {
+                return;
+            }
+            events.push(ParsedSseEvent {
+                event: current_event.take(),
+                data: data_lines.join("\n"),
+            });
+            data_lines.clear();
+        };
+
+        for raw_line in body.lines() {
+            let line = raw_line.trim_end();
+            if line.trim().is_empty() {
+                flush_event(&mut events, &mut current_event, &mut data_lines);
+                continue;
+            }
+
+            let trimmed = line.trim_start();
+            if let Some(value) = trimmed.strip_prefix("event:") {
+                current_event = Some(value.trim().to_string());
+                continue;
+            }
+
+            if let Some(value) = trimmed.strip_prefix("data:") {
+                data_lines.push(value.trim_start().to_string());
+            }
+        }
+
+        flush_event(&mut events, &mut current_event, &mut data_lines);
+        events
+    }
+
+    fn upsert_openai_responses_image_output(
+        latest_partial_images: &mut BTreeMap<usize, Value>,
+        output_index: usize,
+        output_item: &Value,
+    ) {
+        let mut merged = latest_partial_images
+            .remove(&output_index)
+            .and_then(|value| value.as_object().cloned())
+            .unwrap_or_default();
+
+        if let Some(record) = output_item.as_object() {
+            for (key, value) in record {
+                if key == "type"
+                    && value.as_str() == Some("response.image_generation_call.partial_image")
+                {
+                    continue;
+                }
+                merged.insert(key.clone(), value.clone());
+            }
+        }
+
+        merged.insert(
+            "type".to_string(),
+            Value::String("image_generation_call".to_string()),
+        );
+        latest_partial_images.insert(output_index, Value::Object(merged));
+    }
+
+    let mut latest_partial_images: BTreeMap<usize, Value> = BTreeMap::new();
+    let mut completed_response: Option<Value> = None;
+
+    for sse_event in parse_sse_events(body) {
+        let data = sse_event.data.trim();
+        if data.is_empty() || data == "[DONE]" {
+            continue;
+        }
+
+        let Ok(event) = serde_json::from_str::<Value>(data) else {
+            continue;
+        };
+        let event_type = event
+            .get("type")
+            .and_then(Value::as_str)
+            .or(sse_event.event.as_deref());
+
+        match event_type {
+            Some("response.image_generation_call.partial_image") => {
+                let output_index = event
+                    .get("output_index")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0) as usize;
+                upsert_openai_responses_image_output(
+                    &mut latest_partial_images,
+                    output_index,
+                    &event,
+                );
+            }
+            Some("response.output_item.done") => {
+                let item = event.get("item");
+                let is_image_generation_item = item
+                    .and_then(|value| value.get("type"))
+                    .and_then(Value::as_str)
+                    == Some("image_generation_call")
+                    || item.and_then(|value| value.get("result")).is_some()
+                    || item
+                        .and_then(|value| value.get("partial_image_b64"))
+                        .is_some();
+                if is_image_generation_item {
+                    let output_index = event
+                        .get("output_index")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0) as usize;
+                    upsert_openai_responses_image_output(
+                        &mut latest_partial_images,
+                        output_index,
+                        item.unwrap_or(&Value::Null),
+                    );
+                }
+            }
+            Some("response.completed") => {
+                completed_response = event
+                    .get("response")
+                    .cloned()
+                    .or_else(|| Some(event.clone()));
+            }
+            _ => {}
+        }
+    }
+
+    if !latest_partial_images.is_empty() {
+        let created_at = completed_response
+            .as_ref()
+            .and_then(|response| response.get("created_at"))
+            .and_then(Value::as_i64)
+            .unwrap_or_else(|| chrono::Utc::now().timestamp());
+        let output = latest_partial_images.into_values().collect::<Vec<_>>();
+        return normalize_openai_responses_image_payload(
+            &json!({
+                "created_at": created_at,
+                "output": output,
+            }),
+            response_format,
+        );
+    }
+
+    if let Some(response) = completed_response {
+        return normalize_openai_responses_image_payload(&response, response_format);
+    }
+
+    Err("Responses 图片接口未返回任何图片事件".to_string())
+}
+
+async fn request_openai_responses_images(
+    client: &Client,
+    provider: &ApiKeyProvider,
+    api_host: &str,
+    api_key: &str,
+    request: &ImageGenerationRequest,
+    image_model: &str,
+    request_size: &str,
+) -> Result<ImageGenerationResponse, OpenAiImageEndpointError> {
+    let endpoint = CodexProvider::build_responses_url(api_host);
+    let orchestration_model =
+        resolve_openai_responses_image_orchestration_model(provider, image_model);
+    let payload = build_openai_responses_image_request_payload(
+        request,
+        &orchestration_model,
+        image_model,
+        request_size,
+    );
+    let response = client
+        .post(&endpoint)
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header(CONTENT_TYPE, "application/json")
+        .header("Accept", "text/event-stream")
+        .header("Accept-Encoding", "identity")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|error| OpenAiImageEndpointError {
+            message: format!("OpenAI Responses 图片接口请求失败: {error}"),
+            is_endpoint_not_found: false,
+        })?;
+
+    let status = response.status();
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+    let expected_count = request.n.max(1) as usize;
+
+    while let Some(chunk) = stream.next().await {
+        match chunk {
+            Ok(bytes) => {
+                buffer.push_str(&String::from_utf8_lossy(&bytes));
+
+                if !status.is_success() {
+                    continue;
+                }
+
+                if let Ok(Some(parsed)) = try_finalize_openai_responses_image_stream(
+                    &buffer,
+                    &request.response_format,
+                    expected_count,
+                ) {
+                    return Ok(parsed);
+                }
+            }
+            Err(error) => {
+                if let Ok(Some(parsed)) = try_finalize_openai_responses_image_stream(
+                    &buffer,
+                    &request.response_format,
+                    expected_count,
+                ) {
+                    return Ok(parsed);
+                }
+
+                if let Ok(Some(parsed)) =
+                    try_extract_partial_openai_responses_images(&buffer, &request.response_format)
+                {
+                    return Ok(parsed);
+                }
+
+                return Err(OpenAiImageEndpointError {
+                    message: format!("OpenAI Responses 图片接口流读取失败: {error}"),
+                    is_endpoint_not_found: false,
+                });
+            }
+        }
+    }
+
+    if !status.is_success() {
+        return Err(OpenAiImageEndpointError {
+            is_endpoint_not_found: is_not_found_status(status, &buffer),
+            message: format!(
+                "OpenAI Responses 图片接口 HTTP {}: {}",
+                status.as_u16(),
+                summarize_fal_error_body(&buffer)
+            ),
+        });
+    }
+
+    if let Some(parsed) = try_finalize_openai_responses_image_stream(
+        &buffer,
+        &request.response_format,
+        expected_count,
+    )
+    .map_err(|error| OpenAiImageEndpointError {
+        message: format!("OpenAI Responses 图片接口解析失败: {error}"),
+        is_endpoint_not_found: false,
+    })? {
+        return Ok(parsed);
+    }
+
+    if let Some(parsed) =
+        try_extract_partial_openai_responses_images(&buffer, &request.response_format).map_err(
+            |error| OpenAiImageEndpointError {
+                message: format!("OpenAI Responses 图片接口解析失败: {error}"),
+                is_endpoint_not_found: false,
+            },
+        )?
+    {
+        return Ok(parsed);
+    }
+
+    Err(OpenAiImageEndpointError {
+        message: "OpenAI Responses 图片接口解析失败: 未收齐所需图片事件".to_string(),
+        is_endpoint_not_found: false,
+    })
 }
 
 fn resolve_fal_model(request_model: &str, preferred_model_id: Option<&str>) -> String {
@@ -593,12 +1111,27 @@ fn build_fal_payload(prompt: &str, size: &str, count: u32) -> Value {
 
 async fn request_openai_compatible_images(
     client: &Client,
+    provider: &ApiKeyProvider,
     api_host: &str,
     api_key: &str,
     request: &ImageGenerationRequest,
     model: &str,
     request_size: &str,
 ) -> Result<ImageGenerationResponse, String> {
+    if should_prefer_openai_responses_image_api(provider) {
+        return request_openai_responses_images(
+            client,
+            provider,
+            api_host,
+            api_key,
+            request,
+            model,
+            request_size,
+        )
+        .await
+        .map_err(|error| error.message);
+    }
+
     let endpoint = build_openai_images_url(api_host);
     let payload = build_openai_image_request_payload(request, model, request_size);
     let response = client
@@ -617,11 +1150,38 @@ async fn request_openai_compatible_images(
         .map_err(|error| format!("OpenAI 图片接口响应读取失败: {error}"))?;
 
     if !status.is_success() {
-        return Err(format!(
-            "OpenAI 图片接口 HTTP {}: {}",
-            status.as_u16(),
-            summarize_fal_error_body(&body)
-        ));
+        let image_error = OpenAiImageEndpointError {
+            is_endpoint_not_found: is_not_found_status(status, &body),
+            message: format!(
+                "OpenAI 图片接口 HTTP {}: {}",
+                status.as_u16(),
+                summarize_fal_error_body(&body)
+            ),
+        };
+
+        if image_error.is_endpoint_not_found {
+            match request_openai_responses_images(
+                client,
+                provider,
+                api_host,
+                api_key,
+                request,
+                model,
+                request_size,
+            )
+            .await
+            {
+                Ok(response) => return Ok(response),
+                Err(responses_error) => {
+                    return Err(format!(
+                        "{}；回退 Responses 后仍失败: {}",
+                        image_error.message, responses_error.message
+                    ))
+                }
+            }
+        }
+
+        return Err(image_error.message);
     }
 
     let payload = serde_json::from_str::<Value>(&body).map_err(|error| {
@@ -1133,13 +1693,30 @@ fn preview_text(text: &str, max_len: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_openai_images_url, collect_image_urls, load_image_provider_routing,
-        looks_like_image_generation_model, normalize_fal_api_host,
-        normalize_openai_compatible_image_response, resolve_compatible_image_model,
-        resolve_fal_model, size_to_aspect_ratio,
+        build_openai_images_url, build_openai_responses_image_request_payload, collect_image_urls,
+        load_image_provider_routing, looks_like_image_generation_model, normalize_fal_api_host,
+        normalize_openai_compatible_image_response, normalize_openai_responses_image_payload,
+        normalize_openai_responses_image_sse, normalize_openai_responses_image_tool_model,
+        request_openai_responses_images, resolve_compatible_image_model, resolve_fal_model,
+        resolve_openai_responses_image_orchestration_model,
+        should_prefer_openai_responses_image_api, size_to_aspect_ratio,
+        try_extract_partial_openai_responses_images,
     };
+    use async_stream::stream;
+    use axum::{
+        response::sse::{Event, Sse},
+        routing::post,
+        Router,
+    };
+    use chrono::Utc;
+    use lime_core::database::dao::api_key_provider::{
+        ApiKeyProvider, ApiProviderType, ProviderGroup,
+    };
+    use lime_core::models::openai::ImageGenerationRequest;
     use reqwest::Client;
     use serde_json::json;
+    use std::{convert::Infallible, time::Duration};
+    use tokio::net::TcpListener;
 
     #[test]
     fn normalize_fal_api_host_strips_builtin_path_suffix() {
@@ -1276,7 +1853,7 @@ mod tests {
 
     #[tokio::test]
     async fn normalize_openai_compatible_image_response_supports_b64_and_url_modes() {
-        let client = Client::new();
+        let client = Client::builder().no_proxy().build().expect("client");
         let payload = json!({
             "data": [
                 {
@@ -1306,6 +1883,513 @@ mod tests {
             Some("data:image/png;base64,dGVzdA==")
         );
         assert_eq!(url_response.data[0].b64_json, None);
+    }
+
+    #[test]
+    fn normalize_openai_responses_image_payload_supports_b64_and_url_modes() {
+        let payload = json!({
+            "created_at": 1_777_000_000i64,
+            "output": [
+                {
+                    "type": "image_generation_call",
+                    "result": "dGVzdA==",
+                    "revised_prompt": "refined prompt",
+                    "output_format": "png"
+                }
+            ]
+        });
+
+        let b64_response =
+            normalize_openai_responses_image_payload(&payload, "b64_json").expect("b64 response");
+        assert_eq!(b64_response.created, 1_777_000_000);
+        assert_eq!(b64_response.data[0].b64_json.as_deref(), Some("dGVzdA=="));
+        assert_eq!(b64_response.data[0].url, None);
+
+        let url_response =
+            normalize_openai_responses_image_payload(&payload, "url").expect("url response");
+        assert_eq!(
+            url_response.data[0].url.as_deref(),
+            Some("data:image/png;base64,dGVzdA==")
+        );
+        assert_eq!(url_response.data[0].b64_json, None);
+        assert_eq!(
+            url_response.data[0].revised_prompt.as_deref(),
+            Some("refined prompt")
+        );
+    }
+
+    #[test]
+    fn normalize_openai_responses_image_sse_reads_partial_image_events() {
+        let sse = r#"
+event: response.image_generation_call.partial_image
+data: {"type":"response.image_generation_call.partial_image","output_index":0,"partial_image_b64":"dGVzdA==","revised_prompt":"refined prompt","output_format":"png"}
+
+event: response.completed
+data: {"type":"response.completed","response":{"created_at":1777000000,"output":[]}}
+"#;
+
+        let response =
+            normalize_openai_responses_image_sse(sse, "b64_json").expect("sse image response");
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(response.data[0].b64_json.as_deref(), Some("dGVzdA=="));
+        assert_eq!(
+            response.data[0].revised_prompt.as_deref(),
+            Some("refined prompt")
+        );
+    }
+
+    #[test]
+    fn normalize_openai_responses_image_sse_reads_multiple_done_events() {
+        let sse = r#"
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":0,"item":{"type":"image_generation_call","result":"Zmlyc3Q=","revised_prompt":"first prompt","output_format":"png"}}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":1,"item":{"type":"image_generation_call","result":"c2Vjb25k","revised_prompt":"second prompt","output_format":"png"}}
+
+event: response.completed
+data: {"type":"response.completed","response":{"created_at":1777000001,"output":[]}}
+"#;
+
+        let response =
+            normalize_openai_responses_image_sse(sse, "b64_json").expect("sse image response");
+        assert_eq!(response.data.len(), 2);
+        assert_eq!(response.data[0].b64_json.as_deref(), Some("Zmlyc3Q="));
+        assert_eq!(response.data[1].b64_json.as_deref(), Some("c2Vjb25k"));
+        assert_eq!(
+            response.data[0].revised_prompt.as_deref(),
+            Some("first prompt")
+        );
+        assert_eq!(
+            response.data[1].revised_prompt.as_deref(),
+            Some("second prompt")
+        );
+    }
+
+    #[test]
+    fn normalize_openai_responses_image_sse_uses_event_name_when_json_type_missing() {
+        let sse = r#"
+event: response.output_item.done
+data: {"output_index":0,"item":{"type":"image_generation_call","result":"Zmlyc3Q=","revised_prompt":"first prompt","output_format":"png"}}
+
+event: response.completed
+data: {"response":{"created_at":1777000001,"output":[]}}
+"#;
+
+        let response =
+            normalize_openai_responses_image_sse(sse, "b64_json").expect("sse image response");
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(response.data[0].b64_json.as_deref(), Some("Zmlyc3Q="));
+        assert_eq!(
+            response.data[0].revised_prompt.as_deref(),
+            Some("first prompt")
+        );
+    }
+
+    #[test]
+    fn normalize_openai_responses_image_sse_merges_multiline_data_blocks() {
+        let sse = r#"
+event: response.output_item.done
+data: {"output_index":0,
+data: "item":{"type":"image_generation_call","result":"Zmlyc3Q=","revised_prompt":"first prompt","output_format":"png"}}
+
+event: response.completed
+data: {"response":{"created_at":1777000001,"output":[]}}
+"#;
+
+        let response =
+            normalize_openai_responses_image_sse(sse, "b64_json").expect("sse image response");
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(response.data[0].b64_json.as_deref(), Some("Zmlyc3Q="));
+    }
+
+    #[test]
+    fn normalize_openai_responses_image_tool_model_rewrites_gpt_images_alias() {
+        assert_eq!(
+            normalize_openai_responses_image_tool_model("gpt-images-2"),
+            "gpt-image-2"
+        );
+        assert_eq!(
+            normalize_openai_responses_image_tool_model("gpt-image-1"),
+            "gpt-image-1"
+        );
+    }
+
+    #[test]
+    fn build_openai_responses_image_request_payload_uses_tool_model_and_omits_n() {
+        let request = ImageGenerationRequest {
+            model: "gpt-images-2".to_string(),
+            prompt: "生成一个苹果".to_string(),
+            n: 3,
+            size: Some("1024x1024".to_string()),
+            response_format: "b64_json".to_string(),
+            quality: Some("high".to_string()),
+            style: None,
+            user: None,
+        };
+
+        let payload = build_openai_responses_image_request_payload(
+            &request,
+            "gpt-5.4",
+            "gpt-images-2",
+            "1024x1024",
+        );
+        let tool = payload["tools"][0].as_object().expect("tool object");
+
+        assert_eq!(payload["model"].as_str(), Some("gpt-5.4"));
+        let input = payload["input"].as_str().expect("responses input");
+        assert!(input.contains("恰好 3 次"));
+        assert!(input.contains("每次只生成 1 张独立图片"));
+        assert!(input.contains("原始创作要求：生成一个苹果"));
+        assert_eq!(
+            tool.get("type").and_then(|value| value.as_str()),
+            Some("image_generation")
+        );
+        assert_eq!(
+            tool.get("model").and_then(|value| value.as_str()),
+            Some("gpt-image-2")
+        );
+        assert_eq!(
+            tool.get("size").and_then(|value| value.as_str()),
+            Some("1024x1024")
+        );
+        assert_eq!(
+            tool.get("output_format").and_then(|value| value.as_str()),
+            Some("png")
+        );
+        assert!(tool.get("n").is_none());
+        assert!(tool.get("quality").is_none());
+    }
+
+    #[test]
+    fn build_openai_responses_image_request_payload_keeps_plain_prompt_for_single_image() {
+        let request = ImageGenerationRequest {
+            model: "gpt-images-2".to_string(),
+            prompt: "生成一个苹果".to_string(),
+            n: 1,
+            size: Some("1024x1024".to_string()),
+            response_format: "b64_json".to_string(),
+            quality: None,
+            style: None,
+            user: None,
+        };
+
+        let payload = build_openai_responses_image_request_payload(
+            &request,
+            "gpt-5.4",
+            "gpt-images-2",
+            "1024x1024",
+        );
+
+        assert_eq!(payload["input"].as_str(), Some("生成一个苹果"));
+    }
+
+    #[test]
+    fn resolve_openai_responses_image_orchestration_model_prefers_non_image_custom_model() {
+        let now = Utc::now();
+        let provider = ApiKeyProvider {
+            id: "custom-openai-images".to_string(),
+            name: "Custom".to_string(),
+            provider_type: ApiProviderType::Openai,
+            api_host: "https://gateway.example.com/codex".to_string(),
+            is_system: false,
+            group: ProviderGroup::Custom,
+            enabled: true,
+            sort_order: 0,
+            api_version: None,
+            project: None,
+            location: None,
+            region: None,
+            custom_models: vec!["gpt-images-2".to_string(), "gpt-5.4".to_string()],
+            prompt_cache_mode: None,
+            created_at: now,
+            updated_at: now,
+        };
+
+        assert_eq!(
+            resolve_openai_responses_image_orchestration_model(&provider, "gpt-images-2"),
+            "gpt-5.4"
+        );
+    }
+
+    #[tokio::test]
+    async fn request_openai_responses_images_waits_for_completed_event_before_returning() {
+        async fn responses_handler() -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>>
+        {
+            let stream = stream! {
+                yield Ok(Event::default().event("response.output_item.done").data(
+                    r#"{"type":"response.output_item.done","output_index":0,"item":{"type":"image_generation_call","result":"Zmlyc3Q=","revised_prompt":"first prompt","output_format":"png"}}"#,
+                ));
+                tokio::time::sleep(Duration::from_millis(15)).await;
+                yield Ok(Event::default().event("response.output_item.done").data(
+                    r#"{"type":"response.output_item.done","output_index":1,"item":{"type":"image_generation_call","result":"c2Vjb25k","revised_prompt":"second prompt","output_format":"png"}}"#,
+                ));
+                tokio::time::sleep(Duration::from_millis(15)).await;
+                yield Ok(Event::default().event("response.completed").data(
+                    r#"{"type":"response.completed","response":{"created_at":1777000001,"output":[]}}"#,
+                ));
+            };
+
+            Sse::new(stream)
+        }
+
+        let app = Router::new().route("/v1/responses", post(responses_handler));
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("serve test app");
+        });
+
+        let client = Client::builder().no_proxy().build().expect("client");
+        let now = Utc::now();
+        let provider = ApiKeyProvider {
+            id: "custom-openai-images".to_string(),
+            name: "Custom".to_string(),
+            provider_type: ApiProviderType::Openai,
+            api_host: format!("http://{addr}"),
+            is_system: false,
+            group: ProviderGroup::Custom,
+            enabled: true,
+            sort_order: 0,
+            api_version: None,
+            project: None,
+            location: None,
+            region: None,
+            custom_models: vec!["gpt-images-2".to_string()],
+            prompt_cache_mode: None,
+            created_at: now,
+            updated_at: now,
+        };
+        let request = ImageGenerationRequest {
+            model: "gpt-images-2".to_string(),
+            prompt: "生成两个苹果".to_string(),
+            n: 2,
+            size: Some("1024x1024".to_string()),
+            response_format: "b64_json".to_string(),
+            quality: None,
+            style: None,
+            user: None,
+        };
+
+        let response = request_openai_responses_images(
+            &client,
+            &provider,
+            &format!("http://{addr}"),
+            "test-key",
+            &request,
+            "gpt-images-2",
+            "1024x1024",
+        )
+        .await
+        .expect("responses image request");
+
+        assert_eq!(response.data.len(), 2);
+        assert_eq!(response.data[0].b64_json.as_deref(), Some("Zmlyc3Q="));
+        assert_eq!(response.data[1].b64_json.as_deref(), Some("c2Vjb25k"));
+    }
+
+    #[tokio::test]
+    async fn request_openai_responses_images_accepts_event_only_completion_markers() {
+        async fn responses_handler() -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>>
+        {
+            let stream = stream! {
+                yield Ok(Event::default().event("response.output_item.done").data(
+                    r#"{"output_index":0,"item":{"type":"image_generation_call","result":"Zmlyc3Q=","revised_prompt":"first prompt","output_format":"png"}}"#,
+                ));
+                tokio::time::sleep(Duration::from_millis(15)).await;
+                yield Ok(Event::default().event("response.completed").data(
+                    r#"{"response":{"created_at":1777000001,"output":[]}}"#,
+                ));
+            };
+
+            Sse::new(stream)
+        }
+
+        let app = Router::new().route("/v1/responses", post(responses_handler));
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("serve test app");
+        });
+
+        let client = Client::builder().no_proxy().build().expect("client");
+        let now = Utc::now();
+        let provider = ApiKeyProvider {
+            id: "custom-openai-images".to_string(),
+            name: "Custom".to_string(),
+            provider_type: ApiProviderType::Openai,
+            api_host: format!("http://{addr}"),
+            is_system: false,
+            group: ProviderGroup::Custom,
+            enabled: true,
+            sort_order: 0,
+            api_version: None,
+            project: None,
+            location: None,
+            region: None,
+            custom_models: vec!["gpt-images-2".to_string()],
+            prompt_cache_mode: None,
+            created_at: now,
+            updated_at: now,
+        };
+        let request = ImageGenerationRequest {
+            model: "gpt-images-2".to_string(),
+            prompt: "生成一个苹果".to_string(),
+            n: 1,
+            size: Some("1024x1024".to_string()),
+            response_format: "b64_json".to_string(),
+            quality: None,
+            style: None,
+            user: None,
+        };
+
+        let response = request_openai_responses_images(
+            &client,
+            &provider,
+            &format!("http://{addr}"),
+            "test-key",
+            &request,
+            "gpt-images-2",
+            "1024x1024",
+        )
+        .await
+        .expect("responses image request");
+
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(response.data[0].b64_json.as_deref(), Some("Zmlyc3Q="));
+    }
+
+    #[tokio::test]
+    async fn request_openai_responses_images_returns_after_expected_done_events_without_completed()
+    {
+        async fn responses_handler() -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>>
+        {
+            let stream = stream! {
+                yield Ok(Event::default().event("response.output_item.done").data(
+                    r#"{"type":"response.output_item.done","output_index":0,"item":{"type":"image_generation_call","result":"Zmlyc3Q=","revised_prompt":"first prompt","output_format":"png"}}"#,
+                ));
+                tokio::time::sleep(Duration::from_millis(15)).await;
+                yield Ok(Event::default().event("response.output_item.done").data(
+                    r#"{"type":"response.output_item.done","output_index":1,"item":{"type":"image_generation_call","result":"c2Vjb25k","revised_prompt":"second prompt","output_format":"png"}}"#,
+                ));
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                yield Ok(Event::default().event("keepalive").data(r#"{"type":"keepalive"}"#));
+            };
+
+            Sse::new(stream)
+        }
+
+        let app = Router::new().route("/v1/responses", post(responses_handler));
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener addr");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("serve test app");
+        });
+
+        let client = Client::builder().no_proxy().build().expect("client");
+        let now = Utc::now();
+        let provider = ApiKeyProvider {
+            id: "custom-openai-images".to_string(),
+            name: "Custom".to_string(),
+            provider_type: ApiProviderType::Openai,
+            api_host: format!("http://{addr}"),
+            is_system: false,
+            group: ProviderGroup::Custom,
+            enabled: true,
+            sort_order: 0,
+            api_version: None,
+            project: None,
+            location: None,
+            region: None,
+            custom_models: vec!["gpt-images-2".to_string()],
+            prompt_cache_mode: None,
+            created_at: now,
+            updated_at: now,
+        };
+        let request = ImageGenerationRequest {
+            model: "gpt-images-2".to_string(),
+            prompt: "生成两个苹果".to_string(),
+            n: 2,
+            size: Some("1024x1024".to_string()),
+            response_format: "b64_json".to_string(),
+            quality: None,
+            style: None,
+            user: None,
+        };
+
+        let response = tokio::time::timeout(
+            Duration::from_millis(250),
+            request_openai_responses_images(
+                &client,
+                &provider,
+                &format!("http://{addr}"),
+                "test-key",
+                &request,
+                "gpt-images-2",
+                "1024x1024",
+            ),
+        )
+        .await
+        .expect("responses image request should finish before keepalive")
+        .expect("responses image request");
+
+        assert_eq!(response.data.len(), 2);
+        assert_eq!(response.data[0].b64_json.as_deref(), Some("Zmlyc3Q="));
+        assert_eq!(response.data[1].b64_json.as_deref(), Some("c2Vjb25k"));
+    }
+
+    #[test]
+    fn try_extract_partial_openai_responses_images_returns_done_images_without_completed() {
+        let sse = r#"
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":0,"item":{"type":"image_generation_call","result":"Zmlyc3Q=","revised_prompt":"first prompt","output_format":"png"}}
+"#;
+
+        let response = try_extract_partial_openai_responses_images(sse, "b64_json")
+            .expect("partial extraction should parse")
+            .expect("partial extraction should keep at least one image");
+
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(response.data[0].b64_json.as_deref(), Some("Zmlyc3Q="));
+    }
+
+    #[test]
+    fn should_prefer_openai_responses_image_api_for_generic_codex_base_path() {
+        let now = Utc::now();
+        let provider = ApiKeyProvider {
+            id: "custom-openai-images".to_string(),
+            name: "Custom OpenAI Images".to_string(),
+            provider_type: ApiProviderType::Openai,
+            api_host: "https://gateway.example.com/codex".to_string(),
+            is_system: false,
+            group: ProviderGroup::Custom,
+            enabled: true,
+            sort_order: 0,
+            api_version: None,
+            project: None,
+            location: None,
+            region: None,
+            custom_models: vec!["gpt-images-2".to_string()],
+            prompt_cache_mode: None,
+            created_at: now,
+            updated_at: now,
+        };
+
+        assert!(should_prefer_openai_responses_image_api(&provider));
+
+        let standard_provider = ApiKeyProvider {
+            api_host: "https://api.openai.com/v1".to_string(),
+            ..provider
+        };
+        assert!(!should_prefer_openai_responses_image_api(
+            &standard_provider
+        ));
     }
 
     #[test]

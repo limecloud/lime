@@ -704,6 +704,7 @@ function buildStreamingProcessSummary(
 ): {
   summaryText: string;
   descriptor: ToolBatchSummaryDescriptor | null;
+  metaText: string | null;
 } {
   const toolEntries = entries.filter(
     (entry): entry is Extract<StreamingProcessEntry, { kind: "tool" }> =>
@@ -717,6 +718,7 @@ function buildStreamingProcessSummary(
     return {
       summaryText: batchDescriptor.title,
       descriptor: batchDescriptor,
+      metaText: null,
     };
   }
 
@@ -757,6 +759,7 @@ function buildStreamingProcessSummary(
     return {
       summaryText: summaryParts.join("，"),
       descriptor: null,
+      metaText: null,
     };
   }
 
@@ -764,14 +767,14 @@ function buildStreamingProcessSummary(
     return {
       summaryText: primarySummary,
       descriptor: null,
+      metaText: null,
     };
   }
 
-  const countLabel = `${toolCount} 个工具调用`;
   return {
-    summaryText:
-      entries.length > 1 ? `${primarySummary} · ${countLabel}` : primarySummary,
+    summaryText: primarySummary,
     descriptor: null,
+    metaText: entries.length > 1 ? `${toolCount} 个工具调用` : null,
   };
 }
 
@@ -797,7 +800,7 @@ const StreamingProcessGroup: React.FC<{
   ) => React.ReactNode;
 }> = ({ entries, defaultExpanded = true, renderEntry }) => {
   const [expanded, setExpanded] = React.useState(defaultExpanded);
-  const { summaryText, descriptor } = useMemo(
+  const { summaryText, descriptor, metaText } = useMemo(
     () => buildStreamingProcessSummary(entries),
     [entries],
   );
@@ -823,7 +826,12 @@ const StreamingProcessGroup: React.FC<{
           )}
         />
         <span className="min-w-0 flex-1 text-sm font-medium leading-6 text-slate-700">
-          <span>{summaryText}</span>
+          <span className="block break-words">{summaryText}</span>
+          {metaText ? (
+            <span className="mt-0.5 block text-xs font-normal leading-5 text-slate-500">
+              {metaText}
+            </span>
+          ) : null}
           {descriptor?.supportingLines?.length ? (
             <span className="mt-0.5 block space-y-0.5">
               {descriptor.supportingLines.slice(0, 2).map((line) => (

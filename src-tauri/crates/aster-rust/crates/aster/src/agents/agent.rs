@@ -2283,8 +2283,11 @@ impl Agent {
             .resolve_effective_model_config(session_config.turn_context.as_ref())
             .await
             .ok_or_else(|| anyhow!("Provider not set"))?;
-        let (tools, toolshim_tools, system_prompt) = self
-            .prepare_tools_and_prompt(working_dir, session_prompt, &model_config)
+        let (tools, toolshim_tools, system_prompt) =
+            crate::session_context::with_turn_context(session_config.turn_context.clone(), async {
+                self.prepare_tools_and_prompt(working_dir, session_prompt, &model_config)
+                    .await
+            })
             .await?;
         let mut system_prompt = system_prompt;
         push_trace(
@@ -3136,11 +3139,7 @@ impl Agent {
         self.extension_manager.get_extension_configs().await
     }
 
-    pub async fn inherit_runtime_tool_surface_from(&self, other: &Agent) -> Result<()> {
-        for config in other.get_extension_configs().await {
-            self.add_extension(config).await?;
-        }
-
+    pub async fn inherit_frontend_tool_surface_from(&self, other: &Agent) {
         let frontend_tools = other.frontend_tools.lock().await.clone();
         let frontend_instructions = other.frontend_instructions.lock().await.clone();
 
@@ -3150,6 +3149,14 @@ impl Agent {
         }
 
         *self.frontend_instructions.lock().await = frontend_instructions;
+    }
+
+    pub async fn inherit_runtime_tool_surface_from(&self, other: &Agent) -> Result<()> {
+        for config in other.get_extension_configs().await {
+            self.add_extension(config).await?;
+        }
+
+        self.inherit_frontend_tool_surface_from(other).await;
         Ok(())
     }
 
@@ -5960,6 +5967,62 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_prepare_reply_context_applies_session_turn_scoped_allowed_tools() -> Result<()> {
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+
+        let agent = Agent::new();
+        let session = SessionManager::create_session(
+            PathBuf::from("."),
+            "agent-turn-context-tool-scope".to_string(),
+            SessionType::User,
+        )
+        .await?;
+        agent
+            .update_provider(Arc::new(NativeOutputSchemaProvider), &session.id)
+            .await?;
+
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            "subagent".to_string(),
+            serde_json::json!({
+                "allowed_tools": ["Read"]
+            }),
+        );
+        let session_config = SessionConfig {
+            id: session.id.clone(),
+            thread_id: Some("thread-turn-context-tool-scope".to_string()),
+            turn_id: Some("turn-turn-context-tool-scope".to_string()),
+            schedule_id: None,
+            max_turns: None,
+            retry_config: None,
+            system_prompt: None,
+            include_context_trace: None,
+            turn_context: Some(TurnContextOverride {
+                metadata,
+                ..TurnContextOverride::default()
+            }),
+        };
+
+        let reply_context = agent
+            .prepare_reply_context(
+                Conversation::default(),
+                PathBuf::from(".").as_path(),
+                &session_config,
+                false,
+            )
+            .await?;
+
+        let tool_names = reply_context
+            .tools
+            .iter()
+            .map(|tool| tool.name.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(tool_names, vec!["Read".to_string()]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_list_tools_hides_main_thread_only_tools_for_subagent_sessions() -> Result<()> {
         initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
@@ -6857,6 +6920,49 @@ mod tests {
         assert!(
             elapsed < Duration::from_millis(420),
             "read-only batch should execute concurrently, elapsed={elapsed:?}"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_inherit_frontend_tool_surface_from_copies_frontend_tools_without_extensions(
+    ) -> Result<()> {
+        let source = Agent::new();
+        source
+            .add_extension(ExtensionConfig::Frontend {
+                name: "frontend".to_string(),
+                description: "desc".to_string(),
+                tools: vec![Tool::new(
+                    "lime_create_image_generation_task".to_string(),
+                    "Create image task".to_string(),
+                    serde_json::Map::new(),
+                )],
+                instructions: Some("frontend instructions".to_string()),
+                bundled: None,
+                available_tools: vec![],
+                deferred_loading: false,
+                always_expose_tools: vec![],
+                allowed_caller: None,
+            })
+            .await?;
+
+        let target = Agent::new();
+        target.inherit_frontend_tool_surface_from(&source).await;
+
+        assert!(target.get_extension_configs().await.is_empty());
+        assert!(
+            target
+                .is_frontend_tool("lime_create_image_generation_task")
+                .await
+        );
+        assert_eq!(
+            target
+                .get_frontend_tool("lime_create_image_generation_task")
+                .await
+                .as_ref()
+                .map(|tool| tool.name.as_str()),
+            Some("lime_create_image_generation_task")
         );
 
         Ok(())

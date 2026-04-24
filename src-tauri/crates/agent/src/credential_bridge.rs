@@ -514,20 +514,48 @@ fn is_first_party_openai_base_url(base_url: &str) -> bool {
     normalized.contains("openai.com")
 }
 
+fn is_first_party_anthropic_selector(selector: &str) -> bool {
+    matches!(selector, "anthropic" | "claude" | "claude_oauth")
+}
+
+fn is_first_party_anthropic_base_url(base_url: &str) -> bool {
+    let normalized = base_url.trim().to_ascii_lowercase();
+    normalized.contains("api.anthropic.com")
+}
+
 fn should_disable_provider_default_fast_model(config: &AsterProviderConfig) -> bool {
-    if config.provider_name != "openai" || config.force_responses_api {
+    if config.force_responses_api {
         return false;
     }
 
-    if let Some(base_url) = config.base_url.as_deref() {
-        if !is_first_party_openai_base_url(base_url) {
-            return true;
-        }
-    }
+    match config.provider_name.as_str() {
+        "openai" => {
+            if let Some(base_url) = config.base_url.as_deref() {
+                if !is_first_party_openai_base_url(base_url) {
+                    return true;
+                }
+            }
 
-    match normalize_provider_identifier(config.provider_selector.as_deref()) {
-        Some(selector) => !is_first_party_openai_selector(&selector),
-        None => false,
+            match normalize_provider_identifier(config.provider_selector.as_deref()) {
+                Some(selector) => !is_first_party_openai_selector(&selector),
+                None => false,
+            }
+        }
+        "anthropic" => {
+            if let Some(base_url) = config.base_url.as_deref() {
+                if !is_first_party_anthropic_base_url(base_url) {
+                    return true;
+                }
+            }
+
+            match normalize_provider_identifier(config.provider_selector.as_deref()) {
+                Some(selector) if config.base_url.is_none() => {
+                    !is_first_party_anthropic_selector(&selector)
+                }
+                _ => false,
+            }
+        }
+        _ => false,
     }
 }
 
@@ -916,6 +944,42 @@ mod tests {
             base_url: Some("https://example.com/openai".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: true,
+            credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
+        };
+
+        assert!(!should_disable_provider_default_fast_model(&config));
+    }
+
+    #[test]
+    fn test_should_disable_provider_default_fast_model_for_anthropic_compatible_proxy() {
+        let config = AsterProviderConfig {
+            provider_name: "anthropic".to_string(),
+            provider_selector: Some("custom-cae6e762-fb45-4f71-878c-3106510ade78".to_string()),
+            model_name: "mimo-v2-pro".to_string(),
+            api_key: Some("test-key".to_string()),
+            base_url: Some("https://token-plan-cn.xiaomimimo.com/anthropic".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: false,
+            credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
+        };
+
+        assert!(should_disable_provider_default_fast_model(&config));
+    }
+
+    #[test]
+    fn test_should_keep_provider_default_fast_model_for_first_party_anthropic() {
+        let config = AsterProviderConfig {
+            provider_name: "anthropic".to_string(),
+            provider_selector: Some("anthropic".to_string()),
+            model_name: "claude-sonnet-4-5-20250929".to_string(),
+            api_key: Some("test-key".to_string()),
+            base_url: Some("https://api.anthropic.com".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: false,
             credential_path: None,
             toolshim: false,
             toolshim_model: None,

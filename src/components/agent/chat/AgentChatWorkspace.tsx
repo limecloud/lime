@@ -269,12 +269,18 @@ import {
   listCuratedTaskRecommendationSignals,
   recordCuratedTaskRecommendationSignalFromMemory,
   recordCuratedTaskRecommendationSignalFromReviewDecision,
+  subscribeCuratedTaskRecommendationSignalsChanged,
 } from "./utils/curatedTaskRecommendationSignals";
 import {
   buildSceneAppExecutionCuratedTaskFollowUpAction,
   buildCuratedTaskReferenceEntryFromSceneAppExecution,
   buildSceneAppExecutionReviewFollowUpAction,
 } from "./utils/sceneAppCuratedTaskReference";
+import {
+  buildSceneAppExecutionInspirationLibraryPageParams,
+  hasSavedSceneAppExecutionAsInspiration,
+  saveSceneAppExecutionAsInspiration,
+} from "./utils/saveSceneAppExecutionAsInspiration";
 import { buildSceneAppExecutionPromptActionPayload } from "./utils/sceneAppExecutionPromptContinuation";
 import { buildSkillsPageParamsFromSceneAppExecution } from "./utils/sceneAppSkillScaffoldDraft";
 import { buildSkillsPageParamsFromMessage } from "./utils/skillScaffoldDraft";
@@ -830,6 +836,7 @@ export function AgentChatWorkspace({
     providerDeferredDelayMs: shouldPreserveBlankHomeSurface
       ? BLANK_HOME_DEFERRED_LOAD_MS
       : undefined,
+    selectionScopeKey: `${externalProjectId ?? project?.id ?? "no-project"}:${initialSessionId ?? "no-session"}:${contentId ?? "no-content"}`,
   });
   const {
     availableProviders: imageWorkbenchProviders,
@@ -3080,6 +3087,12 @@ export function AgentChatWorkspace({
     createImageGenerationTask: createImageGenerationTaskArtifact,
     getImageTask: getMediaTaskArtifact,
     currentImageWorkbenchState,
+    imageWorkbenchPreferredModelId:
+      effectiveImageWorkbenchPreference.preferredModelId,
+    imageWorkbenchPreferredProviderId:
+      effectiveImageWorkbenchPreference.preferredProviderId,
+    imageWorkbenchPreferredProviderUnavailable:
+      imageWorkbenchPreferredProviderUnavailable,
     imageWorkbenchSelectedModelId,
     imageWorkbenchSelectedProviderId,
     imageWorkbenchSelectedSize,
@@ -4568,6 +4581,59 @@ export function AgentChatWorkspace({
     sceneAppExecutionSummaryState?.summary,
     sessionId,
   ]);
+  const [curatedTaskRecommendationSignalsVersion, setCuratedTaskRecommendationSignalsVersion] =
+    useState(0);
+  useEffect(() => {
+    return subscribeCuratedTaskRecommendationSignalsChanged(() => {
+      setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
+    });
+  }, []);
+  const handleSaveSceneAppExecutionAsInspiration = useCallback(() => {
+    void saveSceneAppExecutionAsInspiration({
+      summary: sceneAppExecutionSummaryState?.summary,
+      detailView: sceneAppExecutionSummaryState?.latestPackResultDetailView,
+      projectId,
+      sessionId,
+    });
+  }, [
+    projectId,
+    sceneAppExecutionSummaryState?.latestPackResultDetailView,
+    sceneAppExecutionSummaryState?.summary,
+    sessionId,
+  ]);
+  const handleOpenInspirationLibrary = useCallback(() => {
+    if (!_onNavigate) {
+      toast.error("当前入口暂不支持直接打开灵感库");
+      return;
+    }
+
+    _onNavigate(
+      "memory",
+      buildSceneAppExecutionInspirationLibraryPageParams({
+        summary: sceneAppExecutionSummaryState?.summary,
+        detailView: sceneAppExecutionSummaryState?.latestPackResultDetailView,
+      }),
+    );
+  }, [
+    _onNavigate,
+    sceneAppExecutionSummaryState?.latestPackResultDetailView,
+    sceneAppExecutionSummaryState?.summary,
+  ]);
+  const sceneAppExecutionSavedAsInspiration = useMemo(() => {
+    void curatedTaskRecommendationSignalsVersion;
+    return hasSavedSceneAppExecutionAsInspiration({
+      summary: sceneAppExecutionSummaryState?.summary,
+      detailView: sceneAppExecutionSummaryState?.latestPackResultDetailView,
+      projectId,
+      sessionId,
+    });
+  }, [
+    curatedTaskRecommendationSignalsVersion,
+    projectId,
+    sceneAppExecutionSummaryState?.latestPackResultDetailView,
+    sceneAppExecutionSummaryState?.summary,
+    sessionId,
+  ]);
   const latestReviewFeedbackSignal =
     listCuratedTaskRecommendationSignals({
       projectId,
@@ -4589,6 +4655,9 @@ export function AgentChatWorkspace({
         latestReviewFeedbackSignal={latestReviewFeedbackSignal}
         onContinueReviewFeedback={handleContinueSceneAppReviewFeedback}
         onReviewCurrentProject={handleReviewCurrentSceneAppExecution}
+        savedAsInspiration={sceneAppExecutionSavedAsInspiration}
+        onSaveAsInspiration={handleSaveSceneAppExecutionAsInspiration}
+        onOpenInspirationLibrary={handleOpenInspirationLibrary}
         onSaveAsSkill={handleSaveSceneAppExecutionAsSkill}
         onOpenSceneAppDetail={handleOpenSceneAppExecutionDetail}
         onOpenSceneAppGovernance={handleOpenSceneAppExecutionGovernance}
@@ -4620,16 +4689,19 @@ export function AgentChatWorkspace({
       handleOpenSceneAppExecutionDetail,
       handleOpenSceneAppExecutionHumanReview,
       handleOpenSceneAppExecutionGovernance,
+      handleOpenInspirationLibrary,
       handleOpenSceneAppExecutionDeliveryArtifact,
       handleOpenSceneAppExecutionEntryAction,
       handleOpenSceneAppExecutionGovernanceArtifact,
       handleReviewCurrentSceneAppExecution,
+      handleSaveSceneAppExecutionAsInspiration,
       handleSaveSceneAppExecutionAsSkill,
       handleRunSceneAppExecutionPromptAction,
       handleRunSceneAppExecutionGovernanceAction,
       isSending,
       latestReviewFeedbackSignal,
       queuedTurns.length,
+      sceneAppExecutionSavedAsInspiration,
       sceneAppReviewDecisionLoading,
       sceneAppReviewDecisionSaving,
       sceneAppExecutionContentPostEntries,
@@ -5159,6 +5231,34 @@ export function AgentChatWorkspace({
     },
     [_onNavigate, initialCreationReplay, projectId],
   );
+  const persistInspirationDraft = useCallback(
+    (
+      draft: {
+        request: Parameters<typeof createUnifiedMemory>[0];
+        categoryLabel: string;
+        title: string;
+      },
+      options?: {
+        successMessage?: string;
+      },
+    ) => {
+      void createUnifiedMemory(draft.request)
+        .then((memory) => {
+          recordCuratedTaskRecommendationSignalFromMemory(memory, {
+            projectId,
+            sessionId,
+          });
+          toast.success(options?.successMessage ?? "已保存到灵感库", {
+            description: `${draft.categoryLabel} · ${draft.title}`,
+          });
+        })
+        .catch((error) => {
+          console.error("保存到灵感库失败:", error);
+          toast.error("保存到灵感库失败，请稍后重试");
+        });
+    },
+    [projectId, sessionId],
+  );
   const handleSaveMessageAsInspiration = useCallback(
     (source: { messageId: string; content: string }) => {
       const draft = buildMessageInspirationDraft({
@@ -5173,22 +5273,9 @@ export function AgentChatWorkspace({
         return;
       }
 
-      void createUnifiedMemory(draft.request)
-        .then((memory) => {
-          recordCuratedTaskRecommendationSignalFromMemory(memory, {
-            projectId,
-            sessionId,
-          });
-          toast.success("已保存到灵感库", {
-            description: `${draft.categoryLabel} · ${draft.title}`,
-          });
-        })
-        .catch((error) => {
-          console.error("保存到灵感库失败:", error);
-          toast.error("保存到灵感库失败，请稍后重试");
-        });
+      persistInspirationDraft(draft);
     },
-    [initialCreationReplay, projectId, sessionId],
+    [initialCreationReplay, persistInspirationDraft, sessionId],
   );
 
   const inputbarScene = useWorkspaceInputbarSceneRuntime({

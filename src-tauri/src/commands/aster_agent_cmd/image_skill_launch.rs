@@ -357,6 +357,7 @@ fn build_image_skill_launch_system_prompt(
     let mode =
         extract_object_string(image_task, &["mode"]).unwrap_or_else(|| "generate".to_string());
     let size = extract_object_string(image_task, &["size"]);
+    let layout_hint = extract_object_string(image_task, &["layout_hint", "layoutHint"]);
     let aspect_ratio = extract_object_string(image_task, &["aspect_ratio", "aspectRatio"]);
     let provider_id = extract_object_string(image_task, &["provider_id", "providerId"]);
     let model = extract_object_string(image_task, &["model"]);
@@ -395,12 +396,20 @@ fn build_image_skill_launch_system_prompt(
             serde_json::to_string(&args_json).unwrap_or_else(|_| "\"{}\"".to_string())
         ),
         "- 当前回合已经显式知道要走图片技能主链，不要为了确认技能名、工具名或命令名再去调用 ToolSearch。".to_string(),
+        "- 当前主会话第一刀必须先调用 Skill(image_generate)，但这不等于任务已经创建。".to_string(),
         "- 在 Skill(image_generate) 真正执行前，不要先走 ToolSearch / WebSearch / Bash / Read / Glob / Grep 等通用工具发现、检索或读文件链路。".to_string(),
         "- 不要搜索 “Skill image_generate”、“lime media image generate --json”、“lime_create_image_generation_task” 之类目录信息；当前 image_task 已经提供了足够上下文。".to_string(),
         "- 如果某个通用搜索/读文件工具因为 session policy 被拒绝，不要重复同类调用；应立即改为直调 Skill(image_generate)。".to_string(),
-        "- Skill(image_generate) 内部必须直接调用 lime_create_image_generation_task 创建真实图片任务，不要再通过 Bash 拼接 CLI 命令或临时 /tmp 任务文件。".to_string(),
+        "- 如果 Skill(image_generate) 返回的 Lime 工具元数据里只有 allowed_tools=[\"lime_create_image_generation_task\"]，而没有 task_id/path/status，说明任务尚未创建；当前主会话必须立刻继续调用 lime_create_image_generation_task。".to_string(),
+        "- 不要把 Skill(image_generate) success=true 误判成“任务已提交”；只有拿到 task_id、path，或 status=pending_submit/queued/running/partial/succeeded，才算真实提交成功。".to_string(),
+        "- 当前图片主链是 Skill(image_generate) -> lime_create_image_generation_task -> 标准 image task artifact + worker，不要停在 Skill 返回后直接写总结。".to_string(),
+        "- 不要再通过 Bash 拼接 CLI 命令或临时 /tmp 任务文件替代 lime_create_image_generation_task。".to_string(),
+        "- 调用 lime_create_image_generation_task 时，必须把 image_task 对象本身直接作为工具参数提交；不要再包一层 {\"image_task\": ...}，更不要把整个对象再次序列化成字符串。".to_string(),
+        "- 调用 lime_create_image_generation_task 时，统一使用 snake_case 字段名；不要把 anchorHint / providerId / projectId 这类 camelCase 同义字段与 snake_case 一起重复提交。".to_string(),
         "- 调用 lime_create_image_generation_task 时，必须只提交标准 image task 参数；不要传 outputPath，不要把任务写成 markdown 文稿。".to_string(),
         "- 不要伪造“图片已生成完成”；在 task file 真正返回结果前，只能汇报任务已提交、排队或执行中。".to_string(),
+        "- 如果当前回合已经拿到任何图片任务结果，且结果里含 task_id、path，或 status=pending_submit/queued/running/partial/succeeded，说明任务已提交；不要再次调用 Skill(image_generate) 或重复创建第二个图片任务。".to_string(),
+        "- 拿到上述任务结果后，直接基于现有 task_id、路径和状态给出提交摘要，并等待 task file 后续回流。".to_string(),
         format!("- 当前图片任务上下文(JSON)：{image_task_json}"),
         format!("- 当前模式：{mode}。"),
         format!("- 当前入口来源：{entry_source}。"),
@@ -425,11 +434,44 @@ fn build_image_skill_launch_system_prompt(
     if let Some(value) = model.as_deref() {
         lines.push(format!("- 当前首选模型：{value}。"));
     }
+    if provider_id.is_some() || model.is_some() {
+        lines.push(
+            "- 调用 lime_create_image_generation_task 时，如果 image_task 已包含 provider_id / model，必须原样透传，不要省略、不要改写、不要回退成默认图片服务。"
+                .to_string(),
+        );
+    }
+    lines.push(
+        "- 调用 lime_create_image_generation_task 时，如果 image_task 已包含 count / layout_hint / session_id / project_id / raw_text / usage / size / requested_target / reference_images，必须逐字段原样透传；其中 count 必须传整数，layout_hint=storyboard_3x3 时禁止省略，否则会丢失分镜布局。"
+            .to_string(),
+    );
+    lines.push(
+        "- 如果 layout_hint=storyboard_3x3，调用 lime_create_image_generation_task 时必须显式提交 storyboard_slots；不要只传一个总 prompt 让运行时重复出 9 张。"
+            .to_string(),
+    );
+    lines.push(
+        "- storyboard_slots 中每一格都必须提供完整 prompt，不允许只写短标签；各格必须体现不同主体、阵营、关系、镜头、动作或情绪推进，避免同一群像仅换画法。"
+            .to_string(),
+    );
+    lines.push(
+        "- 分镜题材由用户要求决定，可以是电影、动漫、短视频、广告或其它叙事形式；应根据主题把主要人物、组别、关键场面拆成不同格，而不是生成同一张图的多个变体。"
+            .to_string(),
+    );
+    lines.push(
+        "- 若 image_task 已含 storyboard_slots，必须原样透传且不要改乱顺序；若尚未提供而 layout_hint=storyboard_3x3，必须先自行补齐与 count 对齐的逐格 storyboard_slots，再创建任务。"
+            .to_string(),
+    );
 
     lines.push(
         "- 当前任务已经显式进入图片技能主链，不要再要求用户额外确认“是否开始生成/修图”。"
             .to_string(),
     );
+
+    if layout_hint.as_deref() == Some("storyboard_3x3") {
+        lines.push(
+            "- 当前任务明确是 3x3 分镜：优先让 9 格在主体、构图和叙事推进上形成连续变化，不要让 9 格变成同题材重复采样。"
+                .to_string(),
+        );
+    }
 
     Some(lines.join("\n"))
 }

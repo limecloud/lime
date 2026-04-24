@@ -16,12 +16,18 @@ import {
   IMAGE_TASKS_ROOT_RELATIVE_PATH,
   normalizeImageTaskPath,
 } from "./imageTaskLocator";
+import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import {
   replaceDocumentImageTaskPlaceholderWithImage,
   upsertDocumentImageTaskPlaceholder,
 } from "@/components/workspace/document/utils/imageTaskPlaceholder";
-import type { Message, MessageImageWorkbenchPreview } from "../types";
+import type {
+  ContentPart,
+  ImageStoryboardSlot,
+  Message,
+  MessageImageWorkbenchPreview,
+} from "../types";
 import {
   buildImageWorkbenchProcessDescriptor,
   resolveImageWorkbenchAssistantMessageId,
@@ -49,6 +55,7 @@ interface CreationTaskSubmittedPayload {
   prompt?: string;
   size?: string;
   mode?: string;
+  layout_hint?: string;
   raw_text?: string;
   count?: number;
   reused_existing?: boolean;
@@ -158,6 +165,10 @@ interface SeedImageTaskRecord {
   taskId: string;
   taskFilePath?: string;
   artifactPath?: string;
+}
+
+function contentPartContainsProcess(part: ContentPart): boolean {
+  return part.type !== "text";
 }
 
 function collectSeedImageTasks(messages?: Message[]): SeedImageTaskRecord[] {
@@ -328,6 +339,116 @@ function readStringArray(
     }
   }
   return values;
+}
+
+function sanitizeStoryboardSlotText(
+  value?: string | null,
+): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function resolveMessageTimestampMsLocal(message: Message): number | null {
+  return message.timestamp instanceof Date ? message.timestamp.getTime() : null;
+}
+
+function buildNormalizedStoryboardSlot(params: {
+  slotIndex: number;
+  slotId?: string | null;
+  label?: string | null;
+  prompt?: string | null;
+  shotType?: string | null;
+  status?: string | null;
+}): ImageStoryboardSlot | null {
+  if (!Number.isFinite(params.slotIndex) || params.slotIndex <= 0) {
+    return null;
+  }
+
+  return {
+    slotId:
+      sanitizeStoryboardSlotText(params.slotId) ||
+      `storyboard-slot-${params.slotIndex}`,
+    slotIndex: Math.trunc(params.slotIndex),
+    label: sanitizeStoryboardSlotText(params.label),
+    prompt: sanitizeStoryboardSlotText(params.prompt),
+    shotType: sanitizeStoryboardSlotText(params.shotType),
+    status: sanitizeStoryboardSlotText(params.status),
+  };
+}
+
+function readStoryboardSlotsFromUnknown(value: unknown): ImageStoryboardSlot[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item, index) => {
+      const record = asRecord(item);
+      if (!record) {
+        return null;
+      }
+
+      const slotIndex =
+        readPositiveNumber([record], ["slot_index", "slotIndex"]) || index + 1;
+      return buildNormalizedStoryboardSlot({
+        slotIndex,
+        slotId: readString([record], ["slot_id", "slotId"]),
+        label: readString([record], ["label", "slot_label", "slotLabel"]),
+        prompt: readString([record], [
+          "prompt",
+          "slot_prompt",
+          "slotPrompt",
+          "revised_prompt",
+        ]),
+        shotType: readString([record], ["shot_type", "shotType"]),
+        status: readString([record], ["status"]),
+      });
+    })
+    .filter((item): item is ImageStoryboardSlot => Boolean(item))
+    .sort((left, right) => left.slotIndex - right.slotIndex);
+}
+
+function mergeStoryboardSlots(
+  ...sources: Array<ImageStoryboardSlot[] | null | undefined>
+): ImageStoryboardSlot[] {
+  const bySlotKey = new Map<string, ImageStoryboardSlot>();
+
+  sources.forEach((source) => {
+    (source || []).forEach((slot) => {
+      const slotKey =
+        slot.slotId.trim() || `storyboard-slot-${Math.max(1, slot.slotIndex)}`;
+      const existing = bySlotKey.get(slotKey);
+      bySlotKey.set(slotKey, {
+        ...existing,
+        ...slot,
+        slotId: slotKey,
+        slotIndex:
+          slot.slotIndex ||
+          existing?.slotIndex ||
+          Math.max(1, bySlotKey.size + 1),
+        label: slot.label ?? existing?.label ?? null,
+        prompt: slot.prompt ?? existing?.prompt ?? null,
+        shotType: slot.shotType ?? existing?.shotType ?? null,
+        status: slot.status ?? existing?.status ?? null,
+      });
+    });
+  });
+
+  return Array.from(bySlotKey.values()).sort(
+    (left, right) => left.slotIndex - right.slotIndex,
+  );
+}
+
+function buildPreviewImageUrls(outputs: ImageWorkbenchOutput[]): string[] {
+  const urls: string[] = [];
+  outputs.forEach((output) => {
+    const normalized = output.url.trim();
+    if (!normalized || urls.includes(normalized)) {
+      return;
+    }
+    urls.push(normalized);
+  });
+  return urls.slice(0, 9);
 }
 
 function normalizeRenderableImageUrl(value?: string | null): string | null {
@@ -589,6 +710,67 @@ function shouldRestoreImageTaskRecord(params: {
   );
 }
 
+function messageHasImageWorkbenchProcessSignal(message: Message): boolean {
+  if (message.role !== "assistant") {
+    return false;
+  }
+
+  return (
+    Boolean(message.isThinking) ||
+    Boolean(message.runtimeStatus) ||
+    Boolean(message.imageWorkbenchPreview) ||
+    (message.toolCalls?.length || 0) > 0 ||
+    (message.contentParts || []).some(contentPartContainsProcess)
+  );
+}
+
+function resolvePendingImageCommandRecoverySignature(
+  messages?: Message[],
+): string | null {
+  if (!messages || messages.length === 0) {
+    return null;
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "user") {
+      continue;
+    }
+
+    const parsedCommand = parseImageWorkbenchCommand(message.content || "");
+    if (!parsedCommand) {
+      continue;
+    }
+
+    const trailingMessages = messages.slice(index + 1);
+    if (trailingMessages.length === 0) {
+      return null;
+    }
+
+    if (
+      trailingMessages.some(
+        (candidate) =>
+          candidate.role === "assistant" && Boolean(candidate.imageWorkbenchPreview),
+      )
+    ) {
+      return null;
+    }
+
+    if (!trailingMessages.some(messageHasImageWorkbenchProcessSignal)) {
+      return null;
+    }
+
+    const messageTimestamp = resolveMessageTimestampMsLocal(message);
+    return [
+      message.id,
+      messageTimestamp === null ? "" : String(messageTimestamp),
+      normalizeImageWorkbenchPreviewIdentityText(parsedCommand.rawText),
+    ].join("::");
+  }
+
+  return null;
+}
+
 async function collectImageTaskCandidatePaths(
   projectRootPath: string,
 ): Promise<string[]> {
@@ -794,6 +976,18 @@ function resolveTaskRequestedTarget(taskType: string): "generate" | "cover" {
     : "generate";
 }
 
+function resolveTaskLabelFromMode(mode: ImageWorkbenchTask["mode"]): string {
+  switch (mode) {
+    case "edit":
+      return "图片编辑任务";
+    case "variation":
+      return "图片重绘任务";
+    case "generate":
+    default:
+      return "图片任务";
+  }
+}
+
 function resolvePreviewStatus(
   normalizedStatus: string,
 ): MessageImageWorkbenchPreview["status"] {
@@ -888,6 +1082,48 @@ function resolvePendingProgressPhase(status?: string): string {
   }
 }
 
+function resolvePreviewPhaseFromWorkbenchTaskStatus(
+  status: ImageWorkbenchTask["status"],
+): string {
+  switch (status) {
+    case "complete":
+      return "succeeded";
+    case "partial":
+      return "partial";
+    case "cancelled":
+      return "cancelled";
+    case "error":
+      return "failed";
+    case "queued":
+      return "queued";
+    case "routing":
+    case "running":
+    default:
+      return "running";
+  }
+}
+
+function resolveNormalizedStatusFromWorkbenchTaskStatus(
+  status: ImageWorkbenchTask["status"],
+): string {
+  switch (status) {
+    case "complete":
+      return "succeeded";
+    case "partial":
+      return "partial";
+    case "cancelled":
+      return "cancelled";
+    case "error":
+      return "failed";
+    case "queued":
+      return "queued";
+    case "routing":
+    case "running":
+    default:
+      return "running";
+  }
+}
+
 function resolveTaskProgressPhase(
   progressRecord: Record<string, unknown> | null,
   normalizedStatus: string,
@@ -931,6 +1167,11 @@ interface ParsedImageOutputSeed {
   providerName?: string;
   modelName?: string;
   size?: string;
+  slotId?: string | null;
+  slotIndex?: number;
+  slotLabel?: string | null;
+  slotPrompt?: string | null;
+  shotType?: string | null;
 }
 
 function appendImageOutputSeed(
@@ -959,6 +1200,10 @@ function appendImageOutputSeed(
       providerName: fallbackProviderName,
       modelName: fallbackModelName,
       size: fallbackSize,
+      slotId: null,
+      slotLabel: null,
+      slotPrompt: null,
+      shotType: null,
     });
     return;
   }
@@ -992,6 +1237,14 @@ function appendImageOutputSeed(
   );
   const modelName = readString([record], ["modelName", "model_name", "model"]);
   const size = readString([record], ["size", "resolution"]);
+  const slotId = readString([record], ["slot_id", "slotId"]);
+  const slotIndex = readPositiveNumber([record], ["slot_index", "slotIndex"]);
+  const slotLabel = readString(
+    [record],
+    ["slot_label", "slotLabel", "label"],
+  );
+  const slotPrompt = readString([record], ["slot_prompt", "slotPrompt"]);
+  const shotType = readString([record], ["shot_type", "shotType"]);
 
   if (url && !seenUrls.has(url)) {
     seenUrls.add(url);
@@ -1001,6 +1254,11 @@ function appendImageOutputSeed(
       providerName: providerName || fallbackProviderName,
       modelName: modelName || fallbackModelName,
       size: size || fallbackSize,
+      slotId: slotId || null,
+      slotIndex,
+      slotLabel: slotLabel || null,
+      slotPrompt: slotPrompt || null,
+      shotType: shotType || null,
     });
   }
 
@@ -1101,7 +1359,22 @@ function buildParsedImageTaskSnapshot(params: {
       : targetOutputId || targetOutputRefId
         ? 1
         : undefined;
-  const expectedCount = requestedCount || 1;
+  const payloadStoryboardSlots = readStoryboardSlotsFromUnknown(
+    payload?.storyboard_slots,
+  );
+  const progressStoryboardSlots = readStoryboardSlotsFromUnknown(
+    progressRecord?.preview_slots,
+  );
+  const expectedCount = Math.max(
+    requestedCount || 1,
+    payloadStoryboardSlots.length,
+    progressStoryboardSlots.length,
+  );
+  const layoutHint =
+    readString([payload, uiHintsRecord, params.taskRecord], [
+      "layout_hint",
+      "layoutHint",
+    ]) || null;
   const taskMode = resolveTaskMode(params.taskType, params.taskRecord);
   const taskLabel = resolveTaskLabel(params.taskType, taskMode);
   const lastError =
@@ -1128,6 +1401,11 @@ function buildParsedImageTaskSnapshot(params: {
       fallbackSize,
     ),
   );
+  outputSeeds.sort(
+    (left, right) =>
+      (left.slotIndex ?? Number.MAX_SAFE_INTEGER) -
+      (right.slotIndex ?? Number.MAX_SAFE_INTEGER),
+  );
 
   const applyTarget = resolveScopedImageWorkbenchApplyTarget({
     canvasState: params.canvasState,
@@ -1144,12 +1422,16 @@ function buildParsedImageTaskSnapshot(params: {
     ? Date.now()
     : Date.parse(createdAtRaw);
   const outputs: ImageWorkbenchOutput[] = outputSeeds.map((output, index) => ({
-    id: `${params.taskId}:output:${index + 1}`,
+    id: `${params.taskId}:output:${output.slotIndex ?? index + 1}`,
     taskId: params.taskId,
-    hookImageId: `${params.taskId}:hook:${index + 1}`,
-    refId: `img-${params.taskId.slice(0, 6)}-${index + 1}`,
+    hookImageId: `${params.taskId}:hook:${output.slotIndex ?? index + 1}`,
+    refId: `img-${params.taskId.slice(0, 6)}-${output.slotIndex ?? index + 1}`,
     url: output.url,
     prompt: output.prompt || prompt || `${taskLabel}结果`,
+    slotId: output.slotId ?? null,
+    slotIndex: output.slotIndex ?? index + 1,
+    slotLabel: output.slotLabel ?? null,
+    slotPrompt: output.slotPrompt ?? null,
     createdAt,
     providerName: output.providerName,
     modelName: output.modelName,
@@ -1158,6 +1440,21 @@ function buildParsedImageTaskSnapshot(params: {
     resourceSaved: false,
     applyTarget,
   }));
+  const storyboardSlots = mergeStoryboardSlots(
+    payloadStoryboardSlots,
+    progressStoryboardSlots,
+    outputs
+      .map((output, index) =>
+        buildNormalizedStoryboardSlot({
+          slotIndex: output.slotIndex ?? index + 1,
+          slotId: output.slotId,
+          label: output.slotLabel,
+          prompt: output.slotPrompt || output.prompt,
+          status: "complete",
+        }),
+      )
+      .filter((item): item is ImageStoryboardSlot => Boolean(item)),
+  );
   const successCount = outputs.length;
   const previewStatus = resolvePreviewStatus(normalizedStatus);
   const attemptCount = Array.isArray(params.taskRecord.attempts)
@@ -1175,8 +1472,12 @@ function buildParsedImageTaskSnapshot(params: {
     taskFilePath,
     artifactPath,
     imageUrl: outputs[0]?.url ?? null,
+    previewImages: buildPreviewImageUrls(outputs),
     imageCount:
-      previewStatus === "running" ? requestedCount : successCount || undefined,
+      previewStatus === "running" ? expectedCount : successCount || undefined,
+    expectedImageCount: expectedCount,
+    layoutHint,
+    storyboardSlots: storyboardSlots.length > 0 ? storyboardSlots : undefined,
     sourceImageUrl,
     sourceImagePrompt: sourceImagePrompt || null,
     sourceImageRef: targetOutputRefId ?? null,
@@ -1240,7 +1541,7 @@ function buildParsedImageTaskSnapshot(params: {
       readString([payload], ["raw_text", "rawText"]) ||
       readString([params.taskRecord], ["summary"]) ||
       undefined,
-    count: requestedCount,
+    count: expectedCount,
     successCount,
     size: fallbackSize,
     imageUrl: outputs[0]?.url ?? null,
@@ -1275,6 +1576,9 @@ function buildParsedImageTaskSnapshot(params: {
       prompt: prompt || `${taskLabel}进行中`,
       rawText: prompt || `${taskLabel}进行中`,
       expectedCount,
+      layoutHint,
+      storyboardSlots:
+        storyboardSlots.length > 0 ? storyboardSlots : undefined,
       outputIds: outputs.map((output) => output.id),
       targetOutputId: targetOutputId ?? null,
       targetOutputRefId: targetOutputRefId ?? null,
@@ -1313,6 +1617,15 @@ function buildPendingImageTaskSnapshot(params: {
   const taskMode = resolveTaskMode(params.taskType, {
     payload: params.payload || {},
   });
+  const storyboardSlots = readStoryboardSlotsFromUnknown(
+    params.payload?.storyboard_slots,
+  );
+  const expectedCount = Math.max(
+    readPositiveNumber([params.payload || null], ["count", "image_count"]) || 1,
+    storyboardSlots.length,
+  );
+  const layoutHint =
+    readString([params.payload || null], ["layout_hint", "layoutHint"]) || null;
   const taskLabel = resolveTaskLabel(params.taskType, taskMode);
   const startedAt = new Date();
   return (
@@ -1349,7 +1662,7 @@ function buildPendingImageTaskSnapshot(params: {
           prompt: `${taskLabel}进行中`,
           mode: taskMode,
           status: "running",
-          count: 1,
+          count: expectedCount,
           startedAt,
         }),
         imageWorkbenchPreview: {
@@ -1357,10 +1670,15 @@ function buildPendingImageTaskSnapshot(params: {
           prompt: `${taskLabel}进行中`,
           mode: taskMode,
           status: "running",
+          expectedImageCount: expectedCount,
           projectId: params.projectId ?? null,
           contentId: params.contentId ?? null,
           taskFilePath: normalizeImageTaskPath(params.taskFilePath) ?? null,
           artifactPath: normalizeImageTaskPath(params.artifactPath) ?? null,
+          imageCount: expectedCount,
+          layoutHint,
+          storyboardSlots:
+            storyboardSlots.length > 0 ? storyboardSlots : undefined,
           phase: resolvePendingProgressPhase(params.status),
           statusMessage: params.progressMessage || "任务已提交，正在排队处理。",
         },
@@ -1372,7 +1690,10 @@ function buildPendingImageTaskSnapshot(params: {
         status: "queued",
         prompt: `${taskLabel}进行中`,
         rawText: `${taskLabel}进行中`,
-        expectedCount: 1,
+        expectedCount,
+        layoutHint,
+        storyboardSlots:
+          storyboardSlots.length > 0 ? storyboardSlots : undefined,
         outputIds: [],
         targetOutputId: null,
         createdAt: Date.now(),
@@ -1432,6 +1753,394 @@ function buildImageTaskSnapshotFromArtifactOutput(params: {
   });
 }
 
+function normalizeImageWorkbenchStatusMessageText(
+  value?: string | null,
+): string {
+  return (value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[。,:：，；;、()（）【】[\]「」『』]/g, "");
+}
+
+function normalizeImageWorkbenchPreviewIdentityText(
+  value?: string | null,
+): string {
+  return (value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function buildRunningImageWorkbenchPreviewFallbackKey(
+  preview?: MessageImageWorkbenchPreview,
+): string {
+  if (!preview || preview.status !== "running") {
+    return "";
+  }
+
+  const prompt = normalizeImageWorkbenchPreviewIdentityText(preview.prompt);
+  if (!prompt) {
+    return "";
+  }
+
+  return [
+    preview.projectId?.trim() || "",
+    preview.contentId?.trim() || "",
+    preview.mode,
+    preview.layoutHint || "",
+    preview.size || "",
+    String(preview.expectedImageCount ?? preview.imageCount ?? ""),
+    prompt,
+  ].join("::");
+}
+
+function resolveImageWorkbenchPreviewPathKey(
+  preview?: MessageImageWorkbenchPreview,
+): string {
+  const normalizedTaskFilePath = normalizeImageTaskPath(preview?.taskFilePath);
+  if (normalizedTaskFilePath) {
+    return normalizedTaskFilePath.toLowerCase();
+  }
+
+  const normalizedArtifactPath = normalizeImageTaskPath(preview?.artifactPath);
+  return normalizedArtifactPath ? normalizedArtifactPath.toLowerCase() : "";
+}
+
+function previewsReferToSameImageWorkbenchTask(
+  left?: MessageImageWorkbenchPreview,
+  right?: MessageImageWorkbenchPreview,
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+
+  const leftTaskId = left.taskId?.trim();
+  const rightTaskId = right.taskId?.trim();
+  if (leftTaskId && rightTaskId && leftTaskId === rightTaskId) {
+    return true;
+  }
+
+  const leftPathKey = resolveImageWorkbenchPreviewPathKey(left);
+  const rightPathKey = resolveImageWorkbenchPreviewPathKey(right);
+  if (leftPathKey && rightPathKey && leftPathKey === rightPathKey) {
+    return true;
+  }
+
+  const leftRunningKey = buildRunningImageWorkbenchPreviewFallbackKey(left);
+  const rightRunningKey = buildRunningImageWorkbenchPreviewFallbackKey(right);
+  return Boolean(
+    leftRunningKey && rightRunningKey && leftRunningKey === rightRunningKey,
+  );
+}
+
+function resolveImageWorkbenchPreviewIdentityKeys(
+  preview?: MessageImageWorkbenchPreview,
+): string[] {
+  if (!preview) {
+    return [];
+  }
+
+  const keys = new Set<string>();
+  const taskId = preview.taskId?.trim();
+  if (taskId) {
+    keys.add(`task:${taskId}`);
+  }
+
+  const pathKey = resolveImageWorkbenchPreviewPathKey(preview);
+  if (pathKey) {
+    keys.add(`path:${pathKey}`);
+  }
+
+  const runningKey = buildRunningImageWorkbenchPreviewFallbackKey(preview);
+  if (runningKey) {
+    keys.add(`running:${runningKey}`);
+  }
+
+  return Array.from(keys);
+}
+
+function isImageWorkbenchStatusOnlyMessage(message: Message): boolean {
+  const normalized = normalizeImageWorkbenchStatusMessageText(message.content);
+  if (!normalized) {
+    return true;
+  }
+
+  if (
+    normalized.includes("正在同步任务状态") ||
+    normalized.includes("正在排队处理中") ||
+    normalized.includes("状态排队中pending_submit")
+  ) {
+    return true;
+  }
+
+  return [
+    /^图片任务已创建正在准备执行$/,
+    /^图片任务已进入队列正在等待执行$/,
+    /^图片任务正在生成中$/,
+    /^图片任务已取消.*$/,
+    /^图片任务失败.*$/,
+    /^图片编辑任务已创建正在准备执行$/,
+    /^图片编辑任务已进入队列正在等待执行$/,
+    /^图片编辑任务正在生成中$/,
+    /^图片编辑任务已取消.*$/,
+    /^图片编辑任务失败.*$/,
+    /^图片重绘任务已创建正在准备执行$/,
+    /^图片重绘任务已进入队列正在等待执行$/,
+    /^图片重绘任务正在生成中$/,
+    /^图片重绘任务已取消.*$/,
+    /^图片重绘任务失败.*$/,
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function isImageWorkbenchSubmissionTemplateMessage(message: Message): boolean {
+  const normalized = normalizeImageWorkbenchStatusMessageText(
+    message.content,
+  ).toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return [
+    "任务详情",
+    "任务id",
+    "状态",
+    "模型",
+    "尺寸",
+    "提示词",
+    "下一步流程",
+    "当前状态",
+  ].every((keyword) => normalized.includes(keyword));
+}
+
+function shouldReplaceImageWorkbenchMessageBody(params: {
+  existingMessage: Message;
+  nextMessage: Message;
+}): boolean {
+  const nextPreview = params.nextMessage.imageWorkbenchPreview;
+  if (!nextPreview) {
+    return false;
+  }
+
+  const existingPreview = params.existingMessage.imageWorkbenchPreview;
+  const shouldPromoteTerminalSnapshot =
+    previewsReferToSameImageWorkbenchTask(existingPreview, nextPreview) &&
+    isImageWorkbenchSubmissionTemplateMessage(params.existingMessage) &&
+    nextPreview.status !== "running";
+
+  return (
+    shouldPromoteTerminalSnapshot ||
+    params.existingMessage.id === resolveImageWorkbenchAssistantMessageId(nextPreview.taskId) ||
+    isImageWorkbenchStatusOnlyMessage(params.existingMessage)
+  );
+}
+
+function buildImageWorkbenchMessageStateSignature(
+  message: Pick<
+    Message,
+    | "content"
+    | "contentParts"
+    | "toolCalls"
+    | "timestamp"
+    | "isThinking"
+    | "runtimeStatus"
+    | "imageWorkbenchPreview"
+  >,
+): string {
+  return JSON.stringify({
+    content: message.content,
+    contentParts: message.contentParts ?? null,
+    toolCalls: message.toolCalls ?? null,
+    timestamp:
+      message.timestamp instanceof Date ? message.timestamp.getTime() : null,
+    isThinking: message.isThinking,
+    runtimeStatus: message.runtimeStatus ?? null,
+    imageWorkbenchPreview: message.imageWorkbenchPreview ?? null,
+  });
+}
+
+function mergeImageWorkbenchPreviewMessage(params: {
+  existingMessage: Message;
+  nextMessage: Message;
+}): Message {
+  const existingPreview = params.existingMessage.imageWorkbenchPreview;
+  const nextPreview = params.nextMessage.imageWorkbenchPreview;
+  const mergedPreview =
+    existingPreview &&
+    nextPreview &&
+    previewsReferToSameImageWorkbenchTask(existingPreview, nextPreview)
+      ? {
+          ...existingPreview,
+          ...nextPreview,
+        }
+      : nextPreview || existingPreview;
+  const replaceBody = shouldReplaceImageWorkbenchMessageBody(params);
+  const mergedMessage: Message = {
+    ...params.existingMessage,
+    content:
+      replaceBody || !params.existingMessage.content.trim()
+        ? params.nextMessage.content
+        : params.existingMessage.content,
+    contentParts:
+      replaceBody || !(params.existingMessage.contentParts?.length)
+        ? params.nextMessage.contentParts
+        : params.existingMessage.contentParts,
+    toolCalls:
+      replaceBody || !(params.existingMessage.toolCalls?.length)
+        ? params.nextMessage.toolCalls
+        : params.existingMessage.toolCalls,
+    timestamp: replaceBody
+      ? params.nextMessage.timestamp
+      : params.existingMessage.timestamp,
+    isThinking: replaceBody
+      ? params.nextMessage.isThinking
+      : mergedPreview?.status === "running"
+        ? params.existingMessage.isThinking
+        : false,
+    runtimeStatus: params.nextMessage.runtimeStatus,
+    imageWorkbenchPreview: mergedPreview,
+  };
+
+  return buildImageWorkbenchMessageStateSignature(mergedMessage) ===
+    buildImageWorkbenchMessageStateSignature(params.existingMessage)
+    ? params.existingMessage
+    : mergedMessage;
+}
+
+function dedupeImageWorkbenchPreviewMessages(messages: Message[]): Message[] {
+  const dedupedMessages: Message[] = [];
+  const previewMessageIndex = new Map<string, number>();
+
+  messages.forEach((message) => {
+    const preview = message.imageWorkbenchPreview;
+    const previewKeys = resolveImageWorkbenchPreviewIdentityKeys(preview);
+    if (previewKeys.length === 0) {
+      dedupedMessages.push(message);
+      return;
+    }
+
+    const existingIndex = previewKeys.reduce<number | undefined>(
+      (matchedIndex, key) =>
+        matchedIndex ?? previewMessageIndex.get(key),
+      undefined,
+    );
+    if (existingIndex === undefined) {
+      const nextIndex = dedupedMessages.length;
+      dedupedMessages.push(message);
+      previewKeys.forEach((key) => {
+        previewMessageIndex.set(key, nextIndex);
+      });
+      return;
+    }
+
+    dedupedMessages[existingIndex] = mergeImageWorkbenchPreviewMessage({
+      existingMessage: dedupedMessages[existingIndex],
+      nextMessage: message,
+    });
+    resolveImageWorkbenchPreviewIdentityKeys(
+      dedupedMessages[existingIndex].imageWorkbenchPreview,
+    ).forEach((key) => {
+      previewMessageIndex.set(key, existingIndex);
+    });
+  });
+
+  return dedupedMessages;
+}
+
+function finalizePreviewMessages(
+  previousMessages: Message[],
+  nextMessages: Message[],
+): Message[] {
+  const dedupedMessages = dedupeImageWorkbenchPreviewMessages(nextMessages);
+  if (
+    dedupedMessages.length === previousMessages.length &&
+    dedupedMessages.every((message, index) => message === previousMessages[index])
+  ) {
+    return previousMessages;
+  }
+
+  return dedupedMessages;
+}
+
+function buildImageWorkbenchMessagePatchFromTask(params: {
+  task: ImageWorkbenchTask;
+  outputs: ImageWorkbenchOutput[];
+  preview: MessageImageWorkbenchPreview;
+}): Pick<
+  Message,
+  "content" | "timestamp" | "isThinking" | "toolCalls" | "contentParts" | "runtimeStatus"
+> {
+  const normalizedStatus = resolveNormalizedStatusFromWorkbenchTaskStatus(
+    params.task.status,
+  );
+  const taskLabel = resolveTaskLabelFromMode(params.task.mode);
+  const prompt = params.preview.prompt || params.task.prompt || `${taskLabel}进行中`;
+  const startedAt = new Date(params.task.createdAt || Date.now());
+  const processDescriptor = buildImageWorkbenchProcessDescriptor({
+    taskId: params.task.id,
+    prompt,
+    mode: params.task.mode,
+    status: params.preview.status,
+    rawText: params.task.rawText || undefined,
+    count: params.task.expectedCount,
+    successCount: params.outputs.length,
+    size: params.preview.size,
+    imageUrl: params.preview.imageUrl || null,
+    failureMessage: params.task.failureMessage,
+    startedAt,
+    endedAt: params.preview.status === "running" ? undefined : startedAt,
+  });
+
+  return {
+    content: resolvePreviewMessageContent({
+      taskLabel,
+      normalizedStatus,
+      successCount: params.outputs.length,
+      failureMessage: params.task.failureMessage || undefined,
+    }),
+    timestamp: startedAt,
+    isThinking: params.preview.status === "running",
+    toolCalls: processDescriptor.toolCalls,
+    contentParts: processDescriptor.contentParts,
+    runtimeStatus:
+      params.preview.status === "running"
+        ? {
+            phase:
+              params.task.status === "queued"
+                ? ("preparing" as const)
+                : ("routing" as const),
+            title: `${taskLabel}进行中`,
+            detail:
+              params.preview.statusMessage?.trim() ||
+              (prompt ? `正在处理：${prompt}` : "任务已提交，生成完成后会自动展示结果。"),
+            checkpoints: ["创建任务文件", "轮询任务状态", "回填图片结果"],
+          }
+        : params.preview.status === "cancelled"
+          ? {
+              phase: "cancelled" as const,
+              title: `${taskLabel}已取消`,
+              detail:
+                params.task.failureMessage || "任务已停止，不会继续生成新的图片结果。",
+              checkpoints: [
+                "已保留当前任务记录",
+                "可在图片画布重新生成",
+                "如需继续可补充新的说明",
+              ],
+            }
+          : params.preview.status === "failed"
+            ? {
+                phase: "failed" as const,
+                title: `${taskLabel}失败`,
+                detail: params.task.failureMessage || "任务未返回可用结果。",
+                checkpoints: [
+                  "检查任务文件",
+                  "查看失败详情",
+                  "可在图片画布继续排查",
+                ],
+              }
+            : undefined,
+  };
+}
+
 function upsertPreviewMessage(
   messages: Message[],
   nextMessage: Message,
@@ -1441,39 +2150,42 @@ function upsertPreviewMessage(
     (message) => message.id === nextMessage.id,
   );
   if (existingIndex >= 0) {
-    nextMessages[existingIndex] = nextMessage;
-    return nextMessages;
+    const mergedMessage = mergeImageWorkbenchPreviewMessage({
+      existingMessage: nextMessages[existingIndex],
+      nextMessage,
+    });
+    if (mergedMessage === nextMessages[existingIndex]) {
+      return messages;
+    }
+    nextMessages[existingIndex] = mergedMessage;
+    return finalizePreviewMessages(messages, nextMessages);
   }
 
-  const nextTaskId = nextMessage.imageWorkbenchPreview?.taskId;
-  if (nextTaskId) {
+  const nextPreview = nextMessage.imageWorkbenchPreview;
+  if (nextPreview) {
     const taskMatchedIndex = nextMessages.findIndex(
       (message) =>
         message.role === "assistant" &&
-        message.imageWorkbenchPreview?.taskId === nextTaskId,
+        previewsReferToSameImageWorkbenchTask(
+          message.imageWorkbenchPreview,
+          nextPreview,
+        ),
     );
     if (taskMatchedIndex >= 0) {
-      const existingMessage = nextMessages[taskMatchedIndex];
-      const existingPreview = existingMessage.imageWorkbenchPreview;
-      const nextPreview = nextMessage.imageWorkbenchPreview;
-      nextMessages[taskMatchedIndex] = {
-        ...existingMessage,
-        imageWorkbenchPreview:
-          existingPreview && nextPreview
-            ? {
-                ...existingPreview,
-                ...nextPreview,
-              }
-            : nextPreview || existingPreview,
-        runtimeStatus:
-          nextMessage.runtimeStatus ?? existingMessage.runtimeStatus,
-      };
-      return nextMessages;
+      const mergedMessage = mergeImageWorkbenchPreviewMessage({
+        existingMessage: nextMessages[taskMatchedIndex],
+        nextMessage,
+      });
+      if (mergedMessage === nextMessages[taskMatchedIndex]) {
+        return messages;
+      }
+      nextMessages[taskMatchedIndex] = mergedMessage;
+      return finalizePreviewMessages(messages, nextMessages);
     }
   }
 
   nextMessages.push(nextMessage);
-  return nextMessages;
+  return finalizePreviewMessages(messages, nextMessages);
 }
 
 function mergeImageTaskSnapshot(
@@ -1486,6 +2198,21 @@ function mergeImageTaskSnapshot(
   const previousOutputs = current.outputs.filter(
     (output) => output.taskId === snapshot.taskId,
   );
+  const previousProgressScore = previousTask
+    ? resolveImageTaskSnapshotProgressScore({
+        taskStatus: previousTask.status,
+        outputCount: previousOutputs.length,
+      })
+    : -1;
+  const nextProgressScore = resolveImageTaskSnapshotProgressScore({
+    taskStatus: snapshot.task.status,
+    outputCount: snapshot.outputs.length,
+  });
+
+  if (previousTask && nextProgressScore < previousProgressScore) {
+    return current;
+  }
+
   const preservedSelectedOutputId = current.outputs.find(
     (output) =>
       output.id === current.selectedOutputId &&
@@ -1529,6 +2256,27 @@ function mergeImageTaskSnapshot(
   };
 }
 
+function resolveImageTaskSnapshotProgressScore(params: {
+  taskStatus?: ImageWorkbenchTask["status"];
+  outputCount: number;
+}): number {
+  switch (params.taskStatus) {
+    case "complete":
+    case "error":
+    case "cancelled":
+      return 4;
+    case "partial":
+      return 3;
+    case "running":
+      return params.outputCount > 0 ? 3 : 2;
+    case "queued":
+    case "routing":
+      return params.outputCount > 0 ? 2 : 1;
+    default:
+      return params.outputCount > 0 ? 2 : 0;
+  }
+}
+
 function resolvePreviewStatusFromWorkbenchTask(
   status: ImageWorkbenchTask["status"],
 ): MessageImageWorkbenchPreview["status"] {
@@ -1547,6 +2295,19 @@ function resolvePreviewStatusFromWorkbenchTask(
     default:
       return "running";
   }
+}
+
+function orderTaskOutputs(
+  task: ImageWorkbenchTask,
+  outputs: ImageWorkbenchOutput[],
+): ImageWorkbenchOutput[] {
+  const ordered = task.outputIds
+    .map((outputId) => outputs.find((output) => output.id === outputId))
+    .filter((output): output is ImageWorkbenchOutput => Boolean(output));
+  const remaining = outputs.filter(
+    (output) => !ordered.some((item) => item.id === output.id),
+  );
+  return [...ordered, ...remaining];
 }
 
 function patchMessagesWithImageWorkbenchState(params: {
@@ -1579,27 +2340,38 @@ function patchMessagesWithImageWorkbenchState(params: {
       return message;
     }
 
-    const outputs = outputsByTaskId.get(task.id) || [];
-    const preferredOutput =
-      task.outputIds
-        .map((outputId) => outputs.find((output) => output.id === outputId))
-        .find((output): output is ImageWorkbenchOutput => Boolean(output)) ||
-      outputs[0];
+    const outputs = orderTaskOutputs(task, outputsByTaskId.get(task.id) || []);
+    const preferredOutput = outputs[0];
+    const nextPreviewStatus = resolvePreviewStatusFromWorkbenchTask(task.status);
     const nextPreview: MessageImageWorkbenchPreview = {
       ...preview,
       prompt: preview.prompt || task.prompt,
       mode: task.mode,
-      status: resolvePreviewStatusFromWorkbenchTask(task.status),
+      status: nextPreviewStatus,
       taskFilePath: task.taskFilePath ?? preview.taskFilePath ?? null,
       artifactPath: task.artifactPath ?? preview.artifactPath ?? null,
       imageUrl: preferredOutput?.url || preview.imageUrl || null,
+      previewImages:
+        outputs.length > 0
+          ? buildPreviewImageUrls(outputs)
+          : preview.previewImages,
       imageCount: outputs.length > 0 ? outputs.length : preview.imageCount,
+      expectedImageCount: task.expectedCount || preview.expectedImageCount,
+      layoutHint: task.layoutHint ?? preview.layoutHint ?? null,
+      storyboardSlots: task.storyboardSlots ?? preview.storyboardSlots,
       sourceImageUrl: task.sourceImageUrl ?? preview.sourceImageUrl ?? null,
       sourceImagePrompt:
         task.sourceImagePrompt ?? preview.sourceImagePrompt ?? null,
       sourceImageRef: task.sourceImageRef ?? preview.sourceImageRef ?? null,
       sourceImageCount: task.sourceImageCount ?? preview.sourceImageCount,
       size: preferredOutput?.size || preview.size,
+      phase: resolvePreviewPhaseFromWorkbenchTaskStatus(task.status),
+      statusMessage:
+        nextPreviewStatus === "running"
+          ? preview.statusMessage ?? null
+          : task.status === "error" || task.status === "cancelled"
+            ? task.failureMessage || preview.statusMessage || null
+            : null,
       retryable:
         typeof preview.retryable === "boolean"
           ? preview.retryable
@@ -1607,33 +2379,31 @@ function patchMessagesWithImageWorkbenchState(params: {
             ? false
             : preview.retryable,
     };
+    const nextMessage = mergeImageWorkbenchPreviewMessage({
+      existingMessage: message,
+      nextMessage: {
+        ...message,
+        ...buildImageWorkbenchMessagePatchFromTask({
+          task,
+          outputs,
+          preview: nextPreview,
+        }),
+        imageWorkbenchPreview: nextPreview,
+      },
+    });
 
-    const hasChanged =
-      nextPreview.status !== preview.status ||
-      nextPreview.taskFilePath !== preview.taskFilePath ||
-      nextPreview.artifactPath !== preview.artifactPath ||
-      nextPreview.imageUrl !== preview.imageUrl ||
-      nextPreview.imageCount !== preview.imageCount ||
-      nextPreview.size !== preview.size ||
-      nextPreview.sourceImageUrl !== preview.sourceImageUrl ||
-      nextPreview.sourceImagePrompt !== preview.sourceImagePrompt ||
-      nextPreview.sourceImageRef !== preview.sourceImageRef ||
-      nextPreview.sourceImageCount !== preview.sourceImageCount ||
-      nextPreview.mode !== preview.mode;
-
-    if (!hasChanged) {
+    if (nextMessage === message) {
       return message;
     }
 
     changed = true;
-    return {
-      ...message,
-      isThinking: nextPreview.status === "running" ? message.isThinking : false,
-      imageWorkbenchPreview: nextPreview,
-    };
+    return nextMessage;
   });
 
-  return changed ? nextMessages : params.messages;
+  return finalizePreviewMessages(
+    params.messages,
+    changed ? nextMessages : params.messages,
+  );
 }
 
 export function useWorkspaceImageTaskPreviewRuntime({
@@ -1674,13 +2444,17 @@ export function useWorkspaceImageTaskPreviewRuntime({
   };
 
   useEffect(() => {
+    setChatMessages((previous) => finalizePreviewMessages(previous, previous));
+  }, [messages, setChatMessages]);
+
+  useEffect(() => {
     setChatMessages((previous) =>
       patchMessagesWithImageWorkbenchState({
         messages: previous,
         imageWorkbenchState: currentImageWorkbenchState,
       }),
     );
-  }, [currentImageWorkbenchState, setChatMessages]);
+  }, [currentImageWorkbenchState, messages, setChatMessages]);
 
   useEffect(() => {
     restoreSeedMessagesRef.current?.(messages);
@@ -1702,6 +2476,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
     let cancelled = false;
     let unlisten: (() => void) | null = null;
     const restoredSeedTaskIds = new Set<string>();
+    let lastPendingImageCommandRecoverySignature = "";
 
     const loadTaskSnapshotFromArtifactApi = async (params: {
       taskId: string;
@@ -2172,11 +2947,157 @@ export function useWorkspaceImageTaskPreviewRuntime({
       return resolvedSnapshots.length === unresolvedTaskSeeds.length;
     };
 
+    const restorePendingImageTasksFromCurrentSession = async (): Promise<boolean> => {
+      const recoverySignature = resolvePendingImageCommandRecoverySignature(
+        runtimeContextRef.current.messages,
+      );
+      if (!recoverySignature || cancelled) {
+        return false;
+      }
+      if (recoverySignature === lastPendingImageCommandRecoverySignature) {
+        return false;
+      }
+
+      const currentProjectRootPath =
+        runtimeContextRef.current.projectRootPath?.trim();
+      if (!currentProjectRootPath) {
+        return false;
+      }
+
+      lastPendingImageCommandRecoverySignature = recoverySignature;
+
+      let artifactList: Awaited<ReturnType<typeof listMediaTaskArtifacts>> | null =
+        null;
+      try {
+        artifactList = await listMediaTaskArtifacts({
+          projectRootPath: currentProjectRootPath,
+          taskFamily: "image",
+          limit: IMAGE_TASK_RESTORE_LIMIT,
+        });
+      } catch {
+        return false;
+      }
+
+      if (cancelled || !artifactList) {
+        return false;
+      }
+
+      const selectedSnapshots = artifactList.tasks
+        .reduce<RestoredImageTaskSnapshot[]>((items, artifact) => {
+          const taskRecord = asRecord(artifact.record);
+          if (!taskRecord) {
+            return items;
+          }
+          if (
+            !shouldRestoreImageTaskRecord({
+              taskRecord,
+              sessionId: runtimeContextRef.current.sessionId,
+              projectId: runtimeContextRef.current.projectId,
+              contentId: runtimeContextRef.current.contentId,
+            })
+          ) {
+            return items;
+          }
+
+          const taskFamily = normalizeTaskFamily(
+            artifact.task_type,
+            artifact.task_family,
+          );
+          if (taskFamily !== "image") {
+            return items;
+          }
+
+          const snapshot = buildImageTaskSnapshotFromArtifactOutput({
+            artifact,
+            projectId: runtimeContextRef.current.projectId,
+            contentId: runtimeContextRef.current.contentId,
+            canvasState: runtimeContextRef.current.canvasState,
+          });
+          if (!snapshot) {
+            return items;
+          }
+
+          items.push({
+            snapshot,
+            taskRecord,
+            absolutePath: artifact.absolute_path,
+            taskType: artifact.task_type,
+            taskFamily,
+          });
+          return items;
+        }, [])
+        .filter(
+          (item) =>
+            !isImageWorkbenchTaskSatisfiedByCache({
+              imageWorkbenchState:
+                runtimeContextRef.current.currentImageWorkbenchState,
+              taskId: item.snapshot.taskId,
+            }),
+        )
+        .sort((left, right) => right.snapshot.updatedAt - left.snapshot.updatedAt)
+        .slice(0, IMAGE_TASK_RESTORE_LIMIT)
+        .reverse();
+
+      if (selectedSnapshots.length === 0) {
+        return false;
+      }
+
+      setChatMessages((previous) =>
+        selectedSnapshots.reduce(
+          (messages, item) =>
+            upsertPreviewMessage(messages, item.snapshot.message),
+          previous,
+        ),
+      );
+      updateCurrentImageWorkbenchState((current) =>
+        selectedSnapshots.reduce(
+          (state, item) => mergeImageTaskSnapshot(state, item.snapshot),
+          current,
+        ),
+      );
+      selectedSnapshots.forEach((item) => {
+        syncDocumentInlineImageTask({
+          taskRecord: item.taskRecord,
+          taskId: item.snapshot.taskId,
+          outputs: item.snapshot.outputs,
+          setCanvasState,
+        });
+      });
+
+      for (const item of selectedSnapshots) {
+        if (item.snapshot.terminal) {
+          continue;
+        }
+        trackedTasks.set(item.snapshot.taskId, {
+          taskId: item.snapshot.taskId,
+          taskType: item.taskType,
+          taskFamily: item.taskFamily,
+          artifactPath: item.snapshot.task.artifactPath || "",
+          absolutePath: item.snapshot.task.taskFilePath || item.absolutePath,
+          lookupTaskRef:
+            item.snapshot.task.taskFilePath ||
+            item.absolutePath ||
+            item.snapshot.taskId,
+          timerId: null,
+          polling: false,
+        });
+        scheduleNextPoll(item.snapshot.taskId);
+      }
+
+      return true;
+    };
+
     restoreSeedMessagesRef.current = (seedMessages) => {
       if (!restoreFromWorkspace || cancelled) {
         return;
       }
-      void restoreTrackedTasksFromMessages(seedMessages);
+      void restoreTrackedTasksFromMessages(seedMessages).then(
+        (restoredFromMessages) => {
+          if (!restoredFromMessages && !shouldRestoreWorkspaceTaskCatalog) {
+            void restorePendingImageTasksFromCurrentSession();
+          }
+        },
+      );
     };
 
     safeListen<CreationTaskSubmittedPayload>(IMAGE_TASK_EVENT_NAME, (event) => {
@@ -2228,6 +3149,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
                 prompt: payload.prompt,
                 size: payload.size,
                 mode: payload.mode,
+                layout_hint: payload.layout_hint,
                 raw_text: payload.raw_text,
                 count:
                   typeof payload.count === "number" ? payload.count : undefined,
@@ -2273,6 +3195,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
               prompt: payload.prompt,
               size: payload.size,
               mode: payload.mode,
+              layout_hint: payload.layout_hint,
               raw_text: payload.raw_text,
               count:
                 typeof payload.count === "number" ? payload.count : undefined,
@@ -2328,8 +3251,12 @@ export function useWorkspaceImageTaskPreviewRuntime({
 
     if (restoreFromWorkspace) {
       void restoreTrackedTasksFromMessages().then((restoredFromMessages) => {
-        if (!restoredFromMessages && shouldRestoreWorkspaceTaskCatalog) {
-          void restoreTrackedTasksFromWorkspace();
+        if (!restoredFromMessages) {
+          if (shouldRestoreWorkspaceTaskCatalog) {
+            void restoreTrackedTasksFromWorkspace();
+          } else {
+            void restorePendingImageTasksFromCurrentSession();
+          }
         }
       });
     }

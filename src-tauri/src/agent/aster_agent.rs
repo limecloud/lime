@@ -5,10 +5,28 @@
 
 use crate::agent::aster_state::{AsterAgentState, SessionConfigBuilder};
 use crate::database::DbConnection;
+use aster::session::TurnContextOverride;
 
 pub use lime_agent::{
     PersistedSessionMetadata, SessionDetail, SessionInfo, SessionTitlePreviewMessage,
 };
+
+pub(crate) fn build_auxiliary_session_config_with_turn_context(
+    session_id: &str,
+    system_prompt: Option<String>,
+    include_context_trace: bool,
+    turn_context: Option<TurnContextOverride>,
+) -> aster::agents::SessionConfig {
+    let mut session_config_builder =
+        SessionConfigBuilder::new(session_id).include_context_trace(include_context_trace);
+    if let Some(prompt) = system_prompt {
+        session_config_builder = session_config_builder.system_prompt(prompt);
+    }
+    if let Some(turn_context) = turn_context {
+        session_config_builder = session_config_builder.turn_context(turn_context);
+    }
+    session_config_builder.build()
+}
 
 /// 为专用一次性命令构建最小 `SessionConfig`。
 ///
@@ -19,12 +37,12 @@ pub(crate) fn build_auxiliary_session_config(
     system_prompt: Option<String>,
     include_context_trace: bool,
 ) -> aster::agents::SessionConfig {
-    let mut session_config_builder =
-        SessionConfigBuilder::new(session_id).include_context_trace(include_context_trace);
-    if let Some(prompt) = system_prompt {
-        session_config_builder = session_config_builder.system_prompt(prompt);
-    }
-    session_config_builder.build()
+    build_auxiliary_session_config_with_turn_context(
+        session_id,
+        system_prompt,
+        include_context_trace,
+        None,
+    )
 }
 
 /// Aster Agent 包装器
@@ -64,6 +82,16 @@ impl AsterAgentWrapper {
         session_id: &str,
     ) -> Result<SessionDetail, String> {
         lime_agent::get_runtime_session_detail(db, session_id).await
+    }
+
+    pub async fn get_runtime_session_execution_runtime(
+        db: &DbConnection,
+        session_id: &str,
+    ) -> Option<lime_agent::SessionExecutionRuntime> {
+        Self::get_runtime_session_detail(db, session_id)
+            .await
+            .ok()
+            .and_then(|detail| detail.execution_runtime)
     }
 
     pub fn get_persisted_session_metadata_sync(
@@ -166,5 +194,40 @@ mod tests {
         assert!(config.thread_id.is_none());
         assert!(config.turn_id.is_none());
         assert!(config.turn_context.is_none());
+    }
+
+    #[test]
+    fn test_build_auxiliary_session_config_with_turn_context_keeps_local_metadata() {
+        let turn_context = TurnContextOverride {
+            metadata: [(
+                "lime_runtime".to_string(),
+                serde_json::json!({ "task_profile": { "kind": "agent_meta" } }),
+            )]
+            .into_iter()
+            .collect(),
+            ..TurnContextOverride::default()
+        };
+        let config = build_auxiliary_session_config_with_turn_context(
+            "aux-session",
+            Some("你是一次性助手".to_string()),
+            true,
+            Some(turn_context),
+        );
+
+        assert_eq!(config.id, "aux-session");
+        assert_eq!(config.include_context_trace, Some(true));
+        assert!(config.turn_context.is_some());
+        assert_eq!(
+            config
+                .turn_context
+                .as_ref()
+                .and_then(|context| context.metadata.get("lime_runtime"))
+                .and_then(serde_json::Value::as_object)
+                .and_then(|runtime| runtime.get("task_profile"))
+                .and_then(serde_json::Value::as_object)
+                .and_then(|profile| profile.get("kind"))
+                .and_then(serde_json::Value::as_str),
+            Some("agent_meta")
+        );
     }
 }

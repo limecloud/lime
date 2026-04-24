@@ -323,7 +323,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     expect(getValue().messages).toEqual([
       expect.objectContaining({
         id: "image-workbench:task-image-1:assistant",
-        content: "图片任务已创建，正在准备执行。",
+        content: "图片任务已进入队列，正在等待执行。",
         isThinking: true,
         toolCalls: [
           expect.objectContaining({
@@ -764,6 +764,265 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         taskId: "task-image-skill-1",
         status: "complete",
         imageUrl: "https://example.com/skill-preview.png",
+      }),
+    });
+  });
+
+  it("同 taskId 的状态占位消息应被终态快照幂等覆盖，而不是一直停留在排队文案", async () => {
+    let listener: CreationTaskListener | null = null;
+    vi.mocked(safeListen).mockImplementationOnce(async (_event, handler) => {
+      listener = handler;
+      return vi.fn();
+    });
+
+    const taskPath =
+      "/workspace/project-image-1/.lime/tasks/image_generate/task-image-status-only-1.json";
+    vi.mocked(readFilePreview).mockResolvedValue(
+      createFilePreviewResult(
+        taskPath,
+        withDefaultTaskContext({
+          task_id: "task-image-status-only-1",
+          task_type: "image_generate",
+          task_family: "image",
+          status: "completed",
+          normalized_status: "succeeded",
+          created_at: "2026-04-04T10:20:00Z",
+          payload: {
+            prompt: "[img:三国主要人物聚合图]",
+            count: 1,
+            size: "1024x1024",
+          },
+          progress: {
+            phase: "succeeded",
+            message: "图片任务已完成，共生成 1 张。",
+          },
+          result: {
+            images: [{ url: "https://example.com/three-kingdoms-collage.png" }],
+          },
+        }),
+      ),
+    );
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: [
+          {
+            id: "assistant-image-status-only-1",
+            role: "assistant",
+            content:
+              "图片生成任务已成功提交，正在排队处理中。\n状态: 排队中 (pending_submit)",
+            timestamp: new Date("2026-04-04T10:20:00Z"),
+            isThinking: true,
+            runtimeStatus: {
+              phase: "routing",
+              title: "图片任务进行中",
+              detail: "任务已提交，正在排队处理。",
+              checkpoints: ["创建任务文件", "轮询任务状态"],
+            },
+            imageWorkbenchPreview: {
+              taskId: "task-image-status-only-1",
+              prompt: "三国主要人物聚合图",
+              status: "running",
+              phase: "queued",
+              statusMessage: "任务已提交，正在排队处理。",
+            },
+          },
+        ],
+      },
+    );
+    await render();
+
+    await act(async () => {
+      listener?.({
+        payload: withDefaultTaskContext({
+          task_id: "task-image-status-only-1",
+          task_type: "image_generate",
+          task_family: "image",
+          status: "pending_submit",
+          path: ".lime/tasks/image_generate/task-image-status-only-1.json",
+        }),
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: "assistant-image-status-only-1",
+        content: "图片任务已完成，共生成 1 张。",
+        isThinking: false,
+        runtimeStatus: undefined,
+        toolCalls: [
+          expect.objectContaining({
+            name: "limeCreateImageGenerationTask",
+            status: "completed",
+          }),
+        ],
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId: "task-image-status-only-1",
+          status: "complete",
+          phase: "succeeded",
+          statusMessage: null,
+          imageUrl: "https://example.com/three-kingdoms-collage.png",
+        }),
+      }),
+    ]);
+  });
+
+  it("同 taskId 的重复图片任务卡应折叠回第一张消息，而不是越刷越多", async () => {
+    let listener: CreationTaskListener | null = null;
+    vi.mocked(safeListen).mockImplementationOnce(async (_event, handler) => {
+      listener = handler;
+      return vi.fn();
+    });
+
+    const taskId = "task-image-duplicate-collapse-1";
+    const taskPath = `/workspace/project-image-1/.lime/tasks/image_generate/${taskId}.json`;
+    vi.mocked(readFilePreview).mockResolvedValue(
+      createFilePreviewResult(
+        taskPath,
+        withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "completed",
+          normalized_status: "succeeded",
+          created_at: "2026-04-04T10:25:00Z",
+          payload: {
+            prompt: "[img:mock image task]",
+            count: 9,
+            layout_hint: "storyboard_3x3",
+            size: "1024x1024",
+          },
+          result: {
+            images: [{ url: "https://example.com/mock-image-task-1.png" }],
+          },
+        }),
+      ),
+    );
+
+    const duplicatedMessages: Message[] = Array.from({ length: 4 }, (_, index) => ({
+      id: `assistant-image-duplicate-${index + 1}`,
+      role: "assistant",
+      content:
+        "我先按你的描述整理画面主题、尺寸和出图数量，并创建异步图片任务：mock image task",
+      timestamp: new Date(`2026-04-04T10:25:0${index}Z`),
+      isThinking: true,
+      imageWorkbenchPreview: {
+        taskId,
+        prompt: "mock image task",
+        status: "running",
+        expectedImageCount: 9,
+        imageCount: 9,
+        layoutHint: "storyboard_3x3",
+        phase: "queued",
+        statusMessage: "任务已提交，正在排队处理。",
+      },
+    }));
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: duplicatedMessages,
+      },
+    );
+    await render();
+
+    await act(async () => {
+      listener?.({
+        payload: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "pending_submit",
+          path: `.lime/tasks/image_generate/${taskId}.json`,
+        }),
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getValue().messages).toHaveLength(1);
+    expect(getValue().messages[0]).toMatchObject({
+      id: "assistant-image-duplicate-1",
+      imageWorkbenchPreview: expect.objectContaining({
+        taskId,
+        status: "complete",
+        imageUrl: "https://example.com/mock-image-task-1.png",
+        expectedImageCount: 9,
+      }),
+    });
+  });
+
+  it("同 task file 但 taskId 漂移的 mock 图片任务卡也应折叠成一条", async () => {
+    const taskFilePath =
+      "/workspace/project-image-1/.lime/tasks/image_generate/task-image-mock-1.json";
+    const artifactPath = ".lime/tasks/image_generate/task-image-mock-1.json";
+
+    const duplicatedMessages: Message[] = [
+      {
+        id: "assistant-image-path-duplicate-1",
+        role: "assistant",
+        content:
+          "我先按你的描述整理画面主题、尺寸和出图数量，并创建异步图片任务：mock image task",
+        timestamp: new Date("2026-04-04T10:26:00Z"),
+        isThinking: true,
+        imageWorkbenchPreview: {
+          taskId: "task-image-mock-1",
+          prompt: "mock image task",
+          status: "running",
+          taskFilePath,
+          artifactPath,
+          expectedImageCount: 9,
+          imageCount: 9,
+          layoutHint: "storyboard_3x3",
+          phase: "queued",
+          statusMessage: "任务已提交，正在排队处理。",
+        },
+      },
+      {
+        id: "assistant-image-path-duplicate-2",
+        role: "assistant",
+        content:
+          "我先按你的描述整理画面主题、尺寸和出图数量，并创建异步图片任务：mock image task",
+        timestamp: new Date("2026-04-04T10:26:03Z"),
+        isThinking: true,
+        imageWorkbenchPreview: {
+          taskId:
+            "workspace-project-image-1--lime-tasks-image_generate-task-image-mock-1-json",
+          prompt: "mock image task",
+          status: "running",
+          taskFilePath,
+          artifactPath,
+          expectedImageCount: 9,
+          imageCount: 9,
+          layoutHint: "storyboard_3x3",
+          phase: "queued",
+          statusMessage: "任务已提交，正在排队处理。",
+        },
+      },
+    ];
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: duplicatedMessages,
+      },
+    );
+    await render();
+
+    await vi.waitFor(() => {
+      expect(getValue().messages).toHaveLength(1);
+    });
+
+    expect(getValue().messages[0]).toMatchObject({
+      id: "assistant-image-path-duplicate-1",
+      imageWorkbenchPreview: expect.objectContaining({
+        taskId: "workspace-project-image-1--lime-tasks-image_generate-task-image-mock-1-json",
+        taskFilePath,
+        artifactPath,
+        expectedImageCount: 9,
       }),
     });
   });
@@ -1265,6 +1524,120 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     expect(getValue().imageWorkbenchState.tasks).toEqual([]);
   });
 
+  it("浏览器开发模式下事件丢失时，应按当前会话补捞最近的图片任务卡", async () => {
+    vi.mocked(hasTauriInvokeCapability).mockReturnValue(false);
+    vi.mocked(hasTauriRuntimeMarkers).mockReturnValue(false);
+    vi.mocked(listMediaTaskArtifacts).mockResolvedValueOnce({
+      success: true,
+      workspace_root: DEFAULT_PROJECT_ROOT_PATH,
+      artifact_root: `${DEFAULT_PROJECT_ROOT_PATH}/.lime/tasks`,
+      filters: {
+        task_family: "image",
+        limit: 8,
+      },
+      total: 1,
+      tasks: [
+        createArtifactOutput({
+          task_id: "task-image-browser-recover-1",
+          task_type: "image_generate",
+          record: withDefaultTaskContext({
+            task_id: "task-image-browser-recover-1",
+            task_type: "image_generate",
+            task_family: "image",
+            status: "running",
+            normalized_status: "running",
+            created_at: "2026-04-04T11:05:00Z",
+            payload: {
+              prompt: "三国主要人物群像，电影感",
+              count: 9,
+              layout_hint: "storyboard_3x3",
+              size: "1024x1024",
+            },
+            progress: {
+              phase: "running",
+              message: "图片生成中，已返回 3/9 张。",
+            },
+            result: {
+              requested_count: 9,
+              received_count: 3,
+              images: [
+                { url: "https://example.com/browser-recover-1.png" },
+                { url: "https://example.com/browser-recover-2.png" },
+                { url: "https://example.com/browser-recover-3.png" },
+              ],
+            },
+          }),
+        }),
+      ],
+    });
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: [
+          {
+            id: "user-image-browser-recover-1",
+            role: "user",
+            content: "@分镜 生成 三国主要人物群像，3x3 分镜，电影感，出 9 张",
+            timestamp: new Date("2026-04-04T11:05:00Z"),
+          },
+          {
+            id: "assistant-image-browser-recover-1",
+            role: "assistant",
+            content:
+              "我先按你的描述整理画面主题、尺寸和出图数量，并创建异步图片任务：三国主要人物群像，电影感",
+            timestamp: new Date("2026-04-04T11:05:03Z"),
+            isThinking: true,
+            toolCalls: [
+              {
+                id: "tool-image-browser-recover-1",
+                name: "image_generate",
+                status: "running",
+                startTime: new Date("2026-04-04T11:05:03Z"),
+              },
+            ],
+            contentParts: [
+              {
+                type: "tool_use",
+                toolCall: {
+                  id: "tool-image-browser-recover-1",
+                  name: "image_generate",
+                  status: "running",
+                  startTime: new Date("2026-04-04T11:05:03Z"),
+                },
+              },
+            ],
+          },
+        ],
+      },
+    );
+    await render();
+
+    await vi.waitFor(() => {
+      expect(listMediaTaskArtifacts).toHaveBeenCalledWith({
+        projectRootPath: DEFAULT_PROJECT_ROOT_PATH,
+        taskFamily: "image",
+        limit: 8,
+      });
+    });
+
+    await vi.waitFor(() => {
+      expect(getValue().messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            imageWorkbenchPreview: expect.objectContaining({
+              taskId: "task-image-browser-recover-1",
+              status: "running",
+              imageCount: 3,
+              expectedImageCount: 9,
+              layoutHint: "storyboard_3x3",
+            }),
+          }),
+        ]),
+      );
+    });
+  });
+
   it("同一历史会话已缓存图片工作台结果时，应直接回填聊天卡而不是继续显示等待队列", async () => {
     const taskId = "task-image-history-cached-1";
     const cachedState = {
@@ -1330,16 +1703,279 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
       await Promise.resolve();
     });
 
-    expect(getMediaTaskArtifact).not.toHaveBeenCalled();
     expect(getValue().messages).toEqual([
       expect.objectContaining({
         id: `image-workbench:${taskId}:assistant`,
+        content: "图片任务已完成，共生成 1 张。",
         isThinking: false,
+        runtimeStatus: undefined,
         imageWorkbenchPreview: expect.objectContaining({
           taskId,
           status: "complete",
           imageUrl: "https://example.com/history-cached.png",
           size: "1024x1024",
+          phase: "succeeded",
+          statusMessage: null,
+        }),
+      }),
+    ]);
+  });
+
+  it("历史消息是富文本提交模板时，也应被已缓存终态整卡替换", async () => {
+    const taskId = "task-image-history-rich-1";
+    const cachedState = {
+      ...createInitialSessionImageWorkbenchState(),
+      tasks: [
+        {
+          sessionId: taskId,
+          id: taskId,
+          mode: "generate" as const,
+          status: "complete" as const,
+          prompt: "三国主要人物聚合图",
+          rawText: "@配图 生成 三国主要人物聚合图",
+          expectedCount: 1,
+          outputIds: [`${taskId}:output:1`],
+          createdAt: Date.now(),
+          hookImageIds: [`${taskId}:hook:1`],
+          applyTarget: null,
+        },
+      ],
+      outputs: [
+        {
+          id: `${taskId}:output:1`,
+          taskId,
+          hookImageId: `${taskId}:hook:1`,
+          refId: `img-${taskId}`,
+          url: "https://example.com/three-kingdoms-rich.png",
+          prompt: "三国主要人物聚合图",
+          createdAt: Date.now(),
+          size: "1024x1024",
+          parentOutputId: null,
+          resourceSaved: false,
+          applyTarget: null,
+        },
+      ],
+      selectedOutputId: `${taskId}:output:1`,
+    };
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: [
+          {
+            id: "assistant-rich-image-history-1",
+            role: "assistant",
+            content:
+              "图片生成任务已成功提交！\n任务详情：\n任务ID：task-image-history-rich-1\n状态：pending_submit（等待进入队列）\n模型：cogview-3-flash\n尺寸：1024x1024\n提示词：三国主要人物聚合图\n下一步流程：\n任务将进入生成队列\n系统会自动轮询生成进度\n当前状态：任务已创建，正在等待 AI 模型处理。",
+            timestamp: new Date("2026-04-04T12:11:00Z"),
+            isThinking: true,
+            imageWorkbenchPreview: {
+              taskId,
+              prompt: "三国主要人物聚合图",
+              status: "running",
+              phase: "queued",
+              statusMessage: "任务已提交，正在排队处理。",
+            },
+          },
+        ],
+        initialImageWorkbenchState: cachedState,
+      },
+    );
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: "assistant-rich-image-history-1",
+        content: "图片任务已完成，共生成 1 张。",
+        isThinking: false,
+        runtimeStatus: undefined,
+        toolCalls: [
+          expect.objectContaining({
+            name: "limeCreateImageGenerationTask",
+            status: "completed",
+          }),
+        ],
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "complete",
+          imageUrl: "https://example.com/three-kingdoms-rich.png",
+          phase: "succeeded",
+          statusMessage: null,
+        }),
+      }),
+    ]);
+  });
+
+  it("已缓存终态存在时，后续 pending 事件重写聊天卡后也应再次回填完成结果", async () => {
+    const taskId = "task-image-history-reapply-1";
+    let listener: CreationTaskListener | null = null;
+    vi.mocked(safeListen).mockImplementationOnce(async (_event, handler) => {
+      listener = handler;
+      return vi.fn();
+    });
+
+    const cachedState = {
+      ...createInitialSessionImageWorkbenchState(),
+      tasks: [
+        {
+          sessionId: taskId,
+          id: taskId,
+          mode: "generate" as const,
+          status: "complete" as const,
+          prompt: "已缓存的三国群像",
+          rawText: "@配图 生成 已缓存的三国群像",
+          expectedCount: 1,
+          outputIds: [`${taskId}:output:1`],
+          createdAt: Date.now(),
+          hookImageIds: [`${taskId}:hook:1`],
+          applyTarget: null,
+        },
+      ],
+      outputs: [
+        {
+          id: `${taskId}:output:1`,
+          taskId,
+          hookImageId: `${taskId}:hook:1`,
+          refId: `img-${taskId}`,
+          url: "https://example.com/three-kingdoms-reapply.png",
+          prompt: "已缓存的三国群像",
+          createdAt: Date.now(),
+          size: "1024x1024",
+          parentOutputId: null,
+          resourceSaved: false,
+          applyTarget: null,
+        },
+      ],
+      selectedOutputId: `${taskId}:output:1`,
+    };
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialImageWorkbenchState: cachedState,
+      },
+    );
+    await render();
+
+    await act(async () => {
+      listener?.({
+        payload: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "pending_submit",
+          path: `.lime/tasks/image_generate/${taskId}.json`,
+          prompt: "已缓存的三国群像",
+        }),
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: `image-workbench:${taskId}:assistant`,
+        content: "图片任务已完成，共生成 1 张。",
+        isThinking: false,
+        runtimeStatus: undefined,
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "complete",
+          imageUrl: "https://example.com/three-kingdoms-reapply.png",
+          phase: "succeeded",
+          statusMessage: null,
+        }),
+      }),
+    ]);
+  });
+
+  it("已缓存的 3x3 分镜终态应保留多图预览与布局提示", async () => {
+    const taskId = "task-image-storyboard-cache-1";
+    const outputIds = Array.from(
+      { length: 9 },
+      (_, index) => `${taskId}:output:${index + 1}`,
+    );
+    const cachedState = {
+      ...createInitialSessionImageWorkbenchState(),
+      tasks: [
+        {
+          sessionId: taskId,
+          id: taskId,
+          mode: "generate" as const,
+          status: "complete" as const,
+          prompt: "三国主要人物九宫格分镜",
+          rawText: "@分镜 生成 三国主要人物九宫格分镜",
+          expectedCount: 9,
+          outputIds,
+          layoutHint: "storyboard_3x3",
+          createdAt: Date.now(),
+          hookImageIds: outputIds.map(
+            (_outputId, index) => `${taskId}:hook:${index + 1}`,
+          ),
+          applyTarget: null,
+        },
+      ],
+      outputs: outputIds.map((outputId, index) => ({
+        id: outputId,
+        taskId,
+        hookImageId: `${taskId}:hook:${index + 1}`,
+        refId: `img-${taskId}-${index + 1}`,
+        url: `https://example.com/storyboard-cache-${index + 1}.png`,
+        prompt: `分镜 ${index + 1}`,
+        createdAt: Date.now() + index,
+        size: "1024x1024",
+        parentOutputId: null,
+        resourceSaved: false,
+        applyTarget: null,
+      })),
+      selectedOutputId: outputIds[0],
+    };
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: [
+          {
+            id: "assistant-storyboard-image-history-1",
+            role: "assistant",
+            content:
+              "图片生成任务已成功提交！\n任务详情：\n任务ID：task-image-storyboard-cache-1\n状态：pending_submit（等待进入队列）\n模型：gpt-image-2\n尺寸：1024x1024\n提示词：三国主要人物九宫格分镜\n下一步流程：\n任务将进入生成队列\n系统会自动轮询生成进度\n当前状态：任务已创建，正在等待 AI 模型处理。",
+            timestamp: new Date("2026-04-04T12:12:00Z"),
+            isThinking: true,
+            imageWorkbenchPreview: {
+              taskId,
+              prompt: "三国主要人物九宫格分镜",
+              status: "running",
+              phase: "queued",
+              statusMessage: "任务已提交，正在排队处理。",
+            },
+          },
+        ],
+        initialImageWorkbenchState: cachedState,
+      },
+    );
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "complete",
+          layoutHint: "storyboard_3x3",
+          imageUrl: "https://example.com/storyboard-cache-1.png",
+          previewImages: Array.from({ length: 9 }, (_, index) =>
+            `https://example.com/storyboard-cache-${index + 1}.png`,
+          ),
         }),
       }),
     ]);

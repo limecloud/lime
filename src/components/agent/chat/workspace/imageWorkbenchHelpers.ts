@@ -300,9 +300,17 @@ export function buildImageWorkbenchCommandText(
   options?: {
     aspectRatio?: string;
     count?: number;
+    layoutHint?: string | null;
   },
 ): string {
   const normalizedPrompt = collapseWhitespace(prompt) || "生成一张主题配图";
+  const trigger =
+    options?.layoutHint === "storyboard_3x3" ||
+    (options?.count && options.count > 1)
+      ? "@分镜"
+      : "@配图";
+  const layoutSuffix =
+    options?.layoutHint === "storyboard_3x3" ? "，3x3 分镜" : "";
   const ratioSuffix = options?.aspectRatio?.trim()
     ? `，${options.aspectRatio.trim()}`
     : "";
@@ -310,7 +318,7 @@ export function buildImageWorkbenchCommandText(
     options?.count && options.count > 1
       ? `，出 ${Math.trunc(options.count)} 张`
       : "";
-  return `@配图 生成 ${normalizedPrompt}${ratioSuffix}${countSuffix}`;
+  return `${trigger} 生成 ${normalizedPrompt}${layoutSuffix}${ratioSuffix}${countSuffix}`;
 }
 
 export function buildDocumentImageWorkbenchPrompt(params: {

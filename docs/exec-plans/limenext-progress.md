@@ -8,9 +8,610 @@
 >
 > 补充说明（2026-04-22）：`sceneapp` 对象级 `SceneAppCurrent*` 过渡类型已全部删除。历史日志若继续出现 `SceneAppCurrentDescriptor / SceneAppCurrentPlanResult / SceneAppCurrentCatalog` 等表述，默认按当时过渡阶段理解；current 事实源已切回 base `SceneAppDescriptor / SceneAppCatalog / SceneAppPlanResult`，current 标量只保留 `SceneAppExecutorBindingFamily / SceneAppExecutionRuntimeAction / SceneAppType / SceneAppLaunchRequirementCoreKind`。
 
+## 2026-04-24
+
+### 已完成
+
+- 把 `我的方法 / slash / @` 里的“方法库 / 技能组 / 已安装技能”再收成更接近 skill-first 的前台口径，避免首页已经切到 `先拿结果 -> 再续这轮`，但方法页和输入层还在继续暴露目录/来源语义：
+  - 已更新：
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `我的方法` 页右侧第二块当前已从 `我的方法库` 收成 `已经沉淀的方法`，并同步把说明文案从“库/整理”语气收成“上面没命中时，再从这里接着自己的方法往下走”
+    - `我的方法` 页顶部状态行当前不再回退显示 `租户技能目录` 这类 catalog/source label，只保留真正对当前使用有帮助的整理时间
+    - `刷新方法库 / 云端方法库加载失败 / 本地方法加载失败 / 同步我的方法库失败` 这一组用户可见反馈当前也已统一收成更前台的 `做法` / `我的方法` 口径
+    - `@` 与 `/` 输入面板当前也已同步把 `推荐技能 / 技能组 · ... / 已安装技能 / 未安装技能` 收成 `推荐做法 / 分组标题本身 / 我的方法 / 更多做法`；slash 空查询里的本地方法分组当前进一步收成 `已经沉淀的方法`
+    - 因此 `新建任务 / 我的方法 / slash / @` 当前会更像同一套“结果模板 + 继续上次做法 + 已沉淀的方法”前台结构，而不是一边讲方法，一边讲技能目录和库
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `SkillsWorkspacePage / CharacterMention` 定向 `vitest` 通过：`2 files / 115 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 本轮未通过；headless Tauri 在 `DevBridge` 就绪前提前退出，日志停在 `bridge:health fetch failed` 与超长 Rust 编译等待，不按本轮 `我的方法 / slash` 前台收口直接判为功能回归，但当前也不能把这一步记成完整 GUI 交付
+
+- 把 `新建任务` 首页底部补充层继续从“支撑能力说明层”收成真正的“续接条”，避免首页虽然已经把首屏重心收回 `先拿结果`，但底部仍然保留 `查看支撑能力 -> 四张能力卡` 这套第二层系统说明：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页补充层当前已移除 `查看支撑能力` 展开入口，不再把 `我的方法 / 持续流程 / 任务拆分 / 浏览器接入` 做成第二层能力卡说明面
+    - 当前只保留真正能立刻产生收益的续接动作：`继续最近会话`、`继续最近做法`、`查看全部做法`、`连接浏览器`
+    - 补充层标题当前也收成更轻的 continuation 语气：有续接动作时用 `也可以直接继续这轮。`，只有浏览器接入时才显示 `需要网页登录时，也可以先把浏览器接上。`
+    - 首页当前也不再显式暴露 `X 套做法可直接复用` 这类数量说明，避免刚把结果入口收轻，又在底部把用户拉回目录心智
+    - 因此 `新建任务` 首页当前更接近 Ribbi 式 `先拿结果 -> 再续这一轮` 的前台起手面，而不是“结果入口 + 能力说明层”双轨并列
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `EmptyState` 定向 `vitest` 通过：`1 file / 49 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page` 当前都已跑通，说明这轮首页补充层减法没有把 GUI 主路径打断
+
+- 把自动化概览里的 `当前经营焦点` 继续收成更轻的“续接卡”，避免 `SceneApps` 首屏已经改成“先续做法”，但自动化页还在用 `经营焦点 / 经营判断 / 业务去向` 这一套对象卡语言：
+  - 已更新：
+    - `src/components/settings-v2/system/automation/AutomationOverviewFocusCard.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobFocusStrip.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx`
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `src/components/settings-v2/system/automation/AutomationOverviewFocusCard.test.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobFocusStrip.test.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 自动化概览卡当前已把标题从 `当前经营焦点` 收成 `现在先继续这条`，不再默认强调经营分析视角
+    - 顶部 chip 当前只保留 `持续流程名 / 做法名 / 当前状态` 这类直接影响续接判断的信息，不再把 `工作区 / businessLabel / destinations` 一次性摊在首屏
+    - 主体当前也收成 `这轮判断 / 先做 / 最近结果` 三段轻信息，不再拆成第二张 `经营判断` 卡和一组业务去向标签
+    - 自动化详情弹窗里的 `做法闭环` 区块当前也已同步改成 `结果包 / 复盘材料 / 这轮判断` 口径，不再额外暴露 `businessLabel / typeLabel / patternSummary` 这类对象属性
+    - 自动化表格里的 `当前经营焦点` 标识与错误 toast 当前也已同步改成同一口径，避免用户在自动化概览和任务列表之间看到两套说法
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/settings-v2/system/automation/AutomationOverviewFocusCard.test.tsx" "src/components/settings-v2/system/automation/AutomationJobFocusStrip.test.tsx"`
+    - `npm exec vitest run "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx"`
+    - `npm exec vitest run "src/components/settings-v2/system/automation/index.test.tsx"`
+    - `npx eslint "src/components/settings-v2/system/automation/AutomationOverviewFocusCard.tsx" "src/components/settings-v2/system/automation/AutomationJobFocusStrip.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx" "src/components/settings-v2/system/automation/index.tsx" "src/components/settings-v2/system/automation/AutomationOverviewFocusCard.test.tsx" "src/components/settings-v2/system/automation/AutomationJobFocusStrip.test.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx" "src/components/settings-v2/system/automation/index.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - 自动化概览 / 焦点条 / 详情弹窗 / 设置页定向 `vitest` 通过：`4 files / 28 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 本轮未拿到最终结论；当前重新拉起 headless Tauri 时触发了超长 Rust 编译，`bridge:health` 已进入额外等待分支，属于环境编译耗时，不按本轮自动化概览文案收口回归处理
+
+- 把 `SceneAppsPage` 首屏继续从“目录总览”收成“可继续的做法导轨”，避免 `全部做法` 虽然已经改成 `做法` 口径，但页首仍然停留在 `badge + 统计卡 + 当前对象栏` 这类目录语言：
+  - 已更新：
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `全部做法` 页首当前移除了 `全部做法 · 进入生成前的准备层` 徽标和 `当前目录 / 最近继续 / 当前焦点` 三张统计卡，不再先把用户带进“对象目录”阅读模式
+    - `当前已带入` 与 `当前做法` 当前也已合并成一条轻量续接条，只保留真正影响下一步的事实：`这轮做法`、`已带几条灵感`、`是否已经写好启动意图`，以及这轮更适合直接去准备还是去复盘
+    - `做法目录 / 生成准备 / 做法复盘` 三段 workflow rail 当前也继续缩短说明，首屏只回答“先去哪一步”，不再讲长段系统解释
+    - 因此用户当前沿着 `我的方法 -> 查看全部做法 -> 生成` 这条链路时，首屏认知会更接近 Ribbi 式“先续做法、再看下一步”，而不是“先读目录状态、再理解对象数量”
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+    - `npm run verify:local`
+  - 结果：
+    - `SceneAppsPage` 定向 `vitest` 通过：`1 file / 34 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 未通过，但当前失败点仍停留在既有 `smoke:browser-runtime` 链路：`launch_browser_session / close_chrome_profile_session` 持续 `fetch failed`；前置 `DevBridge / workspace-ready` 已正常，不按本次 `SceneApps` 首屏改动回归处理
+    - `verify:local` 未通过，当前阻塞仍是仓库既有无关 warning：
+      - `src/components/provider-pool/api-key/ProviderSetting.tsx:174` `react-hooks/exhaustive-deps`
+
+- 把 `人工复盘 -> 首页 / 我的方法 / slash 结果模板横幅` 从“首屏可解释”继续推进成“首屏可直接续接”，避免三处横幅虽然都已经能说明“这轮为什么更适合这样继续”，但用户仍然要自己再去点下一层目录才能真正开工：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页 `结果入口` 的 `最近复盘已更新` 横幅当前新增 `继续去「...」` 动作，点击后直接复用当前已排到前面的推荐模板选择链，不再要求用户自己再去找一遍结果卡
+    - `我的方法` 页 `先拿结果` 区块里的轻量复盘横幅当前也新增同名动作，点击后直接打开对应 `curated task launcher`
+    - slash `结果模板` 分组里的复盘横幅当前同样新增直达动作，点击后仍复用现有 `handleSelectCapability(item)` 主链，不额外发明一套输入层专属跳转
+    - 因此 `人工复盘 -> 首页 / 我的方法 / slash` 这三处首屏入口，当前都已经从“能解释为什么推荐”推进到“能直接把下一步接起来”
+    - 这一步继续服务 `P5` 主线：让 `review_feedback` 的异步增益不只体现在排序和说明文字上，也体现在可立即续做的轻量动作上
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `vitest` 通过：`3 files / 162 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page` 当前都已跑通，证明这轮轻 CTA 没有把 GUI 主链打断
+
+- 把 `人工复盘 -> 当前激活结果模板(active badge) / launcher` 从“发送前可见说明”继续推进成“发送前可直接改用更合适的结果模板”，避免首页、我的方法、slash 首屏都已经能一键续接，但用户真的走到发送前时，顶部 badge 和 launcher 里的复盘提示又退回成只读说明：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/CuratedTaskBadge.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/skill-selection/CuratedTaskBadge.test.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `CuratedTaskBadge` 当前会在“当前模板不是最近复盘首选”时显影 `改用「...」` 动作，不再只把最近复盘当作 badge 说明文字
+    - `CuratedTaskLauncherDialog` 当前也会在“当前 launcher 不是最近复盘首选”时显影同一类切换动作，点击后继续复用现有 launcher 主链，而不是偷偷改 active capability
+    - `EmptyState` 当前已经把这条切换动作接回主执行面；从发送前 badge 点击后，会直接打开更合适结果模板的 launcher，并继续带着当前结果与参考对象
+    - `CharacterMention` 当前也已经把同一条切换动作接回 slash launcher；因此用户从 slash 进入结果模板后，仍可在 launcher 内按最近复盘切到更合适的模板
+    - 这一步继续服务 `P5` 主线：让 `review_feedback` 的异步增益正式穿过“选模板 -> 启动表单 -> 发送前 badge”这一段主执行链，而不只停留在首屏入口层
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CuratedTaskBadge.test.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/CuratedTaskBadge.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CuratedTaskBadge.test.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `CuratedTaskBadge / CuratedTaskLauncherDialog / EmptyState` 定向 `vitest` 通过：`3 files / 64 tests passed`
+    - `CharacterMention` 定向 `vitest` 通过：`1 file / 88 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page` 当前都已跑通
+
+- 把 `人工复盘 -> 我的方法 / 灵感库 launcher` 从“launcher 内只解释为什么更适合另一条模板”继续推进成“launcher 内可直接改用更合适模板”，避免首页和首屏卡片已经能按最近复盘续接，但用户一旦真正从 `我的方法` 或 `灵感库` 进入 launcher，又退回成只能自己关掉重找：
+  - 已更新：
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `SkillsWorkspacePage` 当前会在 `CuratedTaskLauncherDialog` 内真正接住 `onApplyReviewSuggestion`，因此用户从 `先拿结果` 进入 launcher 后，遇到最近复盘更适合的模板时，可以直接切过去，而不必先退回卡片区
+    - `MemoryPage` 当前也已把同一条切换动作接回 `围绕当前灵感 / 围绕这条成果继续` 的 launcher，并继续保留当前 reference object 与 reference selection，不再因为切模板把成果基线丢掉
+    - 到这里为止，current 非对话页里的两条 launcher 主链，已经都从“解释为什么推荐”推进到“在 launcher 里直接续接下一步”
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/memory/MemoryPage.test.tsx"`
+    - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/memory/MemoryPage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/memory/MemoryPage.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `SkillsWorkspacePage / MemoryPage` 定向 `vitest` 通过：`2 files / 46 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page` 当前都已跑通
+
+- 把 `人工复盘 -> 输入条 active curated task badge / 编辑态 launcher` 的真实控制器链补齐到 `useInputbarController`，避免文档层面已经把“发送前可直接改用更合适模板”记成已完成，但实际输入条顶部 badge 和编辑态 launcher 还没有真正接回 `onApplyReviewSuggestion`：
+  - 已更新：
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 输入条顶部 `CuratedTaskBadge` 当前已能直接按最近复盘切到推荐模板，并同步改写当前 `active capability + prompt`，不再只显示一颗说明性 pill
+    - 输入条里的编辑态 `CuratedTaskLauncherDialog` 当前也已真正接住 `onApplyReviewSuggestion`；在 launcher 中切模板时，会继续保留当前 reference selection，并给出轻量 `prefill hint`
+    - 至此 current 所有 `CuratedTaskLauncherDialog` 父层都已经接回同一条 review 续接主链：
+      - `EmptyState`
+      - `CharacterMention`
+      - `SkillsWorkspacePage`
+      - `MemoryPage`
+      - `useInputbarController`
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `Inputbar` 定向 `vitest` 通过：`1 file / 45 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过：复用已运行的 headless 环境，完整跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `我的方法` 页首层继续从“对象目录”收成“结果优先 + 继续做法 + 已沉淀的方法”，避免 current 主链已经在 launcher / 输入层 / 结果侧不断减系统感，但 `我的方法` 页首屏仍然被数量 badge、组数、`/skill.key`、来源标签这些实现性露出拉回目录思维：
+  - 已更新：
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 页首摘要当前不再强调 `对话内继续 / X 条做法 / Y 组` 这类对象视角，而是直接讲“先拿一个结果起手；后面常用做法和自己沉淀的方法都在这里续上”
+    - `先拿结果 / 继续上次做法 / 我的方法库` 三块当前都去掉了低价值数量 badge，避免首屏继续被计数器和标签墙抢注意力
+    - `我的方法库` 卡片当前也不再默认暴露 `本地 / 官方 / 社区` 来源标签、`已安装` 标识和 `/skill.key` 方法入口，只保留用户真正会据此决策的承诺：这套方法解决什么、你来给什么、会拿到什么、进生成后会怎么继续
+    - 这一步继续服务 `P2` 主线：让 `我的方法` 更像 Ribbi 式“续做法工作台”，而不是“能力对象目录”
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+    - `npm run verify:local`
+  - 结果：
+    - `SkillsWorkspacePage` 定向 `vitest` 通过：`1 file / 27 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过：复用已运行的 headless 环境，完整跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+    - `verify:local` 未通过；当前阻塞来自仓库既有无关 lint warning：
+      - `src/components/provider-pool/api-key/ProviderSetting.tsx:174` 的 `react-hooks/exhaustive-deps` warning
+    - 因此本轮结论应更新为：`我的方法` 页这刀 current UI 收口已通过定向回归与 GUI smoke，仓库级统一入口仍受一条与本刀无关的存量 warning 阻塞
+
 ## 2026-04-23
 
 ### 已完成
+
+- 把 `人工复盘 -> 首页 / 我的方法 / slash 结果模板横幅` 从“只显示复盘摘要”继续推进成“复盘摘要 + 下一步建议句”的统一前台投影，避免同一份 `review_feedback` 信号虽然已经影响推荐排序，但三处首屏入口还停留在偏泛化的说明层：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页 `结果入口`、`我的方法` 页 `先拿结果` 与 slash `结果模板` 分组，当前都会继续复用同一份 `buildReviewFeedbackProjection(...)`
+    - 三处横幅当前不再只显示 `signal.summary`，而是继续拼上 `projection.suggestionText`，直接解释“这轮复盘更建议优先回到哪条结果模板”
+    - 这一步继续服务 `P5` 主线：让 `人工复盘 -> 下一轮结果入口` 不只体现在排序变化上，也体现在统一可读的续做说明上
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `vitest` 通过：`3 files / 162 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 本轮未拿到有效通过结论：前 5 段 smoke 已通过，但最后 `smoke:agent-runtime-tool-surface-page` 阶段 `DevBridge` 掉线，随后 `bridge:health` 复检也超时未就绪；当前按环境阻塞记录，不把它误记成这轮前台投影改动引入的功能回归
+
+- 把任务层 / 模型层 / 事件链正式接回 Lime current runtime 主链，并把此前阻塞 `verify:local` 的既有噪音一并收口：
+  - 已更新：
+    - `docs/roadmap/task/README.md`
+    - `docs/roadmap/task/runtime-integration.md`
+    - `docs/roadmap/task/rollout-plan.md`
+    - `docs/roadmap/task/acceptance.md`
+    - `src-tauri/crates/agent/src/session_execution_runtime.rs`
+    - `src-tauri/crates/agent/src/protocol.rs`
+    - `src-tauri/src/commands/aster_agent_cmd/request_model_resolution.rs`
+    - `src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs`
+    - `src-tauri/src/commands/aster_agent_cmd/dto.rs`
+    - `src/lib/api/agentExecutionRuntime.ts`
+    - `src/lib/api/agentProtocol.ts`
+    - `src/lib/api/agentRuntime/types.ts`
+    - `src/lib/api/agentProtocol.test.ts`
+    - `src/components/agent/chat/hooks/useAgentSession.ts`
+    - `src/components/provider-pool/api-key/ProviderModelList.tsx`
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `src/components/workspace/video/VideoCanvas.tsx`
+    - `src/lib/mediaGeneration.ts`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.test.ts`
+    - `src/components/agent/chat/utils/processDisplayText.ts`
+    - `src-tauri/src/commands/aster_agent_cmd/tool_runtime/creation_tools.rs`
+  - 当前统一结论：
+    - `TaskProfile -> RoutingDecision -> LimitState` 现在已经是 Lime current runtime 的真实事实链，而不是只存在文档里的提案对象
+    - `runtime_turn.rs` 当前会把这三类事实写回 `turn_context.metadata.lime_runtime`，并即时发出 `task_profile_resolved / routing_decision_made / limit_state_updated`
+    - `request_model_resolution.rs` 当前不再只返回 `provider_config`，而是返回完整 resolution envelope；`service_models.translation` 也已经进入统一路由链
+    - `thread_read` 与前端协议当前都能直接消费 `task_kind / service_model_slot / routing_mode / decision_source / candidate_count / capability_gap / limit_state`
+    - 为了证明这轮主线真的可交付，本轮也一并修掉了此前会挡住 `verify:local` 的几处既有噪音，包括 `useAgentSession` 缺失 import、`ProviderModelList` hooks 依赖、视频 provider 判定以及部分测试夹具 / 文本归一化问题
+  - 当前定向验证：
+    - `cargo check --manifest-path "src-tauri/Cargo.toml" -p lime-agent`
+    - `cargo check --manifest-path "src-tauri/Cargo.toml" -p lime`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" -p lime-agent extracts_task_routing_and_limit_state_from_lime_runtime_metadata`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" -p lime runtime_task_profile_marks_translation_service_slot`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" -p lime explicit_provider_config_resolution_reports_single_candidate_routing`
+    - `npm exec vitest run "src/lib/api/agentProtocol.test.ts"`
+    - `npm exec vitest run "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npm exec vitest run "src/components/workspace/video/VideoCanvas.test.tsx"`
+    - `npm exec vitest run "src/lib/mediaGeneration.test.ts"`
+    - `npm exec vitest run "src/components/agent/chat/components/AgentThreadTimeline.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/StreamingRenderer.test.tsx"`
+    - `npm run test:contracts`
+    - `npm run verify:local`
+  - 结果：
+    - 所有上述定向 Rust / Vitest / contracts 校验通过
+    - `verify:local` 当前已完整通过，包含 `verify:gui-smoke`
+
+- 把首页 `围绕当前灵感，先拿结果` 也补成和成果分区一致的结果续接语义，避免首页与 `MemoryPage/durable` 口径重新分叉：
+  - 已更新：
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 当首页 `activeRecommendationReferenceEntries` 里已经存在带 `taskPrefillByTaskId` 的成果条目时，首页推荐区当前也会显影同一张轻量 `当前续接成果` 上下文卡，不再只有成果分区才看得到“这轮结果还在继续带着走”
+    - 因此首页 `围绕当前灵感，先拿结果` 当前也能直接解释：这轮正在承接哪条成果、为什么现在优先推荐 `复盘 / 趋势 / 主稿`
+    - 这一步继续服务 `P4` 主线：让 `结果 -> 灵感库 -> 下一轮推荐` 不只在成果分区闭环，也在首页入口保持同一条前台叙事
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/memory/MemoryPage.test.tsx"`
+    - `npx eslint "src/components/memory/MemoryPage.tsx" "src/components/memory/MemoryPage.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `MemoryPage` 定向 `vitest` 通过：`1 file / 18 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过
+
+- 把成果类灵感条目的“为什么推荐下一步”正式前推到推荐层，而不再只在 launcher 打开后才解释得清楚：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.test.ts`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `listFeaturedHomeCuratedTaskTemplates(...)` 当前会对 `experience` 类 reference entry 额外识别“成果续接型命中”，不再只靠通用关键词和 category weight 解释推荐原因
+    - 只要当前成果条目已经为某个模板编出了 `taskPrefillByTaskId`，这条显式续接 reason 当前就会优先于泛化 `active_reference` signal，避免前台又退回“围绕当前成果”这种过宽解释
+    - 当成果条目已经编出 `taskPrefillByTaskId` 时，`复盘这个账号/项目 / 每日趋势摘要 / 内容主稿生成` 当前会分别显影更明确的续接 reason：
+      - `先对齐这轮结果基线，再决定下一轮动作`
+      - `围绕这轮结果继续找趋势窗口`
+      - `把这轮结果直接带成下一版主稿`
+    - 因此 `MemoryPage` 的推荐卡当前不再只是“看起来推荐了下一步”；用户在成果条目旁边就能直接看懂 Lime 为什么建议先复盘、补趋势或起下一版主稿
+    - 这一步继续服务 `P4` 主线：把 `结果 -> 灵感库 -> 下一轮推荐` 从 launcher 内部闭环，继续前推成首页/分区卡片层也能读懂的闭环
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskTemplates.test.ts" "src/components/memory/MemoryPage.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/utils/curatedTaskTemplates.test.ts" "src/components/memory/MemoryPage.test.tsx"`
+    - `npm run verify:local`
+  - 结果：
+    - `curatedTaskTemplates + MemoryPage` 定向 `vitest` 通过：`2 files / 21 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:local` 本轮未拿到最终结论：smart 模式检测到工作区已有 `99` 个改动文件后，把校验扩大成全仓 `42` 批 `vitest-smart` + bridge / GUI / Rust 路径；本轮已实际跑过 `verify:app-version / lint / typecheck` 并进入 `vitest-smart` 前 10 批，但这不属于本刀推荐层的最小证明范围，因此没有把半程运行误记成最终绿灯
+
+- 把同一份成果基线继续扩到下游结果模板，并让 launcher 的“当前结果基线”不再只认 sceneapp 合成对象：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.ts`
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts`
+    - `src/components/agent/chat/utils/sceneAppCuratedTaskReference.ts`
+    - `src/components/agent/chat/utils/sceneAppCuratedTaskReference.test.ts`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `experience` 类 `UnifiedMemory` 当前不只会编出 `account-project-review` 的 prefill，也会继续编出 `daily-trend-briefing` 与 `social-post-starter` 的结构化启动信息
+    - `每日趋势摘要` 当前会默认带上 `主题或赛道 + 希望关注的平台/地域`；`内容主稿生成` 当前会默认带上 `主题或产品信息 + 目标受众`
+    - `buildSceneAppExecutionReviewPrefillSnapshot(...)` 当前也不再只认 `sceneapp_execution_summary`；任何带 `project_goal / existing_results` 结果基线的 reference entry 都能显影同一套 `当前结果基线 / 当前判断 / 当前卡点`
+    - `CuratedTaskLauncherDialog` 的 carry hint 当前已泛化到任意结果模板，因此趋势和主稿模板也会明确提示“哪些字段已按这轮结果自动带入”
+    - 这一步继续服务 `P4` 的 current 主线：让 `结果 -> 灵感库 -> 下一轮趋势/主稿` 也从“看起来像闭环”推进成“字段与基线都真实续接”
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts" "src/components/agent/chat/utils/sceneAppCuratedTaskReference.test.ts" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx"`
+    - `npm exec vitest run "src/components/memory/MemoryPage.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskReferenceSelection.ts" "src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts" "src/components/agent/chat/utils/sceneAppCuratedTaskReference.ts" "src/components/agent/chat/utils/sceneAppCuratedTaskReference.test.ts" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `curatedTaskReferenceSelection / sceneAppCuratedTaskReference / CuratedTaskLauncherDialog` 定向 `vitest` 通过：`3 files / 20 tests passed`
+    - `MemoryPage` 定向 `vitest` 通过：`1 file / 17 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 本轮未拿到有效通过结论；当前环境存在并发 `cargo test --manifest-path src-tauri/Cargo.toml -p lime explicit_provider_config_resolution_reports_single_candidate_routing` 占用 `src-tauri/target` 锁，第一次重跑还叠加了临时 target 目录丢失导致的 `couldn't create a temp dir (os error 2)`，因此按环境并发噪音处理，不把它记成这轮功能回归失败
+
+- 把成果类灵感条目正式编译成可直接预填复盘 launcher 的 reference entry，避免用户在灵感库里还得把刚才那轮结果重新讲一遍：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.ts`
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `buildCuratedTaskReferenceEntries(...)` 当前会为 `experience` 类 `UnifiedMemory` 统一补上 `taskPrefillByTaskId.account-project-review`，不再额外长一条 `MemoryPage-only` 的 continuation 编译层
+    - 这份 prefill 会优先从成果 content 里的 `场景 / 结果摘要 / 当前交付 / 建议下一步 / 当前信号 / 最近反馈 / 运行态回流 / 当前判断` 结构化行抽取复盘基线；拿不到结构化行时，再回退到 `summary/content` 的压缩摘要
+    - 因此 `MemoryPage -> 围绕这条成果继续 -> 复盘这个账号/项目` 当前不只是把成果带成 reference seed；launcher 打开时，`账号或项目目标 / 已有结果或数据` 也已经默认带好当前成果基线
+    - 这一步继续服务 `P4` 的 current 主线：让 `结果 -> 灵感库 -> 复盘 -> 下一轮生成` 少一次人工复述，更接近 Ribbi 式自然续接
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts"`
+    - `npm exec vitest run "src/components/memory/MemoryPage.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskReferenceSelection.ts" "src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts" "src/components/memory/MemoryPage.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `curatedTaskReferenceSelection` 定向 `vitest` 通过：`1 file / 5 tests passed`
+    - `MemoryPage` 定向 `vitest` 通过：`1 file / 17 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过
+    - 本轮未重复执行 `npm run verify:local`；仓库级统一入口当前仍有既有无关阻塞：
+      - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
+      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+
+- 把“当前续接成果”真正接进下一轮推荐，而不只是让它在成果分区里高亮可见：
+  - 已更新：
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/memory/MemoryCuratedTaskSuggestionPanel.tsx`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `MemoryPage` 当前新增 `activeRecommendationReferenceEntries`，会优先把 `focusedDurableMemory` 编进推荐参考，再补灵感库其他参考对象；因此从结果页落到 `memory/experience` 时，推荐上下文不再是“灵感库全局前几条”，而是“当前这条成果优先”
+    - 首页 `围绕当前灵感，先拿结果` 与成果分区里的 `围绕这条成果继续` 当前都改为复用同一份 `MemoryCuratedTaskSuggestionPanel`，不再在 `MemoryPage` 里复制两套推荐卡片结构
+    - 成果分区当前会直接露出围绕这条成果的下一步推荐，并优先把 launcher 的 `referenceEntries / creation_replay` 对准这条成果；因此“当前续接”已经从视觉提示推进成真正的启动事实
+    - 这一步继续遵守当前 Ribbi 式前台方向：不把用户赶回首页、不加解释弹层，只在成果旁边给出下一步
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/memory/MemoryPage.test.tsx"`
+    - `npx eslint "src/components/memory/MemoryPage.tsx" "src/components/memory/MemoryCuratedTaskSuggestionPanel.tsx" "src/components/memory/MemoryPage.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+    - `npm run verify:local`
+  - 结果：
+    - `MemoryPage` 定向 `vitest` 通过：`17 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过
+    - `verify:local` 未通过；当前阻塞仍是仓库既有无关问题：
+      - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
+      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+
+- 把 `去灵感库继续` 从泛化首页跳转推进成“成果分区 + 当前续接对准”，避免用户刚从结果页返回灵感库时又得自己重找那条成果：
+  - 已更新：
+    - `src/types/page.ts`
+    - `src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.ts`
+    - `src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.test.ts`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 新增 `buildSceneAppExecutionInspirationLibraryPageParams(...)`，统一把结果页里的“去灵感库继续”编译成 `section: "experience" + focusMemoryTitle + focusMemoryCategory`
+    - `AgentChatWorkspace`、`sceneapps` 深层页与自动化详情当前都复用这同一份 helper，不再各自硬编码 `memory/home`
+    - `MemoryPage` 当前已支持按这组 page params 对准成果条目，并给目标条目加轻量 `当前续接` 高亮；用户进入灵感库时看到的就不是泛化首页，而是刚才那轮成果所在的位置
+    - 这一步继续保持 Ribbi 式前台：不新加说明弹层，不暴露额外系统状态，只把用户真正要继续的那条成果对到眼前
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.test.ts" "src/components/memory/MemoryPage.test.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint "src/types/page.ts" "src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.ts" "src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/settings-v2/system/automation/index.tsx" "src/components/memory/MemoryPage.tsx" "src/components/memory/MemoryPage.test.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+    - `npm run verify:local`
+  - 结果：
+    - `vitest` 通过：`3 files / 54 tests passed`
+    - `eslint` 通过
+    - `verify:gui-smoke` 通过
+    - `verify:local` 未通过；当前阻塞仍是仓库既有无关问题：
+      - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
+      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+
+- 把 `保存到灵感库` 的前台反馈从 toast-only 收成“信号驱动的已收进灵感库”稳定状态，避免结果虽然已经沉淀成功，用户在结果面里却仍看到可重复点击的旧按钮：
+  - 已更新：
+    - `src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.ts`
+    - `src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.test.ts`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx`
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 新增 `hasSavedSceneAppExecutionAsInspiration(...)`，统一基于 `buildSceneAppExecutionInspirationDraft(...)` 和推荐信号事实源判断这轮结果是否已经被沉淀
+    - `AgentChatWorkspace`、`sceneapps` 深层页和自动化详情当前都会订阅 `subscribeCuratedTaskRecommendationSignalsChanged(...)`，因此保存成功后会在页内即时重算状态，而不是等用户重开页面
+    - `SceneAppExecutionSummaryCard` 与 `SceneAppRunDetailPanel` 当前都会把按钮切成禁用态 `已收进灵感库`；聊天结果卡、`sceneapps` 深层结果面和自动化详情里的结果面现在都会显影同一句轻量 hint：`这轮结果已进入灵感库，下一轮推荐会继续带上它`
+    - 这条 hint 旁边当前也会统一露出低权重 `去灵感库继续`；当前已升级成直接落到成果分区并尽量对准刚才那条成果，不再只是泛化导航到 `memory/home`
+    - 这一步刻意没有新造组件本地临时状态，也没有再加一层成功横幅，继续保持 Ribbi 式“轻提示、少系统感、先让用户知道下一步还在接着走”的前台节奏
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.ts" "src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/sceneapps/SceneAppRunDetailPanel.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx" "src/components/settings-v2/system/automation/index.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+    - `npm run verify:local`
+  - 结果：
+    - `vitest` 通过：`3 files / 50 tests passed`
+    - `eslint` 通过
+    - `verify:gui-smoke` 通过
+    - `verify:local` 未通过；当前阻塞仍是仓库既有无关问题：
+      - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
+      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+
+- 把 `保存到灵感库` 从单一聊天结果卡扩到 `sceneapps` 深层结果面与自动化详情，避免高价值结果仍然只在一个结果入口里才能沉淀：
+  - 已更新：
+    - `src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.ts`
+    - `src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.test.ts`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx`
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 新增 `saveSceneAppExecutionAsInspiration(...)`，统一复用 `buildSceneAppExecutionInspirationDraft(...) + createUnifiedMemory(...) + recordCuratedTaskRecommendationSignalFromMemory(...)`，不再让聊天结果卡、`sceneapps` 深层页和自动化详情各自复制一段保存逻辑
+    - `SceneAppRunDetailPanel` 当前新增轻量 `保存到灵感库` 按钮；`sceneapps` 深层结果面与自动化详情弹窗都复用这同一枚入口，不再只有 `SceneAppExecutionSummaryCard` 能顺手沉淀结果
+    - `AgentChatWorkspace` 当前也已切回同一条 helper，因此 `结果工作台 / sceneapps 深层页 / 自动化详情 -> 灵感库 -> 推荐信号 -> 下一轮推荐` 现在开始围绕同一份成果类灵感草稿运转
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.test.ts" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.ts" "src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/sceneapps/SceneAppRunDetailPanel.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx" "src/components/settings-v2/system/automation/index.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+    - `npm run verify:local`
+  - 结果：
+    - `vitest` 通过：`3 files / 42 tests passed`
+    - `eslint` 通过
+    - `verify:gui-smoke` 通过
+    - `verify:local` 未通过；当前阻塞来自仓库既有无关 lint 问题：
+      - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
+      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+
+- 把 `结果工作台 -> 灵感库` 这条主链补回 `SceneAppExecutionSummaryCard`，避免高价值结果仍然只停留在消息区或结果摘要里：
+  - 已更新：
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `src/components/agent/chat/utils/sceneAppExecutionInspirationDraft.ts`
+    - `src/components/agent/chat/utils/sceneAppExecutionInspirationDraft.test.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `SceneAppExecutionSummaryCard` 的 `继续动作` 区当前新增 `保存到灵感库`，用户在结果工作台里就能直接把这轮结果沉淀成灵感，不必退回消息列表找入口
+    - `AgentChatWorkspace` 当前已把结果卡这条入口接到统一的 sceneapp 结果沉淀主链，继续复用 `createUnifiedMemory(...) + recordCuratedTaskRecommendationSignalFromMemory(...)`
+    - 新增的 `buildSceneAppExecutionInspirationDraft(...)` 会把 `结果摘要 / 当前交付 / 下一步 / 待补部件 / 当前信号 / 风格与反馈` 编成成果类灵感沉淀请求，不再只存一段泛化文案
+    - 因此 `结果工作台 -> 灵感库 -> 推荐信号 -> 首页/灵感库/launcher 下一轮推荐` 现在已经形成一条 current 前台闭环
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/utils/sceneAppExecutionInspirationDraft.test.ts"`
+    - `npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/utils/sceneAppExecutionInspirationDraft.ts" "src/components/agent/chat/utils/sceneAppExecutionInspirationDraft.test.ts"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `vitest` 通过：`2 files / 9 tests passed`
+    - `eslint` 通过
+    - `verify:gui-smoke` 通过
+
+- 把 `灵感库` 首页的 P3 推荐区从“首屏快照”推进成“页内实时回流”，避免 `MemoryPage` 打开后仍然看不到后续保存到灵感库的变化：
+  - 已更新：
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `MemoryPage` 当前已订阅 `subscribeCuratedTaskRecommendationSignalsChanged(...)`，不再只在首屏 `loadAll()` 时抓一次灵感库快照
+    - 收到推荐信号后，页面当前会同步重算首页 `围绕当前灵感，先拿结果` 推荐，并增量回拉 `getUnifiedMemoryStats() + listUnifiedMemories({ limit: 120 })`
+    - 因此 `保存到灵感库 / 更新推荐信号 -> 灵感对象统计 -> 首页参考对象 -> 推荐卡默认参考` 现在都会在页内一起刷新，不再要求用户重开 `MemoryPage`
+    - 这也意味着 `MemoryPage` 上打开中的共享 launcher 会继续吃到更新后的 `featuredMemoryReferenceEntries`，不会停留在进入页面时那一版旧参考
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/memory/MemoryPage.test.tsx"`
+    - `npx eslint "src/components/memory/MemoryPage.tsx" "src/components/memory/MemoryPage.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `vitest` 通过：`1 file / 15 tests passed`
+    - `eslint` 通过
+    - `verify:gui-smoke` 通过
+
+- 把 `灵感库 -> 下一轮结果模板` 这条 P3 主链正式前推到 `MemoryPage` 首页，避免 taste/reference 回流仍然只停留在隐性的推荐排序里：
+  - 已更新：
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `MemoryPage` 首页当前新增 `围绕当前灵感，先拿结果` 区块，会基于灵感库里的参考对象直接编译共享 curated task 推荐
+    - 这组推荐当前复用首页 / `我的方法` / slash 同一套 `listFeaturedHomeCuratedTaskTemplates(...)` 逻辑，不另造 `memory-only` 模板体系
+    - 推荐卡当前会显影 `围绕当前灵感 / 默认带上几条参考对象 / 你先给 / 这一步先拿 / 接着可做`，让用户在灵感库里就能看见“下一轮更适合先做什么”
+    - 点击 `开始这一步` 当前不会退回裸 prompt，而是统一先打开共享 launcher；确认后继续走 `curated_task capabilityRoute + requestMetadata.harness.curated_task + creation_replay(memory_entry)` 主链
+    - 因此 P3 当前第一次把 `灵感库 -> 结果模板 -> launcher -> 生成` 做成了正式前台动作，而不是要求用户自己带着灵感再回首页找起手入口
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/memory/MemoryPage.test.tsx"`
+    - `npx eslint "src/components/memory/MemoryPage.tsx" "src/components/memory/MemoryPage.test.tsx"`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `vitest` 通过：`1 file / 14 tests passed`
+    - `eslint` 通过
+    - `verify:gui-smoke` 通过
+
+- 把 `我的方法` 页左列目录继续从“补位说明块”收成更轻的备用方向入口，避免这块区域仍然像第二个需要理解的管理台：
+  - 已更新：
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 左列标题当前从 `方法目录` 收成 `换个方向`，并移除了 `补位目录` 这类解释 badge；空态也同步改成“去下方换个方向继续找”
+    - 方向卡当前主语气统一为 `先试 / 适合 / 进去后直接挑做法 / 进去挑`，不再强调“目录结构 / 做法组”本身
+    - 进入组后的过渡层当前也从 `组内继续挑做法 / 这一组更偏向 / 起手建议 / 换一组做法` 收成 `已切到这一组 / 直接挑一条 / 换个方向`
+    - 因此 `我的方法` 页当前又向 Ribbi 式前台秩序推进了一刀：`先拿结果 -> 没命中就换个方向 -> 进去后直接挑一条 -> 继续上次做法 / 我的方法库`
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - 结果：
+    - `vitest` 通过：`1 file / 26 tests passed`
+    - `eslint` 通过
+    - `verify:gui-smoke` 通过
+    - `typecheck` 未通过；当前阻塞来自仓库既有无关问题：
+      - `src/components/agent/chat/hooks/useAgentSession.ts(231,11): Cannot find name 'normalizeLegacyThreadItems'`
+      - `src/components/agent/chat/hooks/useAgentSession.ts(482,9): Cannot find name 'normalizeLegacyThreadItems'`
 
 - 把 `我的方法 -> 生成` 这条 P2 主执行链的项目上下文断点补齐，避免 `service skill / installed skill / curated task` 虽然都已经能从 `SkillsWorkspacePage` 进入 `agent/new-task`，但当前项目容器在跳转时被丢掉：
   - 已更新：
@@ -603,7 +1204,7 @@
       - `src/lib/model/inferModelCapabilities.test.ts`
       - `src/lib/model/inferModelCapabilities.ts`
 
-- 把 `带回生成继续写 -> 生成首页` 这条链补成首屏可感知的连续性显影，避免 `creation replay` 只停在输入框顶上一枚被动 badge：
+- 把 `带回生成 -> 生成首页` 这条链补成首屏可感知的连续性显影，避免 `creation replay` 只停在输入框顶上一枚被动 badge：
   - 已更新：
     - `src/components/agent/chat/components/CreationReplaySurfaceBanner.tsx`
     - `src/components/agent/chat/components/EmptyState.tsx`
@@ -653,12 +1254,11 @@
     - `docs/roadmap/limenextv2/implementation-roadmap.md`
     - `docs/exec-plans/limenext-progress.md`
   - 当前统一结论：
-    - `我的方法` 页当前会在有 `initialScaffoldDraft` 时显影 `当前带入做法草稿` 横幅
-    - 横幅当前直接说明这套草稿来自当前结果，并显影 `草稿名 + 上次目标 + 来源摘要`
-    - 横幅当前同时提供：
-      - `继续整理这套做法`
-      - `带回生成继续写`
-    - 因此 `SceneApp 结果 -> 我的方法页 -> 整理 / 带回生成` 当前已经不再只是弹窗层面的半隐式状态，而是首屏可见的 current 前台闭环
+    - `我的方法` 页当前会在有 `initialScaffoldDraft` 时显影搜索区内的轻量 `当前草稿` strip，只保留 `草稿名 + 上次目标 + 来源摘要`
+    - 当前动作也已收成两个短按钮：
+      - `整理`
+      - `带回生成`
+    - 因此 `SceneApp 结果 -> 我的方法页 -> 整理 / 带回生成` 当前已经不再只是弹窗层面的半隐式状态，同时也不会再用重横幅抢走 `先拿结果` 的首屏权重
   - 当前定向验证：
     - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
     - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
@@ -1912,16 +2512,16 @@
     - `docs/exec-plans/limenext-progress.md`
   - 当前统一结论：
     - `SkillsPage` 当前在创建 scaffold 成功后，会把新 Skill 事实回调给外层工作台，而不再只是自己打开检查弹窗
-    - `SkillsWorkspacePage` 当前会立刻刷新本地已安装技能、关闭 `导入与整理`，并把这条新做法高亮到 `我的方法库`
+    - `SkillsWorkspacePage` 当前会立刻刷新本地已安装技能、关闭 `整理我的方法`，并把这条新做法高亮到 `我的方法库`
     - 为了避免刷新稍慢时出现空档，当前还会先用 optimistic skill 把这条新做法插回列表，因此用户创建成功后能马上看到“刚沉淀”的方法卡
-    - 已消费成功的 `initialScaffoldDraft` 当前不会在下次再次打开 `导入与整理` 时重复自动弹出
+    - 已消费成功的 `initialScaffoldDraft` 当前不会在下次再次打开 `整理我的方法` 时重复自动弹出
     - 这一步属于 `P5` 的 current 第四刀：把 `SceneApp 结果 -> 沉淀为做法 -> 创建 Skill -> 我的方法库 -> 进入生成` 补成正式主链
   - 当前已确认通过：
     - `npx eslint "src/components/skills/SkillsPage.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsPage.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
     - `npm exec vitest run "src/components/skills/SkillsPage.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
     - `npm run verify:gui-smoke`
   - 当前补充说明：
-    - 这轮 `verify:gui-smoke` 已重新完整通过，说明 `我的方法库 / 导入与整理 / 生成` 这条工作台主路径没有被这次闭环收口破坏
+    - 这轮 `verify:gui-smoke` 已重新完整通过，说明 `我的方法库 / 整理我的方法 / 生成` 这条工作台主路径没有被这次闭环收口破坏
     - 最新一次 `verify:local` 未能全绿，但这次不再是之前的 `chrome-relay` 文案断言，而是被现存的 Rust 编译错误阻塞：
       - `src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs:951`
       - 错误为缺少 `query_session` 导入，并伴随 `type annotations needed`
@@ -5150,15 +5750,63 @@
   - 组内头部当前只保留 `组内继续挑做法 + 组标题`，不再重复把标题、摘要和入口提示放大成说明大卡
   - helper 当前直接告诉用户“已进入这组，下面直接挑一条具体做法；没命中再换一组”，减少再次理解页面结构的负担
   - `summary / entryHint` 当前被收成最小判断线索；返回动作也统一改成 `换一组做法`，继续强调这是目录切换
+- 组内具体做法卡片当前也继续从“详情合同卡”退回“轻选择卡”：
+  - 顶部当前不再继续暴露类型标签，只保留 `来源 badge + 当前状态`
+  - 主体当前收成 `标题 + 一句话摘要 + 你先给 / 会拿到 / 进去后` 三条最小判断线索，不再重复展示分类与独立状态说明块
+  - `结果去向` 当前退回底部辅助脚注；CTA 也退成次按钮，避免每张卡重新长成详情页
+- `先拿结果` 卡片当前也继续从“结果合同卡”退回“少数强结果入口”：
+  - 第一张结果卡当前会抬升成 `优先起手` 主推荐，其余结果退成轻量备选，不再每张卡都用同一层权重解释自己
+  - 主体当前只保留 `标题 + 摘要 + 推荐理由/最近继续 + 你先给 / 这一步先拿`
+  - `结果去向 / 接着可做` 当前退回底部脚注；CTA 也重新拉开成“主推荐主按钮 + 其他卡次按钮”
+- `我的方法` 顶部 header 当前也继续从“工作台说明卡”退回“前台起手层”：
+  - 顶部当前不再先放 `我的方法 · 对话内继续` hero badge 和长说明，而是收成 `标题 + 对话内继续 pill + 一句 helper`
+  - 搜索当前也前移成真正起手动作：标题收成 `搜做法`，目录状态退到搜索下方做轻 metadata，不再占掉首屏说明位
+  - 同步来源、做法数量和同步时间当前继续留在右侧低权重 chips，避免再把 header 做成管理台面板
+- `最近复盘` 信号当前也继续从独立蓝色横幅退回结果区里的轻量续做 strip：
+  - 当前仍保留 `最近复盘已更新 / 摘要 / 更适合继续` 这三条判断线索，但已收成更薄的 inline 提示，不再压过结果入口本身
+  - 这让 `先拿结果` 区继续保持“少数强入口”为主，复盘只负责排序与续做提醒
+- `当前带入做法草稿` 当前也继续从页头重横幅退回搜索区里的轻量草稿 strip：
+  - 当前只保留 `当前草稿 / 项目内整理 / 草稿名 / 来源 / 上次目标` 这些最小连续性线索，不再用大渐变卡解释系统状态
+  - 当前动作收成 `整理 / 带回生成` 两个短按钮，且不再用强主按钮和 `先拿结果` 抢视觉权重
+  - 这让 `结果 -> 做法草稿 -> 我的方法页` 仍保持可直达，但前台层级继续回到 `先结果 / 再目录 / 再补位`
+- 原本偏后台感的整理入口当前也继续从显眼管理入口退回低权重 `整理 / 整理我的方法`：
+  - 页头与 `我的方法库` 的按钮当前都只显示 `整理`，并退成 ghost 辅助动作，不再与主入口同层
+  - 搜索、方法库和弹窗 tips 当前不再外露后台维护词，只说明“没找到时整理自己的方法”和“新增、检查、清理”
+  - 弹窗标题当前改成 `整理我的方法`，继续把它定义成补位整理层，而不是前台第二套管理台
+- `我的方法库` 顶部的“刚沉淀成功”当前也继续退回轻量 continuation strip：
+  - 原本大渐变、高对比成功态和长说明当前已收成一条轻量续接：`刚沉淀 / 来源 / 方法名 / 上次目标 / 已回到我的方法库 / 继续生成`
+  - 高亮方法卡内部原本重复的“刚从当前结果沉淀下来”说明块当前也已移除，避免顶部横幅和卡片内部双重强调成功状态
+  - `继续生成` 当前退成和草稿 strip 一致的小型 outline 动作，因此 `沉淀为做法 -> 回到方法库 -> 继续生成` 仍然成立，但首屏语气已回到“轻提示后继续开工”
+- 页头剩余的 `刷新方法库` 当前也继续退回低权重工具动作：
+  - 页头当前只保留 `刷新 / 整理` 两个低权重工具动作，不再让“维护方法库”继续占据首屏最强按钮位
+  - `刷新` 当前退成小型 outline 辅助按钮，和 `整理 / 继续生成 / 带回生成` 统一为同一层级的轻工具动作
+  - 对应测试当前也切到 `data-testid`，不再把 `刷新方法库` 这类后台感更强的旧文案绑定成稳定契约
+- 页头剩余的目录状态与方法库 metadata 当前也继续退回单行弱 summary：
+  - 搜索框下方原本单独的目录状态 chip，当前已退成普通小号文案，不再像状态 badge 一样额外抬层
+  - 右侧原本那组 `来源 / 做法数 / 分组数 / 同步于` badges 当前也已收成一条弱 summary，只保留 `多少条做法 / 多少组 / 最近同步` 这些最小信息
+  - 因此页头当前更接近 `标题 + helper + 搜索 + 静默状态`，不会再像一个带统计条的管理头部
+- 页头默认状态句当前也继续压成更短的人话提醒：
+  - loading 态当前收成 `正在更新做法列表...`
+  - 默认态当前收成 `这里放跑通过的做法；不确定时先回首页拿结果。`
+  - 组内态当前收成 `当前浏览：{做法组}`
+  - 这让 header 状态线更像一句轻提醒，而不是再次解释页面结构
 - 这次子改动的定向验证当前已通过：
   - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
   - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
   - `npm run typecheck`
-- 这次子改动补跑 `npm run verify:gui-smoke -- --timeout-ms 600000` 时再次命中环境噪音：
-  - 2026-04-23 改为补跑 `npm run verify:gui-smoke -- --timeout-ms 180000`，仍卡在 `smoke:browser-runtime`
-  - `launch_browser_session / close_chrome_profile_session` 连续 `fetch failed`
-  - 失败发生在 browser runtime 冷启动链，而不是 `SkillsWorkspacePage` 单测、lint 或 typecheck 所覆盖的展示逻辑
-  - 当前应先视为环境链路问题，后续复用稳定 headless 环境再补一次 GUI smoke 更合理
+  - `vitest` 通过：`1 file / 26 tests passed`
+  - `eslint` 通过
+  - `typecheck` 通过
+- 这次子改动补跑 `npm run verify:gui-smoke -- --timeout-ms 180000` 当前也已完整通过：
+  - `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+  - 补充说明：本轮先命中了临时 Cargo target 的冷编译，`DevBridge` 等待了较长时间才就绪；但最终 smoke 全链已通过，因此这次等待应记为环境成本，而不是 `SkillsWorkspacePage` 当前主路径回归
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - `npm run typecheck`
+- 这次子改动补跑 `npm run verify:gui-smoke -- --timeout-ms 180000` 当前已完整通过：
+  - `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+  - 说明这轮 header / 复盘 strip 的前台收口没有破坏 GUI 主路径，已经具备当前阶段的最小可交付旁证
 - 本轮还顺手收掉了 3 处与主线直接相关的 `typecheck` 断点：
   - `src/components/agent/chat/hooks/agentRuntimeAdapter.test.ts`
   - `src/components/agent/chat/utils/buildUserInputSubmitOp.test.ts`
@@ -5173,3 +5821,24 @@
 - `npm run verify:local` 当前仍被工作树里的既有 lint warning 阻塞：
   - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` `react-hooks/exhaustive-deps`
   - 该阻塞目前应视为仓库级存量问题，不是本轮 capability 收口新增的问题
+- `我的方法` 页里的 `结果卡 / 做法卡 / launcher` 当前又继续前推了一刀，避免首层虽然已经收成 `先拿结果 -> 继续上次做法 -> 已经沉淀的方法`，但具体卡片和弹窗里仍然暴露 `云目录 / 站点技能 / 浏览器采集 / 已补 x/y` 这类目录式、系统式提示：
+  - `SkillsWorkspacePage` 当前已把 service skill 卡片的来源 badge 收掉，只保留 `当前状态 + 你先给 / 会拿到 / 接下来` 这三条最小判断线索
+  - `先拿结果` 卡片当前已把 `featured badge` 收成正文里的轻量推荐理由，不再让 `围绕最近成果 / 围绕最近复盘` 以大 pill 方式压过结果入口本身
+  - `做法组` 卡片当前已把 `先试 / 进去后直接挑做法` 收成一句更轻的起手建议，并把 CTA 统一改成 `进去看看`
+  - `CuratedTaskLauncherDialog` 顶部当前已改成 `还差 X 项关键信息 / 关键信息已齐`，不再继续暴露模板 badge 和 `已补 x/y`
+  - `site skill` 相关口径当前也同步从 `浏览器采集 / 登录态` 收成 `接着浏览器继续 / 已登录页面`
+- 因此用户当前沿着 `我的方法 -> 结果模板 / 做法组 / service skill -> launcher -> Agent` 这条链路时，看到的已经更接近“这一步缺什么、会给我什么、接下来怎么继续”，而不是“这是哪类能力对象、来自哪个目录、当前填了几格表单”：
+  - service skill 卡当前更像一条可继续的方法，而不是一个带来源标签的能力对象
+  - 结果模板卡当前会继续解释“为什么现在选它”，但这层解释已经退回正文轻提示，不再变成第二排 badge
+  - launcher 当前先告诉用户“现在能不能开始”，而不是先展示模板元信息
+- 这一步继续遵守 P2 的 current 边界：
+  - 不新增第二套方法详情页
+  - 不新增 `service skill` 专属启动协议
+  - 不改 `pendingServiceSkillLaunch`、`CuratedTaskLauncherDialog`、`site adapter` 现有主链，只做前台口径减法
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/agent/chat/service-skills/skillPresentation.test.ts"`
+  - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/agent/chat/service-skills/skillPresentation.ts" "src/components/agent/chat/service-skills/skillPresentation.test.ts"`
+  - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - `vitest` 通过：`3 files / 43 tests passed`
+  - `eslint` 通过
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`

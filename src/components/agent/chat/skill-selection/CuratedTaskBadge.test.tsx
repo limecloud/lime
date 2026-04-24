@@ -190,4 +190,58 @@ describe("CuratedTaskBadge", () => {
     expect(nextPill?.textContent).toContain("更适合去向：周会复盘");
     expect(statusPill?.getAttribute("title")).toContain("当前结果基线：AI 内容周报");
   });
+
+  it("当前模板不是最近复盘首选时，应提供改用推荐模板的动作", async () => {
+    const task = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(task).not.toBeNull();
+    const onApplyReviewSuggestion = vi.fn();
+
+    recordCuratedTaskRecommendationSignalFromReviewDecision(
+      {
+        session_id: "session-review-badge-switch",
+        decision_status: "needs_more_evidence",
+        decision_summary: "这轮结果还缺证据，需要先回到账号数据和高表现样本。",
+        chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
+        risk_level: "medium",
+        risk_tags: ["证据不足"],
+        followup_actions: ["补账号数据复盘", "拆解高表现内容"],
+      },
+      {
+        projectId: "project-review-badge-switch",
+        sceneTitle: "短视频编排",
+      },
+    );
+
+    await act(async () => {
+      root.render(
+        <CuratedTaskBadge
+          task={task!}
+          projectId="project-review-badge-switch"
+          onApplyReviewSuggestion={onApplyReviewSuggestion}
+          onClear={() => undefined}
+        />,
+      );
+    });
+
+    const reviewSignal = container.querySelector(
+      '[data-testid="curated-task-badge-review-signal"]',
+    );
+    const reviewAction = container.querySelector(
+      '[data-testid="curated-task-badge-review-action"]',
+    ) as HTMLButtonElement | null;
+
+    expect(reviewSignal?.textContent).toContain("更适合：复盘这个账号/项目");
+    expect(reviewAction?.textContent).toContain("改用「复盘这个账号/项目」");
+
+    await act(async () => {
+      reviewAction?.click();
+    });
+
+    expect(onApplyReviewSuggestion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "account-project-review",
+        title: "复盘这个账号/项目",
+      }),
+    );
+  });
 });

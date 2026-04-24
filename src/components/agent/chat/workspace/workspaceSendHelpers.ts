@@ -11,6 +11,7 @@ import type {
 import {
   buildHarnessRequestMetadata,
   extractExistingHarnessMetadata,
+  type HarnessOemRoutingRequestMetadata,
 } from "../utils/harnessRequestMetadata";
 import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
 import type { AssistantDraftState } from "../hooks/agentChatShared";
@@ -41,6 +42,9 @@ import {
   formatAgentRuntimeStatusSummary,
 } from "../utils/agentRuntimeStatus";
 import { normalizeTeamWorkspaceDisplayValue } from "../utils/teamWorkspaceDisplay";
+import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
+import type { OemCloudBootstrapResponse } from "@/lib/api/oemCloudControlPlane";
+import { getOemCloudBootstrapSnapshot } from "@/lib/oemCloudSession";
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
 
@@ -344,6 +348,87 @@ function readExistingTeamMemoryShadow(
   return {
     repo_scope: repoScope,
     entries,
+  };
+}
+
+function readExistingOemRouting(
+  metadata: Record<string, unknown> | undefined,
+): HarnessOemRoutingRequestMetadata | undefined {
+  const rawRouting =
+    asRecord(metadata?.oem_routing) ?? asRecord(metadata?.oemRouting);
+  const tenantId =
+    readMetadataText(rawRouting, "tenant_id") ||
+    readMetadataText(rawRouting, "tenantId");
+  if (!tenantId) {
+    return undefined;
+  }
+
+  const fallbackToLocalAllowed =
+    typeof rawRouting?.fallback_to_local_allowed === "boolean"
+      ? rawRouting.fallback_to_local_allowed
+      : typeof rawRouting?.fallbackToLocalAllowed === "boolean"
+        ? rawRouting.fallbackToLocalAllowed
+        : undefined;
+  const canInvoke =
+    typeof rawRouting?.can_invoke === "boolean"
+      ? rawRouting.can_invoke
+      : typeof rawRouting?.canInvoke === "boolean"
+        ? rawRouting.canInvoke
+        : undefined;
+
+  return {
+    tenant_id: tenantId,
+    provider_source:
+      readMetadataText(rawRouting, "provider_source") ||
+      readMetadataText(rawRouting, "providerSource"),
+    provider_key:
+      readMetadataText(rawRouting, "provider_key") ||
+      readMetadataText(rawRouting, "providerKey"),
+    default_model:
+      readMetadataText(rawRouting, "default_model") ||
+      readMetadataText(rawRouting, "defaultModel"),
+    config_mode:
+      readMetadataText(rawRouting, "config_mode") ||
+      readMetadataText(rawRouting, "configMode"),
+    offer_state:
+      readMetadataText(rawRouting, "offer_state") ||
+      readMetadataText(rawRouting, "offerState"),
+    quota_status:
+      readMetadataText(rawRouting, "quota_status") ||
+      readMetadataText(rawRouting, "quotaStatus"),
+    fallback_to_local_allowed: fallbackToLocalAllowed,
+    can_invoke: canInvoke,
+  };
+}
+
+function buildOemRoutingRequestMetadata():
+  | HarnessOemRoutingRequestMetadata
+  | undefined {
+  const runtime = resolveOemCloudRuntimeContext();
+  const snapshot = getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>();
+  const preference = snapshot?.providerPreference;
+  if (!runtime || !preference?.providerKey) {
+    return undefined;
+  }
+
+  const matchedOffer = snapshot?.providerOffersSummary?.find(
+    (offer) => offer.providerKey === preference.providerKey,
+  );
+  const providerSource = preference.providerSource || matchedOffer?.source;
+  if (providerSource !== "oem_cloud") {
+    return undefined;
+  }
+
+  return {
+    tenant_id: runtime.tenantId,
+    provider_source: providerSource,
+    provider_key: preference.providerKey,
+    default_model: preference.defaultModel || matchedOffer?.defaultModel,
+    config_mode: matchedOffer?.configMode,
+    offer_state: matchedOffer?.state,
+    quota_status: matchedOffer?.quotaStatus,
+    fallback_to_local_allowed: matchedOffer?.fallbackToLocalAllowed,
+    can_invoke: matchedOffer?.canInvoke,
   };
 }
 
@@ -735,6 +820,9 @@ export function buildWorkspaceRequestMetadata(
   const resolvedBrowserLaunchUrl =
     browserRequirementMatch?.launchUrl ||
     readMetadataText(existingHarnessMetadata, "browser_launch_url");
+  const resolvedOemRouting =
+    buildOemRoutingRequestMetadata() ||
+    readExistingOemRouting(existingHarnessMetadata);
 
   return {
     ...(workspaceRequestMetadataBase || {}),
@@ -770,6 +858,7 @@ export function buildWorkspaceRequestMetadata(
       selectedTeamSummary: resolvedSelectedTeamSummary,
       selectedTeamRoles: resolvedSelectedTeamRoles,
       teamMemoryShadow: resolvedTeamMemoryShadow,
+      oemRouting: resolvedOemRouting,
     }),
   };
 }
@@ -905,15 +994,14 @@ export function buildRuntimeTeamDispatchPreviewMessages(
       : undefined;
   const formedTeamLabel =
     normalizeTeamWorkspaceDisplayValue(
-      snapshot.formationState?.label || snapshot.formationState?.blueprint?.label,
-    ) ||
-    "当前分工方案";
+      snapshot.formationState?.label ||
+        snapshot.formationState?.blueprint?.label,
+    ) || "当前分工方案";
   const formedSummary =
     normalizeTeamWorkspaceDisplayValue(
       snapshot.formationState?.summary ||
         snapshot.formationState?.blueprint?.summary,
-    ) ||
-    "";
+    ) || "";
   const assistantRuntimeStatus =
     snapshot.status === "failed"
       ? {

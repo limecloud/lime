@@ -11,6 +11,9 @@ interface SceneAppRunDetailPanelProps {
   error?: string | null;
   latestReviewFeedbackSignal?: CuratedTaskRecommendationSignal | null;
   onContinueReviewFeedback?: (taskId: string) => void;
+  savedAsInspiration?: boolean;
+  onSaveAsInspiration?: () => void;
+  onOpenInspirationLibrary?: () => void;
   humanReviewAvailable?: boolean;
   humanReviewLoading?: boolean;
   quickReviewActions?: SceneAppQuickReviewAction[];
@@ -56,6 +59,9 @@ export function SceneAppRunDetailPanel({
   error,
   latestReviewFeedbackSignal = null,
   onContinueReviewFeedback,
+  savedAsInspiration = false,
+  onSaveAsInspiration,
+  onOpenInspirationLibrary,
   humanReviewAvailable = false,
   humanReviewLoading = false,
   quickReviewActions = [],
@@ -121,6 +127,22 @@ export function SceneAppRunDetailPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {onSaveAsInspiration ? (
+            <button
+              type="button"
+              data-testid="sceneapp-run-detail-save-as-inspiration"
+              disabled={savedAsInspiration}
+              className={cn(
+                "inline-flex items-center justify-center rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors",
+                savedAsInspiration
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
+              )}
+              onClick={onSaveAsInspiration}
+            >
+              {savedAsInspiration ? "已收进灵感库" : "保存到灵感库"}
+            </button>
+          ) : null}
           {loading ? (
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
               刷新中
@@ -136,6 +158,27 @@ export function SceneAppRunDetailPanel({
           </span>
         </div>
       </div>
+
+      {savedAsInspiration ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <p
+            className="text-xs leading-5 text-emerald-700"
+            data-testid="sceneapp-run-detail-saved-inspiration-hint"
+          >
+            这轮结果已进入灵感库，下一轮推荐会继续带上它。
+          </p>
+          {onOpenInspirationLibrary ? (
+            <button
+              type="button"
+              data-testid="sceneapp-run-detail-open-inspiration-library"
+              className="inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-medium text-emerald-800 transition-colors hover:bg-emerald-50 hover:text-emerald-900"
+              onClick={onOpenInspirationLibrary}
+            >
+              去灵感库继续
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-5 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
         <div className="text-[11px] font-semibold tracking-[0.08em] text-lime-700">

@@ -45,6 +45,7 @@ import type {
   InputCapabilitySelection,
   SelectInputCapabilityHandler,
 } from "../skill-selection/inputCapabilitySelection";
+import type { CuratedTaskTemplateItem } from "../utils/curatedTaskTemplates";
 import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
 import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
 import { getProviderLabel } from "@/lib/constants/providerMappings";
@@ -75,6 +76,9 @@ interface EmptyStateComposerPanelProps {
   onSelectInputCapability?: SelectInputCapabilityHandler;
   onClearInputCapability?: () => void;
   onEditCuratedTask?: () => void;
+  onApplyCuratedTaskReviewSuggestion?: (
+    task: CuratedTaskTemplateItem,
+  ) => void;
   creationReplaySurface?: CreationReplaySurfaceModel | null;
   projectId?: string | null;
   sessionId?: string | null;
@@ -124,6 +128,7 @@ export function EmptyStateComposerPanel({
   onSelectInputCapability,
   onClearInputCapability,
   onEditCuratedTask,
+  onApplyCuratedTaskReviewSuggestion,
   creationReplaySurface = null,
   projectId = null,
   sessionId = null,
@@ -269,6 +274,7 @@ export function EmptyStateComposerPanel({
             sessionId={sessionId}
             referenceEntries={activeCuratedTaskReferenceEntries}
             onEdit={onEditCuratedTask}
+            onApplyReviewSuggestion={onApplyCuratedTaskReviewSuggestion}
             onClear={onClearInputCapability ?? (() => undefined)}
           />
         ) : null}

@@ -103,12 +103,14 @@ pub use runtime_queue::{
     RuntimeQueueExecutor,
 };
 pub use session_execution_runtime::{
-    build_session_execution_runtime, extract_recent_content_id_from_runtime_snapshot,
-    persist_session_recent_access_mode, persist_session_recent_preferences,
-    persist_session_recent_team_selection, SessionExecutionRuntime,
-    SessionExecutionRuntimeAccessMode, SessionExecutionRuntimePreferences,
-    SessionExecutionRuntimeRecentTeamRole, SessionExecutionRuntimeRecentTeamSelection,
-    SessionExecutionRuntimeSource,
+    apply_usage_to_cost_state, build_session_execution_runtime, detect_runtime_limit_event,
+    extract_recent_content_id_from_runtime_snapshot, persist_session_recent_access_mode,
+    persist_session_recent_preferences, persist_session_recent_team_selection,
+    SessionExecutionRuntime, SessionExecutionRuntimeAccessMode, SessionExecutionRuntimeCostState,
+    SessionExecutionRuntimeLimitEvent, SessionExecutionRuntimeLimitState,
+    SessionExecutionRuntimePreferences, SessionExecutionRuntimeRecentTeamRole,
+    SessionExecutionRuntimeRecentTeamSelection, SessionExecutionRuntimeRoutingDecision,
+    SessionExecutionRuntimeSource, SessionExecutionRuntimeTaskProfile,
 };
 pub use session_query::{
     collect_subagent_cascade_session_ids, list_child_subagent_sessions,

@@ -1291,7 +1291,7 @@ describe("AutomationSettings", () => {
     const dialogText = document.body.textContent ?? "";
     expect(dialogText).toContain("做法闭环");
     expect(dialogText).toContain("故事短视频套件");
-    expect(dialogText).toContain("结果包、复盘材料和经营判断");
+    expect(dialogText).toContain("结果包、复盘材料和这轮判断");
     expect(dialogText).toContain("按 Project Pack 对齐");
     expect(dialogText).toContain("Project Pack");
 

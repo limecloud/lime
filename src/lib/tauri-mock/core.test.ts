@@ -601,6 +601,37 @@ describe("tauri-mock/core invoke", () => {
     }
   });
 
+  it("媒体任务 mock 在 taskRef 为绝对 task file 时也应保持稳定 task_id", async () => {
+    mocks.isDevBridgeAvailable.mockReturnValue(false);
+
+    const directResult = await invoke("get_media_task_artifact", {
+      request: {
+        projectRootPath: "/mock/workspace",
+        taskRef: "task-image-mock-1",
+      },
+    });
+    const absolutePathResult = await invoke("get_media_task_artifact", {
+      request: {
+        projectRootPath: "/mock/workspace",
+        taskRef:
+          "/mock/workspace/.lime/tasks/image_generate/task-image-mock-1.json",
+      },
+    });
+
+    expect(directResult).toEqual(
+      expect.objectContaining({
+        task_id: "task-image-mock-1",
+        path: ".lime/tasks/image_generate/task-image-mock-1.json",
+      }),
+    );
+    expect(absolutePathResult).toEqual(
+      expect.objectContaining({
+        task_id: "task-image-mock-1",
+        path: ".lime/tasks/image_generate/task-image-mock-1.json",
+      }),
+    );
+  });
+
   it("OpenClaw 环境状态命令在 bridge 失败时回退默认 mock", async () => {
     const consoleWarnSpy = vi
       .spyOn(console, "warn")

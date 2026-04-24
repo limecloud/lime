@@ -12,8 +12,8 @@ chrono.workspace = true
 uuid.workspace = true
 thiserror.workspace = true
 reqwest.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
 tempfile.workspace = true
-tokio.workspace = true

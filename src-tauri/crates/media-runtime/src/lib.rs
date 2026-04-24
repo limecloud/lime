@@ -7,16 +7,28 @@ use chrono::Utc;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use thiserror::Error;
+use tokio::task::JoinSet;
 use uuid::Uuid;
 
 pub const DEFAULT_ARTIFACT_ROOT: &str = ".lime/tasks";
 pub const IMAGE_TASK_RUNNER_WORKER_ID: &str = "lime-image-api-worker";
 pub const IMAGE_TASK_RUNNER_TIMEOUT_SECS: u64 = 300;
+pub const IMAGE_TASK_MAX_PARALLEL_REQUESTS: usize = 3;
+const STORYBOARD_3X3_LAYOUT_HINT: &str = "storyboard_3x3";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImageGenerationRunnerConfig {
     pub endpoint: String,
     pub api_key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PreparedImageTaskSlot {
+    slot_index: u32,
+    slot_id: String,
+    label: Option<String>,
+    prompt: String,
+    shot_type: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -27,6 +39,8 @@ struct PreparedImageTaskInput {
     count: u32,
     style: Option<String>,
     provider_id: Option<String>,
+    layout_hint: Option<String>,
+    request_slots: Vec<PreparedImageTaskSlot>,
 }
 
 pub fn normalize_image_generation_service_host(host: &str) -> String {
@@ -225,7 +239,13 @@ impl TaskRelationships {
 pub struct TaskPreviewSlot {
     pub slot_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub slot_index: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shot_type: Option<String>,
     pub status: String,
 }
 
@@ -1013,19 +1033,238 @@ fn read_payload_positive_u32(payload: &Value, keys: &[&str]) -> Option<u32> {
     })
 }
 
+fn read_positive_u32_from_value(value: &Value) -> Option<u32> {
+    if let Some(number) = value.as_u64() {
+        return u32::try_from(number).ok().filter(|item| *item > 0);
+    }
+
+    value
+        .as_str()
+        .and_then(|item| item.trim().parse::<u32>().ok().filter(|parsed| *parsed > 0))
+}
+
+fn read_storyboard_slot_text(
+    record: &serde_json::Map<String, Value>,
+    keys: &[&str],
+) -> Option<String> {
+    keys.iter().find_map(|key| {
+        record
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+    })
+}
+
+fn build_default_image_task_slot_id(layout_hint: Option<&str>, slot_index: u32) -> String {
+    if layout_hint == Some(STORYBOARD_3X3_LAYOUT_HINT) {
+        return format!("storyboard-slot-{slot_index}");
+    }
+
+    format!("image-slot-{slot_index}")
+}
+
+fn storyboard_fallback_beat(slot_index: u32) -> (&'static str, &'static str, &'static str) {
+    match slot_index {
+        1 => (
+            "建立镜头",
+            "establishing",
+            "第1格使用建立镜头，先交代整体场景、时代氛围、空间关系和主要主体的分布",
+        ),
+        2 => (
+            "主体亮相",
+            "hero_intro",
+            "第2格聚焦一个核心主体或主角，给出具有辨识度的亮相画面",
+        ),
+        3 => (
+            "另一核心主体",
+            "secondary_intro",
+            "第3格切到另一位核心主体、阵营或关键对象，形成明显区分",
+        ),
+        4 => (
+            "关系镜头",
+            "relationship",
+            "第4格展示多位主体之间的关系、对峙、协作或队形变化",
+        ),
+        5 => (
+            "行动推进",
+            "action",
+            "第5格进入明确动作或事件推进，不要重复前面的静态构图",
+        ),
+        6 => (
+            "情绪特写",
+            "close_up",
+            "第6格给出情绪、反应或心理张力的近景或特写",
+        ),
+        7 => (
+            "环境细节",
+            "detail",
+            "第7格切到关键环境、道具、符号或世界细节，补足叙事信息",
+        ),
+        8 => (
+            "高潮转折",
+            "climax",
+            "第8格表现冲突升级、关键转折或最强张力时刻",
+        ),
+        9 => (
+            "收束定格",
+            "finale",
+            "第9格作为收束画面，形成完整结尾或海报式定格",
+        ),
+        _ => (
+            "补充镜头",
+            "supplementary",
+            "这一格补充新的主体、动作、关系或环境信息，继续推进叙事，不要重复已有镜头",
+        ),
+    }
+}
+
+fn build_storyboard_fallback_slots(prompt: &str, count: u32) -> Vec<PreparedImageTaskSlot> {
+    (1..=count)
+        .map(|slot_index| {
+            let (label, shot_type, directive) = storyboard_fallback_beat(slot_index);
+            PreparedImageTaskSlot {
+                slot_index,
+                slot_id: build_default_image_task_slot_id(
+                    Some(STORYBOARD_3X3_LAYOUT_HINT),
+                    slot_index,
+                ),
+                label: Some(label.to_string()),
+                prompt: format!(
+                    "{prompt}。{directive}。保持与其他格明显区分，避免重复同一群像、同一构图或只换画风。"
+                ),
+                shot_type: Some(shot_type.to_string()),
+            }
+        })
+        .collect()
+}
+
+fn build_repeated_image_task_slots(
+    prompt: &str,
+    count: u32,
+    layout_hint: Option<&str>,
+) -> Vec<PreparedImageTaskSlot> {
+    (1..=count)
+        .map(|slot_index| PreparedImageTaskSlot {
+            slot_index,
+            slot_id: build_default_image_task_slot_id(layout_hint, slot_index),
+            label: None,
+            prompt: prompt.to_string(),
+            shot_type: None,
+        })
+        .collect()
+}
+
+fn read_storyboard_slots(payload: &Value, layout_hint: Option<&str>) -> Vec<PreparedImageTaskSlot> {
+    payload
+        .get("storyboard_slots")
+        .or_else(|| payload.get("storyboardSlots"))
+        .and_then(Value::as_array)
+        .map(|items| {
+            let mut slots = items
+                .iter()
+                .enumerate()
+                .filter_map(|(index, item)| {
+                    let record = item.as_object()?;
+                    let slot_index = record
+                        .get("slot_index")
+                        .or_else(|| record.get("slotIndex"))
+                        .and_then(read_positive_u32_from_value)
+                        .unwrap_or(index as u32 + 1);
+                    let prompt = read_storyboard_slot_text(
+                        record,
+                        &["prompt", "slot_prompt", "slotPrompt"],
+                    )?;
+
+                    Some(PreparedImageTaskSlot {
+                        slot_index,
+                        slot_id: read_storyboard_slot_text(record, &["slot_id", "slotId"])
+                            .unwrap_or_else(|| {
+                                build_default_image_task_slot_id(layout_hint, slot_index)
+                            }),
+                        label: read_storyboard_slot_text(
+                            record,
+                            &["label", "slot_label", "slotLabel"],
+                        ),
+                        prompt,
+                        shot_type: read_storyboard_slot_text(record, &["shot_type", "shotType"]),
+                    })
+                })
+                .collect::<Vec<_>>();
+            slots.sort_by_key(|slot| slot.slot_index);
+            slots.dedup_by_key(|slot| slot.slot_index);
+            slots
+        })
+        .unwrap_or_default()
+}
+
+fn build_request_slots(
+    prompt: &str,
+    count: u32,
+    layout_hint: Option<&str>,
+    explicit_slots: Vec<PreparedImageTaskSlot>,
+) -> Vec<PreparedImageTaskSlot> {
+    let mut slots = explicit_slots;
+    if slots.is_empty() {
+        return if layout_hint == Some(STORYBOARD_3X3_LAYOUT_HINT) {
+            build_storyboard_fallback_slots(prompt, count)
+        } else {
+            build_repeated_image_task_slots(prompt, count, layout_hint)
+        };
+    }
+
+    let supplemental = if layout_hint == Some(STORYBOARD_3X3_LAYOUT_HINT) {
+        build_storyboard_fallback_slots(prompt, count)
+    } else {
+        build_repeated_image_task_slots(prompt, count, layout_hint)
+    };
+    for slot in supplemental {
+        if slots
+            .iter()
+            .any(|existing| existing.slot_index == slot.slot_index)
+        {
+            continue;
+        }
+        slots.push(slot);
+        if slots.len() >= count as usize {
+            break;
+        }
+    }
+
+    slots.sort_by_key(|slot| slot.slot_index);
+    slots.truncate(count as usize);
+    slots
+}
+
 fn prepare_image_task_input(task: &MediaTaskOutput) -> Result<PreparedImageTaskInput, String> {
     let payload = &task.record.payload;
     let prompt = read_payload_string(payload, &["prompt"])
         .ok_or_else(|| "图片任务缺少 prompt，无法继续执行".to_string())?;
-    let count = read_payload_positive_u32(payload, &["count", "image_count"]).unwrap_or(1);
+    let layout_hint = read_payload_string(payload, &["layout_hint", "layoutHint"]);
+    let explicit_slots = read_storyboard_slots(payload, layout_hint.as_deref());
+    let requested_count =
+        read_payload_positive_u32(payload, &["count", "image_count"]).unwrap_or(1);
+    let max_slot_index = explicit_slots
+        .iter()
+        .map(|slot| slot.slot_index)
+        .max()
+        .unwrap_or(0);
+    let count = requested_count
+        .max(explicit_slots.len() as u32)
+        .max(max_slot_index)
+        .max(1);
+    let request_slots = build_request_slots(&prompt, count, layout_hint.as_deref(), explicit_slots);
 
     Ok(PreparedImageTaskInput {
         prompt,
         model: read_payload_string(payload, &["model"]).unwrap_or_default(),
         size: read_payload_string(payload, &["size"]),
-        count,
+        count: request_slots.len() as u32,
         style: read_payload_string(payload, &["style"]),
         provider_id: read_payload_string(payload, &["provider_id", "providerId"]),
+        layout_hint,
+        request_slots,
     })
 }
 
@@ -1081,11 +1320,20 @@ fn summarize_response_body(body: &str) -> String {
 }
 
 fn build_image_task_progress(phase: &str, message: String, percent: Option<u32>) -> TaskProgress {
+    build_image_task_progress_with_preview(phase, message, percent, Vec::new())
+}
+
+fn build_image_task_progress_with_preview(
+    phase: &str,
+    message: String,
+    percent: Option<u32>,
+    preview_slots: Vec<TaskPreviewSlot>,
+) -> TaskProgress {
     TaskProgress {
         phase: Some(phase.to_string()),
         percent,
         message: Some(message),
-        preview_slots: Vec::new(),
+        preview_slots,
     }
 }
 
@@ -1103,6 +1351,250 @@ fn build_image_task_error(
         provider_code: None,
         occurred_at: Some(Utc::now().to_rfc3339()),
     }
+}
+
+fn build_image_generation_request_body(
+    prepared_input: &PreparedImageTaskInput,
+    request_prompt: &str,
+    request_count: u32,
+    task_id: &str,
+) -> Value {
+    json!({
+        "prompt": request_prompt,
+        "model": prepared_input.model.clone(),
+        "n": request_count.max(1),
+        "size": prepared_input.size.clone(),
+        "response_format": "b64_json",
+        "quality": Value::Null,
+        "style": prepared_input.style.clone(),
+        "user": task_id,
+    })
+}
+
+async fn request_single_image_generation(
+    client: &reqwest::Client,
+    runner_config: &ImageGenerationRunnerConfig,
+    prepared_input: &PreparedImageTaskInput,
+    request_prompt: &str,
+    task_id: &str,
+) -> Result<(Value, Value), TaskErrorRecord> {
+    let request_body =
+        build_image_generation_request_body(prepared_input, request_prompt, 1, task_id);
+
+    let mut request_builder = client
+        .post(&runner_config.endpoint)
+        .header("Authorization", format!("Bearer {}", runner_config.api_key));
+    if let Some(provider_id) = prepared_input
+        .provider_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        request_builder = request_builder.header("X-Provider-Id", provider_id);
+    }
+
+    let response = request_builder
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|error| {
+            build_image_task_error(
+                "image_request_failed",
+                format!("调用图片服务失败: {error}"),
+                true,
+                "request",
+            )
+        })?;
+
+    let status = response.status();
+    let response_body_raw = response.text().await.map_err(|error| {
+        build_image_task_error(
+            "image_response_read_failed",
+            format!("读取图片服务响应失败: {error}"),
+            false,
+            "response",
+        )
+    })?;
+    let response_body: Value = serde_json::from_str(&response_body_raw).map_err(|error| {
+        let detail = summarize_response_body(&response_body_raw);
+        build_image_task_error(
+            "image_response_parse_failed",
+            format!("解析图片服务响应失败: {error}；{detail}"),
+            false,
+            "response",
+        )
+    })?;
+
+    if !status.is_success() {
+        let error_code = response_body
+            .get("error")
+            .and_then(|value| value.get("code"))
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("image_generation_failed");
+        let error_message = response_body
+            .get("error")
+            .and_then(|value| value.get("message"))
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("图片服务未返回可用结果");
+        return Err(build_image_task_error(
+            error_code,
+            error_message,
+            status.is_server_error() || status.as_u16() == 429,
+            "request",
+        ));
+    }
+
+    let image = collect_generated_images(&response_body).into_iter().next();
+    let Some(image) = image else {
+        return Err(build_image_task_error(
+            "image_result_empty",
+            "图片服务已返回成功，但没有可用的图片地址",
+            false,
+            "result",
+        ));
+    };
+
+    Ok((image, response_body))
+}
+
+fn build_image_task_result_value(
+    prepared_input: &PreparedImageTaskInput,
+    requested_count: u32,
+    images: &[Value],
+    responses: &[Value],
+    failures: &[Value],
+) -> Value {
+    json!({
+        "prompt": prepared_input.prompt,
+        "provider_id": prepared_input.provider_id,
+        "model": if prepared_input.model.trim().is_empty() {
+            None::<String>
+        } else {
+            Some(prepared_input.model.clone())
+        },
+        "size": prepared_input.size,
+        "count": prepared_input.count,
+        "layout_hint": prepared_input.layout_hint,
+        "requested_count": requested_count,
+        "received_count": images.len(),
+        "images": images,
+        "response": responses.first().cloned(),
+        "responses": responses,
+        "failures": failures,
+        "storyboard_slots": prepared_input
+            .request_slots
+            .iter()
+            .map(|slot| {
+                json!({
+                    "slot_index": slot.slot_index,
+                    "slot_id": slot.slot_id,
+                    "label": slot.label,
+                    "prompt": slot.prompt,
+                    "shot_type": slot.shot_type,
+                })
+            })
+            .collect::<Vec<_>>(),
+    })
+}
+
+fn build_running_image_task_message(
+    requested_count: usize,
+    success_count: usize,
+    failed_count: usize,
+) -> String {
+    if failed_count == 0 {
+        return format!("图片生成中，已返回 {success_count}/{requested_count} 张。");
+    }
+
+    format!("图片生成中，已返回 {success_count}/{requested_count} 张，另有 {failed_count} 张失败。")
+}
+
+fn decorate_generated_image_with_slot(image: Value, slot: &PreparedImageTaskSlot) -> Value {
+    match image {
+        Value::Object(mut record) => {
+            record.insert("slot_index".to_string(), json!(slot.slot_index));
+            record.insert("slot_id".to_string(), json!(slot.slot_id));
+            record.insert("slot_prompt".to_string(), json!(slot.prompt));
+            if let Some(label) = slot.label.as_ref() {
+                record.insert("slot_label".to_string(), json!(label));
+            }
+            if let Some(shot_type) = slot.shot_type.as_ref() {
+                record.insert("shot_type".to_string(), json!(shot_type));
+            }
+            Value::Object(record)
+        }
+        other => json!({
+            "slot_index": slot.slot_index,
+            "slot_id": slot.slot_id,
+            "slot_label": slot.label,
+            "slot_prompt": slot.prompt,
+            "shot_type": slot.shot_type,
+            "image": other,
+        }),
+    }
+}
+
+fn decorate_response_with_slot(response: Value, slot: &PreparedImageTaskSlot) -> Value {
+    match response {
+        Value::Object(mut record) => {
+            record.insert("slot_index".to_string(), json!(slot.slot_index));
+            record.insert("slot_id".to_string(), json!(slot.slot_id));
+            if let Some(label) = slot.label.as_ref() {
+                record.insert("slot_label".to_string(), json!(label));
+            }
+            record.insert("slot_prompt".to_string(), json!(slot.prompt));
+            if let Some(shot_type) = slot.shot_type.as_ref() {
+                record.insert("shot_type".to_string(), json!(shot_type));
+            }
+            Value::Object(record)
+        }
+        other => json!({
+            "slot_index": slot.slot_index,
+            "slot_id": slot.slot_id,
+            "slot_label": slot.label,
+            "slot_prompt": slot.prompt,
+            "shot_type": slot.shot_type,
+            "response": other,
+        }),
+    }
+}
+
+fn build_failed_slot_value(slot: &PreparedImageTaskSlot, error: TaskErrorRecord) -> Value {
+    json!({
+        "slot_index": slot.slot_index,
+        "slot_id": slot.slot_id,
+        "slot_label": slot.label,
+        "slot_prompt": slot.prompt,
+        "shot_type": slot.shot_type,
+        "error": error,
+    })
+}
+
+fn flatten_task_slot_values(values: &[Option<Value>]) -> Vec<Value> {
+    values.iter().filter_map(|value| value.clone()).collect()
+}
+
+fn build_preview_slots(
+    request_slots: &[PreparedImageTaskSlot],
+    slot_statuses: &[String],
+) -> Vec<TaskPreviewSlot> {
+    request_slots
+        .iter()
+        .enumerate()
+        .map(|(index, slot)| TaskPreviewSlot {
+            slot_id: slot.slot_id.clone(),
+            slot_index: Some(slot.slot_index),
+            label: slot.label.clone(),
+            prompt: Some(slot.prompt.clone()),
+            shot_type: slot.shot_type.clone(),
+            status: slot_statuses
+                .get(index)
+                .cloned()
+                .unwrap_or_else(|| "queued".to_string()),
+        })
+        .collect()
 }
 
 fn load_current_image_task(
@@ -1217,10 +1709,14 @@ where
         task_id,
         TaskArtifactPatch {
             status: Some("running".to_string()),
-            progress: Some(build_image_task_progress(
+            progress: Some(build_image_task_progress_with_preview(
                 "running",
                 "图片生成中，结果会自动回填到对话与画布。".to_string(),
                 None,
+                build_preview_slots(
+                    &prepared_input.request_slots,
+                    &vec!["queued".to_string(); prepared_input.request_slots.len()],
+                ),
             )),
             current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
             ..TaskArtifactPatch::default()
@@ -1233,100 +1729,186 @@ where
         .timeout(Duration::from_secs(IMAGE_TASK_RUNNER_TIMEOUT_SECS))
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
+    let requested_count = prepared_input.request_slots.len().max(1);
+    let mut images: Vec<Option<Value>> = vec![None; requested_count];
+    let mut responses: Vec<Option<Value>> = vec![None; requested_count];
+    let mut failures: Vec<Option<Value>> = vec![None; requested_count];
+    let mut slot_statuses = vec!["queued".to_string(); requested_count];
+    let mut first_error: Option<TaskErrorRecord> = None;
 
-    let request_body = json!({
-        "prompt": prepared_input.prompt.clone(),
-        "model": prepared_input.model.clone(),
-        "n": prepared_input.count.max(1),
-        "size": prepared_input.size.clone(),
-        "response_format": "b64_json",
-        "quality": Value::Null,
-        "style": prepared_input.style.clone(),
-        "user": task_id,
-    });
+    for batch_start in (0..requested_count).step_by(IMAGE_TASK_MAX_PARALLEL_REQUESTS) {
+        let latest = load_current_image_task(workspace_root, task_id)?;
+        if latest.normalized_status == "cancelled" {
+            return Ok(latest);
+        }
 
-    let mut request_builder = client
-        .post(&runner_config.endpoint)
-        .header("Authorization", format!("Bearer {}", runner_config.api_key));
-    if let Some(provider_id) = prepared_input
-        .provider_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        request_builder = request_builder.header("X-Provider-Id", provider_id);
+        let mut join_set = JoinSet::new();
+        let batch_end = (batch_start + IMAGE_TASK_MAX_PARALLEL_REQUESTS).min(requested_count);
+        for request_slot in prepared_input.request_slots[batch_start..batch_end]
+            .iter()
+            .cloned()
+        {
+            let client = client.clone();
+            let runner_config = runner_config.clone();
+            let prepared_input = prepared_input.clone();
+            let task_id = task_id.to_string();
+            join_set.spawn(async move {
+                (
+                    request_slot.clone(),
+                    request_single_image_generation(
+                        &client,
+                        &runner_config,
+                        &prepared_input,
+                        &request_slot.prompt,
+                        &task_id,
+                    )
+                    .await,
+                )
+            });
+        }
+
+        let mut batch_saw_non_retryable_failure = false;
+        while let Some(joined) = join_set.join_next().await {
+            let (request_slot, result) = match joined {
+                Ok(payload) => payload,
+                Err(error) => {
+                    let task_error = build_image_task_error(
+                        "image_request_join_failed",
+                        format!("等待图片服务任务失败: {error}"),
+                        false,
+                        "request",
+                    );
+                    let slot_index = batch_start;
+                    if first_error.is_none() {
+                        first_error = Some(task_error.clone());
+                    }
+                    if let Some(slot_status) = slot_statuses.get_mut(slot_index) {
+                        *slot_status = "error".to_string();
+                    }
+                    failures[slot_index] = Some(json!({
+                        "slot_index": slot_index + 1,
+                        "error": task_error,
+                    }));
+                    let latest = load_current_image_task(workspace_root, task_id)?;
+                    if latest.normalized_status == "cancelled" {
+                        return Ok(latest);
+                    }
+                    let progress_message = build_running_image_task_message(
+                        requested_count,
+                        images.iter().filter(|value| value.is_some()).count(),
+                        failures.iter().filter(|value| value.is_some()).count(),
+                    );
+                    let running_snapshot = patch_image_task(
+                        workspace_root,
+                        task_id,
+                        TaskArtifactPatch {
+                            result: Some(Some(build_image_task_result_value(
+                                &prepared_input,
+                                requested_count as u32,
+                                &flatten_task_slot_values(&images),
+                                &flatten_task_slot_values(&responses),
+                                &flatten_task_slot_values(&failures),
+                            ))),
+                            progress: Some(build_image_task_progress_with_preview(
+                                "running",
+                                progress_message,
+                                Some(
+                                    (((images.iter().filter(|value| value.is_some()).count()
+                                        + failures.iter().filter(|value| value.is_some()).count())
+                                        * 100)
+                                        / requested_count)
+                                        as u32,
+                                ),
+                                build_preview_slots(&prepared_input.request_slots, &slot_statuses),
+                            )),
+                            current_attempt_worker_id: Some(Some(
+                                IMAGE_TASK_RUNNER_WORKER_ID.to_string(),
+                            )),
+                            ..TaskArtifactPatch::default()
+                        },
+                    )?;
+                    on_update(&running_snapshot);
+                    continue;
+                }
+            };
+
+            let slot_position = request_slot.slot_index.saturating_sub(1) as usize;
+            match result {
+                Ok((image, response_body)) => {
+                    images[slot_position] =
+                        Some(decorate_generated_image_with_slot(image, &request_slot));
+                    responses[slot_position] =
+                        Some(decorate_response_with_slot(response_body, &request_slot));
+                    slot_statuses[slot_position] = "complete".to_string();
+                }
+                Err(task_error) => {
+                    batch_saw_non_retryable_failure |= !task_error.retryable;
+                    if first_error.is_none() {
+                        first_error = Some(task_error.clone());
+                    }
+                    slot_statuses[slot_position] = "error".to_string();
+                    failures[slot_position] =
+                        Some(build_failed_slot_value(&request_slot, task_error));
+                }
+            }
+
+            let latest = load_current_image_task(workspace_root, task_id)?;
+            if latest.normalized_status == "cancelled" {
+                return Ok(latest);
+            }
+
+            let progress_message = build_running_image_task_message(
+                requested_count,
+                images.iter().filter(|value| value.is_some()).count(),
+                failures.iter().filter(|value| value.is_some()).count(),
+            );
+            let running_snapshot = patch_image_task(
+                workspace_root,
+                task_id,
+                TaskArtifactPatch {
+                    result: Some(Some(build_image_task_result_value(
+                        &prepared_input,
+                        requested_count as u32,
+                        &flatten_task_slot_values(&images),
+                        &flatten_task_slot_values(&responses),
+                        &flatten_task_slot_values(&failures),
+                    ))),
+                    progress: Some(build_image_task_progress_with_preview(
+                        "running",
+                        progress_message,
+                        Some(
+                            (((images.iter().filter(|value| value.is_some()).count()
+                                + failures.iter().filter(|value| value.is_some()).count())
+                                * 100)
+                                / requested_count) as u32,
+                        ),
+                        build_preview_slots(&prepared_input.request_slots, &slot_statuses),
+                    )),
+                    current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
+                    ..TaskArtifactPatch::default()
+                },
+            )?;
+            on_update(&running_snapshot);
+        }
+
+        if batch_saw_non_retryable_failure && images.iter().all(|value| value.is_none()) {
+            break;
+        }
     }
 
-    let response = match request_builder.json(&request_body).send().await {
-        Ok(response) => response,
-        Err(error) => {
-            let task_error = build_image_task_error(
-                "image_request_failed",
-                format!("调用图片服务失败: {error}"),
-                true,
-                "request",
-            );
-            return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
-        }
-    };
+    let completed_images = flatten_task_slot_values(&images);
+    let completed_responses = flatten_task_slot_values(&responses);
+    let failed_slots = flatten_task_slot_values(&failures);
 
-    let status = response.status();
-    let response_body_raw = match response.text().await {
-        Ok(body) => body,
-        Err(error) => {
-            let task_error = build_image_task_error(
-                "image_response_read_failed",
-                format!("读取图片服务响应失败: {error}"),
+    if completed_images.is_empty() {
+        let task_error = first_error.unwrap_or_else(|| {
+            build_image_task_error(
+                "image_result_empty",
+                "图片服务未返回可用结果",
                 false,
-                "response",
-            );
-            return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
-        }
-    };
-    let response_body: Value = match serde_json::from_str(&response_body_raw) {
-        Ok(body) => body,
-        Err(error) => {
-            let detail = summarize_response_body(&response_body_raw);
-            let task_error = build_image_task_error(
-                "image_response_parse_failed",
-                format!("解析图片服务响应失败: {error}；{detail}"),
-                false,
-                "response",
-            );
-            return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
-        }
-    };
-
-    if !status.is_success() {
-        let error_code = response_body
-            .get("error")
-            .and_then(|value| value.get("code"))
-            .and_then(Value::as_str)
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or("image_generation_failed");
-        let error_message = response_body
-            .get("error")
-            .and_then(|value| value.get("message"))
-            .and_then(Value::as_str)
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or("图片服务未返回可用结果");
-        let task_error = build_image_task_error(
-            error_code,
-            error_message,
-            status.is_server_error() || status.as_u16() == 429,
-            "request",
-        );
-        return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
-    }
-
-    let images = collect_generated_images(&response_body);
-    if images.is_empty() {
-        let task_error = build_image_task_error(
-            "image_result_empty",
-            "图片服务已返回成功，但没有可用的图片地址",
-            false,
-            "result",
-        );
+                "result",
+            )
+        });
         return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
     }
 
@@ -1335,28 +1917,27 @@ where
         return Ok(latest);
     }
 
-    let final_status = if images.len() < prepared_input.count as usize {
+    let final_status = if completed_images.len() < requested_count {
         "partial"
     } else {
         "succeeded"
     };
-    let result_value = json!({
-        "provider_id": prepared_input.provider_id,
-        "model": if prepared_input.model.trim().is_empty() {
-            None::<String>
-        } else {
-            Some(prepared_input.model)
-        },
-        "size": prepared_input.size,
-        "requested_count": prepared_input.count,
-        "received_count": images.len(),
-        "images": images,
-        "response": response_body,
-    });
+    let result_value = build_image_task_result_value(
+        &prepared_input,
+        requested_count as u32,
+        &completed_images,
+        &completed_responses,
+        &failed_slots,
+    );
     let success_message = if final_status == "partial" {
-        format!("图片任务已返回部分结果，共生成 {} 张。", images.len())
+        format!(
+            "图片任务已返回 {}/{} 张，另有 {} 张失败。",
+            completed_images.len(),
+            requested_count,
+            failed_slots.len()
+        )
     } else {
-        format!("图片任务已完成，共生成 {} 张。", images.len())
+        format!("图片任务已完成，共生成 {} 张。", completed_images.len())
     };
     let completed = patch_image_task(
         workspace_root,
@@ -1365,10 +1946,11 @@ where
             status: Some(final_status.to_string()),
             result: Some(Some(result_value)),
             last_error: Some(None),
-            progress: Some(build_image_task_progress(
+            progress: Some(build_image_task_progress_with_preview(
                 final_status,
                 success_message,
                 Some(100),
+                build_preview_slots(&prepared_input.request_slots, &slot_statuses),
             )),
             current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
             ..TaskArtifactPatch::default()
@@ -2158,7 +2740,10 @@ pub fn parse_media_task_output(raw: &str) -> Option<MediaTaskOutput> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    };
 
     use axum::{
         extract::Json,
@@ -2625,6 +3210,271 @@ mod tests {
                 .expect("lock response format")
                 .clone(),
             Some("b64_json".to_string())
+        );
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn execute_image_generation_task_should_limit_parallel_single_image_requests() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created = write_task_artifact(
+            temp_dir.path(),
+            TaskType::ImageGenerate,
+            Some("分镜任务".to_string()),
+            json!({
+                "prompt": "三国主要人物分镜",
+                "size": "1024x1024",
+                "count": 7,
+                "provider_id": "custom-provider",
+                "model": "gpt-images-2",
+            }),
+            TaskWriteOptions::default(),
+        )
+        .expect("create task");
+
+        let request_count = Arc::new(AtomicUsize::new(0));
+        let in_flight = Arc::new(AtomicUsize::new(0));
+        let max_in_flight = Arc::new(AtomicUsize::new(0));
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind image api");
+        let address = listener.local_addr().expect("resolve address");
+        let request_count_for_server = Arc::clone(&request_count);
+        let in_flight_for_server = Arc::clone(&in_flight);
+        let max_in_flight_for_server = Arc::clone(&max_in_flight);
+        let server = tokio::spawn(async move {
+            let app = Router::new().route(
+                "/v1/images/generations",
+                post(move |Json(body): Json<Value>| {
+                    let request_count = Arc::clone(&request_count_for_server);
+                    let in_flight = Arc::clone(&in_flight_for_server);
+                    let max_in_flight = Arc::clone(&max_in_flight_for_server);
+                    async move {
+                        assert_eq!(body.get("n").and_then(Value::as_u64), Some(1));
+
+                        let request_index = request_count.fetch_add(1, Ordering::SeqCst) + 1;
+                        let current_in_flight = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+                        max_in_flight.fetch_max(current_in_flight, Ordering::SeqCst);
+
+                        tokio::time::sleep(Duration::from_millis(40)).await;
+
+                        in_flight.fetch_sub(1, Ordering::SeqCst);
+                        (
+                            StatusCode::OK,
+                            Json(json!({
+                                "created": 1_717_200_000i64,
+                                "data": [
+                                    {
+                                        "url": format!("https://example.com/storyboard-{request_index}.png"),
+                                        "revised_prompt": format!("分镜 {request_index}")
+                                    }
+                                ]
+                            })),
+                        )
+                    }
+                }),
+            );
+            axum::serve(listener, app).await.expect("serve image api");
+        });
+
+        let result = execute_image_generation_task(
+            temp_dir.path(),
+            &created.task_id,
+            &ImageGenerationRunnerConfig {
+                endpoint: format!("http://{address}/v1/images/generations"),
+                api_key: "test-key".to_string(),
+            },
+        )
+        .await
+        .expect("execute image task");
+
+        assert_eq!(result.normalized_status, "succeeded");
+        assert_eq!(request_count.load(Ordering::SeqCst), 7);
+        assert_eq!(max_in_flight.load(Ordering::SeqCst), 3);
+        assert_eq!(
+            result
+                .record
+                .result
+                .as_ref()
+                .and_then(|value| value.get("requested_count"))
+                .and_then(Value::as_u64),
+            Some(7)
+        );
+        assert_eq!(
+            result
+                .record
+                .result
+                .as_ref()
+                .and_then(|value| value.get("received_count"))
+                .and_then(Value::as_u64),
+            Some(7)
+        );
+        assert_eq!(
+            result
+                .record
+                .result
+                .as_ref()
+                .and_then(|value| value.get("images"))
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(7)
+        );
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn execute_image_generation_task_should_preserve_storyboard_slot_prompts_and_order() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created = write_task_artifact(
+            temp_dir.path(),
+            TaskType::ImageGenerate,
+            Some("三国主要人物分镜".to_string()),
+            json!({
+                "prompt": "三国主要人物，电影感九宫格分镜",
+                "layout_hint": "storyboard_3x3",
+                "count": 3,
+                "provider_id": "custom-provider",
+                "model": "gpt-image-2",
+                "storyboard_slots": [
+                    {
+                        "slot_index": 1,
+                        "slot_id": "storyboard-slot-1",
+                        "label": "刘备亮相",
+                        "prompt": "三国主要人物，电影感分镜，第1格，刘备单人亮相，中景，仁义领袖气质，汉末营帐背景",
+                        "shot_type": "medium"
+                    },
+                    {
+                        "slot_index": 2,
+                        "slot_id": "storyboard-slot-2",
+                        "label": "曹操压迫感",
+                        "prompt": "三国主要人物，电影感分镜，第2格，曹操近景特写，压迫感强，冷色军帐与火光反差",
+                        "shot_type": "close_up"
+                    },
+                    {
+                        "slot_index": 3,
+                        "slot_id": "storyboard-slot-3",
+                        "label": "诸葛亮谋局",
+                        "prompt": "三国主要人物，电影感分镜，第3格，诸葛亮执扇谋局，侧光半身像，桌上地图与烛火",
+                        "shot_type": "portrait"
+                    }
+                ]
+            }),
+            TaskWriteOptions::default(),
+        )
+        .expect("create task");
+
+        let received_prompts = Arc::new(Mutex::new(Vec::<String>::new()));
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind image api");
+        let address = listener.local_addr().expect("resolve address");
+        let received_prompts_for_server = Arc::clone(&received_prompts);
+        let server = tokio::spawn(async move {
+            let app = Router::new().route(
+                "/v1/images/generations",
+                post(move |Json(body): Json<Value>| {
+                    let received_prompts = Arc::clone(&received_prompts_for_server);
+                    async move {
+                        let prompt = body
+                            .get("prompt")
+                            .and_then(Value::as_str)
+                            .expect("request prompt")
+                            .to_string();
+                        received_prompts
+                            .lock()
+                            .expect("lock prompts")
+                            .push(prompt.clone());
+
+                        let (delay_ms, slug, revised_prompt) = if prompt.contains("刘备") {
+                            (60, "liu-bei", "刘备亮相，中景，营帐背景".to_string())
+                        } else if prompt.contains("曹操") {
+                            (10, "cao-cao", "曹操近景特写，压迫感强".to_string())
+                        } else {
+                            (30, "zhuge-liang", "诸葛亮执扇谋局，侧光半身像".to_string())
+                        };
+
+                        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+
+                        (
+                            StatusCode::OK,
+                            Json(json!({
+                                "created": 1_717_200_000i64,
+                                "data": [
+                                    {
+                                        "url": format!("https://example.com/{slug}.png"),
+                                        "revised_prompt": revised_prompt
+                                    }
+                                ]
+                            })),
+                        )
+                    }
+                }),
+            );
+            axum::serve(listener, app).await.expect("serve image api");
+        });
+
+        let result = execute_image_generation_task(
+            temp_dir.path(),
+            &created.task_id,
+            &ImageGenerationRunnerConfig {
+                endpoint: format!("http://{address}/v1/images/generations"),
+                api_key: "test-key".to_string(),
+            },
+        )
+        .await
+        .expect("execute storyboard task");
+
+        let received_prompts = received_prompts.lock().expect("lock prompts").clone();
+        assert_eq!(received_prompts.len(), 3);
+        assert!(received_prompts
+            .iter()
+            .any(|prompt| prompt.contains("刘备")));
+        assert!(received_prompts
+            .iter()
+            .any(|prompt| prompt.contains("曹操")));
+        assert!(received_prompts
+            .iter()
+            .any(|prompt| prompt.contains("诸葛亮")));
+
+        let images = result
+            .record
+            .result
+            .as_ref()
+            .and_then(|value| value.get("images"))
+            .and_then(Value::as_array)
+            .cloned()
+            .expect("storyboard images");
+        assert_eq!(images.len(), 3);
+        assert_eq!(images[0]["slot_index"].as_u64(), Some(1));
+        assert_eq!(images[1]["slot_index"].as_u64(), Some(2));
+        assert_eq!(images[2]["slot_index"].as_u64(), Some(3));
+        assert_eq!(images[0]["slot_label"].as_str(), Some("刘备亮相"));
+        assert_eq!(images[1]["slot_label"].as_str(), Some("曹操压迫感"));
+        assert_eq!(images[2]["slot_label"].as_str(), Some("诸葛亮谋局"));
+        assert_eq!(
+            images[0]["url"].as_str(),
+            Some("https://example.com/liu-bei.png")
+        );
+        assert_eq!(
+            images[1]["url"].as_str(),
+            Some("https://example.com/cao-cao.png")
+        );
+        assert_eq!(
+            images[2]["url"].as_str(),
+            Some("https://example.com/zhuge-liang.png")
+        );
+        assert_eq!(
+            result
+                .record
+                .progress
+                .preview_slots
+                .iter()
+                .map(|slot| slot.status.as_str())
+                .collect::<Vec<_>>(),
+            vec!["complete", "complete", "complete"]
         );
 
         server.abort();

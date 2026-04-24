@@ -594,6 +594,28 @@ pub struct AgentRuntimeThreadReadModel {
     pub file_checkpoint_summary: Option<AgentRuntimeFileCheckpointThreadSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<AgentRuntimeThreadDiagnostics>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_model_slot: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capability_gap: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_cost_class: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub single_candidate_only: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_state: Option<lime_agent::SessionExecutionRuntimeLimitState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_state: Option<lime_agent::SessionExecutionRuntimeCostState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_event: Option<lime_agent::SessionExecutionRuntimeLimitEvent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -802,6 +824,26 @@ impl AgentRuntimeThreadReadModel {
                 None
             }
         });
+        let task_profile = detail
+            .execution_runtime
+            .as_ref()
+            .and_then(|runtime| runtime.task_profile.as_ref());
+        let routing_decision = detail
+            .execution_runtime
+            .as_ref()
+            .and_then(|runtime| runtime.routing_decision.as_ref());
+        let limit_state = detail
+            .execution_runtime
+            .as_ref()
+            .and_then(|runtime| runtime.limit_state.clone());
+        let cost_state = detail
+            .execution_runtime
+            .as_ref()
+            .and_then(|runtime| runtime.cost_state.clone());
+        let limit_event = detail
+            .execution_runtime
+            .as_ref()
+            .and_then(|runtime| runtime.limit_event.clone());
 
         Self {
             thread_id: detail.thread_id.clone(),
@@ -818,6 +860,31 @@ impl AgentRuntimeThreadReadModel {
             latest_compaction_boundary,
             file_checkpoint_summary,
             diagnostics,
+            task_kind: task_profile.map(|profile| profile.kind.clone()),
+            service_model_slot: task_profile.and_then(|profile| profile.service_model_slot.clone()),
+            routing_mode: routing_decision.map(|decision| decision.routing_mode.clone()),
+            decision_source: routing_decision.map(|decision| decision.decision_source.clone()),
+            candidate_count: routing_decision.map(|decision| decision.candidate_count),
+            capability_gap: routing_decision
+                .and_then(|decision| decision.capability_gap.clone())
+                .or_else(|| {
+                    limit_state
+                        .as_ref()
+                        .and_then(|state| state.capability_gap.clone())
+                }),
+            estimated_cost_class: routing_decision
+                .and_then(|decision| decision.estimated_cost_class.clone())
+                .or_else(|| {
+                    cost_state
+                        .as_ref()
+                        .and_then(|state| state.estimated_cost_class.clone())
+                }),
+            single_candidate_only: limit_state
+                .as_ref()
+                .map(|state| state.single_candidate_only),
+            limit_state,
+            cost_state,
+            limit_event,
         }
     }
 }
@@ -2107,6 +2174,116 @@ mod tests {
         );
         assert_eq!(thread_read.incidents.len(), 1);
         assert_eq!(thread_read.incidents[0].incident_type, "provider_error");
+    }
+
+    #[test]
+    fn thread_read_should_surface_cost_and_limit_runtime_summary() {
+        let mut detail = build_session_detail(
+            vec![AgentThreadTurn {
+                id: "turn-1".to_string(),
+                thread_id: "thread-1".to_string(),
+                prompt_text: "继续做多模型调度".to_string(),
+                status: AgentThreadTurnStatus::Failed,
+                started_at: "2026-03-23T09:10:00Z".to_string(),
+                completed_at: Some("2026-03-23T09:10:05Z".to_string()),
+                error_message: Some("429 Too Many Requests".to_string()),
+                created_at: "2026-03-23T09:10:00Z".to_string(),
+                updated_at: "2026-03-23T09:10:05Z".to_string(),
+            }],
+            Vec::new(),
+        );
+        detail.execution_runtime = Some(lime_agent::SessionExecutionRuntime {
+            session_id: "session-1".to_string(),
+            provider_selector: Some("openai".to_string()),
+            provider_name: Some("openai".to_string()),
+            model_name: Some("gpt-5.4-mini".to_string()),
+            execution_strategy: Some("react".to_string()),
+            output_schema_runtime: None,
+            source: lime_agent::SessionExecutionRuntimeSource::RuntimeSnapshot,
+            mode: None,
+            latest_turn_id: Some("turn-1".to_string()),
+            latest_turn_status: Some("failed".to_string()),
+            recent_access_mode: None,
+            recent_preferences: None,
+            recent_team_selection: None,
+            recent_theme: None,
+            recent_session_mode: None,
+            recent_gate_key: None,
+            recent_run_title: None,
+            recent_content_id: None,
+            task_profile: Some(lime_agent::SessionExecutionRuntimeTaskProfile {
+                kind: "translation".to_string(),
+                source: "translation_skill_launch".to_string(),
+                traits: vec!["service_model_slot".to_string()],
+                service_model_slot: Some("translation".to_string()),
+                scene_kind: None,
+                scene_skill_id: None,
+                entry_source: None,
+            }),
+            routing_decision: Some(lime_agent::SessionExecutionRuntimeRoutingDecision {
+                routing_mode: "single_candidate".to_string(),
+                decision_source: "service_model_setting".to_string(),
+                decision_reason: "命中 service_models.translation".to_string(),
+                selected_provider: Some("openai".to_string()),
+                selected_model: Some("gpt-5.4-mini".to_string()),
+                requested_provider: Some("openai".to_string()),
+                requested_model: Some("gpt-5.4-mini".to_string()),
+                candidate_count: 1,
+                estimated_cost_class: Some("low".to_string()),
+                capability_gap: None,
+                fallback_chain: Vec::new(),
+                settings_source: Some("service_models.translation".to_string()),
+                service_model_slot: Some("translation".to_string()),
+            }),
+            limit_state: Some(lime_agent::SessionExecutionRuntimeLimitState {
+                status: "single_candidate_only".to_string(),
+                single_candidate_only: true,
+                provider_locked: true,
+                settings_locked: true,
+                oem_locked: false,
+                candidate_count: 1,
+                capability_gap: None,
+                notes: vec!["命中翻译模型".to_string()],
+            }),
+            cost_state: Some(lime_agent::SessionExecutionRuntimeCostState {
+                status: "recorded".to_string(),
+                estimated_cost_class: Some("low".to_string()),
+                input_per_million: Some(0.8),
+                output_per_million: Some(3.2),
+                cache_read_per_million: None,
+                cache_write_per_million: None,
+                currency: Some("USD".to_string()),
+                estimated_total_cost: Some(0.0012),
+                input_tokens: Some(1000),
+                output_tokens: Some(250),
+                total_tokens: Some(1250),
+                cached_input_tokens: None,
+                cache_creation_input_tokens: None,
+            }),
+            limit_event: Some(lime_agent::SessionExecutionRuntimeLimitEvent {
+                event_kind: "rate_limit_hit".to_string(),
+                message: "429 Too Many Requests".to_string(),
+                retryable: true,
+            }),
+        });
+
+        let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
+
+        assert_eq!(thread_read.estimated_cost_class.as_deref(), Some("low"));
+        assert_eq!(
+            thread_read
+                .cost_state
+                .as_ref()
+                .and_then(|value| value.estimated_total_cost),
+            Some(0.0012)
+        );
+        assert_eq!(
+            thread_read
+                .limit_event
+                .as_ref()
+                .map(|value| value.event_kind.as_str()),
+            Some("rate_limit_hit")
+        );
     }
 
     #[test]

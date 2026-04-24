@@ -52,6 +52,65 @@ export interface AsterSessionExecutionRuntimeRecentTeamSelection {
   selectedTeamRoles?: AsterSessionExecutionRuntimeRecentTeamRole[] | null;
 }
 
+export interface AsterSessionExecutionRuntimeTaskProfile {
+  kind: string;
+  source: string;
+  traits?: string[];
+  serviceModelSlot?: string | null;
+  sceneKind?: string | null;
+  sceneSkillId?: string | null;
+  entrySource?: string | null;
+}
+
+export interface AsterSessionExecutionRuntimeRoutingDecision {
+  routingMode: string;
+  decisionSource: string;
+  decisionReason: string;
+  selectedProvider?: string | null;
+  selectedModel?: string | null;
+  requestedProvider?: string | null;
+  requestedModel?: string | null;
+  candidateCount: number;
+  estimatedCostClass?: string | null;
+  capabilityGap?: string | null;
+  fallbackChain?: string[];
+  settingsSource?: string | null;
+  serviceModelSlot?: string | null;
+}
+
+export interface AsterSessionExecutionRuntimeLimitState {
+  status: string;
+  singleCandidateOnly: boolean;
+  providerLocked: boolean;
+  settingsLocked: boolean;
+  oemLocked: boolean;
+  candidateCount: number;
+  capabilityGap?: string | null;
+  notes?: string[];
+}
+
+export interface AsterSessionExecutionRuntimeCostState {
+  status: string;
+  estimatedCostClass?: string | null;
+  inputPerMillion?: number | null;
+  outputPerMillion?: number | null;
+  cacheReadPerMillion?: number | null;
+  cacheWritePerMillion?: number | null;
+  currency?: string | null;
+  estimatedTotalCost?: number | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  cachedInputTokens?: number | null;
+  cacheCreationInputTokens?: number | null;
+}
+
+export interface AsterSessionExecutionRuntimeLimitEvent {
+  eventKind: string;
+  message: string;
+  retryable: boolean;
+}
+
 export type AsterTurnOutputSchemaSource = "session" | "turn";
 
 export type AsterTurnOutputSchemaStrategy = "native" | "final_output_tool";
@@ -91,4 +150,9 @@ export interface AsterSessionExecutionRuntime {
   recent_gate_key?: string | null;
   recent_run_title?: string | null;
   recent_content_id?: string | null;
+  task_profile?: AsterSessionExecutionRuntimeTaskProfile | null;
+  routing_decision?: AsterSessionExecutionRuntimeRoutingDecision | null;
+  limit_state?: AsterSessionExecutionRuntimeLimitState | null;
+  cost_state?: AsterSessionExecutionRuntimeCostState | null;
+  limit_event?: AsterSessionExecutionRuntimeLimitEvent | null;
 }

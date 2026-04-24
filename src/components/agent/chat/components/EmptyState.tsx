@@ -33,6 +33,7 @@ import {
   listCuratedTaskRecommendationSignals,
   subscribeCuratedTaskRecommendationSignalsChanged,
 } from "../utils/curatedTaskRecommendationSignals";
+import { buildReviewFeedbackProjection } from "../utils/reviewFeedbackProjection";
 import {
   extractCuratedTaskReferenceMemoryIds,
   mergeCuratedTaskReferenceEntries,
@@ -70,7 +71,6 @@ import {
 } from "../utils/imageAttachments";
 import {
   getActiveSkillDisplayLabel,
-  getSkillSelectionSummaryLabel,
 } from "../skill-selection/skillSelectionDisplay";
 import {
   resolveInputCapabilityDispatch,
@@ -450,45 +450,6 @@ const RecommendationSupplementalLink = styled.button`
   }
 `;
 
-const RecommendationCapabilityGrid = styled.div`
-  display: grid;
-  gap: 0.45rem;
-  grid-template-columns: minmax(0, 1fr);
-
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-`;
-
-const RecommendationCapabilityCard = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.18rem;
-  border-radius: 16px;
-  border: 1px solid rgb(226 232 240);
-  background: rgb(248 250 252);
-  padding: 0.78rem 0.82rem;
-`;
-
-const RecommendationCapabilityCardTitle = styled.div`
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.45;
-  color: rgb(15 23 42);
-`;
-
-const RecommendationCapabilityCardValue = styled.div`
-  font-size: 11px;
-  line-height: 1.5;
-  color: rgb(71 85 105);
-`;
-
-const RecommendationCapabilityCardDescription = styled.div`
-  font-size: 11px;
-  line-height: 1.55;
-  color: rgb(100 116 139);
-`;
 
 interface EmptyStateProps extends SkillSelectionSourceProps {
   input: string;
@@ -677,19 +638,6 @@ function compareRecentShelfItems<
   return left.title.localeCompare(right.title, "zh-CN");
 }
 
-function formatMethodSummaryLabel(summaryLabel: string): string {
-  const countMatch = summaryLabel.match(/^(\d+)\s+项技能可挂载$/);
-  if (countMatch) {
-    return `${countMatch[1]} 套做法可直接复用`;
-  }
-
-  if (summaryLabel === "按需挂载任务能力") {
-    return "按需挂上常用做法";
-  }
-
-  return summaryLabel;
-}
-
 function resolveResultShelfTitle(
   creationReplaySurface?: CreationReplaySurfaceModel | null,
 ): string {
@@ -870,14 +818,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     onImportSkill,
     onRefreshSkills,
   });
-  const skillOptionCount =
-    skillSelection.skills.length + skillSelection.serviceSkills.length;
   const activeSkillDisplayLabel = getActiveSkillDisplayLabel(currentSkill);
-  const skillSummaryLabel = getSkillSelectionSummaryLabel({
-    activeSkill: currentSkill,
-    skillCount: skillOptionCount,
-  });
-  const methodSummaryLabel = formatMethodSummaryLabel(skillSummaryLabel);
   const hasAutoLaunchSiteSkill = hasAutoLaunchableSiteSkill(serviceSkills);
   const siteSkillAutoLaunchExample =
     getSiteSkillAutoLaunchExample(serviceSkills);
@@ -911,7 +852,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   ] = useState<CuratedTaskReferenceEntry[] | null>(null);
   const [curatedTaskLauncherPrefillHint, setCuratedTaskLauncherPrefillHint] =
     useState<string | null>(null);
-  const [showCapabilityCards, setShowCapabilityCards] = useState(false);
 
   useEffect(() => {
     const loadConfigPreferences = async () => {
@@ -1124,7 +1064,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     clearSelectedSkill?.();
   };
 
-  const planEnabled = executionStrategy === "code_orchestrated";
   const workbenchCopy =
     THEME_WORKBENCH_COPY[activeTheme] || THEME_WORKBENCH_COPY.general;
 
@@ -1210,6 +1149,28 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       setCuratedTaskLauncherPrefillHint(null);
     }
   }, []);
+  const handleApplyLauncherReviewSuggestion = useCallback(
+    (
+      template: CuratedTaskTemplateItem,
+      options: {
+        inputValues: CuratedTaskInputValues;
+        referenceSelection: CuratedTaskReferenceSelection;
+      },
+    ) => {
+      setCuratedTaskLauncherTask(template);
+      setCuratedTaskLauncherInitialInputValues(options.inputValues);
+      setCuratedTaskLauncherInitialReferenceMemoryIds(
+        options.referenceSelection.referenceMemoryIds,
+      );
+      setCuratedTaskLauncherInitialReferenceEntries(
+        options.referenceSelection.referenceEntries,
+      );
+      setCuratedTaskLauncherPrefillHint(
+        `已按最近复盘切到更适合的结果模板，你可以继续改后再进入生成。`,
+      );
+    },
+    [],
+  );
 
   const handleApplyCuratedTaskTemplate = useCallback(
     (
@@ -1321,42 +1282,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
     return badges.slice(0, 5);
   }, [creationMode, showCreationModeSelector, activeSkillDisplayLabel]);
-
-  const capabilitySummaryItems = useMemo(
-    () => [
-      {
-        key: "skills",
-        title: "我的方法",
-        value: methodSummaryLabel,
-        description:
-          "把跑通过的常用做法沉淀下来，下次遇到同类任务可以直接续上。",
-      },
-      {
-        key: "automation",
-        title: "持续流程",
-        value: planEnabled ? "当前任务会按步骤推进" : "重复任务可持续复用",
-        description:
-          "适合批量任务和重复流程，让一套做法可以自己持续往下跑，不再每次从头开始。",
-      },
-      {
-        key: "agent-teams",
-        title: "任务拆分",
-        value: subagentEnabled
-          ? "当前任务支持分工推进"
-          : "复杂任务可拆分并行推进",
-        description:
-          "当一个目标需要调研、方案和执行同时推进时，可以拆成多个分工后统一回收结论。",
-      },
-      {
-        key: "browser",
-        title: "浏览器接入",
-        value: browserAssistLoading ? "正在检查连接状态" : "网页登录与网页执行",
-        description:
-          "登录、验证和网页操作可以直接在当前任务里继续，不必再切到单独工作台。",
-      },
-    ],
-    [browserAssistLoading, methodSummaryLabel, planEnabled, subagentEnabled],
-  );
 
   const recommendationShelfItems = useMemo<RecommendationShelfItem[]>(() => {
     const curatedTemplateRecommendations = listFeaturedHomeCuratedTaskTemplates(
@@ -1504,17 +1429,38 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       return null;
     }
 
+    const projection = buildReviewFeedbackProjection({
+      signal: latestReviewRecommendationSignal,
+    });
     const highlightedRecommendations = recommendationSolutionItems
       .filter((item) => item.reasonLabel === "围绕最近复盘")
       .slice(0, 2);
     if (highlightedRecommendations.length === 0) {
       return null;
     }
+    const primarySuggestedRecommendation =
+      (projection?.suggestedTasks[0]
+        ? highlightedRecommendations.find(
+            (item) => item.key === projection.suggestedTasks[0]?.taskId,
+          )
+        : null) ?? highlightedRecommendations[0];
 
     return {
       title: latestReviewRecommendationSignal.title,
-      summary: truncatePrompt(latestReviewRecommendationSignal.summary, 108),
+      summary: truncatePrompt(
+        [
+          latestReviewRecommendationSignal.summary,
+          projection?.suggestionText ?? "",
+        ]
+          .filter((segment) => segment.trim().length > 0)
+          .join(" "),
+        152,
+      ),
       nextSteps: highlightedRecommendations.map((item) => item.title).join(" / "),
+      actionLabel: primarySuggestedRecommendation
+        ? `继续去「${primarySuggestedRecommendation.title}」`
+        : null,
+      onAction: primarySuggestedRecommendation?.onSelect ?? null,
     };
   }, [latestReviewRecommendationSignal, recommendationSolutionItems]);
 
@@ -1659,11 +1605,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     skillSelection.skills,
   ]);
 
-  const hasReusableMethodContinuation = useMemo(
-    () => continuationShelfItems.some((item) => item.badge === "我的方法"),
-    [continuationShelfItems],
-  );
-
   const directMethodItems = useMemo(() => {
     if (continuationShelfItems.length > 0) {
       return continuationShelfItems.slice(0, 3);
@@ -1787,6 +1728,20 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               )
           : undefined
       }
+      onApplyCuratedTaskReviewSuggestion={
+        activeCuratedTask
+          ? (task) =>
+              handleCuratedTaskLauncherRequest(
+                task,
+                activeCuratedTaskLaunchInputValues,
+                activeCuratedTaskReferenceMemoryIds ||
+                  effectiveDefaultCuratedTaskReferenceMemoryIds,
+                activeCuratedTaskReferenceEntries ||
+                  effectiveDefaultCuratedTaskReferenceEntries,
+                "已按最近复盘切到更适合的结果模板，你可以继续改后再进入生成。",
+              )
+          : undefined
+      }
       creationReplaySurface={creationReplaySurface}
       projectId={projectId}
       sessionId={sessionId}
@@ -1871,6 +1826,20 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           <RecommendationSignalBannerFootnote>
             更适合继续：{reviewFeedbackBanner.nextSteps}
           </RecommendationSignalBannerFootnote>
+          {reviewFeedbackBanner.actionLabel && reviewFeedbackBanner.onAction ? (
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-full border-sky-200 bg-white px-3 text-xs font-medium text-slate-700 hover:border-sky-300 hover:bg-sky-50"
+                data-testid="entry-review-feedback-banner-action"
+                onClick={() => reviewFeedbackBanner.onAction?.()}
+              >
+                {reviewFeedbackBanner.actionLabel}
+              </Button>
+            </div>
+          ) : null}
         </RecommendationSignalBanner>
       ) : null}
 
@@ -1999,18 +1968,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     </RecommendationShelf>
   );
 
-  const shouldShowCapabilitySummaryPanel =
-    showCapabilityCards ||
-    Boolean(onLaunchBrowserAssist) ||
-    hasAutoLaunchSiteSkill ||
-    hasReusableMethodContinuation;
   const hasRecentSessionContinuation = Boolean(
     recentSessionTitle && onResumeRecentSession,
   );
-  const shouldShowSupplementalPanel =
+  const shouldShowContinuationSupplemental =
     shouldShowSceneAppsPanel ||
-    shouldShowCapabilitySummaryPanel ||
-    hasRecentSessionContinuation;
+    hasRecentSessionContinuation ||
+    Boolean(onOpenSceneAppsDirectory);
+  const shouldShowSupplementalPanel =
+    shouldShowContinuationSupplemental || Boolean(onLaunchBrowserAssist);
   const recentSessionLinkLabel = useMemo(() => {
     const normalizedTitle = truncatePrompt(recentSessionTitle || "", 18);
     if (!normalizedTitle) {
@@ -2035,7 +2001,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const generalSupplementalPanel = shouldShowSupplementalPanel ? (
     <RecommendationSupplementalPanel data-testid="entry-supplemental-panel">
       <RecommendationSupplementalLabel>
-        如果你已经知道怎么接着做，也可以直接从这里续上。
+        {shouldShowContinuationSupplemental
+          ? "也可以直接继续这轮。"
+          : "需要网页登录时，也可以先把浏览器接上。"}
       </RecommendationSupplementalLabel>
       <RecommendationSupplementalRow>
         {recentSessionTitle && onResumeRecentSession ? (
@@ -2087,41 +2055,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             {browserAssistLoading ? "浏览器连接准备中" : "连接浏览器"}
           </RecommendationSupplementalLink>
         ) : null}
-
-        {shouldShowCapabilitySummaryPanel ? (
-          <RecommendationSupplementalLink
-            type="button"
-            data-testid="entry-capability-toggle"
-            onClick={() => {
-              setShowCapabilityCards((previous) => !previous);
-            }}
-          >
-            {showCapabilityCards ? "收起支撑能力" : "查看支撑能力"}
-          </RecommendationSupplementalLink>
-        ) : null}
       </RecommendationSupplementalRow>
-      {showCapabilityCards ? (
-        <RecommendationCapabilityGrid>
-          {capabilitySummaryItems.map((item) => (
-            <RecommendationCapabilityCard key={item.key}>
-              <RecommendationCapabilityCardTitle>
-                {item.title}
-              </RecommendationCapabilityCardTitle>
-              <RecommendationCapabilityCardValue>
-                {item.value}
-              </RecommendationCapabilityCardValue>
-              <RecommendationCapabilityCardDescription>
-                {item.description}
-              </RecommendationCapabilityCardDescription>
-            </RecommendationCapabilityCard>
-          ))}
-        </RecommendationCapabilityGrid>
-      ) : (
-        <RecommendationAssistFootnote>
-          当前已有 {methodSummaryLabel}
-          ，持续流程、任务拆分和浏览器接入会按需要自动挂上。
-        </RecommendationAssistFootnote>
-      )}
     </RecommendationSupplementalPanel>
   ) : null;
 
@@ -2198,6 +2132,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         initialReferenceEntries={curatedTaskLauncherInitialReferenceEntries}
         prefillHint={curatedTaskLauncherPrefillHint}
         onOpenChange={handleCuratedTaskLauncherOpenChange}
+        onApplyReviewSuggestion={handleApplyLauncherReviewSuggestion}
         onConfirm={handleApplyCuratedTaskTemplate}
       />
     </PageContainer>

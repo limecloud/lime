@@ -13,8 +13,11 @@ import type {
   AsterApprovalPolicy,
   AsterExecutionStrategy,
   AsterSandboxPolicy,
+  AsterSessionExecutionRuntimeCostState,
+  AsterSessionExecutionRuntimeLimitEvent,
   AsterSessionExecutionRuntime,
   AsterSessionExecutionRuntimeAccessMode,
+  AsterSessionExecutionRuntimeLimitState,
   AsterSessionExecutionRuntimePreferences,
   AsterSessionExecutionRuntimeRecentTeamSelection,
 } from "../agentExecutionRuntime";
@@ -26,13 +29,18 @@ export type {
   AsterApprovalPolicy,
   AsterExecutionStrategy,
   AsterSandboxPolicy,
+  AsterSessionExecutionRuntimeCostState,
+  AsterSessionExecutionRuntimeLimitEvent,
   AsterSessionExecutionRuntime,
   AsterSessionExecutionRuntimeAccessMode,
+  AsterSessionExecutionRuntimeLimitState,
   AsterSessionExecutionRuntimePreferences,
   AsterSessionExecutionRuntimeRecentTeamRole,
   AsterSessionExecutionRuntimeRecentTeamSelection,
   AsterSessionExecutionRuntimeRecentTeamSource,
+  AsterSessionExecutionRuntimeRoutingDecision,
   AsterSessionExecutionRuntimeSource,
+  AsterSessionExecutionRuntimeTaskProfile,
   AsterTurnOutputSchemaRuntime,
   AsterTurnOutputSchemaSource,
   AsterTurnOutputSchemaStrategy,
@@ -45,6 +53,14 @@ export interface AgentProcessStatus {
   running: boolean;
   base_url?: string;
   port?: number;
+}
+
+export interface AgentRuntimeGeneratedTitleResult {
+  title: string;
+  sessionId?: string | null;
+  executionRuntime?: AsterSessionExecutionRuntime | null;
+  usedFallback?: boolean;
+  fallbackReason?: string | null;
 }
 
 /**
@@ -292,6 +308,17 @@ export interface AgentRuntimeThreadReadModel {
   latest_compaction_boundary?: AgentRuntimeCompactionBoundarySnapshot | null;
   file_checkpoint_summary?: AgentRuntimeFileCheckpointThreadSummary | null;
   diagnostics?: AgentRuntimeThreadDiagnostics | null;
+  task_kind?: string | null;
+  service_model_slot?: string | null;
+  routing_mode?: string | null;
+  decision_source?: string | null;
+  candidate_count?: number | null;
+  capability_gap?: string | null;
+  estimated_cost_class?: string | null;
+  single_candidate_only?: boolean | null;
+  limit_state?: AsterSessionExecutionRuntimeLimitState | null;
+  cost_state?: AsterSessionExecutionRuntimeCostState | null;
+  limit_event?: AsterSessionExecutionRuntimeLimitEvent | null;
 }
 
 export interface AsterSubagentSessionInfo {
@@ -936,6 +963,7 @@ export interface CreateImageGenerationTaskArtifactRequest {
   title?: string;
   mode?: "generate" | "edit" | "variation";
   rawText?: string;
+  layoutHint?: string;
   size?: string;
   aspectRatio?: string;
   count?: number;
@@ -955,6 +983,12 @@ export interface CreateImageGenerationTaskArtifactRequest {
   targetOutputId?: string;
   targetOutputRefId?: string;
   referenceImages?: string[];
+  storyboardSlots?: Array<{
+    slotId?: string;
+    label?: string;
+    prompt: string;
+    shotType?: string;
+  }>;
 }
 
 export interface MediaTaskArtifactRecord {

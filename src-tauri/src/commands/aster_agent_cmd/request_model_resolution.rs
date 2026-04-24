@@ -1,10 +1,11 @@
 use super::*;
 use crate::commands::aster_agent_cmd::service_skill_launch::extract_service_scene_launch_context;
 use crate::commands::model_registry_cmd::ModelRegistryState;
+use crate::config::GlobalConfigManagerState;
 use lime_core::database::dao::api_key_provider::{ApiProviderType, ProviderGroup};
 use lime_core::models::model_registry::{
     EnhancedModelMetadata, ModelCapabilities, ModelDeploymentSource, ModelManagementPlane,
-    ModelModality, ModelRuntimeFeature, ModelSource, ModelTaskFamily, ModelTier,
+    ModelModality, ModelPricing, ModelRuntimeFeature, ModelSource, ModelTaskFamily, ModelTier,
     ProviderAliasConfig,
 };
 use std::collections::HashSet;
@@ -29,6 +30,42 @@ struct ProviderResolutionContext {
 enum RuntimeProviderConfigurationStrategy {
     Manual { base_url: Option<String> },
     CredentialPool,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct RuntimeRequestProviderResolution {
+    pub provider_config: Option<ConfigureProviderRequest>,
+    pub task_profile: lime_agent::SessionExecutionRuntimeTaskProfile,
+    pub routing_decision: lime_agent::SessionExecutionRuntimeRoutingDecision,
+    pub limit_state: lime_agent::SessionExecutionRuntimeLimitState,
+    pub cost_state: lime_agent::SessionExecutionRuntimeCostState,
+    pub limit_event: Option<lime_agent::SessionExecutionRuntimeLimitEvent>,
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedRuntimeProviderSelection {
+    provider_config: ConfigureProviderRequest,
+    provider_selector: String,
+    requested_model: String,
+    resolved_model: String,
+    candidate_count: u32,
+    estimated_cost_class: Option<String>,
+    pricing: Option<ModelPricing>,
+    capability_gap: Option<String>,
+    fallback_chain: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RequestOemRoutingContext {
+    tenant_id: String,
+    provider_source: Option<String>,
+    provider_key: Option<String>,
+    default_model: Option<String>,
+    config_mode: Option<String>,
+    offer_state: Option<String>,
+    quota_status: Option<String>,
+    fallback_to_local_allowed: Option<bool>,
+    can_invoke: Option<bool>,
 }
 
 fn normalize_identifier(value: &str) -> String {
@@ -1111,11 +1148,536 @@ async fn resolve_request_thinking_enabled(request: &AsterChatRequest) -> Result<
         .unwrap_or(false))
 }
 
+fn push_unique_profile_trait(traits: &mut Vec<String>, value: &str) {
+    let Some(value) = normalize_optional_text(Some(value.to_string())) else {
+        return;
+    };
+    if !traits.iter().any(|existing| existing == &value) {
+        traits.push(value);
+    }
+}
+
+fn extract_metadata_text(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<String> {
+    keys.iter().find_map(|key| {
+        object
+            .get(*key)
+            .and_then(serde_json::Value::as_str)
+            .and_then(|value| normalize_optional_text(Some(value.to_string())))
+    })
+}
+
+fn extract_metadata_bool(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<bool> {
+    keys.iter()
+        .find_map(|key| object.get(*key).and_then(serde_json::Value::as_bool))
+}
+
+fn resolve_request_oem_routing_context(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<RequestOemRoutingContext> {
+    let routing = extract_harness_nested_object(request_metadata, &["oem_routing", "oemRouting"])?;
+    let tenant_id = extract_metadata_text(routing, &["tenant_id", "tenantId"])?;
+
+    Some(RequestOemRoutingContext {
+        tenant_id,
+        provider_source: extract_metadata_text(routing, &["provider_source", "providerSource"]),
+        provider_key: extract_metadata_text(routing, &["provider_key", "providerKey"]),
+        default_model: extract_metadata_text(routing, &["default_model", "defaultModel"]),
+        config_mode: extract_metadata_text(routing, &["config_mode", "configMode"]),
+        offer_state: extract_metadata_text(routing, &["offer_state", "offerState"]),
+        quota_status: extract_metadata_text(routing, &["quota_status", "quotaStatus"]),
+        fallback_to_local_allowed: extract_metadata_bool(
+            routing,
+            &["fallback_to_local_allowed", "fallbackToLocalAllowed"],
+        ),
+        can_invoke: extract_metadata_bool(routing, &["can_invoke", "canInvoke"]),
+    })
+}
+
+fn request_oem_routing_is_locked(context: Option<&RequestOemRoutingContext>) -> bool {
+    context.is_some_and(|value| {
+        matches!(value.config_mode.as_deref(), Some("managed"))
+            || matches!(value.fallback_to_local_allowed, Some(false))
+    })
+}
+
+fn build_request_oem_limit_event(
+    context: Option<&RequestOemRoutingContext>,
+) -> Option<lime_agent::SessionExecutionRuntimeLimitEvent> {
+    let context = context?;
+    let quota_low = matches!(context.quota_status.as_deref(), Some("low"))
+        || matches!(context.offer_state.as_deref(), Some("available_quota_low"));
+    if !quota_low {
+        return None;
+    }
+
+    let provider_label = context
+        .provider_key
+        .clone()
+        .unwrap_or_else(|| "oem_cloud".to_string());
+    Some(lime_agent::SessionExecutionRuntimeLimitEvent {
+        event_kind: "quota_low".to_string(),
+        message: format!(
+            "OEM 云端 provider {provider_label} 当前额度偏低，后续请求可能触发配额风险。"
+        ),
+        retryable: true,
+    })
+}
+
+fn resolve_request_service_model_slot(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<String> {
+    if extract_harness_nested_object(
+        request_metadata,
+        &["translation_skill_launch", "translationSkillLaunch"],
+    )
+    .is_some()
+    {
+        return Some("translation".to_string());
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &["resource_search_skill_launch", "resourceSearchSkillLaunch"],
+    )
+    .is_some()
+    {
+        return Some("resource_prompt_rewrite".to_string());
+    }
+
+    if extract_harness_string(request_metadata, &["turn_purpose", "turnPurpose"])
+        .as_deref()
+        .is_some_and(is_prompt_rewrite_turn_purpose)
+    {
+        return Some("prompt_rewrite".to_string());
+    }
+
+    None
+}
+
+fn is_prompt_rewrite_turn_purpose(value: &str) -> bool {
+    matches!(value, "style_rewrite" | "style_audit")
+}
+
+fn build_runtime_task_profile(
+    request: &AsterChatRequest,
+) -> lime_agent::SessionExecutionRuntimeTaskProfile {
+    let request_metadata = request.metadata.as_ref();
+    let service_model_slot = resolve_request_service_model_slot(request_metadata);
+    let service_scene_context = extract_service_scene_launch_context(request_metadata);
+    let request_oem_routing = resolve_request_oem_routing_context(request_metadata);
+    let mut traits = Vec::new();
+
+    if request
+        .images
+        .as_ref()
+        .is_some_and(|images| !images.is_empty())
+    {
+        push_unique_profile_trait(&mut traits, "vision_input");
+    }
+    if extract_request_thinking_enabled(request).unwrap_or(false) {
+        push_unique_profile_trait(&mut traits, "reasoning_requested");
+    }
+    if request.web_search.unwrap_or(false) || request.search_mode.is_some() {
+        push_unique_profile_trait(&mut traits, "web_search_requested");
+    }
+    if extract_harness_bool(request_metadata, &["task_mode_enabled", "taskModeEnabled"])
+        .unwrap_or(false)
+    {
+        push_unique_profile_trait(&mut traits, "task_mode_enabled");
+    }
+    if extract_harness_bool(
+        request_metadata,
+        &["subagent_mode_enabled", "subagentModeEnabled"],
+    )
+    .unwrap_or(false)
+    {
+        push_unique_profile_trait(&mut traits, "subagent_mode_enabled");
+    }
+    if service_model_slot.is_some() {
+        push_unique_profile_trait(&mut traits, "service_model_slot");
+    }
+    if request_oem_routing.is_some() {
+        push_unique_profile_trait(&mut traits, "oem_runtime");
+    }
+
+    if let Some(context) = service_scene_context {
+        push_unique_profile_trait(&mut traits, "service_scene_launch");
+        if request_oem_routing.is_some()
+            || context.oem_runtime.scene_base_url.is_some()
+            || context.oem_runtime.session_token.is_some()
+            || context.oem_runtime.tenant_id.is_some()
+        {
+            push_unique_profile_trait(&mut traits, "oem_runtime");
+        }
+
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "service_scene".to_string(),
+            source: "service_scene_launch".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: normalize_optional_text(Some(context.launch_kind)),
+            scene_skill_id: normalize_optional_text(Some(context.service_skill_id)),
+            entry_source: context.entry_source,
+        };
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &["translation_skill_launch", "translationSkillLaunch"],
+    )
+    .is_some()
+    {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "translation".to_string(),
+            source: "translation_skill_launch".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: extract_harness_string(
+                request_metadata,
+                &["entry_source", "entrySource"],
+            ),
+        };
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &["summary_skill_launch", "summarySkillLaunch"],
+    )
+    .is_some()
+    {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "summary".to_string(),
+            source: "summary_skill_launch".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: extract_harness_string(
+                request_metadata,
+                &["entry_source", "entrySource"],
+            ),
+        };
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &["resource_search_skill_launch", "resourceSearchSkillLaunch"],
+    )
+    .is_some()
+    {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "resource_search".to_string(),
+            source: "resource_search_skill_launch".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: extract_harness_string(
+                request_metadata,
+                &["entry_source", "entrySource"],
+            ),
+        };
+    }
+
+    if extract_harness_string(request_metadata, &["turn_purpose", "turnPurpose"])
+        .as_deref()
+        .is_some_and(is_prompt_rewrite_turn_purpose)
+    {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "prompt_rewrite".to_string(),
+            source: "turn_purpose".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: None,
+        };
+    }
+
+    if extract_harness_nested_object(request_metadata, &["artifact"]).is_some() {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "artifact".to_string(),
+            source: "artifact_metadata".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: None,
+        };
+    }
+
+    if request
+        .images
+        .as_ref()
+        .is_some_and(|images| !images.is_empty())
+    {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "vision_chat".to_string(),
+            source: "request_images".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: None,
+        };
+    }
+
+    if request.web_search.unwrap_or(false) || request.search_mode.is_some() {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "search".to_string(),
+            source: "request_search".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: None,
+        };
+    }
+
+    if extract_harness_bool(request_metadata, &["task_mode_enabled", "taskModeEnabled"])
+        .unwrap_or(false)
+    {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "task".to_string(),
+            source: "task_mode".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: None,
+        };
+    }
+
+    lime_agent::SessionExecutionRuntimeTaskProfile {
+        kind: "chat".to_string(),
+        source: "default_chat".to_string(),
+        traits,
+        service_model_slot,
+        scene_kind: None,
+        scene_skill_id: None,
+        entry_source: None,
+    }
+}
+
+fn estimate_cost_class(
+    model_id: &str,
+    model_meta: Option<&EnhancedModelMetadata>,
+) -> Option<String> {
+    if let Some(model_meta) = model_meta {
+        return Some(
+            match model_meta.tier {
+                ModelTier::Mini => "low",
+                ModelTier::Pro => "medium",
+                ModelTier::Max => "high",
+            }
+            .to_string(),
+        );
+    }
+
+    let normalized = normalize_identifier(model_id);
+    if normalized.contains("mini")
+        || normalized.contains("haiku")
+        || normalized.contains("flash")
+        || normalized.contains("nano")
+        || normalized.contains("small")
+    {
+        return Some("low".to_string());
+    }
+    if normalized.contains("opus")
+        || normalized.contains("max")
+        || normalized.contains("ultra")
+        || normalized.contains("pro")
+    {
+        return Some("high".to_string());
+    }
+
+    Some("medium".to_string())
+}
+
+fn is_compatible_candidate_model(
+    model: &EnhancedModelMetadata,
+    thinking_enabled: bool,
+    has_images: bool,
+) -> bool {
+    let supports_chat =
+        model.task_families.is_empty() || model.task_families.contains(&ModelTaskFamily::Chat);
+    let supports_reasoning =
+        model.capabilities.reasoning || model.task_families.contains(&ModelTaskFamily::Reasoning);
+    let supports_vision = model.capabilities.vision
+        || model
+            .task_families
+            .contains(&ModelTaskFamily::VisionUnderstanding);
+
+    if has_images && !supports_vision {
+        return false;
+    }
+    if thinking_enabled && !supports_reasoning {
+        return false;
+    }
+
+    supports_chat || (has_images && supports_vision)
+}
+
+fn count_compatible_candidate_models(
+    catalog: &[EnhancedModelMetadata],
+    thinking_enabled: bool,
+    has_images: bool,
+) -> u32 {
+    catalog
+        .iter()
+        .filter(|model| is_compatible_candidate_model(model, thinking_enabled, has_images))
+        .count() as u32
+}
+
+fn build_limit_state(
+    status: &str,
+    candidate_count: u32,
+    provider_locked: bool,
+    settings_locked: bool,
+    oem_locked: bool,
+    capability_gap: Option<String>,
+    notes: Vec<String>,
+) -> lime_agent::SessionExecutionRuntimeLimitState {
+    let mut notes = notes;
+    if oem_locked
+        && !notes
+            .iter()
+            .any(|value| value.contains("OEM") || value.contains("oem"))
+    {
+        notes.push("当前回合受 OEM 路由约束，自动策略仅会在 OEM 允许范围内工作。".to_string());
+    }
+    lime_agent::SessionExecutionRuntimeLimitState {
+        status: status.to_string(),
+        single_candidate_only: candidate_count <= 1,
+        provider_locked,
+        settings_locked,
+        oem_locked,
+        candidate_count,
+        capability_gap,
+        notes,
+    }
+}
+
+fn build_cost_state(
+    selection: Option<&ResolvedRuntimeProviderSelection>,
+    fallback_cost_class: Option<String>,
+    status: &str,
+) -> lime_agent::SessionExecutionRuntimeCostState {
+    let pricing = selection.and_then(|value| value.pricing.as_ref());
+
+    lime_agent::SessionExecutionRuntimeCostState {
+        status: status.to_string(),
+        estimated_cost_class: selection
+            .and_then(|value| value.estimated_cost_class.clone())
+            .or(fallback_cost_class),
+        input_per_million: pricing.and_then(|value| value.input_per_million),
+        output_per_million: pricing.and_then(|value| value.output_per_million),
+        cache_read_per_million: pricing.and_then(|value| value.cache_read_per_million),
+        cache_write_per_million: pricing.and_then(|value| value.cache_write_per_million),
+        currency: pricing.map(|value| value.currency.clone()),
+        estimated_total_cost: None,
+        input_tokens: None,
+        output_tokens: None,
+        total_tokens: None,
+        cached_input_tokens: None,
+        cache_creation_input_tokens: None,
+    }
+}
+
+fn build_routing_decision(
+    task_profile: &lime_agent::SessionExecutionRuntimeTaskProfile,
+    decision_source: &str,
+    decision_reason: String,
+    selection: Option<&ResolvedRuntimeProviderSelection>,
+    requested_provider: Option<String>,
+    requested_model: Option<String>,
+    settings_source: Option<String>,
+) -> lime_agent::SessionExecutionRuntimeRoutingDecision {
+    let candidate_count = selection.map(|value| value.candidate_count).unwrap_or(0);
+    let routing_mode = if candidate_count == 0 {
+        "no_candidate"
+    } else if candidate_count <= 1 {
+        "single_candidate"
+    } else {
+        "multi_candidate"
+    };
+
+    lime_agent::SessionExecutionRuntimeRoutingDecision {
+        routing_mode: routing_mode.to_string(),
+        decision_source: decision_source.to_string(),
+        decision_reason,
+        selected_provider: selection.map(|value| value.provider_selector.clone()),
+        selected_model: selection.map(|value| value.resolved_model.clone()),
+        requested_provider,
+        requested_model: requested_model
+            .or_else(|| selection.map(|value| value.requested_model.clone())),
+        candidate_count,
+        estimated_cost_class: selection.and_then(|value| value.estimated_cost_class.clone()),
+        capability_gap: selection.and_then(|value| value.capability_gap.clone()),
+        fallback_chain: selection
+            .map(|value| value.fallback_chain.clone())
+            .unwrap_or_default(),
+        settings_source,
+        service_model_slot: task_profile.service_model_slot.clone(),
+    }
+}
+
+fn build_no_candidate_resolution(
+    task_profile: lime_agent::SessionExecutionRuntimeTaskProfile,
+    decision_source: &str,
+    decision_reason: String,
+    oem_locked: bool,
+    limit_event: Option<lime_agent::SessionExecutionRuntimeLimitEvent>,
+) -> RuntimeRequestProviderResolution {
+    let capability_gap = if task_profile.kind == "vision_chat" {
+        Some("vision_candidate_missing".to_string())
+    } else {
+        None
+    };
+    let limit_state = build_limit_state(
+        "no_candidate",
+        0,
+        false,
+        false,
+        oem_locked,
+        capability_gap.clone(),
+        vec!["当前请求没有可恢复的 provider/model 默认值".to_string()],
+    );
+    let routing_decision = build_routing_decision(
+        &task_profile,
+        decision_source,
+        decision_reason,
+        None,
+        None,
+        None,
+        None,
+    );
+    let cost_state = build_cost_state(None, None, "unavailable");
+
+    RuntimeRequestProviderResolution {
+        provider_config: None,
+        task_profile,
+        routing_decision,
+        limit_state,
+        cost_state,
+        limit_event,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RequestPreferenceSource {
     Request,
     ServiceSceneLaunch,
     Session,
+    ServiceModelSetting,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1130,6 +1692,14 @@ struct ServiceSceneModelPreferenceContext {
     provider_selector: String,
     model_name: String,
     allow_fallback: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ServiceModelSettingPreferenceContext {
+    provider_selector: String,
+    model_name: String,
+    settings_source: String,
+    service_model_slot: String,
 }
 
 impl SessionProviderModelContext {
@@ -1156,6 +1726,38 @@ fn resolve_service_scene_model_preference(
         provider_selector,
         model_name,
         allow_fallback: context.allow_fallback.unwrap_or(true),
+    })
+}
+
+fn resolve_service_model_setting_preference(
+    app: &AppHandle,
+    task_profile: &lime_agent::SessionExecutionRuntimeTaskProfile,
+) -> Option<ServiceModelSettingPreferenceContext> {
+    let slot = task_profile.service_model_slot.as_deref()?;
+    let config_manager = app.try_state::<GlobalConfigManagerState>()?;
+    let config = config_manager.config();
+    let preference = match slot {
+        "history_compress" => &config.workspace_preferences.service_models.history_compress,
+        "prompt_rewrite" => &config.workspace_preferences.service_models.prompt_rewrite,
+        "resource_prompt_rewrite" => {
+            &config
+                .workspace_preferences
+                .service_models
+                .resource_prompt_rewrite
+        }
+        "translation" => &config.workspace_preferences.service_models.translation,
+        _ => return None,
+    };
+
+    if !preference.enabled {
+        return None;
+    }
+
+    Some(ServiceModelSettingPreferenceContext {
+        provider_selector: normalize_optional_text(preference.preferred_provider_id.clone())?,
+        model_name: normalize_optional_text(preference.preferred_model_id.clone())?,
+        settings_source: format!("service_models.{slot}"),
+        service_model_slot: slot.to_string(),
     })
 }
 
@@ -1232,7 +1834,7 @@ async fn build_runtime_request_provider_config_from_preference(
     model_preference: &str,
     model_preference_source: RequestPreferenceSource,
     allow_runtime_fallback: bool,
-) -> Result<ConfigureProviderRequest, String> {
+) -> Result<ResolvedRuntimeProviderSelection, String> {
     let context =
         build_provider_resolution_context(db, api_key_provider_service, provider_selector)?;
     let (catalog, _alias_config) = load_model_registry_catalog(app, &context).await;
@@ -1242,12 +1844,27 @@ async fn build_runtime_request_provider_config_from_preference(
         .as_ref()
         .map(|images| !images.is_empty())
         .unwrap_or(false);
+    let compatible_candidate_count =
+        count_compatible_candidate_models(&catalog, thinking_enabled, has_images);
+    let reasoning_gap = thinking_enabled
+        && !catalog.iter().any(|model| {
+            model.capabilities.reasoning
+                || model.task_families.contains(&ModelTaskFamily::Reasoning)
+        });
+    let vision_gap = has_images
+        && !catalog.iter().any(|model| {
+            model.capabilities.vision
+                || model
+                    .task_families
+                    .contains(&ModelTaskFamily::VisionUnderstanding)
+        });
 
     let mut resolved_model = if thinking_enabled {
         resolve_thinking_model_id(model_preference, &catalog)
     } else {
         resolve_base_model_on_thinking_off(model_preference, &catalog)
     };
+    let mut fallback_chain = Vec::new();
     let should_fallback_unknown_model = allow_runtime_fallback
         && !context.is_custom_provider
         && find_model_meta(&resolved_model, &catalog).is_none();
@@ -1267,7 +1884,9 @@ async fn build_runtime_request_provider_config_from_preference(
                 resolved_model,
                 fallback_model
             );
+            fallback_chain.push(format!("{}:{}", context.provider_selector, resolved_model));
             resolved_model = fallback_model;
+            fallback_chain.push(format!("{}:{}", context.provider_selector, resolved_model));
         }
     }
     resolved_model =
@@ -1293,7 +1912,8 @@ async fn build_runtime_request_provider_config_from_preference(
         RuntimeProviderConfigurationStrategy::Manual { base_url } => base_url,
         RuntimeProviderConfigurationStrategy::CredentialPool => None,
     };
-    let model_capabilities = find_model_meta(&resolved_model, &catalog)
+    let model_meta = find_model_meta(&resolved_model, &catalog);
+    let model_capabilities = model_meta
         .map(|model| model.capabilities.clone())
         .unwrap_or_else(|| {
             let inferred_task_families = infer_model_task_families(
@@ -1311,36 +1931,120 @@ async fn build_runtime_request_provider_config_from_preference(
             )
         });
 
-    Ok(ConfigureProviderRequest {
-        provider_id: Some(context.provider_selector.clone()),
-        provider_name: context.aster_provider_name,
-        model_name: resolved_model,
-        api_key: None,
-        base_url,
-        model_capabilities: Some(model_capabilities),
-        tool_call_strategy: None,
-        toolshim_model: None,
+    let estimated_cost_class = estimate_cost_class(&resolved_model, model_meta);
+    let capability_gap = if vision_gap {
+        Some("vision_candidate_missing".to_string())
+    } else if reasoning_gap {
+        Some("reasoning_candidate_missing".to_string())
+    } else {
+        None
+    };
+
+    Ok(ResolvedRuntimeProviderSelection {
+        provider_selector: context.provider_selector.clone(),
+        requested_model: model_preference.to_string(),
+        resolved_model: resolved_model.clone(),
+        candidate_count: compatible_candidate_count.max(1),
+        estimated_cost_class,
+        pricing: model_meta.and_then(|model| model.pricing.clone()),
+        capability_gap,
+        fallback_chain,
+        provider_config: ConfigureProviderRequest {
+            provider_id: Some(context.provider_selector.clone()),
+            provider_name: context.aster_provider_name,
+            model_name: resolved_model,
+            api_key: None,
+            base_url,
+            model_capabilities: Some(model_capabilities),
+            tool_call_strategy: None,
+            toolshim_model: None,
+        },
     })
 }
 
-pub(super) async fn resolve_runtime_request_provider_config(
+pub(super) async fn resolve_runtime_request_provider_resolution(
     app: &AppHandle,
     db: &DbConnection,
     api_key_provider_service: &ApiKeyProviderServiceState,
     request: &AsterChatRequest,
-) -> Result<Option<ConfigureProviderRequest>, String> {
+) -> Result<RuntimeRequestProviderResolution, String> {
+    let task_profile = build_runtime_task_profile(request);
+    let request_oem_routing = resolve_request_oem_routing_context(request.metadata.as_ref());
+    let oem_locked = request_oem_routing_is_locked(request_oem_routing.as_ref());
+    let oem_limit_event = build_request_oem_limit_event(request_oem_routing.as_ref());
+
     if request.provider_config.is_some() {
-        return Ok(None);
+        let explicit_provider = request.provider_config.as_ref().and_then(|config| {
+            normalize_optional_text(
+                config
+                    .provider_id
+                    .clone()
+                    .or_else(|| Some(config.provider_name.clone())),
+            )
+        });
+        let explicit_model = request
+            .provider_config
+            .as_ref()
+            .and_then(|config| normalize_optional_text(Some(config.model_name.clone())));
+        let limit_state = build_limit_state(
+            "single_candidate_only",
+            1,
+            true,
+            false,
+            oem_locked,
+            None,
+            vec!["请求已显式传入 provider_config，自动路由不再改选 provider".to_string()],
+        );
+        let routing_decision = build_routing_decision(
+            &task_profile,
+            "provider_config",
+            "请求已显式传入 provider_config，运行时仅补齐能力与工具策略。".to_string(),
+            None,
+            explicit_provider.clone(),
+            explicit_model.clone(),
+            None,
+        );
+
+        let cost_state = build_cost_state(
+            None,
+            request
+                .provider_config
+                .as_ref()
+                .and_then(|config| estimate_cost_class(&config.model_name, None)),
+            "estimated",
+        );
+
+        return Ok(RuntimeRequestProviderResolution {
+            provider_config: None,
+            task_profile,
+            routing_decision: lime_agent::SessionExecutionRuntimeRoutingDecision {
+                routing_mode: "single_candidate".to_string(),
+                selected_provider: explicit_provider,
+                selected_model: explicit_model,
+                candidate_count: 1,
+                estimated_cost_class: request
+                    .provider_config
+                    .as_ref()
+                    .and_then(|config| estimate_cost_class(&config.model_name, None)),
+                ..routing_decision
+            },
+            limit_state,
+            cost_state,
+            limit_event: oem_limit_event,
+        });
     }
 
     let service_scene_preference =
         resolve_service_scene_model_preference(request.metadata.as_ref());
+    let service_model_setting_preference =
+        resolve_service_model_setting_preference(app, &task_profile);
     let session_context =
         if request.provider_preference.is_some() && request.model_preference.is_some() {
             None
         } else {
             Some(load_session_provider_model_context(request).await?)
         };
+    let mut fallback_note: Option<String> = None;
 
     if request.provider_preference.is_some() || request.model_preference.is_some() {
         let Some((provider_selector, provider_preference_source)) =
@@ -1349,7 +2053,14 @@ pub(super) async fn resolve_runtime_request_provider_config(
                 session_context.as_ref(),
             )
         else {
-            return Ok(None);
+            return Ok(build_no_candidate_resolution(
+                task_profile,
+                "request_override",
+                "当前回合传入了 provider/model 偏好，但没有找到可恢复的 provider 默认值。"
+                    .to_string(),
+                oem_locked,
+                oem_limit_event.clone(),
+            ));
         };
         let (model_preference, model_preference_source) =
             resolve_model_preference_with_session_fallback(
@@ -1375,19 +2086,56 @@ pub(super) async fn resolve_runtime_request_provider_config(
             );
         }
 
-        return Ok(Some(
-            build_runtime_request_provider_config_from_preference(
-                app,
-                db,
-                api_key_provider_service,
-                request,
-                &provider_selector,
-                &model_preference,
-                model_preference_source,
-                matches!(model_preference_source, RequestPreferenceSource::Session),
-            )
-            .await?,
-        ));
+        let selection = build_runtime_request_provider_config_from_preference(
+            app,
+            db,
+            api_key_provider_service,
+            request,
+            &provider_selector,
+            &model_preference,
+            model_preference_source,
+            matches!(model_preference_source, RequestPreferenceSource::Session),
+        )
+        .await?;
+        let limit_state = build_limit_state(
+            if selection.candidate_count <= 1 {
+                "single_candidate_only"
+            } else {
+                "normal"
+            },
+            selection.candidate_count,
+            true,
+            false,
+            oem_locked,
+            selection.capability_gap.clone(),
+            vec!["当前回合显式指定了 provider/model 偏好。".to_string()],
+        );
+        let routing_decision = build_routing_decision(
+            &task_profile,
+            if matches!(provider_preference_source, RequestPreferenceSource::Request)
+                || matches!(model_preference_source, RequestPreferenceSource::Request)
+            {
+                "request_override"
+            } else {
+                "session_default"
+            },
+            "当前回合的 provider/model 选择优先遵循显式偏好，其次回退到会话默认。".to_string(),
+            Some(&selection),
+            Some(provider_selector.clone()),
+            Some(model_preference.clone()),
+            None,
+        );
+
+        let cost_state = build_cost_state(Some(&selection), None, "estimated");
+
+        return Ok(RuntimeRequestProviderResolution {
+            provider_config: Some(selection.provider_config),
+            task_profile,
+            routing_decision,
+            limit_state,
+            cost_state,
+            limit_event: oem_limit_event,
+        });
     }
 
     if let Some(scene_preference) = service_scene_preference.as_ref() {
@@ -1403,7 +2151,7 @@ pub(super) async fn resolve_runtime_request_provider_config(
         )
         .await
         {
-            Ok(config) => {
+            Ok(selection) => {
                 tracing::info!(
                     "[AsterAgent] 后端从 service_scene_launch 恢复 provider/model 偏好: session={}, provider={}, model={}, allow_fallback={}",
                     request.session_id,
@@ -1411,7 +2159,39 @@ pub(super) async fn resolve_runtime_request_provider_config(
                     scene_preference.model_name,
                     scene_preference.allow_fallback
                 );
-                return Ok(Some(config));
+                let limit_state = build_limit_state(
+                    if selection.candidate_count <= 1 {
+                        "single_candidate_only"
+                    } else {
+                        "normal"
+                    },
+                    selection.candidate_count,
+                    true,
+                    true,
+                    oem_locked,
+                    selection.capability_gap.clone(),
+                    vec!["命中 service_scene_launch 的 provider/model 约束。".to_string()],
+                );
+                let routing_decision = build_routing_decision(
+                    &task_profile,
+                    "service_scene_launch",
+                    "当前回合由 service_scene_launch 指定 provider/model，自动仅在允许范围内做能力兼容。"
+                        .to_string(),
+                    Some(&selection),
+                    Some(scene_preference.provider_selector.clone()),
+                    Some(scene_preference.model_name.clone()),
+                    Some("service_scene_launch".to_string()),
+                );
+                let cost_state = build_cost_state(Some(&selection), None, "estimated");
+
+                return Ok(RuntimeRequestProviderResolution {
+                    provider_config: Some(selection.provider_config),
+                    task_profile,
+                    routing_decision,
+                    limit_state,
+                    cost_state,
+                    limit_event: oem_limit_event,
+                });
             }
             Err(error) => {
                 if !scene_preference.allow_fallback {
@@ -1426,6 +2206,86 @@ pub(super) async fn resolve_runtime_request_provider_config(
                     scene_preference.model_name,
                     error
                 );
+                fallback_note = Some(
+                    "service_scene_launch 首选 provider/model 不可用，已继续回退默认路由。"
+                        .to_string(),
+                );
+            }
+        }
+    }
+
+    if let Some(setting_preference) = service_model_setting_preference.as_ref() {
+        match build_runtime_request_provider_config_from_preference(
+            app,
+            db,
+            api_key_provider_service,
+            request,
+            &setting_preference.provider_selector,
+            &setting_preference.model_name,
+            RequestPreferenceSource::ServiceModelSetting,
+            true,
+        )
+        .await
+        {
+            Ok(selection) => {
+                let mut notes = vec![format!(
+                    "命中设置中的 {}，自动仅在当前 provider 候选池内做能力兼容。",
+                    setting_preference.settings_source
+                )];
+                if let Some(note) = fallback_note.clone() {
+                    notes.push(note);
+                }
+                let limit_state = build_limit_state(
+                    if selection.candidate_count <= 1 {
+                        "single_candidate_only"
+                    } else {
+                        "normal"
+                    },
+                    selection.candidate_count,
+                    true,
+                    true,
+                    oem_locked,
+                    selection.capability_gap.clone(),
+                    notes,
+                );
+                let routing_decision = build_routing_decision(
+                    &task_profile,
+                    "service_model_setting",
+                    format!(
+                        "当前回合命中 {}，优先使用设置中的 provider/model。",
+                        setting_preference.settings_source
+                    ),
+                    Some(&selection),
+                    Some(setting_preference.provider_selector.clone()),
+                    Some(setting_preference.model_name.clone()),
+                    Some(setting_preference.settings_source.clone()),
+                );
+                let cost_state = build_cost_state(Some(&selection), None, "estimated");
+
+                return Ok(RuntimeRequestProviderResolution {
+                    provider_config: Some(selection.provider_config),
+                    task_profile,
+                    routing_decision,
+                    limit_state,
+                    cost_state,
+                    limit_event: oem_limit_event,
+                });
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "[AsterAgent] service_models 偏好不可用，继续回退会话默认: session={}, source={}, provider={}, model={}, error={}",
+                    request.session_id,
+                    setting_preference.settings_source,
+                    setting_preference.provider_selector,
+                    setting_preference.model_name,
+                    error
+                );
+                if fallback_note.is_none() {
+                    fallback_note = Some(format!(
+                        "{} 不可用，已继续回退会话默认。",
+                        setting_preference.settings_source
+                    ));
+                }
             }
         }
     }
@@ -1433,7 +2293,15 @@ pub(super) async fn resolve_runtime_request_provider_config(
     let Some((provider_selector, provider_preference_source)) =
         resolve_provider_preference_with_session_fallback(None, session_context.as_ref())
     else {
-        return Ok(None);
+        return Ok(build_no_candidate_resolution(
+            task_profile,
+            "auto_default",
+            fallback_note.unwrap_or_else(|| {
+                "当前会话没有 provider/model 默认值，自动路由没有候选可选。".to_string()
+            }),
+            oem_locked,
+            oem_limit_event.clone(),
+        ));
     };
     let (model_preference, model_preference_source) =
         resolve_model_preference_with_session_fallback(
@@ -1458,19 +2326,61 @@ pub(super) async fn resolve_runtime_request_provider_config(
         );
     }
 
-    Ok(Some(
-        build_runtime_request_provider_config_from_preference(
-            app,
-            db,
-            api_key_provider_service,
-            request,
-            &provider_selector,
-            &model_preference,
-            model_preference_source,
-            true,
-        )
-        .await?,
-    ))
+    let selection = build_runtime_request_provider_config_from_preference(
+        app,
+        db,
+        api_key_provider_service,
+        request,
+        &provider_selector,
+        &model_preference,
+        model_preference_source,
+        true,
+    )
+    .await?;
+    let mut notes = vec!["当前回合沿用会话最近一次持久化的 provider/model 默认值。".to_string()];
+    if let Some(note) = fallback_note {
+        notes.push(note);
+    }
+    let limit_state = build_limit_state(
+        if selection.candidate_count <= 1 {
+            "single_candidate_only"
+        } else {
+            "normal"
+        },
+        selection.candidate_count,
+        true,
+        false,
+        oem_locked,
+        selection.capability_gap.clone(),
+        notes,
+    );
+    let routing_decision = build_routing_decision(
+        &task_profile,
+        if matches!(provider_preference_source, RequestPreferenceSource::Session)
+            || matches!(model_preference_source, RequestPreferenceSource::Session)
+        {
+            "session_default"
+        } else {
+            "auto_default"
+        },
+        "当前回合没有显式指定 provider/model，运行时沿用会话默认并在当前 provider 内做能力兼容。"
+            .to_string(),
+        Some(&selection),
+        Some(provider_selector),
+        Some(model_preference),
+        None,
+    );
+
+    let cost_state = build_cost_state(Some(&selection), None, "estimated");
+
+    Ok(RuntimeRequestProviderResolution {
+        provider_config: Some(selection.provider_config),
+        task_profile,
+        routing_decision,
+        limit_state,
+        cost_state,
+        limit_event: oem_limit_event,
+    })
 }
 
 #[cfg(test)]
@@ -1845,6 +2755,256 @@ mod tests {
         });
 
         assert!(resolve_service_scene_model_preference(Some(&metadata)).is_none());
+    }
+
+    #[test]
+    fn runtime_task_profile_marks_translation_service_slot() {
+        let request = AsterChatRequest {
+            message: "翻译这段内容".to_string(),
+            session_id: "session-1".to_string(),
+            event_name: "agent-event".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            approval_policy: None,
+            sandbox_policy: None,
+            project_id: None,
+            workspace_id: "workspace-1".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata: Some(serde_json::json!({
+                "harness": {
+                    "translation_skill_launch": {
+                        "source_text": "hello"
+                    }
+                }
+            })),
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        };
+
+        let profile = build_runtime_task_profile(&request);
+
+        assert_eq!(profile.kind, "translation");
+        assert_eq!(profile.source, "translation_skill_launch");
+        assert_eq!(profile.service_model_slot.as_deref(), Some("translation"));
+        assert!(profile
+            .traits
+            .iter()
+            .any(|value| value == "service_model_slot"));
+    }
+
+    #[test]
+    fn runtime_task_profile_maps_more_service_model_slots() {
+        let base_request = AsterChatRequest {
+            message: "继续处理".to_string(),
+            session_id: "session-1".to_string(),
+            event_name: "agent-event".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            approval_policy: None,
+            sandbox_policy: None,
+            project_id: None,
+            workspace_id: "workspace-1".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata: None,
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        };
+
+        let mut resource_request = base_request.clone();
+        resource_request.metadata = Some(serde_json::json!({
+            "harness": {
+                "resource_search_skill_launch": {
+                    "kind": "resource_search_task",
+                    "resource_search_task": {
+                        "query": "找几张产品图"
+                    }
+                }
+            }
+        }));
+        let resource_profile = build_runtime_task_profile(&resource_request);
+        assert_eq!(resource_profile.kind, "resource_search");
+        assert_eq!(resource_profile.source, "resource_search_skill_launch");
+        assert_eq!(
+            resource_profile.service_model_slot.as_deref(),
+            Some("resource_prompt_rewrite")
+        );
+
+        let mut summary_request = base_request.clone();
+        summary_request.metadata = Some(serde_json::json!({
+            "harness": {
+                "summary_skill_launch": {
+                    "kind": "summary_request",
+                    "summary_request": {
+                        "content": "总结这段内容"
+                    }
+                }
+            }
+        }));
+        let summary_profile = build_runtime_task_profile(&summary_request);
+        assert_eq!(summary_profile.kind, "summary");
+        assert_eq!(summary_profile.source, "summary_skill_launch");
+        assert_eq!(summary_profile.service_model_slot, None);
+
+        let mut rewrite_request = base_request;
+        rewrite_request.metadata = Some(serde_json::json!({
+            "harness": {
+                "turn_purpose": "style_rewrite"
+            }
+        }));
+        let rewrite_profile = build_runtime_task_profile(&rewrite_request);
+        assert_eq!(rewrite_profile.kind, "prompt_rewrite");
+        assert_eq!(rewrite_profile.source, "turn_purpose");
+        assert_eq!(
+            rewrite_profile.service_model_slot.as_deref(),
+            Some("prompt_rewrite")
+        );
+    }
+
+    #[test]
+    fn runtime_task_profile_marks_oem_runtime_from_harness_oem_routing() {
+        let request = AsterChatRequest {
+            message: "继续处理".to_string(),
+            session_id: "session-1".to_string(),
+            event_name: "agent-event".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            approval_policy: None,
+            sandbox_policy: None,
+            project_id: None,
+            workspace_id: "workspace-1".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata: Some(serde_json::json!({
+                "harness": {
+                    "oem_routing": {
+                        "tenant_id": "tenant-1",
+                        "provider_source": "oem_cloud",
+                        "provider_key": "lime-hub",
+                        "config_mode": "managed",
+                        "offer_state": "available_quota_low",
+                        "quota_status": "low",
+                        "fallback_to_local_allowed": false,
+                    }
+                }
+            })),
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        };
+
+        let profile = build_runtime_task_profile(&request);
+        let oem_routing = resolve_request_oem_routing_context(request.metadata.as_ref());
+
+        assert!(profile.traits.iter().any(|value| value == "oem_runtime"));
+        assert!(request_oem_routing_is_locked(oem_routing.as_ref()));
+        assert_eq!(
+            build_request_oem_limit_event(oem_routing.as_ref()),
+            Some(lime_agent::SessionExecutionRuntimeLimitEvent {
+                event_kind: "quota_low".to_string(),
+                message: "OEM 云端 provider lime-hub 当前额度偏低，后续请求可能触发配额风险。"
+                    .to_string(),
+                retryable: true,
+            })
+        );
+    }
+
+    #[test]
+    fn explicit_provider_config_resolution_reports_single_candidate_routing() {
+        let task_profile = lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "chat".to_string(),
+            source: "default_chat".to_string(),
+            traits: Vec::new(),
+            service_model_slot: None,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: None,
+        };
+        let base_decision = build_routing_decision(
+            &task_profile,
+            "provider_config",
+            "请求已显式传入 provider_config，运行时仅补齐能力与工具策略。".to_string(),
+            None,
+            Some("openai".to_string()),
+            Some("gpt-5.4-mini".to_string()),
+            None,
+        );
+
+        let resolved = lime_agent::SessionExecutionRuntimeRoutingDecision {
+            routing_mode: "single_candidate".to_string(),
+            selected_provider: Some("openai".to_string()),
+            selected_model: Some("gpt-5.4-mini".to_string()),
+            candidate_count: 1,
+            estimated_cost_class: Some("low".to_string()),
+            ..base_decision
+        };
+
+        assert_eq!(resolved.routing_mode, "single_candidate");
+        assert_eq!(resolved.candidate_count, 1);
+        assert_eq!(resolved.selected_provider.as_deref(), Some("openai"));
+        assert_eq!(resolved.selected_model.as_deref(), Some("gpt-5.4-mini"));
+    }
+
+    #[test]
+    fn build_cost_state_should_capture_pricing_snapshot() {
+        let selection = ResolvedRuntimeProviderSelection {
+            provider_config: ConfigureProviderRequest {
+                provider_id: Some("openai".to_string()),
+                provider_name: "openai".to_string(),
+                model_name: "gpt-5.4-mini".to_string(),
+                api_key: None,
+                base_url: None,
+                model_capabilities: None,
+                tool_call_strategy: None,
+                toolshim_model: None,
+            },
+            provider_selector: "openai".to_string(),
+            requested_model: "gpt-5.4-mini".to_string(),
+            resolved_model: "gpt-5.4-mini".to_string(),
+            candidate_count: 1,
+            estimated_cost_class: Some("low".to_string()),
+            pricing: Some(ModelPricing {
+                input_per_million: Some(0.8),
+                output_per_million: Some(3.2),
+                cache_read_per_million: Some(0.08),
+                cache_write_per_million: Some(1.0),
+                currency: "USD".to_string(),
+            }),
+            capability_gap: None,
+            fallback_chain: Vec::new(),
+        };
+
+        let cost_state = build_cost_state(Some(&selection), None, "estimated");
+
+        assert_eq!(cost_state.status, "estimated");
+        assert_eq!(cost_state.estimated_cost_class.as_deref(), Some("low"));
+        assert_eq!(cost_state.input_per_million, Some(0.8));
+        assert_eq!(cost_state.output_per_million, Some(3.2));
+        assert_eq!(cost_state.cache_read_per_million, Some(0.08));
+        assert_eq!(cost_state.cache_write_per_million, Some(1.0));
+        assert_eq!(cost_state.currency.as_deref(), Some("USD"));
+        assert!(cost_state.estimated_total_cost.is_none());
     }
 
     #[test]

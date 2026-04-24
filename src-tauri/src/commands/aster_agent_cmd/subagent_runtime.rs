@@ -517,6 +517,7 @@ fn build_local_subagent_skill_payload(
     ))
 }
 
+#[cfg(test)]
 pub(crate) fn build_subagent_customization_state(
     request: &AgentRuntimeSpawnSubagentRequest,
 ) -> Result<Option<SubagentCustomizationState>, String> {

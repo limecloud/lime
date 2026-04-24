@@ -2,9 +2,12 @@
 //!
 //! 提供 Agent 的进程与标题相关 Tauri 命令
 
-use crate::agent::{build_auxiliary_session_config, AsterAgentState, AsterAgentWrapper};
+use crate::agent::{
+    build_auxiliary_session_config_with_turn_context, AsterAgentState, AsterAgentWrapper,
+};
 use crate::commands::aster_agent_cmd::ensure_browser_mcp_tools_registered;
 use crate::commands::auxiliary_model_selection::{
+    build_auxiliary_runtime_metadata, build_auxiliary_turn_context_override,
     prepare_auxiliary_provider_scope, AuxiliaryServiceModelSlot,
 };
 use crate::config::GlobalConfigManagerState;
@@ -13,7 +16,7 @@ use crate::AppState;
 use aster::conversation::message::Message;
 use futures::StreamExt;
 use lime_agent::merge_system_prompt_with_runtime_agents;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 use uuid::Uuid;
 
@@ -23,6 +26,20 @@ const TITLE_FALLBACK_PROVIDER_CHAIN: [(&str, &str); 4] = [
     ("anthropic", "claude-3-haiku-20240307"),
     ("kiro", "anthropic.claude-3-haiku-20240307-v1:0"),
 ];
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentGeneratedTitleResult {
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_runtime: Option<lime_agent::SessionExecutionRuntime>,
+    #[serde(default)]
+    pub used_fallback: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_reason: Option<String>,
+}
 
 /// 安全截断字符串，确保不会在多字节字符中间切割
 ///
@@ -155,15 +172,15 @@ async fn generate_title_with_agent(
     agent_state: &AsterAgentState,
     db: &DbConnection,
     config_manager: &GlobalConfigManagerState,
+    session_id: &str,
     title_kind: &str,
     source_text: &str,
 ) -> Result<String, String> {
-    let session_id = format!("title-gen-{}", Uuid::new_v4());
     let provider_scope = prepare_auxiliary_provider_scope(
         agent_state,
         db,
         config_manager,
-        &session_id,
+        session_id,
         if title_kind == "image_task" {
             AuxiliaryServiceModelSlot::GenerationTopic
         } else {
@@ -174,7 +191,7 @@ async fn generate_title_with_agent(
     .await?;
 
     let result = async {
-        let cancel_token = agent_state.create_cancel_token(&session_id).await;
+        let cancel_token = agent_state.create_cancel_token(session_id).await;
         let base_runtime_prompt = merge_system_prompt_with_runtime_agents(None, None);
         let system_prompt = match base_runtime_prompt {
             Some(base_prompt) => Some(format!(
@@ -183,7 +200,36 @@ async fn generate_title_with_agent(
             )),
             None => Some(build_title_generation_system_prompt(title_kind)),
         };
-        let session_config = build_auxiliary_session_config(&session_id, system_prompt, false);
+        let auxiliary_runtime_metadata = build_auxiliary_runtime_metadata(
+            provider_scope.resolution(),
+            if title_kind == "image_task" {
+                "auxiliary_generation_topic"
+            } else {
+                "auxiliary_title_generation"
+            },
+            Some(if title_kind == "image_task" {
+                "image_task"
+            } else {
+                "session_title"
+            }),
+            if title_kind == "image_task" {
+                &[
+                    "service_model_slot",
+                    "internal_turn",
+                    "auxiliary_session",
+                    "vision_input",
+                ]
+            } else {
+                &["service_model_slot", "internal_turn", "auxiliary_session"]
+            },
+            &["当前为内部标题生成辅助任务，只会使用一条已解析的 provider/model 路线。"],
+        );
+        let session_config = build_auxiliary_session_config_with_turn_context(
+            session_id,
+            system_prompt,
+            false,
+            build_auxiliary_turn_context_override(auxiliary_runtime_metadata),
+        );
         let user_message = Message::user().with_text(source_text);
 
         let agent_arc = agent_state.get_agent_arc();
@@ -217,12 +263,12 @@ async fn generate_title_with_agent(
                 }
             }
             Err(error) => {
-                agent_state.remove_cancel_token(&session_id).await;
+                agent_state.remove_cancel_token(session_id).await;
                 return Err(format!("标题生成失败: {error}"));
             }
         }
 
-        agent_state.remove_cancel_token(&session_id).await;
+        agent_state.remove_cancel_token(session_id).await;
 
         normalize_generated_title(&full_content).ok_or_else(|| "标题生成返回为空".to_string())
     }
@@ -330,7 +376,7 @@ pub async fn agent_generate_title(
     session_id: Option<String>,
     preview_text: Option<String>,
     title_kind: Option<String>,
-) -> Result<String, String> {
+) -> Result<AgentGeneratedTitleResult, String> {
     let resolved_title_kind =
         normalize_optional_text(title_kind).unwrap_or_else(|| "session".to_string());
     let resolved_preview_text = normalize_optional_text(preview_text);
@@ -347,24 +393,41 @@ pub async fn agent_generate_title(
 
     agent_state.init_agent_with_db(&db).await?;
     ensure_browser_mcp_tools_registered(agent_state.inner(), &db).await?;
+    let auxiliary_session_id = format!("title-gen-{}", Uuid::new_v4());
 
-    match generate_title_with_agent(
+    let title_result = generate_title_with_agent(
         &agent_state,
         &db,
         &config_manager,
+        &auxiliary_session_id,
         &resolved_title_kind,
         &source_text,
     )
-    .await
-    {
-        Ok(title) => Ok(title),
+    .await;
+    let execution_runtime =
+        AsterAgentWrapper::get_runtime_session_execution_runtime(&db, &auxiliary_session_id).await;
+
+    match title_result {
+        Ok(title) => Ok(AgentGeneratedTitleResult {
+            title,
+            session_id: Some(auxiliary_session_id),
+            execution_runtime,
+            used_fallback: false,
+            fallback_reason: None,
+        }),
         Err(error) => {
             tracing::warn!(
                 "[AgentTitle] 智能标题生成失败，已回退摘要标题: kind={}, error={}",
                 resolved_title_kind,
                 error
             );
-            Ok(build_fallback_title(&source_text, &resolved_title_kind))
+            Ok(AgentGeneratedTitleResult {
+                title: build_fallback_title(&source_text, &resolved_title_kind),
+                session_id: Some(auxiliary_session_id),
+                execution_runtime,
+                used_fallback: true,
+                fallback_reason: Some(error),
+            })
         }
     }
 }

@@ -63,6 +63,7 @@
 - **记忆 / 压缩主链**：`docs/aiprompts/memory-compaction.md`
 - **文件持久化主链**：`docs/aiprompts/persistence-map.md`
 - **状态 / 历史 / 遥测主链**：`docs/aiprompts/state-history-telemetry.md`
+- **任务分层 / 模型经济调度路线图**：`docs/roadmap/task/README.md`
 - **治理与收口**：`docs/aiprompts/governance.md`
 - **Harness Engine 治理**：`docs/aiprompts/harness-engine-governance.md`
 - **Playwright / GUI 续测**：`docs/aiprompts/playwright-e2e.md`

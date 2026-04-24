@@ -149,18 +149,25 @@ export function findMediaProviderById<T extends MediaProviderCandidate>(
 
 export function isVideoProvider(providerId: string): boolean {
   const normalized = providerId.toLowerCase();
+  const isAudioOnlyOpenai =
+    normalized.includes("openai") &&
+    (normalized.includes("tts") ||
+      normalized.includes("voice") ||
+      normalized.includes("audio"));
   return (
-    normalized.includes("doubao") ||
-    normalized.includes("volc") ||
-    normalized.includes("dashscope") ||
-    normalized.includes("alibaba") ||
-    normalized.includes("qwen") ||
-    normalized.includes("video") ||
-    normalized.includes("runway") ||
-    normalized.includes("minimax") ||
-    normalized.includes("kling") ||
-    normalized.includes("sora") ||
-    normalized.includes("veo")
+    !isAudioOnlyOpenai &&
+    (normalized.includes("doubao") ||
+      normalized.includes("volc") ||
+      normalized.includes("dashscope") ||
+      normalized.includes("alibaba") ||
+      normalized.includes("qwen") ||
+      normalized.includes("openai") ||
+      normalized.includes("video") ||
+      normalized.includes("runway") ||
+      normalized.includes("minimax") ||
+      normalized.includes("kling") ||
+      normalized.includes("sora") ||
+      normalized.includes("veo"))
   );
 }
 

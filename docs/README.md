@@ -60,6 +60,8 @@
 - `roadmap/limenext/agent-skills-profile.md`：LimeNext 对齐 Agent Skills 与 Google ADK 的技能包 / 运行时分层说明
 - `roadmap/limenext/flowcharts.md`：LimeNext 的业务图与技术主链流程图合集
 - `roadmap/limenext/sequences.md`：LimeNext 的业务时序与技术时序合集
+- `roadmap/task/README.md`：任务层 / 模型层 / 经济调度专题路线图总入口，统一说明单模型退化、多模型优化、`service_models` 接入与自动/设置平衡
+- `roadmap/task/diagrams.md`：任务层 / 模型层 / OEM / 成本限额的架构图、流程图与时序图合集
 - `prd/gongneng/x-article-export/prd.md`：`Browser-grounded SceneApp` 样板功能包，定义 `/x文章转存` 如何把真实网页沉淀成项目内 Markdown bundle
 - `roadmap/lime-service-skill-cloud-config-prd.md`：服务型技能“目录云同步、本地执行”PRD，固定 `limecore` 目录控制面与 `lime` 本地执行面边界
 - `aiprompts/site-adapter-standard.md`：站点适配器标准与 `managed_cdp / existing_session` 当前执行边界

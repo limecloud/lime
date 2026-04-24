@@ -586,14 +586,19 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
       const result: FetchProviderModelsResult =
         await fetchProviderModelsAuto(providerId);
       const normalizedSource = normalizeFetchProviderModelsSource(result);
+      const preservesCurrentProviderCustomModels =
+        normalizedSource === "CustomModels";
+      const isVerifiedLiveSource =
+        normalizedSource === "Api" ||
+        preservesCurrentProviderCustomModels ||
+        (!autoFetchCapability.requiresLiveModelTruth &&
+          (normalizedSource === "Catalog" ||
+            normalizedSource === "CustomModels" ||
+            normalizedSource === "LocalFallback"));
 
       if (result && result.models) {
         const shouldDisplayFetchedModels =
-          result.models.length > 0 &&
-          (normalizedSource === "Api" ||
-            normalizedSource === "Catalog" ||
-            normalizedSource === "CustomModels" ||
-            normalizedSource === "LocalFallback");
+          result.models.length > 0 && isVerifiedLiveSource;
         const nextModels = shouldDisplayFetchedModels ? result.models : [];
 
         setApiModels(nextModels);
@@ -629,7 +634,12 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
     } finally {
       setRefreshing(false);
     }
-  }, [autoFetchCapability.supported, cacheKey, providerId]);
+  }, [
+    autoFetchCapability.requiresLiveModelTruth,
+    autoFetchCapability.supported,
+    cacheKey,
+    providerId,
+  ]);
 
   // 使用 API 模型或本地模型
   const displayModelsSource = useMemo(() => {

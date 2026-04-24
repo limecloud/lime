@@ -4,6 +4,11 @@
 
 Provider 系统负责与各 LLM 服务商的认证和 API 交互。支持 OAuth 和 API Key 两种认证方式。
 
+如果需求同时涉及“候选模型解析、OEM 与本地 provider 协同、自动与设置平衡、成本/限额事件”，继续补读：
+
+- `docs/roadmap/task/model-routing.md`
+- `docs/roadmap/task/oem-and-local-policy.md`
+
 ## 目录结构
 
 ```

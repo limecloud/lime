@@ -4,7 +4,9 @@
 //! 模型数据在构建时从 aiclientproxy/models 仓库打包进应用
 
 use aster::providers::canonical::{maybe_get_canonical_model, CanonicalModel};
-use lime_core::api_host_utils::normalize_openai_model_discovery_host;
+use lime_core::api_host_utils::{
+    is_openai_responses_compatible_host, normalize_openai_model_discovery_host,
+};
 use lime_core::database::dao::api_key_provider::{infer_managed_runtime_spec, ApiProviderType};
 use lime_core::database::DbConnection;
 use lime_core::models::model_registry::{
@@ -123,6 +125,7 @@ struct HostAliasRule {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ModelFetchProtocol {
     OpenAiCompatible,
+    ResponsesCompatible,
     Anthropic,
     Gemini,
     Ollama,
@@ -1782,6 +1785,39 @@ impl ModelRegistryService {
             api_host
         );
 
+        let fetch_protocol =
+            Self::resolve_model_fetch_protocol(provider_id, api_host, provider_type);
+        if fetch_protocol == ModelFetchProtocol::ResponsesCompatible {
+            let (scoped_local_models, scoped_local_source) = self
+                .resolve_scoped_local_models(provider_id, api_host, custom_models)
+                .await;
+            let keeps_custom_models = !scoped_local_models.is_empty()
+                && scoped_local_source == ModelFetchSource::CustomModels;
+            let keeps_catalog_models =
+                !scoped_local_models.is_empty() && scoped_local_source == ModelFetchSource::Catalog;
+            let error = if keeps_custom_models {
+                "当前 Responses 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。"
+                    .to_string()
+            } else if keeps_catalog_models {
+                "当前 Responses 兼容入口未提供标准 /models 接口，已回退到内置厂商目录。".to_string()
+            } else {
+                "当前 Responses 兼容入口未提供标准 /models 接口。".to_string()
+            };
+
+            return Ok(FetchModelsResult {
+                models: scoped_local_models,
+                source: scoped_local_source,
+                error: Some(error),
+                request_url: None,
+                diagnostic_hint: Some(
+                    "当前 Base URL 走 `/responses` 主链，Lime 不再探测 `/v1/models`；如需在设置页展示模型，请直接在 Provider 中填写自定义模型。"
+                        .to_string(),
+                ),
+                error_kind: Some(ModelFetchErrorKind::NotFound),
+                should_prompt_error: false,
+            });
+        }
+
         let api_url = Self::build_diagnostic_models_api_url(provider_id, api_host, provider_type);
         if let Some(url) = api_url.as_ref() {
             tracing::info!("[ModelRegistry] API URL: {}", url);
@@ -2420,10 +2456,16 @@ impl ModelRegistryService {
             return match provider_type {
                 ApiProviderType::Openai
                 | ApiProviderType::OpenaiResponse
-                | ApiProviderType::Codex
                 | ApiProviderType::NewApi
                 | ApiProviderType::Gateway
-                | ApiProviderType::Fal => ModelFetchProtocol::OpenAiCompatible,
+                | ApiProviderType::Fal => {
+                    if is_openai_responses_compatible_host(api_host) {
+                        ModelFetchProtocol::ResponsesCompatible
+                    } else {
+                        ModelFetchProtocol::OpenAiCompatible
+                    }
+                }
+                ApiProviderType::Codex => ModelFetchProtocol::ResponsesCompatible,
                 ApiProviderType::Anthropic | ApiProviderType::AnthropicCompatible => {
                     ModelFetchProtocol::Anthropic
                 }
@@ -2455,6 +2497,10 @@ impl ModelRegistryService {
 
         if normalized_provider.contains("anthropic") || normalized_host.contains("anthropic.com") {
             return ModelFetchProtocol::Anthropic;
+        }
+
+        if is_openai_responses_compatible_host(api_host) {
+            return ModelFetchProtocol::ResponsesCompatible;
         }
 
         ModelFetchProtocol::OpenAiCompatible
@@ -2572,6 +2618,7 @@ impl ModelRegistryService {
         let url = match Self::resolve_model_fetch_protocol(provider_id, api_host, provider_type) {
             ModelFetchProtocol::Gemini => Self::build_gemini_models_api_url(host),
             ModelFetchProtocol::Ollama => Self::build_ollama_models_api_url(host),
+            ModelFetchProtocol::ResponsesCompatible => return None,
             ModelFetchProtocol::Anthropic | ModelFetchProtocol::OpenAiCompatible => {
                 Self::build_models_api_url(host)
             }
@@ -2662,20 +2709,25 @@ impl ModelRegistryService {
             ));
         }
 
-        if protocol == ModelFetchProtocol::Unsupported {
-            return Err(ModelsApiError::new(
-                ModelFetchErrorKind::Other,
-                "当前协议暂不支持自动获取最新模型".to_string(),
-            ));
+        if matches!(
+            protocol,
+            ModelFetchProtocol::Unsupported | ModelFetchProtocol::ResponsesCompatible
+        ) {
+            let message = if protocol == ModelFetchProtocol::ResponsesCompatible {
+                "当前 Responses 兼容入口未提供标准 /models 接口".to_string()
+            } else {
+                "当前协议暂不支持自动获取最新模型".to_string()
+            };
+            return Err(ModelsApiError::new(ModelFetchErrorKind::Other, message));
         }
 
         let request_type = provider_type.unwrap_or(match protocol {
             ModelFetchProtocol::Anthropic => ApiProviderType::Anthropic,
             ModelFetchProtocol::Gemini => ApiProviderType::Gemini,
             ModelFetchProtocol::Ollama => ApiProviderType::Ollama,
-            ModelFetchProtocol::OpenAiCompatible | ModelFetchProtocol::Unsupported => {
-                ApiProviderType::Openai
-            }
+            ModelFetchProtocol::OpenAiCompatible
+            | ModelFetchProtocol::ResponsesCompatible
+            | ModelFetchProtocol::Unsupported => ApiProviderType::Openai,
         });
 
         let url = match protocol {
@@ -2684,6 +2736,7 @@ impl ModelRegistryService {
             }
             ModelFetchProtocol::Gemini => Self::build_gemini_models_api_url(normalized_host),
             ModelFetchProtocol::Ollama => Self::build_ollama_models_api_url(normalized_host),
+            ModelFetchProtocol::ResponsesCompatible => unreachable!(),
             ModelFetchProtocol::Unsupported => unreachable!(),
         };
 
@@ -2770,6 +2823,7 @@ impl ModelRegistryService {
                 .await?;
                 Self::parse_ollama_models_response(&body)?
             }
+            ModelFetchProtocol::ResponsesCompatible => unreachable!(),
             ModelFetchProtocol::Unsupported => unreachable!(),
         };
 
@@ -2816,6 +2870,10 @@ impl ModelRegistryService {
         match protocol {
             ModelFetchProtocol::Anthropic => "当前 Anthropic 兼容入口未提供标准 /models 接口；若消息测试可用，请直接使用已配置的自定义模型，或改用厂商文档提供的模型枚举入口。"
                 .to_string(),
+            ModelFetchProtocol::ResponsesCompatible => {
+                "当前 Responses 兼容入口未提供标准 /models 接口；请直接使用已配置的自定义模型。"
+                    .to_string()
+            }
             _ => {
                 let base_message = match Self::summarize_http_error_body(body) {
                     Some(summary) => format!("API 返回错误 404 Not Found: {summary}。"),
@@ -3649,6 +3707,18 @@ mod tests {
     }
 
     #[test]
+    fn test_build_diagnostic_models_api_url_skips_responses_compatible_host() {
+        assert_eq!(
+            ModelRegistryService::build_diagnostic_models_api_url(
+                "custom-yls-images",
+                "https://gateway.example.com/codex",
+                Some(ApiProviderType::Openai),
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn test_should_disable_registry_fallback_for_anthropic_compatible() {
         assert!(ModelRegistryService::should_disable_registry_fallback(
             "https://example.com/api/anthropic",
@@ -3805,6 +3875,22 @@ mod tests {
                 Some(ApiProviderType::AzureOpenai)
             ),
             ModelFetchProtocol::Unsupported
+        );
+        assert_eq!(
+            ModelRegistryService::resolve_model_fetch_protocol(
+                "custom-yls-images",
+                "https://gateway.example.com/codex",
+                Some(ApiProviderType::Openai)
+            ),
+            ModelFetchProtocol::ResponsesCompatible
+        );
+        assert_eq!(
+            ModelRegistryService::resolve_model_fetch_protocol(
+                "codex",
+                "https://chatgpt.com/backend-api/codex",
+                Some(ApiProviderType::Codex)
+            ),
+            ModelFetchProtocol::ResponsesCompatible
         );
     }
 

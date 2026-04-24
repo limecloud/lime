@@ -73,6 +73,19 @@ describe("buildMentionCommandReplayText", () => {
     ).toBe("16:9 一张春日咖啡馆插画 出 2 张");
   });
 
+  it("应把 @分镜 回放整理成可再次解析的布局骨架", () => {
+    const parsedCommand = parseImageWorkbenchCommand(
+      "@分镜 生成 三国主要人物，3x3 分镜，电影感",
+    );
+
+    expect(
+      buildMentionCommandReplayText({
+        commandKey: "image_storyboard",
+        parsedCommand: parsedCommand!,
+      }),
+    ).toBe("3x3 分镜 三国主要人物，电影感 出 9 张");
+  });
+
   it("应把 @修图 回放保留成可再次编辑的目标骨架", () => {
     const parsedCommand = parseImageWorkbenchCommand(
       "@修图 #img-2 去掉角标，保留主体",

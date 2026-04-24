@@ -4,8 +4,15 @@ use aster::session::extension_data::{ExtensionData, ExtensionState};
 use aster::session::{
     Session, SessionRuntimeSnapshot, TurnContextOverride, TurnOutputSchemaRuntime, TurnStatus,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
+
+const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
+const LIME_RUNTIME_TASK_PROFILE_KEY: &str = "task_profile";
+const LIME_RUNTIME_ROUTING_DECISION_KEY: &str = "routing_decision";
+const LIME_RUNTIME_LIMIT_STATE_KEY: &str = "limit_state";
+const LIME_RUNTIME_COST_STATE_KEY: &str = "cost_state";
+const LIME_RUNTIME_LIMIT_EVENT_KEY: &str = "limit_event";
 
 fn normalize_optional_text(value: Option<String>) -> Option<String> {
     let trimmed = value?.trim().to_string();
@@ -14,6 +21,10 @@ fn normalize_optional_text(value: Option<String>) -> Option<String> {
     } else {
         Some(trimmed)
     }
+}
+
+fn text_contains_any_keyword(haystack: &str, keywords: &[&str]) -> bool {
+    keywords.iter().any(|keyword| haystack.contains(keyword))
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -286,6 +297,110 @@ impl SessionExecutionRuntimeRecentTeamSelection {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExecutionRuntimeTaskProfile {
+    pub kind: String,
+    pub source: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub traits: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_model_slot: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scene_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scene_skill_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry_source: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExecutionRuntimeRoutingDecision {
+    pub routing_mode: String,
+    pub decision_source: String,
+    pub decision_reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selected_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_model: Option<String>,
+    #[serde(default)]
+    pub candidate_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_cost_class: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capability_gap: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fallback_chain: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub settings_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_model_slot: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExecutionRuntimeLimitState {
+    pub status: String,
+    #[serde(default)]
+    pub single_candidate_only: bool,
+    #[serde(default)]
+    pub provider_locked: bool,
+    #[serde(default)]
+    pub settings_locked: bool,
+    #[serde(default)]
+    pub oem_locked: bool,
+    #[serde(default)]
+    pub candidate_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capability_gap: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExecutionRuntimeCostState {
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_cost_class: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_per_million: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_per_million: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_read_per_million: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_per_million: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_total_cost: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExecutionRuntimeLimitEvent {
+    pub event_kind: String,
+    pub message: String,
+    #[serde(default)]
+    pub retryable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SessionExecutionRuntime {
     pub session_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -321,6 +436,154 @@ pub struct SessionExecutionRuntime {
     pub recent_run_title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recent_content_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_profile: Option<SessionExecutionRuntimeTaskProfile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_decision: Option<SessionExecutionRuntimeRoutingDecision>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_state: Option<SessionExecutionRuntimeLimitState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_state: Option<SessionExecutionRuntimeCostState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_event: Option<SessionExecutionRuntimeLimitEvent>,
+}
+
+fn resolve_session_token_usage(session: &Session) -> Option<crate::protocol::AgentTokenUsage> {
+    match (session.input_tokens, session.output_tokens) {
+        (Some(input_tokens), Some(output_tokens)) if input_tokens >= 0 && output_tokens >= 0 => {
+            Some(crate::protocol::AgentTokenUsage {
+                input_tokens: input_tokens as u32,
+                output_tokens: output_tokens as u32,
+                cached_input_tokens: session
+                    .cached_input_tokens
+                    .filter(|value| *value >= 0)
+                    .map(|value| value as u32),
+                cache_creation_input_tokens: session
+                    .cache_creation_input_tokens
+                    .filter(|value| *value >= 0)
+                    .map(|value| value as u32),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn calculate_estimated_total_cost(cost_state: &SessionExecutionRuntimeCostState) -> Option<f64> {
+    let mut total_cost = 0.0;
+    let mut has_priced_component = false;
+
+    if let (Some(tokens), Some(rate)) = (cost_state.input_tokens, cost_state.input_per_million) {
+        total_cost += (tokens as f64 / 1_000_000.0) * rate;
+        has_priced_component = true;
+    }
+    if let (Some(tokens), Some(rate)) = (cost_state.output_tokens, cost_state.output_per_million) {
+        total_cost += (tokens as f64 / 1_000_000.0) * rate;
+        has_priced_component = true;
+    }
+    if let (Some(tokens), Some(rate)) = (
+        cost_state.cached_input_tokens,
+        cost_state.cache_read_per_million,
+    ) {
+        total_cost += (tokens as f64 / 1_000_000.0) * rate;
+        has_priced_component = true;
+    }
+    if let (Some(tokens), Some(rate)) = (
+        cost_state.cache_creation_input_tokens,
+        cost_state.cache_write_per_million,
+    ) {
+        total_cost += (tokens as f64 / 1_000_000.0) * rate;
+        has_priced_component = true;
+    }
+
+    has_priced_component.then_some(total_cost)
+}
+
+pub fn apply_usage_to_cost_state(
+    mut cost_state: SessionExecutionRuntimeCostState,
+    usage: &crate::protocol::AgentTokenUsage,
+) -> SessionExecutionRuntimeCostState {
+    cost_state.input_tokens = Some(usage.input_tokens);
+    cost_state.output_tokens = Some(usage.output_tokens);
+    cost_state.total_tokens = Some(usage.input_tokens.saturating_add(usage.output_tokens));
+    cost_state.cached_input_tokens = usage.cached_input_tokens;
+    cost_state.cache_creation_input_tokens = usage.cache_creation_input_tokens;
+    cost_state.estimated_total_cost = calculate_estimated_total_cost(&cost_state);
+    cost_state.status = if cost_state.estimated_total_cost.is_some() {
+        "recorded".to_string()
+    } else {
+        "recorded_tokens_only".to_string()
+    };
+    cost_state
+}
+
+pub fn detect_runtime_limit_event(
+    error_message: Option<&str>,
+) -> Option<SessionExecutionRuntimeLimitEvent> {
+    let message = error_message
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    let lowered = message.to_lowercase();
+
+    if text_contains_any_keyword(
+        &lowered,
+        &[
+            "quota low",
+            "available_quota_low",
+            "credits running low",
+            "credit running low",
+            "low balance",
+            "额度偏低",
+            "余额偏低",
+            "额度告急",
+        ],
+    ) {
+        return Some(SessionExecutionRuntimeLimitEvent {
+            event_kind: "quota_low".to_string(),
+            message: message.to_string(),
+            retryable: true,
+        });
+    }
+
+    if text_contains_any_keyword(
+        &lowered,
+        &[
+            "quota exceeded",
+            "quota exhausted",
+            "insufficient quota",
+            "insufficient credit",
+            "insufficient balance",
+            "billing",
+            "payment required",
+            "额度不足",
+            "超出额度",
+            "余额不足",
+        ],
+    ) {
+        return Some(SessionExecutionRuntimeLimitEvent {
+            event_kind: "quota_blocked".to_string(),
+            message: message.to_string(),
+            retryable: false,
+        });
+    }
+
+    if text_contains_any_keyword(
+        &lowered,
+        &[
+            "rate limit",
+            "rate_limit",
+            "too many requests",
+            "429",
+            "throttl",
+        ],
+    ) {
+        return Some(SessionExecutionRuntimeLimitEvent {
+            event_kind: "rate_limit_hit".to_string(),
+            message: message.to_string(),
+            retryable: true,
+        });
+    }
+
+    None
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -377,6 +640,22 @@ fn extract_text_from_metadata(
 ) -> Option<String> {
     keys.iter()
         .find_map(|key| extract_text_from_value(metadata.get(*key)))
+}
+
+fn extract_lime_runtime_object<'a>(
+    metadata: &'a std::collections::HashMap<String, Value>,
+) -> Option<&'a serde_json::Map<String, Value>> {
+    metadata
+        .get(LIME_RUNTIME_METADATA_KEY)
+        .and_then(Value::as_object)
+}
+
+fn extract_lime_runtime_payload<T: DeserializeOwned>(
+    metadata: &std::collections::HashMap<String, Value>,
+    key: &str,
+) -> Option<T> {
+    let runtime = extract_lime_runtime_object(metadata)?;
+    serde_json::from_value(runtime.get(key)?.clone()).ok()
 }
 
 fn extract_array_from_object(
@@ -537,6 +816,91 @@ fn extract_recent_harness_context_from_metadata(
         run_title: resolve_text(&["run_title", "runTitle", "title"]),
         content_id: resolve_text(&["content_id", "contentId"]),
     }
+}
+
+fn extract_task_profile_from_metadata(
+    metadata: &std::collections::HashMap<String, Value>,
+) -> Option<SessionExecutionRuntimeTaskProfile> {
+    let mut profile: SessionExecutionRuntimeTaskProfile =
+        extract_lime_runtime_payload(metadata, LIME_RUNTIME_TASK_PROFILE_KEY)?;
+    profile.kind = normalize_optional_text(Some(std::mem::take(&mut profile.kind)))?;
+    profile.source = normalize_optional_text(Some(std::mem::take(&mut profile.source)))?;
+    profile.traits = profile
+        .traits
+        .into_iter()
+        .filter_map(|value| normalize_optional_text(Some(value)))
+        .collect();
+    profile.service_model_slot = normalize_optional_text(profile.service_model_slot);
+    profile.scene_kind = normalize_optional_text(profile.scene_kind);
+    profile.scene_skill_id = normalize_optional_text(profile.scene_skill_id);
+    profile.entry_source = normalize_optional_text(profile.entry_source);
+    Some(profile)
+}
+
+fn extract_routing_decision_from_metadata(
+    metadata: &std::collections::HashMap<String, Value>,
+) -> Option<SessionExecutionRuntimeRoutingDecision> {
+    let mut decision: SessionExecutionRuntimeRoutingDecision =
+        extract_lime_runtime_payload(metadata, LIME_RUNTIME_ROUTING_DECISION_KEY)?;
+    decision.routing_mode =
+        normalize_optional_text(Some(std::mem::take(&mut decision.routing_mode)))?;
+    decision.decision_source =
+        normalize_optional_text(Some(std::mem::take(&mut decision.decision_source)))?;
+    decision.decision_reason =
+        normalize_optional_text(Some(std::mem::take(&mut decision.decision_reason)))
+            .unwrap_or_default();
+    decision.selected_provider = normalize_optional_text(decision.selected_provider);
+    decision.selected_model = normalize_optional_text(decision.selected_model);
+    decision.requested_provider = normalize_optional_text(decision.requested_provider);
+    decision.requested_model = normalize_optional_text(decision.requested_model);
+    decision.estimated_cost_class = normalize_optional_text(decision.estimated_cost_class);
+    decision.capability_gap = normalize_optional_text(decision.capability_gap);
+    decision.fallback_chain = decision
+        .fallback_chain
+        .into_iter()
+        .filter_map(|value| normalize_optional_text(Some(value)))
+        .collect();
+    decision.settings_source = normalize_optional_text(decision.settings_source);
+    decision.service_model_slot = normalize_optional_text(decision.service_model_slot);
+    Some(decision)
+}
+
+fn extract_limit_state_from_metadata(
+    metadata: &std::collections::HashMap<String, Value>,
+) -> Option<SessionExecutionRuntimeLimitState> {
+    let mut limit_state: SessionExecutionRuntimeLimitState =
+        extract_lime_runtime_payload(metadata, LIME_RUNTIME_LIMIT_STATE_KEY)?;
+    limit_state.status = normalize_optional_text(Some(std::mem::take(&mut limit_state.status)))?;
+    limit_state.capability_gap = normalize_optional_text(limit_state.capability_gap);
+    limit_state.notes = limit_state
+        .notes
+        .into_iter()
+        .filter_map(|value| normalize_optional_text(Some(value)))
+        .collect();
+    Some(limit_state)
+}
+
+fn extract_cost_state_from_metadata(
+    metadata: &std::collections::HashMap<String, Value>,
+) -> Option<SessionExecutionRuntimeCostState> {
+    let mut cost_state: SessionExecutionRuntimeCostState =
+        extract_lime_runtime_payload(metadata, LIME_RUNTIME_COST_STATE_KEY)?;
+    cost_state.status = normalize_optional_text(Some(std::mem::take(&mut cost_state.status)))?;
+    cost_state.estimated_cost_class =
+        normalize_optional_text(cost_state.estimated_cost_class.take());
+    cost_state.currency = normalize_optional_text(cost_state.currency.take());
+    Some(cost_state)
+}
+
+fn extract_limit_event_from_metadata(
+    metadata: &std::collections::HashMap<String, Value>,
+) -> Option<SessionExecutionRuntimeLimitEvent> {
+    let mut limit_event: SessionExecutionRuntimeLimitEvent =
+        extract_lime_runtime_payload(metadata, LIME_RUNTIME_LIMIT_EVENT_KEY)?;
+    limit_event.event_kind =
+        normalize_optional_text(Some(std::mem::take(&mut limit_event.event_kind)))?;
+    limit_event.message = normalize_optional_text(Some(std::mem::take(&mut limit_event.message)))?;
+    Some(limit_event)
 }
 
 fn extract_recent_harness_context_from_runtime_snapshot(
@@ -703,6 +1067,11 @@ pub fn build_session_execution_runtime(
         recent_gate_key: None,
         recent_run_title: None,
         recent_content_id: None,
+        task_profile: None,
+        routing_decision: None,
+        limit_state: None,
+        cost_state: None,
+        limit_event: None,
     };
 
     if let Some(snapshot) = snapshot {
@@ -742,6 +1111,35 @@ pub fn build_session_execution_runtime(
                 .context_override
                 .as_ref()
                 .and_then(|value| extract_recent_team_selection_from_metadata(&value.metadata));
+            runtime.task_profile = latest_turn
+                .context_override
+                .as_ref()
+                .and_then(|value| extract_task_profile_from_metadata(&value.metadata));
+            runtime.routing_decision = latest_turn
+                .context_override
+                .as_ref()
+                .and_then(|value| extract_routing_decision_from_metadata(&value.metadata));
+            runtime.limit_state = latest_turn
+                .context_override
+                .as_ref()
+                .and_then(|value| extract_limit_state_from_metadata(&value.metadata));
+            runtime.cost_state = latest_turn
+                .context_override
+                .as_ref()
+                .and_then(|value| extract_cost_state_from_metadata(&value.metadata));
+            let metadata_limit_event = latest_turn
+                .context_override
+                .as_ref()
+                .and_then(|value| extract_limit_event_from_metadata(&value.metadata));
+            runtime.limit_event = detect_runtime_limit_event(latest_turn.error_message.as_deref())
+                .or(metadata_limit_event);
+            if let (Some(cost_state), Some(session)) = (runtime.cost_state.take(), session) {
+                runtime.cost_state = Some(
+                    resolve_session_token_usage(session)
+                        .map(|usage| apply_usage_to_cost_state(cost_state.clone(), &usage))
+                        .unwrap_or(cost_state),
+                );
+            }
             runtime.source = SessionExecutionRuntimeSource::RuntimeSnapshot;
         }
     }
@@ -773,6 +1171,11 @@ pub fn build_session_execution_runtime(
         && runtime.recent_gate_key.is_none()
         && runtime.recent_run_title.is_none()
         && runtime.recent_content_id.is_none()
+        && runtime.task_profile.is_none()
+        && runtime.routing_decision.is_none()
+        && runtime.limit_state.is_none()
+        && runtime.cost_state.is_none()
+        && runtime.limit_event.is_none()
     {
         return None;
     }
@@ -783,9 +1186,11 @@ pub fn build_session_execution_runtime(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_session_execution_runtime, SessionExecutionRuntimeAccessMode,
-        SessionExecutionRuntimePreferences, SessionExecutionRuntimeRecentTeamRole,
-        SessionExecutionRuntimeRecentTeamSelection, SessionExecutionRuntimeSource,
+        apply_usage_to_cost_state, build_session_execution_runtime, detect_runtime_limit_event,
+        SessionExecutionRuntimeAccessMode, SessionExecutionRuntimeCostState,
+        SessionExecutionRuntimeLimitEvent, SessionExecutionRuntimePreferences,
+        SessionExecutionRuntimeRecentTeamRole, SessionExecutionRuntimeRecentTeamSelection,
+        SessionExecutionRuntimeSource,
     };
     use aster::model::ModelConfig;
     use aster::session::ExtensionState;
@@ -1443,5 +1848,304 @@ mod tests {
                 selected_team_roles: None,
             })
         );
+    }
+
+    #[test]
+    fn extracts_task_routing_and_limit_state_from_lime_runtime_metadata() {
+        let now = Utc::now();
+        let snapshot = SessionRuntimeSnapshot {
+            session_id: "session-routing".to_string(),
+            threads: vec![ThreadRuntimeSnapshot {
+                thread: ThreadRuntime::new(
+                    "thread-1",
+                    "session-routing",
+                    PathBuf::from("/tmp/workspace"),
+                ),
+                turns: vec![TurnRuntime {
+                    id: "turn-1".to_string(),
+                    session_id: "session-routing".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    status: TurnStatus::Completed,
+                    input_text: Some("继续处理翻译任务".to_string()),
+                    error_message: None,
+                    context_override: Some(TurnContextOverride {
+                        metadata: [(
+                            "lime_runtime".to_string(),
+                            json!({
+                                "task_profile": {
+                                    "kind": "translation",
+                                    "source": "translation_skill_launch",
+                                    "traits": ["service_model_slot"],
+                                    "serviceModelSlot": "translation"
+                                },
+                                "routing_decision": {
+                                    "routingMode": "single_candidate",
+                                    "decisionSource": "service_model_setting",
+                                    "decisionReason": "命中 service_models.translation",
+                                    "selectedProvider": "openai",
+                                    "selectedModel": "gpt-4.1-mini",
+                                    "candidateCount": 1,
+                                    "estimatedCostClass": "low",
+                                    "settingsSource": "service_models.translation",
+                                    "serviceModelSlot": "translation"
+                                },
+                                "limit_state": {
+                                    "status": "single_candidate_only",
+                                    "singleCandidateOnly": true,
+                                    "providerLocked": true,
+                                    "settingsLocked": true,
+                                    "oemLocked": false,
+                                    "candidateCount": 1,
+                                    "notes": ["命中设置中的翻译模型"]
+                                }
+                            }),
+                        )]
+                        .into_iter()
+                        .collect(),
+                        ..TurnContextOverride::default()
+                    }),
+                    output_schema_runtime: None,
+                    created_at: now,
+                    started_at: Some(now),
+                    completed_at: Some(now),
+                    updated_at: now,
+                }],
+                items: Vec::new(),
+            }],
+        };
+
+        let runtime =
+            build_session_execution_runtime("session-routing", None, None, Some(&snapshot), None)
+                .expect("runtime");
+
+        assert_eq!(
+            runtime
+                .task_profile
+                .as_ref()
+                .map(|value| value.kind.as_str()),
+            Some("translation")
+        );
+        assert_eq!(
+            runtime
+                .routing_decision
+                .as_ref()
+                .map(|value| value.decision_source.as_str()),
+            Some("service_model_setting")
+        );
+        assert_eq!(
+            runtime
+                .limit_state
+                .as_ref()
+                .map(|value| value.single_candidate_only),
+            Some(true)
+        );
+        assert_eq!(
+            runtime
+                .cost_state
+                .as_ref()
+                .and_then(|value| value.estimated_cost_class.as_deref()),
+            None
+        );
+        assert!(runtime.limit_event.is_none());
+    }
+
+    #[test]
+    fn extracts_cost_state_and_limit_event_from_latest_turn() {
+        let now = Utc::now();
+        let mut session = Session::default();
+        session.id = "session-cost".to_string();
+        session.input_tokens = Some(1200);
+        session.output_tokens = Some(300);
+        session.cached_input_tokens = Some(100);
+        session.cache_creation_input_tokens = Some(50);
+
+        let snapshot = SessionRuntimeSnapshot {
+            session_id: "session-cost".to_string(),
+            threads: vec![ThreadRuntimeSnapshot {
+                thread: ThreadRuntime::new(
+                    "thread-1",
+                    "session-cost",
+                    PathBuf::from("/tmp/workspace"),
+                ),
+                turns: vec![TurnRuntime {
+                    id: "turn-1".to_string(),
+                    session_id: "session-cost".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    status: TurnStatus::Failed,
+                    input_text: Some("继续".to_string()),
+                    error_message: Some("429 Too Many Requests".to_string()),
+                    context_override: Some(TurnContextOverride {
+                        metadata: [(
+                            "lime_runtime".to_string(),
+                            json!({
+                                "cost_state": {
+                                    "status": "estimated",
+                                    "estimatedCostClass": "low",
+                                    "inputPerMillion": 1.0,
+                                    "outputPerMillion": 2.0,
+                                    "cacheReadPerMillion": 0.5,
+                                    "cacheWritePerMillion": 1.5,
+                                    "currency": "USD"
+                                }
+                            }),
+                        )]
+                        .into_iter()
+                        .collect(),
+                        ..TurnContextOverride::default()
+                    }),
+                    output_schema_runtime: None,
+                    created_at: now,
+                    started_at: Some(now),
+                    completed_at: Some(now),
+                    updated_at: now,
+                }],
+                items: Vec::new(),
+            }],
+        };
+
+        let runtime = build_session_execution_runtime(
+            "session-cost",
+            Some(&session),
+            None,
+            Some(&snapshot),
+            None,
+        )
+        .expect("runtime");
+
+        let cost_state = runtime.cost_state.expect("应提取 cost_state");
+        assert_eq!(cost_state.status, "recorded");
+        assert_eq!(cost_state.total_tokens, Some(1500));
+        assert_eq!(cost_state.cached_input_tokens, Some(100));
+        assert_eq!(cost_state.cache_creation_input_tokens, Some(50));
+        assert!(cost_state
+            .estimated_total_cost
+            .is_some_and(|value| (value - 0.002825).abs() < 1e-12));
+        assert_eq!(
+            runtime.limit_event,
+            Some(SessionExecutionRuntimeLimitEvent {
+                event_kind: "rate_limit_hit".to_string(),
+                message: "429 Too Many Requests".to_string(),
+                retryable: true,
+            })
+        );
+    }
+
+    #[test]
+    fn extracts_limit_event_from_turn_metadata_without_error_text() {
+        let now = Utc::now();
+        let snapshot = SessionRuntimeSnapshot {
+            session_id: "session-oem-limit".to_string(),
+            threads: vec![ThreadRuntimeSnapshot {
+                thread: ThreadRuntime::new(
+                    "thread-1",
+                    "session-oem-limit",
+                    PathBuf::from("/tmp/workspace"),
+                ),
+                turns: vec![TurnRuntime {
+                    id: "turn-1".to_string(),
+                    session_id: "session-oem-limit".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    status: TurnStatus::Completed,
+                    input_text: Some("继续".to_string()),
+                    error_message: None,
+                    context_override: Some(TurnContextOverride {
+                        metadata: [(
+                            "lime_runtime".to_string(),
+                            json!({
+                                "limit_event": {
+                                    "eventKind": "quota_low",
+                                    "message": "OEM 云端额度偏低",
+                                    "retryable": true
+                                }
+                            }),
+                        )]
+                        .into_iter()
+                        .collect(),
+                        ..TurnContextOverride::default()
+                    }),
+                    output_schema_runtime: None,
+                    created_at: now,
+                    started_at: Some(now),
+                    completed_at: Some(now),
+                    updated_at: now,
+                }],
+                items: Vec::new(),
+            }],
+        };
+
+        let runtime =
+            build_session_execution_runtime("session-oem-limit", None, None, Some(&snapshot), None)
+                .expect("runtime");
+
+        assert_eq!(
+            runtime.limit_event,
+            Some(SessionExecutionRuntimeLimitEvent {
+                event_kind: "quota_low".to_string(),
+                message: "OEM 云端额度偏低".to_string(),
+                retryable: true,
+            })
+        );
+    }
+
+    #[test]
+    fn apply_usage_to_cost_state_should_calculate_estimated_total_cost() {
+        let cost_state = SessionExecutionRuntimeCostState {
+            status: "estimated".to_string(),
+            estimated_cost_class: Some("medium".to_string()),
+            input_per_million: Some(2.0),
+            output_per_million: Some(8.0),
+            cache_read_per_million: Some(0.5),
+            cache_write_per_million: Some(1.0),
+            currency: Some("USD".to_string()),
+            estimated_total_cost: None,
+            input_tokens: None,
+            output_tokens: None,
+            total_tokens: None,
+            cached_input_tokens: None,
+            cache_creation_input_tokens: None,
+        };
+        let usage = crate::protocol::AgentTokenUsage {
+            input_tokens: 1000,
+            output_tokens: 500,
+            cached_input_tokens: Some(200),
+            cache_creation_input_tokens: Some(50),
+        };
+
+        let applied = apply_usage_to_cost_state(cost_state, &usage);
+
+        assert_eq!(applied.status, "recorded");
+        assert_eq!(applied.total_tokens, Some(1500));
+        assert!(applied
+            .estimated_total_cost
+            .is_some_and(|value| (value - 0.00615).abs() < 1e-12));
+    }
+
+    #[test]
+    fn detect_runtime_limit_event_should_classify_rate_limit_and_quota() {
+        assert_eq!(
+            detect_runtime_limit_event(Some("429 Too Many Requests")),
+            Some(SessionExecutionRuntimeLimitEvent {
+                event_kind: "rate_limit_hit".to_string(),
+                message: "429 Too Many Requests".to_string(),
+                retryable: true,
+            })
+        );
+        assert_eq!(
+            detect_runtime_limit_event(Some("余额不足，请充值后继续")),
+            Some(SessionExecutionRuntimeLimitEvent {
+                event_kind: "quota_blocked".to_string(),
+                message: "余额不足，请充值后继续".to_string(),
+                retryable: false,
+            })
+        );
+        assert_eq!(
+            detect_runtime_limit_event(Some("available_quota_low: credits running low")),
+            Some(SessionExecutionRuntimeLimitEvent {
+                event_kind: "quota_low".to_string(),
+                message: "available_quota_low: credits running low".to_string(),
+                retryable: true,
+            })
+        );
+        assert!(detect_runtime_limit_event(Some("unknown error")).is_none());
     }
 }

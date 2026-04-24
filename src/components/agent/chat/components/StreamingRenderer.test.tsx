@@ -456,7 +456,8 @@ describe("StreamingRenderer", () => {
       ],
     });
 
-    expect(container.textContent).toContain("先检查滚动触发逻辑 · 1 个工具调用");
+    expect(container.textContent).toContain("先检查滚动触发逻辑");
+    expect(container.textContent).toContain("1 个工具调用");
     expect(
       container.querySelector('[data-testid="streaming-process-group"]'),
     ).toBeTruthy();
@@ -502,9 +503,8 @@ describe("StreamingRenderer", () => {
       isStreaming: false,
     });
 
-    expect(container.textContent).toContain(
-      "先检查 auto-scroll 触发条件 · 1 个工具调用",
-    );
+    expect(container.textContent).toContain("先检查 auto-scroll 触发条件");
+    expect(container.textContent).toContain("1 个工具调用");
     expect(
       container.querySelector('[data-testid="streaming-process-group"]'),
     ).toBeTruthy();

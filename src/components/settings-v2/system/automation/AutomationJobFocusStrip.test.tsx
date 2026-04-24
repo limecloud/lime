@@ -70,12 +70,12 @@ describe("AutomationJobFocusStrip", () => {
     await renderStrip();
 
     const text = document.body.textContent ?? "";
-    expect(text).toContain("当前经营焦点");
+    expect(text).toContain("现在先继续这条");
     expect(text).toContain("故事短视频套件");
-    expect(text).toContain("多模态组合");
-    expect(text).toContain("当前判断：这轮材料已经接近可复用。");
+    expect(text).not.toContain("多模态组合");
+    expect(text).toContain("这轮判断：这轮材料已经接近可复用。");
     expect(text).toContain("最近结果：成功 · 已生成完整结果包");
-    expect(text).toContain("下一步：优先补齐结构化复盘包。");
+    expect(text).toContain("先做：优先补齐结构化复盘包。");
   });
 
   it("应支持继续复盘与去做法复盘动作", async () => {
@@ -112,7 +112,7 @@ describe("AutomationJobFocusStrip", () => {
     });
 
     expect(document.body.textContent).toContain(
-      "正在整理这条持续流程的结果基线与经营判断",
+      "正在整理这条做法最近一轮的结果和下一步",
     );
   });
 });

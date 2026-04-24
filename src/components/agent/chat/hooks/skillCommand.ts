@@ -294,15 +294,19 @@ function mergeImageTaskPreviewIntoAssistantMessage(params: {
   assistantMsgId: string;
   preview: MessageImageWorkbenchPreview;
 }): Message[] {
-  const duplicatePreviewMessage = params.messages.find(
-    (message) =>
-      message.role === "assistant" &&
-      message.id !== params.assistantMsgId &&
-      message.imageWorkbenchPreview?.taskId === params.preview.taskId,
+  const duplicatePreviewMessageIds = new Set(
+    params.messages
+      .filter(
+        (message) =>
+          message.role === "assistant" &&
+          message.id !== params.assistantMsgId &&
+          message.imageWorkbenchPreview?.taskId === params.preview.taskId,
+      )
+      .map((message) => message.id),
   );
 
   return params.messages
-    .filter((message) => message.id !== duplicatePreviewMessage?.id)
+    .filter((message) => !duplicatePreviewMessageIds.has(message.id))
     .map((message) =>
       message.id === params.assistantMsgId
         ? {
@@ -321,15 +325,19 @@ function mergeTaskPreviewIntoAssistantMessage(params: {
   assistantMsgId: string;
   preview: MessageTaskPreview;
 }): Message[] {
-  const duplicatePreviewMessage = params.messages.find(
-    (message) =>
-      message.role === "assistant" &&
-      message.id !== params.assistantMsgId &&
-      message.taskPreview?.taskId === params.preview.taskId,
+  const duplicatePreviewMessageIds = new Set(
+    params.messages
+      .filter(
+        (message) =>
+          message.role === "assistant" &&
+          message.id !== params.assistantMsgId &&
+          message.taskPreview?.taskId === params.preview.taskId,
+      )
+      .map((message) => message.id),
   );
 
   return params.messages
-    .filter((message) => message.id !== duplicatePreviewMessage?.id)
+    .filter((message) => !duplicatePreviewMessageIds.has(message.id))
     .map((message) =>
       message.id === params.assistantMsgId
         ? {

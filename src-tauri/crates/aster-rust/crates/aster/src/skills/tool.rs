@@ -28,13 +28,29 @@ use crate::tools::context::{ToolContext, ToolResult};
 use crate::tools::error::ToolError;
 use async_trait::async_trait;
 use futures::StreamExt;
+use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::OnceLock;
+use tokio::sync::RwLock;
 use uuid::Uuid;
+
+const SKILL_SOURCE_AGENT_CACHE_CAPACITY: usize = 128;
+static SKILL_SOURCE_AGENT_CACHE: OnceLock<RwLock<LruCache<String, Arc<Agent>>>> = OnceLock::new();
+
+fn skill_source_agent_cache() -> &'static RwLock<LruCache<String, Arc<Agent>>> {
+    SKILL_SOURCE_AGENT_CACHE.get_or_init(|| {
+        RwLock::new(LruCache::new(
+            NonZeroUsize::new(SKILL_SOURCE_AGENT_CACHE_CAPACITY)
+                .expect("skill source agent cache capacity should be non-zero"),
+        ))
+    })
+}
 
 /// Skill tool input parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +81,16 @@ impl SkillTool {
 
     pub fn with_registry(registry: SharedSkillRegistry) -> Self {
         Self { registry }
+    }
+
+    pub async fn register_source_agent_for_session(session_id: String, agent: Arc<Agent>) {
+        let normalized_session_id = session_id.trim();
+        if normalized_session_id.is_empty() {
+            return;
+        }
+
+        let mut cache = skill_source_agent_cache().write().await;
+        cache.put(normalized_session_id.to_string(), agent);
     }
 
     /// Execute a skill by name
@@ -229,13 +255,21 @@ Important:
     }
 
     async fn resolve_current_session_agent(context: &ToolContext) -> Option<Arc<Agent>> {
-        if context.session_id.is_empty() {
+        let session_id = context.session_id.trim();
+        if session_id.is_empty() {
             return None;
+        }
+
+        {
+            let mut cache = skill_source_agent_cache().write().await;
+            if let Some(agent) = cache.get(session_id).cloned() {
+                return Some(agent);
+            }
         }
 
         let manager = AgentManager::instance().await.ok()?;
         manager
-            .get_or_create_agent(context.session_id.clone())
+            .get_or_create_agent(session_id.to_string())
             .await
             .ok()
     }
@@ -1614,6 +1648,62 @@ mod tests {
                 .first()
                 .is_some_and(|names| names == &vec!["dynamic_forwarded_tool".to_string()]),
             "skill 子 agent 应继承当前 session 的动态 native tool，实际为 {:?}",
+            *tool_names
+        );
+    }
+
+    #[tokio::test]
+    async fn test_skill_tool_prefers_registered_session_source_agent() {
+        let tool = SkillTool::new();
+        let provider = Arc::new(ToolCallingProvider::new(
+            "openai",
+            "gpt-4o",
+            "dynamic_forwarded_tool",
+        ));
+        let provider_dyn: Arc<dyn Provider> = provider.clone();
+        let mut skill = create_tool_capable_prompt_skill();
+        skill.allowed_tools = Some(vec!["dynamic_forwarded_tool".to_string()]);
+        skill.markdown_content = "Call the forwarded tool immediately.".to_string();
+
+        let source_session = build_skill_agent_session(
+            PathBuf::from("/tmp"),
+            &skill,
+            Some("skill-source-cache-session"),
+        );
+        let source_store: Arc<dyn SessionStore> =
+            Arc::new(SkillAgentSessionStore::new(source_session));
+        let source_agent = Arc::new(Agent::new().with_session_store(source_store));
+        {
+            let mut registry = source_agent.tool_registry().write().await;
+            registry.register(Box::new(DynamicForwardedTool));
+        }
+
+        SkillTool::register_source_agent_for_session(
+            "skill-source-cache-session".to_string(),
+            Arc::clone(&source_agent),
+        )
+        .await;
+
+        let context = ToolContext::new(PathBuf::from("/tmp"))
+            .with_session_id("skill-source-cache-session")
+            .with_provider(provider_dyn);
+        let skill_content = build_skill_content(&skill, None, &context.session_id);
+        let result = tool
+            .execute_agent_skill(&skill, &skill_content, &context)
+            .await;
+
+        assert!(result.success);
+        assert_eq!(
+            result.forwarded_tool_name.as_deref(),
+            Some("dynamic_forwarded_tool")
+        );
+
+        let tool_names = provider.tool_names.lock().expect("tool_names lock");
+        assert!(
+            tool_names
+                .first()
+                .is_some_and(|names| names == &vec!["dynamic_forwarded_tool".to_string()]),
+            "skill 子 agent 应优先命中已注册的 session source agent，实际为 {:?}",
             *tool_names
         );
     }

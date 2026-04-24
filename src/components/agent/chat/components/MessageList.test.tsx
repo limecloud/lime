@@ -946,6 +946,82 @@ describe("MessageList", () => {
     window.removeEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handleFocus);
   });
 
+  it("图片任务消息应收起内部 process flow，只保留任务卡与正文", () => {
+    const container = render(
+      [
+        {
+          id: "msg-assistant-image-workbench-process-flow",
+          role: "assistant",
+          content: "已成功提交分镜任务。",
+          timestamp: new Date(),
+          contentParts: [
+            { type: "thinking", text: "先执行图片技能。" },
+            { type: "text", text: "已成功提交分镜任务。" },
+          ],
+          toolCalls: [
+            {
+              id: "tool-image-skill",
+              name: "skill",
+              arguments: JSON.stringify({ skill: "image_generate" }),
+              status: "completed",
+              result: {
+                success: true,
+                output: "processing",
+              },
+              startTime: new Date(),
+              endTime: new Date(),
+            },
+          ],
+          imageWorkbenchPreview: {
+            taskId: "task-image-process-flow",
+            prompt: "三国主要人物分镜",
+            status: "running",
+            imageCount: 9,
+            expectedImageCount: 9,
+            layoutHint: "storyboard_3x3",
+            projectId: "project-1",
+            contentId: "content-1",
+          },
+        } as Message,
+      ],
+      {
+        currentTurnId: "turn-image-process-flow",
+        turns: [
+          {
+            id: "turn-image-process-flow",
+            thread_id: "thread-image-process-flow",
+            prompt_text: "@分镜 生成三国人物分镜",
+            status: "completed",
+            started_at: "2026-04-24T01:36:56Z",
+            completed_at: "2026-04-24T01:37:12Z",
+            created_at: "2026-04-24T01:36:56Z",
+            updated_at: "2026-04-24T01:37:12Z",
+          },
+        ],
+        threadItems: [
+          {
+            id: "summary-image-process-flow",
+            thread_id: "thread-image-process-flow",
+            turn_id: "turn-image-process-flow",
+            sequence: 1,
+            status: "completed",
+            started_at: "2026-04-24T01:36:56Z",
+            completed_at: "2026-04-24T01:37:12Z",
+            updated_at: "2026-04-24T01:37:12Z",
+            type: "turn_summary",
+            text: "已完成思考 3 步，正在提交图片任务",
+          },
+        ],
+      },
+    );
+
+    const streamingCall = mockStreamingRenderer.mock.calls.at(-1)?.[0];
+    expect(streamingCall?.suppressProcessFlow).toBe(true);
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).toBeNull();
+  });
+
   it("视频任务消息卡应在聊天区渲染预览并支持打开工作区查看", () => {
     const now = new Date();
     const onOpenMessagePreview = vi.fn();
@@ -1534,6 +1610,45 @@ describe("MessageList", () => {
         '[data-testid^="image-workbench-message-preview-action-"]',
       ).length,
     ).toBe(0);
+  });
+
+  it("3x3 分镜消息卡应渲染九宫格摘要而不是单图卡", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-storyboard",
+        role: "assistant",
+        content: "3x3 分镜已完成。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-storyboard-preview-1",
+          prompt: "三国主要人物分镜",
+          status: "complete",
+          imageCount: 9,
+          imageUrl: "https://example.com/storyboard-primary.png",
+          previewImages: Array.from({ length: 9 }, (_, index) =>
+            `https://example.com/storyboard-${index + 1}.png`,
+          ),
+          layoutHint: "storyboard_3x3",
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const grid = container.querySelector(
+      '[data-testid="image-workbench-message-preview-grid-task-storyboard-preview-1"]',
+    ) as HTMLDivElement | null;
+
+    expect(container.textContent).toContain(
+      "3x3 分镜已经完成，可在右侧继续查看与使用。",
+    );
+    expect(container.textContent).toContain("9 张");
+    expect(grid?.className).toContain("grid-cols-3");
+    expect(grid?.querySelectorAll("img")).toHaveLength(9);
+    expect(grid?.textContent).toContain("1");
+    expect(grid?.textContent).toContain("9");
   });
 
   it("当前由聊天区底部承载的 assistant A2UI 不应继续在正文里内联渲染", () => {

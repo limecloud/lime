@@ -10,6 +10,7 @@ function collapseDisplayWhitespace(value: string): string {
     .replace(/\s+([，。！？、；：,!?;:])/g, "$1")
     .replace(/([（【《“‘([<])\s+/g, "$1")
     .replace(/\s+([）】》”’)\]>])/g, "$1")
+    .replace(/(?<=[，。！？、；：])\s+(?=[\u4e00-\u9fff])/gu, "")
     .replace(/(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])/gu, "")
     .replace(/\s+/g, " ")
     .trim();

@@ -1,5 +1,6 @@
 import type { Material } from "@/types/material";
 import type { MaterialType } from "@/types/material";
+import { isHiddenInternalArtifactPath } from "./internalArtifactVisibility";
 
 const IMAGE_EXTENSIONS = new Set([
   "png",
@@ -83,6 +84,10 @@ export function inferGeneralChatResourceMaterialType(
 ): MaterialType | null {
   const normalizedPath = filePath.trim();
   if (!normalizedPath) {
+    return null;
+  }
+
+  if (isHiddenInternalArtifactPath(normalizedPath)) {
     return null;
   }
 

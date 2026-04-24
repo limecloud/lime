@@ -38,6 +38,8 @@ docs/prd/*
 # Internal roadmap&gongzonghao (private)
 docs/roadmap/*
 !docs/roadmap/lime-service-skill-cloud-config-prd.md
+!docs/roadmap/task/
+!docs/roadmap/task/*.md
 !docs/roadmap/artifacts/
 !docs/roadmap/artifacts/roadmap.md
 !docs/roadmap/artifacts/artifact-document-v1.md

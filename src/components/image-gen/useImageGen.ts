@@ -12,6 +12,7 @@ import {
   type ImportMaterialFromUrlRequest,
 } from "@/lib/api/materials";
 import {
+  findImageProviderForSelection,
   getImageModelsForProvider,
   isImageProvider,
 } from "@/lib/imageGeneration";
@@ -66,6 +67,7 @@ interface UseImageGenOptions {
   allowFallback?: boolean;
   providerLoadMode?: "immediate" | "deferred";
   providerDeferredDelayMs?: number;
+  selectionScopeKey?: string;
 }
 
 const IMAGE_REQUEST_TIMEOUT_MS = 180_000;
@@ -2050,6 +2052,7 @@ export function useImageGen(options: UseImageGenOptions = {}) {
   const preferredProviderId = options.preferredProviderId?.trim() || "";
   const preferredModelId = options.preferredModelId?.trim() || "";
   const allowFallback = options.allowFallback ?? true;
+  const selectionScopeKey = options.selectionScopeKey?.trim() || "";
 
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [selectedModelId, setSelectedModelId] = useState<string>("");
@@ -2064,6 +2067,20 @@ export function useImageGen(options: UseImageGenOptions = {}) {
   const syncedPreferredProviderIdRef = useRef("");
   const syncedPreferredModelIdRef = useRef("");
   const hasManualProviderSelectionRef = useRef(false);
+  const syncedSelectionScopeKeyRef = useRef("");
+
+  useEffect(() => {
+    if (syncedSelectionScopeKeyRef.current === selectionScopeKey) {
+      return;
+    }
+
+    syncedSelectionScopeKeyRef.current = selectionScopeKey;
+    hasManualProviderSelectionRef.current = false;
+    syncedPreferredProviderIdRef.current = "";
+    syncedPreferredModelIdRef.current = "";
+    setSelectedProviderId("");
+    setSelectedModelId("");
+  }, [selectionScopeKey]);
 
   useEffect(() => {
     if (providerLoadMode !== "deferred") {
@@ -2183,7 +2200,11 @@ export function useImageGen(options: UseImageGenOptions = {}) {
     }
 
     const nextProvider =
-      preferredProvider ?? (allowFallback ? availableProviders[0] : null);
+      preferredProvider ??
+      (allowFallback
+        ? findImageProviderForSelection(availableProviders, "basic") ??
+          availableProviders[0]
+        : null);
 
     if (nextProvider) {
       hasManualProviderSelectionRef.current = false;

@@ -20,6 +20,7 @@ const mockGetSkillCatalog = vi.hoisted(() => vi.fn());
 const mockListSkillCatalogSceneEntries = vi.hoisted(() => vi.fn());
 const mockGetOrCreateDefaultProject = vi.hoisted(() => vi.fn());
 const mockResolveOemCloudRuntimeContext = vi.hoisted(() => vi.fn());
+const mockGetOemCloudBootstrapSnapshot = vi.hoisted(() => vi.fn());
 const mockUseGlobalMediaGenerationDefaults = vi.hoisted(() => vi.fn());
 
 vi.mock("../utils/browserAssistPreheat", () => ({
@@ -43,8 +44,20 @@ vi.mock("@/lib/api/oemCloudRuntime", () => ({
   resolveOemCloudRuntimeContext: () => mockResolveOemCloudRuntimeContext(),
 }));
 
+vi.mock("@/lib/oemCloudSession", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/oemCloudSession")>(
+    "@/lib/oemCloudSession",
+  );
+
+  return {
+    ...actual,
+    getOemCloudBootstrapSnapshot: () => mockGetOemCloudBootstrapSnapshot(),
+  };
+});
+
 vi.mock("@/hooks/useGlobalMediaGenerationDefaults", () => ({
-  useGlobalMediaGenerationDefaults: () => mockUseGlobalMediaGenerationDefaults(),
+  useGlobalMediaGenerationDefaults: () =>
+    mockUseGlobalMediaGenerationDefaults(),
 }));
 
 vi.mock("@/lib/api/project", async () => {
@@ -443,6 +456,7 @@ describe("useWorkspaceSendActions", () => {
       id: "project-default",
     });
     mockResolveOemCloudRuntimeContext.mockReturnValue(null);
+    mockGetOemCloudBootstrapSnapshot.mockReturnValue(null);
     mockUseGlobalMediaGenerationDefaults.mockReturnValue({
       mediaDefaults: {},
       loading: false,
@@ -493,6 +507,79 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("OEM 云端低额度应透传到 harness oem_routing 供后端生成 quota_low 事件", async () => {
+    mockResolveOemCloudRuntimeContext.mockReturnValue({
+      baseUrl: "https://lime.example.com",
+      controlPlaneBaseUrl: "https://lime.example.com",
+      sceneBaseUrl: "https://lime.example.com",
+      gatewayBaseUrl: "https://gateway.example.com",
+      tenantId: "tenant-1",
+      sessionToken: "session-token",
+      hubProviderName: "lime-hub",
+      loginPath: "/login",
+      desktopClientId: "desktop-client",
+      desktopOauthRedirectUrl: "lime://oauth/callback",
+      desktopOauthNextPath: "/welcome",
+    });
+    mockGetOemCloudBootstrapSnapshot.mockReturnValue({
+      providerPreference: {
+        tenantId: "tenant-1",
+        userId: "user-1",
+        providerSource: "oem_cloud",
+        providerKey: "lime-hub",
+        defaultModel: "claude-sonnet-4",
+        needsValidation: false,
+        updatedAt: "2026-04-24T00:00:00.000Z",
+      },
+      providerOffersSummary: [
+        {
+          providerKey: "lime-hub",
+          source: "oem_cloud",
+          state: "available_quota_low",
+          defaultModel: "claude-sonnet-4",
+          configMode: "managed",
+          quotaStatus: "low",
+          fallbackToLocalAllowed: false,
+          canInvoke: true,
+        },
+      ],
+    });
+    const harness = mountHook();
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend([], false, false, "继续处理当前话题", "react");
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const args = mockSendMessage.mock.calls[0] as Parameters<
+        HookProps["sendMessage"]
+      >;
+      expect(args?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            oem_routing: {
+              tenant_id: "tenant-1",
+              provider_source: "oem_cloud",
+              provider_key: "lime-hub",
+              default_model: "claude-sonnet-4",
+              config_mode: "managed",
+              offer_state: "available_quota_low",
+              quota_status: "low",
+              fallback_to_local_allowed: false,
+              can_invoke: true,
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("显式改写类 purpose 应复用 prompt_rewrite 服务模型", async () => {
     const harness = mountHook({
       input: "请改写这段文案",
@@ -506,17 +593,11 @@ describe("useWorkspaceSendActions", () => {
 
     try {
       await act(async () => {
-        const started = await harness.getValue().handleSend(
-          [],
-          false,
-          false,
-          "请改写这段文案",
-          "react",
-          undefined,
-          {
+        const started = await harness
+          .getValue()
+          .handleSend([], false, false, "请改写这段文案", "react", undefined, {
             purpose: "style_rewrite",
-          },
-        );
+          });
         expect(started).toBe(true);
       });
 
@@ -1924,7 +2005,9 @@ describe("useWorkspaceSendActions", () => {
       });
 
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      expect(mockSendMessage.mock.calls[0]?.[0]).toBe("/writer 整理最近发布计划");
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "/writer 整理最近发布计划",
+      );
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
         displayContent: "整理最近发布计划",
         capabilityRoute: {
@@ -2053,7 +2136,9 @@ describe("useWorkspaceSendActions", () => {
       });
 
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      expect(mockSendMessage.mock.calls[0]?.[0]).toContain("[技能任务] 视频配音");
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
+        "[技能任务] 视频配音",
+      );
       expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
         "[补充要求] 帮我做一版新品活动启动方案",
       );
@@ -2344,7 +2429,8 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           kind: "builtin_command",
           entryId: "read_pdf",
-          replayText: "文件:/tmp/agent-report.pdf 输出:投资人摘要 要求:提炼三点结论",
+          replayText:
+            "文件:/tmp/agent-report.pdf 输出:投资人摘要 要求:提炼三点结论",
         }),
       ]);
     } finally {
@@ -2445,7 +2531,9 @@ describe("useWorkspaceSendActions", () => {
         expect(started).toBe(true);
       });
 
-      expect(mockSendMessage.mock.calls[0]?.[0]).toBe("@总结 内容:OpenAI 发布会纪要");
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@总结 内容:OpenAI 发布会纪要",
+      );
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
         requestMetadata: {
           harness: {
@@ -2727,7 +2815,8 @@ describe("useWorkspaceSendActions", () => {
 
   it("@发布合规 应保留原始消息，并通过 analysis_skill_launch metadata 交给 Agent 调度技能", async () => {
     const harness = mountHook({
-      input: "@发布合规 内容:这是一篇小红书种草文案 重点:夸大宣传 输出:风险清单",
+      input:
+        "@发布合规 内容:这是一篇小红书种草文案 重点:夸大宣传 输出:风险清单",
     });
 
     try {
@@ -3112,7 +3201,8 @@ describe("useWorkspaceSendActions", () => {
 
   it("@网页读取 应保留原始消息，并复用 url_parse task 主链提交网页阅读任务", async () => {
     const harness = mountHook({
-      input: "@网页读取 https://example.com/post 帮我读这篇文章并告诉我核心结论",
+      input:
+        "@网页读取 https://example.com/post 帮我读这篇文章并告诉我核心结论",
     });
 
     try {
@@ -3680,7 +3770,8 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           kind: "builtin_command",
           entryId: "publish_runtime",
-          replayText: "平台:微信公众号后台 要求:帮我把这篇文章整理成可直接发布的版本",
+          replayText:
+            "平台:微信公众号后台 要求:帮我把这篇文章整理成可直接发布的版本",
         }),
       ]);
     } finally {
@@ -3734,7 +3825,8 @@ describe("useWorkspaceSendActions", () => {
       expect(listMentionEntryUsage()).toEqual([
         expect.objectContaining({
           entryId: "publish_runtime",
-          replayText: "平台:微信公众号后台 要求:帮我把这篇文章整理成可直接发布的版本",
+          replayText:
+            "平台:微信公众号后台 要求:帮我把这篇文章整理成可直接发布的版本",
         }),
       ]);
     } finally {
@@ -3947,7 +4039,8 @@ describe("useWorkspaceSendActions", () => {
       );
       expect(mockSendMessage.mock.calls[0]?.[0]).toContain("上传稿");
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
-        displayContent: "@上传 帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+        displayContent:
+          "@上传 帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
         requestMetadata: {
           harness: {
             browser_requirement: "required_with_user_step",
@@ -4011,12 +4104,15 @@ describe("useWorkspaceSendActions", () => {
       });
 
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      expect(mockSendMessage.mock.calls[0]?.[0]).toContain("[技能任务] 视频配音");
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
+        "[技能任务] 视频配音",
+      );
       expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
         "[补充要求] 给这个新品视频做一版发布配音稿",
       );
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
-        displayContent: "@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
+        displayContent:
+          "@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
         providerOverride: "openai-tts",
         modelOverride: "gpt-4o-mini-tts",
         requestMetadata: {
@@ -4045,7 +4141,8 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           kind: "builtin_command",
           entryId: "voice_runtime",
-          replayText: "目标语言:英文 风格:科技感 给这个新品视频做一版发布配音稿",
+          replayText:
+            "目标语言:英文 风格:科技感 给这个新品视频做一版发布配音稿",
         }),
       ]);
       expect(listServiceSkillUsage()).toEqual([
@@ -4097,7 +4194,9 @@ describe("useWorkspaceSendActions", () => {
           },
         },
       });
-      expect(mockSendMessage.mock.calls[0]?.[8]?.providerOverride).toBeUndefined();
+      expect(
+        mockSendMessage.mock.calls[0]?.[8]?.providerOverride,
+      ).toBeUndefined();
       expect(mockSendMessage.mock.calls[0]?.[8]?.modelOverride).toBeUndefined();
     } finally {
       harness.unmount();
@@ -4254,7 +4353,9 @@ describe("useWorkspaceSendActions", () => {
       });
 
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      expect(mockSendMessage.mock.calls[0]?.[0]).toContain("[技能任务] 视频配音");
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
+        "[技能任务] 视频配音",
+      );
       expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
         "[补充要求] 帮我做一版新品活动启动方案",
       );

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  findCuratedTaskTemplateById,
   hasFilledAllCuratedTaskRequiredInputs,
   resolveCuratedTaskInputValues,
   type CuratedTaskInputValues,
@@ -24,6 +25,7 @@ import {
   listCuratedTaskRecommendationSignals,
   subscribeCuratedTaskRecommendationSignalsChanged,
 } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
+import { buildReviewFeedbackProjection } from "@/components/agent/chat/utils/reviewFeedbackProjection";
 import {
   buildCuratedTaskLaunchInputPrefillFromReferenceEntries,
   buildCuratedTaskReferenceEntries,
@@ -49,6 +51,13 @@ interface CuratedTaskLauncherDialogProps {
   initialReferenceEntries?: CuratedTaskReferenceEntry[] | null;
   prefillHint?: string | null;
   onOpenChange: (open: boolean) => void;
+  onApplyReviewSuggestion?: (
+    task: CuratedTaskTemplateItem,
+    options: {
+      inputValues: CuratedTaskInputValues;
+      referenceSelection: CuratedTaskReferenceSelection;
+    },
+  ) => void;
   onConfirm: (
     task: CuratedTaskTemplateItem,
     inputValues: CuratedTaskInputValues,
@@ -68,6 +77,7 @@ export function CuratedTaskLauncherDialog({
   initialReferenceEntries,
   prefillHint,
   onOpenChange,
+  onApplyReviewSuggestion,
   onConfirm,
 }: CuratedTaskLauncherDialogProps) {
   const [inputValues, setInputValues] = useState<CuratedTaskInputValues>({});
@@ -241,6 +251,14 @@ export function CuratedTaskLauncherDialog({
       return typeof value === "string" && value.trim().length > 0;
     }).length;
   }, [inputValues, task]);
+  const remainingRequiredFieldCount = Math.max(
+    requiredFieldCount - filledRequiredFieldCount,
+    0,
+  );
+  const launcherReadinessLabel =
+    remainingRequiredFieldCount === 0
+      ? "关键信息已齐，可以直接开始"
+      : `还差 ${remainingRequiredFieldCount} 项关键信息`;
 
   const launcherOutcomeSummary = useMemo(() => {
     if (!task) {
@@ -255,24 +273,39 @@ export function CuratedTaskLauncherDialog({
     return `我会先给你 ${task.outputHint}。`;
   }, [task]);
 
-  const latestReviewTaskSignal = useMemo(() => {
-    if (!task) {
-      return null;
-    }
-
-    return (
+  const latestReviewTaskSignal = useMemo(
+    () =>
       listCuratedTaskRecommendationSignals({
         projectId,
         sessionId,
       })
-        .filter(
-          (signal) =>
-            signal.source === "review_feedback" &&
-            signal.preferredTaskIds?.includes(task.id),
-        )
-        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
-    );
-  }, [projectId, sessionId, task]);
+        .filter((signal) => signal.source === "review_feedback")
+        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null,
+    [projectId, sessionId],
+  );
+  const reviewFeedbackProjection = useMemo(() => {
+    if (!task) {
+      return null;
+    }
+
+    return buildReviewFeedbackProjection({
+      signal: latestReviewTaskSignal,
+      currentTaskId: task.id,
+      currentTaskTitle: task.title,
+    });
+  }, [latestReviewTaskSignal, task]);
+  const primarySuggestedTask = useMemo(() => {
+    if (!reviewFeedbackProjection || reviewFeedbackProjection.matchedCurrentTask) {
+      return null;
+    }
+
+    const suggestedTaskId = reviewFeedbackProjection.suggestedTasks[0]?.taskId;
+    if (!suggestedTaskId) {
+      return null;
+    }
+
+    return findCuratedTaskTemplateById(suggestedTaskId);
+  }, [reviewFeedbackProjection]);
 
   const activeReviewBaselineSnapshot = useMemo(() => {
     if (!task) {
@@ -303,18 +336,18 @@ export function CuratedTaskLauncherDialog({
       return null;
     }
 
-    const carriedFields: string[] = [];
-    if ((inputValues.project_goal ?? "").trim()) {
-      carriedFields.push("账号或项目目标");
-    }
-    if ((inputValues.existing_results ?? "").trim()) {
-      carriedFields.push("已有结果或数据");
-    }
+    const carriedFields = task.requiredInputFields
+      .filter((field) => (inputValues[field.key] ?? "").trim())
+      .map((field) => field.label);
     if (carriedFields.length === 0) {
       return null;
     }
 
-    return `下面的 ${carriedFields.join(" / ")} 已按这轮结果自动带入，你可以直接改成这次真正想复盘的版本。`;
+    if (task.id === "account-project-review") {
+      return `下面的 ${carriedFields.join(" / ")} 已按这轮结果自动带入，你可以直接改成这次真正想复盘的版本。`;
+    }
+
+    return `下面的 ${carriedFields.join(" / ")} 已按这轮结果自动带入，你可以直接改成这次真正想推进的版本。`;
   }, [activeReviewBaselineSnapshot, inputValues, task]);
 
   const handleValueChange = (key: string, value: string) => {
@@ -349,6 +382,20 @@ export function CuratedTaskLauncherDialog({
       referenceEntries: selectedReferenceEntries,
     });
   };
+  const handleApplyReviewSuggestion = () => {
+    if (!primarySuggestedTask || !onApplyReviewSuggestion) {
+      return;
+    }
+
+    onApplyReviewSuggestion(primarySuggestedTask, {
+      inputValues,
+      referenceSelection: {
+        referenceMemoryIds:
+          extractCuratedTaskReferenceMemoryIds(selectedReferenceEntries) ?? [],
+        referenceEntries: selectedReferenceEntries,
+      },
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -357,11 +404,15 @@ export function CuratedTaskLauncherDialog({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-white">
             <DialogHeader className="shrink-0 border-b border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(255,255,255,1)_100%)] px-5 py-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                  {task.badge}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                  已补 {filledRequiredFieldCount}/{requiredFieldCount}
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-[11px] font-medium",
+                    remainingRequiredFieldCount === 0
+                      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border border-slate-200 bg-white text-slate-600",
+                  )}
+                >
+                  {launcherReadinessLabel}
                 </span>
               </div>
               <div className="space-y-2 pt-3">
@@ -386,7 +437,7 @@ export function CuratedTaskLauncherDialog({
                   {prefillHint}
                 </div>
               ) : null}
-              {latestReviewTaskSignal ? (
+              {reviewFeedbackProjection ? (
                 <div
                   className="rounded-[18px] border border-sky-200 bg-sky-50/80 px-4 py-3"
                   data-testid="curated-task-launcher-review-feedback-banner"
@@ -396,12 +447,32 @@ export function CuratedTaskLauncherDialog({
                       围绕最近复盘
                     </span>
                     <div className="text-xs font-semibold leading-5 text-slate-900">
-                      最近复盘已更新：{latestReviewTaskSignal.title}
+                      最近复盘已更新：{reviewFeedbackProjection.signal.title}
                     </div>
                   </div>
                   <div className="mt-1.5 text-xs leading-5 text-slate-600">
-                    {latestReviewTaskSignal.summary}
+                    {reviewFeedbackProjection.signal.summary}
                   </div>
+                  <div className="mt-1 text-xs leading-5 text-slate-600">
+                    {primarySuggestedTask
+                      ? `这轮复盘更适合先回到「${primarySuggestedTask.title}」，切过去后我会继续带着当前参考对象。`
+                      : reviewFeedbackProjection.suggestionText}
+                  </div>
+                  {primarySuggestedTask && onApplyReviewSuggestion ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50"
+                        data-testid="curated-task-launcher-review-feedback-banner-action"
+                        onClick={handleApplyReviewSuggestion}
+                      >
+                        改用「{primarySuggestedTask.title}」
+                      </button>
+                      <span className="text-[10px] leading-5 text-slate-500">
+                        这一步已经填过的同名字段会尽量保留。
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {activeReviewBaselineSnapshot ? (

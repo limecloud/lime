@@ -1,7 +1,13 @@
+use super::{args_or_default, parse_nested_arg};
 use crate::dev_bridge::DevBridgeState;
 use serde_json::Value as JsonValue;
 
 type DynError = Box<dyn std::error::Error>;
+
+fn parse_save_config_args(args: Option<&JsonValue>) -> Result<lime_core::config::Config, DynError> {
+    let args = args_or_default(args);
+    parse_nested_arg::<lime_core::config::Config>(&args, "config")
+}
 
 pub(super) async fn try_handle(
     state: &DevBridgeState,
@@ -15,8 +21,7 @@ pub(super) async fn try_handle(
             serde_json::to_value(manager.config())?
         }
         "save_config" => {
-            let mut config: lime_core::config::Config =
-                serde_json::from_value(args.cloned().unwrap_or_default())?;
+            let mut config = parse_save_config_args(args)?;
             config.normalize_local_server_surface();
             config.normalize_workspace_preferences();
             lime_core::config::save_config(&config)?;
@@ -69,4 +74,79 @@ pub(super) async fn try_handle(
     };
 
     Ok(Some(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_save_config_args;
+
+    #[test]
+    fn parse_save_config_args_supports_wrapped_tauri_payload() {
+        let args = serde_json::json!({
+            "config": {
+                "default_provider": "claude",
+                "workspace_preferences": {
+                    "media_defaults": {
+                        "image": {
+                            "preferredProviderId": "airgate-openai-images",
+                            "allowFallback": false
+                        }
+                    }
+                }
+            }
+        });
+
+        let config = parse_save_config_args(Some(&args)).expect("wrapped config should parse");
+
+        assert_eq!(
+            config
+                .workspace_preferences
+                .media_defaults
+                .image
+                .preferred_provider_id
+                .as_deref(),
+            Some("airgate-openai-images")
+        );
+        assert!(
+            !config
+                .workspace_preferences
+                .media_defaults
+                .image
+                .allow_fallback
+        );
+    }
+
+    #[test]
+    fn parse_save_config_args_supports_raw_bridge_payload() {
+        let args = serde_json::json!({
+            "default_provider": "claude",
+            "workspace_preferences": {
+                "media_defaults": {
+                    "image": {
+                        "preferredProviderId": "airgate-openai-images",
+                        "allowFallback": false
+                    }
+                }
+            }
+        });
+
+        let config = parse_save_config_args(Some(&args)).expect("raw config should parse");
+
+        assert_eq!(
+            config
+                .workspace_preferences
+                .media_defaults
+                .image
+                .preferred_provider_id
+                .as_deref(),
+            Some("airgate-openai-images")
+        );
+        assert!(
+            !config
+                .workspace_preferences
+                .media_defaults
+                .image
+                .allow_fallback
+        );
+    }
 }

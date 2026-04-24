@@ -5,6 +5,11 @@ use serde_json::{Map, Value};
 use std::collections::HashMap;
 
 use crate::queued_turn::QueuedTurnSnapshot;
+use crate::session_execution_runtime::{
+    SessionExecutionRuntimeCostState, SessionExecutionRuntimeLimitEvent,
+    SessionExecutionRuntimeLimitState, SessionExecutionRuntimeRoutingDecision,
+    SessionExecutionRuntimeTaskProfile,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentToolImage {
@@ -217,6 +222,71 @@ pub enum AgentEvent {
 
     #[serde(rename = "runtime_status")]
     RuntimeStatus { status: AgentRuntimeStatus },
+
+    #[serde(rename = "task_profile_resolved")]
+    TaskProfileResolved {
+        task_profile: SessionExecutionRuntimeTaskProfile,
+    },
+
+    #[serde(rename = "candidate_set_resolved")]
+    CandidateSetResolved {
+        routing_decision: SessionExecutionRuntimeRoutingDecision,
+    },
+
+    #[serde(rename = "routing_decision_made")]
+    RoutingDecisionMade {
+        routing_decision: SessionExecutionRuntimeRoutingDecision,
+    },
+
+    #[serde(rename = "routing_fallback_applied")]
+    RoutingFallbackApplied {
+        routing_decision: SessionExecutionRuntimeRoutingDecision,
+    },
+
+    #[serde(rename = "routing_not_possible")]
+    RoutingNotPossible {
+        routing_decision: SessionExecutionRuntimeRoutingDecision,
+    },
+
+    #[serde(rename = "limit_state_updated")]
+    LimitStateUpdated {
+        limit_state: SessionExecutionRuntimeLimitState,
+    },
+
+    #[serde(rename = "single_candidate_only")]
+    SingleCandidateOnly {
+        limit_state: SessionExecutionRuntimeLimitState,
+    },
+
+    #[serde(rename = "single_candidate_capability_gap")]
+    SingleCandidateCapabilityGap {
+        limit_state: SessionExecutionRuntimeLimitState,
+    },
+
+    #[serde(rename = "cost_estimated")]
+    CostEstimated {
+        cost_state: SessionExecutionRuntimeCostState,
+    },
+
+    #[serde(rename = "cost_recorded")]
+    CostRecorded {
+        cost_state: SessionExecutionRuntimeCostState,
+    },
+
+    #[serde(rename = "rate_limit_hit")]
+    RateLimitHit {
+        limit_event: SessionExecutionRuntimeLimitEvent,
+    },
+
+    #[serde(rename = "quota_low")]
+    QuotaLow {
+        limit_event: SessionExecutionRuntimeLimitEvent,
+    },
+
+    #[serde(rename = "quota_blocked")]
+    QuotaBlocked {
+        limit_event: SessionExecutionRuntimeLimitEvent,
+    },
 
     #[serde(rename = "queue_added")]
     QueueAdded {

@@ -2,6 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { SceneAppsPage } from "./SceneAppsPage";
 import {
   listSceneAppRecentVisits,
@@ -35,6 +36,7 @@ const {
   mockCreateAutomationJob,
   mockExportAgentRuntimeReviewDecisionTemplate,
   mockSaveAgentRuntimeReviewDecision,
+  mockCreateUnifiedMemory,
   mockListProjects,
   mockGetOrCreateDefaultProject,
   latestAutomationDialogProps,
@@ -51,6 +53,7 @@ const {
   mockCreateAutomationJob: vi.fn(),
   mockExportAgentRuntimeReviewDecisionTemplate: vi.fn(),
   mockSaveAgentRuntimeReviewDecision: vi.fn(),
+  mockCreateUnifiedMemory: vi.fn(),
   mockListProjects: vi.fn(),
   mockGetOrCreateDefaultProject: vi.fn(),
   latestAutomationDialogProps: {
@@ -117,6 +120,10 @@ vi.mock("@/lib/api/project", async () => {
     getOrCreateDefaultProject: () => mockGetOrCreateDefaultProject(),
   };
 });
+
+vi.mock("@/lib/api/unifiedMemory", () => ({
+  createUnifiedMemory: (request: unknown) => mockCreateUnifiedMemory(request),
+}));
 
 vi.mock("@/components/projects/ProjectSelector", () => ({
   ProjectSelector: (props: {
@@ -714,6 +721,18 @@ describe("SceneAppsPage", () => {
     mockSaveAgentRuntimeReviewDecision.mockResolvedValue(
       createReviewDecisionTemplate(),
     );
+    mockCreateUnifiedMemory.mockResolvedValue({
+      id: "memory-1",
+      title: "短视频编排 · 复核阻塞",
+      summary: "当前结果包已完整回流。",
+      content: "场景：短视频编排",
+      category: "experience",
+      tags: [],
+      confidence: 0.9,
+      importance: 8,
+      created_at: "2026-04-23T00:00:00.000Z",
+      updated_at: "2026-04-23T00:00:00.000Z",
+    });
     mockGetSceneAppScorecard.mockImplementation(async (sceneappId: string) => ({
       sceneappId,
       updatedAt: "2026-04-15T00:00:00.000Z",
@@ -1370,6 +1389,14 @@ describe("SceneAppsPage", () => {
     expect(container.textContent).toContain("做法目录");
     expect(container.textContent).toContain("生成准备");
     expect(container.textContent).toContain("做法复盘");
+    expect(container.textContent).toContain("这轮做法：短视频编排");
+    expect(container.textContent).toContain(
+      "这套做法已经接住当前上下文，准备和复盘都可以直接往下走。",
+    );
+    expect(container.textContent).not.toContain("全部做法 · 进入生成前的准备层");
+    expect(container.textContent).not.toContain("当前目录");
+    expect(container.textContent).not.toContain("最近继续");
+    expect(container.textContent).not.toContain("当前焦点");
     expect(
       container.querySelector('[data-testid="sceneapp-detail-title"]')
         ?.textContent,
@@ -1611,8 +1638,10 @@ describe("SceneAppsPage", () => {
     });
     await flushEffects();
 
-    expect(container.textContent).toContain("当前已带入");
-    expect(container.textContent).toContain("灵感对象：2条");
+    expect(container.textContent).not.toContain("当前已带入");
+    expect(container.textContent).toContain("已带 2 条灵感");
+    expect(container.textContent).toContain("已写启动意图");
+    expect(container.textContent).toContain("启动意图：");
     expect(mockPlanSceneAppLaunch).toHaveBeenCalledWith(
       expect.objectContaining({
         sceneappId: "story-video-suite",
@@ -2693,6 +2722,74 @@ describe("SceneAppsPage", () => {
         }),
       }),
     );
+  });
+
+  it("sceneapps 深层结果面应支持直接保存到灵感库", async () => {
+    const { container, onNavigate } = renderSceneAppsPage();
+    await flushEffects();
+    await openSceneAppsView(container, "governance");
+
+    const seededRunItem = container.querySelector(
+      '[data-testid="sceneapp-run-item-story-video-suite-run-1"]',
+    ) as HTMLButtonElement | null;
+    expect(seededRunItem).toBeTruthy();
+
+    act(() => {
+      seededRunItem?.click();
+    });
+    await flushEffects();
+
+    const saveButton = container.querySelector(
+      '[data-testid="sceneapp-run-detail-save-as-inspiration"]',
+    ) as HTMLButtonElement | null;
+    expect(saveButton?.textContent).toContain("保存到灵感库");
+
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+    });
+    await flushEffects();
+
+    expect(mockCreateUnifiedMemory).toHaveBeenCalledTimes(1);
+    expect(mockCreateUnifiedMemory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "experience",
+        title: "短视频编排 · 复核阻塞",
+      }),
+    );
+    expect(toast.success).toHaveBeenCalledWith(
+      "已把这轮结果保存到灵感库",
+      expect.objectContaining({
+        description: "成果 · 短视频编排 · 复核阻塞",
+      }),
+    );
+
+    const savedButton = container.querySelector(
+      '[data-testid="sceneapp-run-detail-save-as-inspiration"]',
+    ) as HTMLButtonElement | null;
+    expect(savedButton?.textContent).toContain("已收进灵感库");
+    expect(savedButton?.disabled).toBe(true);
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-saved-inspiration-hint"]',
+      )?.textContent,
+    ).toContain("这轮结果已进入灵感库，下一轮推荐会继续带上它。");
+
+    const openMemoryButton = container.querySelector(
+      '[data-testid="sceneapp-run-detail-open-inspiration-library"]',
+    ) as HTMLButtonElement | null;
+    expect(openMemoryButton?.textContent).toContain("去灵感库继续");
+
+    act(() => {
+      openMemoryButton?.click();
+    });
+    await flushEffects();
+
+    expect(onNavigate).toHaveBeenCalledWith("memory", {
+      section: "experience",
+      focusMemoryTitle: "短视频编排 · 复核阻塞",
+      focusMemoryCategory: "experience",
+    });
   });
 
   it("保存人工复核后应刷新当前做法 planning 基线", async () => {

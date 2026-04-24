@@ -3,12 +3,14 @@ import { ListChecks, PencilLine, X } from "lucide-react";
 import {
   buildCuratedTaskCapabilityDescription,
   buildCuratedTaskFollowUpDescription,
+  findCuratedTaskTemplateById,
   type CuratedTaskTemplateItem,
 } from "../utils/curatedTaskTemplates";
 import {
   listCuratedTaskRecommendationSignals,
   subscribeCuratedTaskRecommendationSignalsChanged,
 } from "../utils/curatedTaskRecommendationSignals";
+import { buildReviewFeedbackProjection } from "../utils/reviewFeedbackProjection";
 import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
 import {
   buildSceneAppExecutionReviewPrefillHighlights,
@@ -21,6 +23,7 @@ interface CuratedTaskBadgeProps {
   sessionId?: string | null;
   referenceEntries?: CuratedTaskReferenceEntry[] | null;
   onEdit?: () => void;
+  onApplyReviewSuggestion?: (task: CuratedTaskTemplateItem) => void;
   onClear: () => void;
 }
 
@@ -39,6 +42,7 @@ export const CuratedTaskBadge: React.FC<CuratedTaskBadgeProps> = ({
   sessionId,
   referenceEntries,
   onEdit,
+  onApplyReviewSuggestion,
   onClear,
 }) => {
   const [recommendationSignalsVersion, setRecommendationSignalsVersion] =
@@ -77,19 +81,43 @@ export const CuratedTaskBadge: React.FC<CuratedTaskBadgeProps> = ({
         projectId,
         sessionId,
       })
-        .filter(
-          (signal) =>
-            signal.source === "review_feedback" &&
-            signal.preferredTaskIds?.includes(task.id),
-        )
+        .filter((signal) => signal.source === "review_feedback")
         .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
     );
-  }, [projectId, recommendationSignalsVersion, sessionId, task.id]);
-  const reviewSummary = latestReviewSignal
+  }, [projectId, recommendationSignalsVersion, sessionId]);
+  const reviewProjection = useMemo(
+    () =>
+      buildReviewFeedbackProjection({
+        signal: latestReviewSignal,
+        currentTaskId: task.id,
+        currentTaskTitle: task.title,
+      }),
+    [latestReviewSignal, task.id, task.title],
+  );
+  const visibleReviewProjection =
+    reviewProjection &&
+    (reviewProjection.matchedCurrentTask || Boolean(onApplyReviewSuggestion))
+      ? reviewProjection
+      : null;
+  const primarySuggestedTask = useMemo(() => {
+    if (!visibleReviewProjection || visibleReviewProjection.matchedCurrentTask) {
+      return null;
+    }
+
+    const suggestedTaskId = visibleReviewProjection.suggestedTasks[0]?.taskId;
+    if (!suggestedTaskId) {
+      return null;
+    }
+
+    return findCuratedTaskTemplateById(suggestedTaskId);
+  }, [visibleReviewProjection]);
+  const reviewSummary = visibleReviewProjection
     ? truncateBadgeReviewText(
-        latestReviewSignal.title.startsWith("最近复盘")
-          ? latestReviewSignal.title
-          : `复盘：${latestReviewSignal.title}`,
+        visibleReviewProjection.matchedCurrentTask
+          ? visibleReviewProjection.signal.title.startsWith("最近复盘")
+            ? visibleReviewProjection.signal.title
+            : `复盘：${visibleReviewProjection.signal.title}`
+          : `更适合：${primarySuggestedTask?.title || visibleReviewProjection.signal.title}`,
       )
     : null;
   const sceneAppStatusSummary = sceneAppReviewSnapshot?.statusLabel
@@ -136,10 +164,25 @@ export const CuratedTaskBadge: React.FC<CuratedTaskBadgeProps> = ({
         <span
           data-testid="curated-task-badge-review-signal"
           className="inline-flex max-w-[240px] items-center rounded-full border border-emerald-300/70 bg-white/90 px-2 py-0.5 text-[11px] leading-4 text-emerald-700"
-          title={`围绕最近复盘 · ${latestReviewSignal?.summary || latestReviewSignal?.title || ""}`}
+          title={`围绕最近复盘 · ${visibleReviewProjection?.signal.summary || visibleReviewProjection?.signal.title || ""}`}
         >
-          <span className="truncate">围绕最近复盘 · {reviewSummary}</span>
+          <span className="truncate">
+            {visibleReviewProjection?.matchedCurrentTask
+              ? `围绕最近复盘 · ${reviewSummary}`
+              : reviewSummary}
+          </span>
         </span>
+      ) : null}
+      {primarySuggestedTask && onApplyReviewSuggestion ? (
+        <button
+          type="button"
+          data-testid="curated-task-badge-review-action"
+          className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-white/90 px-2 py-0.5 text-[11px] leading-4 text-sky-700 transition hover:bg-white"
+          title={`按最近复盘切到「${primarySuggestedTask.title}」`}
+          onClick={() => onApplyReviewSuggestion(primarySuggestedTask)}
+        >
+          <span className="truncate">改用「{primarySuggestedTask.title}」</span>
+        </button>
       ) : null}
       {sceneAppStatusSummary ? (
         <span

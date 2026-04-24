@@ -10,7 +10,7 @@ describe("seededCommandPackage", () => {
 
     expect(pkg.id).toBe("lime-seeded-command-catalog");
     expect(pkg.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
-    expect(pkg.catalogProjections).toHaveLength(32);
+    expect(pkg.catalogProjections).toHaveLength(33);
     expect(pkg.bindingProfiles.map((profile) => profile.id)).toEqual(
       expect.arrayContaining([
         "agent-turn-instant",
@@ -28,12 +28,24 @@ describe("seededCommandPackage", () => {
       getSeededServiceSkillCatalog().items,
     );
 
-    expect(entries).toHaveLength(32);
+    expect(entries).toHaveLength(33);
     expect(entries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: "command:image_generate",
           commandKey: "image_generate",
+          binding: {
+            skillId: "image_generate",
+            executionKind: "task_queue",
+          },
+          renderContract: expect.objectContaining({
+            resultKind: "image_gallery",
+            detailKind: "media_detail",
+          }),
+        }),
+        expect.objectContaining({
+          id: "command:image_storyboard",
+          commandKey: "image_storyboard",
           binding: {
             skillId: "image_generate",
             executionKind: "task_queue",

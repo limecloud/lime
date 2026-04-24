@@ -1466,7 +1466,7 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain("推荐技能");
+    expect(document.body.textContent).toContain("推荐做法");
     expect(document.body.textContent).toContain("每日趋势摘要");
     expect(document.body.textContent).toContain("GitHub 仓库雷达");
     expect(document.body.textContent).toContain("需要：当前无必填信息");
@@ -1519,7 +1519,7 @@ describe("CharacterMention", () => {
     await typeAtAndWait(textarea);
 
     expect(document.body.textContent).toContain("最近使用");
-    expect(document.body.textContent).toContain("推荐技能");
+    expect(document.body.textContent).toContain("推荐做法");
     expect(document.body.textContent).toContain(
       "上次填写：关注平台=X + TikTok；关键词=AI 内容创作",
     );
@@ -1800,7 +1800,7 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain("已安装技能");
+    expect(document.body.textContent).toContain("我的方法");
     expect(document.body.textContent).toContain("写作助手");
     expect(document.body.textContent).toContain("当你需要复用本地写作方法时使用。");
     expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
@@ -1865,7 +1865,7 @@ describe("CharacterMention", () => {
 
     expect(document.body.textContent).not.toContain("最近使用");
     expect(document.body.textContent).not.toContain("推荐技能");
-    expect(document.body.textContent).toContain("技能组 · GitHub");
+    expect(document.body.textContent).toContain("GitHub");
     expect(document.body.textContent).toContain("GitHub 仓库雷达");
   });
 
@@ -1907,11 +1907,11 @@ describe("CharacterMention", () => {
     await typeMentionAndWait(textarea, "@摘要");
 
     const bodyText = document.body.textContent ?? "";
-    expect(bodyText).toContain("技能组 · 创作中台");
-    expect(bodyText).toContain("技能组 · 通用技能");
+    expect(bodyText).toContain("创作中台");
+    expect(bodyText).toContain("通用技能");
     expect(bodyText).not.toContain("技能组 · creative-workbench");
-    expect(bodyText.indexOf("技能组 · 创作中台")).toBeLessThan(
-      bodyText.indexOf("技能组 · 通用技能"),
+    expect(bodyText.indexOf("创作中台")).toBeLessThan(
+      bodyText.indexOf("通用技能"),
     );
   });
 
@@ -2311,7 +2311,7 @@ describe("CharacterMention", () => {
     expect(onChangeSpy).toHaveBeenCalledWith("/skill-a ");
   });
 
-  it("输入 / 时应优先显示先拿结果、我的方法与工作台操作，而不是把全部命令摊平", async () => {
+  it("输入 / 时应优先显示先拿结果、已经沉淀的方法与工作台操作，而不是把全部命令摊平", async () => {
     const container = renderHarness({
       skills: [createSkill("本地做法A", "local-skill-a", true)],
     });
@@ -2331,16 +2331,16 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).not.toContain(
       "压缩当前会话上下文并写入摘要",
     );
-    expect(document.body.textContent).toContain("我的方法");
+    expect(document.body.textContent).toContain("已经沉淀的方法");
     expect(document.body.textContent).not.toContain("/review");
     expect(document.body.textContent).not.toContain("/help");
     expect(document.body.textContent).not.toContain("/quit");
 
     const bodyText = document.body.textContent ?? "";
     expect(bodyText.indexOf("先拿结果")).toBeLessThan(
-      bodyText.indexOf("我的方法"),
+      bodyText.indexOf("已经沉淀的方法"),
     );
-    expect(bodyText.indexOf("我的方法")).toBeLessThan(
+    expect(bodyText.indexOf("已经沉淀的方法")).toBeLessThan(
       bodyText.indexOf("工作台操作"),
     );
   });
@@ -2760,9 +2760,25 @@ describe("CharacterMention", () => {
     expect(banner?.textContent).toContain("围绕最近复盘");
     expect(banner?.textContent).toContain("最近复盘已更新：短视频编排 · 补证据");
     expect(banner?.textContent).toContain("这轮结果还缺证据");
+    expect(banner?.textContent).toContain("这轮复盘更建议优先回到");
+    expect(banner?.textContent).toContain("复盘这个账号/项目");
+    expect(banner?.textContent).toContain("拆解一条爆款内容");
     expect(banner?.textContent).toContain(
       "更适合继续：复盘这个账号/项目 / 拆解一条爆款内容",
     );
+
+    const bannerAction = document.body.querySelector(
+      '[data-testid="input-capability-section-banner-action-result-templates"]',
+    ) as HTMLButtonElement | null;
+    expect(bannerAction?.textContent).toContain("继续去「复盘这个账号/项目」");
+
+    await act(async () => {
+      bannerAction?.click();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("开始这一步前，我先确认几件事。");
+    expect(document.body.textContent).toContain("复盘这个账号/项目");
   });
 
   it("搜索未接入的 slash 命令时，应单独显示暂未接入分组", async () => {
@@ -2859,7 +2875,7 @@ describe("CharacterMention", () => {
     );
   });
 
-  it("slash 面板中的我的方法与继续上次做法应展示统一轻合同", async () => {
+  it("slash 面板中的已经沉淀的方法与继续上次做法应展示统一轻合同", async () => {
     act(() => {
       recordSlashEntryUsage({
         kind: "skill",
@@ -2891,7 +2907,7 @@ describe("CharacterMention", () => {
 
     await typeSlashAndWait(textarea);
 
-    expect(document.body.textContent).toContain("我的方法");
+    expect(document.body.textContent).toContain("已经沉淀的方法");
     expect(document.body.textContent).toContain("继续上次做法");
     expect(document.body.textContent).toContain(
       "优先接着已经跑过的方法，通常比重新挑一条更省重来成本。",
@@ -2901,7 +2917,7 @@ describe("CharacterMention", () => {
       "写作助手 · 当你需要复用本地写作方法时使用。",
     );
     expect(document.body.textContent).toContain(
-      "更多本地做法；没命中上面的继续项时，再来这里挑一条新的。",
+      "没命中上面的继续项时，再从这里换一条已经沉淀下来的方法。",
     );
     expect(document.body.textContent).toContain("脚本助手");
     expect(document.body.textContent).toContain("需要：主题、受众与语气要求");

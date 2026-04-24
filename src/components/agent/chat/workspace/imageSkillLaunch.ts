@@ -229,6 +229,7 @@ export function resolveImageWorkbenchSkillRequest(
       prompt: effectivePrompt,
       raw_text: rawText,
       count: parsedCommand.count,
+      layout_hint: parsedCommand.layoutHint,
       size: parsedCommand.size || params.imageWorkbenchSelectedSize,
       aspect_ratio: parsedCommand.aspectRatio,
       usage,

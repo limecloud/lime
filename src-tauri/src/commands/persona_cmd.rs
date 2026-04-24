@@ -18,9 +18,11 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::agent::build_auxiliary_session_config;
+use crate::agent::build_auxiliary_session_config_with_turn_context;
+use crate::agent::AsterAgentWrapper;
 use crate::commands::aster_agent_cmd::ensure_browser_mcp_tools_registered;
 use crate::commands::auxiliary_model_selection::{
+    build_auxiliary_runtime_metadata, build_auxiliary_turn_context_override,
     prepare_auxiliary_provider_scope, AuxiliaryServiceModelSlot,
 };
 use crate::database::DbConnection;
@@ -268,6 +270,16 @@ pub struct GeneratedPersona {
     pub preferred_words: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedPersonaCommandResult {
+    pub persona: GeneratedPersona,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_runtime: Option<lime_agent::SessionExecutionRuntime>,
+}
+
 /// AI 一键生成人设
 ///
 /// 根据用户提供的简单描述，调用 AI 生成完整的人设配置。
@@ -285,7 +297,7 @@ pub async fn generate_persona(
     db: State<'_, DbConnection>,
     config_manager: State<'_, crate::config::GlobalConfigManagerState>,
     prompt: String,
-) -> Result<GeneratedPersona, String> {
+) -> Result<GeneratedPersonaCommandResult, String> {
     use aster::conversation::message::Message;
     use futures::StreamExt;
     const PERSONA_FALLBACK_PROVIDER_CHAIN: [(&str, &str); 4] = [
@@ -343,7 +355,22 @@ pub async fn generate_persona(
         } else {
             base_runtime_prompt
         };
-        let session_config = build_auxiliary_session_config(&session_id, merged_prompt, true);
+        let auxiliary_runtime_metadata = build_auxiliary_runtime_metadata(
+            provider_scope.resolution(),
+            "auxiliary_agent_meta",
+            Some("generate_persona"),
+            &["service_model_slot", "internal_turn", "auxiliary_session"],
+            &[
+                "当前为一次性 agent_meta 辅助任务，不参与 submit-turn current 主链。",
+                "运行时只会使用一条已解析的 provider/model 路线。",
+            ],
+        );
+        let session_config = build_auxiliary_session_config_with_turn_context(
+            &session_id,
+            merged_prompt,
+            true,
+            build_auxiliary_turn_context_override(auxiliary_runtime_metadata),
+        );
 
         // 获取 Agent 引用
         let agent_arc = agent_state.get_agent_arc();
@@ -404,8 +431,14 @@ pub async fn generate_persona(
     }
     .await;
 
+    let execution_runtime =
+        AsterAgentWrapper::get_runtime_session_execution_runtime(&db, &session_id).await;
     provider_scope.restore(&agent_state, &db).await;
-    result
+    result.map(|persona| GeneratedPersonaCommandResult {
+        persona,
+        session_id: Some(session_id),
+        execution_runtime,
+    })
 }
 
 /// 解析 AI 返回的人设 JSON

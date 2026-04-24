@@ -23,6 +23,19 @@ const IMAGE_TASK_RUNNER_WORKER_ID: &str = "lime-image-api-worker";
 
 static ACTIVE_IMAGE_TASK_EXECUTIONS: Lazy<Mutex<HashSet<String>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
+const MAX_IMAGE_TASK_COUNT: u32 = 16;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageStoryboardSlotInput {
+    pub prompt: String,
+    #[serde(default, alias = "slot_id")]
+    pub slot_id: Option<String>,
+    #[serde(default)]
+    pub label: Option<String>,
+    #[serde(default, alias = "shot_type")]
+    pub shot_type: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +48,8 @@ pub struct CreateImageGenerationTaskArtifactRequest {
     pub mode: Option<String>,
     #[serde(default)]
     pub raw_text: Option<String>,
+    #[serde(default)]
+    pub layout_hint: Option<String>,
     #[serde(default)]
     pub size: Option<String>,
     #[serde(default)]
@@ -73,6 +88,8 @@ pub struct CreateImageGenerationTaskArtifactRequest {
     pub target_output_ref_id: Option<String>,
     #[serde(default)]
     pub reference_images: Vec<String>,
+    #[serde(default)]
+    pub storyboard_slots: Vec<ImageStoryboardSlotInput>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -125,6 +142,61 @@ fn normalize_optional_string(value: Option<String>) -> Option<String> {
     })
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct ImageGenerationPreferenceDefaults {
+    provider_id: Option<String>,
+    model: Option<String>,
+}
+
+fn load_image_generation_preference_defaults() -> ImageGenerationPreferenceDefaults {
+    #[cfg(test)]
+    {
+        return ImageGenerationPreferenceDefaults::default();
+    }
+
+    #[cfg(not(test))]
+    {
+        let config_path = lime_core::config::ConfigManager::default_config_path();
+        let Ok(manager) = lime_core::config::ConfigManager::load(&config_path) else {
+            return ImageGenerationPreferenceDefaults::default();
+        };
+        let image_preference = manager
+            .config()
+            .workspace_preferences
+            .media_defaults
+            .image
+            .clone();
+
+        ImageGenerationPreferenceDefaults {
+            provider_id: normalize_optional_string(image_preference.preferred_provider_id),
+            model: normalize_optional_string(image_preference.preferred_model_id),
+        }
+    }
+}
+
+fn apply_image_generation_preference_defaults(
+    provider_id: Option<String>,
+    model: Option<String>,
+    defaults: &ImageGenerationPreferenceDefaults,
+) -> (Option<String>, Option<String>) {
+    let provider_missing = provider_id.is_none();
+    let effective_provider_id = provider_id.or_else(|| defaults.provider_id.clone());
+    let effective_model = match model {
+        Some(value) => Some(value),
+        None => {
+            if effective_provider_id.as_deref() == defaults.provider_id.as_deref()
+                || provider_missing
+            {
+                defaults.model.clone()
+            } else {
+                None
+            }
+        }
+    };
+
+    (effective_provider_id, effective_model)
+}
+
 fn normalize_required_string(value: &str, field_name: &str) -> Result<String, String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -148,6 +220,52 @@ fn normalize_reference_images(reference_images: Vec<String>) -> Vec<String> {
     normalized
 }
 
+fn normalize_storyboard_slots(
+    storyboard_slots: Vec<ImageStoryboardSlotInput>,
+) -> Vec<ImageStoryboardSlotInput> {
+    storyboard_slots
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, slot)| {
+            let prompt = slot.prompt.trim().to_string();
+            if prompt.is_empty() {
+                return None;
+            }
+
+            Some(ImageStoryboardSlotInput {
+                prompt,
+                slot_id: normalize_optional_string(slot.slot_id)
+                    .or_else(|| Some(format!("storyboard-slot-{}", index + 1))),
+                label: normalize_optional_string(slot.label),
+                shot_type: normalize_optional_string(slot.shot_type),
+            })
+        })
+        .take(MAX_IMAGE_TASK_COUNT as usize)
+        .collect()
+}
+
+fn build_storyboard_slots_payload(
+    storyboard_slots: &[ImageStoryboardSlotInput],
+) -> Vec<serde_json::Value> {
+    storyboard_slots
+        .iter()
+        .map(|slot| {
+            let mut payload = serde_json::Map::new();
+            payload.insert("prompt".to_string(), json!(slot.prompt));
+            if let Some(slot_id) = slot.slot_id.as_ref() {
+                payload.insert("slot_id".to_string(), json!(slot_id));
+            }
+            if let Some(label) = slot.label.as_ref() {
+                payload.insert("label".to_string(), json!(label));
+            }
+            if let Some(shot_type) = slot.shot_type.as_ref() {
+                payload.insert("shot_type".to_string(), json!(shot_type));
+            }
+            serde_json::Value::Object(payload)
+        })
+        .collect()
+}
+
 fn normalize_mode(value: Option<String>) -> Result<String, String> {
     match value
         .as_deref()
@@ -169,7 +287,7 @@ fn normalize_positive_count(value: Option<u32>) -> Result<u32, String> {
     if count == 0 {
         return Err("count 必须大于 0".to_string());
     }
-    Ok(count.min(8))
+    Ok(count.min(MAX_IMAGE_TASK_COUNT))
 }
 
 fn build_image_task_idempotency_key(
@@ -180,8 +298,10 @@ fn build_image_task_idempotency_key(
     size: Option<&str>,
     usage: Option<&str>,
     reference_images: &[String],
+    storyboard_slots: &[ImageStoryboardSlotInput],
     target_output_ref_id: Option<&str>,
 ) -> Result<String, String> {
+    let storyboard_slots_payload = build_storyboard_slots_payload(storyboard_slots);
     let fingerprint = json!({
         "session_id": normalize_optional_string(request.session_id.clone()),
         "project_id": normalize_optional_string(request.project_id.clone()),
@@ -191,6 +311,7 @@ fn build_image_task_idempotency_key(
         "prompt": prompt,
         "size": size,
         "count": count,
+        "layout_hint": normalize_optional_string(request.layout_hint.clone()),
         "usage": usage,
         "slot_id": normalize_optional_string(request.slot_id.clone()),
         "anchor_hint": normalize_optional_string(request.anchor_hint.clone()),
@@ -198,6 +319,7 @@ fn build_image_task_idempotency_key(
         "anchor_text": normalize_optional_string(request.anchor_text.clone()),
         "target_output_ref_id": target_output_ref_id,
         "reference_images": reference_images,
+        "storyboard_slots": storyboard_slots_payload,
     });
     let serialized = serde_json::to_vec(&fingerprint)
         .map_err(|error| format!("序列化图片任务幂等指纹失败: {error}"))?;
@@ -436,14 +558,27 @@ pub(crate) fn create_image_generation_task_artifact_inner(
     let prompt = normalize_required_string(&request.prompt, "prompt")?;
 
     let mode = normalize_mode(request.mode.clone())?;
-    let count = normalize_positive_count(request.count)?;
+    let normalized_storyboard_slots = normalize_storyboard_slots(request.storyboard_slots.clone());
+    let count = normalize_positive_count(Some(
+        request
+            .count
+            .unwrap_or(normalized_storyboard_slots.len() as u32)
+            .max(normalized_storyboard_slots.len() as u32),
+    ))?;
     let size = normalize_optional_string(request.size.clone());
     let aspect_ratio = normalize_optional_string(request.aspect_ratio.clone());
     let usage = normalize_optional_string(request.usage.clone());
     let style = normalize_optional_string(request.style.clone());
-    let provider_id = normalize_optional_string(request.provider_id.clone());
-    let model = normalize_optional_string(request.model.clone());
+    let requested_provider_id = normalize_optional_string(request.provider_id.clone());
+    let requested_model = normalize_optional_string(request.model.clone());
+    let image_preference_defaults = load_image_generation_preference_defaults();
+    let (provider_id, model) = apply_image_generation_preference_defaults(
+        requested_provider_id,
+        requested_model,
+        &image_preference_defaults,
+    );
     let raw_text = normalize_optional_string(request.raw_text.clone());
+    let layout_hint = normalize_optional_string(request.layout_hint.clone());
     let session_id = normalize_optional_string(request.session_id.clone());
     let project_id = normalize_optional_string(request.project_id.clone());
     let content_id = normalize_optional_string(request.content_id.clone());
@@ -456,6 +591,7 @@ pub(crate) fn create_image_generation_task_artifact_inner(
     let target_output_id = normalize_optional_string(request.target_output_id.clone());
     let target_output_ref_id = normalize_optional_string(request.target_output_ref_id.clone());
     let normalized_reference_images = normalize_reference_images(request.reference_images.clone());
+    let storyboard_slots_payload = build_storyboard_slots_payload(&normalized_storyboard_slots);
 
     let idempotency_key = build_image_task_idempotency_key(
         &request,
@@ -465,6 +601,7 @@ pub(crate) fn create_image_generation_task_artifact_inner(
         size.as_deref(),
         usage.as_deref(),
         &normalized_reference_images,
+        &normalized_storyboard_slots,
         target_output_ref_id.as_deref(),
     )?;
 
@@ -476,6 +613,7 @@ pub(crate) fn create_image_generation_task_artifact_inner(
             "prompt": prompt.as_str(),
             "mode": mode,
             "raw_text": raw_text,
+            "layout_hint": layout_hint,
             "provider_id": provider_id,
             "model": model,
             "style": style,
@@ -495,6 +633,7 @@ pub(crate) fn create_image_generation_task_artifact_inner(
             "target_output_id": target_output_id,
             "target_output_ref_id": target_output_ref_id,
             "reference_images": normalized_reference_images,
+            "storyboard_slots": storyboard_slots_payload,
         }),
         TaskWriteOptions {
             status: Some("pending_submit".to_string()),
@@ -637,6 +776,7 @@ mod tests {
             title: Some("青柠主视觉".to_string()),
             mode: Some("variation".to_string()),
             raw_text: Some("@配图 变体 #img-1 未来感青柠实验室".to_string()),
+            layout_hint: Some("storyboard_3x3".to_string()),
             size: Some("1024x1024".to_string()),
             aspect_ratio: Some("1:1".to_string()),
             count: Some(2),
@@ -660,6 +800,20 @@ mod tests {
                 "https://example.com/reference-a.png".to_string(),
                 "".to_string(),
             ],
+            storyboard_slots: vec![
+                ImageStoryboardSlotInput {
+                    prompt: "未来感实验室的广角建立镜头".to_string(),
+                    slot_id: Some("storyboard-slot-1".to_string()),
+                    label: Some("建立镜头".to_string()),
+                    shot_type: Some("establishing".to_string()),
+                },
+                ImageStoryboardSlotInput {
+                    prompt: "聚焦核心设备与人物互动的中景".to_string(),
+                    slot_id: Some("storyboard-slot-2".to_string()),
+                    label: Some("主体互动".to_string()),
+                    shot_type: Some("medium".to_string()),
+                },
+            ],
         };
 
         let first = create_image_generation_task_artifact_inner(request).expect("create first");
@@ -670,6 +824,7 @@ mod tests {
                 title: Some("青柠主视觉".to_string()),
                 mode: Some("variation".to_string()),
                 raw_text: Some("@配图 变体 #img-1 未来感青柠实验室".to_string()),
+                layout_hint: Some("storyboard_3x3".to_string()),
                 size: Some("1024x1024".to_string()),
                 aspect_ratio: Some("1:1".to_string()),
                 count: Some(2),
@@ -692,6 +847,20 @@ mod tests {
                     "https://example.com/reference-a.png".to_string(),
                     "https://example.com/reference-a.png".to_string(),
                 ],
+                storyboard_slots: vec![
+                    ImageStoryboardSlotInput {
+                        prompt: "未来感实验室的广角建立镜头".to_string(),
+                        slot_id: Some("storyboard-slot-1".to_string()),
+                        label: Some("建立镜头".to_string()),
+                        shot_type: Some("establishing".to_string()),
+                    },
+                    ImageStoryboardSlotInput {
+                        prompt: "聚焦核心设备与人物互动的中景".to_string(),
+                        slot_id: Some("storyboard-slot-2".to_string()),
+                        label: Some("主体互动".to_string()),
+                        shot_type: Some("medium".to_string()),
+                    },
+                ],
             })
             .expect("create second");
 
@@ -709,6 +878,23 @@ mod tests {
         assert_eq!(
             first.record.payload.get("reference_images"),
             Some(&json!(["https://example.com/reference-a.png"]))
+        );
+        assert_eq!(
+            first.record.payload.get("storyboard_slots"),
+            Some(&json!([
+                {
+                    "prompt": "未来感实验室的广角建立镜头",
+                    "slot_id": "storyboard-slot-1",
+                    "label": "建立镜头",
+                    "shot_type": "establishing"
+                },
+                {
+                    "prompt": "聚焦核心设备与人物互动的中景",
+                    "slot_id": "storyboard-slot-2",
+                    "label": "主体互动",
+                    "shot_type": "medium"
+                }
+            ]))
         );
         assert_eq!(
             first.record.payload.get("slot_id"),
@@ -733,6 +919,38 @@ mod tests {
     }
 
     #[test]
+    fn apply_image_generation_preference_defaults_should_fill_missing_provider_and_model() {
+        let defaults = ImageGenerationPreferenceDefaults {
+            provider_id: Some("custom-f0181b00-35b6-4731-94e2-24f17fd247c9".to_string()),
+            model: Some("gpt-images-2".to_string()),
+        };
+
+        let (provider_id, model) =
+            apply_image_generation_preference_defaults(None, None, &defaults);
+
+        assert_eq!(
+            provider_id.as_deref(),
+            Some("custom-f0181b00-35b6-4731-94e2-24f17fd247c9")
+        );
+        assert_eq!(model.as_deref(), Some("gpt-images-2"));
+    }
+
+    #[test]
+    fn apply_image_generation_preference_defaults_should_not_mix_explicit_provider_with_default_model(
+    ) {
+        let defaults = ImageGenerationPreferenceDefaults {
+            provider_id: Some("custom-f0181b00-35b6-4731-94e2-24f17fd247c9".to_string()),
+            model: Some("gpt-images-2".to_string()),
+        };
+
+        let (provider_id, model) =
+            apply_image_generation_preference_defaults(Some("fal".to_string()), None, &defaults);
+
+        assert_eq!(provider_id.as_deref(), Some("fal"));
+        assert_eq!(model, None);
+    }
+
+    #[test]
     fn media_task_artifact_controls_should_share_same_task_file_protocol() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
         let created =
@@ -742,6 +960,7 @@ mod tests {
                 title: Some("正文配图".to_string()),
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 用于正文的未来感实验室配图".to_string()),
+                layout_hint: None,
                 size: Some("1024x1024".to_string()),
                 aspect_ratio: None,
                 count: Some(1),
@@ -761,6 +980,7 @@ mod tests {
                 target_output_id: None,
                 target_output_ref_id: None,
                 reference_images: Vec::new(),
+                storyboard_slots: Vec::new(),
             })
             .expect("create task");
 
@@ -801,6 +1021,7 @@ mod tests {
                 title: Some("青柠主视觉".to_string()),
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 未来感青柠实验室".to_string()),
+                layout_hint: None,
                 size: Some("1024x1024".to_string()),
                 aspect_ratio: None,
                 count: Some(1),
@@ -820,6 +1041,7 @@ mod tests {
                 target_output_id: None,
                 target_output_ref_id: None,
                 reference_images: Vec::new(),
+                storyboard_slots: Vec::new(),
             })
             .expect("create first task");
 
@@ -837,6 +1059,7 @@ mod tests {
                 title: Some("青柠主视觉".to_string()),
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 未来感青柠实验室".to_string()),
+                layout_hint: None,
                 size: Some("1024x1024".to_string()),
                 aspect_ratio: None,
                 count: Some(1),
@@ -856,6 +1079,7 @@ mod tests {
                 target_output_id: None,
                 target_output_ref_id: None,
                 reference_images: Vec::new(),
+                storyboard_slots: Vec::new(),
             })
             .expect("create second task");
 
@@ -876,6 +1100,7 @@ mod tests {
                 title: Some("青柠主视觉".to_string()),
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 未来感青柠实验室".to_string()),
+                layout_hint: None,
                 size: Some("1024x1024".to_string()),
                 aspect_ratio: None,
                 count: Some(1),
@@ -895,6 +1120,7 @@ mod tests {
                 target_output_id: None,
                 target_output_ref_id: None,
                 reference_images: Vec::new(),
+                storyboard_slots: Vec::new(),
             })
             .expect("create task");
 
@@ -1041,6 +1267,7 @@ mod tests {
                 title: Some("青柠主视觉".to_string()),
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 未来感青柠实验室".to_string()),
+                layout_hint: None,
                 size: Some("1024x1024".to_string()),
                 aspect_ratio: None,
                 count: Some(1),
@@ -1060,6 +1287,7 @@ mod tests {
                 target_output_id: None,
                 target_output_ref_id: None,
                 reference_images: Vec::new(),
+                storyboard_slots: Vec::new(),
             })
             .expect("create task");
 

@@ -17,6 +17,15 @@ export interface MessageImage {
   mediaType: string;
 }
 
+export interface ImageStoryboardSlot {
+  slotId: string;
+  slotIndex: number;
+  label?: string | null;
+  prompt?: string | null;
+  shotType?: string | null;
+  status?: string | null;
+}
+
 export interface MessageImageWorkbenchPreview {
   taskId: string;
   prompt: string;
@@ -27,7 +36,11 @@ export interface MessageImageWorkbenchPreview {
   taskFilePath?: string | null;
   artifactPath?: string | null;
   imageUrl?: string | null;
+  previewImages?: string[];
   imageCount?: number;
+  expectedImageCount?: number;
+  layoutHint?: string | null;
+  storyboardSlots?: ImageStoryboardSlot[];
   sourceImageUrl?: string | null;
   sourceImagePrompt?: string | null;
   sourceImageRef?: string | null;

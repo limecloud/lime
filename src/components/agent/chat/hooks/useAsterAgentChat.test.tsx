@@ -3580,6 +3580,99 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
     }
   });
 
+  it("新建会话后不应被过期的话题恢复结果抢回旧会话", async () => {
+    const workspaceId = "ws-first-send-stale-restore-guard";
+    const staleTopicId = "topic-stale-restore";
+    const createdSessionId = "session-fresh-after-race";
+    const createdAt = Math.floor(Date.now() / 1000);
+    const staleTopicDetail = createDeferred<{
+      id: string;
+      messages: [];
+      execution_strategy: "react";
+    }>();
+    const harness = mountHook(workspaceId);
+    let currentSessions = [
+      {
+        id: staleTopicId,
+        name: "旧会话",
+        created_at: createdAt,
+        messages_count: 0,
+        workspace_id: workspaceId,
+      },
+    ];
+
+    mockListAgentRuntimeSessions.mockImplementation(async () => currentSessions);
+    mockCreateAgentRuntimeSession.mockImplementation(async () => {
+      currentSessions = [
+        {
+          id: createdSessionId,
+          name: "新任务",
+          created_at: createdAt + 1,
+          messages_count: 0,
+          workspace_id: workspaceId,
+        },
+        ...currentSessions,
+      ];
+      return createdSessionId;
+    });
+    mockGetAgentRuntimeSession.mockImplementation((topicId: string) => {
+      if (topicId === staleTopicId) {
+        return staleTopicDetail.promise;
+      }
+      return Promise.resolve({
+        id: topicId,
+        messages: [],
+        execution_strategy: "react" as const,
+      });
+    });
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      let staleSwitchPromise: Promise<void> | null = null;
+      await act(async () => {
+        staleSwitchPromise = harness.getValue().switchTopic(staleTopicId);
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        const resolvedSessionId = await harness.getValue().createFreshSession();
+        expect(resolvedSessionId).toBe(createdSessionId);
+      });
+      await flushEffects();
+
+      expect(harness.getValue().sessionId).toBe(createdSessionId);
+
+      await act(async () => {
+        staleTopicDetail.resolve({
+          id: staleTopicId,
+          messages: [],
+          execution_strategy: "react",
+        });
+        await staleSwitchPromise;
+      });
+      await flushEffects();
+
+      expect(harness.getValue().sessionId).toBe(createdSessionId);
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("继续发送，必须留在新会话", [], false, false, false, "react");
+      });
+
+      expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "继续发送，必须留在新会话",
+          session_id: createdSessionId,
+        }),
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("命中 /review 时应转换为预置 prompt 后走 chat_stream", async () => {
     const workspaceId = "ws-slash-review";
     const harness = mountHook(workspaceId);

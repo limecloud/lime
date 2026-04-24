@@ -30,6 +30,9 @@ interface SceneAppExecutionSummaryCardProps {
   latestReviewFeedbackSignal?: CuratedTaskRecommendationSignal | null;
   onContinueReviewFeedback?: (taskId: string) => void;
   onReviewCurrentProject?: () => void;
+  savedAsInspiration?: boolean;
+  onSaveAsInspiration?: () => void;
+  onOpenInspirationLibrary?: () => void;
   onSaveAsSkill?: () => void;
   onOpenSceneAppDetail?: () => void;
   onOpenSceneAppGovernance?: () => void;
@@ -223,6 +226,9 @@ export function SceneAppExecutionSummaryCard({
   latestReviewFeedbackSignal = null,
   onContinueReviewFeedback,
   onReviewCurrentProject,
+  savedAsInspiration = false,
+  onSaveAsInspiration,
+  onOpenInspirationLibrary,
   onSaveAsSkill,
   onOpenSceneAppDetail,
   onOpenSceneAppGovernance,
@@ -267,6 +273,7 @@ export function SceneAppExecutionSummaryCard({
       : "待补齐");
   const hasFollowupSection = Boolean(
     onReviewCurrentProject ||
+      onSaveAsInspiration ||
       onSaveAsSkill ||
       onOpenSceneAppDetail ||
       onOpenSceneAppGovernance ||
@@ -712,6 +719,22 @@ export function SceneAppExecutionSummaryCard({
                   复盘当前项目
                 </Button>
               ) : null}
+              {onSaveAsInspiration ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  data-testid="sceneapp-execution-summary-save-as-inspiration"
+                  disabled={savedAsInspiration}
+                  className={
+                    savedAsInspiration
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                      : undefined
+                  }
+                  onClick={onSaveAsInspiration}
+                >
+                  {savedAsInspiration ? "已收进灵感库" : "保存到灵感库"}
+                </Button>
+              ) : null}
               {onSaveAsSkill ? (
                 <Button
                   type="button"
@@ -753,6 +776,28 @@ export function SceneAppExecutionSummaryCard({
                 </Button>
               ) : null}
             </div>
+            {savedAsInspiration ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <p
+                  className="text-xs leading-5 text-emerald-700"
+                  data-testid="sceneapp-execution-summary-saved-inspiration-hint"
+                >
+                  这轮结果已进入灵感库，下一轮推荐会继续带上它。
+                </p>
+                {onOpenInspirationLibrary ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 rounded-full px-2 text-xs font-medium text-emerald-800 hover:bg-emerald-50 hover:text-emerald-900"
+                    data-testid="sceneapp-execution-summary-open-inspiration-library"
+                    onClick={onOpenInspirationLibrary}
+                  >
+                    去灵感库继续
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             {latestPackResultUsesFallback ? (
               <p className="mt-3 text-xs leading-5 text-slate-500">
                 当前主运行还在继续，做法复盘会优先定位到最近一轮已交付样本，方便直接延续结果消费与放量判断。

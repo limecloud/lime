@@ -1224,6 +1224,17 @@ mod tests {
                     },
                 ),
             }),
+            task_kind: None,
+            service_model_slot: None,
+            routing_mode: None,
+            decision_source: None,
+            candidate_count: None,
+            capability_gap: None,
+            single_candidate_only: None,
+            limit_state: None,
+            estimated_cost_class: None,
+            cost_state: None,
+            limit_event: None,
         }
     }
 

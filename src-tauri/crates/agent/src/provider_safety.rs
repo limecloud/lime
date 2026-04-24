@@ -206,7 +206,29 @@ impl Provider for ProviderSafety {
         &self,
         messages: &aster::conversation::Conversation,
     ) -> Result<String, ProviderError> {
-        self.inner.generate_session_name(messages).await
+        if !self.disable_default_fast_model {
+            return self.inner.generate_session_name(messages).await;
+        }
+
+        let context = self.get_initial_user_messages(messages);
+        let prompt = self.create_session_name_prompt(&context);
+        let message = Message::user().with_text(&prompt);
+        let result = self
+            .complete_fast(
+                "Reply with only a description in four words or less",
+                &[message],
+                &[],
+            )
+            .await?;
+
+        let description = result
+            .0
+            .as_concat_text()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        Ok(aster::utils::safe_truncate(&description, 100))
     }
 
     fn session_name_generation_execution_strategy(&self) -> SessionNameGenerationExecutionStrategy {
@@ -449,6 +471,31 @@ mod tests {
             .expect("generate session name");
 
         assert_eq!(generated, "wrapped-title");
+    }
+
+    #[tokio::test]
+    async fn wrap_provider_with_safety_should_disable_fast_model_for_session_name_generation() {
+        let seen_models = Arc::new(Mutex::new(Vec::new()));
+        let provider = Arc::new(RecordingProvider {
+            model_config: ModelConfig::new("glm-5")
+                .expect("create model config")
+                .with_fast("gpt-4o-mini".to_string()),
+            seen_models: seen_models.clone(),
+        });
+        let wrapped = wrap_provider_with_safety(provider, true);
+        let messages = Conversation::new(vec![Message::user().with_text("你好，帮我画一张图")])
+            .expect("conversation");
+
+        let generated = wrapped
+            .generate_session_name(&messages)
+            .await
+            .expect("generate session name");
+
+        assert_eq!(generated, "ok");
+        assert_eq!(
+            seen_models.lock().expect("read seen models").as_slice(),
+            ["glm-5"]
+        );
     }
 
     #[test]

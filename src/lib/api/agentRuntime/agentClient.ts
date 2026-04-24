@@ -1,5 +1,6 @@
 import type {
   AgentProcessStatus,
+  AgentRuntimeGeneratedTitleResult,
   AsterAgentStatus,
   AsterProviderConfig,
 } from "./types";
@@ -18,6 +19,25 @@ export interface GenerateAgentRuntimeTitleRequest {
   titleKind?: "session" | "image_task";
 }
 
+function normalizeGeneratedTitleResult(
+  response: string | AgentRuntimeGeneratedTitleResult,
+): AgentRuntimeGeneratedTitleResult {
+  if (typeof response === "string") {
+    return {
+      title: response,
+      usedFallback: false,
+    };
+  }
+
+  return {
+    title: response.title,
+    sessionId: response.sessionId ?? null,
+    executionRuntime: response.executionRuntime ?? null,
+    usedFallback: response.usedFallback ?? false,
+    fallbackReason: response.fallbackReason ?? null,
+  };
+}
+
 export function createAgentClient({
   bridgeInvoke = invokeAgentRuntimeBridge,
 }: AgentRuntimeAgentClientDeps = {}) {
@@ -33,9 +53,9 @@ export function createAgentClient({
     return await bridgeInvoke("agent_get_process_status");
   }
 
-  async function generateAgentRuntimeTitle(
+  async function generateAgentRuntimeTitleResult(
     request: GenerateAgentRuntimeTitleRequest,
-  ): Promise<string> {
+  ): Promise<AgentRuntimeGeneratedTitleResult> {
     const payload: Record<string, string> = {};
     if (request.sessionId?.trim()) {
       payload.sessionId = request.sessionId.trim();
@@ -47,7 +67,16 @@ export function createAgentClient({
       payload.titleKind = request.titleKind.trim();
     }
 
-    return await bridgeInvoke("agent_generate_title", payload);
+    return normalizeGeneratedTitleResult(
+      await bridgeInvoke("agent_generate_title", payload),
+    );
+  }
+
+  async function generateAgentRuntimeTitle(
+    request: GenerateAgentRuntimeTitleRequest,
+  ): Promise<string> {
+    const result = await generateAgentRuntimeTitleResult(request);
+    return result.title;
   }
 
   async function generateAgentRuntimeSessionTitle(
@@ -79,6 +108,7 @@ export function createAgentClient({
 
   return {
     configureAsterProvider,
+    generateAgentRuntimeTitleResult,
     generateAgentRuntimeTitle,
     generateAgentRuntimeSessionTitle,
     getAgentProcessStatus,
@@ -91,6 +121,7 @@ export function createAgentClient({
 
 export const {
   configureAsterProvider,
+  generateAgentRuntimeTitleResult,
   generateAgentRuntimeTitle,
   generateAgentRuntimeSessionTitle,
   getAgentProcessStatus,

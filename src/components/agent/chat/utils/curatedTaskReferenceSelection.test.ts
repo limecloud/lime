@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCuratedTaskLaunchInputPrefillFromReferenceEntries,
   buildCuratedTaskLaunchRequestMetadata,
+  buildCuratedTaskReferenceEntries,
   buildCuratedTaskReferencePromptBlock,
 } from "./curatedTaskReferenceSelection";
 
@@ -144,6 +145,89 @@ describe("buildCuratedTaskLaunchInputPrefillFromReferenceEntries", () => {
     ).toEqual({
       project_goal: "AI 内容周报",
       existing_results: "当前已有一轮运行结果。",
+    });
+  });
+
+  it("应把成果类灵感条目编译成可直接复盘的 launcher 预填", () => {
+    const [entry] = buildCuratedTaskReferenceEntries([
+      {
+        id: "memory-review-1",
+        session_id: "session-1",
+        memory_type: "conversation",
+        category: "experience",
+        title: "短视频编排 · 复核阻塞",
+        summary: "当前结果包已完整回流，可继续进入下一轮。",
+        content: [
+          "场景：短视频编排",
+          "平台：X + TikTok",
+          "地区：北美",
+          "目标受众：正在复盘短视频增长的品牌运营",
+          "结果摘要：这轮内容已经产出一版完整结果包。",
+          "当前交付：已交付 3/4 个部件",
+          "建议下一步：先完成复核，再决定下一轮放量",
+          "当前信号：复核阻塞",
+        ].join("\n"),
+        tags: ["短视频", "复核阻塞"],
+        metadata: {
+          confidence: 0.9,
+          importance: 8,
+          access_count: 0,
+          last_accessed_at: null,
+          source: "manual",
+          embedding: null,
+        },
+        created_at: 1_712_345_600_000,
+        updated_at: 1_712_345_678_000,
+        archived: false,
+      },
+    ]);
+
+    expect(entry?.taskPrefillByTaskId?.["account-project-review"]).toEqual({
+      project_goal: "短视频编排",
+      existing_results: expect.stringContaining(
+        "当前结果包已完整回流，可继续进入下一轮。",
+      ),
+    });
+    expect(
+      entry?.taskPrefillByTaskId?.["account-project-review"]?.existing_results,
+    ).toContain("当前交付：已交付 3/4 个部件");
+    expect(
+      entry?.taskPrefillByTaskId?.["account-project-review"]?.existing_results,
+    ).toContain("建议下一步：先完成复核，再决定下一轮放量");
+    expect(entry?.taskPrefillByTaskId?.["daily-trend-briefing"]).toEqual({
+      theme_target: "短视频编排",
+      platform_region: "X + TikTok（北美）",
+    });
+    expect(entry?.taskPrefillByTaskId?.["social-post-starter"]).toEqual({
+      subject_or_product: expect.stringContaining("当前主题：短视频编排"),
+      target_audience: "正在复盘短视频增长的品牌运营",
+    });
+    expect(
+      buildCuratedTaskLaunchInputPrefillFromReferenceEntries({
+        taskId: "account-project-review",
+        referenceEntries: entry ? [entry] : [],
+      }),
+    ).toEqual({
+      project_goal: "短视频编排",
+      existing_results: expect.stringContaining("当前结果包已完整回流"),
+    });
+    expect(
+      buildCuratedTaskLaunchInputPrefillFromReferenceEntries({
+        taskId: "daily-trend-briefing",
+        referenceEntries: entry ? [entry] : [],
+      }),
+    ).toEqual({
+      theme_target: "短视频编排",
+      platform_region: "X + TikTok（北美）",
+    });
+    expect(
+      buildCuratedTaskLaunchInputPrefillFromReferenceEntries({
+        taskId: "social-post-starter",
+        referenceEntries: entry ? [entry] : [],
+      }),
+    ).toEqual({
+      subject_or_product: expect.stringContaining("当前结果基线："),
+      target_audience: "正在复盘短视频增长的品牌运营",
     });
   });
 });

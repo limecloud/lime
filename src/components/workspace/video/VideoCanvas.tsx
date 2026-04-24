@@ -36,18 +36,25 @@ const VIDEO_MODEL_PRESETS: Record<string, string[]> = {
 
 function isVideoProvider(providerId: string): boolean {
   const normalized = providerId.toLowerCase();
+  const isAudioOnlyOpenai =
+    normalized.includes("openai") &&
+    (normalized.includes("tts") ||
+      normalized.includes("voice") ||
+      normalized.includes("audio"));
   return (
-    normalized.includes("doubao") ||
-    normalized.includes("volc") ||
-    normalized.includes("dashscope") ||
-    normalized.includes("alibaba") ||
-    normalized.includes("qwen") ||
-    normalized.includes("video") ||
-    normalized.includes("runway") ||
-    normalized.includes("minimax") ||
-    normalized.includes("kling") ||
-    normalized.includes("sora") ||
-    normalized.includes("veo")
+    !isAudioOnlyOpenai &&
+    (normalized.includes("doubao") ||
+      normalized.includes("volc") ||
+      normalized.includes("dashscope") ||
+      normalized.includes("alibaba") ||
+      normalized.includes("qwen") ||
+      normalized.includes("openai") ||
+      normalized.includes("video") ||
+      normalized.includes("runway") ||
+      normalized.includes("minimax") ||
+      normalized.includes("kling") ||
+      normalized.includes("sora") ||
+      normalized.includes("veo"))
   );
 }
 
@@ -309,13 +316,12 @@ export const VideoCanvas: React.FC<VideoCanvasProps> = memo(
 
       const currentProvider =
         providers.find((provider) => provider.id === state.providerId) ?? null;
-      const preferredProvider =
-        preferredVideoSelection.preferredProviderId
-          ? providers.find(
-              (provider) =>
-                provider.id === preferredVideoSelection.preferredProviderId,
-            ) ?? null
-          : null;
+      const preferredProvider = preferredVideoSelection.preferredProviderId
+        ? (providers.find(
+            (provider) =>
+              provider.id === preferredVideoSelection.preferredProviderId,
+          ) ?? null)
+        : null;
       const nextProvider = currentProvider ?? preferredProvider ?? providers[0];
       if (!nextProvider) {
         return;
@@ -335,10 +341,7 @@ export const VideoCanvas: React.FC<VideoCanvasProps> = memo(
           ? (preferredVideoSelection.preferredModelId ?? "")
           : (nextModels[0] ?? "");
 
-      if (
-        state.providerId === nextProvider.id &&
-        state.model === nextModel
-      ) {
+      if (state.providerId === nextProvider.id && state.model === nextModel) {
         return;
       }
 

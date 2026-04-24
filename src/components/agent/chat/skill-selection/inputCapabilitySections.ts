@@ -47,6 +47,7 @@ import {
 import {
   buildSceneAppExecutionReviewPrefillSnapshot,
 } from "../utils/sceneAppCuratedTaskReference";
+import { buildReviewFeedbackProjection } from "../utils/reviewFeedbackProjection";
 
 const FEATURED_SERVICE_SKILL_LIMIT = 4;
 const RECENT_REPLAY_TEXT_PREVIEW_LIMIT = 48;
@@ -113,6 +114,8 @@ export interface InputCapabilitySection {
     title: string;
     summary: string;
     footnote?: string;
+    actionLabel?: string;
+    actionItemKey?: string;
   };
 }
 
@@ -242,6 +245,7 @@ const INPUT_COMMAND_GROUP_BY_KEY: Record<
   webpage_read: "search_read",
   url_parse: "search_read",
   image_generate: "generate_expression",
+  image_storyboard: "generate_expression",
   cover_generate: "generate_expression",
   poster_generate: "generate_expression",
   video_generate: "generate_expression",
@@ -828,7 +832,7 @@ function buildMentionCapabilitySections(
   if (visibleFeaturedServiceSkills.length > 0) {
     sections.push({
       key: "featured-service-skills",
-      heading: "推荐技能",
+      heading: "推荐做法",
       items: visibleFeaturedServiceSkills.map((skill) => ({
         key: `featured-${skill.id}`,
         kind: "service_skill" as const,
@@ -844,7 +848,7 @@ function buildMentionCapabilitySections(
   for (const group of visibleServiceSkillGroups) {
     sections.push({
       key: `service-skill-group:${group.key}`,
-      heading: `技能组 · ${group.title}`,
+      heading: group.title,
       items: group.skills.map((skill) => ({
         key: skill.id,
         kind: "service_skill" as const,
@@ -877,7 +881,7 @@ function buildMentionCapabilitySections(
   if (params.installedSkills.length > 0) {
     sections.push({
       key: "installed-skills",
-      heading: "已安装技能",
+      heading: "我的方法",
       items: params.installedSkills.map((skill) => ({
         key: skill.directory,
         kind: "installed_skill" as const,
@@ -893,7 +897,7 @@ function buildMentionCapabilitySections(
   if (params.availableSkills.length > 0) {
     sections.push({
       key: "available-skills",
-      heading: "未安装技能",
+      heading: "更多做法",
       items: params.availableSkills.map((skill) => ({
         key: skill.directory,
         kind: "available_skill" as const,
@@ -1291,14 +1295,41 @@ function buildSlashCapabilitySections(
       items: visibleResultTemplateItems,
       ...(latestReviewSignal && highlightedReviewTemplates.length > 0
         ? {
-            banner: {
-              badge: "围绕最近复盘",
-              title: `最近复盘已更新：${latestReviewSignal.title}`,
-              summary: truncateSectionBannerText(latestReviewSignal.summary),
-              footnote: `更适合继续：${highlightedReviewTemplates
-                .map((task) => task.title)
-                .join(" / ")}`,
-            },
+            banner: (() => {
+              const projection = buildReviewFeedbackProjection({
+                signal: latestReviewSignal,
+              });
+              const primarySuggestedItem =
+                (projection?.suggestedTasks[0]
+                  ? visibleResultTemplateItems.find(
+                      (item) => item.key === projection.suggestedTasks[0]?.taskId,
+                    )
+                  : null) ??
+                visibleResultTemplateItems.find(
+                  (item) => item.key === highlightedReviewTemplates[0]?.id,
+                ) ??
+                null;
+
+              return {
+                badge: "围绕最近复盘",
+                title: `最近复盘已更新：${latestReviewSignal.title}`,
+                summary: truncateSectionBannerText(
+                  [
+                    latestReviewSignal.summary,
+                    projection?.suggestionText ?? "",
+                  ]
+                    .filter((segment) => segment.trim().length > 0)
+                    .join(" "),
+                ),
+                footnote: `更适合继续：${highlightedReviewTemplates
+                  .map((task) => task.title)
+                  .join(" / ")}`,
+                actionLabel: primarySuggestedItem
+                  ? `继续去「${primarySuggestedItem.title}」`
+                  : undefined,
+                actionItemKey: primarySuggestedItem?.key,
+              };
+            })(),
           }
         : {}),
         }
@@ -1308,7 +1339,7 @@ function buildSlashCapabilitySections(
     visibleInstalledSkills.length > 0
       ? {
           key: "installed-skills",
-          heading: isEmptyQuery ? "我的方法" : "已安装技能",
+          heading: isEmptyQuery ? "已经沉淀的方法" : "我的方法",
           items: visibleInstalledSkills.map((skill) => ({
             key: skill.directory,
             kind: "installed_skill" as const,
@@ -1389,7 +1420,7 @@ function buildSlashCapabilitySections(
   if (params.availableSkills.length > 0) {
     sections.push({
       key: "available-skills",
-      heading: "未安装技能",
+      heading: "更多做法",
       items: params.availableSkills.map((skill) => ({
         key: skill.directory,
         kind: "available_skill" as const,

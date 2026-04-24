@@ -631,6 +631,8 @@ function buildImageReplayText(
   const targetRef = parsedCommand.targetRef
     ? normalizeText(`#${parsedCommand.targetRef}`)
     : undefined;
+  const layoutHint =
+    parsedCommand.layoutHint === "storyboard_3x3" ? "3x3 分镜" : undefined;
   const aspectOrSize = resolveAspectOrSizeReplayToken({
     body: parsedCommand.body,
     aspectRatio: parsedCommand.aspectRatio,
@@ -648,7 +650,13 @@ function buildImageReplayText(
     return normalizeText(parsedCommand.body);
   }
 
-  return joinReplayFields([targetRef, aspectOrSize, prompt, count]);
+  return joinReplayFields([
+    targetRef,
+    aspectOrSize,
+    layoutHint,
+    prompt,
+    count,
+  ]);
 }
 
 function buildPosterReplayText(
@@ -903,6 +911,7 @@ export function buildMentionCommandReplayText(
 ): string | undefined {
   if (
     input.commandKey === "image_generate" ||
+    input.commandKey === "image_storyboard" ||
     input.commandKey === "image_edit" ||
     input.commandKey === "image_variation"
   ) {
@@ -1079,6 +1088,7 @@ function buildMentionCommandReplayTextFromSlotValues(params: {
 
   if (
     commandKey === "image_generate" ||
+    commandKey === "image_storyboard" ||
     commandKey === "image_edit" ||
     commandKey === "image_variation"
   ) {
@@ -1086,6 +1096,7 @@ function buildMentionCommandReplayTextFromSlotValues(params: {
       body: "",
       prompt: slotValues.prompt,
       count: normalizeNumericSlotValue(slotValues.count),
+      layoutHint: slotValues.layout_hint || slotValues.layoutHint,
       size: slotValues.size,
       aspectRatio: slotValues.aspect_ratio,
       targetRef: slotValues.target_output_ref_id,

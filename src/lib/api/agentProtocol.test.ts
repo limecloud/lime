@@ -288,6 +288,294 @@ describe("agentProtocol", () => {
     });
   });
 
+  it("应解析任务路由链事件", () => {
+    expect(
+      parseAgentEvent({
+        type: "task_profile_resolved",
+        task_profile: {
+          kind: "translation",
+          source: "translation_skill_launch",
+          traits: ["service_model_slot"],
+          serviceModelSlot: "translation",
+        },
+      }),
+    ).toEqual({
+      type: "task_profile_resolved",
+      task_profile: {
+        kind: "translation",
+        source: "translation_skill_launch",
+        traits: ["service_model_slot"],
+        serviceModelSlot: "translation",
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "candidate_set_resolved",
+        routingDecision: {
+          routingMode: "single_candidate",
+          decisionSource: "service_model_setting",
+          decisionReason: "命中 service_models.translation",
+          selectedProvider: "openai",
+          selectedModel: "gpt-4.1-mini",
+          candidateCount: 1,
+        },
+      }),
+    ).toEqual({
+      type: "candidate_set_resolved",
+      routing_decision: {
+        routingMode: "single_candidate",
+        decisionSource: "service_model_setting",
+        decisionReason: "命中 service_models.translation",
+        selectedProvider: "openai",
+        selectedModel: "gpt-4.1-mini",
+        candidateCount: 1,
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "routing_decision_made",
+        routing_decision: {
+          routingMode: "single_candidate",
+          decisionSource: "service_model_setting",
+          decisionReason: "命中 service_models.translation",
+          selectedProvider: "openai",
+          selectedModel: "gpt-4.1-mini",
+          candidateCount: 1,
+        },
+      }),
+    ).toEqual({
+      type: "routing_decision_made",
+      routing_decision: {
+        routingMode: "single_candidate",
+        decisionSource: "service_model_setting",
+        decisionReason: "命中 service_models.translation",
+        selectedProvider: "openai",
+        selectedModel: "gpt-4.1-mini",
+        candidateCount: 1,
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "routing_fallback_applied",
+        routing_decision: {
+          routingMode: "single_candidate",
+          decisionSource: "runtime_fallback",
+          decisionReason: "service_models.translation 不可用，已回退会话默认",
+          selectedProvider: "anthropic",
+          selectedModel: "claude-3-5-haiku",
+          candidateCount: 1,
+          fallbackChain: ["service_models.translation -> session_default"],
+        },
+      }),
+    ).toEqual({
+      type: "routing_fallback_applied",
+      routing_decision: {
+        routingMode: "single_candidate",
+        decisionSource: "runtime_fallback",
+        decisionReason: "service_models.translation 不可用，已回退会话默认",
+        selectedProvider: "anthropic",
+        selectedModel: "claude-3-5-haiku",
+        candidateCount: 1,
+        fallbackChain: ["service_models.translation -> session_default"],
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "limit_state_updated",
+        limit_state: {
+          status: "single_candidate_only",
+          singleCandidateOnly: true,
+          providerLocked: true,
+          settingsLocked: true,
+          oemLocked: false,
+          candidateCount: 1,
+        },
+      }),
+    ).toEqual({
+      type: "limit_state_updated",
+      limit_state: {
+        status: "single_candidate_only",
+        singleCandidateOnly: true,
+        providerLocked: true,
+        settingsLocked: true,
+        oemLocked: false,
+        candidateCount: 1,
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "single_candidate_only",
+        limitState: {
+          status: "single_candidate_only",
+          singleCandidateOnly: true,
+          providerLocked: true,
+          settingsLocked: true,
+          oemLocked: false,
+          candidateCount: 1,
+        },
+      }),
+    ).toEqual({
+      type: "single_candidate_only",
+      limit_state: {
+        status: "single_candidate_only",
+        singleCandidateOnly: true,
+        providerLocked: true,
+        settingsLocked: true,
+        oemLocked: false,
+        candidateCount: 1,
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "single_candidate_capability_gap",
+        limit_state: {
+          status: "single_candidate_only",
+          singleCandidateOnly: true,
+          providerLocked: true,
+          settingsLocked: true,
+          oemLocked: false,
+          candidateCount: 1,
+          capabilityGap: "tools_missing",
+        },
+      }),
+    ).toEqual({
+      type: "single_candidate_capability_gap",
+      limit_state: {
+        status: "single_candidate_only",
+        singleCandidateOnly: true,
+        providerLocked: true,
+        settingsLocked: true,
+        oemLocked: false,
+        candidateCount: 1,
+        capabilityGap: "tools_missing",
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "routing_not_possible",
+        routing_decision: {
+          routingMode: "no_candidate",
+          decisionSource: "auto_default",
+          decisionReason: "当前会话没有 provider/model 默认值",
+          candidateCount: 0,
+        },
+      }),
+    ).toEqual({
+      type: "routing_not_possible",
+      routing_decision: {
+        routingMode: "no_candidate",
+        decisionSource: "auto_default",
+        decisionReason: "当前会话没有 provider/model 默认值",
+        candidateCount: 0,
+      },
+    });
+  });
+
+  it("应解析成本与限额事件", () => {
+    expect(
+      parseAgentEvent({
+        type: "cost_estimated",
+        cost_state: {
+          status: "estimated",
+          estimatedCostClass: "low",
+          inputPerMillion: 0.8,
+          outputPerMillion: 3.2,
+          currency: "USD",
+        },
+      }),
+    ).toEqual({
+      type: "cost_estimated",
+      cost_state: {
+        status: "estimated",
+        estimatedCostClass: "low",
+        inputPerMillion: 0.8,
+        outputPerMillion: 3.2,
+        currency: "USD",
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "cost_recorded",
+        costState: {
+          status: "recorded",
+          estimatedCostClass: "medium",
+          estimatedTotalCost: 0.0185,
+          totalTokens: 12000,
+        },
+      }),
+    ).toEqual({
+      type: "cost_recorded",
+      cost_state: {
+        status: "recorded",
+        estimatedCostClass: "medium",
+        estimatedTotalCost: 0.0185,
+        totalTokens: 12000,
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "rate_limit_hit",
+        limit_event: {
+          eventKind: "rate_limit_hit",
+          message: "429 Too Many Requests",
+          retryable: true,
+        },
+      }),
+    ).toEqual({
+      type: "rate_limit_hit",
+      limit_event: {
+        eventKind: "rate_limit_hit",
+        message: "429 Too Many Requests",
+        retryable: true,
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "quota_low",
+        limit_event: {
+          eventKind: "quota_low",
+          message: "credits running low",
+          retryable: true,
+        },
+      }),
+    ).toEqual({
+      type: "quota_low",
+      limit_event: {
+        eventKind: "quota_low",
+        message: "credits running low",
+        retryable: true,
+      },
+    });
+
+    expect(
+      parseAgentEvent({
+        type: "quota_blocked",
+        limitEvent: {
+          eventKind: "quota_blocked",
+          message: "余额不足",
+          retryable: false,
+        },
+      }),
+    ).toEqual({
+      type: "quota_blocked",
+      limit_event: {
+        eventKind: "quota_blocked",
+        message: "余额不足",
+        retryable: false,
+      },
+    });
+  });
+
   it("应解析队列事件", () => {
     expect(
       parseAgentEvent({

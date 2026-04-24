@@ -600,11 +600,27 @@ describe("EmptyState", () => {
     expect(reviewBanner?.textContent).toContain("短视频编排 · 补证据");
     expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
     expect(reviewBanner?.textContent).toContain(
+      "这轮复盘更建议优先回到「复盘这个账号/项目」或「拆解一条爆款内容」",
+    );
+    expect(reviewBanner?.textContent).toContain(
       "更适合继续：复盘这个账号/项目 / 拆解一条爆款内容",
     );
+
+    const bannerAction = container.querySelector(
+      '[data-testid="entry-review-feedback-banner-action"]',
+    ) as HTMLButtonElement | null;
+    expect(bannerAction?.textContent).toContain("继续去「复盘这个账号/项目」");
+
+    await act(async () => {
+      bannerAction?.click();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("开始这一步前，我先确认几件事。");
+    expect(document.body.textContent).toContain("复盘这个账号/项目");
   });
 
-  it("无浏览器入口且无可挂方法时，不应默认渲染支撑能力摘要层", async () => {
+  it("无浏览器入口且无可续接动作时，不应默认渲染补充续接条", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
     });
@@ -613,16 +629,15 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).not.toContain("支撑能力");
     expect(
-      container.querySelector('[data-testid="entry-capability-toggle"]'),
+      container.querySelector('[data-testid="entry-supplemental-panel"]'),
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="entry-connect-browser"]'),
     ).toBeNull();
   });
 
-  it("只有未形成直接收益的方法目录时，不应默认渲染支撑能力摘要层", async () => {
+  it("只有未形成直接收益的方法目录时，不应默认渲染补充续接条", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       serviceSkills: [createSceneBoundServiceSkill()],
@@ -633,9 +648,11 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).not.toContain("支撑能力");
     expect(
-      container.querySelector('[data-testid="entry-capability-toggle"]'),
+      container.querySelector('[data-testid="entry-supplemental-panel"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="entry-connect-browser"]'),
     ).toBeNull();
   });
 
@@ -1087,7 +1104,7 @@ describe("EmptyState", () => {
     ).toBeNull();
   });
 
-  it("通用首页应把补充入口收成轻量续接条，展开后再显示能力说明", async () => {
+  it("通用首页应把补充入口收成直接续接条，不再展开支撑能力说明", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
@@ -1097,35 +1114,23 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    const expectedLabels = ["我的方法", "持续流程", "任务拆分", "浏览器接入"];
-
     expect(
       container.querySelector('[data-testid="entry-supplemental-panel"]'),
     ).toBeTruthy();
     expect(container.textContent).toContain(
-      "如果你已经知道怎么接着做，也可以直接从这里续上。",
+      "需要网页登录时，也可以先把浏览器接上。",
     );
-    expect(container.textContent).toContain("查看支撑能力");
     expect(
       container.querySelector('[data-testid="entry-connect-browser"]'),
     ).toBeTruthy();
-
-    const toggleButton = container.querySelector(
-      '[data-testid="entry-capability-toggle"]',
-    ) as HTMLButtonElement | null;
-    expect(toggleButton).toBeTruthy();
-
-    act(() => {
-      toggleButton?.click();
-    });
-
-    for (const label of expectedLabels) {
-      expect(container.textContent).toContain(label);
-    }
-
-    expect(container.textContent).toContain("重复任务可持续复用");
-    expect(container.textContent).toContain("复杂任务可拆分并行推进");
-    expect(container.textContent).toContain("网页登录与网页执行");
+    expect(container.textContent).not.toContain("查看支撑能力");
+    expect(container.textContent).not.toContain("收起支撑能力");
+    expect(container.textContent).not.toContain("重复任务可持续复用");
+    expect(container.textContent).not.toContain("复杂任务可拆分并行推进");
+    expect(container.textContent).not.toContain("网页登录与网页执行");
+    expect(
+      container.querySelector('[data-testid="entry-capability-toggle"]'),
+    ).toBeNull();
   });
 
   it("通用首页不再渲染 runtime 总览层", async () => {
@@ -1276,6 +1281,83 @@ describe("EmptyState", () => {
           platform_region: "X 与 TikTok 北美区",
         },
       }),
+    );
+  });
+
+  it("当前激活模板不是最近复盘首选时，输入区 badge 应可直接切到推荐模板", async () => {
+    const projectId = "project-active-badge-review-switch";
+    const container = renderEmptyState({
+      activeTheme: "general",
+      projectId,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const card = container.querySelector(
+      '[data-testid="entry-recommended-daily-trend-briefing"]',
+    ) as HTMLDivElement | null;
+    expect(card).toBeTruthy();
+
+    act(() => {
+      card?.click();
+    });
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(themeInput, "AI 内容创作");
+      updateFieldValue(platformInput, "X 与 TikTok 北美区");
+      await Promise.resolve();
+    });
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton?.disabled).toBe(false);
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      recordCuratedTaskRecommendationSignalFromReviewDecision(
+        {
+          session_id: "session-active-badge-review-switch",
+          decision_status: "needs_more_evidence",
+          decision_summary:
+            "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+          chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
+          risk_level: "medium",
+          risk_tags: ["证据不足", "需要复盘"],
+          followup_actions: ["补账号数据复盘", "拆解一条高表现内容"],
+        },
+        {
+          projectId,
+          sceneTitle: "短视频编排",
+        },
+      );
+      await Promise.resolve();
+    });
+
+    const badgeAction = container.querySelector(
+      '[data-testid="curated-task-badge-review-action"]',
+    ) as HTMLButtonElement | null;
+    expect(badgeAction?.textContent).toContain("改用「复盘这个账号/项目」");
+
+    await act(async () => {
+      badgeAction?.click();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("复盘这个账号/项目");
+    expect(document.body.textContent).toContain(
+      "已按最近复盘切到更适合的结果模板",
     );
   });
 
@@ -2242,7 +2324,7 @@ describe("EmptyState", () => {
     expect(setInput).toHaveBeenLastCalledWith(editedPrompt);
   });
 
-  it("首页方法卡应复用统一的做法数量文案", async () => {
+  it("首页不再显式暴露做法数量文案", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
@@ -2285,7 +2367,8 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("2 套做法可直接复用");
+    expect(container.textContent).not.toContain("2 套做法可直接复用");
+    expect(container.textContent).not.toContain("按需挂上常用做法");
   });
 
   it("通用对话且存在站点型 service skill 时，应展示自然句占位示例", async () => {
@@ -2692,9 +2775,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain(
-      "如果你已经知道怎么接着做，也可以直接从这里续上。",
-    );
+    expect(container.textContent).toContain("也可以直接继续这轮。");
     expect(container.textContent).toContain("短视频编排");
     expect(
       container.querySelector('[data-testid="sceneapps-home-directory"]'),

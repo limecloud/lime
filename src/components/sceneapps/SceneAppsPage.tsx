@@ -22,17 +22,17 @@ const VIEW_OPTIONS = [
   {
     key: "catalog",
     label: "做法目录",
-    summary: "先选一套能直接复用的做法，再决定下一步。",
+    summary: "先挑一套能直接起手的。",
   },
   {
     key: "detail",
     label: "生成准备",
-    summary: "确认参考、结果约定和启动信息，再进入生成。",
+    summary: "把这轮要带着走的输入补齐。",
   },
   {
     key: "governance",
     label: "做法复盘",
-    summary: "回看最近结果、复核材料和下一步判断。",
+    summary: "回看最近结果，再决定下一步。",
   },
 ] as const;
 
@@ -62,6 +62,15 @@ export function SceneAppsPage({
     !runtime.runsLoading &&
     !runtime.runsError &&
     runtime.runListItems.length === 0;
+  const hasLaunchInput = runtime.launchInput.trim().length > 0;
+  const hasReferenceCarry = runtime.selectedReferenceMemoryIds.length > 0;
+  const carrySummary = runtime.selectedDescriptor
+    ? runtime.runListItems.length > 0
+      ? "这套做法已经接住当前上下文，准备和复盘都可以直接往下走。"
+      : "这套做法已经接住当前上下文，先补齐这轮准备，再跑出第一轮结果。"
+    : runtime.recentVisits.length > 0
+      ? "最近看过的做法也还在这里，回到目录挑一套就能继续。"
+      : "先在目录里挑一套能直接起手的做法，后面的准备和复盘都会围着它继续。";
 
   return (
     <div className="flex-1 overflow-auto px-6 py-6">
@@ -69,18 +78,13 @@ export function SceneAppsPage({
         <section className="rounded-[32px] border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-950/5">
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div className="max-w-[900px] space-y-3">
-                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold tracking-[0.12em] text-emerald-700">
-                  全部做法 · 进入生成前的准备层
-                </span>
-                <div className="space-y-2">
-                  <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                    全部做法
-                  </h1>
-                  <p className="text-sm leading-7 text-slate-600 md:text-base">
-                    这里先帮你回答三件事：做什么、会拿到什么、下一步往哪走。先从目录里选一套做法，再进入生成准备或做法复盘，不需要先理解内部实现名词。
-                  </p>
-                </div>
+              <div className="max-w-[900px] space-y-2">
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                  全部做法
+                </h1>
+                <p className="text-sm leading-7 text-slate-600 md:text-base">
+                  先挑一套能直接起手的做法；这轮已经带着的灵感、意图和最近结果都会一路续上。
+                </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -91,148 +95,116 @@ export function SceneAppsPage({
                     void runtime.refreshCatalog();
                   }}
                 >
-                  刷新目录
+                  刷新
                 </button>
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                  当前目录
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-slate-950">
-                  {runtime.filteredDescriptors.length}
-                </div>
-                <div className="mt-1 text-sm leading-6 text-slate-600">
-                  当前筛选后可直接进入的做法数量。
-                </div>
+            {runtime.catalogError ? (
+              <div className="text-sm leading-6 text-amber-700">
+                {runtime.catalogError}
               </div>
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                  最近继续
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-slate-950">
-                  {runtime.recentVisits.length}
-                </div>
-                <div className="mt-1 text-sm leading-6 text-slate-600">
-                  最近看过的做法会保留上下文，方便直接续上。
-                </div>
-              </div>
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                  当前焦点
-                </div>
-                <div className="mt-2 text-base font-semibold text-slate-950">
-                  {runtime.selectedDescriptor?.title ?? "先选一套做法"}
-                </div>
-                <div className="mt-1 text-sm leading-6 text-slate-600">
-                  {runtime.selectedDescriptor?.summary ??
-                    "选中后会继续带你进入生成准备或做法复盘。"}
-                </div>
-              </div>
-            </div>
-
-          {runtime.catalogError ? (
-            <div className="text-sm leading-6 text-amber-700">
-              {runtime.catalogError}
-            </div>
-          ) : null}
+            ) : null}
 
             <div className="space-y-4 border-t border-slate-100 pt-5">
-              <div className="grid gap-3 lg:grid-cols-3">
-              {VIEW_OPTIONS.map((option) => {
-                const active = runtime.viewMode === option.key;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    data-testid={`sceneapps-view-${option.key}`}
-                    className={
-                      active
-                        ? "rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] px-4 py-4 text-left shadow-sm shadow-emerald-950/10"
-                        : "rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-left transition-colors hover:border-slate-300 hover:bg-white"
-                    }
-                    onClick={() => runtime.handleViewModeChange(option.key)}
-                  >
-                    <div
-                      className={
-                        active
-                          ? "text-sm font-semibold text-slate-950"
-                          : "text-sm font-semibold text-slate-800"
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  {runtime.selectedDescriptor ? (
+                    <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                      这轮做法：{runtime.selectedDescriptor.title}
+                    </span>
+                  ) : null}
+                  {hasReferenceCarry ? (
+                    <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                      已带 {runtime.selectedReferenceMemoryIds.length} 条灵感
+                    </span>
+                  ) : null}
+                  {hasLaunchInput ? (
+                    <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                      已写启动意图
+                    </span>
+                  ) : null}
+                  {!runtime.selectedDescriptor && runtime.recentVisits.length > 0 ? (
+                    <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                      最近看过的做法可直接续上
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-3 text-sm leading-6 text-slate-800">
+                  {carrySummary}
+                </div>
+                {runtime.selectedDescriptor?.summary ? (
+                  <div className="mt-1 text-sm leading-6 text-slate-600">
+                    {runtime.selectedDescriptor.summary}
+                  </div>
+                ) : null}
+                {hasLaunchInput ? (
+                  <div className="mt-2 text-sm leading-6 text-slate-600">
+                    <span className="font-medium text-slate-700">
+                      启动意图：
+                    </span>
+                    {runtime.launchInput}
+                  </div>
+                ) : null}
+                {runtime.selectedDescriptor ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      data-testid="sceneapps-open-detail"
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
+                      onClick={() => runtime.handleViewModeChange("detail")}
+                    >
+                      继续准备
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="sceneapps-open-governance"
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
+                      onClick={() =>
+                        runtime.runListItems.length > 0
+                          ? runtime.handleViewModeChange("governance")
+                          : runtime.handleViewModeChange("detail")
                       }
                     >
-                      {option.label}
-                    </div>
-                    <div className="mt-1 text-sm leading-6 text-slate-500">
-                      {option.summary}
-                    </div>
-                  </button>
-                );
-              })}
-              </div>
-              {runtime.launchInput.trim() ||
-              runtime.selectedReferenceMemoryIds.length > 0 ? (
-                <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 px-4 py-4 text-sm leading-6 text-emerald-900">
-                  <div className="text-[11px] font-semibold tracking-[0.08em] text-emerald-700">
-                    当前已带入
+                      {runtime.runListItems.length > 0
+                        ? "去做法复盘"
+                        : "先去生成准备"}
+                    </button>
                   </div>
-                  {runtime.selectedReferenceMemoryIds.length > 0 ? (
-                    <div className="mt-2">
-                      <span className="font-medium">灵感对象：</span>
-                      {runtime.selectedReferenceMemoryIds.length}
-                      条，后续 planning 会把它们编译成正式参考对象。
-                    </div>
-                  ) : null}
-                  {runtime.launchInput.trim() ? (
-                    <div className="mt-1">
-                      <span className="font-medium">启动意图：</span>
-                      {runtime.launchInput}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-              {runtime.selectedDescriptor ? (
-                <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                        当前做法
-                      </div>
-                      <div className="mt-2 text-base font-semibold text-slate-950">
-                        {runtime.selectedDescriptor.title}
-                      </div>
-                      <div className="mt-1 text-sm leading-6 text-slate-600">
-                        {runtime.selectedDescriptor.summary}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        data-testid="sceneapps-open-detail"
-                        className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
-                        onClick={() => runtime.handleViewModeChange("detail")}
-                      >
-                        去做法准备
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="sceneapps-open-governance"
-                        className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
-                        onClick={() =>
-                          runtime.runListItems.length > 0
-                            ? runtime.handleViewModeChange("governance")
-                            : runtime.handleViewModeChange("detail")
+                ) : null}
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-3">
+                {VIEW_OPTIONS.map((option) => {
+                  const active = runtime.viewMode === option.key;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      data-testid={`sceneapps-view-${option.key}`}
+                      className={
+                        active
+                          ? "rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] px-4 py-4 text-left shadow-sm shadow-emerald-950/10"
+                          : "rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-left transition-colors hover:border-slate-300 hover:bg-white"
+                      }
+                      onClick={() => runtime.handleViewModeChange(option.key)}
+                    >
+                      <div
+                        className={
+                          active
+                            ? "text-sm font-semibold text-slate-950"
+                            : "text-sm font-semibold text-slate-800"
                         }
                       >
-                        {runtime.runListItems.length > 0
-                          ? "去做法复盘"
-                          : "先去生成准备"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
+                        {option.label}
+                      </div>
+                      <div className="mt-1 text-sm leading-6 text-slate-500">
+                        {option.summary}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </section>
@@ -425,6 +397,13 @@ export function SceneAppsPage({
                   error={runtime.selectedRunError}
                   latestReviewFeedbackSignal={runtime.latestReviewFeedbackSignal}
                   onContinueReviewFeedback={runtime.handleContinueReviewFeedback}
+                  savedAsInspiration={runtime.selectedRunSavedAsInspiration}
+                  onSaveAsInspiration={
+                    runtime.handleSaveSelectedRunAsInspiration
+                  }
+                  onOpenInspirationLibrary={
+                    runtime.handleOpenInspirationLibrary
+                  }
                   humanReviewAvailable={runtime.canOpenSelectedRunHumanReview}
                   humanReviewLoading={runtime.reviewDecisionLoading}
                   quickReviewActions={runtime.quickReviewActions}

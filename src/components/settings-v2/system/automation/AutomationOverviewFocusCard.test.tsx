@@ -110,11 +110,12 @@ describe("AutomationOverviewFocusCard", () => {
     await renderCard();
 
     const text = document.body.textContent ?? "";
-    expect(text).toContain("当前经营焦点");
+    expect(text).toContain("现在先继续这条");
     expect(text).toContain("短视频持续投放");
     expect(text).toContain("故事短视频套件");
-    expect(text).toContain("继续复盘当前项目");
-    expect(text).toContain("生成工作台");
+    expect(text).toContain("这轮材料已经接近可复用。");
+    expect(text).toContain("先做：优先补齐结构化复盘包。");
+    expect(text).toContain("最近结果");
   });
 
   it("应支持继续复盘与打开详情动作", async () => {
@@ -166,7 +167,7 @@ describe("AutomationOverviewFocusCard", () => {
     });
 
     expect(document.body.textContent).toContain(
-      "当前还没有接到做法主链的持续流程",
+      "还没有自动续上的做法",
     );
   });
 });

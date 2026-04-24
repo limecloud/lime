@@ -6,7 +6,14 @@ import {
   normalizeLegacyRuntimeStatusTitle,
   normalizeLegacyThreadItem,
 } from "./agentTextNormalization";
-import type { AsterTurnOutputSchemaRuntime } from "./agentExecutionRuntime";
+import type {
+  AsterSessionExecutionRuntimeCostState,
+  AsterSessionExecutionRuntimeLimitEvent,
+  AsterSessionExecutionRuntimeLimitState,
+  AsterSessionExecutionRuntimeRoutingDecision,
+  AsterSessionExecutionRuntimeTaskProfile,
+  AsterTurnOutputSchemaRuntime,
+} from "./agentExecutionRuntime";
 import type {
   AsterApprovalPolicy,
   AgentRuntimeSubmitTurnRequest,
@@ -433,6 +440,71 @@ export interface AgentEventRuntimeStatus {
   status: AgentRuntimeStatusPayload;
 }
 
+export interface AgentEventTaskProfileResolved {
+  type: "task_profile_resolved";
+  task_profile: AsterSessionExecutionRuntimeTaskProfile;
+}
+
+export interface AgentEventCandidateSetResolved {
+  type: "candidate_set_resolved";
+  routing_decision: AsterSessionExecutionRuntimeRoutingDecision;
+}
+
+export interface AgentEventRoutingDecisionMade {
+  type: "routing_decision_made";
+  routing_decision: AsterSessionExecutionRuntimeRoutingDecision;
+}
+
+export interface AgentEventRoutingFallbackApplied {
+  type: "routing_fallback_applied";
+  routing_decision: AsterSessionExecutionRuntimeRoutingDecision;
+}
+
+export interface AgentEventRoutingNotPossible {
+  type: "routing_not_possible";
+  routing_decision: AsterSessionExecutionRuntimeRoutingDecision;
+}
+
+export interface AgentEventLimitStateUpdated {
+  type: "limit_state_updated";
+  limit_state: AsterSessionExecutionRuntimeLimitState;
+}
+
+export interface AgentEventSingleCandidateOnly {
+  type: "single_candidate_only";
+  limit_state: AsterSessionExecutionRuntimeLimitState;
+}
+
+export interface AgentEventSingleCandidateCapabilityGap {
+  type: "single_candidate_capability_gap";
+  limit_state: AsterSessionExecutionRuntimeLimitState;
+}
+
+export interface AgentEventCostEstimated {
+  type: "cost_estimated";
+  cost_state: AsterSessionExecutionRuntimeCostState;
+}
+
+export interface AgentEventCostRecorded {
+  type: "cost_recorded";
+  cost_state: AsterSessionExecutionRuntimeCostState;
+}
+
+export interface AgentEventRateLimitHit {
+  type: "rate_limit_hit";
+  limit_event: AsterSessionExecutionRuntimeLimitEvent;
+}
+
+export interface AgentEventQuotaLow {
+  type: "quota_low";
+  limit_event: AsterSessionExecutionRuntimeLimitEvent;
+}
+
+export interface AgentEventQuotaBlocked {
+  type: "quota_blocked";
+  limit_event: AsterSessionExecutionRuntimeLimitEvent;
+}
+
 export interface AgentEventQueueAdded {
   type: "queue_added";
   session_id: string;
@@ -514,6 +586,19 @@ export type AgentEvent =
   | AgentEventModelChange
   | AgentEventContextTrace
   | AgentEventRuntimeStatus
+  | AgentEventTaskProfileResolved
+  | AgentEventCandidateSetResolved
+  | AgentEventRoutingDecisionMade
+  | AgentEventRoutingFallbackApplied
+  | AgentEventRoutingNotPossible
+  | AgentEventLimitStateUpdated
+  | AgentEventSingleCandidateOnly
+  | AgentEventSingleCandidateCapabilityGap
+  | AgentEventCostEstimated
+  | AgentEventCostRecorded
+  | AgentEventRateLimitHit
+  | AgentEventQuotaLow
+  | AgentEventQuotaBlocked
   | AgentEventQueueAdded
   | AgentEventQueueRemoved
   | AgentEventQueueStarted
@@ -868,6 +953,97 @@ export function parseAgentEvent(data: unknown): AgentEvent | null {
         },
       };
     }
+    case "task_profile_resolved":
+      return {
+        type: "task_profile_resolved",
+        task_profile:
+          (event.task_profile as AsterSessionExecutionRuntimeTaskProfile) ||
+          (event.taskProfile as AsterSessionExecutionRuntimeTaskProfile),
+      };
+    case "candidate_set_resolved":
+      return {
+        type: "candidate_set_resolved",
+        routing_decision:
+          (event.routing_decision as AsterSessionExecutionRuntimeRoutingDecision) ||
+          (event.routingDecision as AsterSessionExecutionRuntimeRoutingDecision),
+      };
+    case "routing_decision_made":
+      return {
+        type: "routing_decision_made",
+        routing_decision:
+          (event.routing_decision as AsterSessionExecutionRuntimeRoutingDecision) ||
+          (event.routingDecision as AsterSessionExecutionRuntimeRoutingDecision),
+      };
+    case "routing_fallback_applied":
+      return {
+        type: "routing_fallback_applied",
+        routing_decision:
+          (event.routing_decision as AsterSessionExecutionRuntimeRoutingDecision) ||
+          (event.routingDecision as AsterSessionExecutionRuntimeRoutingDecision),
+      };
+    case "routing_not_possible":
+      return {
+        type: "routing_not_possible",
+        routing_decision:
+          (event.routing_decision as AsterSessionExecutionRuntimeRoutingDecision) ||
+          (event.routingDecision as AsterSessionExecutionRuntimeRoutingDecision),
+      };
+    case "limit_state_updated":
+      return {
+        type: "limit_state_updated",
+        limit_state:
+          (event.limit_state as AsterSessionExecutionRuntimeLimitState) ||
+          (event.limitState as AsterSessionExecutionRuntimeLimitState),
+      };
+    case "single_candidate_only":
+      return {
+        type: "single_candidate_only",
+        limit_state:
+          (event.limit_state as AsterSessionExecutionRuntimeLimitState) ||
+          (event.limitState as AsterSessionExecutionRuntimeLimitState),
+      };
+    case "single_candidate_capability_gap":
+      return {
+        type: "single_candidate_capability_gap",
+        limit_state:
+          (event.limit_state as AsterSessionExecutionRuntimeLimitState) ||
+          (event.limitState as AsterSessionExecutionRuntimeLimitState),
+      };
+    case "cost_estimated":
+      return {
+        type: "cost_estimated",
+        cost_state:
+          (event.cost_state as AsterSessionExecutionRuntimeCostState) ||
+          (event.costState as AsterSessionExecutionRuntimeCostState),
+      };
+    case "cost_recorded":
+      return {
+        type: "cost_recorded",
+        cost_state:
+          (event.cost_state as AsterSessionExecutionRuntimeCostState) ||
+          (event.costState as AsterSessionExecutionRuntimeCostState),
+      };
+    case "rate_limit_hit":
+      return {
+        type: "rate_limit_hit",
+        limit_event:
+          (event.limit_event as AsterSessionExecutionRuntimeLimitEvent) ||
+          (event.limitEvent as AsterSessionExecutionRuntimeLimitEvent),
+      };
+    case "quota_low":
+      return {
+        type: "quota_low",
+        limit_event:
+          (event.limit_event as AsterSessionExecutionRuntimeLimitEvent) ||
+          (event.limitEvent as AsterSessionExecutionRuntimeLimitEvent),
+      };
+    case "quota_blocked":
+      return {
+        type: "quota_blocked",
+        limit_event:
+          (event.limit_event as AsterSessionExecutionRuntimeLimitEvent) ||
+          (event.limitEvent as AsterSessionExecutionRuntimeLimitEvent),
+      };
     case "queue_added": {
       const queuedTurn = normalizeQueuedTurnSnapshot(event.queued_turn);
       if (!queuedTurn) {

@@ -18,14 +18,23 @@ fn build_agent_status(
 
 #[tauri::command]
 pub async fn aster_agent_init(
+    app: AppHandle,
     state: State<'_, AsterAgentState>,
     db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
     mcp_manager: State<'_, McpManagerState>,
 ) -> Result<AsterAgentStatus, String> {
     tracing::info!("[AsterAgent] 初始化 Agent");
 
     state.init_agent_with_db(&db).await?;
-    ensure_runtime_support_tools_registered(state.inner(), mcp_manager.inner()).await?;
+    ensure_runtime_support_tools_registered(
+        &app,
+        state.inner(),
+        db.inner(),
+        api_key_provider_service.inner(),
+        mcp_manager.inner(),
+    )
+    .await?;
 
     let provider_config = state.get_provider_config().await;
 

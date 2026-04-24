@@ -25,6 +25,37 @@ pub fn is_openai_responses_endpoint(api_host: &str) -> bool {
     has_known_suffix(api_host, &["responses"])
 }
 
+pub fn is_openai_responses_compatible_host(api_host: &str) -> bool {
+    if is_openai_responses_endpoint(api_host) {
+        return true;
+    }
+
+    let trimmed = api_host.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let parse_target = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{trimmed}")
+    };
+
+    let Ok(url) = Url::parse(&parse_target) else {
+        return false;
+    };
+
+    let segments: Vec<&str> = url
+        .path_segments()
+        .map(|items| items.filter(|segment| !segment.is_empty()).collect())
+        .unwrap_or_default();
+
+    segments
+        .last()
+        .map(|segment| segment.eq_ignore_ascii_case("codex"))
+        .unwrap_or(false)
+}
+
 fn strip_known_suffixes(api_host: &str, suffixes: &[&[&str]]) -> String {
     let trimmed = api_host.trim().trim_end_matches('/');
     if trimmed.is_empty() {
@@ -119,8 +150,8 @@ fn ends_with_segments<T: AsRef<str>, U: AsRef<str>>(segments: &[T], suffix: &[U]
 #[cfg(test)]
 mod tests {
     use super::{
-        is_openai_responses_endpoint, normalize_openai_compatible_api_host,
-        normalize_openai_model_discovery_host,
+        is_openai_responses_compatible_host, is_openai_responses_endpoint,
+        normalize_openai_compatible_api_host, normalize_openai_model_discovery_host,
     };
 
     #[test]
@@ -157,5 +188,21 @@ mod tests {
             "https://gateway.example.com/proxy/responses"
         ));
         assert!(!is_openai_responses_endpoint("https://api.openai.com/v1"));
+    }
+
+    #[test]
+    fn test_is_openai_responses_compatible_host_detects_codex_base_path() {
+        assert!(is_openai_responses_compatible_host(
+            "https://gateway.example.com/codex"
+        ));
+        assert!(is_openai_responses_compatible_host(
+            "https://chatgpt.com/backend-api/codex"
+        ));
+        assert!(is_openai_responses_compatible_host(
+            "https://gateway.example.com/proxy/responses"
+        ));
+        assert!(!is_openai_responses_compatible_host(
+            "https://api.openai.com/v1"
+        ));
     }
 }

@@ -4,6 +4,16 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
 
+const { mockGetConfig, mockSaveConfig } = vi.hoisted(() => ({
+  mockGetConfig: vi.fn(),
+  mockSaveConfig: vi.fn(),
+}));
+
+vi.mock("@/lib/api/appConfig", () => ({
+  getConfig: (...args: unknown[]) => mockGetConfig(...args),
+  saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
+}));
+
 vi.mock("./ProviderConfigForm", () => ({
   ProviderConfigForm: React.forwardRef((_props, _ref) => (
     <div data-testid="provider-config-form-stub">协议配置表单</div>
@@ -84,12 +94,32 @@ function renderSetting(provider: ProviderWithKeysDisplay | null) {
   return container;
 }
 
+async function flushEffects(times = 2) {
+  await act(async () => {
+    for (let index = 0; index < times; index += 1) {
+      await Promise.resolve();
+    }
+  });
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  vi.clearAllMocks();
+  mockGetConfig.mockResolvedValue({
+    workspace_preferences: {
+      media_defaults: {
+        image: {
+          preferredProviderId: "airgate-openai-images",
+          allowFallback: false,
+        },
+      },
+    },
+  });
+  mockSaveConfig.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -109,15 +139,17 @@ afterEach(() => {
 });
 
 describe("ProviderSetting", () => {
-  it("空状态应提示进入服务商配置工作台", () => {
+  it("空状态应提示进入服务商配置工作台", async () => {
     const container = renderSetting(null);
+    await flushEffects();
 
     expect(container.textContent ?? "").toContain("服务商配置工作台");
     expect(container.textContent ?? "").toContain("模型、密钥和必要配置");
   });
 
-  it("应展示新的分区式编辑工作台", () => {
+  it("应展示新的分区式编辑工作台", async () => {
     const container = renderSetting(createProvider());
+    await flushEffects();
     const text = container.textContent ?? "";
 
     expect(text).toContain("模型设置");
@@ -139,7 +171,7 @@ describe("ProviderSetting", () => {
     ).not.toBeNull();
   });
 
-  it("anthropic-compatible Provider 不应误显示必须等待真实模型目录", () => {
+  it("anthropic-compatible Provider 不应误显示必须等待真实模型目录", async () => {
     const container = renderSetting(
       createProvider({
         id: "mimo-anthropic-no-model",
@@ -149,6 +181,7 @@ describe("ProviderSetting", () => {
         custom_models: [],
       }),
     );
+    await flushEffects();
 
     const text = container.textContent ?? "";
 
@@ -157,8 +190,9 @@ describe("ProviderSetting", () => {
     expect(text).not.toContain("模型待同步");
   });
 
-  it("服务商工作台应保留原分栏，并允许模型区头部自然换行", () => {
+  it("服务商工作台应保留原分栏，并允许模型区头部自然换行", async () => {
     const container = renderSetting(createProvider());
+    await flushEffects();
     const workbenchGrid = container.querySelector<HTMLElement>(
       '[data-testid="provider-setting-workbench-grid"]',
     );
@@ -173,7 +207,7 @@ describe("ProviderSetting", () => {
     expect(modelsHeader?.className).toContain("justify-between");
   });
 
-  it("anthropic-compatible Provider 应在头部展示显式缓存标签", () => {
+  it("anthropic-compatible Provider 应在头部展示显式缓存标签", async () => {
     const container = renderSetting(
       createProvider({
         id: "anthropic-proxy",
@@ -181,6 +215,7 @@ describe("ProviderSetting", () => {
         type: "anthropic-compatible",
       }),
     );
+    await flushEffects();
 
     const badge = container.querySelector(
       '[data-testid="provider-prompt-cache-badge"]',
@@ -190,7 +225,7 @@ describe("ProviderSetting", () => {
     expect(badge?.textContent ?? "").toContain("显式缓存");
   });
 
-  it("显式声明 automatic 的 anthropic-compatible Provider 不应在头部展示显式缓存标签", () => {
+  it("显式声明 automatic 的 anthropic-compatible Provider 不应在头部展示显式缓存标签", async () => {
     const container = renderSetting(
       createProvider({
         id: "anthropic-proxy-automatic",
@@ -199,6 +234,7 @@ describe("ProviderSetting", () => {
         prompt_cache_mode: "automatic",
       }),
     );
+    await flushEffects();
 
     expect(
       container.querySelector('[data-testid="provider-prompt-cache-badge"]'),
@@ -226,7 +262,7 @@ describe("ProviderSetting", () => {
       name: "MiMo Anthropic",
       apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
     },
-  ])("$name 官方 Host 不应在头部展示显式缓存标签", ({ id, name, apiHost }) => {
+  ])("$name 官方 Host 不应在头部展示显式缓存标签", async ({ id, name, apiHost }) => {
     const container = renderSetting(
       createProvider({
         id,
@@ -235,13 +271,14 @@ describe("ProviderSetting", () => {
         api_host: apiHost,
       }),
     );
+    await flushEffects();
 
     expect(
       container.querySelector('[data-testid="provider-prompt-cache-badge"]'),
     ).toBeNull();
   });
 
-  it("已保存默认模型的 anthropic-compatible Provider 在真实目录未返回时仍应允许连接测试", () => {
+  it("已保存默认模型的 anthropic-compatible Provider 在真实目录未返回时仍应允许连接测试", async () => {
     const container = renderSetting(
       createProvider({
         id: "minimax-anthropic-saved-default",
@@ -251,6 +288,7 @@ describe("ProviderSetting", () => {
         custom_models: ["MiniMax-M2.7"],
       }),
     );
+    await flushEffects();
 
     expect(container.textContent ?? "").toContain("MiniMax-M2.7");
     expect(container.textContent ?? "").toContain("可测试");
@@ -263,5 +301,45 @@ describe("ProviderSetting", () => {
         .querySelector('[data-testid="connection-test-button-stub"]')
         ?.getAttribute("data-disabled"),
     ).toBe("false");
+  });
+
+  it("图片 Provider 应允许一键设为默认图片服务", async () => {
+    const container = renderSetting(
+      createProvider({
+        id: "custom-gpt-images",
+        name: "OpenAI GPT Images",
+        type: "openai",
+        api_host: "https://example.com/codex",
+        custom_models: ["gpt-images-2"],
+      }),
+    );
+    await flushEffects(3);
+
+    expect(
+      container.querySelector('[data-testid="provider-image-default-card"]'),
+    ).not.toBeNull();
+    expect(container.textContent ?? "").toContain(
+      "当前默认仍是 airgate-openai-images",
+    );
+
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-set-default-image-button"]',
+    );
+    expect(button).not.toBeNull();
+
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockSaveConfig).toHaveBeenCalledTimes(1);
+    const savedConfig = mockSaveConfig.mock.calls[0][0];
+    expect(savedConfig.workspace_preferences.media_defaults.image).toEqual({
+      preferredProviderId: "custom-gpt-images",
+      preferredModelId: "gpt-images-2",
+      allowFallback: false,
+    });
   });
 });

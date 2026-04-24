@@ -92,11 +92,20 @@ pub(super) async fn try_handle(
             let app_handle = require_app_handle(state)?;
             let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
             let db = app_handle.state::<crate::database::DbConnection>();
+            let api_key_provider_service =
+                app_handle
+                    .state::<crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState>();
             let mcp_manager = app_handle.state::<crate::mcp::McpManagerState>();
 
             serde_json::to_value(
-                crate::commands::aster_agent_cmd::aster_agent_init(aster_state, db, mcp_manager)
-                    .await?,
+                crate::commands::aster_agent_cmd::aster_agent_init(
+                    app_handle.clone(),
+                    aster_state,
+                    db,
+                    api_key_provider_service,
+                    mcp_manager,
+                )
+                .await?,
             )?
         }
         "aster_agent_status" => {

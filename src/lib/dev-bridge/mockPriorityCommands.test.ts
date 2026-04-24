@@ -77,6 +77,31 @@ describe("mockPriorityCommands", () => {
     expect(shouldDisallowMockFallbackInBrowser("get_provider_ui_state")).toBe(
       true,
     );
+    expect(shouldPreferMockInBrowser("session_files_save_file")).toBe(false);
+    expect(shouldDisallowMockFallbackInBrowser("session_files_save_file")).toBe(
+      true,
+    );
+    expect(
+      shouldDisallowMockFallbackInBrowser("read_file_preview_cmd"),
+    ).toBe(true);
+    expect(
+      shouldDisallowMockFallbackInBrowser("session_files_resolve_file_path"),
+    ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("upload_material")).toBe(true);
+    expect(
+      shouldDisallowMockFallbackInBrowser(
+        "create_image_generation_task_artifact",
+      ),
+    ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("get_media_task_artifact")).toBe(
+      true,
+    );
+    expect(
+      shouldDisallowMockFallbackInBrowser("list_media_task_artifacts"),
+    ).toBe(true);
+    expect(
+      shouldDisallowMockFallbackInBrowser("cancel_media_task_artifact"),
+    ).toBe(true);
     expect(shouldDisallowMockFallbackInBrowser("list_plugin_tasks")).toBe(
       false,
     );

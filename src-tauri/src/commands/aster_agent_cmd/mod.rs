@@ -427,7 +427,7 @@ pub(crate) use report_skill_launch::{
     prepare_report_skill_launch_request_metadata,
     prune_report_skill_launch_detour_tools_from_registry,
 };
-use request_model_resolution::resolve_runtime_request_provider_config;
+use request_model_resolution::resolve_runtime_request_provider_resolution;
 pub(crate) use research_skill_launch::{
     append_research_skill_launch_session_permissions,
     merge_system_prompt_with_research_skill_launch, prepare_research_skill_launch_request_metadata,

@@ -114,6 +114,9 @@ function renderHook(props?: Partial<HookProps>) {
       success: true,
     }),
     currentImageWorkbenchState: createInitialSessionImageWorkbenchState(),
+    imageWorkbenchPreferredModelId: undefined,
+    imageWorkbenchPreferredProviderId: undefined,
+    imageWorkbenchPreferredProviderUnavailable: false,
     imageWorkbenchSelectedModelId: "fal-ai/nano-banana-pro",
     imageWorkbenchSelectedProviderId: "fal",
     imageWorkbenchSelectedSize: "1024x1024",
@@ -328,6 +331,43 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
             "https://example.com/image-2.png",
             "skill-input-image://1",
           ],
+        },
+      },
+    });
+  });
+
+  it("当前选中 Provider 尚未就绪时应回退到已解析偏好", async () => {
+    const { render, getValue } = renderHook({
+      imageWorkbenchPreferredModelId: "gpt-images-2",
+      imageWorkbenchPreferredProviderId:
+        "custom-f0181b00-35b6-4731-94e2-24f17fd247c9",
+      imageWorkbenchSelectedModelId: "",
+      imageWorkbenchSelectedProviderId: "",
+    });
+
+    await render();
+
+    const skillRequest = getValue().resolveImageWorkbenchSkillRequest({
+      rawText: "@配图 生成 柴犬头像暖色插画",
+      parsedCommand: {
+        rawText: "@配图 生成 柴犬头像暖色插画",
+        trigger: "@配图",
+        body: "生成 柴犬头像暖色插画",
+        mode: "generate",
+        prompt: "柴犬头像暖色插画",
+        count: 1,
+        size: "1024x1024",
+        aspectRatio: undefined,
+        targetRef: undefined,
+      },
+      images: [],
+    });
+
+    expect(skillRequest).toMatchObject({
+      requestContext: {
+        image_task: {
+          provider_id: "custom-f0181b00-35b6-4731-94e2-24f17fd247c9",
+          model: "gpt-images-2",
         },
       },
     });

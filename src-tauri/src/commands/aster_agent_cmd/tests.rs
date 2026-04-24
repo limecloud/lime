@@ -1066,6 +1066,9 @@ mod tests {
             serde_json::json!("session-image-skill-1")
         );
 
+        assert!(!permissions
+            .iter()
+            .any(|permission| permission.tool == LIME_CREATE_IMAGE_TASK_TOOL_NAME && !permission.allowed));
         assert!(permissions
             .iter()
             .any(|permission| permission.tool == "Bash" && !permission.allowed));
@@ -1105,6 +1108,11 @@ mod tests {
             serde_json::json!({"type": "object"}),
         )));
         registry.register(Box::new(DummyTool::new(
+            LIME_CREATE_IMAGE_TASK_TOOL_NAME,
+            "Create image task",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
             "Bash",
             "Run shell",
             serde_json::json!({"type": "object"}),
@@ -1123,6 +1131,7 @@ mod tests {
         prune_image_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
 
         assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(registry.contains(LIME_CREATE_IMAGE_TASK_TOOL_NAME));
         assert!(!registry.contains("Bash"));
         assert!(!registry.contains("Read"));
         assert!(!registry.contains("Glob"));
@@ -4443,6 +4452,8 @@ mod tests {
                         "mode": "edit",
                         "prompt": "把这张海报改成更清爽的青柠风格",
                         "raw_text": "@修图 #img-2 把这张海报改成更清爽的青柠风格",
+                        "provider_id": "custom-f0181b00-35b6-4731-94e2-24f17fd247c9",
+                        "model": "gpt-images-2",
                         "size": "1024x1024",
                         "reference_images": [
                             "/tmp/lime/turn-inputs/session-1/turn-1/input-1.png"
@@ -4465,11 +4476,29 @@ mod tests {
         assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"image_task\":"));
         assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("当前主会话第一刀必须先调用 Skill(image_generate)"));
         assert!(merged.contains("不要先走 ToolSearch / WebSearch / Bash / Read / Glob / Grep"));
         assert!(merged.contains("应立即改为直调 Skill(image_generate)"));
-        assert!(merged.contains("lime_create_image_generation_task"));
+        assert!(merged.contains(
+            "如果 Skill(image_generate) 返回的 Lime 工具元数据里只有 allowed_tools=[\"lime_create_image_generation_task\"]"
+        ));
+        assert!(merged.contains("不要把 Skill(image_generate) success=true 误判成“任务已提交”"));
+        assert!(merged.contains("Skill(image_generate) -> lime_create_image_generation_task -> 标准 image task artifact + worker"));
         assert!(merged.contains("不要再通过 Bash 拼接 CLI 命令或临时 /tmp 任务文件"));
+        assert!(merged.contains(
+            "必须把 image_task 对象本身直接作为工具参数提交；不要再包一层 {\"image_task\": ...}"
+        ));
         assert!(merged.contains("不要伪造“图片已生成完成”"));
+        assert!(merged.contains("不要再次调用 Skill(image_generate) 或重复创建第二个图片任务"));
+        assert!(merged.contains("provider_id / model"));
+        assert!(merged.contains(
+            "count / layout_hint / session_id / project_id / raw_text / usage / size / requested_target / reference_images"
+        ));
+        assert!(merged.contains("count 必须传整数"));
+        assert!(merged.contains("layout_hint=storyboard_3x3"));
+        assert!(merged.contains("必须显式提交 storyboard_slots"));
+        assert!(merged.contains("每一格都必须提供完整 prompt"));
+        assert!(merged.contains("电影、动漫、短视频、广告"));
         assert!(merged.contains("当前任务已经显式进入图片技能主链"));
     }
 

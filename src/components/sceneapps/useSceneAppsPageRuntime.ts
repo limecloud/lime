@@ -69,6 +69,11 @@ import {
   buildSceneAppExecutionCuratedTaskFollowUpAction,
 } from "@/components/agent/chat/utils/sceneAppCuratedTaskReference";
 import { buildRuntimeInitialInputCapabilityFromFollowUpAction } from "@/components/agent/chat/utils/inputCapabilityBootstrap";
+import {
+  buildSceneAppExecutionInspirationLibraryPageParams,
+  hasSavedSceneAppExecutionAsInspiration,
+  saveSceneAppExecutionAsInspiration,
+} from "@/components/agent/chat/utils/saveSceneAppExecutionAsInspiration";
 import type { Page, PageParams } from "@/types/page";
 
 export type SceneAppTypeFilter = "all" | SceneAppType;
@@ -1158,6 +1163,45 @@ export function useSceneAppsPageRuntime({
       selectedSceneAppExecutionSummary,
     ],
   );
+  const handleSaveSelectedRunAsInspiration = useCallback(() => {
+    void saveSceneAppExecutionAsInspiration({
+      summary: selectedSceneAppExecutionSummary,
+      detailView: selectedRunDetailView,
+      projectId: selectedProjectId,
+      sessionId: selectedRunSessionId || latestPackResultSessionId,
+    });
+  }, [
+    latestPackResultSessionId,
+    selectedProjectId,
+    selectedRunDetailView,
+    selectedRunSessionId,
+    selectedSceneAppExecutionSummary,
+  ]);
+  const selectedRunSavedAsInspiration = useMemo(() => {
+    void curatedTaskRecommendationSignalsVersion;
+    return hasSavedSceneAppExecutionAsInspiration({
+      summary: selectedSceneAppExecutionSummary,
+      detailView: selectedRunDetailView,
+      projectId: selectedProjectId,
+      sessionId: selectedRunSessionId || latestPackResultSessionId,
+    });
+  }, [
+    curatedTaskRecommendationSignalsVersion,
+    latestPackResultSessionId,
+    selectedProjectId,
+    selectedRunDetailView,
+    selectedRunSessionId,
+    selectedSceneAppExecutionSummary,
+  ]);
+  const handleOpenInspirationLibrary = useCallback(() => {
+    onNavigate(
+      "memory",
+      buildSceneAppExecutionInspirationLibraryPageParams({
+        summary: selectedSceneAppExecutionSummary,
+        detailView: selectedRunDetailView,
+      }),
+    );
+  }, [onNavigate, selectedRunDetailView, selectedSceneAppExecutionSummary]);
 
   const persistSelectedRunHumanReview = useCallback(
     async (
@@ -1755,6 +1799,9 @@ export function useSceneAppsPageRuntime({
     latestPackResultUsesFallback,
     latestReviewFeedbackSignal,
     handleContinueReviewFeedback,
+    handleSaveSelectedRunAsInspiration,
+    handleOpenInspirationLibrary,
+    selectedRunSavedAsInspiration,
     selectedRunLoading,
     selectedRunError,
     canOpenSelectedRunHumanReview,

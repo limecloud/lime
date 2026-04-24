@@ -17,6 +17,7 @@ import type {
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
 import { logAgentDebug } from "@/lib/agentDebug";
+import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
 import { isAsterSessionNotFoundError } from "@/lib/asterSessionRecovery";
 import type { AgentThreadItem, AgentThreadTurn, Message } from "../types";
 import {
@@ -68,58 +69,10 @@ import {
   refreshAgentSessionReadModelState,
 } from "./agentSessionRefresh";
 import type { AgentAccessMode } from "./agentChatStorage";
-import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
+import { hasRecoverableSilentTurnActivity } from "./agentSilentTurnRecovery";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 
 const INITIAL_TOPICS_IDLE_TIMEOUT_MS = 1_500;
-const SILENT_TURN_RECOVERY_GRACE_MS = 15_000;
-
-function parseRecoveryTimestampMs(
-  value: string | number | null | undefined,
-): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value !== "string") {
-    return Number.NaN;
-  }
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
-
-function hasRecoverableSilentTurnActivity(
-  detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>,
-  requestStartedAt: number,
-  promptText: string,
-): boolean {
-  const recoveryThresholdMs = requestStartedAt - SILENT_TURN_RECOVERY_GRACE_MS;
-  const normalizedPrompt = promptText.trim();
-  const hasRecentMatchingTurn = (detail.turns ?? []).some((turn) => {
-    const promptMatches =
-      normalizedPrompt.length > 0 && turn.prompt_text.trim() === normalizedPrompt;
-    const latestTurnTimestampMs = Math.max(
-      parseRecoveryTimestampMs(turn.started_at),
-      parseRecoveryTimestampMs(turn.updated_at),
-      parseRecoveryTimestampMs(turn.completed_at),
-    );
-    return promptMatches && latestTurnTimestampMs >= recoveryThresholdMs;
-  });
-  if (hasRecentMatchingTurn) {
-    return true;
-  }
-
-  return normalizeLegacyThreadItems(detail.items ?? []).some((item) => {
-    if (item.type !== "user_message" || item.content.trim() !== normalizedPrompt) {
-      return false;
-    }
-    const latestItemTimestampMs = Math.max(
-      parseRecoveryTimestampMs(item.started_at),
-      parseRecoveryTimestampMs(item.updated_at),
-      parseRecoveryTimestampMs(item.completed_at),
-    );
-    return latestItemTimestampMs >= recoveryThresholdMs;
-  });
-}
 
 interface UseAgentSessionOptions {
   runtime: AgentRuntimeAdapter;
@@ -306,6 +259,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const restoredWorkspaceRef = useRef<string | null>(null);
   const hydratedSessionRef = useRef<string | null>(null);
   const skipAutoRestoreRef = useRef(false);
+  const sessionSwitchRequestVersionRef = useRef(0);
   const createFreshSessionPromiseRef = useRef<Promise<string | null> | null>(
     null,
   );
@@ -338,6 +292,11 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     },
     [scopedKeys],
   );
+
+  const invalidatePendingSessionSwitches = useCallback(() => {
+    sessionSwitchRequestVersionRef.current += 1;
+    return sessionSwitchRequestVersionRef.current;
+  }, []);
 
   const applySessionSnapshot = useCallback((snapshot: AgentSessionSnapshot) => {
     setSessionId(snapshot.sessionId);
@@ -679,6 +638,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
       const creationPromise = (async () => {
         try {
+          invalidatePendingSessionSwitches();
+          skipAutoRestoreRef.current = true;
           logAgentDebug("useAgentSession", "createFreshSession.start", {
             executionStrategy,
             sessionName: sessionName?.trim() || null,
@@ -724,7 +685,6 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           resetPendingActions();
           resetStreamingRefs();
           hydratedSessionRef.current = newSessionId;
-          skipAutoRestoreRef.current = false;
           restoredWorkspaceRef.current = resolvedWorkspaceId;
 
           persistSessionModelPreference(
@@ -748,6 +708,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           });
           return newSessionId;
         } catch (error) {
+          skipAutoRestoreRef.current = false;
           console.error("[AsterChat] 创建新任务失败:", error);
           logAgentDebug(
             "useAgentSession",
@@ -779,6 +740,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     [
       accessMode,
       executionStrategy,
+      invalidatePendingSessionSwitches,
       loadTopics,
       modelRef,
       markSessionExecutionStrategySynced,
@@ -806,6 +768,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           executionRuntime: executionRuntimeRef.current,
         }),
       );
+      invalidatePendingSessionSwitches();
       setIsAutoRestoringSession(false);
       resetPendingActions();
       restoredWorkspaceRef.current = null;
@@ -825,6 +788,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     },
     [
       applySessionSnapshot,
+      invalidatePendingSessionSwitches,
       persistSessionRestoreCandidate,
       resetPendingActions,
       resetStreamingRefs,
@@ -915,6 +879,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       }
 
       skipAutoRestoreRef.current = false;
+      const switchRequestVersion = invalidatePendingSessionSwitches();
       try {
         const startedAt = Date.now();
         const cachedTargetSnapshot =
@@ -934,6 +899,20 @@ export function useAgentSession(options: UseAgentSessionOptions) {
                 resumeSessionStartHooks: true,
               })
             : await runtime.getSession(topicId);
+        if (sessionSwitchRequestVersionRef.current !== switchRequestVersion) {
+          logAgentDebug(
+            "useAgentSession",
+            "switchTopic.staleResultIgnored",
+            {
+              currentSessionId: sessionIdRef.current,
+              switchRequestVersion,
+              topicId,
+              workspaceId,
+            },
+            { throttleMs: 1000 },
+          );
+          return;
+        }
         const runtimePreference =
           createSessionModelPreferenceFromExecutionRuntime(
             detail.execution_runtime,
@@ -1164,6 +1143,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       markSessionExecutionStrategySynced,
       messages.length,
       modelRef,
+      invalidatePendingSessionSwitches,
       persistSessionModelPreference,
       persistSessionRestoreCandidate,
       persistSessionAccessMode,

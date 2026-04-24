@@ -1,11 +1,16 @@
 export type ImageWorkbenchCommandTrigger =
   | "@配图"
+  | "@分镜"
   | "@修图"
   | "@重绘"
   | "@image"
   | "/image";
 
 export type ImageWorkbenchCommandMode = "generate" | "edit" | "variation";
+
+const MAX_IMAGE_WORKBENCH_COUNT = 16;
+const STORYBOARD_3X3_REGEX =
+  /(?:\b3\s*[x×*]\s*3\b|九宫格|storyboard)(?:\s*(?:分镜(?:板|版)?|网格图))?/i;
 
 export interface ParsedImageWorkbenchCommand {
   rawText: string;
@@ -14,13 +19,14 @@ export interface ParsedImageWorkbenchCommand {
   mode: ImageWorkbenchCommandMode;
   prompt: string;
   count: number;
+  layoutHint?: string;
   size?: string;
   aspectRatio?: string;
   targetRef?: string;
 }
 
 const IMAGE_COMMAND_PREFIX_REGEX =
-  /^\s*(@配图|@修图|@重绘|@image|\/image)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@配图|@分镜|@修图|@重绘|@image|\/image)(?:\s+|$)([\s\S]*)$/i;
 const TARGET_REF_REGEX = /#(img-[a-z0-9_-]+)/i;
 const SIZE_REGEX = /\b(\d{3,4}x\d{3,4})\b/i;
 const ASPECT_RATIO_REGEX = /\b(1:1|16:9|9:16|4:3|3:4|3:2|2:3|21:9|4:5|5:4)\b/i;
@@ -33,6 +39,9 @@ function normalizeTrigger(value: string): ImageWorkbenchCommandTrigger {
   if (normalized === "/image") {
     return "/image";
   }
+  if (normalized === "@分镜") {
+    return "@分镜";
+  }
   if (normalized === "@修图") {
     return "@修图";
   }
@@ -42,14 +51,20 @@ function normalizeTrigger(value: string): ImageWorkbenchCommandTrigger {
   return "@配图";
 }
 
+function isStoryboardCommandTrigger(
+  trigger: ImageWorkbenchCommandTrigger,
+): boolean {
+  return trigger === "@分镜";
+}
+
 function clampCount(value: number | null | undefined): number {
   if (!value || !Number.isFinite(value)) {
     return 1;
   }
-  return Math.max(1, Math.min(8, Math.trunc(value)));
+  return Math.max(1, Math.min(MAX_IMAGE_WORKBENCH_COUNT, Math.trunc(value)));
 }
 
-function extractCount(body: string): number {
+function extractExplicitCount(body: string): number | undefined {
   const patterns = [
     /(?:出|生成|要)\s*(\d+)\s*张/i,
     /(\d+)\s*张/i,
@@ -63,7 +78,43 @@ function extractCount(body: string): number {
     }
   }
 
-  return 1;
+  return undefined;
+}
+
+function resolveLayoutHint(params: {
+  trigger: ImageWorkbenchCommandTrigger;
+  body: string;
+  explicitCount?: number;
+}): string | undefined {
+  if (STORYBOARD_3X3_REGEX.test(params.body)) {
+    return "storyboard_3x3";
+  }
+
+  if (
+    isStoryboardCommandTrigger(params.trigger) &&
+    (params.explicitCount == null || params.explicitCount === 9)
+  ) {
+    return "storyboard_3x3";
+  }
+
+  return undefined;
+}
+
+function extractCount(params: {
+  trigger: ImageWorkbenchCommandTrigger;
+  explicitCount?: number;
+  layoutHint?: string;
+}): number {
+  const { trigger, explicitCount, layoutHint } = params;
+  if (layoutHint === "storyboard_3x3") {
+    return 9;
+  }
+
+  if (explicitCount != null) {
+    return explicitCount;
+  }
+
+  return isStoryboardCommandTrigger(trigger) ? 9 : 1;
 }
 
 function resolveMode(
@@ -89,8 +140,17 @@ function resolveMode(
   return targetRef ? "variation" : "generate";
 }
 
-function stripPromptDecorations(body: string): string {
-  return body
+function stripPromptDecorations(body: string, layoutHint?: string): string {
+  const normalizedBody = layoutHint
+    ? body
+        .replace(
+          /(?:\b3\s*[x×*]\s*3\b|九宫格|storyboard)(?:\s*(?:分镜(?:板|版)?|网格图))?/gi,
+          "",
+        )
+        .replace(/\b分镜(?:板|版)?\b/gi, "")
+    : body;
+
+  return normalizedBody
     .replace(/^(生成|create|generate)(?:\s|$|[:：])*/i, "")
     .replace(/^(编辑|edit|修改)(?:\s|$|[:：])*/i, "")
     .replace(/^(重绘|变体|variation|variant)(?:\s|$|[:：])*/i, "")
@@ -100,6 +160,7 @@ function stripPromptDecorations(body: string): string {
     .replace(/\bx\s*\d+\b/gi, "")
     .replace(SIZE_REGEX, "")
     .replace(ASPECT_RATIO_REGEX, "")
+    .replace(/[，,]\s*[，,]+/g, "，")
     .replace(/^[,\s，。；;:：]+|[,\s，。；;:：]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -148,6 +209,12 @@ export function parseImageWorkbenchCommand(
   const targetRef = body.match(TARGET_REF_REGEX)?.[1];
   const normalizedBody = body.trim();
   const mode = resolveMode(trigger, normalizedBody, targetRef);
+  const explicitCount = extractExplicitCount(normalizedBody);
+  const layoutHint = resolveLayoutHint({
+    trigger,
+    body: normalizedBody,
+    explicitCount,
+  });
   const { size, aspectRatio } = resolveSize(normalizedBody);
 
   return {
@@ -155,8 +222,13 @@ export function parseImageWorkbenchCommand(
     trigger,
     body,
     mode,
-    prompt: stripPromptDecorations(normalizedBody),
-    count: extractCount(normalizedBody),
+    prompt: stripPromptDecorations(normalizedBody, layoutHint),
+    count: extractCount({
+      trigger,
+      explicitCount,
+      layoutHint,
+    }),
+    layoutHint,
     size,
     aspectRatio,
     targetRef,

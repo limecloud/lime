@@ -1044,6 +1044,63 @@ function buildRecommendationSignalText(
     .join(" ");
 }
 
+function summarizeRecommendationReferenceTitle(
+  title: string,
+  maxLength = 18,
+): string {
+  const normalized = title.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function resolveReferenceContinuationMatch(params: {
+  template: CuratedTaskTemplateItem;
+  referenceEntry: CuratedTaskReferenceEntry;
+}): {
+  score: number;
+  reasonLabel: string;
+  reasonSummary: string;
+} | null {
+  const { template, referenceEntry } = params;
+  if (referenceEntry.category !== "experience") {
+    return null;
+  }
+
+  if (!referenceEntry.taskPrefillByTaskId?.[template.id]) {
+    return null;
+  }
+
+  const summarizedTitle = summarizeRecommendationReferenceTitle(
+    referenceEntry.title,
+  );
+
+  switch (template.id) {
+    case "account-project-review":
+      return {
+        score: 40,
+        reasonLabel: "围绕当前成果",
+        reasonSummary: `先对齐「${summarizedTitle}」这轮结果基线，再决定下一轮动作`,
+      };
+    case "daily-trend-briefing":
+      return {
+        score: 15,
+        reasonLabel: "承接当前结果",
+        reasonSummary: `围绕「${summarizedTitle}」这轮结果继续找趋势窗口`,
+      };
+    case "social-post-starter":
+      return {
+        score: 14,
+        reasonLabel: "承接当前结果",
+        reasonSummary: `把「${summarizedTitle}」这轮结果直接带成下一版主稿`,
+      };
+    default:
+      return null;
+  }
+}
+
 function resolveRecommendationReasonLabel(
   signal: CuratedTaskRecommendationSignal,
 ): string {
@@ -1139,14 +1196,14 @@ export function listFeaturedHomeCuratedTaskTemplates(
 ): FeaturedCuratedTaskTemplateItem[] {
   const limit =
     options.limit ?? FEATURED_HOME_CURATED_TASK_TEMPLATE_IDS.length;
+  const referenceEntries = mergeCuratedTaskReferenceEntries(
+    options.referenceEntries ?? [],
+  );
   const signals = [
-    ...buildCuratedTaskRecommendationSignalsFromReferenceEntries(
-      options.referenceEntries,
-      {
-        projectId: options.projectId,
-        sessionId: options.sessionId,
-      },
-    ),
+    ...buildCuratedTaskRecommendationSignalsFromReferenceEntries(referenceEntries, {
+      projectId: options.projectId,
+      sessionId: options.sessionId,
+    }),
     ...listCuratedTaskRecommendationSignals({
       projectId: options.projectId,
       sessionId: options.sessionId,
@@ -1173,26 +1230,58 @@ export function listFeaturedHomeCuratedTaskTemplates(
         },
         { score: 0 },
       );
+      const bestReferenceContinuationMatch = referenceEntries.reduce<{
+        score: number;
+        reasonLabel?: string;
+        reasonSummary?: string;
+      }>(
+        (best, referenceEntry) => {
+          const current = resolveReferenceContinuationMatch({
+            template,
+            referenceEntry,
+          });
+          if (!current || current.score <= best.score) {
+            return best;
+          }
+
+          return current;
+        },
+        { score: 0 },
+      );
+      const bestReasonMatch =
+        bestReferenceContinuationMatch.score > 0
+          ? bestReferenceContinuationMatch
+          : bestSignalMatch;
 
       return {
         template,
-        badgeLabel: bestSignalMatch.reasonLabel || template.badge,
-        reasonLabel: bestSignalMatch.reasonLabel,
-        reasonSummary: bestSignalMatch.reasonSummary,
+        badgeLabel: bestReasonMatch.reasonLabel || template.badge,
+        reasonLabel: bestReasonMatch.reasonLabel,
+        reasonSummary: bestReasonMatch.reasonSummary,
+        _continuationPriority: bestReferenceContinuationMatch.score > 0 ? 1 : 0,
         _score:
           buildFeaturedTemplateBaseScore(template) +
-          bestSignalMatch.score +
-          (bestSignalMatch.score >= 20 ? 24 : 0),
+          bestReasonMatch.score +
+          (bestReasonMatch.score >= 20 ? 24 : 0),
       };
     })
     .sort((left, right) => {
+      if (left._continuationPriority !== right._continuationPriority) {
+        return right._continuationPriority - left._continuationPriority;
+      }
       if (left._score !== right._score) {
         return right._score - left._score;
       }
       return left.template.title.localeCompare(right.template.title, "zh-CN");
     })
     .slice(0, limit)
-    .map(({ _score: _ignored, ...item }) => item);
+    .map(
+      ({
+        _continuationPriority: _ignoredContinuationPriority,
+        _score: _ignoredScore,
+        ...item
+      }) => item,
+    );
 }
 
 export function findCuratedTaskTemplateById(

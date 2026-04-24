@@ -96,6 +96,27 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandRenderContract: COMMAND_IMAGE_GALLERY_CONTRACT,
   },
   {
+    commandKey: "image_storyboard",
+    title: "分镜",
+    summary: "根据主题一次生成多张分镜画面，适合九宫格与镜头草图场景。",
+    aliases: [
+      "storyboard",
+      "fenjing",
+      "分镜",
+      "九宫格",
+      "分镜图",
+      "多图配图",
+    ],
+    trigger: "@分镜",
+    category: "图像生成",
+    outputHint: "分镜结果集",
+    commandBinding: {
+      skillId: "image_generate",
+      executionKind: "task_queue",
+    },
+    commandRenderContract: COMMAND_IMAGE_GALLERY_CONTRACT,
+  },
+  {
     commandKey: "cover_generate",
     title: "封面",
     summary: "根据主题生成平台封面图任务。",

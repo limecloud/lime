@@ -51,6 +51,16 @@ describe("generalResourceSync", () => {
     expect(inferGeneralChatResourceMaterialType("clip.mp4")).toBe("video");
     expect(inferGeneralChatResourceMaterialType("draft.md")).toBe("document");
     expect(inferGeneralChatResourceMaterialType("script.ts")).toBe("document");
+    expect(
+      inferGeneralChatResourceMaterialType(
+        ".lime/tasks/image_generate/task-image-1.json",
+      ),
+    ).toBeNull();
+    expect(
+      inferGeneralChatResourceMaterialType(
+        "/workspace/demo/.lime/tasks/image_generate/task-image-1.json",
+      ),
+    ).toBeNull();
     expect(inferGeneralChatResourceMaterialType("   ")).toBeNull();
   });
 

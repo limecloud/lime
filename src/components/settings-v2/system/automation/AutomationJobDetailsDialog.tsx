@@ -70,6 +70,9 @@ interface AutomationJobDetailsDialogProps {
   onOpenSceneAppDetail?: () => void;
   onOpenSceneAppGovernance?: () => void;
   onReviewCurrentProject?: () => void;
+  sceneAppSavedAsInspiration?: boolean;
+  onSaveSceneAppAsInspiration?: () => void;
+  onOpenInspirationLibrary?: () => void;
   onSceneAppDeliveryArtifactAction?: (
     action: SceneAppRunDetailViewModel["deliveryArtifactEntries"][number],
   ) => void;
@@ -100,6 +103,9 @@ export function AutomationJobDetailsDialog({
   onOpenSceneAppDetail,
   onOpenSceneAppGovernance,
   onReviewCurrentProject,
+  sceneAppSavedAsInspiration = false,
+  onSaveSceneAppAsInspiration,
+  onOpenInspirationLibrary,
   onSceneAppDeliveryArtifactAction,
   onSceneAppGovernanceAction,
   onSceneAppGovernanceArtifactAction,
@@ -335,7 +341,7 @@ export function AutomationJobDetailsDialog({
                           </div>
                           <div className="mt-1 text-sm leading-6 text-slate-600">
                             这条自动化任务已经接到做法主链，调度状态之外，也会继续回流同一轮
-                            结果包、复盘材料和经营判断。
+                            结果包、复盘材料和这轮判断。
                           </div>
                         </div>
                         {sceneAppSummaryCard ? (
@@ -357,15 +363,6 @@ export function AutomationJobDetailsDialog({
                             <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
                               {sceneAppSummaryCard.title}
                             </span>
-                            <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                              {sceneAppSummaryCard.businessLabel}
-                            </span>
-                            <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                              {sceneAppSummaryCard.typeLabel}
-                            </span>
-                            <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                              {sceneAppSummaryCard.patternSummary}
-                            </span>
                           </div>
 
                           <div className="mt-4 rounded-[18px] border border-white bg-white/90 px-4 py-4">
@@ -373,7 +370,7 @@ export function AutomationJobDetailsDialog({
                               {sceneAppSummaryCard.summary}
                             </div>
                             <div className="mt-2 text-sm leading-6 text-slate-600">
-                              {sceneAppSummaryCard.nextAction}
+                              先做：{sceneAppSummaryCard.nextAction}
                             </div>
                           </div>
 
@@ -403,7 +400,7 @@ export function AutomationJobDetailsDialog({
                             >
                               <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-xs font-medium text-slate-500">
-                                  经营判断
+                                  这轮判断
                                 </div>
                                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
                                   {sceneAppSummaryCard.scorecardAggregate.statusLabel}
@@ -431,23 +428,8 @@ export function AutomationJobDetailsDialog({
                                 {sceneAppSummaryCard.scorecardAggregate.summary}
                               </div>
                               <div className="mt-2 text-sm leading-6 text-slate-600">
-                                {sceneAppSummaryCard.scorecardAggregate.nextAction}
+                                先做：{sceneAppSummaryCard.scorecardAggregate.nextAction}
                               </div>
-                              {sceneAppSummaryCard.scorecardAggregate
-                                .destinations.length ? (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {sceneAppSummaryCard.scorecardAggregate.destinations.map(
-                                    (destination) => (
-                                      <span
-                                        key={destination.key}
-                                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700"
-                                      >
-                                        {destination.label}
-                                      </span>
-                                    ),
-                                  )}
-                                </div>
-                              ) : null}
                               {followupDestinations.length ? (
                                 <div
                                   className="mt-4 grid gap-3 md:grid-cols-2"
@@ -533,6 +515,9 @@ export function AutomationJobDetailsDialog({
                       runDetailView={sceneAppRunDetailView}
                       loading={sceneAppLoading}
                       error={sceneAppError}
+                      savedAsInspiration={sceneAppSavedAsInspiration}
+                      onSaveAsInspiration={onSaveSceneAppAsInspiration}
+                      onOpenInspirationLibrary={onOpenInspirationLibrary}
                       onDeliveryArtifactAction={
                         onSceneAppDeliveryArtifactAction
                       }

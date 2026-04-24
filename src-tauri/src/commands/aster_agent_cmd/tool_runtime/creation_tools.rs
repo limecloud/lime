@@ -1,11 +1,12 @@
 use super::*;
 use crate::commands::media_task_cmd::{
     create_image_generation_task_artifact_inner, finalize_image_generation_task_creation,
-    CreateImageGenerationTaskArtifactRequest,
+    CreateImageGenerationTaskArtifactRequest, ImageStoryboardSlotInput,
 };
 use lime_media_runtime::{
     write_task_artifact, MediaTaskType, TaskRelationships, TaskType, TaskWriteOptions,
 };
+use serde::{de, Deserialize, Deserializer};
 
 const PROJECT_ID_ENV_KEYS: &[&str] = &["LIME_PROJECT_ID", "PROXYCAST_PROJECT_ID"];
 const CONTENT_ID_ENV_KEYS: &[&str] = &["LIME_CONTENT_ID", "PROXYCAST_CONTENT_ID"];
@@ -369,6 +370,155 @@ impl Tool for LimeCreateResourceSearchTaskTool {
     }
 }
 
+fn deserialize_optional_u32_from_any<'de, D>(deserializer: D) -> Result<Option<u32>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    let Some(value) = value else {
+        return Ok(None);
+    };
+
+    match value {
+        serde_json::Value::Number(number) => number
+            .as_u64()
+            .and_then(|raw| u32::try_from(raw).ok())
+            .map(Some)
+            .ok_or_else(|| de::Error::custom("count 必须是正整数")),
+        serde_json::Value::String(raw) => {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                return Ok(None);
+            }
+            trimmed
+                .parse::<u32>()
+                .map(Some)
+                .map_err(|_| de::Error::custom("count 必须是正整数"))
+        }
+        _ => Err(de::Error::custom("count 必须是整数或整数字符串")),
+    }
+}
+
+fn normalize_image_task_tool_params(
+    params: serde_json::Value,
+) -> Result<serde_json::Value, ToolError> {
+    let serde_json::Value::Object(mut record) = params else {
+        return Ok(params);
+    };
+
+    let Some(image_task_value) = record.remove("image_task") else {
+        return Ok(serde_json::Value::Object(record));
+    };
+
+    let normalized = match image_task_value {
+        serde_json::Value::Object(task) => serde_json::Value::Object(task),
+        serde_json::Value::String(raw) => {
+            let parsed: serde_json::Value = serde_json::from_str(raw.trim()).map_err(|error| {
+                ToolError::invalid_params(format!(
+                    "image_task JSON 字符串解析失败，请直接传扁平对象参数: {error}"
+                ))
+            })?;
+            if !parsed.is_object() {
+                return Err(ToolError::invalid_params(
+                    "image_task JSON 字符串必须解析为对象".to_string(),
+                ));
+            }
+            parsed
+        }
+        _ => {
+            return Err(ToolError::invalid_params(
+                "image_task 必须是对象或 JSON 字符串".to_string(),
+            ))
+        }
+    };
+
+    tracing::warn!(
+        "[AsterAgent] lime_create_image_generation_task 收到兼容包装 image_task，已自动归一化为扁平对象参数"
+    );
+    normalize_flat_image_task_tool_params(normalized)
+}
+
+fn normalize_array_string_field(
+    record: &mut serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<(), ToolError> {
+    let Some(value) = record.get(field).cloned() else {
+        return Ok(());
+    };
+    let serde_json::Value::String(raw) = value else {
+        return Ok(());
+    };
+    let trimmed = raw.trim();
+    if !trimmed.starts_with('[') {
+        return Ok(());
+    }
+
+    let parsed: serde_json::Value = serde_json::from_str(trimmed).map_err(|error| {
+        ToolError::invalid_params(format!("{field} JSON 数组字符串解析失败: {error}"))
+    })?;
+    if !parsed.is_array() {
+        return Err(ToolError::invalid_params(format!(
+            "{field} JSON 字符串必须解析为数组"
+        )));
+    }
+    record.insert(field.to_string(), parsed);
+    Ok(())
+}
+
+fn canonicalize_image_task_alias_fields(record: &mut serde_json::Map<String, serde_json::Value>) {
+    const FIELD_ALIASES: &[(&str, &str)] = &[
+        ("rawText", "raw_text"),
+        ("layoutHint", "layout_hint"),
+        ("aspectRatio", "aspect_ratio"),
+        ("providerId", "provider_id"),
+        ("sessionId", "session_id"),
+        ("projectId", "project_id"),
+        ("contentId", "content_id"),
+        ("entrySource", "entry_source"),
+        ("requestedTarget", "requested_target"),
+        ("slotId", "slot_id"),
+        ("anchorHint", "anchor_hint"),
+        ("anchorSectionTitle", "anchor_section_title"),
+        ("anchorText", "anchor_text"),
+        ("targetOutputId", "target_output_id"),
+        ("targetOutputRefId", "target_output_ref_id"),
+        ("referenceImages", "reference_images"),
+        ("storyboardSlots", "storyboard_slots"),
+        ("skillInputImages", "skill_input_images"),
+        ("outputPath", "output_path"),
+    ];
+
+    for (camel_case, snake_case) in FIELD_ALIASES {
+        let Some(value) = record.remove(*camel_case) else {
+            continue;
+        };
+        if !record.contains_key(*snake_case) {
+            record.insert((*snake_case).to_string(), value);
+        }
+    }
+}
+
+fn normalize_flat_image_task_tool_params(
+    params: serde_json::Value,
+) -> Result<serde_json::Value, ToolError> {
+    let serde_json::Value::Object(mut record) = params else {
+        return Ok(params);
+    };
+
+    canonicalize_image_task_alias_fields(&mut record);
+    normalize_array_string_field(&mut record, "reference_images")?;
+    normalize_array_string_field(&mut record, "storyboard_slots")?;
+
+    if record.remove("skill_input_images").is_some() || record.remove("skillInputImages").is_some()
+    {
+        tracing::warn!(
+            "[AsterAgent] lime_create_image_generation_task 收到冗余 skill_input_images 字段，已忽略"
+        );
+    }
+
+    Ok(serde_json::Value::Object(record))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ImageTaskInput {
@@ -377,46 +527,50 @@ struct ImageTaskInput {
     title: Option<String>,
     #[serde(default)]
     mode: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "raw_text")]
     raw_text: Option<String>,
+    #[serde(default, alias = "layout_hint")]
+    layout_hint: Option<String>,
     #[serde(default)]
     style: Option<String>,
     #[serde(default)]
     size: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "aspect_ratio")]
     aspect_ratio: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_u32_from_any")]
     count: Option<u32>,
     #[serde(default)]
     usage: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "provider_id")]
     provider_id: Option<String>,
     #[serde(default)]
     model: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "session_id")]
     session_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "project_id")]
     project_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "content_id")]
     content_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "entry_source")]
     entry_source: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "requested_target")]
     requested_target: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "slot_id")]
     slot_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "anchor_hint")]
     anchor_hint: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "anchor_section_title")]
     anchor_section_title: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "anchor_text")]
     anchor_text: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "target_output_id")]
     target_output_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "target_output_ref_id")]
     target_output_ref_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "reference_images")]
     reference_images: Vec<String>,
+    #[serde(default, alias = "storyboard_slots")]
+    storyboard_slots: Vec<ImageStoryboardSlotInput>,
     #[serde(default)]
     output_path: Option<String>,
 }
@@ -470,37 +624,229 @@ impl LimeCreateImageTaskTool {
 }
 
 fn image_task_input_schema() -> serde_json::Value {
+    let count_schema = serde_json::json!({
+        "oneOf": [
+            { "type": "integer", "minimum": 1, "maximum": 20 },
+            { "type": "string" }
+        ],
+        "description": "生成数量（可选，兼容整数字符串）。"
+    });
+    let reference_images_schema = serde_json::json!({
+        "oneOf": [
+            {
+                "type": "array",
+                "items": { "type": "string" }
+            },
+            { "type": "string" }
+        ],
+        "description": "参考图 URL、文件路径或已物化的输入图片路径（可选，兼容 JSON 数组字符串）。"
+    });
+    let storyboard_slots_schema = serde_json::json!({
+        "oneOf": [
+            {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "prompt": { "type": "string", "description": "该格的完整提示词。" },
+                        "slotId": { "type": "string", "description": "可选槽位 ID。" },
+                        "slot_id": { "type": "string", "description": "可选槽位 ID（snake_case 兼容）。" },
+                        "label": { "type": "string", "description": "该格标签，例如“建立镜头”“人物对峙”" },
+                        "shotType": { "type": "string", "description": "可选镜头类型。" },
+                        "shot_type": { "type": "string", "description": "可选镜头类型（snake_case 兼容）。" }
+                    },
+                    "required": ["prompt"],
+                    "additionalProperties": false
+                }
+            },
+            { "type": "string" }
+        ],
+        "description": "多格分镜的逐格提示词数组（可选，兼容 JSON 数组字符串）。"
+    });
+    let ignored_skill_input_images_schema = serde_json::json!({
+        "oneOf": [
+            {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            { "type": "string" }
+        ],
+        "description": "兼容字段，运行时会忽略 skill_input_images。"
+    });
+    let mut properties = serde_json::Map::new();
+    let mut insert_property = |key: &str, value: serde_json::Value| {
+        properties.insert(key.to_string(), value);
+    };
+
+    insert_property(
+        "prompt",
+        serde_json::json!({ "type": "string", "description": "图像提示词。" }),
+    );
+    insert_property(
+        "title",
+        serde_json::json!({ "type": "string", "description": "任务标题（可选）。" }),
+    );
+    insert_property(
+        "mode",
+        serde_json::json!({ "type": "string", "description": "任务模式 generate/edit/variation（可选）。" }),
+    );
+    insert_property(
+        "rawText",
+        serde_json::json!({ "type": "string", "description": "原始用户输入（可选）。" }),
+    );
+    insert_property(
+        "raw_text",
+        serde_json::json!({ "type": "string", "description": "原始用户输入（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "layoutHint",
+        serde_json::json!({ "type": "string", "description": "展示布局提示（可选），例如 storyboard_3x3。" }),
+    );
+    insert_property(
+        "layout_hint",
+        serde_json::json!({ "type": "string", "description": "展示布局提示（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "style",
+        serde_json::json!({ "type": "string", "description": "风格（可选）。" }),
+    );
+    insert_property(
+        "size",
+        serde_json::json!({ "type": "string", "description": "尺寸（可选）。" }),
+    );
+    insert_property(
+        "aspectRatio",
+        serde_json::json!({ "type": "string", "description": "宽高比（可选）。" }),
+    );
+    insert_property(
+        "aspect_ratio",
+        serde_json::json!({ "type": "string", "description": "宽高比（snake_case 兼容，可选）。" }),
+    );
+    insert_property("count", count_schema);
+    insert_property(
+        "usage",
+        serde_json::json!({ "type": "string", "description": "用途（可选）。" }),
+    );
+    insert_property(
+        "providerId",
+        serde_json::json!({ "type": "string", "description": "Provider 标识（可选）。" }),
+    );
+    insert_property(
+        "provider_id",
+        serde_json::json!({ "type": "string", "description": "Provider 标识（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "model",
+        serde_json::json!({ "type": "string", "description": "首选模型（可选）。" }),
+    );
+    insert_property(
+        "sessionId",
+        serde_json::json!({ "type": "string", "description": "会话 ID（可选）。" }),
+    );
+    insert_property(
+        "session_id",
+        serde_json::json!({ "type": "string", "description": "会话 ID（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "projectId",
+        serde_json::json!({ "type": "string", "description": "项目 ID（可选）。" }),
+    );
+    insert_property(
+        "project_id",
+        serde_json::json!({ "type": "string", "description": "项目 ID（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "contentId",
+        serde_json::json!({ "type": "string", "description": "内容 ID（可选）。" }),
+    );
+    insert_property(
+        "content_id",
+        serde_json::json!({ "type": "string", "description": "内容 ID（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "entrySource",
+        serde_json::json!({ "type": "string", "description": "入口来源（可选）。" }),
+    );
+    insert_property(
+        "entry_source",
+        serde_json::json!({ "type": "string", "description": "入口来源（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "requestedTarget",
+        serde_json::json!({ "type": "string", "description": "目标类型 generate/cover（可选）。" }),
+    );
+    insert_property(
+        "requested_target",
+        serde_json::json!({ "type": "string", "description": "目标类型（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "slotId",
+        serde_json::json!({ "type": "string", "description": "正文插图 slot 绑定（可选）。" }),
+    );
+    insert_property(
+        "slot_id",
+        serde_json::json!({ "type": "string", "description": "正文插图 slot 绑定（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "anchorHint",
+        serde_json::json!({ "type": "string", "description": "正文插图锚点提示（可选）。" }),
+    );
+    insert_property(
+        "anchor_hint",
+        serde_json::json!({ "type": "string", "description": "正文插图锚点提示（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "anchorSectionTitle",
+        serde_json::json!({ "type": "string", "description": "正文插图小节标题（可选）。" }),
+    );
+    insert_property(
+        "anchor_section_title",
+        serde_json::json!({ "type": "string", "description": "正文插图小节标题（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "anchorText",
+        serde_json::json!({ "type": "string", "description": "正文插图锚点文本（可选）。" }),
+    );
+    insert_property(
+        "anchor_text",
+        serde_json::json!({ "type": "string", "description": "正文插图锚点文本（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "targetOutputId",
+        serde_json::json!({ "type": "string", "description": "目标图片输出 ID（可选）。" }),
+    );
+    insert_property(
+        "target_output_id",
+        serde_json::json!({ "type": "string", "description": "目标图片输出 ID（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "targetOutputRefId",
+        serde_json::json!({ "type": "string", "description": "目标图片引用 ID（可选）。" }),
+    );
+    insert_property(
+        "target_output_ref_id",
+        serde_json::json!({ "type": "string", "description": "目标图片引用 ID（snake_case 兼容，可选）。" }),
+    );
+    insert_property("referenceImages", reference_images_schema.clone());
+    insert_property("reference_images", reference_images_schema);
+    insert_property("storyboardSlots", storyboard_slots_schema.clone());
+    insert_property("storyboard_slots", storyboard_slots_schema);
+    insert_property(
+        "skillInputImages",
+        ignored_skill_input_images_schema.clone(),
+    );
+    insert_property("skill_input_images", ignored_skill_input_images_schema);
+    insert_property(
+        "output_path",
+        serde_json::json!({ "type": "string", "description": "可选输出路径（snake_case 兼容字段，运行时会忽略）。" }),
+    );
+
     serde_json::json!({
         "type": "object",
-        "properties": {
-            "prompt": { "type": "string", "description": "图像提示词。" },
-            "title": { "type": "string", "description": "任务标题（可选）。" },
-            "mode": { "type": "string", "description": "任务模式 generate/edit/variation（可选）。" },
-            "rawText": { "type": "string", "description": "原始用户输入（可选）。" },
-            "style": { "type": "string", "description": "风格（可选）。" },
-            "size": { "type": "string", "description": "尺寸（可选）。" },
-            "aspectRatio": { "type": "string", "description": "宽高比（可选）。" },
-            "count": { "type": "integer", "minimum": 1, "maximum": 20, "description": "生成数量（可选）。" },
-            "usage": { "type": "string", "description": "用途（可选）。" },
-            "providerId": { "type": "string", "description": "Provider 标识（可选）。" },
-            "model": { "type": "string", "description": "首选模型（可选）。" },
-            "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
-            "projectId": { "type": "string", "description": "项目 ID（可选）。" },
-            "contentId": { "type": "string", "description": "内容 ID（可选）。" },
-            "entrySource": { "type": "string", "description": "入口来源（可选）。" },
-            "requestedTarget": { "type": "string", "description": "目标类型 generate/cover（可选）。" },
-            "slotId": { "type": "string", "description": "正文插图 slot 绑定（可选）。" },
-            "anchorHint": { "type": "string", "description": "正文插图锚点提示（可选）。" },
-            "anchorSectionTitle": { "type": "string", "description": "正文插图小节标题（可选）。" },
-            "anchorText": { "type": "string", "description": "正文插图锚点文本（可选）。" },
-            "targetOutputId": { "type": "string", "description": "目标图片输出 ID（可选）。" },
-            "targetOutputRefId": { "type": "string", "description": "目标图片引用 ID（可选）。" },
-            "referenceImages": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "参考图 URL、文件路径或已物化的输入图片路径（可选）。"
-            }
-        },
+        "properties": properties,
         "required": ["prompt"],
         "additionalProperties": false,
         "x-lime": {
@@ -520,6 +866,7 @@ fn build_image_generation_task_request(
         title,
         mode,
         raw_text,
+        layout_hint,
         style,
         size,
         aspect_ratio,
@@ -539,6 +886,7 @@ fn build_image_generation_task_request(
         target_output_id,
         target_output_ref_id,
         reference_images,
+        storyboard_slots,
         output_path,
     } = input;
     let _compat_ignored_output_path = output_path;
@@ -580,6 +928,7 @@ fn build_image_generation_task_request(
         title,
         mode,
         raw_text,
+        layout_hint,
         size,
         aspect_ratio,
         count,
@@ -599,6 +948,7 @@ fn build_image_generation_task_request(
         target_output_id,
         target_output_ref_id,
         reference_images,
+        storyboard_slots,
     }
 }
 
@@ -641,7 +991,9 @@ impl Tool for LimeCreateImageTaskTool {
         params: serde_json::Value,
         context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
-        let input: ImageTaskInput = serde_json::from_value(params)
+        let normalized_params =
+            normalize_flat_image_task_tool_params(normalize_image_task_tool_params(params)?)?;
+        let input: ImageTaskInput = serde_json::from_value(normalized_params)
             .map_err(|error| ToolError::invalid_params(format!("参数解析失败: {error}")))?;
         if input.prompt.trim().is_empty() {
             return Err(ToolError::invalid_params(
@@ -1200,6 +1552,7 @@ mod tests {
                 title: Some("青柠主视觉".to_string()),
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 未来感青柠实验室".to_string()),
+                layout_hint: None,
                 style: Some("cinematic".to_string()),
                 size: Some("1024x1024".to_string()),
                 aspect_ratio: Some("1:1".to_string()),
@@ -1219,6 +1572,7 @@ mod tests {
                 target_output_id: Some("task-a:output:1".to_string()),
                 target_output_ref_id: Some("img-1".to_string()),
                 reference_images: vec!["https://example.com/reference.png".to_string()],
+                storyboard_slots: Vec::new(),
                 output_path: Some("output/image_generation_task.md".to_string()),
             },
         );
@@ -1282,8 +1636,288 @@ mod tests {
             Some("at_image_command")
         );
         assert_eq!(
+            output
+                .record
+                .payload
+                .get("layout_hint")
+                .and_then(Value::as_str),
+            None
+        );
+        assert_eq!(
             output.record.payload.get("model").and_then(Value::as_str),
             Some("fal-ai/nano-banana-pro")
+        );
+    }
+
+    #[test]
+    fn image_task_input_should_accept_snake_case_fields_from_skill_context() {
+        let input: ImageTaskInput = serde_json::from_value(serde_json::json!({
+            "prompt": "未来感青柠实验室",
+            "raw_text": "@配图 未来感青柠实验室",
+            "layout_hint": "storyboard_3x3",
+            "aspect_ratio": "1:1",
+            "count": "9",
+            "provider_id": "custom-provider",
+            "model": "gpt-images-2",
+            "session_id": "session-image-compat-2",
+            "project_id": "project-image-compat-2",
+            "content_id": "content-image-compat-2",
+            "entry_source": "at_image_command",
+            "requested_target": "generate",
+            "slot_id": "slot-2",
+            "anchor_hint": "section_end",
+            "anchor_section_title": "产品亮点",
+            "anchor_text": "这里需要一张青柠实验室插图",
+            "target_output_id": "task-a:output:1",
+            "target_output_ref_id": "img-1",
+            "reference_images": ["https://example.com/reference.png"]
+        }))
+        .expect("parse snake_case image task input");
+
+        assert_eq!(input.raw_text.as_deref(), Some("@配图 未来感青柠实验室"));
+        assert_eq!(input.layout_hint.as_deref(), Some("storyboard_3x3"));
+        assert_eq!(input.aspect_ratio.as_deref(), Some("1:1"));
+        assert_eq!(input.count, Some(9));
+        assert_eq!(input.provider_id.as_deref(), Some("custom-provider"));
+        assert_eq!(input.model.as_deref(), Some("gpt-images-2"));
+        assert_eq!(input.session_id.as_deref(), Some("session-image-compat-2"));
+        assert_eq!(input.project_id.as_deref(), Some("project-image-compat-2"));
+        assert_eq!(input.content_id.as_deref(), Some("content-image-compat-2"));
+        assert_eq!(input.entry_source.as_deref(), Some("at_image_command"));
+        assert_eq!(input.requested_target.as_deref(), Some("generate"));
+        assert_eq!(input.slot_id.as_deref(), Some("slot-2"));
+        assert_eq!(input.anchor_hint.as_deref(), Some("section_end"));
+        assert_eq!(input.anchor_section_title.as_deref(), Some("产品亮点"));
+        assert_eq!(
+            input.anchor_text.as_deref(),
+            Some("这里需要一张青柠实验室插图")
+        );
+        assert_eq!(input.target_output_id.as_deref(), Some("task-a:output:1"));
+        assert_eq!(input.target_output_ref_id.as_deref(), Some("img-1"));
+        assert_eq!(
+            input.reference_images,
+            vec!["https://example.com/reference.png".to_string()]
+        );
+    }
+
+    #[test]
+    fn normalize_image_task_tool_params_should_accept_wrapped_object() {
+        let normalized = normalize_image_task_tool_params(serde_json::json!({
+            "image_task": {
+                "prompt": "三国主要人物",
+                "layout_hint": "storyboard_3x3",
+                "count": 9,
+                "provider_id": "custom-provider",
+                "model": "gpt-images-2"
+            }
+        }))
+        .expect("normalize wrapped object");
+
+        let input: ImageTaskInput =
+            serde_json::from_value(normalized).expect("parse normalized wrapped object");
+        assert_eq!(input.prompt, "三国主要人物");
+        assert_eq!(input.layout_hint.as_deref(), Some("storyboard_3x3"));
+        assert_eq!(input.count, Some(9));
+        assert_eq!(input.provider_id.as_deref(), Some("custom-provider"));
+        assert_eq!(input.model.as_deref(), Some("gpt-images-2"));
+    }
+
+    #[test]
+    fn normalize_image_task_tool_params_should_accept_wrapped_json_string() {
+        let normalized = normalize_image_task_tool_params(serde_json::json!({
+            "image_task": "{\"prompt\":\"三国主要人物\",\"layout_hint\":\"storyboard_3x3\",\"count\":9,\"provider_id\":\"custom-provider\",\"model\":\"gpt-images-2\"}"
+        }))
+        .expect("normalize wrapped json string");
+
+        let input: ImageTaskInput =
+            serde_json::from_value(normalized).expect("parse normalized wrapped string");
+        assert_eq!(input.prompt, "三国主要人物");
+        assert_eq!(input.layout_hint.as_deref(), Some("storyboard_3x3"));
+        assert_eq!(input.count, Some(9));
+        assert_eq!(input.provider_id.as_deref(), Some("custom-provider"));
+        assert_eq!(input.model.as_deref(), Some("gpt-images-2"));
+    }
+
+    #[test]
+    fn normalize_flat_image_task_tool_params_should_parse_array_strings_and_drop_skill_inputs() {
+        let normalized = normalize_flat_image_task_tool_params(serde_json::json!({
+            "prompt": "三国主要人物",
+            "count": "9",
+            "reference_images": "[]",
+            "skill_input_images": "[]"
+        }))
+        .expect("normalize flat image task params");
+
+        let record = normalized.as_object().expect("normalized object");
+        assert_eq!(record.get("reference_images"), Some(&serde_json::json!([])));
+        assert!(!record.contains_key("skill_input_images"));
+
+        let input: ImageTaskInput =
+            serde_json::from_value(normalized).expect("parse normalized flat object");
+        assert_eq!(input.prompt, "三国主要人物");
+        assert_eq!(input.count, Some(9));
+        assert!(input.reference_images.is_empty());
+    }
+
+    #[test]
+    fn normalize_flat_image_task_tool_params_should_canonicalize_duplicate_alias_fields() {
+        let normalized = normalize_flat_image_task_tool_params(serde_json::json!({
+            "prompt": "三国主要人物",
+            "count": "9",
+            "providerId": "custom-provider-camel",
+            "provider_id": "custom-provider-snake",
+            "model": "gpt-images-2",
+            "projectId": "project-camel",
+            "project_id": "project-snake",
+            "anchorHint": "section_end",
+            "anchor_hint": "section-top",
+            "referenceImages": "[]",
+            "skillInputImages": "[]"
+        }))
+        .expect("normalize duplicate alias fields");
+
+        let record = normalized.as_object().expect("normalized object");
+        assert_eq!(
+            record.get("provider_id"),
+            Some(&serde_json::json!("custom-provider-snake"))
+        );
+        assert_eq!(
+            record.get("project_id"),
+            Some(&serde_json::json!("project-snake"))
+        );
+        assert_eq!(
+            record.get("anchor_hint"),
+            Some(&serde_json::json!("section-top"))
+        );
+        assert!(!record.contains_key("providerId"));
+        assert!(!record.contains_key("projectId"));
+        assert!(!record.contains_key("anchorHint"));
+        assert!(!record.contains_key("referenceImages"));
+        assert!(!record.contains_key("skillInputImages"));
+
+        let input: ImageTaskInput =
+            serde_json::from_value(normalized).expect("parse canonicalized image task");
+        assert_eq!(input.provider_id.as_deref(), Some("custom-provider-snake"));
+        assert_eq!(input.project_id.as_deref(), Some("project-snake"));
+        assert_eq!(input.anchor_hint.as_deref(), Some("section-top"));
+        assert!(input.reference_images.is_empty());
+    }
+
+    #[test]
+    fn image_task_input_schema_should_accept_runtime_compat_fields() {
+        let schema = image_task_input_schema();
+        let properties = schema["properties"]
+            .as_object()
+            .expect("image task schema properties");
+
+        for field in [
+            "raw_text",
+            "layout_hint",
+            "aspect_ratio",
+            "provider_id",
+            "session_id",
+            "project_id",
+            "content_id",
+            "entry_source",
+            "requested_target",
+            "slot_id",
+            "anchor_hint",
+            "anchor_section_title",
+            "anchor_text",
+            "target_output_id",
+            "target_output_ref_id",
+            "reference_images",
+            "storyboard_slots",
+            "skill_input_images",
+            "output_path",
+        ] {
+            assert!(
+                properties.contains_key(field),
+                "schema 应显式接受 compat 字段 {field}"
+            );
+        }
+
+        assert!(properties["count"].get("oneOf").is_some());
+        assert!(properties["reference_images"].get("oneOf").is_some());
+        assert!(properties["storyboard_slots"].get("oneOf").is_some());
+        assert!(properties["skill_input_images"].get("oneOf").is_some());
+    }
+
+    #[test]
+    fn normalize_flat_image_task_tool_params_should_parse_storyboard_slots_array_string() {
+        let normalized = normalize_flat_image_task_tool_params(serde_json::json!({
+            "prompt": "三国主要人物",
+            "layout_hint": "storyboard_3x3",
+            "storyboard_slots": "[{\"slot_id\":\"storyboard-slot-1\",\"label\":\"刘备亮相\",\"prompt\":\"第1格，刘备中景亮相\",\"shot_type\":\"medium\"}]"
+        }))
+        .expect("normalize storyboard slot string");
+
+        let record = normalized.as_object().expect("normalized object");
+        assert_eq!(
+            record.get("storyboard_slots"),
+            Some(&serde_json::json!([
+                {
+                    "slot_id": "storyboard-slot-1",
+                    "label": "刘备亮相",
+                    "prompt": "第1格，刘备中景亮相",
+                    "shot_type": "medium"
+                }
+            ]))
+        );
+
+        let input: ImageTaskInput =
+            serde_json::from_value(normalized).expect("parse storyboard slots");
+        assert_eq!(input.storyboard_slots.len(), 1);
+        assert_eq!(
+            input.storyboard_slots[0].slot_id.as_deref(),
+            Some("storyboard-slot-1")
+        );
+        assert_eq!(input.storyboard_slots[0].label.as_deref(), Some("刘备亮相"));
+    }
+
+    #[test]
+    fn normalize_image_task_tool_params_should_preserve_storyboard_slots_from_wrapped_inputs() {
+        let normalized = normalize_image_task_tool_params(serde_json::json!({
+            "image_task": {
+                "prompt": "三国主要人物",
+                "layout_hint": "storyboard_3x3",
+                "count": 2,
+                "storyboardSlots": [
+                    {
+                        "slotId": "storyboard-slot-1",
+                        "label": "刘备亮相",
+                        "prompt": "第1格，刘备中景亮相",
+                        "shotType": "medium"
+                    },
+                    {
+                        "slot_id": "storyboard-slot-2",
+                        "label": "曹操压迫感",
+                        "prompt": "第2格，曹操近景特写",
+                        "shot_type": "close_up"
+                    }
+                ]
+            }
+        }))
+        .expect("normalize wrapped storyboard slots");
+
+        let input: ImageTaskInput =
+            serde_json::from_value(normalized).expect("parse wrapped storyboard slots");
+        assert_eq!(input.storyboard_slots.len(), 2);
+        assert_eq!(
+            input.storyboard_slots[0].slot_id.as_deref(),
+            Some("storyboard-slot-1")
+        );
+        assert_eq!(
+            input.storyboard_slots[0].shot_type.as_deref(),
+            Some("medium")
+        );
+        assert_eq!(
+            input.storyboard_slots[1].slot_id.as_deref(),
+            Some("storyboard-slot-2")
+        );
+        assert_eq!(
+            input.storyboard_slots[1].shot_type.as_deref(),
+            Some("close_up")
         );
     }
 }

@@ -624,13 +624,23 @@ pub async fn agent_runtime_replay_request(
 /// 统一运行时：获取工具库存快照。
 #[tauri::command]
 pub async fn agent_runtime_get_tool_inventory(
+    app: AppHandle,
     state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
     config_manager: State<'_, GlobalConfigManagerState>,
     mcp_manager: State<'_, McpManagerState>,
     request: Option<AgentRuntimeToolInventoryRequest>,
 ) -> Result<crate::agent_tools::inventory::AgentToolInventorySnapshot, String> {
     if state.is_initialized().await {
-        ensure_runtime_support_tools_registered(state.inner(), mcp_manager.inner()).await?;
+        ensure_runtime_support_tools_registered(
+            &app,
+            state.inner(),
+            db.inner(),
+            api_key_provider_service.inner(),
+            mcp_manager.inner(),
+        )
+        .await?;
     }
 
     let request = request.unwrap_or_default();

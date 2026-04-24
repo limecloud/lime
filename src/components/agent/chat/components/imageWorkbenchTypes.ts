@@ -1,3 +1,5 @@
+import type { ImageStoryboardSlot } from "../types";
+
 export type ImageWorkbenchTaskMode = "generate" | "edit" | "variation";
 
 export type ImageWorkbenchTaskStatus =
@@ -22,6 +24,8 @@ export interface ImageWorkbenchTaskView {
   prompt: string;
   rawText: string;
   expectedCount: number;
+  layoutHint?: string | null;
+  storyboardSlots?: ImageStoryboardSlot[];
   outputIds: string[];
   targetOutputId?: string | null;
   targetOutputRefId?: string | null;
@@ -39,6 +43,10 @@ export interface ImageWorkbenchOutputView {
   taskId: string;
   url: string;
   prompt: string;
+  slotId?: string | null;
+  slotIndex?: number | null;
+  slotLabel?: string | null;
+  slotPrompt?: string | null;
   createdAt: number;
   providerName?: string;
   modelName?: string;

@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -46,7 +47,27 @@ import {
 } from "@/lib/resourceProjectSelection";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { AgentThreadMemoryPrefetchPreview } from "@/components/agent/chat/components/AgentThreadMemoryPrefetchPreview";
+import { CuratedTaskLauncherDialog } from "@/components/agent/chat/components/CuratedTaskLauncherDialog";
 import { buildMemoryEntryCreationReplayRequestMetadata } from "@/components/agent/chat/utils/creationReplayMetadata";
+import {
+  buildCuratedTaskLaunchPrompt,
+  listFeaturedHomeCuratedTaskTemplates,
+  recordCuratedTaskTemplateUsage,
+  resolveCuratedTaskTemplateLaunchPrefill,
+  type CuratedTaskInputValues,
+  type CuratedTaskTemplateItem,
+} from "@/components/agent/chat/utils/curatedTaskTemplates";
+import {
+  buildCuratedTaskLaunchRequestMetadata,
+  buildCuratedTaskReferenceEntries,
+  extractCuratedTaskReferenceMemoryIds,
+  mergeCuratedTaskReferenceEntries,
+  normalizeCuratedTaskLaunchInputValues,
+  normalizeCuratedTaskReferenceMemoryIds,
+  type CuratedTaskReferenceEntry,
+  type CuratedTaskReferenceSelection,
+} from "@/components/agent/chat/utils/curatedTaskReferenceSelection";
+import { subscribeCuratedTaskRecommendationSignalsChanged } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import {
   buildTeamMemoryShadowRequestMetadata,
   listTeamMemorySnapshots,
@@ -70,6 +91,7 @@ import {
   type RuntimeMemoryPrefetchHistoryScope,
 } from "@/lib/runtimeMemoryPrefetchHistory";
 import { buildLayerMetrics } from "./memoryLayerMetrics";
+import { MemoryCuratedTaskSuggestionPanel } from "./MemoryCuratedTaskSuggestionPanel";
 import {
   buildInspirationProjectionEntries,
   buildInspirationTasteSummary,
@@ -133,6 +155,15 @@ function resolveActionErrorMessage(error: unknown, fallback: string): string {
     return error.message;
   }
   return fallback;
+}
+
+function normalizeOptionalText(value?: string | null): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function formatMemdirCleanupMessage(result: MemdirCleanupResult): string {
@@ -809,6 +840,25 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     runtimeComparisonBaselineSignature,
     setRuntimeComparisonBaselineSignature,
   ] = useState<string | null>(null);
+  const [memoryLauncherTask, setMemoryLauncherTask] =
+    useState<CuratedTaskTemplateItem | null>(null);
+  const [
+    memoryLauncherInitialInputValues,
+    setMemoryLauncherInitialInputValues,
+  ] = useState<CuratedTaskInputValues | null>(null);
+  const [
+    memoryLauncherInitialReferenceMemoryIds,
+    setMemoryLauncherInitialReferenceMemoryIds,
+  ] = useState<string[] | null>(null);
+  const [
+    memoryLauncherInitialReferenceEntries,
+    setMemoryLauncherInitialReferenceEntries,
+  ] = useState<CuratedTaskReferenceEntry[] | null>(null);
+  const [memoryLauncherPrefillHintOverride, setMemoryLauncherPrefillHintOverride] =
+    useState<string | null>(null);
+  const [, setCuratedTaskRecommendationSignalsVersion] = useState(0);
+  const durableEntryRefs = useRef<Record<string, HTMLElement | null>>({});
+  const lastAutoFocusedDurableMemoryIdRef = useRef<string | null>(null);
 
   const runtimeSessionId = pageParams?.runtimeSessionId?.trim() || "";
   const runtimeWorkingDir = pageParams?.runtimeWorkingDir?.trim() || "";
@@ -927,6 +977,37 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     }
   }, []);
 
+  const refreshUnifiedMemorySurface = useCallback(
+    async (isActive?: () => boolean) => {
+      const [nextUnifiedStats, nextUnifiedMemories] = await Promise.all([
+        getUnifiedMemoryStats(),
+        listUnifiedMemories({ limit: 120 }),
+      ]);
+
+      if (isActive && !isActive()) {
+        return;
+      }
+
+      setUnifiedStats(nextUnifiedStats);
+      setUnifiedMemories(nextUnifiedMemories);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    const unsubscribe = subscribeCuratedTaskRecommendationSignalsChanged(() => {
+      setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
+      void refreshUnifiedMemorySurface(() => active).catch(() => undefined);
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [refreshUnifiedMemorySurface]);
+
   const filteredMemories = useMemo(() => {
     if (durableFilter === "all") {
       return unifiedMemories;
@@ -935,6 +1016,56 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       (memory) => memory.category === durableFilter,
     );
   }, [durableFilter, unifiedMemories]);
+  const focusMemoryTitle =
+    normalizeOptionalText(pageParams?.focusMemoryTitle)?.toLocaleLowerCase() ||
+    "";
+  const focusedDurableMemory = useMemo(() => {
+    if (activeSection !== "durable" || !focusMemoryTitle) {
+      return null;
+    }
+
+    return (
+      filteredMemories.find((memory) => {
+        if (
+          pageParams?.focusMemoryCategory &&
+          memory.category !== pageParams.focusMemoryCategory
+        ) {
+          return false;
+        }
+
+        return (
+          normalizeOptionalText(memory.title)?.toLocaleLowerCase() ===
+          focusMemoryTitle
+        );
+      }) ?? null
+    );
+  }, [
+    activeSection,
+    filteredMemories,
+    focusMemoryTitle,
+    pageParams?.focusMemoryCategory,
+  ]);
+
+  useEffect(() => {
+    const focusedMemoryId = focusedDurableMemory?.id ?? null;
+    if (!focusedMemoryId) {
+      lastAutoFocusedDurableMemoryIdRef.current = null;
+      return;
+    }
+
+    if (lastAutoFocusedDurableMemoryIdRef.current === focusedMemoryId) {
+      return;
+    }
+
+    lastAutoFocusedDurableMemoryIdRef.current = focusedMemoryId;
+    const target = durableEntryRefs.current[focusedMemoryId];
+    if (target && typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({
+        block: "center",
+        behavior: "smooth",
+      });
+    }
+  }, [focusedDurableMemory?.id]);
 
   const inspirationEntries = useMemo(
     () => buildInspirationProjectionEntries(unifiedMemories),
@@ -966,11 +1097,113 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     () => inspirationEntries.slice(0, 6),
     [inspirationEntries],
   );
+  const featuredMemoryReferenceEntries = useMemo(
+    () => buildCuratedTaskReferenceEntries(unifiedMemories).slice(0, 3),
+    [unifiedMemories],
+  );
+  const focusedRecommendationReferenceEntries = useMemo(
+    () =>
+      focusedDurableMemory
+        ? buildCuratedTaskReferenceEntries([focusedDurableMemory])
+        : [],
+    [focusedDurableMemory],
+  );
+  const activeRecommendationReferenceEntries = useMemo(
+    () =>
+      mergeCuratedTaskReferenceEntries([
+        ...focusedRecommendationReferenceEntries,
+        ...featuredMemoryReferenceEntries,
+      ]).slice(0, 3),
+    [featuredMemoryReferenceEntries, focusedRecommendationReferenceEntries],
+  );
+  const homeContinuationReferenceEntry = useMemo(
+    () =>
+      !focusedDurableMemory
+        ? activeRecommendationReferenceEntries.find(
+            (entry) =>
+              entry.category === "experience" &&
+              Object.keys(entry.taskPrefillByTaskId ?? {}).length > 0,
+          )
+        : undefined,
+    [activeRecommendationReferenceEntries, focusedDurableMemory],
+  );
 
   const tasteSummary = useMemo(
     () => buildInspirationTasteSummary(inspirationEntries),
     [inspirationEntries],
   );
+  const featuredMemoryCuratedTasks = useMemo(
+    () =>
+      listFeaturedHomeCuratedTaskTemplates(undefined, {
+        projectId,
+        sessionId: runtimeSessionId || undefined,
+        referenceEntries: activeRecommendationReferenceEntries,
+        limit: 3,
+      }),
+    [activeRecommendationReferenceEntries, projectId, runtimeSessionId],
+  );
+  const focusedMemoryCuratedTasks = useMemo(
+    () => featuredMemoryCuratedTasks.slice(0, 2),
+    [featuredMemoryCuratedTasks],
+  );
+  const featuredMemoryReferenceSummary = useMemo(() => {
+    if (activeRecommendationReferenceEntries.length === 0) {
+      return "";
+    }
+
+    const visibleTitles = activeRecommendationReferenceEntries
+      .slice(0, 2)
+      .map((entry) => entry.title)
+      .join("、");
+
+    return `${
+      focusedDurableMemory ? "会优先带上" : "默认会带上"
+    }：${visibleTitles}${
+      activeRecommendationReferenceEntries.length > 2
+        ? ` 等 ${activeRecommendationReferenceEntries.length} 条参考对象`
+        : ""
+    }`;
+  }, [activeRecommendationReferenceEntries, focusedDurableMemory]);
+  const memoryLauncherPrefill = useMemo(
+    () => resolveCuratedTaskTemplateLaunchPrefill(memoryLauncherTask),
+    [memoryLauncherTask],
+  );
+  const effectiveMemoryLauncherInputValues =
+    memoryLauncherInitialInputValues ?? memoryLauncherPrefill?.inputValues;
+  const memoryLauncherReferenceEntries = useMemo(
+    () =>
+      mergeCuratedTaskReferenceEntries([
+        ...activeRecommendationReferenceEntries,
+        ...(memoryLauncherInitialReferenceEntries ?? []),
+        ...(memoryLauncherPrefill?.referenceEntries ?? []),
+      ]),
+    [
+      activeRecommendationReferenceEntries,
+      memoryLauncherInitialReferenceEntries,
+      memoryLauncherPrefill?.referenceEntries,
+    ],
+  );
+  const memoryLauncherReferenceMemoryIds = useMemo(
+    () =>
+      normalizeCuratedTaskReferenceMemoryIds([
+        ...(memoryLauncherInitialReferenceMemoryIds ?? []),
+        ...(extractCuratedTaskReferenceMemoryIds(
+          activeRecommendationReferenceEntries,
+        ) ?? []),
+        ...(memoryLauncherPrefill?.referenceMemoryIds ?? []),
+        ...(extractCuratedTaskReferenceMemoryIds(
+          memoryLauncherPrefill?.referenceEntries ?? [],
+        ) ?? []),
+      ]) ?? [],
+    [
+      activeRecommendationReferenceEntries,
+      memoryLauncherInitialReferenceMemoryIds,
+      memoryLauncherPrefill?.referenceEntries,
+      memoryLauncherPrefill?.referenceMemoryIds,
+    ],
+  );
+  const effectiveMemoryLauncherPrefillHint =
+    memoryLauncherPrefillHintOverride ?? memoryLauncherPrefill?.hint;
 
   const inspirationKindCards = useMemo(
     () =>
@@ -1376,6 +1609,112 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       prefillIntent,
     });
   }
+
+  const handleMemoryLauncherOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setMemoryLauncherTask(null);
+      setMemoryLauncherInitialInputValues(null);
+      setMemoryLauncherInitialReferenceMemoryIds(null);
+      setMemoryLauncherInitialReferenceEntries(null);
+      setMemoryLauncherPrefillHintOverride(null);
+    }
+  }, []);
+  const handleApplyMemoryLauncherReviewSuggestion = useCallback(
+    (
+      task: CuratedTaskTemplateItem,
+      options: {
+        inputValues: CuratedTaskInputValues;
+        referenceSelection: CuratedTaskReferenceSelection;
+      },
+    ) => {
+      setMemoryLauncherTask(task);
+      setMemoryLauncherInitialInputValues(options.inputValues);
+      setMemoryLauncherInitialReferenceMemoryIds(
+        normalizeCuratedTaskReferenceMemoryIds(
+          options.referenceSelection.referenceMemoryIds,
+        ) ?? [],
+      );
+      setMemoryLauncherInitialReferenceEntries(
+        mergeCuratedTaskReferenceEntries(
+          options.referenceSelection.referenceEntries,
+        ),
+      );
+      setMemoryLauncherPrefillHintOverride(
+        "已按最近复盘切到更适合的结果模板，你可以继续改后再进入生成。",
+      );
+    },
+    [],
+  );
+
+  const handleMemoryCuratedTaskConfirm = useCallback(
+    (
+      task: CuratedTaskTemplateItem,
+      inputValues: Record<string, string>,
+      referenceSelection: CuratedTaskReferenceSelection,
+    ) => {
+      const normalizedLaunchInputValues =
+        normalizeCuratedTaskLaunchInputValues(inputValues);
+
+      recordCuratedTaskTemplateUsage({
+        templateId: task.id,
+        launchInputValues: inputValues,
+        referenceMemoryIds: referenceSelection.referenceMemoryIds,
+        referenceEntries: referenceSelection.referenceEntries,
+      });
+
+      setMemoryLauncherTask(null);
+      setMemoryLauncherInitialInputValues(null);
+      setMemoryLauncherInitialReferenceMemoryIds(null);
+      setMemoryLauncherInitialReferenceEntries(null);
+      setMemoryLauncherPrefillHintOverride(null);
+
+      const requestMetadata = buildCuratedTaskLaunchRequestMetadata({
+        taskId: task.id,
+        taskTitle: task.title,
+        inputValues,
+        referenceMemoryIds: referenceSelection.referenceMemoryIds,
+        referenceEntries: referenceSelection.referenceEntries,
+      });
+
+      onNavigate(
+        "agent",
+        buildHomeAgentParams({
+          projectId: projectId || undefined,
+          initialRequestMetadata: requestMetadata,
+          initialInputCapability: {
+            capabilityRoute: {
+              kind: "curated_task",
+              taskId: task.id,
+              taskTitle: task.title,
+              prompt: buildCuratedTaskLaunchPrompt({
+                task,
+                inputValues,
+                referenceEntries: referenceSelection.referenceEntries,
+              }),
+              ...(normalizedLaunchInputValues
+                ? {
+                    launchInputValues: normalizedLaunchInputValues,
+                  }
+                : {}),
+              ...(referenceSelection.referenceMemoryIds.length > 0
+                ? {
+                    referenceMemoryIds: referenceSelection.referenceMemoryIds,
+                  }
+                : {}),
+              ...(referenceSelection.referenceEntries.length > 0
+                ? {
+                    referenceEntries: referenceSelection.referenceEntries,
+                  }
+                : {}),
+            },
+            requestKey: Date.now(),
+          },
+          entryBannerMessage: `已从灵感库推荐“${task.title}”带着启动信息进入生成，可继续补充后发送。`,
+        }),
+      );
+    },
+    [onNavigate, projectId],
+  );
 
   function handleOpenRuntimeHistoryEntry(
     entry: RuntimeMemoryPrefetchHistoryEntry,
@@ -1826,6 +2165,29 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                     </article>
                   ))}
                 </div>
+              </MemorySurfacePanel>
+
+              <MemorySurfacePanel
+                title="围绕当前灵感，先拿结果"
+                description="这里直接把灵感对象接到下一轮结果模板；你不需要先回首页再找起手式。"
+              >
+                <MemoryCuratedTaskSuggestionPanel
+                  panelTestId="memory-home-suggestion-panel"
+                  tasks={featuredMemoryCuratedTasks}
+                  referenceEntryCount={activeRecommendationReferenceEntries.length}
+                  referenceSummary={featuredMemoryReferenceSummary}
+                  contextCard={
+                    homeContinuationReferenceEntry
+                      ? {
+                          badgeLabel: "当前续接成果",
+                          title: homeContinuationReferenceEntry.title,
+                          summary: homeContinuationReferenceEntry.summary,
+                        }
+                      : undefined
+                  }
+                  emptyState="当前还没有足够灵感可直接推下一步。先收藏一条风格、参考或成果，再回来这里继续起手。"
+                  onStartTask={setMemoryLauncherTask}
+                />
               </MemorySurfacePanel>
 
               <MemorySurfacePanel
@@ -3022,6 +3384,30 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
           {!loading && !error && activeSection === "durable" ? (
             <>
+              {focusedDurableMemory ? (
+                <MemorySurfacePanel
+                  title="围绕这条成果继续"
+                  description="这轮结果已经进了灵感库，下一步先从这里接着做，不用重新回首页找入口。"
+                >
+                  <MemoryCuratedTaskSuggestionPanel
+                    panelTestId="memory-focused-suggestion-panel"
+                    tasks={focusedMemoryCuratedTasks}
+                    referenceEntryCount={
+                      activeRecommendationReferenceEntries.length
+                    }
+                    referenceSummary={featuredMemoryReferenceSummary}
+                    gridClassName="grid gap-4 xl:grid-cols-2"
+                    contextCard={{
+                      badgeLabel: "当前续接成果",
+                      title: focusedDurableMemory.title,
+                      summary: focusedDurableMemory.summary,
+                    }}
+                    emptyState="当前这条成果还没有编出更合适的下一步，先补一条参考或偏好再继续。"
+                    onStartTask={setMemoryLauncherTask}
+                  />
+                </MemorySurfacePanel>
+              ) : null}
+
               <MemorySurfacePanel
                 title="灵感对象分层"
                 description="前台按风格线索、参考素材、偏好约束、成果打法和收藏备选理解沉淀；底层 unified memory 仍保留旧分类。"
@@ -3097,7 +3483,17 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                     filteredMemories.map((memory) => (
                       <article
                         key={memory.id}
-                        className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4"
+                        ref={(element) => {
+                          durableEntryRefs.current[memory.id] = element;
+                        }}
+                        data-memory-entry-id={memory.id}
+                        data-testid={`memory-durable-entry-${memory.id}`}
+                        className={cn(
+                          "rounded-3xl border bg-slate-50/70 p-4",
+                          focusedDurableMemory?.id === memory.id
+                            ? "border-emerald-300 bg-emerald-50/80 shadow-sm shadow-emerald-950/5"
+                            : "border-slate-200",
+                        )}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
@@ -3123,6 +3519,14 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                 {inspirationEntryMap.get(memory.id)?.projectionLabel ||
                                   "灵感对象"}
                               </Badge>
+                              {focusedDurableMemory?.id === memory.id ? (
+                                <Badge
+                                  variant="outline"
+                                  className={EMERALD_BADGE_CLASS_NAME}
+                                >
+                                  当前续接
+                                </Badge>
+                              ) : null}
                               <span className="rounded-full bg-emerald-700 px-2.5 py-1 text-xs font-medium text-white">
                                 沉淀来源：{CATEGORY_LABELS[memory.category]}
                               </span>
@@ -3263,6 +3667,20 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           ) : null}
         </main>
       </div>
+
+      <CuratedTaskLauncherDialog
+        open={Boolean(memoryLauncherTask)}
+        task={memoryLauncherTask}
+        projectId={projectId}
+        sessionId={runtimeSessionId || undefined}
+        initialInputValues={effectiveMemoryLauncherInputValues}
+        initialReferenceMemoryIds={memoryLauncherReferenceMemoryIds}
+        initialReferenceEntries={memoryLauncherReferenceEntries}
+        prefillHint={effectiveMemoryLauncherPrefillHint}
+        onOpenChange={handleMemoryLauncherOpenChange}
+        onApplyReviewSuggestion={handleApplyMemoryLauncherReviewSuggestion}
+        onConfirm={handleMemoryCuratedTaskConfirm}
+      />
     </div>
   );
 }

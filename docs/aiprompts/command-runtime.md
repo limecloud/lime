@@ -224,7 +224,7 @@ Lime 的命令体系固定按以下关系理解：
 - `@配图` / `@修图` / `@重绘` 的 current 主链必须保留原始用户消息进入 Agent
 - 文稿 inline 配图、封面位、图片工作台编辑/变体等显式动作也必须补成同构的 `harness.image_skill_launch`，而不是绕过 Agent 直建任务
 - 前端只负责补 `harness.image_skill_launch` 这类结构化上下文，不负责预翻成 slash skill 或偷偷发起 task
-- Agent 首刀优先调用 `Skill(image_generate)`，再由 skill / CLI / task file 链路继续执行
+- Agent 首刀优先调用 `Skill(image_generate)`；若 Skill 返回的 `allowed_tools` 里包含 `lime_create_image_generation_task` 且尚未拿到 `task_id/path/status`，当前主会话必须继续调用 `lime_create_image_generation_task`，不能把 Skill 成功误判成任务已提交
 - 不要为了“找技能”再先走 `ToolSearch`；如果运行时发现 `@配图` 在 `ToolSearch / WebSearch / Read / Glob / Grep` 上空转，应视为图片主链断裂
 - 聊天区轻卡与 viewer 只消费后端真实运行态，不伪造“已完成”
 

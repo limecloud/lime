@@ -10,6 +10,7 @@
 
 import type { SettingsTabs } from "./settings";
 import type { SkillScaffoldTarget } from "@/lib/api/skills";
+import type { MemoryCategory } from "@/lib/api/unifiedMemory";
 import type { SceneAppsPageParams } from "@/lib/sceneapp/navigation";
 import type { SceneAppExecutionSummaryViewModel } from "@/lib/sceneapp/product";
 import type { InputCapabilitySendRoute } from "@/components/agent/chat/skill-selection/inputCapabilitySelection";
@@ -136,6 +137,8 @@ export type MemoryPageSection =
 
 export interface MemoryPageParams {
   section?: MemoryPageSection;
+  focusMemoryTitle?: string;
+  focusMemoryCategory?: MemoryCategory;
   runtimeSessionId?: string;
   runtimeWorkingDir?: string;
   runtimeUserMessage?: string;

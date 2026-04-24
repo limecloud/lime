@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   findCuratedTaskTemplateById,
+  listFeaturedHomeCuratedTaskTemplates,
   recordCuratedTaskTemplateUsage,
   resolveCuratedTaskFollowUpActionTarget,
   subscribeCuratedTaskTemplateUsageChanged,
 } from "./curatedTaskTemplates";
+import { buildCuratedTaskReferenceEntries } from "./curatedTaskReferenceSelection";
 
 describe("curatedTaskTemplates", () => {
   beforeEach(() => {
@@ -45,5 +47,67 @@ describe("curatedTaskTemplates", () => {
 
     expect(callback).toHaveBeenCalledTimes(1);
     unsubscribe();
+  });
+
+  it("成果参考对象应为下游模板生成更明确的续接理由", () => {
+    const referenceEntries = buildCuratedTaskReferenceEntries([
+      {
+        id: "memory-experience-1",
+        session_id: "session-1",
+        memory_type: "conversation",
+        category: "experience",
+        title: "短视频编排 · 复核阻塞",
+        summary: "当前结果包已完整回流，可继续进入下一轮。",
+        content: [
+          "场景：短视频编排",
+          "结果摘要：这轮内容已经产出一版完整结果包。",
+          "当前交付：已交付 3/4 个部件",
+          "建议下一步：先完成复核，再决定下一轮放量",
+          "当前信号：复核阻塞",
+        ].join("\n"),
+        updated_at: 1_712_345_779_000,
+        created_at: 1_712_345_700_000,
+        tags: ["短视频", "复核阻塞"],
+        archived: false,
+        metadata: {
+          confidence: 1,
+          importance: 8,
+          access_count: 0,
+          last_accessed_at: null,
+          source: "manual",
+          embedding: null,
+        },
+      },
+    ]);
+
+    const featured = listFeaturedHomeCuratedTaskTemplates(undefined, {
+      referenceEntries,
+      limit: 3,
+    });
+
+    expect(featured.map((item) => item.template.id)).toEqual([
+      "account-project-review",
+      "daily-trend-briefing",
+      "social-post-starter",
+    ]);
+    expect(featured[0]).toEqual(
+      expect.objectContaining({
+        reasonLabel: "围绕当前成果",
+        reasonSummary:
+          "先对齐「短视频编排 · 复核阻塞」这轮结果基线，再决定下一轮动作",
+      }),
+    );
+    expect(featured[1]).toEqual(
+      expect.objectContaining({
+        reasonLabel: "承接当前结果",
+        reasonSummary: "围绕「短视频编排 · 复核阻塞」这轮结果继续找趋势窗口",
+      }),
+    );
+    expect(featured[2]).toEqual(
+      expect.objectContaining({
+        reasonLabel: "承接当前结果",
+        reasonSummary: "把「短视频编排 · 复核阻塞」这轮结果直接带成下一版主稿",
+      }),
+    );
   });
 });

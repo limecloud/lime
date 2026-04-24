@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildServiceSkillCapabilityDescription,
   getServiceSkillActionLabel,
+  getServiceSkillRunnerDescription,
+  getServiceSkillRunnerLabel,
+  listServiceSkillDependencies,
   summarizeServiceSkillRequiredInputs,
 } from "./skillPresentation";
 import type { ServiceSkillItem } from "./types";
@@ -122,5 +125,27 @@ describe("skillPresentation", () => {
         }),
       ),
     ).toBe("开始执行");
+  });
+
+  it("站点做法的运行语义应改成接着浏览器继续，而不是暴露采集与登录态术语", () => {
+    const siteSkill = createServiceSkill({
+      defaultExecutorBinding: "browser_assist",
+      siteCapabilityBinding: {
+        adapterName: "github/search",
+        autoRun: true,
+        slotArgMap: {},
+      },
+      readinessRequirements: {
+        requiresBrowser: true,
+      },
+    });
+
+    expect(getServiceSkillRunnerLabel(siteSkill)).toBe("接着浏览器继续");
+    expect(getServiceSkillRunnerDescription(siteSkill)).toBe(
+      "会接着当前浏览器里的已登录页面把这一步做完，并把结果带回当前工作区。",
+    );
+    expect(listServiceSkillDependencies(siteSkill)).toContain(
+      "需要当前浏览器里已经打开并登录对应站点。",
+    );
   });
 });

@@ -202,7 +202,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
     }
 
     if (sectionKey === "installed-skills") {
-      return "更多本地做法；没命中上面的继续项时，再来这里挑一条新的。";
+      return "没命中上面的继续项时，再从这里换一条已经沉淀下来的方法。";
     }
 
     return null;
@@ -330,22 +330,44 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
                 className="mx-2 mb-2 rounded-[16px] border border-sky-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(239,246,255,0.92))] px-3 py-3"
                 data-testid={`input-capability-section-banner-${section.key}`}
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                    {section.banner.badge}
-                  </span>
-                  <div className="text-xs font-semibold leading-5 text-slate-900">
-                    {section.banner.title}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                        {section.banner.badge}
+                      </span>
+                      <div className="text-xs font-semibold leading-5 text-slate-900">
+                        {section.banner.title}
+                      </div>
+                    </div>
+                    <div className="mt-1.5 text-[11px] leading-5 text-slate-600">
+                      {section.banner.summary}
+                    </div>
+                    {section.banner.footnote ? (
+                      <div className="mt-1 text-[11px] leading-5 text-sky-700">
+                        {section.banner.footnote}
+                      </div>
+                    ) : null}
                   </div>
+                  {section.banner.actionLabel && section.banner.actionItemKey ? (
+                    <button
+                      type="button"
+                      className="rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-medium leading-5 text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50"
+                      data-testid={`input-capability-section-banner-action-${section.key}`}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        const actionItem = section.items.find(
+                          (item) => item.key === section.banner?.actionItemKey,
+                        );
+                        if (actionItem) {
+                          handleSelectCapability(actionItem);
+                        }
+                      }}
+                    >
+                      {section.banner.actionLabel}
+                    </button>
+                  ) : null}
                 </div>
-                <div className="mt-1.5 text-[11px] leading-5 text-slate-600">
-                  {section.banner.summary}
-                </div>
-                {section.banner.footnote ? (
-                  <div className="mt-1 text-[11px] leading-5 text-sky-700">
-                    {section.banner.footnote}
-                  </div>
-                ) : null}
               </div>
             ) : null}
             {resolveSectionHelperText(section.key) ? (

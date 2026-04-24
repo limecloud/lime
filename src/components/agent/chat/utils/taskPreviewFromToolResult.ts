@@ -1,6 +1,7 @@
 import { ARTIFACT_DOCUMENT_SCHEMA_VERSION } from "@/lib/artifact-document/types";
 import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import type {
+  ImageStoryboardSlot,
   MessageGenericTaskPreview,
   MessageImageWorkbenchPreview,
   MessageTaskPreview,
@@ -120,6 +121,40 @@ function readArrayRecords(
   return [];
 }
 
+function readImageStoryboardSlots(
+  candidates: Array<Record<string, unknown> | null | undefined>,
+  keys: string[],
+): ImageStoryboardSlot[] {
+  return readArrayRecords(candidates, keys)
+    .map((record, index) => {
+      const slotIndex =
+        readMetadataPositiveNumber([record], ["slot_index", "slotIndex"]) ||
+        index + 1;
+      const slotId =
+        readMetadataString([record], ["slot_id", "slotId"]) ||
+        `storyboard-slot-${slotIndex}`;
+
+      return {
+        slotId,
+        slotIndex,
+        label:
+          readMetadataString([record], ["label", "slot_label", "slotLabel"]) ||
+          null,
+        prompt:
+          readMetadataString([record], [
+            "prompt",
+            "slot_prompt",
+            "slotPrompt",
+            "revised_prompt",
+          ]) || null,
+        shotType:
+          readMetadataString([record], ["shot_type", "shotType"]) || null,
+        status: readMetadataString([record], ["status"]) || null,
+      } satisfies ImageStoryboardSlot;
+    })
+    .sort((left, right) => left.slotIndex - right.slotIndex);
+}
+
 function resolveTaskPreviewStatus(
   status: string | undefined,
 ): MessageTaskPreview["status"] {
@@ -189,7 +224,12 @@ function readCommandArgumentValue(
 function extractImageTaskPromptFromToolArguments(
   toolName: string,
   toolArguments: string | undefined,
-): { prompt?: string; size?: string; imageCount?: number } {
+): {
+  prompt?: string;
+  size?: string;
+  imageCount?: number;
+  layoutHint?: string;
+} {
   if (!toolArguments) {
     return {};
   }
@@ -202,11 +242,15 @@ function extractImageTaskPromptFromToolArguments(
       [parsed],
       ["count", "image_count", "imageCount"],
     );
+    const layoutHint = readMetadataString([parsed], [
+      "layout_hint",
+      "layoutHint",
+    ]);
     const command =
       typeof parsed.command === "string" ? parsed.command.trim() : undefined;
 
-    if (prompt || size || imageCount || !command) {
-      return { prompt, size, imageCount };
+    if (prompt || size || imageCount || layoutHint || !command) {
+      return { prompt, size, imageCount, layoutHint };
     }
 
     if (
@@ -223,6 +267,7 @@ function extractImageTaskPromptFromToolArguments(
               10,
             )
           : undefined,
+        layoutHint: readCommandArgumentValue(command, "--layout-hint"),
       };
     }
   } catch {
@@ -669,19 +714,39 @@ export function buildImageTaskPreviewFromToolResult(
     [metadata],
     ["received_count", "receivedCount"],
   );
+  const layoutHint =
+    parsedArguments.layoutHint ||
+    readMetadataString([metadata], ["layout_hint", "layoutHint"]) ||
+    null;
+  const storyboardSlots = readImageStoryboardSlots(
+    [metadata],
+    ["storyboard_slots", "storyboardSlots"],
+  );
+  const expectedImageCount = Math.max(
+    requestedCount || 0,
+    storyboardSlots.length,
+  );
   const resolvedImageCount =
     previewStatus === "running"
-      ? requestedCount
-      : receivedCount || requestedCount;
+      ? expectedImageCount || requestedCount
+      : receivedCount || expectedImageCount || requestedCount;
   const statusMessage =
     previewStatus === "complete"
       ? receivedCount && receivedCount > 0
-        ? `图片已生成完成，共 ${receivedCount} 张。`
-        : "图片结果已生成完成，可在右侧查看与使用。"
+        ? layoutHint === "storyboard_3x3"
+          ? `3x3 分镜已生成完成，共 ${receivedCount} 张。`
+          : `图片已生成完成，共 ${receivedCount} 张。`
+        : layoutHint === "storyboard_3x3"
+          ? "3x3 分镜已生成完成，可在右侧继续查看与使用。"
+          : "图片结果已生成完成，可在右侧查看与使用。"
       : previewStatus === "partial"
         ? receivedCount && receivedCount > 0
-          ? `图片已返回部分结果，共 ${receivedCount} 张。`
-          : "图片已返回部分结果，可在右侧继续查看。"
+          ? layoutHint === "storyboard_3x3"
+            ? `3x3 分镜已返回部分结果，共 ${receivedCount} 张。`
+            : `图片已返回部分结果，共 ${receivedCount} 张。`
+          : layoutHint === "storyboard_3x3"
+            ? "3x3 分镜已返回部分结果，可在右侧继续查看。"
+            : "图片已返回部分结果，可在右侧继续查看。"
         : previewStatus === "failed"
           ? "图片任务执行失败，请查看工具结果或任务详情。"
           : previewStatus === "cancelled"
@@ -706,6 +771,9 @@ export function buildImageTaskPreviewFromToolResult(
     artifactPath:
       readMetadataString([metadata], ["artifact_path", "artifactPath"]) || null,
     imageCount: resolvedImageCount,
+    expectedImageCount: expectedImageCount || requestedCount,
+    layoutHint,
+    storyboardSlots: storyboardSlots.length > 0 ? storyboardSlots : undefined,
     size:
       parsedArguments.size ||
       readMetadataString([metadata], ["size", "resolution"]),

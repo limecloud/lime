@@ -40,7 +40,11 @@ import {
   replaceCuratedTaskLaunchPromptInInput,
   type CuratedTaskInputValues,
 } from "../../../utils/curatedTaskTemplates";
-import type { CuratedTaskReferenceSelection } from "../../../utils/curatedTaskReferenceSelection";
+import {
+  mergeCuratedTaskReferenceEntries,
+  normalizeCuratedTaskReferenceMemoryIds,
+  type CuratedTaskReferenceSelection,
+} from "../../../utils/curatedTaskReferenceSelection";
 
 interface UseInputbarControllerParams {
   input: string;
@@ -113,6 +117,8 @@ export function useInputbarController({
     useState<Extract<InputCapabilitySelection, { kind: "curated_task" }> | null>(
       null,
     );
+  const [curatedTaskEditorPrefillHint, setCuratedTaskEditorPrefillHint] =
+    useState<string | null>(null);
   const handledInitialInputCapabilitySignatureRef = useRef("");
   const {
     pendingImages,
@@ -203,6 +209,7 @@ export function useInputbarController({
       shouldOpenCuratedTaskLauncherOnBootstrap &&
       resolvedCapability.kind === "curated_task"
     ) {
+      setCuratedTaskEditorPrefillHint(null);
       setEditingCuratedTaskCapability(resolvedCapability);
     }
   }, [
@@ -340,7 +347,48 @@ export function useInputbarController({
                   if (activeCapability?.kind !== "curated_task") {
                     return;
                   }
+                  setCuratedTaskEditorPrefillHint(null);
                   setEditingCuratedTaskCapability(activeCapability);
+                },
+                onApplyReviewSuggestion: (task) => {
+                  if (activeCapability?.kind !== "curated_task") {
+                    return;
+                  }
+
+                  const resolvedTask =
+                    findCuratedTaskTemplateById(task.id) ?? task;
+                  const nextReferenceEntries = mergeCuratedTaskReferenceEntries(
+                    activeCapability.referenceEntries ?? [],
+                  );
+                  const nextLaunchInputValues =
+                    activeCapability.launchInputValues ?? {};
+                  const nextReferenceMemoryIds =
+                    normalizeCuratedTaskReferenceMemoryIds(
+                      activeCapability.referenceMemoryIds,
+                    ) ?? [];
+                  const nextPrompt = buildCuratedTaskLaunchPrompt({
+                    task: resolvedTask,
+                    inputValues: nextLaunchInputValues,
+                    referenceEntries: nextReferenceEntries,
+                  });
+
+                  setInput(
+                    replaceCuratedTaskLaunchPromptInInput({
+                      currentInput: input,
+                      previousPrompt: activeCapability.task.prompt,
+                      nextPrompt,
+                    }),
+                  );
+                  setActiveCapability({
+                    kind: "curated_task",
+                    task: {
+                      ...resolvedTask,
+                      prompt: nextPrompt,
+                    },
+                    launchInputValues: nextLaunchInputValues,
+                    referenceMemoryIds: nextReferenceMemoryIds,
+                    referenceEntries: nextReferenceEntries,
+                  });
                 },
                 onClear: () => setActiveCapability(null),
               })
@@ -366,9 +414,43 @@ export function useInputbarController({
       : undefined;
   const handleCuratedTaskEditorOpenChange = useCallback((open: boolean) => {
     if (!open) {
+      setCuratedTaskEditorPrefillHint(null);
       setEditingCuratedTaskCapability(null);
     }
   }, []);
+  const handleApplyCuratedTaskEditorReviewSuggestion = useCallback(
+    (
+      task: NonNullable<typeof editingCuratedTaskCapability>["task"],
+      options: {
+        inputValues: CuratedTaskInputValues;
+        referenceSelection: CuratedTaskReferenceSelection;
+      },
+    ) => {
+      const resolvedTask = findCuratedTaskTemplateById(task.id) ?? task;
+      setEditingCuratedTaskCapability((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          task: resolvedTask,
+          launchInputValues: options.inputValues,
+          referenceMemoryIds:
+            normalizeCuratedTaskReferenceMemoryIds(
+              options.referenceSelection.referenceMemoryIds,
+            ) ?? [],
+          referenceEntries: mergeCuratedTaskReferenceEntries(
+            options.referenceSelection.referenceEntries,
+          ),
+        };
+      });
+      setCuratedTaskEditorPrefillHint(
+        "已按最近复盘切到更适合的结果模板，你可以继续改后再发。",
+      );
+    },
+    [],
+  );
   const handleConfirmCuratedTaskEdit = useCallback(
     (
       task: NonNullable<typeof editingCuratedTaskCapability>["task"],
@@ -399,6 +481,7 @@ export function useInputbarController({
         referenceMemoryIds: referenceSelection.referenceMemoryIds,
         referenceEntries: referenceSelection.referenceEntries,
       });
+      setCuratedTaskEditorPrefillHint(null);
       setEditingCuratedTaskCapability(null);
     },
     [editingCuratedTaskCapability, input, setInput],
@@ -413,7 +496,9 @@ export function useInputbarController({
         initialReferenceMemoryIds:
           editingCuratedTaskCapability.referenceMemoryIds,
         initialReferenceEntries: editingCuratedTaskCapability.referenceEntries,
+        prefillHint: curatedTaskEditorPrefillHint,
         onOpenChange: handleCuratedTaskEditorOpenChange,
+        onApplyReviewSuggestion: handleApplyCuratedTaskEditorReviewSuggestion,
         onConfirm: handleConfirmCuratedTaskEdit,
       })
     : undefined;

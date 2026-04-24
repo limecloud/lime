@@ -814,7 +814,89 @@ describe("ProviderModelList", () => {
     expect(warningBanner?.className).not.toContain("dark:bg-amber-950/20");
   });
 
-  it("OpenAI 兼容 Provider 回退到本地模型时，应继续展示 LocalFallback 模型", async () => {
+  it("Responses 兼容 Provider 保留自定义模型时，不应展示伪造的 /v1/models 请求地址", async () => {
+    mockFetchProviderModelsAuto.mockResolvedValueOnce({
+      models: [
+        {
+          id: "gpt-images-2",
+          display_name: "GPT Images 2",
+          provider_id: "openai",
+          provider_name: "OpenAI Compatible",
+          family: "gpt-image",
+          tier: "pro",
+          capabilities: {
+            vision: false,
+            tools: false,
+            streaming: true,
+            json_mode: false,
+            function_calling: false,
+            reasoning: false,
+          },
+          task_families: ["image_generation"],
+          input_modalities: ["text"],
+          output_modalities: ["image"],
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: null,
+          is_latest: true,
+          description: null,
+          source: "embedded",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      source: "LocalFallback",
+      error:
+        "当前 Responses 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。",
+      request_url: null,
+      diagnostic_hint:
+        "当前 Base URL 走 `/responses` 主链，Lime 不再探测 `/v1/models`；如需在设置页展示模型，请直接在 Provider 中填写自定义模型。",
+      should_prompt_error: false,
+    });
+
+    const container = renderProviderModelList({
+      providerId: "custom-openai-images",
+      providerType: "openai",
+      apiHost: "https://gateway.example.com/codex",
+      hasApiKey: true,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("获取最新模型"),
+    );
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("GPT Images 2");
+    expect(container.textContent).toContain("自定义");
+    expect(container.textContent).toContain(
+      "当前 Responses 兼容入口未提供标准 /models 接口",
+    );
+    expect(container.textContent).toContain(
+      "当前 Base URL 走 `/responses` 主链",
+    );
+    expect(container.textContent).not.toContain("请求地址：");
+    expect(container.textContent).not.toContain(
+      "https://gateway.example.com/codex/v1/models",
+    );
+  });
+
+  it("OpenAI 兼容 Provider 在实时目录失败后，不应继续展示 LocalFallback 旧模型", async () => {
     mockFetchProviderModelsAuto.mockResolvedValueOnce({
       models: [
         {
@@ -882,10 +964,9 @@ describe("ProviderModelList", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("GPT-4.1");
-    expect(container.textContent).toContain("本地");
+    expect(container.textContent).not.toContain("GPT-4.1");
     expect(container.textContent).toContain("API 获取失败");
-    expect(container.textContent).not.toContain(
+    expect(container.textContent).toContain(
       "检测到 Provider 配置错误，请优先修正 Base URL 或鉴权配置",
     );
   });

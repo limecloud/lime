@@ -23,6 +23,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Bot, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { ProviderIcon } from "@/icons/providers";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
+import { buildPersistedMediaGenerationPreference } from "@/lib/mediaGeneration";
+import { isImageProvider } from "@/lib/imageGeneration";
 import { ApiKeyList } from "./ApiKeyList";
 import {
   ProviderConfigForm,
@@ -119,16 +122,57 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
   const [draftCustomModels, setDraftCustomModels] = useState<string[]>(
     provider?.custom_models ?? [],
   );
+  const [currentConfig, setCurrentConfig] = useState<Config | null>(null);
+  const [imageDefaultSaving, setImageDefaultSaving] = useState(false);
+  const [imageDefaultError, setImageDefaultError] = useState<string | null>(
+    null,
+  );
   const [recommendedLatestModelId, setRecommendedLatestModelId] = useState<
     string | null
   >(null);
   const enabledApiKeyCount =
     provider?.api_keys?.filter((apiKey) => apiKey.enabled).length ?? 0;
+  const providerId = provider?.id ?? null;
 
   useEffect(() => {
     setDraftCustomModels(provider?.custom_models ?? []);
     setRecommendedLatestModelId(null);
   }, [provider?.id, provider?.custom_models]);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!providerId) {
+      setCurrentConfig(null);
+      setImageDefaultError(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    void (async () => {
+      try {
+        const config = await getConfig({ forceRefresh: true });
+        if (!active) {
+          return;
+        }
+        setCurrentConfig(config);
+        setImageDefaultError(null);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        setCurrentConfig(null);
+        setImageDefaultError(
+          error instanceof Error ? error.message : "读取图片服务默认配置失败",
+        );
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [providerId]);
 
   const handleModelsChange = useCallback((models: string[]) => {
     setDraftCustomModels(models);
@@ -252,6 +296,16 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
       : !hasResolvedLiveModelDirectory
       ? "读取真实模型目录前，不展示旧模型，避免把历史缓存误认为当前可用模型。"
       : null;
+  const supportsImageGeneration =
+    isImageProvider(provider.id, provider.type, draftCustomModels) ||
+    isImageProvider(provider.id, provider.type, provider.custom_models);
+  const currentImagePreference =
+    currentConfig?.workspace_preferences?.media_defaults?.image;
+  const currentImageDefaultProviderId =
+    currentImagePreference?.preferredProviderId?.trim() || "";
+  const currentProviderOwnsImageDefault =
+    currentImageDefaultProviderId.toLowerCase() === provider.id.toLowerCase();
+  const imageDefaultDisplayModel = savedDefaultModelId ?? recommendedLatestModelId;
   const showExplicitPromptCacheBadge =
     getProviderPromptCacheMode(
       provider.type,
@@ -263,6 +317,41 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
   const handleToggleEnabled = async (enabled: boolean) => {
     if (onUpdate) {
       await onUpdate(provider.id, { enabled });
+    }
+  };
+
+  const handleSetAsDefaultImageProvider = async () => {
+    setImageDefaultSaving(true);
+    setImageDefaultError(null);
+
+    try {
+      const latestConfig = await getConfig({ forceRefresh: true });
+      const currentImageConfig =
+        latestConfig.workspace_preferences?.media_defaults?.image;
+      const nextImagePreference = buildPersistedMediaGenerationPreference({
+        preferredProviderId: provider.id,
+        preferredModelId: imageDefaultDisplayModel ?? undefined,
+        allowFallback: currentImageConfig?.allowFallback ?? true,
+      });
+      const nextConfig: Config = {
+        ...latestConfig,
+        workspace_preferences: {
+          ...latestConfig.workspace_preferences,
+          media_defaults: {
+            ...latestConfig.workspace_preferences?.media_defaults,
+            image: nextImagePreference,
+          },
+        },
+      };
+
+      await saveConfig(nextConfig);
+      setCurrentConfig(nextConfig);
+    } catch (error) {
+      setImageDefaultError(
+        error instanceof Error ? error.message : "写入默认图片服务失败",
+      );
+    } finally {
+      setImageDefaultSaving(false);
     }
   };
 
@@ -426,6 +515,59 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
               {modelStatusNotice ? (
                 <div className="mb-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   {modelStatusNotice}
+                </div>
+              ) : null}
+
+              {supportsImageGeneration ? (
+                <div
+                  className="mb-4 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4"
+                  data-testid="provider-image-default-card"
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-slate-900">
+                        `@配图` 默认图片服务
+                      </p>
+                      <p
+                        className="text-xs leading-5 text-slate-500"
+                        data-testid="provider-image-default-summary"
+                      >
+                        {currentProviderOwnsImageDefault
+                          ? "当前 Provider 已接管 `@配图` 与图片工作台默认出图。"
+                          : `当前默认仍是 ${currentImageDefaultProviderId || "自动匹配"}，如需让 \`@配图\` 立即走当前图片链，请把这个 Provider 设为默认图片服务。`}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant={
+                        currentProviderOwnsImageDefault
+                          ? "secondary"
+                          : "outline"
+                      }
+                      size="sm"
+                      onClick={() => {
+                        void handleSetAsDefaultImageProvider();
+                      }}
+                      disabled={imageDefaultSaving || currentProviderOwnsImageDefault}
+                      data-testid="provider-set-default-image-button"
+                    >
+                      {currentProviderOwnsImageDefault
+                        ? "已是默认图片服务"
+                        : imageDefaultSaving
+                          ? "写入中..."
+                          : "设为默认图片服务"}
+                    </Button>
+                  </div>
+                  {imageDefaultDisplayModel ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      写入时会同步默认模型：{imageDefaultDisplayModel}
+                    </p>
+                  ) : null}
+                  {imageDefaultError ? (
+                    <p className="mt-2 text-xs text-rose-600">
+                      {imageDefaultError}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 

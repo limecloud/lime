@@ -122,6 +122,37 @@ describe("buildImageTaskPreviewFromToolResult", () => {
       statusMessage: "图片任务已提交，正在排队处理。",
     });
   });
+
+  it("3x3 分镜完成后应输出更贴近布局语义的摘要", () => {
+    const preview = buildImageTaskPreviewFromToolResult({
+      toolId: "tool-5",
+      toolName: "Bash",
+      toolArguments: JSON.stringify({
+        command:
+          'lime media image generate --prompt "三国主要人物" --layout-hint storyboard_3x3',
+      }),
+      toolResult: {
+        metadata: {
+          task_id: "task-5",
+          task_type: "image_generate",
+          status: "succeeded",
+          prompt: "三国主要人物",
+          requested_count: 9,
+          received_count: 9,
+          layout_hint: "storyboard_3x3",
+        },
+      },
+      fallbackPrompt: "@分镜 生成 三国主要人物，3x3 分镜",
+    });
+
+    expect(preview).toMatchObject({
+      taskId: "task-5",
+      status: "complete",
+      imageCount: 9,
+      layoutHint: "storyboard_3x3",
+      statusMessage: "3x3 分镜已生成完成，共 9 张。",
+    });
+  });
 });
 
 describe("buildTaskPreviewFromToolResult video", () => {
