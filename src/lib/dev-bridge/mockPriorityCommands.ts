@@ -84,6 +84,7 @@ const mockPriorityCommands = new Set<string>([
 const bridgeTruthCommands = new Set<string>([
   "aster_agent_init",
   "aster_agent_status",
+  "agent_generate_title",
   "workspace_list",
   "workspace_get_default",
   "workspace_get",
@@ -144,10 +145,28 @@ const bridgeTruthCommands = new Set<string>([
   "upload_material",
 ]);
 
+const bridgeTruthEventPrefixes = [
+  "aster_stream_",
+  "agent_subagent_status:",
+  "agent_subagent_stream:",
+];
+
 export function shouldPreferMockInBrowser(cmd: string): boolean {
   return mockPriorityCommands.has(cmd);
 }
 
 export function shouldDisallowMockFallbackInBrowser(cmd: string): boolean {
   return bridgeTruthCommands.has(cmd);
+}
+
+export function shouldDisallowMockEventFallbackInBrowser(
+  eventName: string,
+): boolean {
+  const normalizedEventName = eventName.trim();
+  if (!normalizedEventName) {
+    return false;
+  }
+  return bridgeTruthEventPrefixes.some((prefix) =>
+    normalizedEventName.startsWith(prefix),
+  );
 }

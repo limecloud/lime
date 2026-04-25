@@ -31,12 +31,16 @@
 7. `history_compress` internal turn 已写入统一 `lime_runtime` metadata，并复用同一组 side events 语义
 8. `topic / generation_topic / agent_meta` 辅助会话已补齐统一 `task_profile / routing_decision / limit_state / cost_state` metadata，`agent_generate_title / generate_persona` 也已能回传 auxiliary session 的 `execution_runtime` 诊断快照，但仍停留在 auxiliary/compat 观测面
 9. TS 协议解析测试已覆盖新的路由与限额事件链，并补齐 `agent_generate_title` runtime 诊断结果解析
+10. `@配图` 首发与重试链已把 auxiliary 标题生成诊断固化到图片 task artifact 的 `title_generation_result`，保证这份事实可被重试与后续诊断复读，同时不进入幂等指纹
+11. evidence pack 已能从图片 task artifact 提取 `title_generation_result.execution_runtime`，并导出 `auxiliaryRuntimeSnapshots + auxiliaryTaskRuntime` signal，供 replay / analysis / review 走统一消费链复用
+12. `request_model_resolution.rs` 已补齐多候选自动优选，当前会综合 family / lineage 连续性、reasoning / vision 能力匹配、成本等级、发布时间等信号做 current 优选
+13. `thread_read` 已补齐 `decision_reason / fallback_chain / oem_policy / runtime_summary / auxiliary_task_runtime`，前端 `AgentThreadReliabilityPanel / HarnessStatusPanel` 已走 current 字段展示运行时事实
+14. `runtime_handoff_artifact_service / runtime_evidence_pack_service / runtime_replay_case_service / runtime_analysis_handoff_service` 已改为统一消费 current runtime 事实，不再各自重新猜测路由原因
 
 仍待继续的验收切片：
 
-1. 更丰富的多候选自动优选策略
-2. 更多 OEM policy 字段、服务端下发配额策略与设置页展示的闭环
-3. `topic / generation_topic / agent_meta` 从 auxiliary session metadata 进一步提升到 current runtime 事件 / evidence 主链
+1. 更多 OEM policy 字段与服务端下发配额策略的完整闭环仍待继续；当前聊天侧运行时事实面板已可展示 `quotaStatus / offerState / providerSource / providerKey / fallbackToLocalAllowed / canInvoke / tenantId`，剩余缺口主要在设置页与服务端治理进一步打通。
+2. `topic / generation_topic / agent_meta` 已补齐 current submit-turn 入口识别、基础 side-event 覆盖、协议层解析与 `thread_read` 回退提升；当前剩余缺口主要收缩为更完整的端到端回归与把 auxiliary 事实进一步沉到更稳定的 submit-turn runtime 来源。
 
 ## 2. 行为验收
 

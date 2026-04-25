@@ -11,6 +11,7 @@ import { normalizeQueuedTurnSnapshots } from "@/lib/api/queuedTurn";
 import { resolveRestorableSessionId } from "@/lib/asterSessionRecovery";
 import type { AgentThreadItem, AgentThreadTurn, Message } from "../types";
 import type { Topic } from "./agentChatShared";
+import type { AgentSessionCachedSnapshot } from "./agentSessionScopedStorage";
 import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
 import {
   hydrateSessionDetailMessages,
@@ -69,6 +70,42 @@ export function hasSessionHydrationActivity(options: {
     options.threadTurnsCount > 0 ||
     options.threadItemsCount > 0 ||
     options.queuedTurnsCount > 0
+  );
+}
+
+export function shouldDeferSessionDetailHydration(options: {
+  currentSessionId: string | null;
+  topicId: string;
+  forceRefresh?: boolean;
+  resumeSessionStartHooks?: boolean;
+  cachedSnapshot?: AgentSessionCachedSnapshot | null;
+}) {
+  const {
+    currentSessionId,
+    topicId,
+    forceRefresh = false,
+    resumeSessionStartHooks = false,
+    cachedSnapshot,
+  } = options;
+
+  if (
+    forceRefresh ||
+    resumeSessionStartHooks ||
+    !cachedSnapshot ||
+    !currentSessionId ||
+    currentSessionId === topicId
+  ) {
+    return false;
+  }
+
+  return (
+    cachedSnapshot.messages.length > 0 ||
+    hasSessionHydrationActivity({
+      currentTurnId: cachedSnapshot.currentTurnId,
+      threadTurnsCount: cachedSnapshot.threadTurns.length,
+      threadItemsCount: cachedSnapshot.threadItems.length,
+      queuedTurnsCount: 0,
+    })
   );
 }
 
@@ -135,10 +172,9 @@ export function buildHydratedAgentSessionSnapshot(
   } = options;
   const effectiveCurrentSessionId =
     localSnapshotOverride?.sessionId ?? currentSessionId;
-  const effectiveCurrentMessages =
-    localSnapshotOverride
-      ? normalizeHistoricalTopicSnapshotMessages(localSnapshotOverride.messages)
-      : currentMessages;
+  const effectiveCurrentMessages = localSnapshotOverride
+    ? normalizeHistoricalTopicSnapshotMessages(localSnapshotOverride.messages)
+    : currentMessages;
   const effectiveCurrentThreadTurns =
     localSnapshotOverride?.threadTurns ?? currentThreadTurns;
   const effectiveCurrentThreadItems =

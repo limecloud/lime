@@ -179,29 +179,29 @@ export function AutomationJobDetailsDialog({
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <DialogTitle className="text-[22px] font-semibold tracking-tight text-slate-900">
-                    任务详情与历史
+                    持续流程详情
                   </DialogTitle>
                   <WorkbenchInfoTip
-                    ariaLabel="任务详情说明"
-                    content="查看任务状态、输出投递和最近运行历史；需要迁移旧浏览器任务时，也在这里确认遗留配置和风险提示。"
+                    ariaLabel="持续流程详情说明"
+                    content="查看这条持续流程的状态、输出去向和最近运行；需要迁移旧浏览器流程时，也在这里确认遗留配置和风险提示。"
                     tone="mint"
                   />
                 </div>
                 <DialogDescription className="text-sm text-slate-500">
-                  查看任务状态、输出投递和最近运行历史。
+                  查看这条持续流程的状态、输出去向和最近运行。
                 </DialogDescription>
                 <div className="flex flex-wrap gap-2">
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-                    任务：{job.name}
+                    这条：{job.name}
                   </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-                    工作区：{workspaceName ?? job.workspace_id}
+                    归属：{workspaceName ?? job.workspace_id}
                   </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
                     调度：{describeSchedule(job)}
                   </span>
                   <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700">
-                    类型：{payloadKindLabel(job.payload.kind)}
+                    方式：{payloadKindLabel(job.payload.kind)}
                   </span>
                   <span
                     className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
@@ -210,7 +210,7 @@ export function AutomationJobDetailsDialog({
                         : "border-slate-200 bg-slate-50 text-slate-600"
                     }`}
                   >
-                    状态：{statusLabel(job.last_status)}
+                    当前状态：{statusLabel(job.last_status)}
                   </span>
                 </div>
               </div>
@@ -240,7 +240,7 @@ export function AutomationJobDetailsDialog({
                     </div>
                   </div>
                   <div className="mt-4 grid gap-2 text-sm text-slate-500 md:grid-cols-2 xl:grid-cols-3">
-                    <div>任务类型: {payloadKindLabel(job.payload.kind)}</div>
+                    <div>开始方式: {payloadKindLabel(job.payload.kind)}</div>
                     {!isLegacyBrowserAutomation(job) ? (
                       <div>
                         权限模式: {describeAgentTurnAccessMode(job.payload)}
@@ -269,7 +269,7 @@ export function AutomationJobDetailsDialog({
                   <div className="rounded-[22px] border border-sky-200/80 bg-sky-50 px-4 py-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-sm font-medium text-slate-900">
-                        技能任务上下文
+                        技能流程上下文
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="secondary">
@@ -286,9 +286,9 @@ export function AutomationJobDetailsDialog({
                       </div>
                     </div>
                     <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
-                      <div>技能项: {serviceSkillContext.title}</div>
+                      <div>技能: {serviceSkillContext.title}</div>
                       <div>目录来源: {serviceSkillContext.sourceLabel}</div>
-                      <div>工作主题: {serviceSkillContext.theme || "-"}</div>
+                      <div>主题: {serviceSkillContext.theme || "-"}</div>
                       <div>
                         主稿绑定: {serviceSkillContext.contentId || "-"}
                       </div>
@@ -337,11 +337,10 @@ export function AutomationJobDetailsDialog({
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="text-sm font-medium text-slate-900">
-                            做法闭环
+                            接回生成
                           </div>
                           <div className="mt-1 text-sm leading-6 text-slate-600">
-                            这条自动化任务已经接到做法主链，调度状态之外，也会继续回流同一轮
-                            结果包、复盘材料和这轮判断。
+                            这条持续流程已经接回生成；除了调度状态，还会继续回流这轮结果、结果材料和下一步判断。
                           </div>
                         </div>
                         {sceneAppSummaryCard ? (
@@ -353,7 +352,7 @@ export function AutomationJobDetailsDialog({
 
                       {sceneAppLoading && !sceneAppSummaryCard ? (
                         <div className="mt-4 rounded-[18px] border border-dashed border-lime-200 bg-white/80 px-4 py-4 text-sm text-slate-600">
-                          正在回流这条自动化任务对应的做法摘要…
+                          正在回流这条持续流程对应的做法摘要…
                         </div>
                       ) : null}
 
@@ -377,7 +376,7 @@ export function AutomationJobDetailsDialog({
                           <div className="mt-4 grid gap-3 md:grid-cols-2">
                             <div className="rounded-[18px] border border-white bg-white/90 px-4 py-3">
                               <div className="text-xs font-medium text-slate-500">
-                                自动化概览
+                                持续流程概览
                               </div>
                               <div className="mt-2 text-sm font-medium text-slate-900">
                                 {sceneAppSummaryCard.automationSummary}
@@ -385,7 +384,7 @@ export function AutomationJobDetailsDialog({
                             </div>
                             <div className="rounded-[18px] border border-white bg-white/90 px-4 py-3">
                               <div className="text-xs font-medium text-slate-500">
-                                最近任务
+                                最近结果
                               </div>
                               <div className="mt-2 text-sm font-medium text-slate-900">
                                 {sceneAppSummaryCard.latestAutomationLabel}
@@ -486,14 +485,14 @@ export function AutomationJobDetailsDialog({
                               variant="outline"
                               onClick={onOpenSceneAppDetail}
                             >
-                              回到做法准备
+                              回补这轮信息
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={onOpenSceneAppGovernance}
                             >
-                              查看做法复盘
+                              看这轮结果
                             </Button>
                           </div>
                         </>
@@ -575,8 +574,8 @@ export function AutomationJobDetailsDialog({
                         {job.delivery.mode !== "announce"
                           ? "未启用"
                           : job.delivery.best_effort
-                            ? "投递失败不阻塞任务"
-                            : "投递失败记为任务失败"}
+                            ? "投递失败不阻塞本轮"
+                            : "投递失败记为本轮失败"}
                       </div>
                     </div>
                   </div>
@@ -640,8 +639,8 @@ export function AutomationJobDetailsDialog({
                     ) : (
                       <div className="mt-3 text-sm leading-6">
                         {job.delivery.mode === "announce"
-                          ? "任务尚未产生投递记录。"
-                          : "当前任务未启用输出投递。"}
+                          ? "这条持续流程还没产生投递记录。"
+                          : "这条持续流程当前未启用输出投递。"}
                       </div>
                     )}
                   </div>
@@ -649,7 +648,7 @@ export function AutomationJobDetailsDialog({
 
                 <div className="rounded-[18px] border border-slate-200/80 bg-white px-4 py-3">
                   <div className="text-sm font-medium text-slate-900">
-                    当前 payload
+                    当前起手内容
                   </div>
                   <div className="mt-3 whitespace-pre-wrap rounded-[14px] border border-slate-200/80 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
                     {describePayload(job.payload)}
@@ -726,7 +725,7 @@ export function AutomationJobDetailsDialog({
                             >
                               <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-xs font-medium text-slate-900">
-                                  技能任务运行上下文
+                                  技能流程运行上下文
                                 </div>
                                 <Badge variant="outline">
                                   {runServiceSkillContext.runnerLabel}

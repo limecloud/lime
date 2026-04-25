@@ -68,8 +68,11 @@ impl AsterAgentWrapper {
     }
 
     /// 列出所有会话
-    pub fn list_sessions_sync(db: &DbConnection) -> Result<Vec<SessionInfo>, String> {
-        lime_agent::list_sessions_sync(db)
+    pub fn list_sessions_sync(
+        db: &DbConnection,
+        include_archived: bool,
+    ) -> Result<Vec<SessionInfo>, String> {
+        lime_agent::list_sessions_sync(db, include_archived)
     }
 
     /// 获取会话详情
@@ -141,6 +144,14 @@ impl AsterAgentWrapper {
         model_name: Option<&str>,
     ) -> Result<(), String> {
         lime_agent::update_session_provider_config_sync(db, session_id, provider_name, model_name)
+    }
+
+    pub fn update_session_archived_state_sync(
+        db: &DbConnection,
+        session_id: &str,
+        archived: bool,
+    ) -> Result<(), String> {
+        lime_agent::update_session_archived_state_sync(db, session_id, archived)
     }
 
     pub async fn persist_session_recent_preferences(

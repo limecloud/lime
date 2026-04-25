@@ -403,7 +403,7 @@ export function buildCanvasTeamWorkbenchView({
   const headerBadges: CanvasWorkbenchHeaderBadge[] = [
     {
       key: "team-runtime",
-      label: "生成工作台",
+      label: "生成",
       tone: "accent",
     },
   ];
@@ -482,7 +482,7 @@ export function buildCanvasTeamWorkbenchView({
       dispatchPreviewState?.label?.trim() ||
       dispatchPreviewState?.blueprint?.label?.trim() ||
       surfaceProps.selectedTeamLabel ||
-      "团队工作台",
+      "生成",
     tabLabel: surfaceProps.selectedTeamLabel?.trim() || undefined,
     tabBadge: triggerState?.label?.trim() || undefined,
     tabBadgeTone:
@@ -498,7 +498,7 @@ export function buildCanvasTeamWorkbenchView({
     badges: headerBadges,
     summaryStats,
     panelCopy: {
-      emptyText: "当前没有可展示的生成工作台。",
+      emptyText: "当前没有可展示的生成结果。",
     },
     renderPreview: (options?: { stackedWorkbenchTrigger?: ReactNode }) =>
       renderTeamWorkbenchPreview(options?.stackedWorkbenchTrigger),

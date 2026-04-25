@@ -78,7 +78,6 @@ describe("Translation Coverage", () => {
         "创作场景",
         "持续流程",
         "消息渠道",
-        "资料库",
         "灵感库",
         "插件中心",
         "OpenClaw",
@@ -86,6 +85,15 @@ describe("Translation Coverage", () => {
       ];
 
       navItems.forEach((item) => {
+        expect(enPatch).toHaveProperty(item);
+        expect(zhPatch).toHaveProperty(item);
+      });
+    });
+
+    it("should have translations for helper surfaces", () => {
+      const helperItems = ["项目资料"];
+
+      helperItems.forEach((item) => {
         expect(enPatch).toHaveProperty(item);
         expect(zhPatch).toHaveProperty(item);
       });

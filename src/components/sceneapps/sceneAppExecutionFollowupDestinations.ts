@@ -64,14 +64,14 @@ export function buildSceneAppExecutionFollowupDestinations(
   ) {
     destinations.push({
       key: "weekly-review",
-      label: "周会复盘",
+      label: "看结果",
       description:
-        "证据摘要与人工复核已经适合带去业务复盘，方便快速对齐卡点和下一步。",
+        "证据摘要与人工复核已经适合拿回来回看这轮结果，方便快速判断卡点和下一步。",
       ...(weeklyReviewAction
         ? {
             action: {
               kind: "governance_action" as const,
-              label: "打开周会复盘包",
+              label: "打开结果材料",
               entry: weeklyReviewAction,
             },
           }
@@ -79,7 +79,7 @@ export function buildSceneAppExecutionFollowupDestinations(
           ? {
               action: {
                 kind: "governance_artifact" as const,
-                label: "查看复盘材料",
+                label: "看结果材料",
                 entry: weeklyReviewArtifact,
               },
             }
@@ -93,12 +93,12 @@ export function buildSceneAppExecutionFollowupDestinations(
   ) {
     destinations.push({
       key: "task-center",
-      label: "生成工作台",
+      label: "生成",
       description:
-        "这轮结果的复盘材料已经整理好，后续更适合回到生成工作台继续推进下一步。",
+        "这轮结果的结果记录已经整理好，后续更适合回到生成继续推进下一步。",
       action: {
         kind: "review_current_project",
-        label: "继续复盘当前项目",
+        label: "继续这轮结果",
       },
     });
   }
@@ -106,7 +106,7 @@ export function buildSceneAppExecutionFollowupDestinations(
   if (detailView.entryAction?.kind === "open_automation_job") {
     destinations.push({
       key: "automation-job",
-      label: "持续流程 / 自动化",
+      label: "持续流程",
       description:
         "这轮结果已经挂到持续任务，可以继续跟进调度频率、运行历史与交付状态。",
       action: {

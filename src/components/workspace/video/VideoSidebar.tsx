@@ -1460,7 +1460,7 @@ export const VideoSidebar: React.FC<VideoSidebarProps> = memo(
               label="提示词"
               variant="pill"
               tone="mint"
-              content="提示词优先写清主体、场景、镜头运动和光线。生成成功后，视频会自动同步到项目素材，便于后续复用。"
+              content="提示词优先写清主体、场景、镜头运动和光线。生成成功后，视频会自动同步到项目资料，便于后续复用。"
             />
             <WorkbenchInfoTip
               ariaLabel="参数节奏建议"

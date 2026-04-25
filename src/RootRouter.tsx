@@ -3,12 +3,15 @@
  * @description 根路由组件 - 根据 URL 路径渲染对应的组件
  */
 
+import { useEffect } from "react";
 import App from "./App";
 import { SmartInputPage } from "./pages/smart-input";
 import { UpdateNotificationPage } from "./pages/update-notification";
 import { BrowserRuntimeDebuggerPage } from "./pages";
 import { Toaster } from "./components/ui/sonner";
 import { AppCrashBoundary } from "./components/layout/AppCrashBoundary";
+import { finalizeModuleImportAutoReload } from "./components/layout/CrashRecoveryPanel.helpers";
+import { getRuntimeAppVersion } from "./lib/appVersion";
 
 /**
  * 根据 URL 路径渲染对应的组件
@@ -20,6 +23,19 @@ import { AppCrashBoundary } from "./components/layout/AppCrashBoundary";
  */
 export function RootRouter() {
   const pathname = window.location.pathname;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    finalizeModuleImportAutoReload(
+      window.location.href,
+      getRuntimeAppVersion(),
+      window.sessionStorage,
+      window.history,
+    );
+  }, [pathname]);
 
   // 截图对话悬浮窗口路由（也用于语音输入）
   if (pathname === "/smart-input") {

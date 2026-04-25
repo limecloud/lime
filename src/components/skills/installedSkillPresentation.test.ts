@@ -25,7 +25,7 @@ describe("installedSkillPresentation", () => {
       metadata: {
         lime_when_to_use: "当你需要复用内容改写方法时使用。",
         lime_argument_hint: "主题、受众与风格约束",
-        lime_output_hint: "沿用这套写法进入生成主执行面",
+        lime_output_hint: "沿用这套写法进入生成",
       },
     });
 
@@ -36,10 +36,10 @@ describe("installedSkillPresentation", () => {
       "主题、受众与风格约束",
     );
     expect(getInstalledSkillOutputHint(skill)).toBe(
-      "沿用这套写法进入生成主执行面",
+      "沿用这套写法进入生成",
     );
     expect(buildInstalledSkillCapabilityDescription(skill)).toBe(
-      "当你需要复用内容改写方法时使用。 · 需要：主题、受众与风格约束 · 交付：沿用这套写法进入生成主执行面",
+      "当你需要复用内容改写方法时使用。 · 需要：主题、受众与风格约束 · 交付：沿用这套写法进入生成",
     );
   });
 
@@ -47,12 +47,12 @@ describe("installedSkillPresentation", () => {
     const skill = createSkill();
 
     expect(buildInstalledSkillCapabilityDescription(skill)).toBe(
-      "本地补充技能 · 需要：对话里继续补充目标与约束 · 交付：带着该方法进入生成主执行面",
+      "本地补充技能 · 需要：对话里继续补充目标与约束 · 交付：带着该方法进入生成",
     );
     expect(
       buildInstalledSkillCapabilityDescription(skill, {
         includePromise: false,
       }),
-    ).toBe("需要：对话里继续补充目标与约束 · 交付：带着该方法进入生成主执行面");
+    ).toBe("需要：对话里继续补充目标与约束 · 交付：带着该方法进入生成");
   });
 });

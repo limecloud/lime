@@ -673,7 +673,7 @@ export function useWorkspaceServiceSkillEntryActions({
 
       if (skill.runnerType !== "instant") {
         toast.info(
-          "当前先进入工作区生成首版方案，下一阶段再接本地自动化任务。",
+          "这轮会先回到生成起第一版，后面再按设定继续带回来。",
         );
       }
 
@@ -983,7 +983,7 @@ export function useWorkspaceServiceSkillEntryActions({
 
         const entered = navigateToServiceSkillWorkspace(workspacePayload);
         if (!entered) {
-          toast.error("自动化任务已创建，但进入工作区失败，请稍后手动打开。");
+          toast.error("自动化已创建，但没能回到生成，请稍后手动打开。");
         }
       } catch (error) {
         toast.error(`创建本地自动化任务失败：${getErrorMessage(error)}`);

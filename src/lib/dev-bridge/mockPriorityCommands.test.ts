@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  shouldDisallowMockEventFallbackInBrowser,
   shouldDisallowMockFallbackInBrowser,
   shouldPreferMockInBrowser,
 } from "./mockPriorityCommands";
@@ -31,6 +32,9 @@ describe("mockPriorityCommands", () => {
 
   it("模型与运行时真相命令在浏览器模式下禁止静默退回 mock", () => {
     expect(shouldDisallowMockFallbackInBrowser("aster_agent_init")).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("agent_generate_title")).toBe(
+      true,
+    );
     expect(shouldDisallowMockFallbackInBrowser("workspace_list")).toBe(true);
     expect(shouldDisallowMockFallbackInBrowser("workspace_get_default")).toBe(
       true,
@@ -105,5 +109,27 @@ describe("mockPriorityCommands", () => {
     expect(shouldDisallowMockFallbackInBrowser("list_plugin_tasks")).toBe(
       false,
     );
+  });
+
+  it("运行时真相事件在浏览器模式下禁止静默退回 mock", () => {
+    expect(
+      shouldDisallowMockEventFallbackInBrowser("aster_stream_session-1"),
+    ).toBe(true);
+    expect(
+      shouldDisallowMockEventFallbackInBrowser(
+        "agent_subagent_status:session-1",
+      ),
+    ).toBe(true);
+    expect(
+      shouldDisallowMockEventFallbackInBrowser(
+        "agent_subagent_stream:session-1",
+      ),
+    ).toBe(true);
+    expect(
+      shouldDisallowMockEventFallbackInBrowser("companion-pet-status"),
+    ).toBe(false);
+    expect(
+      shouldDisallowMockEventFallbackInBrowser(" plugin-task-event "),
+    ).toBe(false);
   });
 });

@@ -1,0 +1,22 @@
+- generic [ref=e2]:
+  - generic [ref=e12]:
+    - img "Lime" [ref=e14]
+    - heading "欢迎使用 Lime" [level=1] [ref=e15]
+    - paragraph [ref=e16]: Lime 是一款强大的 AI 客户端代理，帮助您轻松管理和使用多种 AI 服务。
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - img [ref=e20]
+        - heading "多模型支持" [level=3] [ref=e23]
+        - paragraph [ref=e24]: 支持 Claude、OpenAI、Gemini 等主流 AI 模型
+      - generic [ref=e25]:
+        - img [ref=e27]
+        - heading "持续工作区" [level=3] [ref=e32]
+        - paragraph [ref=e33]: 围绕同一目标持续整理对话、素材和结果，减少来回切换。
+      - generic [ref=e34]:
+        - img [ref=e36]
+        - heading "语音交互" [level=3] [ref=e39]
+        - paragraph [ref=e40]: 便捷的语音输入，提升对话效率
+    - generic [ref=e41]:
+      - button "跳过引导" [ref=e42] [cursor=pointer]
+      - button "开始使用" [ref=e43] [cursor=pointer]
+  - region "Notifications alt+T"

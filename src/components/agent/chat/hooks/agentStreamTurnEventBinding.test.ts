@@ -297,6 +297,123 @@ describe("agentStreamTurnEventBinding", () => {
     expect(setIsSending).toHaveBeenCalledWith(false);
   });
 
+  it("收到未知但结构合法的运行时事件时，应保留流活跃态并继续等待后续进度", async () => {
+    vi.useFakeTimers();
+
+    let messages: Message[] = [
+      {
+        id: "assistant-unknown-event",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-14T10:00:00.000Z"),
+        isThinking: true,
+      },
+    ];
+    let streamActivated = false;
+    let streamHandler: ((event: { payload: unknown }) => void) | null = null;
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+    const clearActiveStreamIfMatch = vi.fn(() => true);
+    const disposeListener = vi.fn();
+    const runtime = {
+      listenToTurnEvents: vi.fn(async (_eventName, handler) => {
+        streamHandler = handler;
+        return vi.fn();
+      }),
+    } as unknown as AgentRuntimeAdapter;
+    const requestState: StreamRequestState = {
+      accumulatedContent: "",
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+      queuedTurnId: null,
+    };
+
+    await registerAgentStreamTurnEventBinding({
+      runtime,
+      eventName: "event-unknown-heartbeat",
+      requestState,
+      skipUserMessage: false,
+      effectiveProviderType: "openai",
+      effectiveModel: "gpt-5.4",
+      effectiveExecutionStrategy: "react",
+      content: "继续处理图片任务",
+      expectingQueue: false,
+      activeSessionId: "session-unknown-heartbeat",
+      resolvedWorkspaceId: "workspace-unknown-heartbeat",
+      assistantMsgId: "assistant-unknown-event",
+      pendingTurnKey: "pending-turn-unknown-event",
+      pendingItemKey: "pending-item-unknown-event",
+      effectiveWaitingRuntimeStatus: {
+        phase: "preparing",
+        title: "处理中",
+        detail: "正在准备执行上下文",
+      },
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      callbacks: {
+        activateStream: () => {
+          streamActivated = true;
+        },
+        isStreamActivated: () => streamActivated,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener,
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch,
+        upsertQueuedTurn: (_queuedTurn: QueuedTurnSnapshot) => {},
+        removeQueuedTurnState: () => {},
+      },
+      sounds: {
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+      },
+      appendThinkingToParts: (parts) => parts,
+      setMessages: setMessages as never,
+      setPendingActions: noopDispatch<ActionRequired[]>(),
+      setThreadItems: noopDispatch<AgentThreadItem[]>(),
+      setThreadTurns: noopDispatch<AgentThreadTurn[]>(),
+      setCurrentTurnId: noopDispatch<string | null>(),
+      setExecutionRuntime: noopDispatch<AsterSessionExecutionRuntime | null>(),
+      setIsSending: noopDispatch<boolean>(),
+    });
+
+    if (!streamHandler) {
+      throw new Error("expected stream handler to be registered");
+    }
+
+    const activeStreamHandler = streamHandler as (event: {
+      payload: unknown;
+    }) => void;
+
+    activeStreamHandler({
+      payload: {
+        type: "runtime_projection_bootstrap",
+        detail: "正在准备运行时投影",
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(12_100);
+
+    expect(messages[0]?.content).toBe("");
+    expect(streamActivated).toBe(true);
+    expect(disposeListener).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(45_100);
+
+    expect(messages[0]?.content).toContain("执行失败：执行已中断");
+    expect(clearActiveStreamIfMatch).toHaveBeenCalledWith(
+      "event-unknown-heartbeat",
+    );
+    expect(disposeListener).toHaveBeenCalled();
+  });
+
   it("首包后长时间没有新事件时，应把助手消息收口为失败态", async () => {
     vi.useFakeTimers();
 

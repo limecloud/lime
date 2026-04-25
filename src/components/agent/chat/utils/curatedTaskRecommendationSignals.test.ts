@@ -118,7 +118,7 @@ describe("curatedTaskRecommendationSignals", () => {
     expect(socialPostTemplate?.reasonSummary).toBe("风格：品牌风格样本");
   });
 
-  it("最近复盘反馈应把补证据链路抬进 featured 推荐", () => {
+  it("最近判断反馈应把补证据链路抬进 featured 推荐", () => {
     recordCuratedTaskRecommendationSignalFromReviewDecision(
       {
         session_id: "session-review-2",
@@ -144,7 +144,7 @@ describe("curatedTaskRecommendationSignals", () => {
 
     expect(featured[0]?.template.id).toBe("account-project-review");
     expect(featured[1]?.template.id).toBe("viral-content-breakdown");
-    expect(featured[0]?.badgeLabel).toBe("围绕最近复盘");
+    expect(featured[0]?.badgeLabel).toBe("围绕最近判断");
     expect(featured[0]?.reasonSummary).toContain("短视频编排");
     expect(
       featured.map((item) => item.template.id).indexOf("account-project-review"),

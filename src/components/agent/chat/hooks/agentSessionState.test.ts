@@ -7,6 +7,7 @@ import {
   createEmptyAgentSessionSnapshot,
   hasSessionHydrationActivity,
   resolveRestorableTopicSessionId,
+  shouldDeferSessionDetailHydration,
 } from "./agentSessionState";
 
 function createMessage(overrides: Partial<Message> = {}): Message {
@@ -91,6 +92,68 @@ describe("agentSessionState", () => {
     ]);
 
     expect(resolved).toBe("session-active");
+  });
+
+  it("切到其他会话且命中有效本地快照时应允许延后 detail hydration", () => {
+    expect(
+      shouldDeferSessionDetailHydration({
+        currentSessionId: "topic-current",
+        topicId: "topic-target",
+        cachedSnapshot: {
+          messages: [
+            createMessage({
+              id: "cached-message",
+              role: "assistant",
+              content: "本地快照里的最近消息",
+            }),
+          ],
+          threadTurns: [],
+          threadItems: [],
+          currentTurnId: null,
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it("当前会话、强制刷新或 resume hook 场景不应延后 detail hydration", () => {
+    expect(
+      shouldDeferSessionDetailHydration({
+        currentSessionId: "topic-target",
+        topicId: "topic-target",
+        cachedSnapshot: {
+          messages: [createMessage()],
+          threadTurns: [],
+          threadItems: [],
+          currentTurnId: null,
+        },
+      }),
+    ).toBe(false);
+    expect(
+      shouldDeferSessionDetailHydration({
+        currentSessionId: "topic-current",
+        topicId: "topic-target",
+        forceRefresh: true,
+        cachedSnapshot: {
+          messages: [createMessage()],
+          threadTurns: [],
+          threadItems: [],
+          currentTurnId: null,
+        },
+      }),
+    ).toBe(false);
+    expect(
+      shouldDeferSessionDetailHydration({
+        currentSessionId: "topic-current",
+        topicId: "topic-target",
+        resumeSessionStartHooks: true,
+        cachedSnapshot: {
+          messages: [createMessage()],
+          threadTurns: [],
+          threadItems: [],
+          currentTurnId: null,
+        },
+      }),
+    ).toBe(false);
   });
 
   it("同会话 hydrate 且后端缺失 execution_runtime 时应保留本地运行态", () => {
@@ -189,7 +252,7 @@ describe("agentSessionState", () => {
             toolCall: {
               id: "tool-site-1",
               name: "site_run_adapter",
-              arguments: "{\"url\":\"https://x.com/example/article/1\"}",
+              arguments: '{"url":"https://x.com/example/article/1"}',
               status: "completed",
               startTime: now,
               endTime: now,
@@ -208,7 +271,7 @@ describe("agentSessionState", () => {
           {
             id: "tool-site-1",
             name: "site_run_adapter",
-            arguments: "{\"url\":\"https://x.com/example/article/1\"}",
+            arguments: '{"url":"https://x.com/example/article/1"}',
             status: "completed",
             startTime: now,
             endTime: now,
@@ -283,7 +346,7 @@ describe("agentSessionState", () => {
             toolCall: {
               id: "tool-site-2",
               name: "site_run_adapter",
-              arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+              arguments: '{"url":"https://x.com/example/article/2"}',
               status: "completed",
               startTime: new Date("2026-04-08T10:00:01.000Z"),
               endTime: now,
@@ -302,7 +365,7 @@ describe("agentSessionState", () => {
           {
             id: "tool-site-2",
             name: "site_run_adapter",
-            arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+            arguments: '{"url":"https://x.com/example/article/2"}',
             status: "completed",
             startTime: new Date("2026-04-08T10:00:01.000Z"),
             endTime: now,
@@ -369,7 +432,7 @@ describe("agentSessionState", () => {
             toolCall: {
               id: "tool-site-restore",
               name: "site_run_adapter",
-              arguments: "{\"url\":\"https://x.com/example/article/3\"}",
+              arguments: '{"url":"https://x.com/example/article/3"}',
               status: "completed",
               startTime: new Date("2026-04-08T10:00:01.000Z"),
               endTime: now,
@@ -384,7 +447,7 @@ describe("agentSessionState", () => {
           {
             id: "tool-site-restore",
             name: "site_run_adapter",
-            arguments: "{\"url\":\"https://x.com/example/article/3\"}",
+            arguments: '{"url":"https://x.com/example/article/3"}',
             status: "completed",
             startTime: new Date("2026-04-08T10:00:01.000Z"),
             endTime: now,
@@ -478,7 +541,7 @@ describe("agentSessionState", () => {
               {
                 id: "tool-site-target",
                 name: "site_run_adapter",
-                arguments: "{\"url\":\"https://x.com/example/article/4\"}",
+                arguments: '{"url":"https://x.com/example/article/4"}',
                 status: "completed",
                 startTime: new Date("2026-04-08T10:00:01.000Z"),
                 endTime: now,
@@ -494,7 +557,7 @@ describe("agentSessionState", () => {
                 toolCall: {
                   id: "tool-site-target",
                   name: "site_run_adapter",
-                  arguments: "{\"url\":\"https://x.com/example/article/4\"}",
+                  arguments: '{"url":"https://x.com/example/article/4"}',
                   status: "completed",
                   startTime: new Date("2026-04-08T10:00:01.000Z"),
                   endTime: now,
@@ -549,7 +612,7 @@ describe("agentSessionState", () => {
             toolCall: {
               id: "tool-site-earlier",
               name: "site_run_adapter",
-              arguments: "{\"url\":\"https://x.com/example/article/earlier\"}",
+              arguments: '{"url":"https://x.com/example/article/earlier"}',
               status: "completed",
               startTime: new Date("2026-04-08T10:00:00.100Z"),
               endTime: new Date("2026-04-08T10:00:00.500Z"),
@@ -564,7 +627,7 @@ describe("agentSessionState", () => {
           {
             id: "tool-site-earlier",
             name: "site_run_adapter",
-            arguments: "{\"url\":\"https://x.com/example/article/earlier\"}",
+            arguments: '{"url":"https://x.com/example/article/earlier"}',
             status: "completed",
             startTime: new Date("2026-04-08T10:00:00.100Z"),
             endTime: new Date("2026-04-08T10:00:00.500Z"),

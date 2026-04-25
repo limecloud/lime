@@ -176,7 +176,7 @@ export function TeamWorkbenchSummaryPanel({
       <section className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
           <Workflow className="h-3.5 w-3.5" />
-          <span>生成工作台</span>
+          <span>生成</span>
           {runtimeTeamLabel ? (
             <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-sky-700 normal-case">
               {runtimeTeamLabel}
@@ -196,7 +196,7 @@ export function TeamWorkbenchSummaryPanel({
         <div className="mt-2 text-sm font-semibold text-slate-900">
           {executionSummary.statusTitle ||
             runtimeFormationDisplay.panelHeadline ||
-            "生成工作台已就绪，等待主线程开始编排"}
+            "生成已就绪，等待主线程开始编排"}
         </div>
         <p className="mt-2 text-xs leading-5 text-slate-500">
           {runtimeFormationDisplay.panelDescription}

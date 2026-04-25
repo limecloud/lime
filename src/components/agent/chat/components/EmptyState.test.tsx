@@ -468,6 +468,7 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain(
       "跑通过的方法会沉淀成常用做法、偏好和项目上下文，下次不用重新开始。",
     );
+    expect(container.textContent).not.toContain("通用对话");
     expect(container.textContent).not.toContain("新建任务");
   });
 
@@ -482,17 +483,17 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("从这里开始");
+    expect(container.textContent).toContain("先开始这一轮");
     expect(container.textContent).toContain(
-      "先拿一个结果开工，后面继续补参考、改方向、扩成更多版本，都还在同一轮里推进。",
+      "先选一个结果起手；后面的补参考、改方向和续做，都留在这一轮里继续推进。",
     );
-    expect(container.textContent).toContain("我建议先做这个");
-    expect(container.textContent).toContain("也可以换个结果开始");
+    expect(container.textContent).toContain("先从这个开始");
+    expect(container.textContent).toContain("其他起手结果");
     expect(container.textContent).toContain(
-      "已经知道做法时，也可以直接这样开工",
+      "也可以直接按做法开工",
     );
     expect(container.textContent).toContain(
-      "本轮产出会先写回当前任务，跑通过的方法会继续留在这里。",
+      "本轮产出会先写回当前任务，后续继续也会优先从这里接回。",
     );
     expect(container.textContent).toContain("每日趋势摘要");
     expect(container.textContent).toContain("内容主稿生成");
@@ -507,6 +508,7 @@ describe("EmptyState", () => {
     expect(container.textContent).not.toContain("快捷做法");
     expect(container.textContent).not.toContain("任务拆分冒烟测试");
     expect(container.textContent).not.toContain("推荐方案");
+    expect(container.textContent).not.toContain("通用对话");
 
     const recommendationItems = Array.from(
       container.querySelectorAll(
@@ -516,7 +518,7 @@ describe("EmptyState", () => {
 
     expect(recommendationItems).toHaveLength(8);
     expect(recommendationItems[0]).toContain("每日趋势摘要");
-    expect(recommendationItems[0]).toContain("我建议先做这个");
+    expect(recommendationItems[0]).toContain("先从这个开始");
     expect(recommendationItems[0]).toContain("趋势摘要、3 个优先选题");
     expect(recommendationItems[0]).toContain(
       "趋势摘要会先写回当前内容，方便继续展开选题和主稿。",
@@ -533,7 +535,7 @@ describe("EmptyState", () => {
     ).toBeNull();
   });
 
-  it("保存复盘结论后首页应围绕最近复盘重排结果模板", async () => {
+  it("保存判断结论后首页应围绕最近判断重排结果模板", async () => {
     const projectId = "project-review-recommendation";
     const container = renderEmptyState({
       activeTheme: "general",
@@ -546,7 +548,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).not.toContain("围绕最近复盘");
+    expect(container.textContent).not.toContain("围绕最近判断");
     expect(
       container.querySelector('[data-testid="entry-review-feedback-banner"]'),
     ).toBeNull();
@@ -592,14 +594,14 @@ describe("EmptyState", () => {
     );
 
     expect(reviewCard?.textContent).toContain("复盘这个账号/项目");
-    expect(reviewCard?.textContent).toContain("复盘：短视频编排");
+    expect(reviewCard?.textContent).toContain("判断：短视频编排");
     expect(breakdownCard?.textContent).toContain("拆解一条爆款内容");
-    expect(breakdownCard?.textContent).toContain("复盘：短视频编排");
-    expect(reviewBanner?.textContent).toContain("最近复盘已更新");
+    expect(breakdownCard?.textContent).toContain("判断：短视频编排");
+    expect(reviewBanner?.textContent).toContain("最近判断已更新");
     expect(reviewBanner?.textContent).toContain("短视频编排 · 补证据");
     expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
     expect(reviewBanner?.textContent).toContain(
-      "这轮复盘更建议优先回到「复盘这个账号/项目」或「拆解一条爆款内容」",
+      "这轮判断更建议优先回到「复盘这个账号/项目」或「拆解一条爆款内容」",
     );
     expect(reviewBanner?.textContent).toContain(
       "更适合继续：复盘这个账号/项目 / 拆解一条爆款内容",
@@ -704,12 +706,14 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("已经知道做法时，也可以直接这样开工");
+    expect(container.textContent).toContain("也可以直接按做法开工");
 
     const trendCard = container.querySelector(
       '[data-testid="entry-service-skill-daily-trend-briefing"]',
     );
     expect(trendCard?.textContent).toContain("每日趋势摘要");
+    expect(trendCard?.textContent).not.toContain("云目录");
+    expect(trendCard?.textContent).not.toContain("最近使用");
     expect(trendCard?.textContent).toContain("需要：当前无必填信息");
     expect(trendCard?.textContent).toContain("交付：趋势摘要 + 调度建议");
 
@@ -953,7 +957,7 @@ describe("EmptyState", () => {
       metadata: {
         lime_when_to_use: "当你需要继续复用这套内容主稿方法时使用。",
         lime_argument_hint: "主题、受众与复盘约束",
-        lime_output_hint: "带着这套内容主稿方法进入生成主执行面",
+        lime_output_hint: "带着这套内容主稿方法进入生成",
       },
     };
 
@@ -984,7 +988,7 @@ describe("EmptyState", () => {
       "需要：主题、受众与复盘约束",
     );
     expect(installedSkillButton?.textContent).toContain(
-      "交付：带着这套内容主稿方法进入生成主执行面",
+      "交付：带着这套内容主稿方法进入生成",
     );
 
     await act(async () => {
@@ -993,7 +997,7 @@ describe("EmptyState", () => {
     });
 
     expect(setInput).toHaveBeenCalledWith("继续优化这套内容主稿");
-    expect(container.textContent).toContain("已挂载 内容主稿方法");
+    expect(container.textContent).not.toContain("已挂载 内容主稿方法");
   });
 
   it("同页内新增本地 skill 使用记录后，首页继续上次做法应即时刷新", async () => {
@@ -1283,7 +1287,7 @@ describe("EmptyState", () => {
     );
   });
 
-  it("当前激活模板不是最近复盘首选时，输入区 badge 应可直接切到推荐模板", async () => {
+  it("当前激活模板不是最近判断首选时，输入区 badge 应可直接切到推荐模板", async () => {
     const projectId = "project-active-badge-review-switch";
     const container = renderEmptyState({
       activeTheme: "general",
@@ -1356,7 +1360,7 @@ describe("EmptyState", () => {
 
     expect(document.body.textContent).toContain("复盘这个账号/项目");
     expect(document.body.textContent).toContain(
-      "已按最近复盘切到更适合的结果模板",
+      "已按最近判断切到更适合的结果模板",
     );
   });
 
@@ -1604,10 +1608,13 @@ describe("EmptyState", () => {
         mockCharacterMention.mock.calls.length - 1
       ][0];
     expect(latestCall.serviceSkills).toEqual(serviceSkills);
-    expect(typeof latestCall.onSelectServiceSkill).toBe("function");
+    expect(typeof latestCall.onSelectInputCapability).toBe("function");
 
     act(() => {
-      latestCall.onSelectServiceSkill?.(serviceSkills[0]!);
+      latestCall.onSelectInputCapability?.({
+        kind: "service_skill",
+        skill: serviceSkills[0]!,
+      });
     });
 
     expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkills[0]!);
@@ -1657,7 +1664,8 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("已挂载 canvas-design");
+    expect(container.textContent).toContain("canvas-design");
+    expect(container.textContent).not.toContain("已挂载 canvas-design");
 
     const sendButton = container.querySelector(
       'button[aria-label="发送"]',
@@ -2047,7 +2055,7 @@ describe("EmptyState", () => {
             "account-project-review": {
               project_goal: "AI 内容周报",
               existing_results:
-                "这轮运行已产出项目结果，但仍需补齐复核意见。 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                "这轮运行已产出项目结果，但仍需补齐复核意见。 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备结果对齐包，再决定是否继续放大。 更适合去向：结果对齐",
             },
           },
         },
@@ -2060,7 +2068,7 @@ describe("EmptyState", () => {
     expect(templateButton).toBeTruthy();
     expect(container.textContent).toContain("当前判断：先补复核与修复");
     expect(container.textContent).toContain("当前卡点：复核阻塞");
-    expect(container.textContent).toContain("更适合去向：周会复盘");
+    expect(container.textContent).toContain("更适合去向：结果对齐");
 
     act(() => {
       templateButton?.click();
@@ -2110,7 +2118,7 @@ describe("EmptyState", () => {
             "account-project-review": {
               project_goal: "AI 内容周报",
               existing_results:
-                "这轮运行已产出项目结果，但仍需补齐复核意见。 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                "这轮运行已产出项目结果，但仍需补齐复核意见。 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备结果对齐包，再决定是否继续放大。 更适合去向：结果对齐",
             },
           },
         },
@@ -2125,7 +2133,7 @@ describe("EmptyState", () => {
     expect(templateButton?.textContent).toContain("当前结果基线：AI 内容周报");
     expect(templateButton?.textContent).toContain("当前判断：先补复核与修复");
     expect(templateButton?.textContent).toContain("当前卡点：复核阻塞");
-    expect(templateButton?.textContent).toContain("更适合去向：周会复盘");
+    expect(templateButton?.textContent).toContain("更适合去向：结果对齐");
   });
 
   it("当前带入参考灵感时，结果模板推荐应显式标记为围绕当前参考", async () => {
@@ -2385,6 +2393,22 @@ describe("EmptyState", () => {
     );
   });
 
+  it("通用对话默认占位文案应强调本轮任务起手", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      serviceSkills: [],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const textarea = container.querySelector("textarea");
+    expect(textarea?.getAttribute("placeholder")).toContain(
+      "先说这轮要做什么",
+    );
+  });
+
   it("点击高级设置中的地球按钮应切换联网搜索开关", async () => {
     const onWebSearchEnabledChange = vi.fn<(enabled: boolean) => void>();
     const container = renderEmptyState({
@@ -2544,8 +2568,8 @@ describe("EmptyState", () => {
 
     expect(container.textContent).not.toContain("编排模式已开启");
     expect(container.textContent).not.toContain("联网搜索已开启");
-    expect(container.textContent).toContain("从这里开始");
-    expect(container.textContent).toContain("我建议先做这个");
+    expect(container.textContent).toContain("先开始这一轮");
+    expect(container.textContent).toContain("先从这个开始");
   });
 
   it("通用首页发送时不应自动注入任何历史默认 skill", async () => {
@@ -2720,7 +2744,10 @@ describe("EmptyState", () => {
     });
 
     act(() => {
-      latestCall.onSelectServiceSkill?.(serviceSkill);
+      latestCall.onSelectInputCapability?.({
+        kind: "service_skill",
+        skill: serviceSkill,
+      });
     });
 
     expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkill);

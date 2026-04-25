@@ -28,7 +28,7 @@ vi.mock("@/lib/api/agentRuntime", async (importOriginal) => {
 
   return {
     ...actual,
-    generateAgentRuntimeTitle: (...args: unknown[]) =>
+    generateAgentRuntimeTitleResult: (...args: unknown[]) =>
       mockGenerateAgentRuntimeTitle(...args),
   };
 });
@@ -167,7 +167,18 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 
   mockGenerateAgentRuntimeTitle.mockReset();
-  mockGenerateAgentRuntimeTitle.mockResolvedValue("城市夜景主视觉");
+  mockGenerateAgentRuntimeTitle.mockResolvedValue({
+    title: "城市夜景主视觉",
+    sessionId: "title-session-1",
+    executionRuntime: {
+      route: "auxiliary.generate_title",
+      task_profile: {
+        task_kind: "artifact",
+      },
+    },
+    usedFallback: false,
+    fallbackReason: null,
+  });
   toast.error.mockReset();
   toast.info.mockReset();
   toast.success.mockReset();
@@ -217,6 +228,10 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
         kind: "image_task",
         image_task: expect.objectContaining({
           title: "城市夜景主视觉",
+          title_generation_result: expect.objectContaining({
+            title: "城市夜景主视觉",
+            sessionId: "title-session-1",
+          }),
           mode: "generate",
           prompt: "城市夜景主视觉",
           size: "1024x1024",
@@ -229,6 +244,7 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
       }),
     });
     expect(mockGenerateAgentRuntimeTitle).toHaveBeenCalledWith({
+      sessionId: "session-1",
       previewText: "城市夜景主视觉",
       titleKind: "image_task",
     });
@@ -264,6 +280,10 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
         }),
       }),
     );
+    expect(mockGenerateAgentRuntimeTitle).toHaveBeenCalledWith({
+      previewText: "城市夜景主视觉",
+      titleKind: "image_task",
+    });
   });
 
   it("应把编辑命令解析为统一的 skillRequest 上下文", async () => {
@@ -468,6 +488,15 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
           anchor_hint: "section_end",
           anchor_section_title: "技术亮点",
           anchor_text: "这里是技术亮点段落。",
+          title_generation_result: {
+            title: "城市夜景主视觉",
+            sessionId: "title-session-1",
+            executionRuntime: {
+              route: "auxiliary.generate_title",
+            },
+            usedFallback: false,
+            fallbackReason: null,
+          },
           reference_images: [],
         },
         status: "cancelled",
@@ -517,6 +546,15 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
       projectRootPath: "/workspace/project-1",
       prompt: "城市夜景主视觉",
       title: "城市夜景主视觉",
+      titleGenerationResult: {
+        title: "城市夜景主视觉",
+        sessionId: "title-session-1",
+        executionRuntime: {
+          route: "auxiliary.generate_title",
+        },
+        usedFallback: false,
+        fallbackReason: null,
+      },
       mode: "generate",
       rawText: "@配图 生成 城市夜景主视觉",
       size: "1024x1024",

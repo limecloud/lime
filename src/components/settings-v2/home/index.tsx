@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
+import type { Page, PageParams } from "@/types/page";
 import {
   useSettingsCategory,
   type CategoryGroup,
@@ -23,6 +24,7 @@ interface SettingsHomePageProps {
   onTabChange: (tab: SettingsTabs) => void;
   onTabPrefetch?: (tab: SettingsTabs) => void;
   onOpenCompanion?: () => void;
+  onNavigate?: (page: Page, params?: PageParams) => void;
 }
 
 type DisplayGroupKey = Exclude<SettingsGroupKey, SettingsGroupKey.Overview>;
@@ -107,6 +109,7 @@ export function SettingsHomePage({
   onTabChange,
   onTabPrefetch,
   onOpenCompanion,
+  onNavigate,
 }: SettingsHomePageProps) {
   const groups = useSettingsCategory();
 
@@ -275,6 +278,97 @@ export function SettingsHomePage({
           </div>
         </section>
       ) : null}
+
+      <section
+        data-testid="settings-home-entry-migration"
+        className="rounded-[26px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(239,246,255,0.96)_0%,rgba(255,255,255,0.98)_100%)] p-5 shadow-sm shadow-slate-950/5"
+      >
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Sparkles className="h-4 w-4 text-sky-600" />
+              当前入口
+              <WorkbenchInfoTip
+                ariaLabel="当前入口说明"
+                content="前台只保留 current 做法；下面这些就是现在直接进入的主路径和辅助路径。"
+                tone="slate"
+              />
+            </div>
+            <p className="text-sm leading-6 text-slate-600">
+              当前前台入口统一落到下面这几处，直接按最新路径进入。
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            {onNavigate ? (
+              <button
+                type="button"
+                onClick={() => onNavigate("skills")}
+                className="inline-flex items-center rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                去我的方法
+              </button>
+            ) : null}
+            {onNavigate ? (
+              <button
+                type="button"
+                onClick={() => onNavigate("automation")}
+                className="inline-flex items-center rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                打开持续流程
+              </button>
+            ) : null}
+            {onNavigate ? (
+              <button
+                type="button"
+                onClick={() => onNavigate("channels")}
+                className="inline-flex items-center rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                打开消息渠道
+              </button>
+            ) : null}
+            {onNavigate ? (
+              <button
+                type="button"
+                onClick={() => onNavigate("resources")}
+                className="inline-flex items-center rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                打开项目资料
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 xl:grid-cols-2">
+          <article className="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
+            <div className="text-sm font-semibold text-slate-900">全部做法</div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              从“我的方法”里的“查看全部做法”进入，直接看完整做法。
+            </p>
+          </article>
+
+          <article className="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
+            <div className="text-sm font-semibold text-slate-900">持续流程</div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              在系统区直接进入，聚焦任务创建、运行和回跳续接。
+            </p>
+          </article>
+
+          <article className="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
+            <div className="text-sm font-semibold text-slate-900">消息渠道</div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              在系统区直接进入，集中处理外部消息连接和渠道配置。
+            </p>
+          </article>
+
+          <article className="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
+            <div className="text-sm font-semibold text-slate-900">项目资料</div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              作为辅助页保留，负责浏览和整理项目资料；默认资料导航优先看灵感库。
+            </p>
+          </article>
+        </div>
+      </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
         {overview.visibleGroups.map((group) => {

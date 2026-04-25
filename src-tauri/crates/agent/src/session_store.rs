@@ -29,7 +29,10 @@ use crate::protocol::{
     AgentMessage as RuntimeAgentMessage, AgentMessageContent as RuntimeAgentMessageContent,
 };
 use crate::protocol_projection::{project_item_runtime, project_turn_runtime};
-use crate::session_execution_runtime::{build_session_execution_runtime, SessionExecutionRuntime};
+use crate::session_execution_runtime::{
+    build_session_execution_runtime, reconcile_session_execution_runtime_permission_fallback,
+    SessionExecutionRuntime,
+};
 use crate::session_query::{list_child_subagent_sessions, read_session};
 use crate::subagent_control::{load_subagent_runtime_status, SubagentRuntimeStatusKind};
 use crate::subagent_profiles::{SubagentCustomizationState, SubagentSkillSummary};
@@ -48,6 +51,8 @@ pub struct SessionInfo {
     pub name: String,
     pub created_at: i64,
     pub updated_at: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archived_at: Option<i64>,
     pub messages_count: usize,
     pub execution_strategy: Option<String>,
     pub model: Option<String>,
@@ -776,6 +781,11 @@ fn apply_aster_runtime_snapshot(detail: &mut SessionDetail, snapshot: &SessionRu
 fn build_runtime_session_info(overview: SessionRecordOverview) -> SessionInfo {
     let working_dir = overview.working_dir;
     let workspace_id = overview.workspace_id;
+    let archived_at = overview.archived_at.and_then(|value| {
+        chrono::DateTime::parse_from_rfc3339(&value)
+            .map(|dt| dt.timestamp())
+            .ok()
+    });
 
     SessionInfo {
         id: overview.id,
@@ -786,6 +796,7 @@ fn build_runtime_session_info(overview: SessionRecordOverview) -> SessionInfo {
         updated_at: chrono::DateTime::parse_from_rfc3339(&overview.updated_at)
             .map(|dt| dt.timestamp())
             .unwrap_or(0),
+        archived_at,
         messages_count: overview.messages_count,
         execution_strategy: overview.execution_strategy,
         model: Some(overview.model),
@@ -895,9 +906,12 @@ pub fn create_session_sync(
 }
 
 /// 列出所有会话
-pub fn list_sessions_sync(db: &DbConnection) -> Result<Vec<SessionInfo>, String> {
+pub fn list_sessions_sync(
+    db: &DbConnection,
+    include_archived: bool,
+) -> Result<Vec<SessionInfo>, String> {
     let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-    let sessions = agent_session_repository::list_session_overviews(&conn)?;
+    let sessions = agent_session_repository::list_session_overviews(&conn, include_archived)?;
 
     Ok(sessions
         .into_iter()
@@ -1150,6 +1164,13 @@ pub async fn get_runtime_session_detail(
     if let Some(snapshot) = runtime_snapshot.as_ref() {
         apply_aster_runtime_snapshot(&mut detail, snapshot);
     }
+    if let Some(runtime) = detail.execution_runtime.as_mut() {
+        reconcile_session_execution_runtime_permission_fallback(
+            runtime,
+            &detail.items,
+            detail.model.as_deref(),
+        );
+    }
 
     match load_child_subagent_sessions(db, session_id).await {
         Ok(child_subagent_sessions) => {
@@ -1258,6 +1279,18 @@ pub fn update_session_provider_config_sync(
         model_config_json.as_deref(),
         &now,
     )?;
+    Ok(())
+}
+
+pub fn update_session_archived_state_sync(
+    db: &DbConnection,
+    session_id: &str,
+    archived: bool,
+) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
+    let now = Utc::now().to_rfc3339();
+    let archived_at = if archived { Some(now.as_str()) } else { None };
+    agent_session_repository::update_session_archived_at(&conn, session_id, archived_at, &now)?;
     Ok(())
 }
 
@@ -2297,7 +2330,7 @@ mod tests {
         insert_test_workspace(&db, "workspace-1", "/tmp/lime-workspace-1");
         insert_test_session_with_message(&db, "session-1", "/tmp/lime-workspace-1", "你好，世界");
 
-        let sessions = list_sessions_sync(&db).expect("list sessions");
+        let sessions = list_sessions_sync(&db, false).expect("list sessions");
         let session = sessions
             .iter()
             .find(|item| item.id == "session-1")
@@ -2309,6 +2342,26 @@ mod tests {
             Some("/tmp/lime-workspace-1")
         );
         assert_eq!(session.messages_count, 1);
+    }
+
+    #[test]
+    fn list_sessions_sync_should_include_archived_sessions_when_requested() {
+        let db = create_test_db();
+        insert_test_session_with_message(&db, "session-active", "/tmp/lime-workspace-6", "活跃");
+        insert_test_session_with_message(&db, "session-archived", "/tmp/lime-workspace-7", "归档");
+
+        update_session_archived_state_sync(&db, "session-archived", true).expect("archive session");
+
+        let active_only = list_sessions_sync(&db, false).expect("list active sessions");
+        assert_eq!(active_only.len(), 1);
+        assert_eq!(active_only[0].id, "session-active");
+
+        let with_archived = list_sessions_sync(&db, true).expect("list all sessions");
+        let archived_session = with_archived
+            .iter()
+            .find(|item| item.id == "session-archived")
+            .expect("archived session exists");
+        assert!(archived_session.archived_at.is_some());
     }
 
     #[test]

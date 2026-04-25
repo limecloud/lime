@@ -29,8 +29,8 @@ function createServiceSkill(
 }
 
 describe("skillPresentation", () => {
-  it("本地即时技能的动作文案应指向对话内补参，而不是旧弹窗心智", () => {
-    expect(getServiceSkillActionLabel(createServiceSkill())).toBe("对话内补参");
+  it("本地即时技能的动作文案应指向开始这一步，而不是旧工作区心智", () => {
+    expect(getServiceSkillActionLabel(createServiceSkill())).toBe("开始这一步");
   });
 
   it("service skill 的必填输入摘要应优先使用槽位标签，并在无必填项时给出稳定兜底", () => {
@@ -87,7 +87,7 @@ describe("skillPresentation", () => {
     ).toBe("需要：当前无必填信息 · 交付：研究摘要");
   });
 
-  it("带必填槽位的站点技能应指向对话内补参", () => {
+  it("带必填槽位的站点技能应提示先补齐这一步", () => {
     expect(
       getServiceSkillActionLabel(
         createServiceSkill({
@@ -108,10 +108,10 @@ describe("skillPresentation", () => {
           },
         }),
       ),
-    ).toBe("对话内补参");
+    ).toBe("补齐这一步");
   });
 
-  it("无必填槽位的站点技能仍应保留开始执行语义", () => {
+  it("无必填槽位的站点技能应直接提示接着继续", () => {
     expect(
       getServiceSkillActionLabel(
         createServiceSkill({
@@ -124,7 +124,7 @@ describe("skillPresentation", () => {
           },
         }),
       ),
-    ).toBe("开始执行");
+    ).toBe("接着继续");
   });
 
   it("站点做法的运行语义应改成接着浏览器继续，而不是暴露采集与登录态术语", () => {
@@ -142,7 +142,7 @@ describe("skillPresentation", () => {
 
     expect(getServiceSkillRunnerLabel(siteSkill)).toBe("接着浏览器继续");
     expect(getServiceSkillRunnerDescription(siteSkill)).toBe(
-      "会接着当前浏览器里的已登录页面把这一步做完，并把结果带回当前工作区。",
+      "会接着当前浏览器里已经打开的页面把这一步做完，并把结果带回生成。",
     );
     expect(listServiceSkillDependencies(siteSkill)).toContain(
       "需要当前浏览器里已经打开并登录对应站点。",

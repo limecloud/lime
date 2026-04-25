@@ -59,6 +59,9 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = externalTextareaRef || internalTextareaRef;
   const textareaId = useId();
+  const pendingImeSendRef = useRef(false);
+  const canSendRef = useRef(false);
+  const onSendRef = useRef(onSend);
 
   const hasContent = useMemo(() => {
     return allowEmptySend || text.trim().length > 0 || hasAdditionalContent;
@@ -68,6 +71,14 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
     hasContent && !disabled && (!isLoading || allowSendWhileLoading);
   const isPrimaryDisabled =
     isLoading && !allowSendWhileLoading ? false : !canSend;
+
+  useEffect(() => {
+    canSendRef.current = canSend;
+  }, [canSend]);
+
+  useEffect(() => {
+    onSendRef.current = onSend;
+  }, [onSend]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -127,7 +138,11 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
         return;
       }
 
-      if (isImeComposing(event)) {
+      const composing = isImeComposing(event);
+      if (composing) {
+        if (event.key === "Enter" && sendOnEnter && !event.shiftKey) {
+          pendingImeSendRef.current = true;
+        }
         return;
       }
 
@@ -154,12 +169,30 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
     ],
   );
 
+  const handleCompositionEnd = useCallback(() => {
+    if (!pendingImeSendRef.current) {
+      return;
+    }
+
+    pendingImeSendRef.current = false;
+    if (!sendOnEnter) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      if (canSendRef.current) {
+        onSendRef.current();
+      }
+    });
+  }, [sendOnEnter]);
+
   const textareaProps: React.TextareaHTMLAttributes<HTMLTextAreaElement> = {
     id: textareaId,
     name: "agent-chat-message",
     value: text,
     onChange: (event) => setText(event.target.value),
     onKeyDown: handleKeyDown,
+    onCompositionEnd: handleCompositionEnd,
     onPaste,
     placeholder,
     disabled,

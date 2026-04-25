@@ -175,11 +175,15 @@ pub(super) async fn try_handle(
             )?
         }
         "agent_runtime_list_sessions" => {
+            let args = args_or_default(args);
+            let request: Option<crate::commands::aster_agent_cmd::AgentRuntimeListSessionsRequest> =
+                parse_optional_nested_arg(&args, "request")?;
             let db = app_handle.state::<crate::database::DbConnection>();
             let logs = app_handle.state::<crate::app::LogState>();
 
             serde_json::to_value(
-                crate::commands::aster_agent_cmd::agent_runtime_list_sessions(db, logs).await?,
+                crate::commands::aster_agent_cmd::agent_runtime_list_sessions(db, logs, request)
+                    .await?,
             )?
         }
         "agent_runtime_get_session" => {

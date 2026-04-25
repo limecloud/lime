@@ -5,17 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatSidebar } from "./ChatSidebar";
 import type { Topic } from "../hooks/agentChatShared";
 import type { Message } from "../types";
-import type { Project } from "@/lib/api/project";
-
-const { mockGetProject } = vi.hoisted(() => ({
-  mockGetProject: vi.fn<(projectId: string) => Promise<Project | null>>(
-    async () => null,
-  ),
-}));
-
-vi.mock("@/lib/api/project", () => ({
-  getProject: (projectId: string) => mockGetProject(projectId),
-}));
 
 vi.mock("@/components/ui/badge", () => ({
   Badge: ({
@@ -61,8 +50,6 @@ beforeEach(() => {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
-  mockGetProject.mockReset();
-  mockGetProject.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -86,7 +73,7 @@ const defaultTopics: Topic[] = [
     messagesCount: 2,
     executionStrategy: "auto",
     status: "done",
-    lastPreview: "已记录 2 条消息，可继续补充或复盘。",
+    lastPreview: "已记录 2 条消息，可继续补充或接着推进。",
     isPinned: false,
     hasUnread: false,
     tag: null,
@@ -144,54 +131,80 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("任务一");
   });
 
-  it("生成侧栏空态应展示执行面文案", () => {
+  it("任务中心侧栏空态应展示最近对话文案和新建入口", () => {
     const container = renderSidebar({
       contextVariant: "task-center",
       topics: [],
       currentTopicId: null,
     });
     const searchInput = container.querySelector(
-      'input[placeholder="搜索生成标题、结果或摘要"]',
+      'input[placeholder="搜索对话标题或摘要"]',
     ) as HTMLInputElement | null;
 
-    expect(container.textContent).toContain("生成现场");
+    expect(container.textContent).toContain("最近对话");
     expect(container.textContent).toContain(
-      "在这里继续推进当前创作、回看最近结果和旧历史。",
+      "继续最近对话，待处理会话会优先显示在前面。",
     );
+    expect(container.textContent).toContain("任务");
+    expect(container.textContent).toContain("新建任务");
+    expect(container.textContent).toContain("能力");
+    expect(container.textContent).toContain("我的方法");
+    expect(container.textContent).toContain("资料");
+    expect(container.textContent).toContain("灵感库");
     expect(searchInput).toBeTruthy();
-    expect(container.textContent).toContain("开始生成");
-    expect(container.textContent).toContain("全部记录");
-    expect(container.textContent).toContain("仅看待继续");
-    expect(container.textContent).toContain("还没有待继续的生成记录");
+    expect(
+      container.querySelector('button[aria-label="新建对话"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("全部对话");
+    expect(container.textContent).toContain("待继续");
+    expect(container.textContent).toContain("还没有最近对话");
     expect(container.textContent).toContain(
-      "从“开始生成”发起也很自然，开始后会回到这里继续生成。",
+      "从“新建对话”开始后，最近对话会自动出现在这里。",
     );
   });
 
-  it("生成侧栏应在顶部展示最近会话恢复与最近结果入口", async () => {
-    mockGetProject.mockImplementation(async (projectId: string) => {
-      if (projectId === "project-waiting") {
-        return {
-          id: projectId,
-          name: "品牌项目",
-        } as Project;
-      }
-      if (projectId === "project-recent") {
-        return {
-          id: projectId,
-          name: "活动项目",
-        } as Project;
-      }
-      return null;
+  it("任务中心导航块应支持入口跳转", () => {
+    const onOpenTaskCenterHome = vi.fn();
+    const onOpenSkillsPage = vi.fn();
+    const onOpenMemoryPage = vi.fn();
+    const container = renderSidebar({
+      contextVariant: "task-center",
+      onOpenTaskCenterHome,
+      onOpenSkillsPage,
+      onOpenMemoryPage,
     });
 
-    const onResumeTask = vi.fn();
-    const onSwitchTopic = vi.fn();
+    act(() => {
+      (
+        Array.from(container.querySelectorAll("button")).find((button) =>
+          button.textContent?.includes("新建任务"),
+        ) as HTMLButtonElement | undefined
+      )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    act(() => {
+      (
+        Array.from(container.querySelectorAll("button")).find((button) =>
+          button.textContent?.includes("我的方法"),
+        ) as HTMLButtonElement | undefined
+      )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    act(() => {
+      (
+        Array.from(container.querySelectorAll("button")).find((button) =>
+          button.textContent?.includes("灵感库"),
+        ) as HTMLButtonElement | undefined
+      )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onOpenTaskCenterHome).toHaveBeenCalledTimes(1);
+    expect(onOpenSkillsPage).toHaveBeenCalledTimes(1);
+    expect(onOpenMemoryPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("任务中心侧栏不应再在顶部重复展示继续最近会话卡", () => {
     const now = Date.now();
     const container = renderSidebar({
       contextVariant: "task-center",
-      onResumeTask,
-      onSwitchTopic,
       currentTopicId: null,
       topics: [
         {
@@ -208,58 +221,23 @@ describe("ChatSidebar", () => {
         {
           ...defaultTopics[0],
           id: "topic-recent",
-          title: "最近回访任务",
+          title: "最近对话任务",
           updatedAt: new Date(now - 2_000),
           status: "done",
           lastPreview: "首版结果已经产出，可继续补充和复盘。",
-          workspaceId: "project-recent",
           sourceSessionId: "topic-recent",
         },
       ],
     });
 
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    const panel = container.querySelector(
-      '[data-testid="task-center-continuation-panel"]',
-    ) as HTMLElement | null;
-    expect(panel).toBeTruthy();
-    expect(panel?.textContent).toContain("继续最近会话");
-    expect(panel?.textContent).toContain(
-      "最近一次停在哪、当前在等什么，这里会直接带你回到现场。",
-    );
-    expect(panel?.textContent).toContain("待继续任务");
-    expect(panel?.textContent).toContain("品牌项目");
-    expect(panel?.textContent).toContain("最近回访任务");
-    expect(panel?.textContent).toContain("活动项目");
-    expect(panel?.textContent).toContain("继续最近会话");
-
-    const primaryButton = container.querySelector(
-      '[data-testid="task-center-primary-continuation"]',
-    ) as HTMLButtonElement | null;
-    expect(primaryButton).toBeTruthy();
-
-    act(() => {
-      primaryButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(onResumeTask).toHaveBeenCalledWith("topic-waiting", "user_action");
-
-    const relatedButton = container.querySelector(
-      '[data-testid="task-center-related-topic-recent"]',
-    ) as HTMLButtonElement | null;
-    expect(relatedButton).toBeTruthy();
-
-    act(() => {
-      relatedButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(onSwitchTopic).toHaveBeenCalledWith("topic-recent");
+    expect(
+      container.querySelector('[data-testid="task-center-continuation-panel"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("待继续任务");
+    expect(container.textContent).toContain("最近对话任务");
   });
 
-  it("生成侧栏应使用回访型任务分组标题", () => {
+  it("任务中心侧栏应使用对话与归档分组标题", () => {
     const now = Date.now();
     const container = renderSidebar({
       contextVariant: "task-center",
@@ -285,7 +263,7 @@ describe("ChatSidebar", () => {
         {
           ...defaultTopics[0],
           id: "topic-recent",
-          title: "最近回访任务",
+          title: "最近对话任务",
           updatedAt: new Date(now - 2_000),
           status: "done",
           sourceSessionId: "topic-recent",
@@ -301,13 +279,13 @@ describe("ChatSidebar", () => {
       ],
     });
 
-    expect(container.textContent).toContain("正在推进");
-    expect(container.textContent).toContain("等你继续");
-    expect(container.textContent).toContain("最近回访");
-    expect(container.textContent).toContain("更早记录");
+    expect(container.textContent).toContain("进行中");
+    expect(container.textContent).toContain("待继续");
+    expect(container.textContent).toContain("最近对话");
+    expect(container.textContent).toContain("归档");
   });
 
-  it("生成侧栏 continuation fallback 应使用打开最近会话口径", async () => {
+  it("任务中心侧栏不应再显示 continuation fallback 文案", async () => {
     const container = renderSidebar({
       contextVariant: "task-center",
       currentTopicId: null,
@@ -328,7 +306,7 @@ describe("ChatSidebar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("打开最近会话");
+    expect(container.textContent).not.toContain("打开最近会话");
   });
 
   it("子任务和任务列表应处于同一滚动区域", () => {

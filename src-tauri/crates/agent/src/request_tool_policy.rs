@@ -1485,6 +1485,7 @@ where
     F: FnMut(&RuntimeAgentEvent),
 {
     let mut auto_compaction_projection = AutoCompactionProjectionState;
+    let mut inline_provider_error = None;
     let mut stream = agent
         .reply(user_message, session_config, cancel_token)
         .await
@@ -1497,17 +1498,13 @@ where
         match event_result {
             Ok(agent_event) => {
                 *emitted_any = true;
-                let inline_provider_error = match &agent_event {
-                    AsterAgentEvent::Message(message) => {
-                        extract_inline_agent_provider_error(message)
-                    }
-                    _ => None,
-                };
-                if let Some(message) = inline_provider_error {
-                    return Err(ReplyAttemptError {
-                        message,
-                        emitted_any: true,
-                    });
+                if inline_provider_error.is_none() {
+                    inline_provider_error = match &agent_event {
+                        AsterAgentEvent::Message(message) => {
+                            extract_inline_agent_provider_error(message)
+                        }
+                        _ => None,
+                    };
                 }
                 let runtime_events = auto_compaction_projection
                     .project_event(&agent_event)
@@ -1553,11 +1550,18 @@ where
             }
             Err(e) => {
                 return Err(ReplyAttemptError {
-                    message: format!("Stream error: {e}"),
+                    message: inline_provider_error.unwrap_or_else(|| format!("Stream error: {e}")),
                     emitted_any: *emitted_any,
                 });
             }
         }
+    }
+
+    if let Some(message) = inline_provider_error {
+        return Err(ReplyAttemptError {
+            message,
+            emitted_any: *emitted_any,
+        });
     }
 
     Ok(())
@@ -2140,7 +2144,7 @@ mod tests {
     use super::*;
     use aster::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use aster::providers::errors::ProviderError;
-    use aster::session::{SessionManager, SessionType, TurnContextOverride};
+    use aster::session::{SessionManager, SessionType, TurnContextOverride, TurnStatus};
     use async_trait::async_trait;
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -2218,6 +2222,39 @@ mod tests {
 
         fn get_model_config(&self) -> aster::model::ModelConfig {
             aster::model::ModelConfig::new("gpt-5.3-codex").expect("test model config")
+        }
+    }
+
+    struct AuthenticationErrorProvider;
+
+    #[async_trait]
+    impl Provider for AuthenticationErrorProvider {
+        fn metadata() -> ProviderMetadata
+        where
+            Self: Sized,
+        {
+            ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "authentication-error-provider"
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &aster::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Err(ProviderError::Authentication(
+                "Authentication failed. Status: 403 Forbidden. Response: Illegal access"
+                    .to_string(),
+            ))
+        }
+
+        fn get_model_config(&self) -> aster::model::ModelConfig {
+            aster::model::ModelConfig::new("mimo-v2.5-pro").expect("test model config")
         }
     }
 
@@ -2810,6 +2847,81 @@ mod tests {
                     if status.title == "正在重试生成答复"
             )),
             "应向前端投影空答复重试状态"
+        );
+    }
+
+    #[tokio::test]
+    async fn stream_message_reply_with_policy_should_drain_inline_provider_error_and_mark_turn_failed(
+    ) {
+        let session = SessionManager::create_session(
+            PathBuf::default(),
+            "lime-inline-provider-error".to_string(),
+            SessionType::Hidden,
+        )
+        .await
+        .expect("应创建测试 session");
+        let agent = Agent::new();
+        agent
+            .update_provider(Arc::new(AuthenticationErrorProvider), &session.id)
+            .await
+            .expect("应配置测试 provider");
+
+        let session_config = aster::agents::SessionConfig {
+            id: session.id.clone(),
+            thread_id: None,
+            turn_id: Some("turn-inline-provider-error".to_string()),
+            schedule_id: None,
+            max_turns: None,
+            retry_config: None,
+            system_prompt: None,
+            include_context_trace: None,
+            turn_context: None,
+        };
+        let policy = resolve_request_tool_policy(Some(false), false);
+        let mut runtime_events = Vec::new();
+
+        let error = stream_message_reply_with_policy(
+            &agent,
+            Message::user().with_text("你好，回复1"),
+            None,
+            session_config,
+            None,
+            &policy,
+            |event| runtime_events.push(event.clone()),
+        )
+        .await
+        .expect_err("鉴权失败时应返回 provider 执行错误");
+
+        assert!(error.message.contains("Agent provider execution failed"));
+        assert!(error.message.contains("Authentication failed"));
+        assert!(
+            runtime_events.iter().any(|event| matches!(
+                event,
+                RuntimeAgentEvent::TextDelta { text }
+                    if text.contains("Ran into this error:")
+                        && text.contains("Authentication failed")
+            )),
+            "应保留底层 provider 错误文本事件"
+        );
+
+        let snapshot = agent
+            .runtime_snapshot(&session.id)
+            .await
+            .expect("应读取 runtime snapshot");
+        let latest_turn = snapshot
+            .threads
+            .iter()
+            .flat_map(|thread| thread.turns.iter())
+            .max_by_key(|turn| turn.updated_at.timestamp_millis())
+            .expect("应存在 runtime turn");
+
+        assert_ne!(latest_turn.status, TurnStatus::Running);
+        assert!(
+            matches!(
+                latest_turn.status,
+                TurnStatus::Completed | TurnStatus::Failed
+            ),
+            "turn 至少应进入终态，不能继续停留在 running"
         );
     }
 }

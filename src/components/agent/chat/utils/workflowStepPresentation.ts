@@ -99,7 +99,7 @@ export function formatWorkflowProgressLabel(params: {
 }): string {
   const { completedCount, totalCount } = params;
   if (totalCount <= 0) {
-    return "等待创建任务";
+    return "等待开始";
   }
   return `已完成 ${completedCount}/${totalCount}`;
 }

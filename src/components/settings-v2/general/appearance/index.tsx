@@ -393,9 +393,9 @@ export function AppearanceSettings() {
       try {
         await saveConfig(nextConfig);
       } catch (err) {
-        console.error("保存隐藏系统入口设置失败:", err);
+        console.error("保存系统入口设置失败:", err);
         setConfig(previousConfig);
-        setError("保存隐藏系统入口设置失败，请重试。");
+        setError("保存系统入口设置失败，请重试。");
       }
     },
     [config, enabledNavigationItems],
@@ -434,12 +434,12 @@ export function AppearanceSettings() {
               </h1>
               <WorkbenchInfoTip
                 ariaLabel="外观设置总览说明"
-                content="管理主题、语言、提示音效、推荐问题的上下文带入方式，以及隐藏系统入口的显示状态。"
+                content="管理主题、语言、提示音效、推荐问题的上下文带入方式，以及底部系统入口的显示状态。"
                 tone="mint"
               />
             </div>
             <p className="text-[13px] text-slate-500">
-              管理主题、语言、提示音效、推荐行为和隐藏入口。
+              管理主题、语言、提示音效、推荐行为和底部入口。
             </p>
           </div>
 
@@ -667,8 +667,8 @@ export function AppearanceSettings() {
       <SurfacePanel
         icon={Puzzle}
         iconClassName="text-cyan-600"
-        title="隐藏系统入口"
-        description="默认保持主导航简洁，只在你需要时把兼容或扩展入口挂回系统区。"
+        title="可选系统入口"
+        description="把扩展或低频入口按需挂到底部系统区，不影响当前主导航。"
         aside={
           <span className={CURRENT_INFO_PILL_CLASS}>
             已开启 {hiddenSystemEntryCount} / {CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS.length}

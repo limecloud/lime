@@ -108,9 +108,10 @@ pub use session_execution_runtime::{
     persist_session_recent_preferences, persist_session_recent_team_selection,
     SessionExecutionRuntime, SessionExecutionRuntimeAccessMode, SessionExecutionRuntimeCostState,
     SessionExecutionRuntimeLimitEvent, SessionExecutionRuntimeLimitState,
-    SessionExecutionRuntimePreferences, SessionExecutionRuntimeRecentTeamRole,
-    SessionExecutionRuntimeRecentTeamSelection, SessionExecutionRuntimeRoutingDecision,
-    SessionExecutionRuntimeSource, SessionExecutionRuntimeTaskProfile,
+    SessionExecutionRuntimeOemPolicy, SessionExecutionRuntimePreferences,
+    SessionExecutionRuntimeRecentTeamRole, SessionExecutionRuntimeRecentTeamSelection,
+    SessionExecutionRuntimeRoutingDecision, SessionExecutionRuntimeSource,
+    SessionExecutionRuntimeSummary, SessionExecutionRuntimeTaskProfile,
 };
 pub use session_query::{
     collect_subagent_cascade_session_ids, list_child_subagent_sessions,
@@ -120,11 +121,11 @@ pub use session_state_snapshot::SessionStateSnapshot;
 pub use session_store::{
     create_session_sync, delete_session, get_persisted_session_metadata_sync,
     get_runtime_session_detail, get_session_sync, list_sessions_sync,
-    list_title_preview_messages_sync, rename_session_sync, update_session_execution_strategy_sync,
-    update_session_provider_config_sync, update_session_working_dir_sync,
-    ChildSubagentRuntimeStatus, ChildSubagentSession, PersistedSessionMetadata, SessionDetail,
-    SessionInfo, SessionTitlePreviewMessage, SessionTodoItem, SessionTodoStatus,
-    SubagentParentContext,
+    list_title_preview_messages_sync, rename_session_sync, update_session_archived_state_sync,
+    update_session_execution_strategy_sync, update_session_provider_config_sync,
+    update_session_working_dir_sync, ChildSubagentRuntimeStatus, ChildSubagentSession,
+    PersistedSessionMetadata, SessionDetail, SessionInfo, SessionTitlePreviewMessage,
+    SessionTodoItem, SessionTodoStatus, SubagentParentContext,
 };
 pub use session_update::{
     create_subagent_session, persist_compaction_session_metrics_update,

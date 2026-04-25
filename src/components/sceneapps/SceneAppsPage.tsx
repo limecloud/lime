@@ -21,18 +21,18 @@ interface SceneAppsPageProps {
 const VIEW_OPTIONS = [
   {
     key: "catalog",
-    label: "做法目录",
-    summary: "先挑一套能直接起手的。",
+    label: "全部做法",
+    summary: "先挑一套这轮最想拿结果的做法。",
   },
   {
     key: "detail",
-    label: "生成准备",
-    summary: "把这轮要带着走的输入补齐。",
+    label: "补这轮信息",
+    summary: "只补这轮进入生成前最少必要信息。",
   },
   {
     key: "governance",
-    label: "做法复盘",
-    summary: "回看最近结果，再决定下一步。",
+    label: "最近结果",
+    summary: "看最近结果和判断，再决定下一步。",
   },
 ] as const;
 
@@ -66,11 +66,11 @@ export function SceneAppsPage({
   const hasReferenceCarry = runtime.selectedReferenceMemoryIds.length > 0;
   const carrySummary = runtime.selectedDescriptor
     ? runtime.runListItems.length > 0
-      ? "这套做法已经接住当前上下文，准备和复盘都可以直接往下走。"
-      : "这套做法已经接住当前上下文，先补齐这轮准备，再跑出第一轮结果。"
+      ? "这套做法已经接住当前上下文，这轮信息和最近结果都能直接续上。"
+      : "这套做法已经接住当前上下文，先补这轮信息，再跑出第一轮结果。"
     : runtime.recentVisits.length > 0
-      ? "最近看过的做法也还在这里，回到目录挑一套就能继续。"
-      : "先在目录里挑一套能直接起手的做法，后面的准备和复盘都会围着它继续。";
+      ? "最近看过的做法也还在这里，选一套就能继续。"
+      : "先选一套能直接起手的做法，后面只围绕这轮信息和最近结果继续。";
 
   return (
     <div className="flex-1 overflow-auto px-6 py-6">
@@ -83,7 +83,7 @@ export function SceneAppsPage({
                   全部做法
                 </h1>
                 <p className="text-sm leading-7 text-slate-600 md:text-base">
-                  先挑一套能直接起手的做法；这轮已经带着的灵感、意图和最近结果都会一路续上。
+                  先挑一套能产出结果的做法，补这轮必要信息，再根据最近结果继续推进。
                 </p>
               </div>
 
@@ -154,7 +154,7 @@ export function SceneAppsPage({
                       className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
                       onClick={() => runtime.handleViewModeChange("detail")}
                     >
-                      继续准备
+                      继续填写
                     </button>
                     <button
                       type="button"
@@ -167,8 +167,8 @@ export function SceneAppsPage({
                       }
                     >
                       {runtime.runListItems.length > 0
-                        ? "去做法复盘"
-                        : "先去生成准备"}
+                        ? "看最近结果"
+                        : "先补这轮信息"}
                     </button>
                   </div>
                 ) : null}
@@ -230,31 +230,31 @@ export function SceneAppsPage({
         {runtime.viewMode === "detail" ? (
           hasNoCatalogSelection ? (
             <SceneAppsPageEmptyState
-              eyebrow="做法准备"
+              eyebrow="这轮信息"
               title={
                 runtime.filteredDescriptors.length === 0
-                  ? "当前筛选后还没有可进入准备页的整套做法"
-                  : "先从做法目录选择一套做法"
+                  ? "当前筛选后还没有可继续的整套做法"
+                  : "先从全部做法里选一套"
               }
               description={
                 runtime.filteredDescriptors.length === 0
-                  ? "准备页只承接已经选中的整套做法。当前搜索条件下没有匹配项，先回目录放宽筛选，再决定要进入哪套做法的生成准备页。"
-                  : "生成准备页会集中显示启动前确认项、结果约定、这轮带入对象和默认判断标准。先回到做法目录选中一套做法，再继续补启动输入并进入生成。"
+                  ? "这轮信息页只承接已经选中的整套做法。当前搜索条件下没有匹配项，先回全部做法放宽筛选，再决定进入哪套做法。"
+                  : "这轮信息页会集中显示启动前确认项、结果约定、这轮带入对象和默认判断标准。先回全部做法选中一套，再继续补输入并进入生成。"
               }
               detail={
                 hasActiveCatalogFilters
-                  ? "可以直接清空当前搜索和筛选，重新回到目录选品。"
+                  ? "可以直接清空当前搜索和筛选，重新回到全部做法。"
                   : undefined
               }
               primaryAction={{
-                label: "回到做法目录",
+                label: "回到全部做法",
                 onClick: () => runtime.handleViewModeChange("catalog"),
                 testId: "sceneapps-empty-open-catalog",
               }}
               secondaryAction={
                 hasActiveCatalogFilters
                   ? {
-                      label: "清空筛选并返回目录",
+                      label: "清空筛选并返回全部做法",
                       onClick: runtime.handleResetCatalogFilters,
                       testId: "sceneapps-empty-reset-filters",
                     }
@@ -309,31 +309,31 @@ export function SceneAppsPage({
         {runtime.viewMode === "governance" ? (
           hasNoCatalogSelection ? (
             <SceneAppsPageEmptyState
-              eyebrow="做法复盘"
+              eyebrow="最近结果"
               title={
                 runtime.filteredDescriptors.length === 0
-                  ? "当前筛选后还没有可进入做法复盘的整套做法"
-                  : "先从做法目录选择一套做法"
+                  ? "当前筛选后还没有可查看结果的整套做法"
+                  : "先从全部做法里选一套"
               }
               description={
                 runtime.filteredDescriptors.length === 0
-                  ? "做法复盘只处理已经选中的整套做法。当前搜索条件下没有匹配项，先回目录放宽筛选，再决定要看哪套做法的运行与复盘材料。"
-                  : "做法复盘会集中展示最近运行、证据材料和放量判断。先回到做法目录选一套做法，再继续查看做法复盘。"
+                  ? "最近结果页只处理已经选中的整套做法。当前搜索条件下没有匹配项，先回全部做法放宽筛选，再决定看哪套做法的结果和判断。"
+                  : "最近结果会集中展示最近一轮结果、证据材料和下一步判断。先回全部做法选一套，再继续查看结果。"
               }
               detail={
                 hasActiveCatalogFilters
-                  ? "如果是筛选过严导致没有匹配项，可以直接清空筛选后返回目录。"
+                  ? "如果是筛选过严导致没有匹配项，可以直接清空筛选后回到全部做法。"
                   : undefined
               }
               primaryAction={{
-                label: "回到做法目录",
+                label: "回到全部做法",
                 onClick: () => runtime.handleViewModeChange("catalog"),
                 testId: "sceneapps-governance-open-catalog",
               }}
               secondaryAction={
                 hasActiveCatalogFilters
                   ? {
-                      label: "清空筛选并返回目录",
+                      label: "清空筛选并返回全部做法",
                       onClick: runtime.handleResetCatalogFilters,
                       testId: "sceneapps-governance-reset-filters",
                     }
@@ -342,17 +342,17 @@ export function SceneAppsPage({
             />
           ) : shouldShowGovernanceFirstRunEmpty ? (
             <SceneAppsPageEmptyState
-              eyebrow="首轮复盘前"
-              title="这套做法还没有首轮治理样本"
-              description="做法复盘只有在至少完成一轮正式运行后，才会回流最近运行、证据材料和复核判断。当前更适合先去详情页补齐项目与启动意图，跑出第一轮结果包。"
-              detail="首轮结果跑出来之后，再回到这里查看运行记录、复盘动作和放量判断。"
+              eyebrow="首轮结果前"
+              title="这套做法还没有首轮结果"
+              description="最近结果只有在至少完成一轮正式运行后，才会回流结果文件、证据和判断。当前更适合先去补这轮信息，跑出第一轮结果。"
+              detail="首轮结果出来之后，再回到这里看结果记录、证据和下一步判断。"
               primaryAction={{
-                label: "回到做法准备",
+                label: "去补这轮信息",
                 onClick: () => runtime.handleViewModeChange("detail"),
                 testId: "sceneapps-governance-open-detail",
               }}
               secondaryAction={{
-                label: "返回做法目录换一套",
+                label: "返回全部做法换一套",
                 onClick: () => runtime.handleViewModeChange("catalog"),
                 testId: "sceneapps-governance-open-catalog",
               }}

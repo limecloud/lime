@@ -362,6 +362,7 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   onOpenChannels?: ComponentProps<typeof EmptyState>["onOpenChannels"];
   onOpenChromeRelay?: ComponentProps<typeof EmptyState>["onOpenChromeRelay"];
   onOpenOpenClaw?: ComponentProps<typeof EmptyState>["onOpenOpenClaw"];
+  taskCenterTabsNode?: ReactNode;
   navbarVisible: boolean;
   isRunning: boolean;
   navbarChrome: ComponentProps<typeof ChatNavbar>["chrome"];
@@ -489,6 +490,7 @@ export function WorkspaceConversationScene({
   onOpenChannels,
   onOpenChromeRelay,
   onOpenOpenClaw,
+  taskCenterTabsNode,
   navbarVisible,
   isRunning,
   navbarChrome,
@@ -618,7 +620,6 @@ export function WorkspaceConversationScene({
       !contextWorkspaceEnabled && !shouldHideGeneralWorkbenchInputForTheme,
     inputbarNode,
   });
-
   const chatNavbarProps = buildWorkspaceNavbarProps({
     visible: navbarVisible,
     isRunning,
@@ -693,6 +694,7 @@ export function WorkspaceConversationScene({
     <WorkspaceMainArea
       compactChrome={compactChrome}
       navbarNode={navbarNode}
+      taskCenterTabsNode={taskCenterTabsNode}
       contentSyncNoticeNode={contentSyncNoticeNode}
       shellBottomInset={shellBottomInset}
       layoutMode={layoutMode}

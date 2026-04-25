@@ -112,7 +112,7 @@ describe("视频工作台 tips 收口", () => {
 
     const helperTip = await hoverTip("提示词建议");
     expect(getBodyText()).toContain(
-      "提示词优先写清主体、场景、镜头运动和光线。生成成功后，视频会自动同步到项目素材，便于后续复用。",
+      "提示词优先写清主体、场景、镜头运动和光线。生成成功后，视频会自动同步到项目资料，便于后续复用。",
     );
     await leaveTip(helperTip);
   });

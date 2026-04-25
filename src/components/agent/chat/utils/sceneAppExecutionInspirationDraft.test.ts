@@ -26,7 +26,7 @@ describe("buildSceneAppExecutionInspirationDraft", () => {
           status: "watch",
           statusLabel: "先补复核与修复",
           summary: "这轮结果还卡在复核结论，先不要直接放大。",
-          nextAction: "优先准备周会复盘包。",
+          nextAction: "优先准备结果对齐包。",
           actionLabel: "建议继续优化",
           metricKeys: [],
           failureSignals: [],

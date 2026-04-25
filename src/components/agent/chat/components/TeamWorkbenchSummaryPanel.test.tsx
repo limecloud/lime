@@ -72,7 +72,7 @@ describe("TeamWorkbenchSummaryPanel", () => {
       },
     });
 
-    expect(container.textContent).toContain("生成工作台");
+    expect(container.textContent).toContain("生成");
     expect(container.textContent).toContain("任务记忆影子");
     expect(container.textContent).toContain("/workspace/lime");
     expect(container.textContent).toContain("当前分工方案");

@@ -3,7 +3,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildCrashRecoveryReloadUrl,
+  finalizeModuleImportAutoReload,
   isModuleImportFailureErrorMessage,
+  prepareModuleImportAutoReload,
+  stripCrashRecoveryReloadUrl,
 } from "./CrashRecoveryPanel.helpers";
 
 vi.mock("@/lib/api/appConfig", () => ({
@@ -126,6 +129,77 @@ describe("CrashRecoveryPanel", () => {
     );
     expect(reloadUrl).toContain("tab=providers");
     expect(reloadUrl).toContain("__lime_resource_reload=654321");
+  });
+
+  it("应在同一页面同一版本下只允许自动强制刷新一次", () => {
+    const storage = {
+      state: new Map<string, string>(),
+      getItem(key: string) {
+        return this.state.get(key) ?? null;
+      },
+      setItem(key: string, value: string) {
+        this.state.set(key, value);
+      },
+      removeItem(key: string) {
+        this.state.delete(key);
+      },
+    };
+
+    const firstReloadUrl = prepareModuleImportAutoReload(
+      "http://127.0.0.1:1420/agent?tab=chat",
+      "1.19.0",
+      storage,
+    );
+    const secondReloadUrl = prepareModuleImportAutoReload(
+      "http://127.0.0.1:1420/agent?tab=chat",
+      "1.19.0",
+      storage,
+    );
+
+    expect(firstReloadUrl).toContain("__lime_resource_reload=");
+    expect(secondReloadUrl).toBeNull();
+  });
+
+  it("成功启动后应移除自动刷新标记并清理 URL 参数", () => {
+    const storage = {
+      state: new Map<string, string>(),
+      getItem(key: string) {
+        return this.state.get(key) ?? null;
+      },
+      setItem(key: string, value: string) {
+        this.state.set(key, value);
+      },
+      removeItem(key: string) {
+        this.state.delete(key);
+      },
+    };
+    const replaceState = vi.fn();
+    const reloadUrl = prepareModuleImportAutoReload(
+      "http://127.0.0.1:1420/settings?tab=providers",
+      "1.19.0",
+      storage,
+    );
+
+    expect(reloadUrl).toContain("__lime_resource_reload=");
+    finalizeModuleImportAutoReload(
+      reloadUrl!,
+      "1.19.0",
+      storage,
+      { replaceState },
+    );
+
+    expect(replaceState).toHaveBeenCalledWith(
+      null,
+      "",
+      stripCrashRecoveryReloadUrl(reloadUrl!),
+    );
+    expect(
+      prepareModuleImportAutoReload(
+        "http://127.0.0.1:1420/settings?tab=providers",
+        "1.19.0",
+        storage,
+      ),
+    ).toContain("__lime_resource_reload=");
   });
 
   it("模块导入失败时应展示强制刷新资源入口", () => {

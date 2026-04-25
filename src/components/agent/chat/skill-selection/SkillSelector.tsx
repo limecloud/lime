@@ -17,6 +17,7 @@ import {
   LazyCharacterMentionPanel,
   preloadCharacterMentionPanel,
 } from "./characterMentionPanelLoader";
+import type { InputCapabilityDescriptor } from "./inputCapabilitySections";
 import {
   getActiveSkillDisplayLabel,
   SKILL_SELECTION_DISPLAY_COPY,
@@ -84,6 +85,28 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
   onImport,
 }) => {
   const activeSkillLabel = getActiveSkillDisplayLabel(activeSkill);
+  const handleSelectCapability = React.useCallback(
+    (item: InputCapabilityDescriptor) => {
+      switch (item.kind) {
+        case "service_skill":
+          onSelectServiceSkill?.(item.skill);
+          return;
+        case "installed_skill":
+          onSelectInstalledSkill(item.skill);
+          return;
+        case "available_skill":
+          onSelectAvailableSkill(item.skill);
+          return;
+        default:
+          return;
+      }
+    },
+    [
+      onSelectAvailableSkill,
+      onSelectInstalledSkill,
+      onSelectServiceSkill,
+    ],
+  );
 
   return (
     <Suspense
@@ -135,15 +158,7 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
           availableSkills={availableSkills}
           commandRef={commandRef}
           onQueryChange={onQueryChange}
-          onSelectBuiltinCommand={(_command, _options) => undefined}
-          onSelectServiceSkill={(skill) => onSelectServiceSkill?.(skill)}
-          onSelectSceneCommand={(_command, _options) => undefined}
-          onSelectSlashCommand={(_command, _options) => undefined}
-          onSelectCharacter={() => undefined}
-          onSelectInstalledSkill={(skill, _options) =>
-            onSelectInstalledSkill(skill)
-          }
-          onSelectAvailableSkill={onSelectAvailableSkill}
+          onSelectCapability={handleSelectCapability}
           onNavigateToSettings={onNavigateToSettings}
         />
         {canRefresh || canImport ? (

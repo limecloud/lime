@@ -501,7 +501,7 @@ export const mapSessionToTopic = (session: AsterSessionInfo): Topic => {
     statusReason: "default",
     lastPreview:
       messagesCount > 0
-        ? `已记录 ${messagesCount} 条消息，可继续补充或复盘。`
+        ? `已记录 ${messagesCount} 条消息，可继续补充或接着推进。`
         : "等待你补充任务需求后开始执行。",
     isPinned: false,
     hasUnread: false,

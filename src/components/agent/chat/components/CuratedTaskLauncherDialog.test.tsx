@@ -115,7 +115,7 @@ describe("CuratedTaskLauncherDialog", () => {
     );
   });
 
-  it("应在参考对象卡片上显式区分灵感库与项目结果来源", async () => {
+  it("应把参考对象来源收成轻量元信息，而不是标签墙", async () => {
     const task = findCuratedTaskTemplateById("account-project-review");
     expect(task).not.toBeNull();
     mockListUnifiedMemories.mockResolvedValue([
@@ -165,13 +165,14 @@ describe("CuratedTaskLauncherDialog", () => {
     });
 
     const dialog = document.body.querySelector('[role="dialog"]');
-    expect(dialog?.textContent).toContain("项目结果");
-    expect(dialog?.textContent).toContain("灵感库");
+    expect(dialog?.textContent).toContain("项目结果 · 成果");
+    expect(dialog?.textContent).toContain("灵感库 · 风格");
     expect(dialog?.textContent).toContain("AI 内容周报");
     expect(dialog?.textContent).toContain("品牌风格样本");
+    expect(dialog?.textContent).toContain("相关线索：科技蓝、留白");
   });
 
-  it("命中最近复盘偏好的结果模板时，应在 launcher 内显影复盘提示", async () => {
+  it("命中最近判断偏好的结果模板时，应在 launcher 内显影判断提示", async () => {
     const task = findCuratedTaskTemplateById("account-project-review");
     expect(task).not.toBeNull();
 
@@ -206,12 +207,12 @@ describe("CuratedTaskLauncherDialog", () => {
     const banner = document.body.querySelector(
       '[data-testid="curated-task-launcher-review-feedback-banner"]',
     );
-    expect(banner?.textContent).toContain("围绕最近复盘");
-    expect(banner?.textContent).toContain("最近复盘已更新：短视频编排 · 补证据");
+    expect(banner?.textContent).toContain("围绕最近判断");
+    expect(banner?.textContent).toContain("最近判断已更新：短视频编排 · 补证据");
     expect(banner?.textContent).toContain("这轮结果还缺证据");
   });
 
-  it("当前 launcher 不是最近复盘首选时，应允许直接切到推荐模板", async () => {
+  it("当前 launcher 不是最近判断首选时，应允许直接切到推荐模板", async () => {
     const task = findCuratedTaskTemplateById("daily-trend-briefing");
     expect(task).not.toBeNull();
     const onApplyReviewSuggestion = vi.fn();
@@ -256,8 +257,8 @@ describe("CuratedTaskLauncherDialog", () => {
       '[data-testid="curated-task-launcher-review-feedback-banner-action"]',
     ) as HTMLButtonElement | null;
 
-    expect(banner?.textContent).toContain("最近复盘已更新：短视频编排 · 补证据");
-    expect(banner?.textContent).toContain("这轮复盘更适合先回到「复盘这个账号/项目」");
+    expect(banner?.textContent).toContain("最近判断已更新：短视频编排 · 补证据");
+    expect(banner?.textContent).toContain("这轮判断更建议优先回到「复盘这个账号/项目」");
     expect(actionButton?.textContent).toContain("改用「复盘这个账号/项目」");
 
     await act(async () => {
@@ -303,7 +304,7 @@ describe("CuratedTaskLauncherDialog", () => {
                 "account-project-review": {
                   project_goal: "AI 内容周报",
                   existing_results:
-                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备结果对齐包，再决定是否继续放大。 更适合去向：结果对齐",
                 },
               },
             },
@@ -322,7 +323,7 @@ describe("CuratedTaskLauncherDialog", () => {
     expect(baselineCard?.textContent).toContain("AI 内容周报");
     expect(baselineCard?.textContent).toContain("当前判断：先补复核与修复");
     expect(baselineCard?.textContent).toContain("当前卡点：复核阻塞");
-    expect(baselineCard?.textContent).toContain("更适合去向：周会复盘");
+    expect(baselineCard?.textContent).toContain("更适合去向：结果对齐");
     expect(document.body.textContent).toContain(
       "下面的 账号或项目目标 / 已有结果或数据 已按这轮结果自动带入",
     );
@@ -350,7 +351,7 @@ describe("CuratedTaskLauncherDialog", () => {
                 "account-project-review": {
                   project_goal: "AI 内容周报",
                   existing_results:
-                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备结果对齐包，再决定是否继续放大。 更适合去向：结果对齐",
                 },
               },
             },
@@ -369,7 +370,7 @@ describe("CuratedTaskLauncherDialog", () => {
     expect(baselineCard?.textContent).toContain("AI 内容周报");
     expect(baselineCard?.textContent).toContain("当前判断：先补复核与修复");
     expect(baselineCard?.textContent).toContain("当前卡点：复核阻塞");
-    expect(baselineCard?.textContent).toContain("更适合去向：周会复盘");
+    expect(baselineCard?.textContent).toContain("更适合去向：结果对齐");
   });
 
   it("成果类灵感 reference 进入下游结果模板时，也应带出基线和默认预填", async () => {

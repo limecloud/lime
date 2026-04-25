@@ -77,8 +77,8 @@ function buildReviewDecisionSnippet(
   const title = normalizeOptionalText(reviewSignal.title);
   const summary = normalizeOptionalText(reviewSignal.summary);
   return dedupeItems([
-    title ? `最近人工复盘：${title}` : null,
-    summary ? `复盘摘要：${truncate(summary, 88)}` : null,
+    title ? `最近人工判断：${title}` : null,
+    summary ? `判断摘要：${truncate(summary, 88)}` : null,
   ]).join(" ");
 }
 
@@ -124,7 +124,7 @@ export function buildSkillsPageParamsFromSceneAppExecution(
       directory: buildDirectorySlug(summary, detailView),
       name,
       description: dedupeItems([
-        `沉淀自「${summary.title}」这轮已经进入结果消费与复盘闭环的做法。`,
+        `沉淀自「${summary.title}」这轮已经进入结果消费与判断闭环的做法。`,
         `当前交付状态：${deliverySnippet}`,
         reviewSnippet,
       ], 3).join(" "),
@@ -144,7 +144,7 @@ export function buildSkillsPageParamsFromSceneAppExecution(
             ? `参考对象：${summary.referenceCount} 条参考对象已被验证可继续沿用。`
             : "参考对象：按当前项目上下文补充最关键的素材、示例或历史结果。",
           reviewSignalSummary
-            ? `人工复盘：${truncate(reviewSignalSummary, 88)}`
+            ? `人工判断：${truncate(reviewSignalSummary, 88)}`
             : null,
           tasteSnippet ? `风格摘要：${truncate(tasteSnippet, 72)}` : null,
           feedbackSnippet ? `最近反馈：${truncate(feedbackSnippet, 72)}` : null,
@@ -159,17 +159,17 @@ export function buildSkillsPageParamsFromSceneAppExecution(
       steps: dedupeItems([
         "先确认这次任务是否仍适合同一条场景执行路径与当前结果交付约定。",
         "沿用当前已验证过的参考对象、风格摘要与项目结果基线，补齐最少必要输入。",
-        "输出后按当前结果判断线索与人工复盘结论，继续进入复核、发布或下一轮生成。",
+        "输出后按当前结果判断线索与人工判断结论，继续进入复核、发布或下一轮生成。",
       ]),
       fallbackStrategy: dedupeItems([
         missingPartsLabel
           ? `如果仍缺少${missingPartsLabel}，先补齐缺失部件，再把整套做法沉淀下来。`
           : null,
         failureSignalLabel
-          ? `如果再次出现${failureSignalLabel}，先回看证据与复盘材料，不要直接放大复用。`
+          ? `如果再次出现${failureSignalLabel}，先回看证据与结果材料，不要直接放大复用。`
           : null,
         reviewSignalSummary
-          ? `如果最近人工复盘提出新的约束，优先按“${truncate(reviewSignalSummary, 72)}”处理后再继续复用。`
+          ? `如果最近人工判断提出新的约束，优先按“${truncate(reviewSignalSummary, 72)}”处理后再继续复用。`
           : "如果结果再次偏离目标，先重新确认受众、平台与参考约束，再决定是否沿用整套做法。",
       ]),
       sourceMessageId: `sceneapp-run-${detailView.runId}`,

@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import type { AgentRuntimeGeneratedTitleResult } from "@/lib/api/agentRuntime";
 import type { MessageImage } from "../types";
 import type { ParsedImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
 import { readMessageImageFromDataUrl } from "../utils/imageAttachments";
@@ -18,6 +19,7 @@ interface ResolveImageWorkbenchSkillRequestParams {
   parsedCommand: ParsedImageWorkbenchCommand;
   images: MessageImage[];
   title?: string;
+  titleGenerationResult?: AgentRuntimeGeneratedTitleResult | null;
   currentImageWorkbenchState: SessionImageWorkbenchState;
   imageWorkbenchSelectedModelId?: string;
   imageWorkbenchSelectedProviderId?: string;
@@ -225,6 +227,7 @@ export function resolveImageWorkbenchSkillRequest(
     kind: "image_task",
     image_task: {
       title: collapseWhitespace(params.title) || undefined,
+      title_generation_result: params.titleGenerationResult ?? undefined,
       mode: parsedCommand.mode,
       prompt: effectivePrompt,
       raw_text: rawText,

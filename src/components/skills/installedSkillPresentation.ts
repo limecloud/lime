@@ -7,7 +7,7 @@ interface BuildInstalledSkillCapabilityDescriptionOptions {
 }
 
 const FALLBACK_REQUIRED_INPUTS = "对话里继续补充目标与约束";
-const FALLBACK_OUTPUT_HINT = "带着该方法进入生成主执行面";
+const FALLBACK_OUTPUT_HINT = "带着该方法进入生成";
 const DEFAULT_PROMISE = "当你需要复用这套方法时使用。";
 
 function readInstalledSkillMetadata(

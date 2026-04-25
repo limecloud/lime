@@ -54,36 +54,36 @@ async function renderCard(
             typeLabel: "组合做法",
             patternSummary: "步骤链",
             status: "watch",
-            statusLabel: "先补复盘材料",
-            summary: "这条持续流程最近一轮已有可复盘结果，适合继续回到生成工作台。",
-            nextAction: "先把这轮复盘材料沉淀好，再决定是否继续放大。",
+            statusLabel: "先补结果材料",
+            summary: "这条持续流程最近一轮已有可继续结果，适合继续回到生成。",
+            nextAction: "先把这轮结果材料沉淀好，再决定是否继续放大。",
             destinations: [
               {
                 key: "task-center",
-                label: "生成工作台",
-                description: "带着材料回到生成工作台继续推进。",
+                label: "生成",
+                description: "带着材料回到生成继续推进。",
               },
             ],
             scorecardAggregate: {
               status: "watch",
-              statusLabel: "先补复盘材料",
+              statusLabel: "先补结果材料",
               summary: "这轮材料已经接近可复用。",
-              nextAction: "优先补齐结构化复盘包。",
+              nextAction: "优先补齐结构化结果包。",
               actionLabel: "建议继续优化",
-              topFailureSignalLabel: "复盘材料不完整",
+              topFailureSignalLabel: "结果材料不完整",
               metricKeys: [],
               failureSignals: [],
               observedFailureSignals: [],
               destinations: [
                 {
                   key: "task-center",
-                  label: "生成工作台",
-                  description: "带着材料回到生成工作台继续推进。",
+                  label: "生成",
+                  description: "带着材料回到生成继续推进。",
                 },
               ],
             },
-            automationSummary: "1 条自动化任务 · 1 条启用中 · 当前无风险提醒",
-            latestAutomationLabel: "最近投放任务：短视频持续投放 · 成功",
+            automationSummary: "1 条持续流程 · 1 条启用中 · 当前无风险提醒",
+            latestAutomationLabel: "最近运行：短视频持续投放 · 成功",
           } as any
         }
         runDetailView={
@@ -92,8 +92,8 @@ async function renderCard(
             status: "success",
             statusLabel: "成功",
             stageLabel: "结果已回流",
-            summary: "最近一轮结果已回流，并带着复盘材料。",
-            nextAction: "继续复盘当前项目。",
+            summary: "最近一轮结果已回流，并带着结果材料。",
+            nextAction: "继续看这轮结果。",
             deliveryCompletionLabel: "已生成完整结果包",
           } as any
         }
@@ -114,7 +114,7 @@ describe("AutomationOverviewFocusCard", () => {
     expect(text).toContain("短视频持续投放");
     expect(text).toContain("故事短视频套件");
     expect(text).toContain("这轮材料已经接近可复用。");
-    expect(text).toContain("先做：优先补齐结构化复盘包。");
+    expect(text).toContain("先做：优先补齐结构化结果包。");
     expect(text).toContain("最近结果");
   });
 
@@ -167,7 +167,7 @@ describe("AutomationOverviewFocusCard", () => {
     });
 
     expect(document.body.textContent).toContain(
-      "还没有自动续上的做法",
+      "还没有持续接上的做法",
     );
   });
 });

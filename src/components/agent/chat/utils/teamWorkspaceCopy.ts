@@ -25,7 +25,7 @@ export type TeamWorkspaceDisplayMemberStatus =
   | "completed"
   | "failed";
 
-export const TEAM_WORKSPACE_SURFACE_TITLE = "生成工作台";
+export const TEAM_WORKSPACE_SURFACE_TITLE = "生成";
 export const TEAM_WORKSPACE_REALTIME_BADGE_LABEL = "任务进行时";
 export const TEAM_WORKSPACE_MEMBER_NOUN = "子任务";
 export const TEAM_WORKSPACE_PLAN_LABEL = "分工方案";

@@ -474,7 +474,7 @@ vi.mock("./components/TeamWorkspaceDock", () => ({
             onActivateWorkbench();
           }}
         >
-          打开生成工作台
+          打开生成
         </button>
       ) : null}
     </div>
@@ -3809,7 +3809,6 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     await flushEffects(12);
 
     expect(sharedSwitchTopicMock).toHaveBeenCalledWith("topic-a", {
-      forceRefresh: true,
       resumeSessionStartHooks: true,
     });
     expect(onNavigate).not.toHaveBeenCalled();

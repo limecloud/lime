@@ -305,9 +305,10 @@ pub(crate) fn update_runtime_session_execution_strategy_internal(
 
 pub(crate) fn list_runtime_sessions_internal(
     db: &DbConnection,
+    include_archived: bool,
 ) -> Result<Vec<SessionInfo>, String> {
     tracing::info!("[AsterAgent] 列出会话");
-    AsterAgentWrapper::list_sessions_sync(db)
+    AsterAgentWrapper::list_sessions_sync(db, include_archived)
 }
 
 pub(crate) fn rename_runtime_session_internal(

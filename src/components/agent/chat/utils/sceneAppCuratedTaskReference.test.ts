@@ -16,7 +16,7 @@ describe("sceneAppCuratedTaskReference", () => {
         summary: "围绕 AI 内容周报生成一轮项目结果。",
         businessLabel: "内容生产",
         typeLabel: "项目资料包",
-        executionChainLabel: "生成主执行面",
+        executionChainLabel: "生成",
         deliveryContractLabel: "项目资料包",
         planningStatusLabel: "已规划",
         planningSummary: "当前已具备一轮复盘基线。",
@@ -35,7 +35,7 @@ describe("sceneAppCuratedTaskReference", () => {
           status: "risk",
           statusLabel: "先补复核与修复",
           summary: "这轮结果已经回流，但当前主要卡在复核阻塞。",
-          nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+          nextAction: "优先准备结果对齐包，再决定是否继续放大。",
           actionLabel: "建议继续优化",
           topFailureSignalLabel: "复核阻塞",
           metricKeys: [],
@@ -49,7 +49,7 @@ describe("sceneAppCuratedTaskReference", () => {
           destinations: [
             {
               key: "weekly-review",
-              label: "周会复盘",
+              label: "结果对齐",
               description: "把证据摘要和复核记录带去业务复盘。",
             },
           ],
@@ -125,7 +125,7 @@ describe("sceneAppCuratedTaskReference", () => {
     ).toContain("当前判断：先补复核与修复");
     expect(
       entry?.taskPrefillByTaskId?.["account-project-review"]?.existing_results,
-    ).toContain("更适合去向：周会复盘");
+    ).toContain("更适合去向：结果对齐");
   });
 
   it("应从 sceneapp reference entry 里拆出复盘卡片需要的经营摘要", () => {
@@ -143,7 +143,7 @@ describe("sceneAppCuratedTaskReference", () => {
             "account-project-review": {
               project_goal: "AI 内容周报",
               existing_results:
-                "这轮运行已产出项目结果 当前卡点：复核阻塞 建议下一步：先补齐复核意见后再继续发布。 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                "这轮运行已产出项目结果 当前卡点：复核阻塞 建议下一步：先补齐复核意见后再继续发布。 当前判断：先补复核与修复 经营动作：优先准备结果对齐包，再决定是否继续放大。 更适合去向：结果对齐",
             },
           },
         },
@@ -157,14 +157,14 @@ describe("sceneAppCuratedTaskReference", () => {
       statusLabel: "先补复核与修复",
       failureSignalLabel: "复核阻塞",
       nextAction: "先补齐复核意见后再继续发布。",
-      operatingAction: "优先准备周会复盘包，再决定是否继续放大。",
-      destinationsLabel: "周会复盘",
+      operatingAction: "优先准备结果对齐包，再决定是否继续放大。",
+      destinationsLabel: "结果对齐",
     });
     expect(buildSceneAppExecutionReviewPrefillHighlights(snapshot)).toEqual([
       "当前判断：先补复核与修复",
       "当前卡点：复核阻塞",
-      "经营动作：优先准备周会复盘包，再决定是否继续放大。",
-      "更适合去向：周会复盘",
+      "经营动作：优先准备结果对齐包，再决定是否继续放大。",
+      "更适合去向：结果对齐",
     ]);
   });
 
@@ -184,7 +184,7 @@ describe("sceneAppCuratedTaskReference", () => {
             "account-project-review": {
               project_goal: "AI 内容周报",
               existing_results:
-                "这轮运行已产出项目结果 当前卡点：复核阻塞 建议下一步：先补齐复核意见后再继续发布。 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                "这轮运行已产出项目结果 当前卡点：复核阻塞 建议下一步：先补齐复核意见后再继续发布。 当前判断：先补复核与修复 经营动作：优先准备结果对齐包，再决定是否继续放大。 更适合去向：结果对齐",
             },
           },
         },
@@ -198,8 +198,8 @@ describe("sceneAppCuratedTaskReference", () => {
       statusLabel: "先补复核与修复",
       failureSignalLabel: "复核阻塞",
       nextAction: "先补齐复核意见后再继续发布。",
-      operatingAction: "优先准备周会复盘包，再决定是否继续放大。",
-      destinationsLabel: "周会复盘",
+      operatingAction: "优先准备结果对齐包，再决定是否继续放大。",
+      destinationsLabel: "结果对齐",
     });
   });
 
@@ -250,7 +250,7 @@ describe("sceneAppCuratedTaskReference", () => {
         summary: "围绕 AI 内容周报生成一轮项目结果。",
         businessLabel: "内容生产",
         typeLabel: "项目资料包",
-        executionChainLabel: "生成主执行面",
+        executionChainLabel: "生成",
         deliveryContractLabel: "项目资料包",
         planningStatusLabel: "已规划",
         planningSummary: "当前已具备一轮复盘基线。",
@@ -262,9 +262,9 @@ describe("sceneAppCuratedTaskReference", () => {
         scorecardFailureSignals: [],
         scorecardAggregate: {
           status: "watch",
-          statusLabel: "先补复盘材料",
+          statusLabel: "先补结果材料",
           summary: "这轮结果已经可复盘，但材料还没完全齐。",
-          nextAction: "先补齐结构化复盘材料，再继续进入生成工作台。",
+          nextAction: "先补齐结构化结果材料，再继续进入生成。",
           actionLabel: "建议继续优化",
           topFailureSignalLabel: "复核阻塞",
           metricKeys: [],
@@ -273,8 +273,8 @@ describe("sceneAppCuratedTaskReference", () => {
           destinations: [
             {
               key: "task-center",
-              label: "生成 / 看板",
-              description: "把结构化材料继续带回生成工作台。",
+              label: "生成",
+              description: "把结构化材料继续带回生成。",
             },
           ],
         },
@@ -334,7 +334,7 @@ describe("sceneAppCuratedTaskReference", () => {
 
     expect(action).not.toBeNull();
     expect(action).toMatchObject({
-      bannerMessage: "已切到“复盘这个账号/项目”这条下一步，并带着当前结果继续生成。",
+      bannerMessage: "已切到“复盘这个账号/项目”这条下一步，并带着当前结果继续进入生成。",
       capabilityRoute: {
         kind: "curated_task",
         taskId: "account-project-review",
@@ -350,7 +350,7 @@ describe("sceneAppCuratedTaskReference", () => {
           }),
         ],
       },
-      prompt: expect.stringContaining("请帮我复盘这个账号或项目"),
+      prompt: expect.stringContaining("请帮我判断这个账号或项目当前该怎么推进"),
     });
     expect(action?.prompt).toContain("账号或项目目标：AI 内容周报");
   });
@@ -371,7 +371,7 @@ describe("sceneAppCuratedTaskReference", () => {
             "account-project-review": {
               project_goal: "AI 内容周报",
               existing_results:
-                "这轮运行已产出项目结果 当前卡点：复核阻塞 建议下一步：先补齐复核意见后再继续发布。 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                "这轮运行已产出项目结果 当前卡点：复核阻塞 建议下一步：先补齐复核意见后再继续发布。 当前判断：先补复核与修复 经营动作：优先准备结果对齐包，再决定是否继续放大。 更适合去向：结果对齐",
             },
           },
         },
@@ -380,7 +380,7 @@ describe("sceneAppCuratedTaskReference", () => {
 
     expect(action).not.toBeNull();
     expect(action).toMatchObject({
-      bannerMessage: "已切到“拆解一条爆款内容”这条下一步，并带着当前结果继续生成。",
+      bannerMessage: "已切到“拆解一条爆款内容”这条下一步，并带着当前结果继续进入生成。",
       capabilityRoute: {
         kind: "curated_task",
         taskId: "viral-content-breakdown",
@@ -398,6 +398,6 @@ describe("sceneAppCuratedTaskReference", () => {
     expect(action?.prompt).toContain("继续沿这轮项目结果基线推进");
     expect(action?.prompt).toContain("当前结果基线：AI 内容周报");
     expect(action?.prompt).toContain("当前判断：先补复核与修复");
-    expect(action?.prompt).toContain("更适合去向：周会复盘");
+    expect(action?.prompt).toContain("更适合去向：结果对齐");
   });
 });

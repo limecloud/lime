@@ -70,8 +70,8 @@ function createLatestPackResultDetailView(
     governanceActionEntries: [
       {
         key: "weekly-review-pack",
-        label: "准备周会复盘包",
-        helperText: "把证据摘要和人工复核记录一起带去业务复盘。",
+        label: "补结果材料",
+        helperText: "把证据摘要和人工复核记录一起带回来回看业务结果。",
         primaryArtifactKind: "review_decision_markdown",
         primaryArtifactLabel: "人工复核记录",
         artifactKinds: ["evidence_summary", "review_decision_markdown"],
@@ -181,9 +181,9 @@ function renderCard(
             status: "risk",
             statusLabel: "先补复核与修复",
             summary:
-              "这套做法最近一轮还没形成可直接放大的复盘闭环，当前主要卡在复核阻塞。",
+              "这套做法最近一轮还没形成可直接放大的结果闭环，当前主要卡在复核阻塞。",
             nextAction:
-              "优先准备周会复盘包，补齐复核结论、结果校验问题或验证失败项，再决定是否继续放大这套做法。",
+              "优先补结果材料，补齐复核结论、结果校验问题或验证失败项，再决定是否继续放大这套做法。",
             actionLabel: "建议继续优化",
             topFailureSignalLabel: "复核阻塞",
             profileRef: "story-video-scorecard",
@@ -199,13 +199,13 @@ function renderCard(
             destinations: [
               {
                 key: "weekly-review",
-                label: "周会复盘",
-                description: "把证据摘要和人工复核记录带去业务复盘。",
+                label: "看结果",
+                description: "把证据摘要和人工复核记录带回来回看业务结果。",
               },
               {
                 key: "task-center",
-                label: "生成 / 看板",
-                description: "继续把结构化复盘材料带回生成工作台。",
+                label: "生成",
+                description: "继续把结果记录带回生成。",
               },
             ],
           },
@@ -302,7 +302,7 @@ describe("SceneAppExecutionSummaryCard", () => {
       container.querySelector(
         '[data-testid="sceneapp-execution-summary-scorecard-destinations"]',
       )?.textContent,
-    ).toContain("周会复盘");
+    ).toContain("看结果");
     expect(
       container.querySelector(
         '[data-testid="sceneapp-execution-summary-runtime-backflow"]',
@@ -315,7 +315,7 @@ describe("SceneAppExecutionSummaryCard", () => {
     ).toContain("Taste");
   });
 
-  it("命中最近复盘时，结果卡应显影复盘建议横幅", () => {
+  it("命中最近判断时，结果卡应显影判断建议横幅", () => {
     const container = renderCard({
       onContinueReviewFeedback: vi.fn(),
       latestReviewFeedbackSignal: {
@@ -336,9 +336,9 @@ describe("SceneAppExecutionSummaryCard", () => {
       '[data-testid="sceneapp-execution-summary-review-feedback-banner"]',
     ) as HTMLElement | null;
     expect(reviewBanner).not.toBeNull();
-    expect(reviewBanner?.textContent).toContain("围绕最近复盘");
+    expect(reviewBanner?.textContent).toContain("围绕最近判断");
     expect(reviewBanner?.textContent).toContain(
-      "最近复盘已更新：短视频编排 · 补证据",
+      "最近判断已更新：短视频编排 · 补证据",
     );
     expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
     expect(reviewBanner?.textContent).toContain(
@@ -351,7 +351,7 @@ describe("SceneAppExecutionSummaryCard", () => {
     ).toContain("继续去「复盘这个账号/项目」");
   });
 
-  it("点击最近复盘建议时，应继续切到对应结果模板", () => {
+  it("点击最近判断建议时，应继续切到对应结果模板", () => {
     const onContinueReviewFeedback = vi.fn();
     const container = renderCard({
       latestReviewFeedbackSignal: {
@@ -384,7 +384,7 @@ describe("SceneAppExecutionSummaryCard", () => {
     );
   });
 
-  it("应在生成主执行面展示最近可消费结果并支持打开文件", () => {
+  it("应在生成里展示最近可消费结果并支持打开文件", () => {
     const onDeliveryArtifactAction = vi.fn();
     const onReviewCurrentProject = vi.fn();
     const onSaveAsInspiration = vi.fn();
@@ -502,8 +502,8 @@ describe("SceneAppExecutionSummaryCard", () => {
       container.querySelector(
         '[data-testid="sceneapp-execution-summary-orchestration"]',
       )?.textContent,
-    ).toContain("生成后动作编排");
-    expect(container.textContent).toContain("周会复盘");
+    ).toContain("结果后的下一步");
+    expect(container.textContent).toContain("看结果");
     expect(container.textContent).toContain("同聊推进");
     expect(
       container.querySelector(
@@ -789,7 +789,7 @@ describe("SceneAppExecutionSummaryCard", () => {
     );
   });
 
-  it("结果去向卡应支持直接续接到周会复盘、生成工作台、持续流程和主结果", () => {
+  it("结果去向卡应支持直接续接到看结果、生成、持续流程和主结果", () => {
     const onReviewCurrentProject = vi.fn();
     const onGovernanceAction = vi.fn();
     const onEntryAction = vi.fn();
@@ -803,16 +803,16 @@ describe("SceneAppExecutionSummaryCard", () => {
         governanceActionEntries: [
           {
             key: "weekly-review-pack",
-            label: "准备周会复盘包",
-            helperText: "把证据摘要和人工复核记录一起带去业务复盘。",
+            label: "补结果材料",
+            helperText: "把证据摘要和人工复核记录一起带回来回看业务结果。",
             primaryArtifactKind: "review_decision_markdown",
             primaryArtifactLabel: "人工复核记录",
             artifactKinds: ["evidence_summary", "review_decision_markdown"],
           },
           {
             key: "structured-governance-pack",
-            label: "整理结构化复盘包",
-            helperText: "把结构化复盘材料带回生成工作台继续推进下一步。",
+            label: "补结果记录",
+            helperText: "把结果记录带回生成继续推进下一步。",
             primaryArtifactKind: "review_decision_json",
             primaryArtifactLabel: "复核 JSON",
             artifactKinds: ["review_decision_json"],

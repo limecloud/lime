@@ -23,6 +23,7 @@ import type { ApplyArtifactViewMode } from "./useWorkspaceArtifactViewModeContro
 import {
   isRenderableTaskFile,
   looksLikeSocialPublishPayload,
+  normalizeSessionTaskFileType,
   resolveTaskFileType,
 } from "./generalWorkbenchHelpers";
 import { doesWorkspaceFileCandidateMatch } from "./workspaceFilePathMatch";
@@ -338,6 +339,62 @@ export function useWorkspaceArtifactPreviewActions({
     ],
   );
 
+  const hydrateTaskFileContent = useCallback(
+    async (file: TaskFile): Promise<TaskFile | null> => {
+      if (typeof file.content === "string") {
+        return file;
+      }
+
+      const matchedSessionFile = sessionFiles.find((candidate) =>
+        doesWorkspaceFileCandidateMatch(candidate.name, file.name),
+      );
+      if (!matchedSessionFile) {
+        return file;
+      }
+
+      const content = await readSessionFile(matchedSessionFile.name);
+      if (content === null) {
+        return null;
+      }
+
+      const hydratedFile: TaskFile = {
+        ...file,
+        name: matchedSessionFile.name,
+        type: normalizeSessionTaskFileType(
+          matchedSessionFile.fileType ?? file.type,
+          matchedSessionFile.name,
+          content,
+        ),
+        content,
+        metadata: file.metadata ?? matchedSessionFile.metadata,
+        createdAt: file.createdAt || matchedSessionFile.createdAt || Date.now(),
+        updatedAt:
+          matchedSessionFile.updatedAt ||
+          file.updatedAt ||
+          matchedSessionFile.createdAt ||
+          Date.now(),
+      };
+
+      setTaskFiles((previous) => {
+        const matchedIndex = previous.findIndex(
+          (item) =>
+            item.id === file.id ||
+            doesWorkspaceFileCandidateMatch(item.name, matchedSessionFile.name),
+        );
+        if (matchedIndex < 0) {
+          return [...previous, hydratedFile];
+        }
+
+        const next = [...previous];
+        next[matchedIndex] = hydratedFile;
+        return next;
+      });
+
+      return hydratedFile;
+    },
+    [readSessionFile, sessionFiles, setTaskFiles],
+  );
+
   const handleCodeBlockClick = useCallback(
     (language: string, code: string) => {
       console.log("[AgentChatPage] 代码块点击:", language);
@@ -389,40 +446,49 @@ export function useWorkspaceArtifactPreviewActions({
 
   const handleTaskFileClick = useCallback(
     (file: TaskFile) => {
-      if (activeTheme === "general") {
-        if (!file.content?.trim()) {
+      void (async () => {
+        const resolvedFile = await hydrateTaskFileContent(file);
+        if (!resolvedFile) {
+          toast.error("读取会话文件失败，请稍后重试");
+          return;
+        }
+
+        if (activeTheme === "general") {
+          if (!resolvedFile.content?.trim()) {
+            toast.info("该文件为辅助产物，暂不在主稿画布渲染");
+            return;
+          }
+
+          suppressBrowserAssistCanvasAutoOpen();
+          setSelectedArtifactId(null);
+          setGeneralCanvasState(
+            buildGeneralCanvasStateFromWorkspaceFile(
+              resolvedFile.name,
+              resolvedFile.content ?? "",
+            ),
+          );
+          openCanvasForReason("user_open_file", setLayoutMode);
+          return;
+        }
+
+        setSelectedFileId(resolvedFile.id);
+
+        if (
+          !isRenderableTaskFile(resolvedFile, isThemeWorkbench) ||
+          looksLikeSocialPublishPayload(resolvedFile.content || "") ||
+          !resolvedFile.content?.trim()
+        ) {
           toast.info("该文件为辅助产物，暂不在主稿画布渲染");
           return;
         }
 
-        suppressBrowserAssistCanvasAutoOpen();
-        setSelectedArtifactId(null);
-        setGeneralCanvasState(
-          buildGeneralCanvasStateFromWorkspaceFile(
-            file.name,
-            file.content ?? "",
-          ),
-        );
-        openCanvasForReason("user_open_file", setLayoutMode);
-        return;
-      }
-
-      setSelectedFileId(file.id);
-
-      if (
-        !isRenderableTaskFile(file, isThemeWorkbench) ||
-        looksLikeSocialPublishPayload(file.content || "") ||
-        !file.content?.trim()
-      ) {
-        toast.info("该文件为辅助产物，暂不在主稿画布渲染");
-        return;
-      }
-
-      applyContentToCanvas(file.content ?? "");
+        applyContentToCanvas(resolvedFile.content ?? "");
+      })();
     },
     [
       activeTheme,
       applyContentToCanvas,
+      hydrateTaskFileContent,
       isThemeWorkbench,
       setGeneralCanvasState,
       setLayoutMode,

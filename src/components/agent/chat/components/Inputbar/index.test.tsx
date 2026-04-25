@@ -660,7 +660,7 @@ describe("Inputbar", () => {
     ]);
   });
 
-  it("应将服务型技能目录与选择回调透传给 CharacterMention", async () => {
+  it("应将服务型技能目录透传给 CharacterMention，并经统一 capability 触发启动", async () => {
     const serviceSkills = [
       {
         id: "daily-trend-briefing",
@@ -685,10 +685,13 @@ describe("Inputbar", () => {
       ][0];
 
     expect(latestCall.serviceSkills).toBe(serviceSkills);
-    expect(latestCall.onSelectServiceSkill).toBeTypeOf("function");
+    expect(latestCall.onSelectInputCapability).toBeTypeOf("function");
 
     await act(async () => {
-      latestCall.onSelectServiceSkill?.(serviceSkills[0] as ServiceSkillHomeItem);
+      latestCall.onSelectInputCapability?.({
+        kind: "service_skill",
+        skill: serviceSkills[0] as ServiceSkillHomeItem,
+      });
       await Promise.resolve();
     });
 
@@ -1298,7 +1301,7 @@ describe("Inputbar", () => {
     expect(launcherDialog?.dataset.sessionId).toBe("session-review-chain");
   });
 
-  it("输入条已激活结果模板时，应支持从 badge 直接切到最近复盘推荐模板", async () => {
+  it("输入条已激活结果模板时，应支持从 badge 直接切到最近判断推荐模板", async () => {
     const setInput = vi.fn();
     const onSend = vi.fn();
     const initialLaunchInputValues = {
@@ -1417,7 +1420,7 @@ describe("Inputbar", () => {
     );
   });
 
-  it("输入条编辑态 launcher 按最近复盘切模板时，应保留参考选择并显示提示", async () => {
+  it("输入条编辑态 launcher 按最近判断切模板时，应保留参考选择并显示提示", async () => {
     const initialLaunchInputValues = {
       theme_target: "AI 内容创作",
       platform_region: "X 与 TikTok 北美区",
@@ -1504,20 +1507,20 @@ describe("Inputbar", () => {
       '[data-testid="curated-task-launcher-prefill-hint"]',
     );
     expect(prefillHint?.textContent).toContain(
-      "已按最近复盘切到更适合的结果模板",
+      "已按最近判断切到更适合的结果模板",
     );
   });
 
   it("输入条已激活复盘模板时，应把 sceneapp 项目结果引用透传给 badge", async () => {
     renderInputbar({
-      input: "请帮我复盘这个账号或项目",
+      input: "请帮我判断这个账号或项目当前该怎么推进",
       activeTheme: "general",
       initialInputCapability: {
         capabilityRoute: {
           kind: "curated_task",
           taskId: "account-project-review",
           taskTitle: "复盘这个账号/项目",
-          prompt: "请帮我复盘这个账号或项目",
+          prompt: "请帮我判断这个账号或项目当前该怎么推进",
           launchInputValues: {
             project_goal: "AI 内容周报",
             existing_results: "当前已有一轮项目结果，可直接作为复盘基线。",
@@ -2041,7 +2044,6 @@ describe("Inputbar", () => {
       ]?.[0];
 
     expect(firstCall?.onSelectInputCapability).toBeTypeOf("function");
-    expect(firstCall?.onSelectServiceSkill).toBeTypeOf("function");
 
     await act(async () => {
       firstCall?.onSelectInputCapability?.({
@@ -2057,7 +2059,10 @@ describe("Inputbar", () => {
       ]?.[0];
 
     await act(async () => {
-      secondCall?.onSelectServiceSkill?.(serviceSkill);
+      secondCall?.onSelectInputCapability?.({
+        kind: "service_skill",
+        skill: serviceSkill,
+      });
       await Promise.resolve();
     });
 
@@ -2719,7 +2724,7 @@ describe("Inputbar", () => {
       isLoading: true,
       onStop,
       workflowSteps: [
-        { id: "research", title: "检索项目素材", status: "active" },
+        { id: "research", title: "检索项目资料", status: "active" },
         { id: "write", title: "编写正文草稿", status: "pending" },
       ],
     });
@@ -2730,7 +2735,7 @@ describe("Inputbar", () => {
     });
 
     expect(container.textContent).toContain("当前进展");
-    expect(container.textContent).toContain("检索项目素材");
+    expect(container.textContent).toContain("检索项目资料");
     expect(container.textContent).toContain("任务队列");
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
 
@@ -2749,7 +2754,7 @@ describe("Inputbar", () => {
       variant: "workspace",
       isLoading: true,
       workflowSteps: [
-        { id: "research", title: "检索项目素材", status: "active" },
+        { id: "research", title: "检索项目资料", status: "active" },
         { id: "write", title: "编写正文草稿", status: "pending" },
       ],
     });
@@ -2759,7 +2764,7 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("检索项目素材");
+    expect(container.textContent).toContain("检索项目资料");
 
     const collapseButton = Array.from(
       container.querySelectorAll("button"),
@@ -2823,7 +2828,7 @@ describe("Inputbar", () => {
       isLoading: false,
       workflowRunState: "auto_running",
       workflowSteps: [
-        { id: "research", title: "检索项目素材", status: "active" },
+        { id: "research", title: "检索项目资料", status: "active" },
         { id: "write", title: "编写正文草稿", status: "pending" },
       ],
     });
@@ -2834,7 +2839,7 @@ describe("Inputbar", () => {
     });
 
     expect(container.textContent).toContain("当前进展");
-    expect(container.textContent).toContain("检索项目素材");
+    expect(container.textContent).toContain("检索项目资料");
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
   });
 

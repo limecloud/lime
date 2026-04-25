@@ -226,15 +226,11 @@ export function SkillsWorkspacePage({
   const {
     skills: serviceSkills,
     groups: skillGroups,
-    catalogMeta,
-    isLoading: serviceSkillsLoading,
     error: serviceSkillsError,
     refresh: refreshServiceSkills,
   } = useServiceSkills();
   const {
     skills: localSkills,
-    loading: localSkillsLoading,
-    remoteLoading: localSkillsRemoteLoading,
     error: localSkillsError,
     refresh: refreshLocalSkills,
   } = useSkills("lime", { includeRepos: false });
@@ -317,20 +313,6 @@ export function SkillsWorkspacePage({
     () => skillGroups.find((group) => group.key === selectedGroupKey) ?? null,
     [selectedGroupKey, skillGroups],
   );
-  const directoryStatusLabel = useMemo(() => {
-    if (serviceSkillsLoading || localSkillsLoading || localSkillsRemoteLoading) {
-      return "正在更新做法列表...";
-    }
-    if (selectedGroup) {
-      return `当前浏览：${selectedGroup.title}`;
-    }
-    return "这里放跑通过的做法；不确定时先回首页拿结果。";
-  }, [
-    localSkillsLoading,
-    localSkillsRemoteLoading,
-    selectedGroup,
-    serviceSkillsLoading,
-  ]);
   const creationProjectId = pageParams?.creationProjectId?.trim() || undefined;
   const scaffoldCreationReplay = useMemo(() => {
     if (!pageParams?.initialScaffoldDraft) {
@@ -520,7 +502,7 @@ export function SkillsWorkspacePage({
       signal: latestReviewRecommendationSignal,
     });
     const highlightedTemplates = visibleFeaturedCuratedTaskTemplates
-      .filter((featured) => featured.reasonLabel === "围绕最近复盘")
+      .filter((featured) => featured.reasonLabel === "围绕最近判断")
       .slice(0, 2);
     if (highlightedTemplates.length === 0) {
       return null;
@@ -593,32 +575,6 @@ export function SkillsWorkspacePage({
     [highlightedInstalledSkill, installedSkillUsageMap],
   );
 
-  const syncedAtLabel = useMemo(() => {
-    if (!catalogMeta?.syncedAt) {
-      return null;
-    }
-
-    const parsed = new Date(catalogMeta.syncedAt);
-    if (Number.isNaN(parsed.getTime())) {
-      return catalogMeta.syncedAt;
-    }
-
-    return new Intl.DateTimeFormat("zh-CN", {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(parsed);
-  }, [catalogMeta?.syncedAt]);
-  const workspaceCatalogSummary = useMemo(() => {
-    if (syncedAtLabel) {
-      return `最近整理 ${syncedAtLabel}`;
-    }
-
-    return null;
-  }, [syncedAtLabel]);
-
   const handleRefreshAll = async () => {
     setRefreshing(true);
     try {
@@ -662,8 +618,8 @@ export function SkillsWorkspacePage({
             }
           : {}),
           entryBannerMessage: normalizedReplayText
-            ? `已带着方法“${skill.name}”和上次目标进入生成，可继续补充后发送。`
-            : `已带着方法“${skill.name}”进入生成，可继续补充后发送。`,
+            ? `已带着方法“${skill.name}”和上次目标回到生成，接着把这轮做下去就行。`
+            : `已带着方法“${skill.name}”回到生成，接着把这轮做下去就行。`,
         }),
         initialInputCapability: {
           capabilityRoute: {
@@ -708,7 +664,7 @@ export function SkillsWorkspacePage({
       try {
         await refreshLocalSkills();
       } catch (error) {
-        toast.error(`同步我的方法失败：${String(error)}`);
+        toast.error(`刷新我的方法失败：${String(error)}`);
       }
 
       if (scaffoldReplayText) {
@@ -813,7 +769,7 @@ export function SkillsWorkspacePage({
         options.inputValues,
         options.referenceSelection.referenceMemoryIds,
         options.referenceSelection.referenceEntries,
-        "已按最近复盘切到更适合的结果模板，你可以继续改后再进入生成。",
+        "已按最近判断切到更适合的结果模板，接着把这一步补齐就能开始。",
       );
     },
     [handleCuratedTaskTemplateLauncherRequest],
@@ -879,7 +835,7 @@ export function SkillsWorkspacePage({
             },
             requestKey: Date.now(),
           },
-          entryBannerMessage: `已从结果模板“${resolvedTemplate.title}”带着启动信息进入生成，可继续补充后发送。`,
+          entryBannerMessage: `已带着结果模板“${resolvedTemplate.title}”的启动信息回到生成，接着把这轮做下去就行。`,
         }),
       );
     },
@@ -968,7 +924,7 @@ export function SkillsWorkspacePage({
                     </h1>
                     <WorkbenchInfoTip
                       ariaLabel="方法主入口说明"
-                      content="首页负责结果模板，这里负责可复用做法；选中具体方法后，统一进入 Agent 对话补参或继续执行。适配器继续留在后台做治理，前台不再暴露 adapter、runtime 或 YAML 等技术细节。"
+                      content="先从结果起手，顺手的做法和自己沉淀下来的方法都在这里续上；点开后直接把这一步接下去。"
                       tone="mint"
                     />
                   </div>
@@ -992,17 +948,37 @@ export function SkillsWorkspacePage({
                     />
                     刷新
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="rounded-2xl px-3 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                    onClick={() => setAdvancedManagerOpen(true)}
-                  >
-                    <FolderOpen className="mr-2 h-4 w-4" />
-                    整理
-                  </Button>
                 </div>
               </div>
+
+              <section
+                className="rounded-[24px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(239,246,255,0.96)_0%,rgba(255,255,255,0.98)_100%)] p-4 shadow-sm shadow-slate-950/5"
+                data-testid="skills-workspace-sceneapps-migration-banner"
+              >
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                        全部做法
+                      </span>
+                      <h2 className="text-base font-semibold text-slate-900">
+                        完整做法都在这里
+                      </h2>
+                    </div>
+                    <p className="text-sm leading-6 text-slate-600">
+                      想看完整做法，或继续某条做法时，直接从这里进入“查看全部做法”。
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME}
+                    onClick={handleOpenSceneAppsDirectory}
+                  >
+                    查看全部做法
+                  </Button>
+                </div>
+              </section>
 
               <div className="space-y-3">
                 <div className="space-y-3">
@@ -1010,7 +986,7 @@ export function SkillsWorkspacePage({
                     <span>搜做法</span>
                     <WorkbenchInfoTip
                       ariaLabel="做法搜索说明"
-                      content="先从结果相关的做法组找起；没找到时，再去整理自己的方法。"
+                      content="先从这轮想拿的结果方向找起；没命中时，再接着你自己顺手的方法。"
                       tone="slate"
                     />
                   </div>
@@ -1022,19 +998,14 @@ export function SkillsWorkspacePage({
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                           <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                            当前草稿
+                            这次续用
                           </span>
-                          {pageParams?.creationProjectId ? (
-                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                              项目内整理
-                            </span>
-                          ) : null}
                           <span className="min-w-0 font-semibold text-slate-900">
                             {activeScaffoldTitle}
                           </span>
                           {activeScaffoldSummary ? (
                             <span className="max-w-xl truncate text-xs leading-5 text-slate-500">
-                              来源：{summarizeRecentReplayText(activeScaffoldSummary)}
+                              这次沿用：{summarizeRecentReplayText(activeScaffoldSummary)}
                             </span>
                           ) : null}
                           {activeScaffoldReplayText ? (
@@ -1053,7 +1024,7 @@ export function SkillsWorkspacePage({
                             data-testid="skills-workspace-open-scaffold-manager"
                             onClick={() => setAdvancedManagerOpen(true)}
                           >
-                            整理
+                            继续补完
                           </Button>
                           <Button
                             type="button"
@@ -1065,7 +1036,7 @@ export function SkillsWorkspacePage({
                               handleBringScaffoldToCreation(activeScaffoldDraft)
                             }
                           >
-                            带回生成
+                            回到生成
                             <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -1077,16 +1048,10 @@ export function SkillsWorkspacePage({
                     <Input
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="搜索结果方向、站点或做法标题"
+                      placeholder="搜索想拿的结果、这一步或做法名"
                       className="h-12 rounded-[22px] border-slate-200 bg-slate-50 pl-10"
                     />
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] leading-5 text-slate-500">
-                  <span>{directoryStatusLabel}</span>
-                  <span>
-                    {workspaceCatalogSummary || "正在读取当前做法"}
-                  </span>
                 </div>
               </div>
             </div>
@@ -1095,11 +1060,11 @@ export function SkillsWorkspacePage({
           {(serviceSkillsError || localSkillsError) && (
             <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
               {serviceSkillsError
-                ? `云端做法加载失败：${serviceSkillsError}`
+                ? `现成做法暂时没同步下来：${serviceSkillsError}`
                 : null}
               {serviceSkillsError && localSkillsError ? "；" : null}
               {localSkillsError
-                ? `本地做法加载失败：${localSkillsError}`
+                ? `已经沉淀的方法暂时没读到：${localSkillsError}`
                 : null}
             </div>
           )}
@@ -1126,11 +1091,11 @@ export function SkillsWorkspacePage({
                     data-testid="skills-workspace-review-feedback-banner"
                   >
                     <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                      围绕最近复盘
+                      围绕最近判断
                     </span>
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="text-sm font-semibold text-slate-900">
-                        最近复盘已更新：{reviewRecommendationBanner.title}
+                        最近判断已更新：{reviewRecommendationBanner.title}
                       </div>
                       <div className="text-sm leading-6 text-slate-600">
                         {reviewRecommendationBanner.summary}
@@ -1437,7 +1402,7 @@ export function SkillsWorkspacePage({
                     </h2>
                     <WorkbenchInfoTip
                       ariaLabel="最近做法说明"
-                      content="最近跑通过的做法会沉淀在这里，方便再次续上。"
+                      content="最近顺手的做法会先留在这里，下次可以直接接着跑。"
                       tone="slate"
                     />
                   </div>
@@ -1523,7 +1488,7 @@ export function SkillsWorkspacePage({
                       </h2>
                       <WorkbenchInfoTip
                         ariaLabel="本地方法库说明"
-                        content="这里放已经沉淀下来的方法；需要新增、检查或清理时再点整理。"
+                        content="自己的固定做法都在这里；要补、改或收拾时再点调整。"
                         tone="slate"
                       />
                     </div>
@@ -1538,7 +1503,7 @@ export function SkillsWorkspacePage({
                     onClick={() => setAdvancedManagerOpen(true)}
                   >
                     <FolderOpen className="mr-2 h-4 w-4" />
-                    整理
+                    调整
                   </Button>
                 </div>
 
@@ -1582,7 +1547,7 @@ export function SkillsWorkspacePage({
                                 )
                               }
                             >
-                              继续生成
+                              回到生成
                               <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                             </Button>
                           </div>
@@ -1639,11 +1604,11 @@ export function SkillsWorkspacePage({
                               </span>
                               {getInstalledSkillOutputHint(skill)}
                             </div>
-                            <div>进入生成后会继续按这套方法补参。</div>
+                            <div>回到生成后会继续按这套方法往下做。</div>
                           </div>
                           <div className="mt-4 flex items-center justify-between gap-3">
                             <div className="text-[11px] leading-5 text-slate-400">
-                              进入生成后继续补参，跑通后的结果也会再沉淀回来。
+                              回到生成后会继续按这套方法往下做，跑顺后的结果也会再沉淀回来。
                             </div>
                             <Button
                               type="button"
@@ -1680,10 +1645,10 @@ export function SkillsWorkspacePage({
           <div className="flex h-[calc(100vh-88px)] min-h-[680px] flex-col bg-white">
             <DialogHeader className="border-b border-slate-200 px-6 py-5">
               <div className="flex flex-wrap items-center gap-2">
-                <DialogTitle>整理我的方法</DialogTitle>
+                <DialogTitle>调整我的方法</DialogTitle>
                 <WorkbenchInfoTip
-                  ariaLabel="整理我的方法弹窗说明"
-                  content="这里只处理新增、检查和清理；前台继续优先从结果和常用做法开工。"
+                  ariaLabel="调整我的方法弹窗说明"
+                  content="需要补、改、删时在这里处理；平时还是先从结果和顺手做法开工。"
                   tone="mint"
                 />
               </div>

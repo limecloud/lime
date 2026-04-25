@@ -43,11 +43,11 @@ async function renderStrip(
           {
             title: "故事短视频套件",
             businessLabel: "多模态组合",
-            statusLabel: "先补复盘材料",
-            summary: "这条持续流程最近一轮已有可复盘结果，适合继续回到生成工作台。",
+            statusLabel: "先补结果材料",
+            summary: "这条持续流程最近一轮已有可继续结果，适合继续回到生成。",
             scorecardAggregate: {
               summary: "这轮材料已经接近可复用。",
-              nextAction: "优先补齐结构化复盘包。",
+              nextAction: "优先补齐结构化结果包。",
             },
           } as any
         }
@@ -75,10 +75,10 @@ describe("AutomationJobFocusStrip", () => {
     expect(text).not.toContain("多模态组合");
     expect(text).toContain("这轮判断：这轮材料已经接近可复用。");
     expect(text).toContain("最近结果：成功 · 已生成完整结果包");
-    expect(text).toContain("先做：优先补齐结构化复盘包。");
+    expect(text).toContain("先做：优先补齐结构化结果包。");
   });
 
-  it("应支持继续复盘与去做法复盘动作", async () => {
+  it("应支持继续看结果与打开最近结果动作", async () => {
     const onReviewCurrentProject = vi.fn();
     const onOpenSceneAppGovernance = vi.fn();
 

@@ -1,10 +1,7 @@
 import {
-  Blocks,
   BrainCircuit,
   Bot,
-  LibraryBig,
   MessageCircleMore,
-  MessageSquare,
   Plus,
   Puzzle,
   Settings,
@@ -19,10 +16,7 @@ import {
   type PageParams,
 } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
-import {
-  buildClawAgentParams,
-  buildHomeAgentParams,
-} from "@/lib/workspace/navigation";
+import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 
 export interface SidebarNavItemDefinition {
   id: string;
@@ -33,14 +27,6 @@ export interface SidebarNavItemDefinition {
   resolveParams?: (params?: PageParams) => PageParams | undefined;
   isActive?: (currentPage: Page, currentParams?: PageParams) => boolean;
   configurable?: boolean;
-  children?: SidebarNavItemDefinition[];
-  defaultExpanded?: boolean;
-}
-
-export interface SidebarNavSectionDefinition {
-  id: string;
-  title: string;
-  items: SidebarNavItemDefinition[];
 }
 
 function isAgentEntryActive(
@@ -65,156 +51,96 @@ function isCompanionSettingsView(currentParams?: PageParams): boolean {
   );
 }
 
-export const MAIN_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
+export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
-    id: "tasks",
-    title: "任务",
-    items: [
-      {
-        id: "home-general",
-        label: "新建任务",
-        icon: Plus,
-        page: "agent",
-        params: buildHomeAgentParams(),
-        resolveParams: (params) =>
-          buildHomeAgentParams(params as AgentPageParams | undefined),
-        isActive: (currentPage, currentParams) =>
-          isAgentEntryActive(currentPage, currentParams, "new-task"),
-        configurable: false,
-      },
-      {
-        id: "claw",
-        label: "生成",
-        icon: MessageSquare,
-        page: "agent",
-        params: buildClawAgentParams(),
-        resolveParams: (params) =>
-          buildClawAgentParams(params as AgentPageParams | undefined),
-        isActive: (currentPage, currentParams) =>
-          currentPage === "agent" &&
-          (currentParams as AgentPageParams | undefined)?.agentEntry !==
-            "new-task",
-        configurable: false,
-      },
-    ],
+    id: "home-general",
+    label: "新建任务",
+    icon: Plus,
+    page: "agent",
+    params: buildHomeAgentParams(),
+    resolveParams: (params) =>
+      buildHomeAgentParams(params as AgentPageParams | undefined),
+    isActive: (currentPage, currentParams) =>
+      isAgentEntryActive(currentPage, currentParams, "new-task"),
+    configurable: false,
   },
   {
-    id: "capabilities",
-    title: "能力",
-    items: [
-      {
-        id: "skills",
-        label: "我的方法",
-        icon: Sparkles,
-        page: "skills",
-        isActive: (currentPage) => currentPage === "skills",
-        configurable: false,
-      },
-      {
-        id: "sceneapps",
-        label: "创作场景",
-        icon: Blocks,
-        page: "sceneapps",
-        isActive: (currentPage) => currentPage === "sceneapps",
-        configurable: false,
-      },
-      {
-        id: "automation",
-        label: "持续流程",
-        icon: Workflow,
-        page: "automation",
-        isActive: (currentPage) => currentPage === "automation",
-        configurable: false,
-      },
-      {
-        id: "channels",
-        label: "消息渠道",
-        icon: MessageCircleMore,
-        page: "channels",
-        isActive: (currentPage) => currentPage === "channels",
-        configurable: false,
-      },
-    ],
+    id: "skills",
+    label: "我的方法",
+    icon: Sparkles,
+    page: "skills",
+    isActive: (currentPage) => currentPage === "skills",
+    configurable: false,
   },
   {
-    id: "knowledge",
-    title: "资料",
-    items: [
-      {
-        id: "resources",
-        label: "资料库",
-        icon: LibraryBig,
-        page: "resources",
-        isActive: (currentPage) => currentPage === "resources",
-        configurable: false,
-      },
-      {
-        id: "memory",
-        label: "灵感库",
-        icon: BrainCircuit,
-        page: "memory",
-        isActive: (currentPage) => currentPage === "memory",
-        configurable: false,
-      },
-    ],
+    id: "memory",
+    label: "灵感库",
+    icon: BrainCircuit,
+    page: "memory",
+    isActive: (currentPage) => currentPage === "memory",
+    configurable: false,
   },
 ];
 
-export const FOOTER_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
+export const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
-    id: "system",
-    title: "系统",
-    items: [
-      {
-        id: "settings",
-        label: "设置",
-        icon: Settings,
-        page: "settings",
-        params: {
-          tab: SettingsTabs.Home,
-        },
-        isActive: (currentPage, currentParams) =>
-          currentPage === "settings" && !isCompanionSettingsView(currentParams),
-        configurable: false,
-      },
-      {
-        id: "plugins",
-        label: "插件中心",
-        icon: Puzzle,
-        page: "plugins",
-        isActive: (currentPage) => currentPage === "plugins",
-        configurable: true,
-      },
-      {
-        id: "openclaw",
-        label: "OpenClaw",
-        icon: Waypoints,
-        page: "openclaw",
-        isActive: (currentPage) => currentPage === "openclaw",
-        configurable: true,
-      },
-      {
-        id: "companion",
-        label: "桌宠",
-        icon: Bot,
-        page: "settings",
-        params: {
-          tab: SettingsTabs.Providers,
-          providerView: "companion",
-        },
-        isActive: (currentPage, currentParams) =>
-          currentPage === "settings" && isCompanionSettingsView(currentParams),
-        configurable: true,
-      },
-    ],
+    id: "settings",
+    label: "设置",
+    icon: Settings,
+    page: "settings",
+    params: {
+      tab: SettingsTabs.Home,
+    },
+    isActive: (currentPage, currentParams) =>
+      currentPage === "settings" && !isCompanionSettingsView(currentParams),
+    configurable: false,
+  },
+  {
+    id: "automation",
+    label: "持续流程",
+    icon: Workflow,
+    page: "automation",
+    isActive: (currentPage) => currentPage === "automation",
+    configurable: false,
+  },
+  {
+    id: "channels",
+    label: "消息渠道",
+    icon: MessageCircleMore,
+    page: "channels",
+    isActive: (currentPage) => currentPage === "channels",
+    configurable: false,
+  },
+  {
+    id: "plugins",
+    label: "插件中心",
+    icon: Puzzle,
+    page: "plugins",
+    isActive: (currentPage) => currentPage === "plugins",
+    configurable: true,
+  },
+  {
+    id: "openclaw",
+    label: "OpenClaw",
+    icon: Waypoints,
+    page: "openclaw",
+    isActive: (currentPage) => currentPage === "openclaw",
+    configurable: true,
+  },
+  {
+    id: "companion",
+    label: "桌宠",
+    icon: Bot,
+    page: "settings",
+    params: {
+      tab: SettingsTabs.Providers,
+      providerView: "companion",
+    },
+    isActive: (currentPage, currentParams) =>
+      currentPage === "settings" && isCompanionSettingsView(currentParams),
+    configurable: true,
   },
 ];
-
-export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
-  MAIN_SIDEBAR_NAV_SECTIONS.flatMap((section) => section.items);
-
-const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
-  FOOTER_SIDEBAR_NAV_SECTIONS.flatMap((section) => section.items);
 
 export const FIXED_MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =
   MAIN_SIDEBAR_NAV_ITEMS.filter((item) => item.configurable === false);

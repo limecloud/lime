@@ -121,7 +121,7 @@
     {
       "command": "agent_runtime_list_sessions",
       "domain": "session",
-      "requestType": "void",
+      "requestType": "{ includeArchived?: boolean } | void",
       "responseType": "AsterSessionInfo[]",
       "lifecycle": "current",
       "mockStrategy": "bridge-only",

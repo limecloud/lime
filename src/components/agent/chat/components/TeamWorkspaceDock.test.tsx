@@ -184,7 +184,7 @@ describe("TeamWorkspaceDock", () => {
       '[data-testid="team-workspace-empty-card"]',
     );
     expect(emptyCard).toBeTruthy();
-    expect(emptyCard?.textContent).toContain("生成工作台");
+    expect(emptyCard?.textContent).toContain("生成");
     expect(emptyCard?.textContent).not.toContain("任务进行时");
     expect(
       document.body.querySelector(

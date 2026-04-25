@@ -302,33 +302,38 @@ describe("ImConfigPage", () => {
 
     const text = document.body.textContent ?? "";
     expect(text).toContain("消息渠道");
+    expect(text).toContain("系统入口");
     expect(text).toContain("Telegram");
     expect(text).toContain("飞书");
     expect(text).toContain("微信");
     expect(text).toContain("即将开放");
     expect(text).toContain("Discord");
     expect(text).toContain("钉钉");
-    expect(text).toContain("高级排障");
+    expect(text).toContain("日志与检查");
     expect(text).not.toContain("调试配置");
   });
 
-  it("应把首页说明和高级排障说明收进 tips", async () => {
+  it("应把首页说明和日志与检查说明收进 tips", async () => {
     renderPage();
     await flushEffects();
 
     expect(getBodyText()).not.toContain(
-      "首页只放重点入口。Telegram、飞书、微信在这里直达；联调检查放进各自配置弹窗，网关和日志统一收到下方高级区。",
+      "把 Telegram、飞书、微信接进 Lime，让消息接收、回复和结果投递继续留在熟悉客户端；接入检查放在各自配置里，日志和运行检查按需展开。",
     );
-    expect(getBodyText()).not.toContain("网关、日志和运行状态都收在这里。");
+    expect(getBodyText()).not.toContain(
+      "接入日志和运行检查都在这里，平时不用一直展开。",
+    );
 
     const introTip = await hoverTip("消息渠道说明");
     expect(getBodyText()).toContain(
-      "首页只放重点入口。Telegram、飞书、微信在这里直达；联调检查放进各自配置弹窗，网关和日志统一收到下方高级区。",
+      "把 Telegram、飞书、微信接进 Lime，让消息接收、回复和结果投递继续留在熟悉客户端；接入检查放在各自配置里，日志和运行检查按需展开。",
     );
     await leaveTip(introTip);
 
-    const debugTip = await hoverTip("高级排障说明");
-    expect(getBodyText()).toContain("网关、日志和运行状态都收在这里。");
+    const debugTip = await hoverTip("日志与检查说明");
+    expect(getBodyText()).toContain(
+      "接入日志和运行检查都在这里，平时不用一直展开。",
+    );
     await leaveTip(debugTip);
   });
 
@@ -341,8 +346,8 @@ describe("ImConfigPage", () => {
 
     expect(document.body.textContent).toContain("Telegram 配置");
     expect(document.body.textContent).toContain("机器人 Token");
-    expect(document.body.textContent).toContain("联调检查");
-    expect(document.body.textContent).toContain("查看日志排查");
+    expect(document.body.textContent).toContain("接入检查");
+    expect(document.body.textContent).toContain("查看日志与检查");
 
     await clickButton(findButtonByText("保存"));
     await flushEffects();
@@ -418,7 +423,7 @@ describe("ImConfigPage", () => {
     ).not.toBeNull();
     expect(document.body.textContent).toContain("群组策略");
     expect(document.body.textContent).toContain("账号参数");
-    expect(document.body.textContent).toContain("联调检查");
+    expect(document.body.textContent).toContain("接入检查");
     expect(document.body.textContent).toContain("展开账号");
     expect(document.body.textContent).not.toContain("账号名称");
 
@@ -431,16 +436,16 @@ describe("ImConfigPage", () => {
     expect(document.body.textContent).toContain("账号名称");
   });
 
-  it("配置弹窗里的日志排查入口应展开旧的高级工作台", async () => {
+  it("配置弹窗里的日志与检查入口应展开旧的高级工作台", async () => {
     renderPage();
     await flushEffects();
 
     await clickButton(findButtonByTestId("telegram-config-button"));
     await flushEffects();
-    await clickButton(findButtonByText("查看日志排查"));
+    await clickButton(findButtonByText("查看日志与检查"));
     await flushEffects();
 
-    expect(document.body.textContent).toContain("高级排障");
+    expect(document.body.textContent).toContain("日志与检查");
     expect(
       document.body.querySelector('[data-testid="channels-debug-workbench"]'),
     ).not.toBeNull();
@@ -450,7 +455,7 @@ describe("ImConfigPage", () => {
     renderPage();
     await flushEffects();
 
-    await clickButton(findButtonByText("高级排障"));
+    await clickButton(findButtonByText("日志与检查"));
     await flushEffects();
 
     expect(

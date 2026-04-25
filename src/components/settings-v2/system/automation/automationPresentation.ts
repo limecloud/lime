@@ -17,7 +17,7 @@ import {
 } from "./automationAccessMode";
 
 export const LEGACY_BROWSER_AUTOMATION_NOTICE =
-  "浏览器自动化已下线，系统不会再自动启动 Chrome。请删除旧任务，并改建为 Agent 对话任务。";
+  "浏览器自动化已下线，系统不会再自动启动 Chrome。请删除旧流程，并改建为 Agent 对话持续流程。";
 export const LEGACY_BROWSER_AUTOMATION_STATUS = "已下线";
 
 type AutomationBadgeVariant =
@@ -70,9 +70,7 @@ export function executionModeLabel(
 }
 
 export function payloadKindLabel(kind: AutomationPayload["kind"]): string {
-  return kind === "browser_session"
-    ? "浏览器自动化（已下线）"
-    : "Agent 对话任务";
+  return kind === "browser_session" ? "浏览器自动化" : "Agent 对话";
 }
 
 export function describePayload(payload: AutomationPayload): string {
@@ -354,7 +352,7 @@ export function resolveDeliveryOutputSchema(
 }
 
 export function deliveryModeLabel(job: AutomationJobRecord): string {
-  return job.delivery.mode === "announce" ? "任务完成后投递" : "关闭";
+  return job.delivery.mode === "announce" ? "运行完成后投递" : "关闭";
 }
 
 export function deliveryChannelLabel(channel?: string | null): string {
@@ -411,7 +409,7 @@ export function deliveryToneClass(
 export function describeServiceSkillTaskLine(
   serviceSkillContext: AutomationServiceSkillContext,
 ): string {
-  return `技能项: ${serviceSkillContext.title}`;
+  return `技能：${serviceSkillContext.title}`;
 }
 
 export function describeServiceSkillSlotPreview(

@@ -47,6 +47,85 @@ export const MainArea = styled.div<{ $compact?: boolean }>`
   box-shadow: none;
 `;
 
+export const AutoHideNavbarHost = styled.div`
+  position: absolute;
+  top: 2px;
+  left: 12px;
+  right: 12px;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  pointer-events: none;
+`;
+
+export const AutoHideNavbarBackdrop = styled.button<{ $visible: boolean }>`
+  position: absolute;
+  inset: 0;
+  z-index: 32;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(248, 250, 252, 0.34) 0%,
+    rgba(248, 250, 252, 0.52) 26%,
+    rgba(248, 250, 252, 0.6) 100%
+  );
+  backdrop-filter: blur(18px) saturate(1.04);
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  pointer-events: ${({ $visible }) => ($visible ? "auto" : "none")};
+  transition: opacity 0.18s ease;
+`;
+
+export const AutoHideNavbarHandle = styled.button<{ $visible: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-end;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(248, 250, 252, 0.94) 100%
+  );
+  color: ${({ $visible }) => ($visible ? "#0f172a" : "#64748b")};
+  box-shadow: 0 10px 24px -18px rgba(15, 23, 42, 0.22);
+  pointer-events: auto;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+
+  &:hover {
+    color: #0f172a;
+    border-color: rgba(148, 163, 184, 0.9);
+    transform: translateY(-1px);
+  }
+`;
+
+export const AutoHideNavbarPanel = styled.div<{ $visible: boolean }>`
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  max-height: ${({ $visible }) => ($visible ? "180px" : "0")};
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  transform: ${({ $visible }) =>
+    $visible ? "translateY(0)" : "translateY(-10px) scale(0.98)"};
+  transform-origin: top right;
+  pointer-events: ${({ $visible }) => ($visible ? "auto" : "none")};
+  transition:
+    max-height 0.18s ease,
+    opacity 0.18s ease,
+    transform 0.18s ease;
+`;
+
 function resolveContentSyncTone(status: SyncStatus): {
   text: string;
   background: string;

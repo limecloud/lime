@@ -69,8 +69,14 @@ function normalizeProviderType(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
+const CONFIGURED_PROVIDER_SELECTION_ALIASES: Record<string, string> = {
+  mimo: "xiaomi",
+  xiaomimimo: "xiaomi",
+};
+
 function normalizeConfiguredProviderSelector(value?: string | null): string {
-  return (value || "").trim().toLowerCase();
+  const normalized = (value || "").trim().toLowerCase();
+  return CONFIGURED_PROVIDER_SELECTION_ALIASES[normalized] || normalized;
 }
 
 function hasConfiguredKeylessAccess(

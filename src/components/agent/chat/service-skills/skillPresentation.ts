@@ -9,9 +9,9 @@ import type {
 } from "./types";
 
 const RUNNER_LABELS: Record<ServiceSkillRunnerType, string> = {
-  instant: "立即开始",
-  scheduled: "定时执行",
-  managed: "持续跟踪",
+  instant: "先做这一轮",
+  scheduled: "按时继续",
+  managed: "持续跟进",
 };
 
 const RUNNER_TONES: Record<ServiceSkillRunnerType, ServiceSkillTone> = {
@@ -21,15 +21,15 @@ const RUNNER_TONES: Record<ServiceSkillRunnerType, ServiceSkillTone> = {
 };
 
 const RUNNER_DESCRIPTIONS: Record<ServiceSkillRunnerType, string> = {
-  instant: "会直接在当前工作区生成首版结果，方便继续补充与改写。",
-  scheduled: "会先生成首轮结果，再按设定时间持续回流到生成工作台。",
-  managed: "会先生成首轮策略，再持续跟踪并回流后续结果与提醒。",
+  instant: "会先给出这一轮结果，接着就能继续改。",
+  scheduled: "会先给出第一轮结果，后面按设定时间继续带回来。",
+  managed: "会先给出这轮判断，后面持续带回新的结果和提醒。",
 };
 
 const LOCAL_ACTION_LABELS: Record<ServiceSkillRunnerType, string> = {
-  instant: "对话内补参",
-  scheduled: "创建任务",
-  managed: "创建跟踪",
+  instant: "开始这一步",
+  scheduled: "开始持续",
+  managed: "开始跟进",
 };
 
 const SERVICE_SKILL_TYPE_LABELS: Record<ServiceSkillType, string> = {
@@ -191,17 +191,18 @@ export function getServiceSkillRunnerDescription(
   item: ServiceSkillItem,
 ): string {
   if (resolveServiceSkillType(item) === "site") {
-    return "会接着当前浏览器里的已登录页面把这一步做完，并把结果带回当前工作区。";
+    return "会接着当前浏览器里已经打开的页面把这一步做完，并把结果带回生成。";
   }
   return RUNNER_DESCRIPTIONS[item.runnerType];
 }
 
 export function getServiceSkillActionLabel(item: ServiceSkillItem): string {
+  if (hasRequiredSlots(item)) {
+    return "补齐这一步";
+  }
+
   if (resolveServiceSkillType(item) === "site") {
-    if (hasRequiredSlots(item)) {
-      return "对话内补参";
-    }
-    return "开始执行";
+    return "接着继续";
   }
   return LOCAL_ACTION_LABELS[item.runnerType];
 }
@@ -223,19 +224,19 @@ export function getServiceSkillOutputDestination(
 
   if (isServiceSkillExecutableAsSiteAdapter(item)) {
     return item.siteCapabilityBinding.saveMode === "project_resource"
-      ? "结果会沉淀为当前项目资源，方便后续复用。"
-      : "结果会优先写回当前内容，继续在当前工作区整理。";
+      ? "结果会收进当前项目资料，后面还能继续拿来用。"
+      : "结果会先回到当前内容里，方便接着往下改。";
   }
 
   if (item.runnerType === "scheduled") {
-    return "首轮结果会进入当前工作区；后续结果会同步到生成工作台。";
+    return "第一轮结果会先回到生成，后面按时间继续接回来。";
   }
 
   if (item.runnerType === "managed") {
-    return "首轮策略会进入当前工作区；后续跟踪结果会持续回流。";
+    return "这轮判断会先回到生成，后面新的结果和提醒也会继续带回来。";
   }
 
-  return "结果会写回当前工作区，方便继续编辑。";
+  return "结果会回到生成，方便接着改。";
 }
 
 export function listServiceSkillDependencies(item: ServiceSkillItem): string[] {
@@ -264,13 +265,7 @@ export function getServiceSkillPrimaryActionLabel(
   canCreateAutomation: boolean,
 ): string {
   if (canCreateAutomation) {
-    return "创建任务并进入工作区";
+    return "开始持续";
   }
-  if (resolveServiceSkillType(skill) === "site") {
-    if (hasRequiredSlots(skill)) {
-      return "对话内补参";
-    }
-    return "开始执行";
-  }
-  return "进入工作区";
+  return getServiceSkillActionLabel(skill);
 }

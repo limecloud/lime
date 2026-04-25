@@ -33,7 +33,7 @@ describe("CuratedTaskBadge", () => {
     vi.useRealTimers();
   });
 
-  it("命中最近复盘偏好的结果模板时，应在激活 badge 上显影复盘提示", async () => {
+  it("命中最近判断偏好的结果模板时，应在激活 badge 上显影判断提示", async () => {
     const task = findCuratedTaskTemplateById("account-project-review");
     expect(task).not.toBeNull();
 
@@ -66,11 +66,11 @@ describe("CuratedTaskBadge", () => {
     const reviewSignal = container.querySelector(
       '[data-testid="curated-task-badge-review-signal"]',
     );
-    expect(reviewSignal?.textContent).toContain("围绕最近复盘");
+    expect(reviewSignal?.textContent).toContain("围绕最近判断");
     expect(reviewSignal?.textContent).toContain("短视频编排");
   });
 
-  it("未命中复盘偏好的结果模板时，不应显影复盘提示", async () => {
+  it("未命中最近判断偏好的结果模板时，不应显影判断提示", async () => {
     const task = findCuratedTaskTemplateById("daily-trend-briefing");
     expect(task).not.toBeNull();
 
@@ -126,7 +126,7 @@ describe("CuratedTaskBadge", () => {
                 "account-project-review": {
                   project_goal: "AI 内容周报",
                   existing_results:
-                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备结果对齐包，再决定是否继续放大。 更适合去向：结果对齐",
                 },
               },
             },
@@ -144,7 +144,7 @@ describe("CuratedTaskBadge", () => {
     );
 
     expect(statusPill?.textContent).toContain("当前判断：先补复核与修复");
-    expect(nextPill?.textContent).toContain("更适合去向：周会复盘");
+    expect(nextPill?.textContent).toContain("更适合去向：结果对齐");
     expect(statusPill?.getAttribute("title")).toContain("当前结果基线：AI 内容周报");
   });
 
@@ -169,7 +169,7 @@ describe("CuratedTaskBadge", () => {
                 "account-project-review": {
                   project_goal: "AI 内容周报",
                   existing_results:
-                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备周会复盘包，再决定是否继续放大。 更适合去向：周会复盘",
+                    "这轮运行已产出项目结果 当前卡点：复核阻塞 当前判断：先补复核与修复 经营动作：优先准备结果对齐包，再决定是否继续放大。 更适合去向：结果对齐",
                 },
               },
             },
@@ -187,11 +187,11 @@ describe("CuratedTaskBadge", () => {
     );
 
     expect(statusPill?.textContent).toContain("当前判断：先补复核与修复");
-    expect(nextPill?.textContent).toContain("更适合去向：周会复盘");
+    expect(nextPill?.textContent).toContain("更适合去向：结果对齐");
     expect(statusPill?.getAttribute("title")).toContain("当前结果基线：AI 内容周报");
   });
 
-  it("当前模板不是最近复盘首选时，应提供改用推荐模板的动作", async () => {
+  it("当前模板不是最近判断首选时，应提供改用推荐模板的动作", async () => {
     const task = findCuratedTaskTemplateById("daily-trend-briefing");
     expect(task).not.toBeNull();
     const onApplyReviewSuggestion = vi.fn();

@@ -180,7 +180,7 @@ describe("MediaServicesSettings", () => {
     expect(text).toContain("助理信息生成助理");
     expect(text).toContain("输入自动补全助理");
     expect(text).toContain("提示词重写助理");
-    expect(text).toContain("资源库提词重写助理");
+    expect(text).toContain("项目资料提词重写助理");
     expect(text).toContain(
       "当前输入补全链只消费启停开关，避免继续暴露未接入执行面的模型选择。",
     );
@@ -266,11 +266,11 @@ describe("MediaServicesSettings", () => {
     );
   });
 
-  it("添加资源库自定义提示词后应写入 service_models 配置", async () => {
+  it("添加项目资料自定义提示词后应写入 service_models 配置", async () => {
     const container = renderComponent();
     await flushEffects();
 
-    const section = findSection(container, "资源库提词重写助理");
+    const section = findSection(container, "项目资料提词重写助理");
     const addButton = Array.from(section.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("添加自定义提示词"),
     );
@@ -289,7 +289,7 @@ describe("MediaServicesSettings", () => {
         HTMLTextAreaElement.prototype,
         "value",
       )?.set;
-      setter?.call(textarea, "请优先使用资料库上下文重写提问");
+      setter?.call(textarea, "请优先使用项目资料上下文重写提问");
       textarea?.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
       textarea?.dispatchEvent(new Event("input", { bubbles: true }));
       textarea?.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
@@ -302,7 +302,7 @@ describe("MediaServicesSettings", () => {
       savedConfig.workspace_preferences.service_models.resource_prompt_rewrite,
     ).toEqual(
       expect.objectContaining({
-        customPrompt: "请优先使用资料库上下文重写提问",
+        customPrompt: "请优先使用项目资料上下文重写提问",
       }),
     );
   });

@@ -12,12 +12,16 @@ use crate::commands::auxiliary_model_selection::{
 };
 use crate::config::GlobalConfigManagerState;
 use crate::database::DbConnection;
+use crate::services::runtime_auxiliary_projection_service::{
+    project_auxiliary_runtime_to_parent_session, AuxiliaryRuntimeProjectionInput,
+    AuxiliaryRuntimeProjectionResult,
+};
 use crate::AppState;
 use aster::conversation::message::Message;
 use futures::StreamExt;
 use lime_agent::merge_system_prompt_with_runtime_agents;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 const TITLE_FALLBACK_PROVIDER_CHAIN: [(&str, &str); 4] = [
@@ -370,6 +374,7 @@ pub async fn agent_get_process_status(
 /// 根据对话内容生成一个简洁的标题
 #[tauri::command]
 pub async fn agent_generate_title(
+    app: AppHandle,
     agent_state: State<'_, AsterAgentState>,
     db: State<'_, DbConnection>,
     config_manager: State<'_, GlobalConfigManagerState>,
@@ -407,27 +412,57 @@ pub async fn agent_generate_title(
     let execution_runtime =
         AsterAgentWrapper::get_runtime_session_execution_runtime(&db, &auxiliary_session_id).await;
 
-    match title_result {
-        Ok(title) => Ok(AgentGeneratedTitleResult {
+    let result = match title_result {
+        Ok(title) => AgentGeneratedTitleResult {
             title,
             session_id: Some(auxiliary_session_id),
             execution_runtime,
             used_fallback: false,
             fallback_reason: None,
-        }),
+        },
         Err(error) => {
             tracing::warn!(
                 "[AgentTitle] 智能标题生成失败，已回退摘要标题: kind={}, error={}",
                 resolved_title_kind,
                 error
             );
-            Ok(AgentGeneratedTitleResult {
+            AgentGeneratedTitleResult {
                 title: build_fallback_title(&source_text, &resolved_title_kind),
                 session_id: Some(auxiliary_session_id),
                 execution_runtime,
                 used_fallback: true,
                 fallback_reason: Some(error),
-            })
+            }
+        }
+    };
+
+    if let (Some(parent_session_id), Some(auxiliary_session_id)) =
+        (resolved_session_id.as_deref(), result.session_id.as_deref())
+    {
+        if let Err(error) = project_auxiliary_runtime_to_parent_session(
+            &app,
+            &db,
+            AuxiliaryRuntimeProjectionInput {
+                parent_session_id: parent_session_id.to_string(),
+                auxiliary_session_id: auxiliary_session_id.to_string(),
+                execution_runtime: result.execution_runtime.clone(),
+                result: AuxiliaryRuntimeProjectionResult::TitleGeneration {
+                    title: result.title.clone(),
+                    used_fallback: result.used_fallback,
+                    fallback_reason: result.fallback_reason.clone(),
+                },
+            },
+        )
+        .await
+        {
+            tracing::warn!(
+                "[AgentTitle] 投影父会话辅助运行时失败，已降级继续: parent_session_id={}, auxiliary_session_id={}, error={}",
+                parent_session_id,
+                auxiliary_session_id,
+                error
+            );
         }
     }
+
+    Ok(result)
 }

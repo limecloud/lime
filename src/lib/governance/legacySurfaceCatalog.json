@@ -2051,7 +2051,7 @@
     {
       "id": "frontend-image-page-surface",
       "classification": "dead-candidate",
-      "description": "前端不允许恢复独立插图页面 surface，图片入口只允许继续向 Claw @素材 与资料库图片视图收敛",
+      "description": "前端不允许恢复独立插图页面 surface，图片入口只允许继续向 Claw @素材 与项目资料图片视图收敛",
       "allowedPaths": [],
       "patterns": [],
       "regexPatterns": [

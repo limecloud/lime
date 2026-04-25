@@ -28,6 +28,46 @@ interface AgentSessionCachedSnapshotRecord
 }
 
 const MAX_CACHED_SESSION_SNAPSHOTS = 12;
+const MAX_CACHED_SESSION_MESSAGES = 32;
+const MAX_CACHED_SESSION_TURNS = 24;
+const MAX_CACHED_SESSION_ITEMS = 96;
+
+function trimCachedSnapshot(
+  snapshot: AgentSessionCachedSnapshot,
+): AgentSessionCachedSnapshot {
+  const messages = normalizeHistoryMessages(
+    snapshot.messages.slice(-MAX_CACHED_SESSION_MESSAGES),
+  );
+  const threadTurns = snapshot.threadTurns.slice(-MAX_CACHED_SESSION_TURNS);
+  const retainedTurnIds = new Set(
+    threadTurns
+      .map((turn) => (typeof turn.id === "string" ? turn.id.trim() : ""))
+      .filter(Boolean),
+  );
+  const threadItems = filterConversationThreadItems(
+    normalizeLegacyThreadItems(
+      snapshot.threadItems
+        .filter((item) => {
+          const turnId =
+            typeof item.turn_id === "string" ? item.turn_id.trim() : "";
+          return !turnId || retainedTurnIds.has(turnId);
+        })
+        .slice(-MAX_CACHED_SESSION_ITEMS),
+    ),
+  );
+  const currentTurnId =
+    typeof snapshot.currentTurnId === "string" &&
+    retainedTurnIds.has(snapshot.currentTurnId)
+      ? snapshot.currentTurnId
+      : null;
+
+  return {
+    messages,
+    threadTurns,
+    threadItems,
+    currentTurnId,
+  };
+}
 
 function normalizeCachedMessages(value: unknown): Message[] {
   if (!Array.isArray(value)) {
@@ -87,12 +127,16 @@ function normalizeCachedSnapshotRecord(
   }
 
   const record = value as Record<string, unknown>;
-  return {
+  const snapshot = trimCachedSnapshot({
     messages: normalizeCachedMessages(record.messages),
     threadTurns: normalizeCachedThreadTurns(record.threadTurns),
     threadItems: normalizeCachedThreadItems(record.threadItems),
     currentTurnId:
       typeof record.currentTurnId === "string" ? record.currentTurnId : null,
+  });
+
+  return {
+    ...snapshot,
     updatedAt:
       typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt)
         ? record.updatedAt
@@ -127,10 +171,11 @@ export function saveAgentSessionCachedSnapshot(
 ): void {
   const cacheKey = getScopedStorageKey(workspaceId, "aster_session_snapshots");
   const currentMap = loadTransient<Record<string, unknown>>(cacheKey, {});
+  const trimmedSnapshot = trimCachedSnapshot(snapshot);
   const nextMap = {
     ...currentMap,
     [sessionId]: {
-      ...snapshot,
+      ...trimmedSnapshot,
       updatedAt: Date.now(),
     } satisfies AgentSessionCachedSnapshotRecord,
   };

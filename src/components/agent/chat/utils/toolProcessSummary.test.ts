@@ -98,6 +98,13 @@ describe("toolProcessSummary", () => {
   });
 
   it("应区分不同任务与计划工具的过程文案", () => {
+    const taskCreateNarrative = resolveToolProcessNarrative(
+      createToolCall({
+        name: "TaskCreateTool",
+        status: "completed",
+        arguments: JSON.stringify({ title: "每日趋势摘要" }),
+      }),
+    );
     const taskListNarrative = resolveToolProcessNarrative(
       createToolCall({
         name: "TaskListTool",
@@ -124,6 +131,8 @@ describe("toolProcessSummary", () => {
       }),
     );
 
+    expect(taskCreateNarrative.preSummary).toBe("先开始 每日趋势摘要");
+    expect(taskCreateNarrative.postSummary).toBe("已开始 每日趋势摘要");
     expect(taskListNarrative.preSummary).toBe("先查看任务列表");
     expect(taskListNarrative.postSummary).toBe("已查看任务列表");
     expect(taskOutputNarrative.preSummary).toBe("先查看任务结果");

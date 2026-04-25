@@ -33,7 +33,7 @@ export const Container = styled.div`
   margin: 0;
 
   &.floating-composer {
-    padding: 0 0 4px;
+    padding: 0 0 6px;
   }
 `;
 
@@ -66,13 +66,19 @@ export const InputBarContainer = styled.div`
   }
 
   &.floating-composer {
-    border-radius: 20px;
-    padding: 16px 18px 14px 16px;
-    background: linear-gradient(180deg, #fcfffc 0%, #f6fbf7 100%);
-    border-color: rgba(110, 231, 183, 0.6);
+    border-radius: 34px;
+    padding: 20px 24px 18px 22px;
+    background:
+      radial-gradient(
+        circle at top right,
+        rgba(220, 252, 231, 0.48),
+        rgba(255, 255, 255, 0) 34%
+      ),
+      linear-gradient(180deg, #ffffff 0%, #f7fcf8 100%);
+    border-color: rgba(110, 231, 183, 0.84);
     box-shadow:
-      0 16px 32px rgba(22, 101, 52, 0.05),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      0 28px 56px -38px rgba(22, 101, 52, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88);
   }
 
   &.floating-composer.floating-collapsed {
@@ -85,7 +91,7 @@ export const InputBarContainer = styled.div`
     border-color: rgba(74, 222, 128, 0.7);
     box-shadow:
       0 0 0 3px rgba(74, 222, 128, 0.25),
-      0 18px 34px rgba(22, 101, 52, 0.08),
+      0 28px 56px -34px rgba(22, 101, 52, 0.24),
       inset 0 1px 0 rgba(255, 255, 255, 0.88);
   }
 `;
@@ -93,7 +99,7 @@ export const InputBarContainer = styled.div`
 export const MainRow = styled.div`
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 
   &.floating-composer.floating-collapsed {
@@ -126,9 +132,9 @@ export const StyledTextarea = styled.textarea`
   min-height: 34px;
 
   &.floating-composer {
-    font-size: 16px;
-    line-height: 1.65;
-    min-height: 98px;
+    font-size: 17px;
+    line-height: 1.78;
+    min-height: 126px;
   }
 
   &.floating-composer.floating-collapsed {
@@ -140,7 +146,7 @@ export const StyledTextarea = styled.textarea`
   }
 
   &.composer-expanded {
-    min-height: 188px;
+    min-height: 210px;
   }
 
   &::placeholder {
@@ -170,8 +176,8 @@ export const BottomBar = styled.div`
   border-top: 1px solid rgba(148, 163, 184, 0.22);
 
   &.floating-composer {
-    padding-top: 10px;
-    margin-top: 10px;
+    padding-top: 15px;
+    margin-top: 15px;
     gap: 10px;
   }
 
@@ -293,8 +299,8 @@ export const MetaToggleButton = styled.button<{
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 28px;
-  padding: 0 12px 0 10px;
+  min-height: 32px;
+  padding: 0 13px 0 11px;
   border-radius: 999px;
   border: 1px solid
     ${({ $checked }) =>

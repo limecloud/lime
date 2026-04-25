@@ -660,7 +660,7 @@ function ProbePanel({
     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <div className="text-sm font-medium text-slate-900">联调检查</div>
+          <div className="text-sm font-medium text-slate-900">接入检查</div>
           <p className="text-xs leading-5 text-slate-500">{description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -668,7 +668,7 @@ function ProbePanel({
             {busy ? "检测中..." : "检测连接"}
           </ActionButton>
           {onOpenAdvanced ? (
-            <ActionButton onClick={onOpenAdvanced}>查看日志排查</ActionButton>
+            <ActionButton onClick={onOpenAdvanced}>查看日志与检查</ActionButton>
           ) : null}
         </div>
       </div>
@@ -889,7 +889,7 @@ function TelegramConfigDialog({
             setDraft((current) => ({ ...current, enabled: checked }))
           }
           title="启用 Telegram"
-          description="机器人 Token、用户范围和联调都在这里。"
+          description="机器人 Token、用户范围和接入检查都在这里。"
         />
         <SecretField
           label="机器人 Token"
@@ -1101,7 +1101,7 @@ function FeishuConfigDialog({
               </div>
               <p className="text-sm leading-6 text-slate-600">
                 {hasCredentials
-                  ? "凭证已就绪，可直接联调。"
+                  ? "凭证已就绪，可直接检查接入。"
                   : "先填应用 ID 和应用密钥。"}
               </p>
             </div>
@@ -2539,27 +2539,27 @@ export function ImConfigPage() {
             <div className="max-w-2xl space-y-3">
               <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
                 <Sparkles className="h-3.5 w-3.5" />
-                能力 / 消息渠道
+                系统入口
               </span>
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                    把常用 IM 接到 Lime
+                    消息渠道
                   </h1>
                   <WorkbenchInfoTip
                     ariaLabel="消息渠道说明"
-                    content="首页只放重点入口。Telegram、飞书、微信在这里直达；联调检查放进各自配置弹窗，网关和日志统一收到下方高级区。"
+                    content="把 Telegram、飞书、微信接进 Lime，让消息接收、回复和结果投递继续留在熟悉客户端；接入检查放在各自配置里，日志和运行检查按需展开。"
                     tone="mint"
                   />
                 </div>
                 <p className="max-w-3xl text-sm leading-7 text-slate-600">
-                  让 Telegram、飞书、微信等外部客户端也能连到 Lime。
+                  把外部消息接进 Lime，让消息接收、回复和结果投递继续留在熟悉客户端。
                 </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-                3 个主入口
+                3 个常用渠道
               </span>
               <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
                 已启用 {enabledChannelCount} 个
@@ -2568,7 +2568,7 @@ export function ImConfigPage() {
                 微信 {wechatAccountCount} 个账号
               </span>
               <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-                排障在下方高级区
+                日志与检查可展开
               </span>
             </div>
           </div>
@@ -2716,33 +2716,35 @@ export function ImConfigPage() {
             ref={advancedToolsRef}
             className="rounded-[28px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5"
           >
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className="flex w-full items-center justify-between px-6 py-5 text-left"
-              >
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight text-slate-900">
-                    <span>高级排障</span>
-                    <WorkbenchInfoTip
-                      ariaLabel="高级排障说明"
-                      content="网关、日志和运行状态都收在这里。"
-                      tone="slate"
-                    />
+            <div className="flex items-start gap-3 px-6 py-5">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center justify-between text-left"
+                >
+                  <div className="space-y-1">
+                    <div className="text-lg font-semibold tracking-tight text-slate-900">
+                      日志与检查
+                    </div>
                   </div>
-                </div>
-                {debugToolsOpen ? (
-                  <ChevronDown className="h-5 w-5 text-slate-500" />
-                ) : (
-                  <ChevronRight className="h-5 w-5 text-slate-500" />
-                )}
-              </button>
-            </CollapsibleTrigger>
+                  {debugToolsOpen ? (
+                    <ChevronDown className="h-5 w-5 text-slate-500" />
+                  ) : (
+                    <ChevronRight className="h-5 w-5 text-slate-500" />
+                  )}
+                </button>
+              </CollapsibleTrigger>
+              <WorkbenchInfoTip
+                ariaLabel="日志与检查说明"
+                content="接入日志和运行检查都在这里，平时不用一直展开。"
+                tone="slate"
+              />
+            </div>
             <CollapsibleContent className="border-t border-slate-100 px-6 py-5">
               <Suspense
                 fallback={
                   <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500">
-                    正在加载排障工具...
+                    正在加载日志与检查...
                   </div>
                 }
               >

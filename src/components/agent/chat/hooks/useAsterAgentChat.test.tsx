@@ -3601,7 +3601,9 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
       },
     ];
 
-    mockListAgentRuntimeSessions.mockImplementation(async () => currentSessions);
+    mockListAgentRuntimeSessions.mockImplementation(
+      async () => currentSessions,
+    );
     mockCreateAgentRuntimeSession.mockImplementation(async () => {
       currentSessions = [
         {
@@ -3659,7 +3661,14 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("继续发送，必须留在新会话", [], false, false, false, "react");
+          .sendMessage(
+            "继续发送，必须留在新会话",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledWith(
@@ -3668,6 +3677,74 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
           session_id: createdSessionId,
         }),
       );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("手动切换话题时不应继续停留在自动恢复占位态", async () => {
+    const workspaceId = "ws-manual-topic-switch-hide-auto-restore";
+    const listSessionsDeferred = createDeferred<
+      Array<{
+        id: string;
+        name: string;
+        created_at: number;
+        messages_count: number;
+        workspace_id: string;
+      }>
+    >();
+    const topicDetailDeferred = createDeferred<{
+      id: string;
+      messages: [];
+      execution_strategy: "react";
+    }>();
+
+    sessionStorage.setItem(
+      `aster_curr_sessionId_${workspaceId}`,
+      JSON.stringify("topic-auto-restore"),
+    );
+    mockListAgentRuntimeSessions.mockImplementation(
+      async () => listSessionsDeferred.promise,
+    );
+    mockGetAgentRuntimeSession.mockImplementation(async (topicId: string) => {
+      if (topicId === "topic-manual") {
+        return topicDetailDeferred.promise;
+      }
+
+      return {
+        id: topicId,
+        messages: [],
+        execution_strategy: "react" as const,
+      };
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      expect(harness.getValue().isAutoRestoringSession).toBe(true);
+
+      let switchPromise: Promise<unknown> | null = null;
+      await act(async () => {
+        switchPromise = harness.getValue().switchTopic("topic-manual");
+        await Promise.resolve();
+      });
+
+      expect(harness.getValue().isAutoRestoringSession).toBe(false);
+
+      await act(async () => {
+        listSessionsDeferred.resolve([]);
+        topicDetailDeferred.resolve({
+          id: "topic-manual",
+          messages: [],
+          execution_strategy: "react",
+        });
+        await switchPromise;
+      });
+      await flushEffects();
+
+      expect(harness.getValue().sessionId).toBe("topic-manual");
+      expect(harness.getValue().isAutoRestoringSession).toBe(false);
     } finally {
       harness.unmount();
     }
@@ -5893,6 +5970,11 @@ describe("useAsterAgentChat 偏好持久化", () => {
       await act(async () => {
         await harness.getValue().switchTopic("topic-a");
       });
+      await act(async () => {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 0);
+        });
+      });
       await flushEffects();
 
       const value = harness.getValue();
@@ -6127,7 +6209,19 @@ describe("useAsterAgentChat 偏好持久化", () => {
       await act(async () => {
         await harness.getValue().switchTopic("topic-a");
       });
-      await flushEffects();
+      for (
+        let attempt = 0;
+        attempt < 3 &&
+        harness.getValue().messages[1]?.thinkingContent !== undefined;
+        attempt += 1
+      ) {
+        await act(async () => {
+          await new Promise((resolve) => {
+            window.setTimeout(resolve, 0);
+          });
+        });
+        await flushEffects();
+      }
 
       const value = harness.getValue();
       expect(value.messages).toHaveLength(2);
@@ -6143,6 +6237,129 @@ describe("useAsterAgentChat 偏好持久化", () => {
       expect(
         value.messages.some((message) => message.content === "这是另一个话题"),
       ).toBe(false);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("切换到命中过往快照的话题时应先立即回放本地 tail，再等待远端详情补全", async () => {
+    const workspaceId = "ws-topic-history-warm-restore";
+    const createdAt = Math.floor(Date.now() / 1000);
+    const deferredTopicDetail = createDeferred<{
+      id: string;
+      messages: Array<{
+        role: "assistant" | "user";
+        timestamp: number;
+        content: Array<{ type: "text"; text: string }>;
+      }>;
+      turns: [];
+      items: [];
+      queued_turns: [];
+      execution_strategy: "react";
+    }>();
+
+    seedSessionSnapshots(workspaceId, {
+      "topic-a": {
+        messages: [
+          {
+            id: "topic-a-cached-user",
+            role: "user",
+            content: "继续完善上一个方案",
+            timestamp: "2026-04-24T10:00:00.000Z",
+          },
+          {
+            id: "topic-a-cached-assistant",
+            role: "assistant",
+            content: "这是本地快照里的最近结果。",
+            timestamp: "2026-04-24T10:00:02.000Z",
+          },
+        ],
+        threadTurns: [],
+        threadItems: [],
+        currentTurnId: null,
+        updatedAt: Date.now(),
+      },
+    });
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: "topic-a",
+        name: "历史任务 A",
+        created_at: createdAt,
+        messages_count: 2,
+      },
+    ]);
+    mockGetAgentRuntimeSession.mockImplementation(async (topicId: string) => {
+      if (topicId === "topic-a") {
+        return deferredTopicDetail.promise;
+      }
+
+      return {
+        id: topicId,
+        messages: [],
+        turns: [],
+        items: [],
+        queued_turns: [],
+        execution_strategy: "react" as const,
+      };
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      let switchPromise: Promise<unknown> | null = null;
+      await act(async () => {
+        switchPromise = harness.getValue().switchTopic("topic-a");
+        await Promise.resolve();
+      });
+
+      expect(harness.getValue().sessionId).toBe("topic-a");
+      expect(harness.getValue().messages).toHaveLength(2);
+      expect(harness.getValue().messages[1]?.content).toBe(
+        "这是本地快照里的最近结果。",
+      );
+      await expect(switchPromise).resolves.toBeUndefined();
+
+      await act(async () => {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 0);
+        });
+      });
+
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        deferredTopicDetail.resolve({
+          id: "topic-a",
+          messages: [
+            {
+              role: "user",
+              timestamp: Math.floor(
+                new Date("2026-04-24T10:00:01.000Z").getTime() / 1000,
+              ),
+              content: [{ type: "text", text: "继续完善上一个方案" }],
+            },
+            {
+              role: "assistant",
+              timestamp: Math.floor(
+                new Date("2026-04-24T10:00:05.000Z").getTime() / 1000,
+              ),
+              content: [{ type: "text", text: "这是远端补全后的最终结果。" }],
+            },
+          ],
+          turns: [],
+          items: [],
+          queued_turns: [],
+          execution_strategy: "react",
+        });
+      });
+      await flushEffects();
+
+      expect(harness.getValue().messages.at(-1)?.content).toBe(
+        "这是远端补全后的最终结果。",
+      );
     } finally {
       harness.unmount();
     }

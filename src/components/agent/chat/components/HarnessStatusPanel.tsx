@@ -208,6 +208,7 @@ type HarnessSectionKey =
   | "runtime"
   | "handoff"
   | "reliability"
+  | "runtime-facts"
   | "inventory"
   | "approvals"
   | "writes"
@@ -2074,6 +2075,47 @@ export function HarnessStatusPanel({
       turns,
     ],
   );
+  const runtimeFactSummary = useMemo(() => {
+    const decisionReason =
+      threadRead?.decision_reason ||
+      ((threadRead?.runtime_summary as { decisionReason?: string | null } | null)
+        ?.decisionReason ??
+        null);
+    const fallbackChain = Array.isArray(threadRead?.fallback_chain)
+      ? threadRead?.fallback_chain || []
+      : Array.isArray(
+            (threadRead?.runtime_summary as { fallbackChain?: string[] | null } | null)
+              ?.fallbackChain,
+          )
+        ? ((threadRead?.runtime_summary as { fallbackChain?: string[] | null })
+            .fallbackChain || [])
+        : [];
+    const oemPolicy = threadRead?.oem_policy as
+      | {
+          locked?: boolean | null;
+          quotaLow?: boolean | null;
+          defaultModel?: string | null;
+          selectedModel?: string | null;
+          quotaStatus?: string | null;
+          offerState?: string | null;
+          providerSource?: string | null;
+          providerKey?: string | null;
+          fallbackToLocalAllowed?: boolean | null;
+          canInvoke?: boolean | null;
+          tenantId?: string | null;
+        }
+      | null;
+
+    if (!decisionReason && fallbackChain.length === 0 && !oemPolicy) {
+      return null;
+    }
+
+    return {
+      decisionReason,
+      fallbackChain,
+      oemPolicy,
+    };
+  }, [threadRead]);
 
   const fileFilterOptions = useMemo(
     () =>
@@ -4551,6 +4593,97 @@ export function HarnessStatusPanel({
                     teamMemorySnapshot={teamMemorySnapshot}
                     diagnosticRuntimeContext={diagnosticRuntimeContext}
                   />
+                </Section>
+              ) : null}
+
+              {runtimeFactSummary ? (
+                <Section
+                  sectionKey="runtime-facts"
+                  title="运行时事实"
+                  badge="current"
+                  registerRef={registerSectionRef}
+                >
+                  <div className="space-y-3 rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-4">
+                    {runtimeFactSummary.decisionReason ? (
+                      <div className="text-sm text-slate-700">
+                        <span className="font-medium text-foreground">
+                          决策原因：
+                        </span>
+                        {runtimeFactSummary.decisionReason}
+                      </div>
+                    ) : null}
+
+                    {runtimeFactSummary.fallbackChain.length > 0 ? (
+                      <div className="text-sm text-slate-700">
+                        <span className="font-medium text-foreground">
+                          回退链：
+                        </span>
+                        {runtimeFactSummary.fallbackChain.join(" → ")}
+                      </div>
+                    ) : null}
+
+                    {runtimeFactSummary.oemPolicy ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {runtimeFactSummary.oemPolicy.locked ? (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-300 bg-white text-amber-700"
+                            >
+                              OEM 托管锁定
+                            </Badge>
+                          ) : null}
+                          {runtimeFactSummary.oemPolicy.quotaLow ? (
+                            <Badge
+                              variant="outline"
+                              className="border-orange-300 bg-white text-orange-700"
+                            >
+                              OEM 额度偏低
+                            </Badge>
+                          ) : null}
+                          {runtimeFactSummary.oemPolicy.canInvoke === false ? (
+                            <Badge
+                              variant="outline"
+                              className="border-rose-300 bg-white text-rose-700"
+                            >
+                              OEM 当前不可调用
+                            </Badge>
+                          ) : null}
+                          {runtimeFactSummary.oemPolicy.fallbackToLocalAllowed === true ? (
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-300 bg-white text-emerald-700"
+                            >
+                              允许回退本地
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {runtimeFactSummary.oemPolicy.defaultModel ||
+                          runtimeFactSummary.oemPolicy.selectedModel ? (
+                            <span>
+                              OEM 模型 {runtimeFactSummary.oemPolicy.defaultModel || runtimeFactSummary.oemPolicy.selectedModel}
+                            </span>
+                          ) : null}
+                          {runtimeFactSummary.oemPolicy.quotaStatus ? (
+                            <span>额度状态 {runtimeFactSummary.oemPolicy.quotaStatus}</span>
+                          ) : null}
+                          {runtimeFactSummary.oemPolicy.offerState ? (
+                            <span>策略状态 {runtimeFactSummary.oemPolicy.offerState}</span>
+                          ) : null}
+                          {runtimeFactSummary.oemPolicy.providerSource ? (
+                            <span>来源 {runtimeFactSummary.oemPolicy.providerSource}</span>
+                          ) : null}
+                          {runtimeFactSummary.oemPolicy.providerKey ? (
+                            <span>Provider Key {runtimeFactSummary.oemPolicy.providerKey}</span>
+                          ) : null}
+                          {runtimeFactSummary.oemPolicy.tenantId ? (
+                            <span>租户 {runtimeFactSummary.oemPolicy.tenantId}</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </Section>
               ) : null}
 

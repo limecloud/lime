@@ -446,7 +446,7 @@ export function useInputbarController({
         };
       });
       setCuratedTaskEditorPrefillHint(
-        "已按最近复盘切到更适合的结果模板，你可以继续改后再发。",
+        "已按最近判断切到更适合的结果模板，你可以继续改后再发。",
       );
     },
     [],
@@ -515,6 +515,10 @@ export function useInputbarController({
   const handleSelectInputCapability = (
     capability: InputCapabilitySelection,
   ) => {
+    if (capability.kind === "service_skill") {
+      handleSelectServiceSkill(capability.skill);
+      return;
+    }
     setActiveCapability(capability);
   };
   const skillSelection = buildSkillSelectionProps({

@@ -47,6 +47,11 @@ describe("mediaTasks API", () => {
       createImageGenerationTaskArtifact({
         projectRootPath: "/workspace",
         prompt: "未来感青柠实验室",
+        titleGenerationResult: {
+          title: "未来感青柠实验室",
+          sessionId: "session-title-1",
+          usedFallback: false,
+        },
         mode: "generate",
         count: 1,
       }),
@@ -63,6 +68,11 @@ describe("mediaTasks API", () => {
         request: {
           projectRootPath: "/workspace",
           prompt: "未来感青柠实验室",
+          titleGenerationResult: {
+            title: "未来感青柠实验室",
+            sessionId: "session-title-1",
+            usedFallback: false,
+          },
           mode: "generate",
           count: 1,
         },

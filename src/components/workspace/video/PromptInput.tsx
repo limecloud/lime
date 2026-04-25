@@ -238,7 +238,7 @@ export const PromptInput: React.FC<PromptInputProps> = memo(
                 <InputTitle>描述你想生成的画面、镜头与节奏</InputTitle>
                 <WorkbenchInfoTip
                   ariaLabel="提示词说明"
-                  content="先写主体、场景和运动方式，再补充光线、氛围或镜头语言，生成结果会自动回流到项目素材。"
+                  content="先写主体、场景和运动方式，再补充光线、氛围或镜头语言，生成结果会自动回流到项目资料。"
                   tone="sky"
                 />
               </TitleRow>

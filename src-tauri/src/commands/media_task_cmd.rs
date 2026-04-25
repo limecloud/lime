@@ -44,6 +44,8 @@ pub struct CreateImageGenerationTaskArtifactRequest {
     pub prompt: String,
     #[serde(default)]
     pub title: Option<String>,
+    #[serde(default, alias = "title_generation_result")]
+    pub title_generation_result: Option<serde_json::Value>,
     #[serde(default)]
     pub mode: Option<String>,
     #[serde(default)]
@@ -218,6 +220,15 @@ fn normalize_reference_images(reference_images: Vec<String>) -> Vec<String> {
         normalized.push(trimmed.to_string());
     }
     normalized
+}
+
+fn normalize_optional_json_object(value: Option<serde_json::Value>) -> Option<serde_json::Value> {
+    match value {
+        Some(serde_json::Value::Object(record)) if !record.is_empty() => {
+            Some(serde_json::Value::Object(record))
+        }
+        _ => None,
+    }
 }
 
 fn normalize_storyboard_slots(
@@ -588,6 +599,8 @@ pub(crate) fn create_image_generation_task_artifact_inner(
     let anchor_hint = normalize_optional_string(request.anchor_hint.clone());
     let anchor_section_title = normalize_optional_string(request.anchor_section_title.clone());
     let anchor_text = normalize_optional_string(request.anchor_text.clone());
+    let title_generation_result =
+        normalize_optional_json_object(request.title_generation_result.clone());
     let target_output_id = normalize_optional_string(request.target_output_id.clone());
     let target_output_ref_id = normalize_optional_string(request.target_output_ref_id.clone());
     let normalized_reference_images = normalize_reference_images(request.reference_images.clone());
@@ -630,6 +643,7 @@ pub(crate) fn create_image_generation_task_artifact_inner(
             "anchor_hint": anchor_hint,
             "anchor_section_title": anchor_section_title,
             "anchor_text": anchor_text,
+            "title_generation_result": title_generation_result,
             "target_output_id": target_output_id,
             "target_output_ref_id": target_output_ref_id,
             "reference_images": normalized_reference_images,
@@ -774,6 +788,15 @@ mod tests {
             project_root_path: temp_dir.path().to_string_lossy().to_string(),
             prompt: "未来感青柠实验室".to_string(),
             title: Some("青柠主视觉".to_string()),
+            title_generation_result: Some(json!({
+                "title": "青柠主视觉",
+                "sessionId": "title-session-1",
+                "executionRuntime": {
+                    "route": "auxiliary.generate_title"
+                },
+                "usedFallback": false,
+                "fallbackReason": null
+            })),
             mode: Some("variation".to_string()),
             raw_text: Some("@配图 变体 #img-1 未来感青柠实验室".to_string()),
             layout_hint: Some("storyboard_3x3".to_string()),
@@ -822,6 +845,15 @@ mod tests {
                 project_root_path: temp_dir.path().to_string_lossy().to_string(),
                 prompt: "未来感青柠实验室".to_string(),
                 title: Some("青柠主视觉".to_string()),
+                title_generation_result: Some(json!({
+                    "title": "青柠主视觉",
+                    "sessionId": "title-session-2",
+                    "executionRuntime": {
+                        "route": "auxiliary.generate_title"
+                    },
+                    "usedFallback": false,
+                    "fallbackReason": null
+                })),
                 mode: Some("variation".to_string()),
                 raw_text: Some("@配图 变体 #img-1 未来感青柠实验室".to_string()),
                 layout_hint: Some("storyboard_3x3".to_string()),
@@ -874,6 +906,18 @@ mod tests {
         assert_eq!(
             first.record.payload.get("entry_source"),
             Some(&json!("at_image_command"))
+        );
+        assert_eq!(
+            first.record.payload.get("title_generation_result"),
+            Some(&json!({
+                "title": "青柠主视觉",
+                "sessionId": "title-session-1",
+                "executionRuntime": {
+                    "route": "auxiliary.generate_title"
+                },
+                "usedFallback": false,
+                "fallbackReason": null
+            }))
         );
         assert_eq!(
             first.record.payload.get("reference_images"),
@@ -958,6 +1002,7 @@ mod tests {
                 project_root_path: temp_dir.path().to_string_lossy().to_string(),
                 prompt: "用于正文的未来感实验室配图".to_string(),
                 title: Some("正文配图".to_string()),
+                title_generation_result: None,
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 用于正文的未来感实验室配图".to_string()),
                 layout_hint: None,
@@ -1019,6 +1064,7 @@ mod tests {
                 project_root_path: temp_dir.path().to_string_lossy().to_string(),
                 prompt: "未来感青柠实验室".to_string(),
                 title: Some("青柠主视觉".to_string()),
+                title_generation_result: None,
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 未来感青柠实验室".to_string()),
                 layout_hint: None,
@@ -1057,6 +1103,7 @@ mod tests {
                 project_root_path: temp_dir.path().to_string_lossy().to_string(),
                 prompt: "未来感青柠实验室".to_string(),
                 title: Some("青柠主视觉".to_string()),
+                title_generation_result: None,
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 未来感青柠实验室".to_string()),
                 layout_hint: None,
@@ -1098,6 +1145,7 @@ mod tests {
                 project_root_path: temp_dir.path().to_string_lossy().to_string(),
                 prompt: "未来感青柠实验室".to_string(),
                 title: Some("青柠主视觉".to_string()),
+                title_generation_result: None,
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 未来感青柠实验室".to_string()),
                 layout_hint: None,
@@ -1265,6 +1313,7 @@ mod tests {
                 project_root_path: temp_dir.path().to_string_lossy().to_string(),
                 prompt: "未来感青柠实验室".to_string(),
                 title: Some("青柠主视觉".to_string()),
+                title_generation_result: None,
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 生成 未来感青柠实验室".to_string()),
                 layout_hint: None,

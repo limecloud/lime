@@ -112,11 +112,16 @@ export interface AsterSessionInfo {
   name?: string;
   created_at: number;
   updated_at: number;
+  archived_at?: number | null;
   model?: string;
   messages_count?: number;
   execution_strategy?: AsterExecutionStrategy;
   workspace_id?: string;
   working_dir?: string;
+}
+
+export interface AgentRuntimeListSessionsOptions {
+  includeArchived?: boolean;
 }
 
 export interface AsterTodoItem {
@@ -312,13 +317,54 @@ export interface AgentRuntimeThreadReadModel {
   service_model_slot?: string | null;
   routing_mode?: string | null;
   decision_source?: string | null;
+  decision_reason?: string | null;
   candidate_count?: number | null;
+  fallback_chain?: string[] | null;
   capability_gap?: string | null;
   estimated_cost_class?: string | null;
   single_candidate_only?: boolean | null;
+  oem_policy?: AgentRuntimeOemPolicySummary | null;
+  runtime_summary?: AgentRuntimeSummary | null;
+  auxiliary_task_runtime?: Record<string, unknown>[] | null;
   limit_state?: AsterSessionExecutionRuntimeLimitState | null;
   cost_state?: AsterSessionExecutionRuntimeCostState | null;
   limit_event?: AsterSessionExecutionRuntimeLimitEvent | null;
+}
+
+export interface AgentRuntimeOemPolicySummary {
+  tenantId?: string | null;
+  providerSource?: string | null;
+  providerKey?: string | null;
+  defaultModel?: string | null;
+  configMode?: string | null;
+  offerState?: string | null;
+  quotaStatus?: string | null;
+  fallbackToLocalAllowed?: boolean | null;
+  canInvoke?: boolean | null;
+  locked?: boolean | null;
+  quotaLow?: boolean | null;
+  limitEventKind?: string | null;
+  limitEventMessage?: string | null;
+  decisionSource?: string | null;
+  selectedProvider?: string | null;
+  selectedModel?: string | null;
+}
+
+export interface AgentRuntimeSummary {
+  candidateCount?: number | null;
+  routingMode?: string | null;
+  decisionSource?: string | null;
+  decisionReason?: string | null;
+  fallbackChain?: string[] | null;
+  estimatedCostClass?: string | null;
+  estimatedTotalCost?: number | null;
+  limitStatus?: string | null;
+  limitEventKind?: string | null;
+  limitEventMessage?: string | null;
+  capabilityGap?: string | null;
+  singleCandidateOnly?: boolean | null;
+  oemLocked?: boolean | null;
+  quotaLow?: boolean | null;
 }
 
 export interface AsterSubagentSessionInfo {
@@ -803,6 +849,7 @@ export interface AgentRuntimeUpdateSessionRequest {
   provider_name?: string;
   model_name?: string;
   execution_strategy?: AsterExecutionStrategy;
+  archived?: boolean;
   recent_access_mode?: AsterSessionExecutionRuntimeAccessMode;
   recent_preferences?: AsterSessionExecutionRuntimePreferences;
   recent_team_selection?: AsterSessionExecutionRuntimeRecentTeamSelection;
@@ -961,6 +1008,7 @@ export interface CreateImageGenerationTaskArtifactRequest {
   projectRootPath: string;
   prompt: string;
   title?: string;
+  titleGenerationResult?: AgentRuntimeGeneratedTitleResult | null;
   mode?: "generate" | "edit" | "variation";
   rawText?: string;
   layoutHint?: string;

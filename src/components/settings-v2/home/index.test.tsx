@@ -23,6 +23,7 @@ function renderPage(
   onTabChange = vi.fn(),
   onTabPrefetch?: (tab: SettingsTabs) => void,
   onOpenCompanion?: () => void,
+  onNavigate?: (page: string, params?: unknown) => void,
 ): RenderResult {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -34,6 +35,7 @@ function renderPage(
         onTabChange={onTabChange}
         onTabPrefetch={onTabPrefetch}
         onOpenCompanion={onOpenCompanion}
+        onNavigate={onNavigate as any}
       />,
     );
   });
@@ -196,6 +198,56 @@ describe("SettingsHomePage", () => {
     });
 
     expect(onOpenCompanion).toHaveBeenCalledTimes(1);
+  });
+
+  it("应展示当前入口卡并支持跳到当前落点", () => {
+    const onTabChange = vi.fn();
+    const onNavigate = vi.fn();
+    const { container } = renderPage(
+      onTabChange,
+      undefined,
+      undefined,
+      onNavigate,
+    );
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("当前入口");
+    expect(text).toContain("全部做法");
+    expect(text).toContain("持续流程");
+    expect(text).toContain("消息渠道");
+    expect(text).toContain("项目资料");
+
+    const openAutomationButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((item) => item.textContent?.includes("打开持续流程"));
+    const openChannelsButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((item) => item.textContent?.includes("打开消息渠道"));
+    const openSkillsButton = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("去我的方法"),
+    );
+    const openResourcesButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((item) => item.textContent?.includes("打开项目资料"));
+
+    act(() => {
+      openAutomationButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      openChannelsButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      openSkillsButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      openResourcesButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(onTabChange).not.toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalledWith("skills");
+    expect(onNavigate).toHaveBeenCalledWith("automation");
+    expect(onNavigate).toHaveBeenCalledWith("channels");
+    expect(onNavigate).toHaveBeenCalledWith("resources");
   });
 
   it("应把首页说明和常用入口说明收进 tips", async () => {

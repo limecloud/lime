@@ -31,6 +31,7 @@ afterEach(() => {
     mounted.container.remove();
   }
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 interface HarnessProps {
@@ -157,7 +158,7 @@ describe("BaseComposer", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it("输入法合成阶段按 Enter 不应触发发送", () => {
+  it("输入法合成阶段按 Enter 不应立即触发发送", () => {
     const { container, onSend } = renderHarness({ initialText: "你好" });
     const textarea = getTextarea(container);
 
@@ -175,6 +176,42 @@ describe("BaseComposer", () => {
     });
 
     expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("输入法用 Enter 确认合成后应自动发送", () => {
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      (callback: (timestamp: number) => void) => {
+        callback(0);
+        return 1;
+      },
+    );
+
+    const { container, onSend } = renderHarness({ initialText: "你好" });
+    const textarea = getTextarea(container);
+
+    const imeEnterEvent = new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+    });
+    Object.defineProperty(imeEnterEvent, "isComposing", {
+      value: true,
+      configurable: true,
+    });
+
+    act(() => {
+      textarea.dispatchEvent(imeEnterEvent);
+    });
+
+    expect(onSend).not.toHaveBeenCalled();
+
+    act(() => {
+      textarea.dispatchEvent(
+        new CompositionEvent("compositionend", { bubbles: true }),
+      );
+    });
+
+    expect(onSend).toHaveBeenCalledTimes(1);
   });
 
   it("生成中点击主按钮应触发停止", () => {

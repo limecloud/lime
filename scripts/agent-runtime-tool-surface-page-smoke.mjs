@@ -259,7 +259,7 @@ function buildHarnessBootstrapScript() {
     localStorage.setItem("lime.chat.harness-panel.visible.v1", "true");
     localStorage.setItem(
       "lime:debug:runtime-tool-availability:v1",
-      ${JSON.stringify(JSON.stringify(RUNTIME_TOOL_AVAILABILITY_OVERRIDE))}
+      JSON.stringify(${JSON.stringify(RUNTIME_TOOL_AVAILABILITY_OVERRIDE)})
     );
     return true;
   })()`;
@@ -297,7 +297,20 @@ function buildFillPromptScript(prompt) {
         aria: button.getAttribute("aria-label"),
         disabled: Boolean(button.disabled),
       }));
-    const textarea = document.querySelector('textarea[placeholder="有什么我可以帮你的？"]');
+    const resolveTextarea = () => {
+      const candidates = Array.from(
+        document.querySelectorAll(
+          '[data-testid="inputbar-core-container"] textarea, textarea',
+        ),
+      );
+      return (
+        candidates.find(
+          (candidate) =>
+            candidate instanceof HTMLTextAreaElement && !candidate.disabled,
+        ) || null
+      );
+    };
+    const textarea = resolveTextarea();
     const initialSend = document.querySelector('button[aria-label="发送"]');
     if (!textarea || !initialSend) {
       return {
@@ -320,9 +333,7 @@ function buildFillPromptScript(prompt) {
     }));
     textarea.dispatchEvent(new Event("change", { bubbles: true }));
 
-    const currentTextarea =
-      document.querySelector('textarea[placeholder="有什么我可以帮你的？"]') ||
-      textarea;
+    const currentTextarea = resolveTextarea() || textarea;
     const currentSend = document.querySelector('button[aria-label="发送"]');
     return {
       ok: true,
@@ -335,7 +346,15 @@ function buildFillPromptScript(prompt) {
 
 function buildSendReadyScript() {
   return `(() => {
-    const textarea = document.querySelector('textarea[placeholder="有什么我可以帮你的？"]');
+    const textarea =
+      Array.from(
+        document.querySelectorAll(
+          '[data-testid="inputbar-core-container"] textarea, textarea',
+        ),
+      ).find(
+        (candidate) =>
+          candidate instanceof HTMLTextAreaElement && !candidate.disabled,
+      ) || null;
     const send = document.querySelector('button[aria-label="发送"]');
     return {
       ok:
@@ -391,7 +410,6 @@ function buildClickSendScript() {
 
 function buildOpenWorkbenchScript() {
   return `(() => {
-    const bodyText = document.body ? document.body.innerText : "";
     const target = Array.from(document.querySelectorAll("button")).find(
       (button) =>
         ((button.textContent || "").trim() === "工作台" ||
@@ -409,8 +427,11 @@ function buildOpenWorkbenchScript() {
       };
     }
 
+    const dialogOpen = Boolean(
+      document.querySelector('[role="dialog"] [data-harness-drag-handle="true"]'),
+    );
     const alreadyOpen =
-      bodyText.includes("处理工作台") ||
+      dialogOpen ||
       target.getAttribute("aria-expanded") === "true" ||
       (target.getAttribute("aria-label") || "").includes("收起工作台") ||
       (target.getAttribute("title") || "").includes("收起工作台");
@@ -419,6 +440,7 @@ function buildOpenWorkbenchScript() {
       return {
         ok: true,
         alreadyOpen: true,
+        dialogOpen,
         ariaExpanded: target.getAttribute("aria-expanded"),
         ariaLabel: target.getAttribute("aria-label"),
       };
@@ -428,8 +450,30 @@ function buildOpenWorkbenchScript() {
     return {
       ok: true,
       alreadyOpen: false,
+      dialogOpen: Boolean(
+        document.querySelector('[role="dialog"] [data-harness-drag-handle="true"]'),
+      ),
       ariaExpanded: target.getAttribute("aria-expanded"),
       ariaLabel: target.getAttribute("aria-label"),
+    };
+  })()`;
+}
+
+function buildWorkbenchButtonCheckScript() {
+  return `(() => {
+    const button = Array.from(document.querySelectorAll("button")).find(
+      (candidate) =>
+        ((candidate.textContent || "").trim() === "工作台" ||
+          (candidate.getAttribute("aria-label") || "").includes("工作台") ||
+          (candidate.getAttribute("title") || "").includes("工作台")) &&
+        candidate instanceof HTMLButtonElement,
+    );
+
+    return {
+      hasButton: Boolean(button),
+      text: document.body ? document.body.innerText : "",
+      ariaLabel: button?.getAttribute("aria-label") || null,
+      title: button?.getAttribute("title") || null,
     };
   })()`;
 }
@@ -622,7 +666,7 @@ async function main() {
         ok:
           typeof text === "string" &&
           (text.includes("青柠一下，灵感即来") ||
-            text.includes("有什么我可以帮你的？")),
+            text.includes("先说这轮要做什么")),
         value: text,
       };
     });
@@ -671,15 +715,15 @@ async function main() {
 
     logStage("wait-workbench-button");
     await waitForCheck(options, "运行态工作台按钮出现", async () => {
-      const text = await runJavascript(
+      const value = await runJavascript(
         options,
         profileKey,
-        'document.body ? document.body.innerText : ""',
+        buildWorkbenchButtonCheckScript(),
         "wait-workbench-button",
       );
       return {
-        ok: typeof text === "string" && text.includes("工作台"),
-        value: text,
+        ok: value?.hasButton === true,
+        value,
       };
     });
 

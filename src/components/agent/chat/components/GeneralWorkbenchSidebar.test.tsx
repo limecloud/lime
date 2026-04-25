@@ -203,7 +203,7 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("生成工作台");
+    expect(container.textContent).toContain("生成侧栏");
     expect(container.textContent).toContain("聚焦当前结果、下一步与可继续的版本。");
     expect(container.textContent).toContain("当前进展");
     expect(container.textContent).toContain("当前焦点");
@@ -1197,7 +1197,7 @@ describe("GeneralWorkbenchSidebar", () => {
     );
   });
 
-  it("命中最近复盘偏好模板时，应在当前进展里显影复盘建议", () => {
+  it("命中最近判断偏好模板时，应在当前进展里显影判断建议", () => {
     recordCuratedTaskRecommendationSignalFromReviewDecision(
       {
         session_id: "session-review-workflow",
@@ -1253,9 +1253,9 @@ describe("GeneralWorkbenchSidebar", () => {
       '[data-testid="workflow-sidebar-review-feedback-banner"]',
     ) as HTMLElement | null;
     expect(reviewBanner).toBeTruthy();
-    expect(reviewBanner?.textContent).toContain("围绕最近复盘");
+    expect(reviewBanner?.textContent).toContain("围绕最近判断");
     expect(reviewBanner?.textContent).toContain(
-      "最近复盘已更新：短视频编排 · 补证据",
+      "最近判断已更新：短视频编排 · 补证据",
     );
     expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
     expect(reviewBanner?.textContent).toContain("围绕「复盘这个账号/项目」继续推进");
@@ -1337,7 +1337,7 @@ describe("GeneralWorkbenchSidebar", () => {
     );
   });
 
-  it("命中最近复盘偏好模板时，应在当前查看运行里继续显影复盘建议", () => {
+  it("命中最近判断偏好模板时，应在当前查看运行里继续显影判断建议", () => {
     recordCuratedTaskRecommendationSignalFromReviewDecision(
       {
         session_id: "session-review-run-detail",
@@ -1402,9 +1402,9 @@ describe("GeneralWorkbenchSidebar", () => {
       '[data-testid="workflow-run-detail-review-feedback-banner"]',
     ) as HTMLElement | null;
     expect(reviewBanner).toBeTruthy();
-    expect(reviewBanner?.textContent).toContain("围绕最近复盘");
+    expect(reviewBanner?.textContent).toContain("围绕最近判断");
     expect(reviewBanner?.textContent).toContain(
-      "最近复盘已更新：短视频编排 · 补证据",
+      "最近判断已更新：短视频编排 · 补证据",
     );
     expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
     expect(reviewBanner?.textContent).toContain("围绕「复盘这个账号/项目」继续推进");
@@ -1491,7 +1491,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(onApplyFollowUpAction).toHaveBeenCalledWith(
       expect.objectContaining({
         bannerMessage:
-          "已切到“内容主稿生成”这条下一步，并带着当前结果继续生成。",
+          "已切到“内容主稿生成”这条下一步，并带着当前结果继续进入生成。",
         capabilityRoute: expect.objectContaining({
           kind: "curated_task",
           taskId: "social-post-starter",
@@ -1599,7 +1599,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(onApplyFollowUpAction).toHaveBeenCalledWith(
       expect.objectContaining({
         bannerMessage:
-          "已切到“内容主稿生成”这条下一步，并带着当前结果继续生成。",
+          "已切到“内容主稿生成”这条下一步，并带着当前结果继续进入生成。",
         capabilityRoute: expect.objectContaining({
           kind: "curated_task",
           taskId: "social-post-starter",
@@ -1761,10 +1761,10 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(onApplyFollowUpAction).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining(
-          "请承接这轮复盘结论，直接生成下一轮最值得执行的内容方案。",
+          "请承接这轮判断结论，直接生成下一轮最值得执行的内容方案。",
         ),
         bannerMessage:
-          "已切到“内容主稿生成”这条下一步，并带着这轮结果继续生成。",
+          "已切到“内容主稿生成”这条下一步，并带着这轮结果继续进入生成。",
         capabilityRoute: expect.objectContaining({
           kind: "curated_task",
           taskId: "social-post-starter",
@@ -1854,7 +1854,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(onApplyFollowUpAction).toHaveBeenCalledWith(
       expect.objectContaining({
         bannerMessage:
-          "已切到“内容主稿生成”这条下一步，并带着这轮结果继续生成。",
+          "已切到“内容主稿生成”这条下一步，并带着这轮结果继续进入生成。",
         capabilityRoute: expect.objectContaining({
           kind: "curated_task",
           taskId: "social-post-starter",

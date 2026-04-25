@@ -347,6 +347,33 @@ describe("MemoryPage", () => {
     expect(bodyText).toContain("夏日短视频语气");
   });
 
+  it("应在灵感库首屏显式提供项目资料辅助入口", async () => {
+    const onNavigate = vi.fn();
+    renderPage({ onNavigate });
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("项目资料作为辅助页保留在这里");
+    expect(bodyText).toContain(
+      "默认资料导航现在优先看灵感库；需要回看项目资料、导入内容和外部资料时，从这里打开项目资料。",
+    );
+    expect(bodyText).toContain("打开项目资料");
+
+    const openResourcesButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((element) => element.textContent?.includes("打开项目资料"));
+    expect(openResourcesButton).toBeTruthy();
+
+    await act(async () => {
+      openResourcesButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("resources");
+  });
+
   it("应支持从灵感库推荐结果模板进入共享 launcher，再带着参考对象进入生成", async () => {
     const onNavigate = vi.fn();
     renderPage({ onNavigate });
@@ -397,7 +424,7 @@ describe("MemoryPage", () => {
         agentEntry: "new-task",
         projectId: "project-42",
         entryBannerMessage:
-          "已从灵感库推荐“内容主稿生成”带着启动信息进入生成，可继续补充后发送。",
+          "已带着灵感库推荐“内容主稿生成”的启动信息回到生成，接着把这轮做下去就行。",
         initialInputCapability: expect.objectContaining({
           capabilityRoute: expect.objectContaining({
             kind: "curated_task",
@@ -490,7 +517,7 @@ describe("MemoryPage", () => {
 
     const bodyText = document.body.textContent ?? "";
     expect(bodyText).toContain("复盘这个账号/项目");
-    expect(bodyText).toContain("已按最近复盘切到更适合的结果模板");
+    expect(bodyText).toContain("已按最近判断切到更适合的结果模板");
     expect(bodyText).toContain("已选择 1 条参考对象");
   });
 
@@ -803,7 +830,7 @@ describe("MemoryPage", () => {
     );
 
     const sceneButton = Array.from(document.body.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("去做法目录"),
+      (element) => element.textContent?.includes("去全部做法"),
     );
     expect(sceneButton).toBeTruthy();
 

@@ -93,7 +93,7 @@ export function AutomationJobFocusStrip({
                 onReviewCurrentProject();
               }}
             >
-              继续复盘
+              继续看结果
             </Button>
           ) : null}
           {onOpenSceneAppGovernance ? (
@@ -108,7 +108,7 @@ export function AutomationJobFocusStrip({
                 onOpenSceneAppGovernance();
               }}
             >
-              看做法复盘
+              看最近结果
             </Button>
           ) : null}
         </div>

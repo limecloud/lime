@@ -98,7 +98,7 @@ const INFRA_LABELS: Record<string, string> = {
   document_viewer: "文档查看",
   table_report_viewer: "表格回流",
   browser_assist: "浏览器协助",
-  automation_job: "自动化任务",
+  automation_job: "持续流程",
   agent_turn: "Agent 工作区",
   native_skill: "本机技能",
 };
@@ -411,7 +411,7 @@ export function getSceneAppRunInsight(params: {
         summary: `${subject} 本次运行成功，${artifactSummary}。`,
         nextAction:
           run.artifactCount > 0
-            ? "可以直接复盘结果质量，并决定是继续放大、优化还是复制到下一个场景。"
+            ? "可以直接判断这轮结果质量，并决定是继续放大、优化还是复制到下一个场景。"
             : "虽然运行已完成，但还需要检查结果回流链路是否完整。",
       };
     case "canceled":

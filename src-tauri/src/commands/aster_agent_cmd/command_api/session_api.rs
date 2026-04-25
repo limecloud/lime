@@ -1,4 +1,5 @@
 use super::*;
+use crate::commands::aster_agent_cmd::dto::AgentRuntimeListSessionsRequest;
 
 /// 创建新会话
 #[tauri::command]
@@ -26,20 +27,25 @@ pub async fn agent_runtime_create_session(
 pub async fn agent_runtime_list_sessions(
     db: State<'_, DbConnection>,
     logs: State<'_, LogState>,
+    request: Option<AgentRuntimeListSessionsRequest>,
 ) -> Result<Vec<SessionInfo>, String> {
     let started_at = Instant::now();
+    let include_archived = request
+        .and_then(|value| value.include_archived)
+        .unwrap_or(false);
     logs.write()
         .await
         .add("info", "[AgentDiag] agent_runtime_list_sessions.start");
 
-    match list_runtime_sessions_internal(db.inner()) {
+    match list_runtime_sessions_internal(db.inner(), include_archived) {
         Ok(sessions) => {
             logs.write().await.add(
                 "info",
                 &format!(
-                    "[AgentDiag] agent_runtime_list_sessions.success duration_ms={} sessions={}",
+                    "[AgentDiag] agent_runtime_list_sessions.success duration_ms={} sessions={} include_archived={}",
                     started_at.elapsed().as_millis(),
-                    sessions.len()
+                    sessions.len(),
+                    include_archived
                 ),
             );
             Ok(sessions)
@@ -80,6 +86,14 @@ pub async fn agent_runtime_update_session(
             db.inner(),
             &trimmed_session_id,
             execution_strategy,
+        )?;
+    }
+
+    if let Some(archived) = request.archived {
+        AsterAgentWrapper::update_session_archived_state_sync(
+            db.inner(),
+            &trimmed_session_id,
+            archived,
         )?;
     }
 

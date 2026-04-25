@@ -116,7 +116,7 @@ afterEach(() => {
 });
 
 describe("buildSkillsPageParamsFromSceneAppExecution", () => {
-  it("应把场景结果和最近复盘信号编译成技能草稿", () => {
+  it("应把场景结果和最近判断信号编译成技能草稿", () => {
     vi.spyOn(Date, "now").mockReturnValue(11223344);
 
     const result = buildSkillsPageParamsFromSceneAppExecution(
@@ -148,10 +148,10 @@ describe("buildSkillsPageParamsFromSceneAppExecution", () => {
       },
     });
     expect(result?.initialScaffoldDraft?.description).toContain(
-      "沉淀自「短视频编排」这轮已经进入结果消费与复盘闭环的做法。",
+      "沉淀自「短视频编排」这轮已经进入结果消费与判断闭环的做法。",
     );
     expect(result?.initialScaffoldDraft?.description).toContain(
-      "最近人工复盘：短视频编排 · 可继续复用",
+      "最近人工判断：短视频编排 · 可继续复用",
     );
     expect(result?.initialScaffoldDraft?.whenToUse).toEqual(
       expect.arrayContaining([
@@ -166,7 +166,7 @@ describe("buildSkillsPageParamsFromSceneAppExecution", () => {
     expect(result?.initialScaffoldDraft?.inputs).toEqual(
       expect.arrayContaining([
         "执行骨架：做法 -> 生成 -> Project Pack",
-        "人工复盘：封面已经稳定，下一步继续生成渠道预览稿并整理上传稿。",
+        "人工判断：封面已经稳定，下一步继续生成渠道预览稿并整理上传稿。",
       ]),
     );
     const steps = result?.initialScaffoldDraft?.steps ?? [];
@@ -174,7 +174,7 @@ describe("buildSkillsPageParamsFromSceneAppExecution", () => {
       expect.arrayContaining([
         "先确认这次任务是否仍适合同一条场景执行路径与当前结果交付约定。",
         "沿用当前已验证过的参考对象、风格摘要与项目结果基线，补齐最少必要输入。",
-        "输出后按当前结果判断线索与人工复盘结论，继续进入复核、发布或下一轮生成。",
+        "输出后按当前结果判断线索与人工判断结论，继续进入复核、发布或下一轮生成。",
       ]),
     );
     expect(steps.join(" ")).not.toContain("交付合同");
@@ -183,7 +183,7 @@ describe("buildSkillsPageParamsFromSceneAppExecution", () => {
     expect(result?.initialScaffoldDraft?.fallbackStrategy).toEqual(
       expect.arrayContaining([
         "如果仍缺少复核意见，先补齐缺失部件，再把整套做法沉淀下来。",
-        "如果再次出现复核阻塞，先回看证据与复盘材料，不要直接放大复用。",
+        "如果再次出现复核阻塞，先回看证据与结果材料，不要直接放大复用。",
       ]),
     );
   });

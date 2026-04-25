@@ -49,13 +49,13 @@ describe("serviceModels", () => {
 
     expect(
       buildPersistedServiceModelPreference({
-        customPrompt: "请优先复用资料库上下文",
+        customPrompt: "请优先复用项目资料上下文",
       }),
     ).toEqual({
       enabled: true,
       preferredProviderId: undefined,
       preferredModelId: undefined,
-      customPrompt: "请优先复用资料库上下文",
+      customPrompt: "请优先复用项目资料上下文",
     });
   });
 

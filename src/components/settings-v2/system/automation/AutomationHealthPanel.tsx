@@ -89,9 +89,9 @@ export function AutomationHealthPanel({
       <CardHeader className="pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-xl text-slate-900">风险任务</CardTitle>
+            <CardTitle className="text-xl text-slate-900">风险提醒</CardTitle>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              统计只作为辅助提醒，优先处理等待人工、失败和冷却中的任务。
+              统计只作为辅助提醒，优先处理等待人工、失败和冷却中的持续流程。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -169,7 +169,7 @@ export function AutomationHealthPanel({
           </div>
         ) : (
           <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50/60 p-6 text-sm text-slate-500">
-            当前没有高风险任务。
+            当前没有高风险持续流程。
           </div>
         )}
       </CardContent>

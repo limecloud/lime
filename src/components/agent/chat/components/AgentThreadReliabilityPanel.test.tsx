@@ -465,6 +465,34 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(onInterruptCurrentTurn).toHaveBeenCalledTimes(1);
   });
 
+  it("应展示当前 runtime 路由事实与 OEM 约束", () => {
+    const container = renderPanel({
+      threadRead: {
+        thread_id: "thread-1",
+        status: "running",
+        decision_reason:
+          "当前 provider 候选池共有 3 个兼容候选，已按连续性、能力与成本优选。",
+        fallback_chain: ["openai:gpt-5.4", "openai:gpt-5.4-mini"],
+        oem_policy: {
+          locked: true,
+          quotaLow: true,
+          defaultModel: "claude-sonnet-4",
+        },
+        runtime_summary: {
+          decisionReason:
+            "当前 provider 候选池共有 3 个兼容候选，已按连续性、能力与成本优选。",
+        },
+      },
+    });
+
+    expect(container.textContent).toContain("当前路由事实");
+    expect(container.textContent).toContain("决策原因");
+    expect(container.textContent).toContain("回退链");
+    expect(container.textContent).toContain("OEM 托管锁定");
+    expect(container.textContent).toContain("OEM 额度偏低");
+    expect(container.textContent).toContain("claude-sonnet-4");
+  });
+
   it("应展示最近文件快照摘要", () => {
     const container = renderPanel({
       threadRead: {

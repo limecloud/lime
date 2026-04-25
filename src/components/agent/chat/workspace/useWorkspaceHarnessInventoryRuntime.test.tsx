@@ -229,7 +229,7 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
     }
   });
 
-  it("开关关闭时不应继续读取工具库存，也不应生成工作台摘要", async () => {
+  it("开关关闭时不应继续读取工具库存，也不应生成摘要", async () => {
     const harness = mountHook({
       enabled: false,
       harnessPanelVisible: true,

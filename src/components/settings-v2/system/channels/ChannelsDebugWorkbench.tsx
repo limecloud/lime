@@ -2292,7 +2292,7 @@ export function ChannelsDebugWorkbench({
           gateway,
         }),
       );
-      setMessage({ type: "success", text: "高级工具配置已保存" });
+      setMessage({ type: "success", text: "日志与检查配置已保存" });
       onConfigSaved?.();
       setTimeout(() => setMessage(null), 3000);
     } catch (e: unknown) {
@@ -2363,15 +2363,15 @@ export function ChannelsDebugWorkbench({
 
       <SurfacePanel
         icon={LayoutDashboard}
-        title="高级排障"
-        description="这里只保留网关、日志和运行状态。"
+        title="日志与检查"
+        description="这里只保留网关、日志和运行检查。"
         aside={
           <>
             <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
               当前查看：{currentScopeLabel}
             </span>
             <WorkbenchInfoTip
-              ariaLabel="高级排障范围说明"
+              ariaLabel="日志与检查范围说明"
               label="收口说明"
               tone="slate"
               variant="pill"

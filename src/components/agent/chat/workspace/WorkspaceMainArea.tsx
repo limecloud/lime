@@ -1,6 +1,11 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import {
+  AutoHideNavbarBackdrop,
+  AutoHideNavbarHandle,
+  AutoHideNavbarHost,
+  AutoHideNavbarPanel,
   LayoutTransitionRenderGate,
   MainArea,
   GeneralWorkbenchInputOverlay,
@@ -10,6 +15,8 @@ import {
 interface WorkspaceMainAreaProps {
   compactChrome: boolean;
   navbarNode: ReactNode;
+  autoHideTaskCenterNavbar?: boolean;
+  taskCenterTabsNode?: ReactNode;
   contentSyncNoticeNode: ReactNode;
   shellBottomInset: string;
   layoutMode: LayoutMode;
@@ -28,6 +35,8 @@ interface WorkspaceMainAreaProps {
 export function WorkspaceMainArea({
   compactChrome,
   navbarNode,
+  autoHideTaskCenterNavbar = false,
+  taskCenterTabsNode,
   contentSyncNoticeNode,
   shellBottomInset,
   layoutMode,
@@ -42,15 +51,63 @@ export function WorkspaceMainArea({
   hasPendingA2UIForm,
   inputbarNode,
 }: WorkspaceMainAreaProps) {
+  const [navbarOpen, setNavbarOpen] = useState(false);
   const effectiveLayoutMode = hasPendingA2UIForm
     ? "chat"
     : forceCanvasMode
       ? "canvas"
       : layoutMode;
+  const shouldAutoHideNavbar =
+    autoHideTaskCenterNavbar && Boolean(navbarNode) && Boolean(taskCenterTabsNode);
+  const isAutoHideNavbarVisible = shouldAutoHideNavbar && navbarOpen;
+  const shouldRenderRevealHandle =
+    shouldAutoHideNavbar && !isAutoHideNavbarVisible;
 
   return (
     <MainArea $compact={compactChrome}>
-      {navbarNode}
+      {shouldAutoHideNavbar ? (
+        <AutoHideNavbarBackdrop
+          type="button"
+          $visible={isAutoHideNavbarVisible}
+          data-testid="workspace-navbar-backdrop"
+          data-visible={isAutoHideNavbarVisible ? "true" : "false"}
+          aria-label="关闭顶部工具"
+          onClick={() => {
+            setNavbarOpen(false);
+          }}
+        />
+      ) : null}
+      {shouldAutoHideNavbar ? (
+        <AutoHideNavbarHost
+          data-testid="workspace-navbar-auto-hide-shell"
+          data-visible={isAutoHideNavbarVisible ? "true" : "false"}
+        >
+          {shouldRenderRevealHandle ? (
+            <AutoHideNavbarHandle
+              type="button"
+              $visible={isAutoHideNavbarVisible}
+              data-testid="workspace-navbar-reveal-handle"
+              aria-label="展开顶部工具"
+              aria-expanded={isAutoHideNavbarVisible}
+              onClick={() => {
+                setNavbarOpen(true);
+              }}
+            >
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+            </AutoHideNavbarHandle>
+          ) : null}
+          <AutoHideNavbarPanel
+            $visible={isAutoHideNavbarVisible}
+            data-testid="workspace-navbar-auto-hide-panel"
+            data-visible={isAutoHideNavbarVisible ? "true" : "false"}
+          >
+            {navbarNode}
+          </AutoHideNavbarPanel>
+        </AutoHideNavbarHost>
+      ) : (
+        navbarNode
+      )}
+      {taskCenterTabsNode}
       {contentSyncNoticeNode}
       <GeneralWorkbenchLayoutShell $bottomInset={shellBottomInset}>
         <LayoutTransitionRenderGate

@@ -354,6 +354,36 @@ describe("ProjectSelector 组件", () => {
     expect(findButton(container, "删除")).toBeNull();
   });
 
+  it("workspace-tab 模式应使用工作区文案", () => {
+    const defaultProject = createProject({
+      id: "default",
+      name: "默认工作区",
+      isDefault: true,
+      workspaceType: "general",
+    });
+
+    mockUseProjects.mockReturnValue(
+      createUseProjectsResult({
+        projects: [defaultProject],
+        generalProjects: [defaultProject],
+        defaultProject,
+      }),
+    );
+
+    const container = renderProjectSelector({
+      value: defaultProject.id,
+      workspaceType: "general",
+      enableManagement: true,
+      chrome: "workspace-tab",
+      placeholder: "选择工作区",
+    });
+
+    expect(container.textContent).toContain("选择工作区");
+    expect(container.textContent).toContain("工作区管理");
+    expect(findButton(container, "新建工作区")).not.toBeNull();
+    expect(findButton(container, "新建项目")).toBeNull();
+  });
+
   it("延后列表加载时应先用项目摘要渲染当前项目", async () => {
     const selectedProject = createProject({
       id: "general-1",

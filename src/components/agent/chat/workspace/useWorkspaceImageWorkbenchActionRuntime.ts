@@ -12,13 +12,15 @@ import type {
   MediaTaskArtifactOutput,
   MediaTaskLookupRequest,
 } from "@/lib/api/mediaTasks";
-import { generateAgentRuntimeTitle } from "@/lib/api/agentRuntime";
+import type { AgentRuntimeGeneratedTitleResult } from "@/lib/api/agentRuntime";
+import { generateAgentRuntimeTitleResult } from "@/lib/api/agentRuntime";
 import { emitCanvasImageInsertRequest } from "@/lib/canvasImageInsertBus";
 import { onImageWorkbenchTaskAction } from "@/lib/imageWorkbenchEvents";
 import type { MessageImage } from "../types";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
 import {
   buildImageWorkbenchSessionTitle,
+  isLocalImageWorkbenchSessionKey,
   resolveImageWorkbenchSkillRequest,
 } from "./imageSkillLaunch";
 import { buildImageTaskLookupRequest } from "./imageTaskLocator";
@@ -189,6 +191,53 @@ function readTaskPayloadStringArray(
   }
 
   return [];
+}
+
+function readTaskPayloadTitleGenerationResult(
+  payload: Record<string, unknown>,
+): AgentRuntimeGeneratedTitleResult | undefined {
+  const result =
+    asRecord(payload.title_generation_result) ||
+    asRecord(payload.titleGenerationResult);
+  if (!result) {
+    return undefined;
+  }
+
+  const title =
+    (typeof result.title === "string" && result.title.trim()) || undefined;
+  if (!title) {
+    return undefined;
+  }
+
+  const sessionId =
+    (typeof result.sessionId === "string" && result.sessionId.trim()) ||
+    (typeof result.session_id === "string" && result.session_id.trim()) ||
+    null;
+  const executionRuntime =
+    result.executionRuntime ??
+    result.execution_runtime ??
+    null;
+  const usedFallback =
+    typeof result.usedFallback === "boolean"
+      ? result.usedFallback
+      : typeof result.used_fallback === "boolean"
+        ? result.used_fallback
+        : false;
+  const fallbackReason =
+    (typeof result.fallbackReason === "string" && result.fallbackReason) ||
+    (typeof result.fallback_reason === "string" && result.fallback_reason) ||
+    null;
+
+  return {
+    title,
+    sessionId,
+    executionRuntime:
+      executionRuntime === null
+        ? null
+        : (executionRuntime as AgentRuntimeGeneratedTitleResult["executionRuntime"]),
+    usedFallback,
+    fallbackReason,
+  };
 }
 
 function resolveReplayMode(
@@ -425,11 +474,19 @@ export function useWorkspaceImageWorkbenchActionRuntime({
           originalTask.record,
         );
         const anchorText = resolveTaskRecordAnchorText(originalTask.record);
+        const titleGenerationResult = readTaskPayloadTitleGenerationResult(
+          payload,
+        );
 
         await createImageGenerationTask({
           projectRootPath: originalTaskLookup.projectRootPath,
           prompt,
-          title: readTaskPayloadString(payload, ["title"]) || prompt,
+          title:
+            readTaskPayloadString(payload, ["title"]) ||
+            originalTask.record.title?.trim() ||
+            titleGenerationResult?.title ||
+            prompt,
+          titleGenerationResult,
           mode: resolveReplayMode(payload.mode ?? payload.task_mode),
           rawText:
             readTaskPayloadString(payload, ["raw_text", "rawText"]) || prompt,
@@ -756,21 +813,28 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         params.parsedCommand.mode === "generate"
           ? effectivePrompt
           : `${params.parsedCommand.mode === "edit" ? "修图" : "重绘"}：${effectivePrompt}`;
-      const resolvedTaskTitle = await generateAgentRuntimeTitle({
+      const titleGenerationResult = await generateAgentRuntimeTitleResult({
+        sessionId:
+          resolvedSessionKey &&
+          !isLocalImageWorkbenchSessionKey(resolvedSessionKey)
+            ? resolvedSessionKey
+            : undefined,
         previewText: titlePreviewText,
         titleKind: "image_task",
-      }).catch(() =>
+      }).catch(() => null);
+      const resolvedTaskTitle =
+        titleGenerationResult?.title ||
         buildImageWorkbenchSessionTitle(
           params.parsedCommand.mode,
           effectivePrompt,
-        ),
-      );
+        );
 
       const skillRequest = resolveImageWorkbenchSkillRequest({
         rawText: params.rawText,
         parsedCommand: params.parsedCommand,
         images: params.images,
         title: resolvedTaskTitle,
+        titleGenerationResult,
         currentImageWorkbenchState,
         imageWorkbenchSelectedModelId: imageWorkbenchRequestModelId,
         imageWorkbenchSelectedProviderId: imageWorkbenchRequestProviderId,

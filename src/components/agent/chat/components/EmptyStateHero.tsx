@@ -2,8 +2,6 @@ import type { ReactNode } from "react";
 import styled, { keyframes } from "styled-components";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
-  EMPTY_STATE_BADGE_BASE_CLASSNAME,
-  EMPTY_STATE_BADGE_TONE_CLASSNAMES,
   EMPTY_STATE_CARD_SURFACE_CLASSNAME,
   EMPTY_STATE_ICON_TONE_CLASSNAMES,
   type EmptyStateTone,
@@ -48,14 +46,14 @@ const HeroContent = styled.div`
   position: relative;
   display: flex;
   flex: 1 1 auto;
-  min-height: clamp(560px, calc(100dvh - 190px), 820px);
+  min-height: clamp(620px, calc(100dvh - 168px), 900px);
   flex-direction: column;
-  gap: 0.95rem;
-  padding: 0.35rem 0.45rem 0.55rem;
+  gap: 1.35rem;
+  padding: 0.45rem 0.55rem 0.85rem;
 
   @media (min-width: 1024px) {
-    gap: 1.1rem;
-    padding: 0.45rem 0.6rem 0.7rem;
+    gap: 1.55rem;
+    padding: 0.5rem 0.7rem 1rem;
   }
 
   @media (max-height: 940px) {
@@ -72,7 +70,7 @@ const LeadColumn = styled.div`
   min-width: 0;
   flex-direction: column;
   gap: 0.875rem;
-  max-width: min(1180px, 100%);
+  max-width: min(1320px, 100%);
 `;
 
 const LeadBlock = styled.div`
@@ -95,7 +93,7 @@ const LeadTopRow = styled.div`
 const EyebrowText = styled.div`
   display: inline-flex;
   align-items: center;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.08em;
@@ -113,20 +111,8 @@ const LeadTextGroup = styled.div`
   display: flex;
   width: 100%;
   flex-direction: column;
-  gap: 0.6rem;
-  max-width: 58rem;
-`;
-
-const shimmer = keyframes`
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+  gap: 0.78rem;
+  max-width: 70rem;
 `;
 
 const SloganLine = styled.p`
@@ -134,9 +120,8 @@ const SloganLine = styled.p`
   display: inline-flex;
   width: fit-content;
   align-items: center;
-  gap: 1.3rem;
+  gap: 1.6rem;
 
-  /* lime gradient with scan effect */
   background: linear-gradient(
     90deg,
     #10b981 0%,
@@ -149,18 +134,17 @@ const SloganLine = styled.p`
   color: transparent;
   -webkit-background-clip: text;
   background-clip: text;
-  animation: ${shimmer} 3.5s ease-in-out infinite;
 
-  font-size: clamp(44px, 5.3vw, 80px);
+  font-size: clamp(54px, 6vw, 92px);
   line-height: 0.94;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.05em;
   text-shadow: 0 14px 28px rgba(101, 163, 13, 0.12);
 
   &::before {
     content: "";
-    width: 0.92rem;
-    height: 0.92rem;
+    width: 1.05rem;
+    height: 1.05rem;
     flex-shrink: 0;
     border-radius: 9999px;
     background: linear-gradient(
@@ -168,28 +152,28 @@ const SloganLine = styled.p`
       rgba(132, 204, 22, 0.9),
       rgba(16, 185, 129, 0.75)
     );
-    box-shadow: 0 0 0 12px rgba(132, 204, 22, 0.12);
+    box-shadow: 0 0 0 14px rgba(132, 204, 22, 0.12);
   }
 `;
 
 const LeadDescriptionText = styled.p`
   margin: 0;
-  max-width: 42rem;
-  font-size: 15px;
+  max-width: 46rem;
+  font-size: 17px;
   font-weight: 600;
-  line-height: 1.72;
+  line-height: 1.78;
   color: rgb(51 65 85);
 
   @media (min-width: 768px) {
-    font-size: 16px;
+    font-size: 18px;
   }
 `;
 
 const LeadSupportingText = styled.p`
   margin: 0;
-  max-width: 50rem;
-  font-size: 12.5px;
-  line-height: 1.72;
+  max-width: 58rem;
+  font-size: 14px;
+  line-height: 1.76;
   color: rgb(100 116 139);
 `;
 
@@ -312,12 +296,6 @@ const CardEyebrow = styled.span`
   color: rgb(148 163 184);
 `;
 
-export interface EmptyStateHeroBadge {
-  key: string;
-  label: string;
-  tone?: EmptyStateTone;
-}
-
 export interface EmptyStateHeroCard {
   key: string;
   eyebrow: string;
@@ -340,7 +318,6 @@ interface EmptyStateHeroProps {
   slogan?: string;
   description: string;
   supportingDescription?: string;
-  badges: EmptyStateHeroBadge[];
   cards: EmptyStateHeroCard[];
   prioritySlot?: ReactNode;
   supportingSlot?: ReactNode;
@@ -353,7 +330,6 @@ export function EmptyStateHero({
   slogan,
   description,
   supportingDescription,
-  badges,
   cards,
   prioritySlot,
   supportingSlot,
@@ -385,23 +361,6 @@ export function EmptyStateHero({
                     </LeadSupportingText>
                   ) : null}
                 </LeadTextGroup>
-
-                {badges.length > 0 ? (
-                  <div className="flex max-w-[44rem] flex-wrap gap-2">
-                    {badges.map((badge) => (
-                      <span
-                        key={badge.key}
-                        className={`${EMPTY_STATE_BADGE_BASE_CLASSNAME} ${
-                          EMPTY_STATE_BADGE_TONE_CLASSNAMES[
-                            badge.tone || "slate"
-                          ]
-                        }`}
-                      >
-                        {badge.label}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
               </LeadBody>
             </LeadBlock>
           </LeadColumn>

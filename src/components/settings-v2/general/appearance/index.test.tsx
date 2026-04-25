@@ -162,14 +162,16 @@ describe("AppearanceSettings", () => {
     );
 
     expect(text).toContain("外观");
-    expect(text).toContain("管理主题、语言、提示音效、推荐行为和隐藏入口。");
+    expect(text).toContain("管理主题、语言、提示音效、推荐行为和底部入口。");
     expect(text).toContain("主题：跟随系统");
     expect(text).toContain("语言：中文");
     expect(text).toContain("提示音效：已开启");
     expect(text).toContain("基础外观");
     expect(text).toContain("主题模式");
     expect(text).toContain("界面语言");
-    expect(text).toContain("隐藏系统入口");
+    expect(text).toContain("可选系统入口");
+    expect(text).not.toContain("持续流程");
+    expect(text).not.toContain("消息渠道");
     expect(text).toContain("插件中心");
     expect(text).toContain("OpenClaw");
     expect(text).toContain("桌宠");
@@ -227,7 +229,7 @@ describe("AppearanceSettings", () => {
     await renderPage();
 
     expect(getBodyText()).not.toContain(
-      "管理主题、语言、提示音效、推荐问题的上下文带入方式，以及隐藏系统入口的显示状态。",
+      "管理主题、语言、提示音效、推荐问题的上下文带入方式，以及底部系统入口的显示状态。",
     );
     expect(getBodyText()).not.toContain(
       "先确定全局主题、语言和声音反馈，再统一工作区里的视觉节奏。",
@@ -235,7 +237,7 @@ describe("AppearanceSettings", () => {
 
     const heroTip = await hoverTip("外观设置总览说明");
     expect(getBodyText()).toContain(
-      "管理主题、语言、提示音效、推荐问题的上下文带入方式，以及隐藏系统入口的显示状态。",
+      "管理主题、语言、提示音效、推荐问题的上下文带入方式，以及底部系统入口的显示状态。",
     );
     await leaveTip(heroTip);
 
@@ -246,7 +248,7 @@ describe("AppearanceSettings", () => {
     await leaveTip(sectionTip);
   });
 
-  it("切换隐藏系统入口时应写回 navigation.enabled_items 并保留其他配置", async () => {
+  it("切换可选系统入口时应写回 navigation.enabled_items 并保留其他配置", async () => {
     const { container } = await renderPage();
     const switchButton = container.querySelector(
       'button[aria-label="切换显示插件中心入口"]',

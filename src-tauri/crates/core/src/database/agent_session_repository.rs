@@ -15,6 +15,7 @@ pub struct SessionRecordOverview {
     pub title: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    pub archived_at: Option<String>,
     pub working_dir: Option<String>,
     pub workspace_id: Option<String>,
     pub execution_strategy: Option<String>,
@@ -83,6 +84,7 @@ fn map_session_overview(
         title: overview.session.title,
         created_at: overview.session.created_at,
         updated_at: overview.session.updated_at,
+        archived_at: overview.archived_at,
         working_dir,
         workspace_id,
         execution_strategy: overview.session.execution_strategy,
@@ -94,8 +96,11 @@ pub fn create_session(conn: &Connection, session: &AgentSession) -> Result<(), S
     AgentDao::create_session(conn, session).map_err(|error| format!("创建会话失败: {error}"))
 }
 
-pub fn list_session_overviews(conn: &Connection) -> Result<Vec<SessionRecordOverview>, String> {
-    AgentDao::list_session_overviews(conn)
+pub fn list_session_overviews(
+    conn: &Connection,
+    include_archived: bool,
+) -> Result<Vec<SessionRecordOverview>, String> {
+    AgentDao::list_session_overviews(conn, include_archived)
         .map(|rows| {
             rows.into_iter()
                 .map(|row| map_session_overview(conn, row))
@@ -212,6 +217,16 @@ pub fn update_session_provider_config(
         updated_at,
     )
     .map_err(|error| format!("更新会话 provider/model 失败: {error}"))
+}
+
+pub fn update_session_archived_at(
+    conn: &Connection,
+    session_id: &str,
+    archived_at: Option<&str>,
+    updated_at: &str,
+) -> Result<(), String> {
+    AgentDao::update_archived_at(conn, session_id, archived_at, updated_at)
+        .map_err(|error| format!("更新会话归档状态失败: {error}"))
 }
 
 pub fn update_latest_assistant_message_usage(

@@ -233,7 +233,7 @@ describe("useServiceSkills", () => {
       expect(harness.getValue().catalogMeta).toEqual(
         expect.objectContaining({
           tenantId: "local-seeded",
-          sourceLabel: "本地 Seeded 目录",
+          sourceLabel: "起步做法",
           isSeeded: true,
         }),
       );
@@ -275,18 +275,18 @@ describe("useServiceSkills", () => {
         ]),
       );
       expect(harness.getValue().skills[0]?.id).toBe("tenant-daily-briefing");
-      expect(harness.getValue().skills[0]?.badge).toBe("云目录");
+      expect(harness.getValue().skills[0]?.badge).toBe("现成做法");
       expect(
         harness
           .getValue()
           .skills.find((skill) => skill.id === "local-playbook-template")
           ?.badge,
-      ).toBe("本地技能");
+      ).toBe("现成做法");
       expect(harness.getValue().catalogMeta).toEqual(
         expect.objectContaining({
           tenantId: "tenant-demo",
           version: "tenant-2026-03-29",
-          sourceLabel: "租户技能目录",
+          sourceLabel: "已同步做法",
           isSeeded: false,
         }),
       );
@@ -303,7 +303,7 @@ describe("useServiceSkills", () => {
       expect(harness.getValue().catalogMeta).toEqual(
         expect.objectContaining({
           tenantId: "local-seeded",
-          sourceLabel: "本地 Seeded 目录",
+          sourceLabel: "起步做法",
           isSeeded: true,
         }),
       );
@@ -371,7 +371,7 @@ describe("useServiceSkills", () => {
       expect(harness.getValue().catalogMeta).toEqual(
         expect.objectContaining({
           tenantId: "local-seeded",
-          sourceLabel: "本地 Seeded 目录",
+          sourceLabel: "起步做法",
           isSeeded: true,
         }),
       );
@@ -399,7 +399,7 @@ describe("useServiceSkills", () => {
         expect.objectContaining({
           tenantId: "tenant-demo",
           version: "tenant-2026-03-29",
-          sourceLabel: "租户技能目录",
+          sourceLabel: "已同步做法",
           isSeeded: false,
         }),
       );
@@ -425,7 +425,7 @@ describe("useServiceSkills", () => {
           .getValue()
           .skills.find((skill) => skill.id === "cloud-video-dubbing")
           ?.runnerLabel,
-      ).toBe("立即开始");
+      ).toBe("先做这一轮");
     } finally {
       harness.unmount();
     }

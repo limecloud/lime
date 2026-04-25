@@ -1,0 +1,118 @@
+- generic [ref=e2]:
+  - generic [ref=e14]:
+    - complementary [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - button "Lime Lime" [ref=e18] [cursor=pointer]:
+            - img "Lime" [ref=e20]
+            - generic [ref=e21]: Lime
+          - button "折叠导航栏" [ref=e22] [cursor=pointer]:
+            - img [ref=e23]
+        - button "搜索任务" [ref=e26] [cursor=pointer]:
+          - img [ref=e27]
+          - generic [ref=e30]: 搜索任务
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: 任务
+          - button "新建任务" [ref=e34] [cursor=pointer]:
+            - img [ref=e35]
+            - generic [ref=e36]: 新建任务
+          - button "生成" [ref=e37] [cursor=pointer]:
+            - img [ref=e38]
+            - generic [ref=e40]: 生成
+        - generic [ref=e41]:
+          - generic [ref=e42]: 能力
+          - button "我的方法" [ref=e43] [cursor=pointer]:
+            - img [ref=e44]
+            - generic [ref=e46]: 我的方法
+          - button "创作场景" [ref=e47] [cursor=pointer]:
+            - img [ref=e48]
+            - generic [ref=e51]: 创作场景
+          - button "持续流程" [ref=e52] [cursor=pointer]:
+            - img [ref=e53]
+            - generic [ref=e57]: 持续流程
+          - button "消息渠道" [ref=e58] [cursor=pointer]:
+            - img [ref=e59]
+            - generic [ref=e61]: 消息渠道
+        - generic [ref=e62]:
+          - generic [ref=e63]: 资料
+          - button "资料库" [ref=e64] [cursor=pointer]:
+            - img [ref=e65]
+            - generic [ref=e68]: 资料库
+          - button "灵感库" [ref=e69] [cursor=pointer]:
+            - img [ref=e70]
+            - generic [ref=e82]: 灵感库
+      - generic [ref=e83]:
+        - generic [ref=e84]:
+          - generic [ref=e85]: 系统
+          - button "设置" [ref=e86] [cursor=pointer]:
+            - img [ref=e87]
+            - generic [ref=e90]: 设置
+        - button "切换到深色模式" [ref=e92] [cursor=pointer]:
+          - img [ref=e93]
+    - main [ref=e99]:
+      - generic [ref=e113]:
+        - generic [ref=e116]:
+          - generic [ref=e117]:
+            - generic [ref=e118]: 创作
+            - generic [ref=e120]:
+              - button "📁 默认项目 默认" [ref=e121] [cursor=pointer]:
+                - generic [ref=e122]
+                - img [ref=e129]
+              - button "打开设置" [ref=e132] [cursor=pointer]:
+                - img [ref=e133]
+          - generic [ref=e137]:
+            - paragraph [ref=e138]: 青柠一下，灵感即来
+            - paragraph [ref=e139]: 说一句目标，剩下的交给 Lime。
+            - paragraph [ref=e140]: 文案、图片、视频、搜索和网页任务，会围绕同一个目标持续推进。跑通过的方法会沉淀成常用做法、偏好和项目上下文，下次不用重新开始。
+        - generic [ref=e143]:
+          - generic [ref=e144]:
+            - button "添加图片" [ref=e145] [cursor=pointer]:
+              - img [ref=e146]
+            - textbox "有什么我可以帮你的？" [ref=e151]
+            - generic [ref=e152]:
+              - button "展开输入框" [ref=e153] [cursor=pointer]:
+                - img [ref=e154]
+              - button "开始语音输入" [ref=e156] [cursor=pointer]:
+                - img [ref=e157]
+              - button "发送" [disabled] [ref=e160]:
+                - img [ref=e161]
+          - generic [ref=e165]:
+            - button "展开高级设置" [ref=e166] [cursor=pointer]:
+              - img [ref=e169]
+              - generic [ref=e172]: 高级设置
+              - img [ref=e173]
+            - generic "当前模型：Custom-cae6e762-fb45-4f71-878c-3106510ade78 / mimo-v2.5-pro" [ref=e175]:
+              - generic [ref=e176]: 当前模型
+              - generic [ref=e177]: mimo-v2.5-pro
+        - generic [ref=e178]:
+          - generic [ref=e179]:
+            - generic [ref=e181]:
+              - generic [ref=e182]: 从这里开始
+              - generic [ref=e183]: 先拿一个结果开工，后面继续补参考、改方向、扩成更多版本，都还在同一轮里推进。
+            - button "我建议先做这个 每日趋势摘要 先收一版内容趋势、热点方向和值得继续跟进的切口，适合每天快速开工前拉一遍。 需要：主题或赛道、希望关注的平台/地域 · 交付：趋势摘要、3 个优先选题 等 3 项 · 去向：趋势摘要会先写回当前内容，方便继续展开选题和主稿。 · 下一步：继续展开其中一个选题 等 2 项 开始这一轮" [ref=e184] [cursor=pointer]:
+              - generic [ref=e186]: 我建议先做这个
+              - generic [ref=e187]: 每日趋势摘要
+              - generic [ref=e188]: 先收一版内容趋势、热点方向和值得继续跟进的切口，适合每天快速开工前拉一遍。
+              - generic [ref=e189]: 需要：主题或赛道、希望关注的平台/地域 · 交付：趋势摘要、3 个优先选题 等 3 项 · 去向：趋势摘要会先写回当前内容，方便继续展开选题和主稿。 · 下一步：继续展开其中一个选题 等 2 项
+              - generic [ref=e190]:
+                - text: 开始这一轮
+                - img [ref=e191]
+            - generic [ref=e193]:
+              - generic [ref=e194]:
+                - generic [ref=e195]: 也可以换个结果开始
+                - generic [ref=e196]
+              - generic [ref=e217]:
+                - generic [ref=e218]: 已经知道做法时，也可以直接这样开工
+                - generic [ref=e219]
+            - generic [ref=e228]: 本轮产出会沉淀到当前项目，跑通过的方法会继续留在这里。
+          - generic [ref=e229]:
+            - generic [ref=e230]: 也可以直接继续这轮。
+            - generic [ref=e231]:
+              - button "回看最近结果 · MiMo E2E 2026-04-2…" [ref=e232] [cursor=pointer]
+              - generic [ref=e233]:
+                - button "短视频编排" [ref=e234] [cursor=pointer]
+                - button "每日趋势摘要" [ref=e235] [cursor=pointer]
+              - button "查看全部做法" [ref=e236] [cursor=pointer]
+              - button "连接浏览器" [ref=e237] [cursor=pointer]
+  - region "Notifications alt+T"

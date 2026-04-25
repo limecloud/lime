@@ -233,7 +233,7 @@ describe("TeamWorkspaceBoard", () => {
       childSubagentSessions: [],
     });
 
-    expect(container.textContent).toContain("生成工作台");
+    expect(container.textContent).toContain("生成");
     expect(container.textContent).toContain("还没有任务接手");
     expect(container.textContent).toContain("查看当前进展");
     expect(container.textContent).not.toContain("任务进行时");
@@ -399,7 +399,7 @@ describe("TeamWorkspaceBoard", () => {
       ],
     });
 
-    expect(container.textContent).toContain("生成工作台");
+    expect(container.textContent).toContain("生成");
     expect(container.textContent).toContain(
       "任务进行中 · 1 项处理中 / 1 项稍后开始",
     );
@@ -2079,7 +2079,7 @@ describe("TeamWorkspaceBoard", () => {
     expect(header).toBeTruthy();
     expect(header?.className).toContain("sticky");
     expect(header?.className).toContain("top-0");
-    expect(header?.textContent).toContain("生成工作台");
+    expect(header?.textContent).toContain("生成");
     expect(header?.textContent).toContain("任务进行中");
     expect(header?.textContent).not.toContain("任务进行时");
   });

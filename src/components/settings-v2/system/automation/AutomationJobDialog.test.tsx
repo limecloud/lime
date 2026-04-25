@@ -139,16 +139,16 @@ describe("AutomationJobDialog", () => {
       mode: "create",
     });
 
-    expect(getBodyText()).toContain("新建自动化任务");
-    expect(getBodyText()).toContain("配置任务名称、调度、提示词和输出投递。");
-    expect(getBodyText()).toContain("任务类型：Agent 对话任务");
+    expect(getBodyText()).toContain("新建持续流程");
+    expect(getBodyText()).toContain("配置流程名称、节奏、启动提示和输出去向。");
+    expect(getBodyText()).toContain("开始方式：Agent 对话");
     expect(getBodyText()).not.toContain(
-      "用结构化 job 承载 Agent 对话任务，统一管理调度、工作区、输出投递和运行历史。",
+      "用这条持续流程承接 Agent 对话里已经跑顺的做法，统一管理节奏、归属位置、输出去向和运行历史。",
     );
 
-    const headerTip = await hoverTip("自动化任务弹窗说明");
+    const headerTip = await hoverTip("持续流程弹窗说明");
     expect(getBodyText()).toContain(
-      "用结构化 job 承载 Agent 对话任务，统一管理调度、工作区、输出投递和运行历史。",
+      "用这条持续流程承接 Agent 对话里已经跑顺的做法，统一管理节奏、归属位置、输出去向和运行历史。",
     );
     await leaveTip(headerTip);
   });
@@ -328,7 +328,7 @@ describe("AutomationJobDialog", () => {
     ).not.toBeNull();
 
     const submitButton = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("创建任务"),
+      (button) => button.textContent?.includes("创建持续流程"),
     ) as HTMLButtonElement | undefined;
 
     await act(async () => {

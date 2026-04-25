@@ -693,11 +693,11 @@ function buildRuntimeFeedbackSummary(
   const deliverySentence = run
     ? run.deliveryPartCoverageKnown && deliveryRequiredParts.length > 0
       ? deliveryMissingParts.length === 0
-        ? `最近一次运行已交齐 ${deliveryCompletedParts.length}/${deliveryRequiredParts.length} 个必含部件。`
+      ? `最近一次运行已交齐 ${deliveryCompletedParts.length}/${deliveryRequiredParts.length} 个必含部件。`
         : `最近一次运行已交付 ${deliveryCompletedParts.length}/${deliveryRequiredParts.length} 个必含部件。`
       : run.artifactCount > 0
         ? `最近一次运行已回流 ${run.artifactCount} 份结果。`
-        : "最近一次运行还没有回流可复盘结果。"
+        : "最近一次运行还没有回流可继续判断的结果。"
     : undefined;
 
   const blockerSentence =
@@ -936,7 +936,7 @@ function buildRunDeliveryPresentation(run: SceneAppRunSummary): {
   return {
     deliveryLabel: "待回流",
     completionLabel: "暂未回流结果",
-    summary: "这次运行还没有记录到可复盘的结果包。",
+    summary: "这次运行还没有记录到可继续判断的结果材料。",
     requiredParts,
     completedParts,
     missingParts,
@@ -1213,13 +1213,13 @@ function buildRunGovernanceActionEntries(
   ) {
     actions.push({
       key: "weekly-review-pack",
-      label: "准备周会复盘包",
+      label: "补结果材料",
       helperText:
         verificationFailureCount > 0 || run.failureSignal === "review_blocked"
-          ? "先补齐证据摘要和人工复核记录，再直接进入周会讨论当前卡点、结论和下一步。"
+          ? "先补齐证据摘要和人工复核记录，再直接看清当前卡点、结论和下一步。"
           : evidenceGapCount > 0
-            ? "先把证据摘要和人工复核记录一起补齐，避免周会复盘时还在补材料。"
-            : "同步更新证据摘要和人工复核记录，适合在周会或例行复盘里直接对齐这次运行。",
+            ? "先把证据摘要和人工复核记录一起补齐，避免看结果时还在补材料。"
+            : "同步更新证据摘要和人工复核记录，适合直接回看这次运行。",
       primaryArtifactKind: "review_decision_markdown",
       primaryArtifactLabel: getSceneAppGovernanceArtifactKindLabel(
         "review_decision_markdown",
@@ -1235,13 +1235,13 @@ function buildRunGovernanceActionEntries(
   ) {
     actions.push({
       key: "structured-governance-pack",
-      label: "准备结构化治理包",
+      label: "补结果记录",
       helperText:
         validatorIssueCount > 0 ||
         verificationFailureCount > 0 ||
         run.requestTelemetryAvailable === false
-          ? "一次补齐证据、复核记录和结构化 JSON，方便生成页、周报或后续治理继续消费。"
-          : "一次补齐证据、复核记录和结构化 JSON，方便批量治理、看板统计和后续自动化消费。",
+          ? "一次补齐证据、复核记录和结构化 JSON，方便生成、统计或后续结果跟进继续消费。"
+          : "一次补齐证据、复核记录和结构化 JSON，方便结果统计和后续持续流程消费。",
       primaryArtifactKind: "review_decision_json",
       primaryArtifactLabel: getSceneAppGovernanceArtifactKindLabel(
         "review_decision_json",
@@ -1426,8 +1426,8 @@ function resolveSceneAppRunEntryAction(params: {
   if (run.source === "automation" && jobId) {
     return {
       kind: "open_automation_job",
-      label: "打开自动化任务",
-      helperText: "继续查看这条持续场景的调度详情、历史和交付状态。",
+      label: "打开持续流程",
+      helperText: "继续查看这条持续流程的节奏、历史和输出状态。",
       jobId,
     };
   }
@@ -1647,7 +1647,7 @@ export function buildSceneAppCatalogCardViewModel(params: {
     run: run ?? null,
   });
   const latestRunLabel = run
-    ? `最近运行：${getSceneAppRunSourceLabel(run.source)} · ${formatSceneAppDateTime(
+    ? `最近结果：${getSceneAppRunSourceLabel(run.source)} · ${formatSceneAppDateTime(
         run.finishedAt ?? run.startedAt,
       )}`
     : undefined;
@@ -1991,8 +1991,8 @@ function buildSceneAppExecutionRuntimeBackflowViewModel(params: {
     ? getSceneAppScorecardActionLabel(scorecard.recommendedAction)
     : undefined;
   const fallbackNextAction = scorecardActionLabel
-    ? `${scorecardActionLabel}，并继续把这轮运行沉淀到复盘与选品基线。`
-    : "继续把这轮运行沉淀到复盘与选品基线。";
+    ? `${scorecardActionLabel}，并继续把这轮运行沉淀到判断与选品基线。`
+    : "继续把这轮运行沉淀到判断与选品基线。";
   const evidenceSourceLabel = !run.runtimeEvidenceUsed
     ? "当前仍使用运行摘要回退"
     : run.requestTelemetryAvailable === false
@@ -2292,7 +2292,7 @@ function buildSceneAppGovernanceDestinations(params: {
         key: "first-run",
         label: "首轮试跑",
         description:
-          "先跑出一轮结果、证据摘要和复核结论，再决定是否进入复盘闭环。",
+          "先跑出一轮结果、证据摘要和复核结论，再决定接下来怎么推进。",
       },
     ];
   }
@@ -2312,9 +2312,9 @@ function buildSceneAppGovernanceDestinations(params: {
   ) {
     destinations.push({
       key: "weekly-review",
-      label: "周会复盘",
+      label: "看结果",
       description:
-        "把证据摘要和人工复核记录一起带去业务复盘，方便对齐卡点、结论和下一步。",
+        "把证据摘要和人工复核记录一起带回来回看这轮结果，方便快速判断卡点、结论和下一步。",
     });
   }
 
@@ -2324,16 +2324,16 @@ function buildSceneAppGovernanceDestinations(params: {
   ) {
     destinations.push({
       key: "task-center",
-      label: "生成 / 看板",
+      label: "生成",
       description:
-        "结构化复盘材料已经适合继续被生成页、看板统计或后续自动治理消费。",
+        "结果记录已经适合继续被生成、结果统计或后续持续流程消费。",
     });
   }
 
   if (detailView.entryAction?.kind === "open_automation_job") {
     destinations.push({
       key: "automation-job",
-      label: "持续流程 / 自动化",
+      label: "持续流程",
       description:
         "这套做法已接到持续任务，可回到持续流程查看历史、频率和交付状态。",
     });
@@ -2360,14 +2360,14 @@ function buildSceneAppGovernanceStatusItems(params: {
     return [
       {
         key: "weekly-pack",
-        label: "周会材料",
+        label: "结果材料",
         value: "待首轮样本",
-        description: "还没有可复盘的运行样本，周会材料会在首轮运行后自动形成。",
+        description: "还没有可继续判断的运行样本，结果材料会在首轮运行后自动形成。",
         tone: "idle",
       },
       {
         key: "structured-pack",
-        label: "结构化治理",
+        label: "结果记录",
         value: "待首轮样本",
         description:
           "先跑出一轮结果，后续才能判断这套做法是否适合被生成页和看板继续消费。",
@@ -2378,7 +2378,7 @@ function buildSceneAppGovernanceStatusItems(params: {
         label: "请求链路",
         value: "尚未建立",
         description:
-          "当前还没有会话级请求与证据样本，暂时无法做成本或调用复盘。",
+          "当前还没有会话级请求与证据样本，暂时没法看成本和调用表现。",
         tone: "idle",
       },
       {
@@ -2407,20 +2407,20 @@ function buildSceneAppGovernanceStatusItems(params: {
   return [
     {
       key: "weekly-pack",
-      label: "周会材料",
+      label: "结果材料",
       value: weeklyPackReady ? "已齐" : "待补齐",
       description: weeklyPackReady
-        ? "证据摘要和人工复核记录都已经可直接打开，适合进入周会复盘。"
-        : "周会前建议先补齐证据摘要和人工复核记录，避免会议时还在临时补材料。",
+        ? "证据摘要和人工复核记录都已经可直接打开，适合继续看结果。"
+        : "继续判断前建议先补齐证据摘要和人工复核记录，避免临时补材料。",
       tone: weeklyPackReady ? "good" : "watch",
     },
     {
       key: "structured-pack",
-      label: "结构化治理",
+      label: "结果记录",
       value: structuredPackReady ? "已齐" : "待补齐",
       description: structuredPackReady
-        ? "复核 JSON 已经就绪，后续可以继续喂给生成页、场景看板或自动治理链。"
-        : "如果要做批量统计、任务编排或后续自动治理，先把结构化治理包补齐。",
+        ? "复核 JSON 已经就绪，后续可以继续用于生成、结果统计或持续流程。"
+        : "如果要做结果统计、任务编排或后续持续流程，先把结果记录补齐。",
       tone: structuredPackReady ? "good" : "watch",
     },
     {
@@ -2434,7 +2434,7 @@ function buildSceneAppGovernanceStatusItems(params: {
             ? `已关联 ${telemetryMatchedCount} 条`
             : "已接通待匹配",
       description: !run.runtimeEvidenceUsed
-        ? "当前还没有接到会话证据，只能按运行摘要回退，暂时不适合做精细复盘。"
+        ? "当前还没有接到会话证据，只能按运行摘要回退，暂时不适合做精细判断。"
         : detailView.requestTelemetryLabel,
       tone: !run.runtimeEvidenceUsed
         ? "risk"
@@ -2502,8 +2502,8 @@ export function buildSceneAppGovernancePanelViewModel(params: {
   return {
     ...operatingSummary,
     latestRunLabel: detailView
-      ? `最近运行：${detailView.sourceLabel} · ${detailView.finishedAtLabel}`
-      : "最近运行：尚未开始",
+      ? `最近结果：${detailView.sourceLabel} · ${detailView.finishedAtLabel}`
+      : "最近结果：尚未开始",
     contextBaseline,
     statusItems,
     governanceActionEntries: detailView?.governanceActionEntries ?? [],
@@ -2548,9 +2548,9 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
       status: "idle",
       statusLabel: "等待首轮运行",
       summary:
-        "这套做法还没有首轮复盘样本，当前适合先跑出一份正式结果和复核材料。",
+        "这套做法还没有首轮结果样本，当前适合先跑出一份正式结果和复核材料。",
       nextAction:
-        "先试跑一轮，让结果、证据摘要和复核结论都落下来，再决定是否进入生成页或看板放大。",
+        "先试跑一轮，让结果、证据摘要和复核结论都落下来，再决定是否回到生成继续放大。",
       scorecardActionLabel,
       topFailureSignalLabel,
       destinations,
@@ -2579,13 +2579,13 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
     validatorIssueCount > 0;
 
   let status: SceneAppOperatingSummaryViewModel["status"] = "good";
-  let statusLabel = "复盘已可复用";
+  let statusLabel = "结果已可复用";
   let summary =
-    "这套做法最近一轮已经带齐结果、证据和结构化复盘材料，可以继续进入周会、生成页或做法看板。";
+    "这套做法最近一轮已经带齐结果、证据和结果记录，可以继续进入生成或后续跟进。";
   let nextAction =
     scorecardActionLabel != null
-      ? `${scorecardActionLabel}，并把这次复盘材料继续沉淀为后续复盘与统计的基线。`
-      : "继续把这次复盘材料沉淀为后续复盘、统计和做法选品的基线。";
+      ? `${scorecardActionLabel}，并把这次结果材料继续沉淀为后续结果跟进与统计的基线。`
+      : "继续把这次结果材料沉淀为后续结果跟进、统计和做法筛选的基线。";
 
   if (scorecard?.recommendedAction === "retire") {
     status = "risk";
@@ -2593,22 +2593,22 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
     summary =
       "这套做法当前的经营信号更像是该限制投入，而不是继续扩大曝光或新增长尾入口。";
     nextAction =
-      "先准备结构化复盘包，把失败信号和复核结论带到看板，再决定是重做、降级还是退出主推目录。";
+      "先补结果记录，把失败信号和复核结论带回结果判断，再决定是重做、降级还是退出主推目录。";
   } else if (hasBlockingIssues) {
     status = "risk";
     statusLabel = "先补复核与修复";
     summary = topFailureSignalLabel
-      ? `这套做法最近一轮还没形成可直接放大的复盘闭环，当前主要卡在${topFailureSignalLabel}。`
-      : "这套做法最近一轮还没形成可直接放大的复盘闭环，当前仍有复核或结果质量问题需要先处理。";
+      ? `这套做法最近一轮还没形成可直接放大的结果闭环，当前主要卡在${topFailureSignalLabel}。`
+      : "这套做法最近一轮还没形成可直接放大的结果闭环，当前仍有复核或结果质量问题需要先处理。";
     nextAction =
-      "优先准备周会复盘包，补齐复核结论、结果校验问题或验证失败项，再决定是否继续放大这套做法。";
+      "优先补结果材料，补齐复核结论、结果校验问题或验证失败项，再决定是否继续放大这套做法。";
   } else if (governanceMaterialIncomplete) {
     status = "watch";
-    statusLabel = "先补复盘材料";
+    statusLabel = "先补结果材料";
     summary =
-      "这套做法已有可复盘的运行结果，但看板和生成页需要的复盘材料还没完全齐，暂时不适合直接放大。";
+      "这套做法已有可继续判断的运行结果，但生成和后续跟进要用的结果材料还没完全齐，暂时不适合直接放大。";
     nextAction =
-      "先准备结构化复盘包，把证据摘要、复核记录和结构化 JSON 一次补齐，再继续进入周会、生成页或统计面。";
+      "先补结果记录，把证据摘要、复核记录和结构化 JSON 一次补齐，再继续进入生成或统计面。";
   }
 
   return {
@@ -2638,8 +2638,8 @@ function buildSceneAppFallbackOperatingSummaryViewModel(params: {
     return {
       status: "idle",
       statusLabel: "等待首轮运行",
-      summary: "当前还没有可复盘样本，先跑出第一轮结果再看经营判断。",
-      nextAction: "先跑出一轮结果，后续再决定是否进入复盘和继续放大。",
+      summary: "当前还没有可判断的结果样本，先跑出第一轮结果再看经营判断。",
+      nextAction: "先跑出一轮结果，后续再决定是否回到生成或继续放大。",
       scorecardActionLabel,
       topFailureSignalLabel,
       destinations: [],
@@ -2683,8 +2683,8 @@ function buildSceneAppFallbackOperatingSummaryViewModel(params: {
     return {
       status: "watch",
       statusLabel: "等待当前运行收口",
-      summary: "当前这轮还在推进中，经营判断会随结果和复盘材料继续更新。",
-      nextAction: "先等这轮运行收口，再决定是否继续放大或回到复盘。",
+      summary: "当前这轮还在推进中，经营判断会随结果和结果材料继续更新。",
+      nextAction: "先等这轮运行收口，再决定是否继续放大或回到判断。",
       scorecardActionLabel,
       topFailureSignalLabel,
       destinations: [],
@@ -2697,8 +2697,8 @@ function buildSceneAppFallbackOperatingSummaryViewModel(params: {
     summary: "当前这轮已经形成可继续消费的样本，可以继续带着结果往下走。",
     nextAction:
       scorecardActionLabel != null
-        ? `${scorecardActionLabel}，并继续把这轮结果沉淀成后续复盘基线。`
-        : "继续把这轮结果沉淀成后续复盘基线。",
+        ? `${scorecardActionLabel}，并继续把这轮结果沉淀成后续判断基线。`
+        : "继续把这轮结果沉淀成后续判断基线。",
     scorecardActionLabel,
     topFailureSignalLabel,
     destinations: [],
@@ -2797,11 +2797,11 @@ export function buildSceneAppAutomationWorkspaceCardViewModel(params: {
       scorecard: params.scorecard,
       run: params.run,
     }),
-    automationSummary: `${params.jobCount} 条自动化任务 · ${enabledLabel} · ${riskLabel}`,
+    automationSummary: `${params.jobCount} 条持续流程 · ${enabledLabel} · ${riskLabel}`,
     latestAutomationLabel: params.latestJobName
       ? params.latestJobStatusLabel
-        ? `最近投放任务：${params.latestJobName} · ${params.latestJobStatusLabel}`
-        : `最近投放任务：${params.latestJobName}`
-      : "当前还没有已落地的自动化任务。",
+        ? `最近运行：${params.latestJobName} · ${params.latestJobStatusLabel}`
+        : `最近运行：${params.latestJobName}`
+      : "当前还没有已落地的持续流程。",
   };
 }

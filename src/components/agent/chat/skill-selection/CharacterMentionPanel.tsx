@@ -25,10 +25,6 @@ import type {
   BuiltinInputCommand,
   RuntimeSceneSlashCommand,
 } from "./builtinCommands";
-import type {
-  CuratedTaskInputValues,
-  CuratedTaskTemplateItem,
-} from "../utils/curatedTaskTemplates";
 import {
   buildInputCapabilitySections,
   type InputCapabilityDescriptor,
@@ -55,34 +51,7 @@ interface CharacterMentionPanelProps {
   slashEntryUsageVersion?: number;
   commandRef: React.RefObject<HTMLDivElement>;
   onQueryChange: (query: string) => void;
-  onSelectBuiltinCommand: (
-    command: BuiltinInputCommand,
-    options?: { replayText?: string },
-  ) => void;
-  onSelectServiceSkill: (skill: ServiceSkillHomeItem) => void;
-  onSelectSlashCommand: (
-    command: CodexSlashCommandDefinition,
-    options?: { replayText?: string },
-  ) => void;
-  onSelectSceneCommand: (
-    command: RuntimeSceneSlashCommand,
-    options?: { replayText?: string },
-  ) => void;
-  onSelectCuratedTask?: (
-    task: CuratedTaskTemplateItem,
-    options?: {
-      launchInputValues?: CuratedTaskInputValues;
-      referenceMemoryIds?: string[];
-      referenceEntries?: CuratedTaskReferenceEntry[];
-      launcherPrefillHint?: string;
-    },
-  ) => void;
-  onSelectCharacter: (character: Character) => void;
-  onSelectInstalledSkill: (
-    skill: Skill,
-    options?: { replayText?: string },
-  ) => void;
-  onSelectAvailableSkill: (skill: Skill) => void;
+  onSelectCapability: (item: InputCapabilityDescriptor) => void;
   onNavigateToSettings?: () => void;
 }
 
@@ -106,14 +75,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   slashEntryUsageVersion = 0,
   commandRef,
   onQueryChange,
-  onSelectBuiltinCommand,
-  onSelectServiceSkill,
-  onSelectSlashCommand,
-  onSelectSceneCommand,
-  onSelectCuratedTask,
-  onSelectCharacter,
-  onSelectInstalledSkill,
-  onSelectAvailableSkill,
+  onSelectCapability,
   onNavigateToSettings,
 }) => {
   const sections = React.useMemo(
@@ -160,17 +122,38 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   );
   const hasFilteredResults = sections.some((section) => section.items.length > 0);
   const isEmptySlashQuery = mode === "slash" && mentionQuery.trim().length === 0;
+  const isEmptyMentionQuery = mode === "mention" && mentionQuery.trim().length === 0;
+  const isRegistryLanding = isEmptySlashQuery || isEmptyMentionQuery;
 
   const resolveSectionTone = (sectionKey: string) => {
     if (sectionKey === "result-templates") {
       return "primary" as const;
     }
 
+    if (sectionKey === "recent-mention") {
+      return "continuation" as const;
+    }
+
     if (sectionKey === "recent-slash-continuations") {
       return "continuation" as const;
     }
 
-    if (sectionKey === "installed-skills") {
+    if (sectionKey.startsWith("builtin-commands:")) {
+      return "primary" as const;
+    }
+
+    if (
+      sectionKey === "featured-service-skills" ||
+      sectionKey.startsWith("service-skill-group:") ||
+      sectionKey === "characters"
+    ) {
+      return "supporting" as const;
+    }
+
+    if (
+      sectionKey === "installed-skills" ||
+      sectionKey === "available-skills"
+    ) {
       return "methods" as const;
     }
 
@@ -185,6 +168,28 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   };
 
   const resolveSectionHelperText = (sectionKey: string): string | null => {
+    if (isEmptyMentionQuery) {
+      if (sectionKey === "recent-mention") {
+        return "优先继续刚调过的命令或做法，仍然回到当前生成线程。";
+      }
+
+      if (sectionKey === "featured-service-skills") {
+        return "需要一套现成起手时，再从这里进入，不替代上面的 @命令。";
+      }
+
+      if (sectionKey === "installed-skills") {
+        return "自己的固定方法也能通过 @ 直接接回生成，但优先级仍在命令之后。";
+      }
+
+      if (sectionKey === "available-skills") {
+        return "还没沉淀成固定入口的做法放在这里，优先级低于上面的命令和已沉淀方法。";
+      }
+
+      if (sectionKey === "characters") {
+        return "需要点名协作对象时再用，不会替代上面的命令入口。";
+      }
+    }
+
     if (!isEmptySlashQuery) {
       return null;
     }
@@ -212,45 +217,37 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
     isEmptySlashQuery && sectionKey === "supported-slash-commands:workspace-action";
 
   const shouldSubdueMethodItems = (sectionKey: string): boolean =>
-    isEmptySlashQuery && sectionKey === "installed-skills";
+    (isEmptySlashQuery && sectionKey === "installed-skills") ||
+    (isEmptyMentionQuery &&
+      ([
+        "featured-service-skills",
+        "installed-skills",
+        "available-skills",
+        "characters",
+      ].includes(sectionKey) ||
+        sectionKey.startsWith("service-skill-group:")));
 
   const shouldHighlightContinuationItems = (sectionKey: string): boolean =>
-    isEmptySlashQuery && sectionKey === "recent-slash-continuations";
+    (isEmptySlashQuery && sectionKey === "recent-slash-continuations") ||
+    (isEmptyMentionQuery && sectionKey === "recent-mention");
+
+  const resolveVisibleKindLabel = (
+    item: InputCapabilityDescriptor,
+  ): string | null => {
+    if (item.kind !== "slash_command") {
+      return null;
+    }
+
+    const normalizedKindLabel = item.kindLabel?.trim();
+    if (!normalizedKindLabel) {
+      return null;
+    }
+
+    return normalizedKindLabel === item.title.trim() ? null : normalizedKindLabel;
+  };
 
   const handleSelectCapability = (item: InputCapabilityDescriptor) => {
-    switch (item.kind) {
-      case "builtin_command":
-        onSelectBuiltinCommand(item.command, { replayText: item.replayText });
-        return;
-      case "service_skill":
-        onSelectServiceSkill(item.skill);
-        return;
-      case "slash_command":
-        onSelectSlashCommand(item.command, { replayText: item.replayText });
-        return;
-      case "scene_command":
-        onSelectSceneCommand(item.command, { replayText: item.replayText });
-        return;
-      case "curated_task":
-        onSelectCuratedTask?.(item.task, {
-          launchInputValues: item.launchInputValues,
-          referenceMemoryIds: item.referenceMemoryIds,
-          referenceEntries: item.referenceEntries,
-          launcherPrefillHint: item.launcherPrefillHint,
-        });
-        return;
-      case "character":
-        onSelectCharacter(item.character);
-        return;
-      case "installed_skill":
-        onSelectInstalledSkill(item.skill, { replayText: item.replayText });
-        return;
-      case "available_skill":
-        onSelectAvailableSkill(item.skill);
-        return;
-      default:
-        return;
-    }
+    onSelectCapability(item);
   };
 
   const renderItemIcon = (
@@ -284,7 +281,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         placeholder={
           mode === "slash"
             ? "搜索结果模板、做法或操作..."
-            : "搜索角色或技能..."
+            : "搜索 @命令、做法或协作角色..."
         }
         value={mentionQuery}
         onValueChange={onQueryChange}
@@ -295,7 +292,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
             <div>
               {mode === "slash"
                 ? "暂无可用结果模板、做法或操作"
-                : "暂无可用角色或技能"}
+                : "暂无可用 @命令、做法或协作角色"}
             </div>
             {onNavigateToSettings ? (
               <button
@@ -315,13 +312,13 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
             heading={section.heading}
             className={cn(
               resolveSectionTone(section.key) === "supporting" &&
-                isEmptySlashQuery &&
+                isRegistryLanding &&
                 "[&_[cmdk-group-heading]]:pb-0.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:text-slate-400",
               resolveSectionTone(section.key) === "methods" &&
-                isEmptySlashQuery &&
+                isRegistryLanding &&
                 "[&_[cmdk-group-heading]]:pb-0.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:text-slate-500",
               resolveSectionTone(section.key) === "continuation" &&
-                isEmptySlashQuery &&
+                isRegistryLanding &&
                 "[&_[cmdk-group-heading]]:pb-0.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-emerald-700",
             )}
           >
@@ -380,68 +377,72 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
                 {resolveSectionHelperText(section.key)}
               </div>
             ) : null}
-            {section.items.map((item) => (
-              <CommandItem
-                key={item.key}
-                onSelect={() => handleSelectCapability(item)}
-                className={cn(
-                  item.kind === "available_skill"
-                    ? "cursor-pointer opacity-60"
-                    : "cursor-pointer",
-                  shouldCompactSectionItems(section.key) && "min-h-0 py-1.5",
-                  shouldSubdueMethodItems(section.key) && "py-1.5",
-                  isEmptySlashQuery &&
-                    resolveSectionTone(section.key) === "primary" &&
-                    "py-2",
-                  shouldHighlightContinuationItems(section.key) &&
-                    "rounded-md border border-emerald-100/80 bg-emerald-50/50",
-                )}
-              >
-                {renderItemIcon(item, section.key)}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        "font-medium",
-                        shouldCompactSectionItems(section.key) &&
-                          "text-sm font-normal text-slate-700",
-                        shouldSubdueMethodItems(section.key) &&
-                          "text-sm font-normal text-slate-700",
-                      )}
-                    >
-                      {item.title}
-                    </div>
-                    {item.kindLabel ? (
-                      <span
+            {section.items.map((item) => {
+              const visibleKindLabel = resolveVisibleKindLabel(item);
+
+              return (
+                <CommandItem
+                  key={item.key}
+                  onSelect={() => handleSelectCapability(item)}
+                  className={cn(
+                    item.kind === "available_skill"
+                      ? "cursor-pointer opacity-60"
+                      : "cursor-pointer",
+                    shouldCompactSectionItems(section.key) && "min-h-0 py-1.5",
+                    shouldSubdueMethodItems(section.key) && "py-1.5",
+                    isRegistryLanding &&
+                      resolveSectionTone(section.key) === "primary" &&
+                      "py-2",
+                    shouldHighlightContinuationItems(section.key) &&
+                      "rounded-md border border-emerald-100/80 bg-emerald-50/50",
+                  )}
+                >
+                  {renderItemIcon(item, section.key)}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <div
                         className={cn(
-                          "text-[10px] text-muted-foreground",
+                          "font-medium",
                           shouldCompactSectionItems(section.key) &&
-                            "text-[10px] text-slate-400",
+                            "text-sm font-normal text-slate-700",
                           shouldSubdueMethodItems(section.key) &&
-                            "text-[10px] text-slate-400",
+                            "text-sm font-normal text-slate-700",
                         )}
                       >
-                        {item.kindLabel}
-                      </span>
+                        {item.title}
+                      </div>
+                      {visibleKindLabel ? (
+                        <span
+                          className={cn(
+                            "text-[10px] text-muted-foreground",
+                            shouldCompactSectionItems(section.key) &&
+                              "text-[10px] text-slate-400",
+                            shouldSubdueMethodItems(section.key) &&
+                              "text-[10px] text-slate-400",
+                          )}
+                        >
+                          {visibleKindLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                    {!shouldCompactSectionItems(section.key) ? (
+                      <div
+                        className={cn(
+                          "text-xs text-muted-foreground line-clamp-1",
+                          isRegistryLanding &&
+                            resolveSectionTone(section.key) === "primary" &&
+                            "text-[11px] leading-5",
+                          shouldSubdueMethodItems(section.key) &&
+                            "text-[11px] leading-5 text-slate-500",
+                        )}
+                      >
+                        {item.description}
+                      </div>
                     ) : null}
                   </div>
-                  {!shouldCompactSectionItems(section.key) ? (
-                    <div
-                      className={cn(
-                        "text-xs text-muted-foreground line-clamp-1",
-                        isEmptySlashQuery &&
-                          resolveSectionTone(section.key) === "primary" &&
-                          "text-[11px] leading-5",
-                        shouldSubdueMethodItems(section.key) &&
-                          "text-[11px] leading-5 text-slate-500",
-                      )}
-                    >
-                      {item.description}
-                    </div>
-                  ) : null}
-                </div>
-              </CommandItem>
-            ))}
+                </CommandItem>
+              );
+            })}
           </CommandGroup>
         ))}
       </CommandList>

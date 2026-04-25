@@ -14,21 +14,21 @@ const TYPE_FILTER_OPTIONS: Array<{
 }> = [
   { value: "all", label: "全部做法" },
   { value: "hybrid", label: "整套组合" },
-  { value: "browser_grounded", label: "浏览器执行" },
-  { value: "local_durable", label: "持续回流" },
-  { value: "local_instant", label: "本地执行" },
+  { value: "browser_grounded", label: "边看边做" },
+  { value: "local_durable", label: "持续跟进" },
+  { value: "local_instant", label: "快速起手" },
 ];
 
 const PATTERN_FILTER_OPTIONS: Array<{
   value: SceneAppPatternFilter;
   label: string;
 }> = [
-  { value: "all", label: "全部路径" },
-  { value: "pipeline", label: "分步推进" },
-  { value: "generator", label: "单次生成" },
-  { value: "reviewer", label: "复盘判断" },
-  { value: "inversion", label: "反推复刻" },
-  { value: "tool_wrapper", label: "工具驱动" },
+  { value: "all", label: "全部特征" },
+  { value: "pipeline", label: "分步完成" },
+  { value: "generator", label: "直接生成" },
+  { value: "reviewer", label: "结果判断" },
+  { value: "inversion", label: "照着复刻" },
+  { value: "tool_wrapper", label: "带工具辅助" },
 ];
 
 interface SceneAppsCatalogPanelProps {
@@ -119,10 +119,10 @@ export function SceneAppsCatalogPanel({
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-2">
               <div className="text-sm font-semibold text-slate-900">
-                先从目录里筛到合适做法
+                先从全部做法里挑一套
               </div>
               <p className="text-sm leading-6 text-slate-500">
-                可以按结果方向、运行方式和做法路径缩小范围，不用先理解内部能力栈。
+                可以按想拿到的结果、推进方式和做法特征缩小范围，不用先理解内部能力栈。
               </p>
             </div>
             {hasActiveFilters ? (
@@ -149,7 +149,7 @@ export function SceneAppsCatalogPanel({
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   value={searchQuery}
-                  placeholder="搜索做法标题"
+                  placeholder="搜索做法标题或想要的结果"
                   className="h-11 rounded-[22px] border-slate-200 bg-slate-50 pl-9"
                   onChange={(event) => onSearchQueryChange(event.target.value)}
                 />
@@ -159,7 +159,7 @@ export function SceneAppsCatalogPanel({
             <div className="flex flex-1 flex-col gap-3">
               <div className="space-y-2">
                 <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                  按运行方式筛
+                  按推进方式筛
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {TYPE_FILTER_OPTIONS.map((option) => (
@@ -175,7 +175,7 @@ export function SceneAppsCatalogPanel({
 
               <div className="space-y-2">
                 <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                  按做法路径筛
+                  按做法特征筛
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {PATTERN_FILTER_OPTIONS.map((option) => (
@@ -195,7 +195,7 @@ export function SceneAppsCatalogPanel({
 
       {recentItems.length > 0 ? (
         <div className="text-sm leading-7 text-slate-500">
-          继续最近：
+          最近看过：
           {recentItems.slice(0, 4).map((item, index) => (
             <span key={item.key}>
               <button
@@ -221,7 +221,7 @@ export function SceneAppsCatalogPanel({
 
       {runtimeLoading ? (
         <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-          正在把最近运行和经营信号回流到做法目录…
+          正在整理最近结果和下一步判断…
         </div>
       ) : null}
 

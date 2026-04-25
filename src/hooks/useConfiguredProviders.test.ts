@@ -169,6 +169,29 @@ describe("buildConfiguredProviders", () => {
     );
   });
 
+  it("旧版 MiMo 选择值也应命中后端受管的 Xiaomi Provider", () => {
+    const providers = buildConfiguredProviders(
+      [],
+      [
+        createApiKeyProvider({
+          id: "xiaomi",
+          name: "小米 MiMo",
+          type: "openai",
+          api_key_count: 1,
+        }),
+      ],
+    );
+
+    const resolvedProvider = findConfiguredProviderBySelection(providers, "mimo");
+
+    expect(resolvedProvider).toEqual(
+      expect.objectContaining({
+        key: "xiaomi",
+        providerId: "xiaomi",
+      }),
+    );
+  });
+
   it("应基于真实受管 Provider 解析 prompt cache 提示", () => {
     const providers = buildConfiguredProviders(
       [],

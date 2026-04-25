@@ -141,6 +141,9 @@ describe("toolDisplayInfo", () => {
     expect(resolveUserFacingToolDisplayLabel("TaskOutput")).toBe(
       "查看任务结果",
     );
+    expect(resolveUserFacingToolDisplayLabel("TaskCreateTool")).toBe(
+      "开始这一步",
+    );
     expect(
       resolveUserFacingToolDisplayLabel("mcp__playwright__browser_click"),
     ).toBe("页面点击");

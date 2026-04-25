@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpLeft,
+  BrainCircuit,
   Bot,
   ChevronDown,
   Clock3,
@@ -13,7 +14,9 @@ import {
   PinOff,
   Plus,
   Search,
+  Sparkles,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,7 +27,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { getProject } from "@/lib/api/project";
 import type {
   AsterSubagentParentContext,
   AsterSubagentSessionInfo,
@@ -32,7 +34,6 @@ import type {
 import {
   deriveTaskLiveState,
   extractTaskPreviewFromMessages,
-  resolveRecentTopicActionLabel,
   type Topic,
   type TaskStatus,
   type TaskStatusReason,
@@ -118,14 +119,12 @@ interface TaskSection {
   items: TaskCardViewModel[];
 }
 
-interface TaskCenterContinuationState {
-  primary: TaskCardViewModel | null;
-  related: TaskCardViewModel[];
-}
-
 interface ChatSidebarProps {
   contextVariant?: ChatSidebarContextVariant;
   onNewChat: () => void;
+  onOpenTaskCenterHome?: () => void;
+  onOpenSkillsPage?: () => void;
+  onOpenMemoryPage?: () => void;
   topics: Topic[];
   currentTopicId: string | null;
   onSwitchTopic: (topicId: string) => void | Promise<void>;
@@ -145,6 +144,19 @@ interface ChatSidebarProps {
   subagentParentContext?: AsterSubagentParentContext | null;
   onOpenSubagentSession?: (sessionId: string) => void | Promise<void>;
   onReturnToParentSession?: () => void | Promise<void>;
+}
+
+interface TaskCenterNavItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  onClick?: () => void;
+}
+
+interface TaskCenterNavSection {
+  id: string;
+  title: string;
+  items: TaskCenterNavItem[];
 }
 
 function formatRelativeTime(date: Date) {
@@ -196,78 +208,6 @@ function sortTaskItems(items: TaskCardViewModel[]) {
     }
     return right.updatedAt.getTime() - left.updatedAt.getTime();
   });
-}
-
-function isResumableTask(item: Pick<TaskCardViewModel, "status" | "statusReason">) {
-  return (
-    item.status === "waiting" ||
-    (item.status === "failed" && item.statusReason === "workspace_error")
-  );
-}
-
-function resolveTaskCenterContinuationState(
-  items: TaskCardViewModel[],
-  currentTopicId: string | null,
-): TaskCenterContinuationState {
-  const sortedItems = sortTaskItems(items);
-  const resumableItems = sortedItems.filter((item) => isResumableTask(item));
-  const recentDoneItems = sortedItems.filter((item) => item.status === "done");
-  const currentItem =
-    sortedItems.find((item) => item.id === currentTopicId) ?? null;
-  const primary =
-    (currentItem && isResumableTask(currentItem) ? currentItem : null) ??
-    resumableItems[0] ??
-    recentDoneItems[0] ??
-    currentItem ??
-    sortedItems[0] ??
-    null;
-
-  const related = [...resumableItems, ...recentDoneItems]
-    .filter((item) => item.id !== primary?.id)
-    .filter(
-      (item, index, array) =>
-        array.findIndex((candidate) => candidate.id === item.id) === index,
-    )
-    .slice(0, 3);
-
-  return {
-    primary,
-    related,
-  };
-}
-
-function resolveTaskCenterContinuationBadge(
-  item: TaskCardViewModel,
-): string {
-  if (isResumableTask(item)) {
-    return "等你继续";
-  }
-  if (item.status === "done") {
-    return "最近结果";
-  }
-  if (item.status === "running") {
-    return "正在推进";
-  }
-  return "生成现场";
-}
-
-function resolveTaskCenterContinuationActionLabel(
-  item: TaskCardViewModel,
-): string {
-  return resolveRecentTopicActionLabel(item);
-}
-
-function areProjectNameMapsEqual(
-  left: Record<string, string>,
-  right: Record<string, string>,
-): boolean {
-  const leftKeys = Object.keys(left);
-  const rightKeys = Object.keys(right);
-  if (leftKeys.length !== rightKeys.length) {
-    return false;
-  }
-
-  return leftKeys.every((key) => left[key] === right[key]);
 }
 
 function loadPinnedTaskIds() {
@@ -396,10 +336,10 @@ function buildTaskSections(
   const titleSet =
     contextVariant === "task-center"
       ? {
-          running: "正在推进",
-          waiting: "等你继续",
-          recent: "最近回访",
-          older: "更早记录",
+          running: "进行中",
+          waiting: "待继续",
+          recent: "最近对话",
+          older: "归档",
         }
       : {
           running: "进行中",
@@ -571,6 +511,9 @@ function buildCollapsedTeamSummary(
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   contextVariant = "default",
   onNewChat,
+  onOpenTaskCenterHome,
+  onOpenSkillsPage,
+  onOpenMemoryPage,
   topics,
   currentTopicId,
   onSwitchTopic,
@@ -677,34 +620,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     () => taskItems.find((item) => item.id === currentTopicId) ?? null,
     [currentTopicId, taskItems],
   );
-  const taskCenterContinuationState = useMemo(
-    () =>
-      contextVariant === "task-center"
-        ? resolveTaskCenterContinuationState(taskItems, currentTopicId)
-        : { primary: null, related: [] },
-    [contextVariant, currentTopicId, taskItems],
-  );
-  const continuationProjectIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          [
-            taskCenterContinuationState.primary,
-            ...taskCenterContinuationState.related,
-          ]
-            .map((item) => item?.workspaceId?.trim())
-            .filter((value): value is string => Boolean(value)),
-        ),
-      ),
-    [taskCenterContinuationState],
-  );
-  const continuationProjectIdsKey = useMemo(
-    () => continuationProjectIds.join("|"),
-    [continuationProjectIds],
-  );
-  const [continuationProjectNames, setContinuationProjectNames] = useState<
-    Record<string, string>
-  >({});
   const sortedChildSubagentSessions = useMemo(
     () => sortSubagentSessionsByPriority(childSubagentSessions),
     [childSubagentSessions],
@@ -799,36 +714,87 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     () => buildTaskSections(filteredTaskItems, contextVariant),
     [contextVariant, filteredTaskItems],
   );
+  const isTaskCenter = contextVariant === "task-center";
   const hasAnyTasks = topics.length > 0;
   const hasFilteredResults = filteredTaskItems.length > 0;
-  const taskHeadingLabel =
-    contextVariant === "task-center" ? "生成现场" : "任务";
+  const taskHeadingLabel = isTaskCenter ? "最近对话" : "任务";
   const taskHeadingHint =
-    contextVariant === "task-center"
-      ? "在这里继续推进当前创作、回看最近结果和旧历史。"
-      : null;
+    isTaskCenter ? "继续最近对话，待处理会话会优先显示在前面。" : null;
   const searchPlaceholder =
-    contextVariant === "task-center"
-      ? "搜索生成标题、结果或摘要"
-      : "搜索任务标题或摘要";
-  const newChatLabel =
-    contextVariant === "task-center" ? "开始生成" : "新建任务";
-  const allTasksLabel =
-    contextVariant === "task-center" ? "全部记录" : "全部任务";
-  const activeTasksLabel =
-    contextVariant === "task-center" ? "仅看待继续" : "仅看进行中";
+    isTaskCenter ? "搜索对话标题或摘要" : "搜索任务标题或摘要";
+  const newChatLabel = isTaskCenter ? "新建对话" : "新建任务";
+  const allTasksLabel = isTaskCenter ? "全部对话" : "全部任务";
+  const activeTasksLabel = isTaskCenter ? "待继续" : "仅看进行中";
   const emptyStateTitle =
-    contextVariant === "task-center"
-      ? "还没有待继续的生成记录"
-      : "还没有任务";
+    isTaskCenter ? "还没有最近对话" : "还没有任务";
   const emptyStateDescription =
-    contextVariant === "task-center"
-      ? "从“开始生成”发起也很自然，开始后会回到这里继续生成。"
+    isTaskCenter
+      ? "从“新建对话”开始后，最近对话会自动出现在这里。"
       : "从“新建任务”开始输入需求，创建后会出现在这里。";
+  const noResultsTitle = isTaskCenter ? "没有匹配的对话" : "没有匹配的任务";
+  const noResultsDescription = isTaskCenter
+    ? "试试搜索对话标题、摘要或状态关键词。"
+    : "试试搜索标题、执行摘要或状态关键词。";
   const olderSectionMoreLabel =
-    contextVariant === "task-center"
-      ? "查看更多旧生成历史"
-      : "查看更多历史任务";
+    isTaskCenter ? "查看更多归档对话" : "查看更多历史任务";
+  const taskCountLabel = searchKeyword.trim()
+    ? `${filteredTaskItems.length} 个结果`
+    : `${topics.length} 个${isTaskCenter ? "对话" : "任务"}`;
+  const sidebarShellClassName = isTaskCenter
+    ? "w-[308px] shrink-0 overflow-hidden rounded-[30px] border border-slate-200 bg-[linear-gradient(180deg,#fbfcfd_0%,#f3f6f8_100%)] shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-[#111318]"
+    : "w-[308px] shrink-0 overflow-hidden rounded-[30px] border border-emerald-200/40 bg-[linear-gradient(180deg,rgba(252,254,252,0.98)_0%,rgba(247,251,248,0.92)_100%)] shadow-sm shadow-slate-950/5 backdrop-blur dark:border-white/10 dark:bg-[#111318]";
+  const searchInputClassName = isTaskCenter
+    ? "h-11 w-full rounded-[18px] border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 shadow-sm shadow-slate-950/5 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:focus:border-white/20 dark:focus:ring-white/10"
+    : "h-11 w-full rounded-[18px] border border-emerald-200/40 bg-white/90 pl-9 pr-3 text-sm text-slate-700 shadow-sm shadow-slate-950/5 outline-none transition focus:border-emerald-300/60 focus:ring-2 focus:ring-emerald-100/50 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:focus:border-white/20 dark:focus:ring-white/10";
+  const taskCenterHeaderCardClassName =
+    "rounded-[24px] border border-slate-200 bg-white px-3.5 py-3.5 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-white/5";
+  const filterGroupClassName = isTaskCenter
+    ? "flex flex-wrap items-center gap-2 rounded-[20px] border border-slate-200 bg-slate-50/80 p-2 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-white/5"
+    : "flex flex-wrap items-center gap-2 rounded-[22px] border border-white/85 bg-white/72 p-2 shadow-sm shadow-slate-950/5";
+  const inactiveFilterClassName = isTaskCenter
+    ? "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+    : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300";
+  const taskCenterNavSections = useMemo<TaskCenterNavSection[]>(
+    () => [
+      {
+        id: "tasks",
+        title: "任务",
+        items: [
+          {
+            id: "new-task",
+            label: "新建任务",
+            icon: Plus,
+            onClick: onOpenTaskCenterHome ?? onNewChat,
+          },
+        ],
+      },
+      {
+        id: "capabilities",
+        title: "能力",
+        items: [
+          {
+            id: "skills",
+            label: "我的方法",
+            icon: Sparkles,
+            onClick: onOpenSkillsPage,
+          },
+        ],
+      },
+      {
+        id: "knowledge",
+        title: "资料",
+        items: [
+          {
+            id: "memory",
+            label: "灵感库",
+            icon: BrainCircuit,
+            onClick: onOpenMemoryPage,
+          },
+        ],
+      },
+    ],
+    [onNewChat, onOpenMemoryPage, onOpenSkillsPage, onOpenTaskCenterHome],
+  );
 
   useEffect(() => {
     if (editingTopicId && editInputRef.current) {
@@ -872,55 +838,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     );
   }, [pinnedTaskIds]);
 
-  useEffect(() => {
-    if (
-      contextVariant !== "task-center" ||
-      continuationProjectIds.length === 0
-    ) {
-      setContinuationProjectNames((current) =>
-        Object.keys(current).length > 0 ? {} : current,
-      );
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadProjectNames = async () => {
-      const entries = await Promise.all(
-        continuationProjectIds.map(async (projectId) => {
-          try {
-            const project = await getProject(projectId);
-            return [projectId, project?.name?.trim() || null] as const;
-          } catch {
-            return [projectId, null] as const;
-          }
-        }),
-      );
-
-      if (cancelled) {
-        return;
-      }
-
-      const nextProjectNames = Object.fromEntries(
-        entries.filter(
-          (entry): entry is readonly [string, string] => Boolean(entry[1]),
-        ),
-      );
-
-      setContinuationProjectNames((current) =>
-        areProjectNameMapsEqual(current, nextProjectNames)
-          ? current
-          : nextProjectNames,
-      );
-    };
-
-    void loadProjectNames();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [contextVariant, continuationProjectIds, continuationProjectIdsKey]);
-
   const handleDeleteClick = (topicId: string) => {
     onDeleteTopic(topicId);
   };
@@ -945,24 +862,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     }
 
     void onSwitchTopic(item.id);
-  };
-
-  const handleOpenContinuationTask = (item: TaskCardViewModel) => {
-    if (isResumableTask(item)) {
-      handleResumeTask(item);
-      return;
-    }
-
-    void onSwitchTopic(item.id);
-  };
-
-  const resolveTaskProjectLabel = (item: TaskCardViewModel) => {
-    const projectId = item.workspaceId?.trim();
-    if (!projectId) {
-      return "通用任务";
-    }
-
-    return continuationProjectNames[projectId] || "当前项目";
   };
 
   const handleJumpToTaskSection = () => {
@@ -1071,7 +970,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   return (
     <aside
-      className="w-[308px] shrink-0 overflow-hidden rounded-[30px] border border-emerald-200/40 bg-[linear-gradient(180deg,rgba(252,254,252,0.98)_0%,rgba(247,251,248,0.92)_100%)] shadow-sm shadow-slate-950/5 backdrop-blur dark:border-white/10 dark:bg-[#111318]"
+      className={sidebarShellClassName}
       data-testid="chat-sidebar"
     >
       <div className="flex h-full min-h-0 flex-col gap-4 p-4">
@@ -1083,45 +982,145 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               value={searchKeyword}
               onChange={(event) => setSearchKeyword(event.target.value)}
               placeholder={searchPlaceholder}
-              className="h-11 w-full rounded-[18px] border border-emerald-200/40 bg-white/90 pl-9 pr-3 text-sm text-slate-700 shadow-sm shadow-slate-950/5 outline-none transition focus:border-emerald-300/60 focus:ring-2 focus:ring-emerald-100/50 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:focus:border-white/20 dark:focus:ring-white/10"
+              className={searchInputClassName}
             />
           </div>
 
-          <button
-            type="button"
-            onClick={onNewChat}
-            className={CHAT_SIDEBAR_PRIMARY_ACTION_BUTTON_CLASSNAME}
-          >
-            <Plus className="h-4 w-4" />
-            {newChatLabel}
-          </button>
+          {isTaskCenter ? (
+            <>
+              <section className={taskCenterHeaderCardClassName}>
+                {taskCenterNavSections.map((section, sectionIndex) => (
+                  <div
+                    key={section.id}
+                    className={cn(
+                      sectionIndex > 0
+                        ? "mt-3 border-t border-slate-200/80 pt-3 dark:border-white/10"
+                        : "",
+                    )}
+                  >
+                    <div className="px-1 text-[11px] font-semibold tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                      {section.title}
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      {section.items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => item.onClick?.()}
+                          disabled={!item.onClick}
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition dark:border-white/10 dark:bg-white/5 dark:text-slate-200",
+                            item.onClick
+                              ? "hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:hover:bg-white/10 dark:hover:text-slate-100"
+                              : "cursor-default opacity-70",
+                          )}
+                        >
+                          <item.icon className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+                          <span className="truncate">{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </section>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-[22px] border border-white/85 bg-white/72 p-2 shadow-sm shadow-slate-950/5">
-            <button
-              type="button"
-              onClick={() => setStatusFilter("all")}
-              className={cn(
-                "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
-                statusFilter === "all"
-                  ? CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME
-                  : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
-              )}
-            >
-              {allTasksLabel}
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter("active")}
-              className={cn(
-                "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
-                statusFilter === "active"
-                  ? CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME
-                  : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
-              )}
-            >
-              {activeTasksLabel}
-            </button>
-          </div>
+              <section className={taskCenterHeaderCardClassName}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {taskHeadingLabel}
+                    </div>
+                    {taskHeadingHint ? (
+                      <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                        {taskHeadingHint}
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={newChatLabel}
+                    title={newChatLabel}
+                    onClick={onNewChat}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className={cn("mt-3", filterGroupClassName)}>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("all")}
+                    className={cn(
+                      "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
+                      statusFilter === "all"
+                        ? CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME
+                        : inactiveFilterClassName,
+                    )}
+                  >
+                    {allTasksLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("active")}
+                    className={cn(
+                      "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
+                      statusFilter === "active"
+                        ? CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME
+                        : inactiveFilterClassName,
+                    )}
+                  >
+                    {activeTasksLabel}
+                  </button>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between px-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                  <span>
+                    {statusFilter === "active" ? activeTasksLabel : allTasksLabel}
+                  </span>
+                  <span>{taskCountLabel}</span>
+                </div>
+              </section>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onNewChat}
+                className={CHAT_SIDEBAR_PRIMARY_ACTION_BUTTON_CLASSNAME}
+              >
+                <Plus className="h-4 w-4" />
+                {newChatLabel}
+              </button>
+
+              <div className={filterGroupClassName}>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("all")}
+                  className={cn(
+                    "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
+                    statusFilter === "all"
+                      ? CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME
+                      : inactiveFilterClassName,
+                  )}
+                >
+                  {allTasksLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("active")}
+                  className={cn(
+                    "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
+                    statusFilter === "active"
+                      ? CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME
+                      : inactiveFilterClassName,
+                  )}
+                >
+                  {activeTasksLabel}
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <div
@@ -1129,92 +1128,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
           data-testid="chat-sidebar-scroll-area"
         >
           <div className="space-y-4 pb-1">
-            {contextVariant === "task-center" &&
-            taskCenterContinuationState.primary ? (
-              <section
-                className="rounded-[24px] border border-emerald-200/70 bg-white px-3.5 py-3.5 shadow-sm shadow-slate-950/5"
-                data-testid="task-center-continuation-panel"
-              >
-                <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                    <div className="text-[11px] font-semibold tracking-[0.12em] text-emerald-700">
-                      继续最近会话
-                    </div>
-                    <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                      最近一次停在哪、当前在等什么，这里会直接带你回到现场。
-                    </p>
-                  </div>
-                  <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">
-                    上下文已保留
-                  </Badge>
-                </div>
-
-                <button
-                  type="button"
-                  data-testid="task-center-primary-continuation"
-                  onClick={() =>
-                    handleOpenContinuationTask(taskCenterContinuationState.primary!)
-                  }
-                  className="mt-3 w-full rounded-[20px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] px-3.5 py-3 text-left transition hover:border-emerald-200/80 hover:bg-white"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                      {resolveTaskCenterContinuationBadge(
-                        taskCenterContinuationState.primary,
-                      )}
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      {resolveTaskProjectLabel(
-                        taskCenterContinuationState.primary,
-                      )}
-                    </span>
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-slate-900">
-                    {taskCenterContinuationState.primary.title}
-                  </div>
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                    {taskCenterContinuationState.primary.lastPreview}
-                  </p>
-                  <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-slate-400">
-                    <span>
-                      更新于{" "}
-                      {formatRelativeTime(
-                        taskCenterContinuationState.primary.updatedAt,
-                      )}
-                    </span>
-                    <span className="font-medium text-slate-600">
-                      {resolveTaskCenterContinuationActionLabel(
-                        taskCenterContinuationState.primary,
-                      )}
-                    </span>
-                  </div>
-                </button>
-
-                {taskCenterContinuationState.related.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {taskCenterContinuationState.related.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        data-testid={`task-center-related-${item.id}`}
-                        onClick={() => handleOpenContinuationTask(item)}
-                        className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-left text-[11px] text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900"
-                        title={`${item.title} · ${item.lastPreview}`}
-                      >
-                        <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[10px] text-slate-500">
-                          {resolveTaskCenterContinuationBadge(item)}
-                        </span>
-                        <span className="truncate">{item.title}</span>
-                        <span className="shrink-0 text-slate-400">
-                          {resolveTaskProjectLabel(item)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </section>
-            ) : null}
-
             {shouldShowTeamSection ? (
               <section
                 className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.94)_0%,rgba(248,250,252,0.9)_100%)] px-3.5 py-3.5 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-white/5"
@@ -1426,26 +1339,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
             <div
               ref={taskSectionAnchorRef}
-              className="px-1"
+              className={isTaskCenter ? "sr-only" : "px-1"}
               data-testid="task-section-heading"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500">
-                    {taskHeadingLabel}
+              {isTaskCenter ? (
+                <span>{taskHeadingLabel}</span>
+              ) : (
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500">
+                      {taskHeadingLabel}
+                    </div>
+                    {taskHeadingHint ? (
+                      <p className="mt-1 text-[11px] leading-5 text-slate-400 dark:text-slate-400">
+                        {taskHeadingHint}
+                      </p>
+                    ) : null}
                   </div>
-                  {taskHeadingHint ? (
-                    <p className="mt-1 text-[11px] leading-5 text-slate-400 dark:text-slate-400">
-                      {taskHeadingHint}
-                    </p>
-                  ) : null}
+                  <div className="shrink-0 pt-0.5 text-xs text-slate-400">
+                    {taskCountLabel}
+                  </div>
                 </div>
-                <div className="shrink-0 pt-0.5 text-xs text-slate-400">
-                  {searchKeyword.trim()
-                    ? `${filteredTaskItems.length} 个结果`
-                    : `${topics.length} 个任务`}
-                </div>
-              </div>
+              )}
             </div>
 
             {!hasAnyTasks ? (
@@ -1463,10 +1378,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
             ) : !hasFilteredResults ? (
               <div className="rounded-[26px] border border-dashed border-slate-200/90 bg-white/82 px-4 py-8 text-center shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-white/5">
                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  没有匹配的任务
+                  {noResultsTitle}
                 </div>
                 <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-slate-400">
-                  试试搜索标题、执行摘要或状态关键词。
+                  {noResultsDescription}
                 </p>
               </div>
             ) : (
@@ -1550,8 +1465,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                                     ? "border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.9)_0%,rgba(255,255,255,0.96)_100%)] shadow-sm shadow-amber-950/5 dark:border-amber-500/20 dark:bg-white/10"
                                     : "",
                                   item.isCurrent
-                                    ? "border-emerald-200/60 bg-white/98 ring-1 ring-emerald-50 dark:border-white/15 dark:bg-white/10"
-                                    : "border-slate-200/60 bg-white/72 hover:border-emerald-200/60 hover:bg-white/92 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/10 dark:hover:bg-white/5",
+                                    ? isTaskCenter
+                                      ? "border-slate-300 bg-white ring-1 ring-slate-100 dark:border-white/15 dark:bg-white/10"
+                                      : "border-emerald-200/60 bg-white/98 ring-1 ring-emerald-50 dark:border-white/15 dark:bg-white/10"
+                                    : isTaskCenter
+                                      ? "border-slate-200 bg-white hover:border-slate-300 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:border-white/10 dark:hover:bg-white/5"
+                                      : "border-slate-200/60 bg-white/72 hover:border-emerald-200/60 hover:bg-white/92 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/10 dark:hover:bg-white/5",
                                 )}
                               >
                                 <div className="flex items-start gap-3">

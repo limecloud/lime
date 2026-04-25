@@ -167,11 +167,11 @@ describe("getContextualRecommendations", () => {
     ).toBe(false);
   });
 
-  it("应识别 current 的生成工作台口径", () => {
+  it("应识别 current 的生成口径", () => {
     expect(
       isTeamRuntimeRecommendation(
         "父子线程联调",
-        "请围绕当前主题做一次父子线程联调，并输出生成工作台视角的总结。",
+        "请围绕当前主题做一次父子线程联调，并输出生成视角的总结。",
       ),
     ).toBe(true);
   });

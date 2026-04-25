@@ -92,6 +92,7 @@ import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 import { useImageGen } from "@/components/image-gen/useImageGen";
 import { resolveMediaGenerationPreference } from "@/lib/mediaGeneration";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
+import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import {
   buildTeamMemoryShadowRequestMetadata,
   readTeamMemorySnapshot,
@@ -133,6 +134,7 @@ import {
   buildGeneralAgentSystemPrompt,
   resolveAgentChatMode,
 } from "./utils/generalAgentPrompt";
+import { loadPersisted, savePersisted } from "./hooks/agentChatStorage";
 import { loadPersistedProjectId } from "./hooks/agentProjectStorage";
 import { loadPersistedSessionWorkspaceId } from "./hooks/agentProjectStorage";
 import { useSelectedTeamPreference } from "./hooks/useSelectedTeamPreference";
@@ -211,6 +213,10 @@ import { useWorkspaceInitialSessionNavigation } from "./workspace/useWorkspaceIn
 import { WorkspaceGeneralWorkbenchSidebar } from "./workspace/WorkspaceGeneralWorkbenchSidebar";
 import { GeneralWorkbenchHarnessDialogSection } from "./workspace/WorkspaceHarnessDialogs";
 import { WorkspaceShellScene } from "./workspace/WorkspaceShellScene";
+import {
+  TaskCenterTabStrip,
+  type TaskCenterTabItem,
+} from "./components/TaskCenterTabStrip";
 import type { GeneralWorkbenchFollowUpActionPayload } from "./components/generalWorkbenchSidebarContract";
 import { RuntimeReviewDecisionDialog } from "./components/RuntimeReviewDecisionDialog";
 import {
@@ -233,6 +239,18 @@ import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { ArtifactTimelineOpenTarget } from "./utils/artifactTimelineNavigation";
 import { createUnifiedMemory } from "@/lib/api/unifiedMemory";
 import { getDefaultGuidePromptByTheme } from "./utils/defaultGuidePrompt";
+import { shouldShowChatLayout } from "./utils/chatLayoutVisibility";
+import { resolveInternalImageTaskDisplayName } from "./utils/internalImagePlaceholder";
+import {
+  MAX_TASK_CENTER_OPEN_TABS,
+  normalizeTaskCenterWorkspaceTabMap,
+  reconcileTaskCenterTabIds,
+  resolveTaskCenterTabIdsForWorkspace,
+  shouldResumeTaskSession,
+  TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY,
+  type TaskCenterWorkspaceTabMap,
+  updateTaskCenterTabIdsForWorkspace,
+} from "./utils/taskCenterTabs";
 import {
   createInitialSessionImageWorkbenchState,
   type SessionImageWorkbenchState,
@@ -453,8 +471,7 @@ export function AgentChatWorkspace({
   initialSiteSkillLaunch,
 }: AgentChatWorkspaceProps) {
   const normalizedEntryTheme = normalizeInitialTheme(initialTheme);
-  const shouldAutoCollapseClassicClawSidebar =
-    agentEntry === "claw" && normalizedEntryTheme === "general";
+  const shouldAutoCollapseClassicClawSidebar = false;
   const defaultTopicSidebarVisible =
     showChatPanel && !shouldAutoCollapseClassicClawSidebar;
   const [showSidebar, setShowSidebar] = useState(
@@ -546,6 +563,7 @@ export function AgentChatWorkspace({
     externalProjectId,
     newChatAt,
   });
+  const taskCenterWorkspaceId = normalizeProjectId(projectId);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(
     shouldBootstrapCanvasOnEntry ? "canvas" : "chat",
   );
@@ -1098,7 +1116,7 @@ export function AgentChatWorkspace({
   }, [_onNavigate]);
   const handleOpenSceneAppsDirectory = useCallback(() => {
     if (!_onNavigate) {
-      toast.error("当前入口暂不支持跳转到做法目录");
+      toast.error("当前入口暂不支持跳转到全部做法");
       return;
     }
 
@@ -1117,7 +1135,7 @@ export function AgentChatWorkspace({
   }, [_onNavigate, input, projectId]);
   const handleResumeRecentSceneApp = useCallback(() => {
     if (!_onNavigate) {
-      toast.error("当前入口暂不支持跳转到做法目录");
+      toast.error("当前入口暂不支持跳转到全部做法");
       return;
     }
 
@@ -2995,7 +3013,6 @@ export function AgentChatWorkspace({
     lockTheme,
     initialTheme,
     sessionFiles,
-    readSessionFile,
     taskFilesLength: taskFiles.length,
     setActiveTheme,
     setCreationMode,
@@ -3057,6 +3074,58 @@ export function AgentChatWorkspace({
     currentSessionId: sessionId,
     switchTopic,
   });
+  const [taskCenterOpenTabMap, setTaskCenterOpenTabMap] =
+    useState<TaskCenterWorkspaceTabMap>(() =>
+      normalizeTaskCenterWorkspaceTabMap(
+        loadPersisted<unknown>(TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY, []),
+        {
+          workspaceId: taskCenterWorkspaceId,
+        },
+      ),
+    );
+  const taskCenterOpenTabIds = useMemo(
+    () =>
+      resolveTaskCenterTabIdsForWorkspace(
+        taskCenterOpenTabMap,
+        taskCenterWorkspaceId,
+      ),
+    [taskCenterOpenTabMap, taskCenterWorkspaceId],
+  );
+  const taskCenterOpenTabIdsRef = useRef(taskCenterOpenTabIds);
+
+  useEffect(() => {
+    taskCenterOpenTabIdsRef.current = taskCenterOpenTabIds;
+  }, [taskCenterOpenTabIds]);
+
+  useEffect(() => {
+    if (agentEntry !== "claw" || !taskCenterWorkspaceId) {
+      return;
+    }
+
+    setTaskCenterOpenTabMap((currentMap) => {
+      const nextIds = reconcileTaskCenterTabIds({
+        existingIds: resolveTaskCenterTabIdsForWorkspace(
+          currentMap,
+          taskCenterWorkspaceId,
+        ),
+        topics,
+        currentTopicId: sessionId ?? null,
+      });
+      return updateTaskCenterTabIdsForWorkspace(
+        currentMap,
+        taskCenterWorkspaceId,
+        nextIds,
+      );
+    });
+  }, [agentEntry, sessionId, taskCenterWorkspaceId, topics]);
+
+  useEffect(() => {
+    if (agentEntry !== "claw") {
+      return;
+    }
+
+    savePersisted(TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY, taskCenterOpenTabMap);
+  }, [agentEntry, taskCenterOpenTabMap]);
 
   useTrayModelShortcuts({
     providerType,
@@ -3455,14 +3524,99 @@ export function AgentChatWorkspace({
     upsertGeneralArtifact(settledLiveArtifact);
   }, [activeTheme, liveArtifact, settledLiveArtifact, upsertGeneralArtifact]);
 
+  const upsertTaskCenterOpenTab = useCallback(
+    (topicId: string, workspaceIdOverride?: string | null) => {
+      const targetWorkspaceId =
+        normalizeProjectId(workspaceIdOverride) ?? taskCenterWorkspaceId;
+      if (!targetWorkspaceId) {
+        return;
+      }
+
+      setTaskCenterOpenTabMap((currentMap) =>
+        updateTaskCenterTabIdsForWorkspace(
+          currentMap,
+          targetWorkspaceId,
+          (currentIds) =>
+            [topicId, ...currentIds.filter((item) => item !== topicId)].slice(
+              0,
+              MAX_TASK_CENTER_OPEN_TABS,
+            ),
+        ),
+      );
+    },
+    [taskCenterWorkspaceId],
+  );
+
+  const finalizeFreshTaskCenterConversation = useCallback(
+    (newSessionId: string, workspaceIdOverride?: string | null) => {
+      resetTopicLocalState();
+      setInput("");
+      setSelectedText("");
+      setMentionedCharacters([]);
+      upsertTaskCenterOpenTab(newSessionId, workspaceIdOverride);
+    },
+    [
+      resetTopicLocalState,
+      setInput,
+      setMentionedCharacters,
+      setSelectedText,
+      upsertTaskCenterOpenTab,
+    ],
+  );
+
+  const handleOpenTaskTopic = useCallback(
+    async (
+      topicId: string,
+      options?: {
+        preferResume?: boolean;
+        forceRefresh?: boolean;
+      },
+    ) => {
+      const topic = topics.find((item) => item.id === topicId);
+      const topicWorkspaceId = normalizeProjectId(
+        topic?.workspaceId ??
+          loadPersistedSessionWorkspaceId(topicId) ??
+          taskCenterWorkspaceId,
+      );
+      const shouldResume =
+        options?.preferResume === true || shouldResumeTaskSession(topic);
+      const switchOptions =
+        shouldResume || options?.forceRefresh === true
+          ? {
+              ...(options?.forceRefresh === true ? { forceRefresh: true } : {}),
+              ...(shouldResume ? { resumeSessionStartHooks: true } : {}),
+            }
+          : undefined;
+
+      await switchTopic(topicId, switchOptions);
+      if (agentEntry === "claw") {
+        upsertTaskCenterOpenTab(topicId, topicWorkspaceId);
+      }
+    },
+    [
+      agentEntry,
+      switchTopic,
+      taskCenterWorkspaceId,
+      topics,
+      upsertTaskCenterOpenTab,
+    ],
+  );
+
+  const handleSwitchTaskTopic = useCallback(
+    async (topicId: string) => {
+      await handleOpenTaskTopic(topicId);
+    },
+    [handleOpenTaskTopic],
+  );
+
   const handleResumeSidebarTask = useCallback(
-    async (topicId: string, _statusReason?: TaskStatusReason) => {
-      await switchTopic(topicId, {
-        forceRefresh: true,
-        resumeSessionStartHooks: true,
+    async (topicId: string, statusReason?: TaskStatusReason) => {
+      await handleOpenTaskTopic(topicId, {
+        preferResume: true,
+        forceRefresh: statusReason === "workspace_error",
       });
     },
-    [switchTopic],
+    [handleOpenTaskTopic],
   );
 
   const recentSessionTopic = useMemo(
@@ -3481,11 +3635,189 @@ export function AgentChatWorkspace({
       return;
     }
 
-    void handleResumeSidebarTask(
-      recentSessionTopic.id,
-      recentSessionTopic.statusReason,
+    void handleOpenTaskTopic(recentSessionTopic.id, {
+      preferResume: true,
+      forceRefresh: recentSessionTopic.statusReason === "workspace_error",
+    });
+  }, [handleOpenTaskTopic, recentSessionTopic]);
+  const handleCreateTaskCenterConversation = useCallback(async () => {
+    if (!taskCenterWorkspaceId) {
+      toast.info("请先选择工作区后再新建对话");
+      return;
+    }
+
+    const newSessionId = await createFreshSession();
+    if (!newSessionId) {
+      return;
+    }
+
+    finalizeFreshTaskCenterConversation(newSessionId, taskCenterWorkspaceId);
+  }, [
+    createFreshSession,
+    finalizeFreshTaskCenterConversation,
+    taskCenterWorkspaceId,
+  ]);
+  const handleCloseTaskCenterTab = useCallback(
+    async (topicId: string) => {
+      const currentIds = taskCenterOpenTabIdsRef.current;
+      const currentIndex = currentIds.indexOf(topicId);
+      const remainingIds = currentIds.filter((item) => item !== topicId);
+      const isActiveTab = sessionId === topicId;
+
+      setTaskCenterOpenTabMap((currentMap) =>
+        updateTaskCenterTabIdsForWorkspace(
+          currentMap,
+          taskCenterWorkspaceId,
+          remainingIds,
+        ),
+      );
+
+      if (isActiveTab) {
+        const fallbackId =
+          remainingIds[currentIndex] ??
+          remainingIds[currentIndex - 1] ??
+          remainingIds[0] ??
+          null;
+
+        if (fallbackId) {
+          await handleSwitchTaskTopic(fallbackId);
+        } else {
+          const newSessionId = await createFreshSession();
+          if (newSessionId) {
+            finalizeFreshTaskCenterConversation(
+              newSessionId,
+              taskCenterWorkspaceId,
+            );
+          } else {
+            upsertTaskCenterOpenTab(topicId, taskCenterWorkspaceId);
+          }
+        }
+      }
+    },
+    [
+      createFreshSession,
+      finalizeFreshTaskCenterConversation,
+      handleSwitchTaskTopic,
+      sessionId,
+      taskCenterWorkspaceId,
+      upsertTaskCenterOpenTab,
+    ],
+  );
+  const taskCenterTabItems = useMemo<TaskCenterTabItem[]>(
+    () =>
+      taskCenterOpenTabIds
+        .map((topicId) => topics.find((topic) => topic.id === topicId))
+        .filter((topic): topic is NonNullable<typeof topic> => Boolean(topic))
+        .map((topic) => ({
+          id: topic.id,
+          title:
+            resolveInternalImageTaskDisplayName(topic.title) || "未命名任务",
+          status: topic.status ?? "done",
+          updatedAt:
+            topic.updatedAt instanceof Date
+              ? topic.updatedAt
+              : new Date(topic.updatedAt ?? topic.createdAt ?? Date.now()),
+          isActive: topic.id === sessionId,
+          hasUnread: Boolean(topic.hasUnread),
+          isPinned: Boolean(topic.isPinned),
+        })),
+    [sessionId, taskCenterOpenTabIds, topics],
+  );
+  useEffect(() => {
+    if (
+      agentEntry !== "claw" ||
+      !taskCenterWorkspaceId ||
+      isAutoRestoringSession
+    ) {
+      return;
+    }
+
+    const activeSessionVisibleInWorkspace = sessionId
+      ? topics.some((topic) => topic.id === sessionId)
+      : false;
+    if (activeSessionVisibleInWorkspace) {
+      return;
+    }
+
+    const fallbackId = taskCenterOpenTabIds.find((topicId) =>
+      topics.some((topic) => topic.id === topicId),
     );
-  }, [handleResumeSidebarTask, recentSessionTopic]);
+    if (!fallbackId) {
+      return;
+    }
+
+    void handleSwitchTaskTopic(fallbackId);
+  }, [
+    agentEntry,
+    handleSwitchTaskTopic,
+    isAutoRestoringSession,
+    sessionId,
+    taskCenterOpenTabIds,
+    taskCenterWorkspaceId,
+    topics,
+  ]);
+  const taskCenterTabsNode = useMemo(() => {
+    if (agentEntry !== "claw") {
+      return null;
+    }
+
+    return (
+      <TaskCenterTabStrip
+        items={taskCenterTabItems}
+        onSelectTask={(topicId) => {
+          void handleSwitchTaskTopic(topicId);
+        }}
+        onCloseTask={(topicId) => {
+          void handleCloseTaskCenterTab(topicId);
+        }}
+        onCreateTask={() => {
+          void handleCreateTaskCenterConversation();
+        }}
+        showCanvasToggle={!isThemeWorkbench}
+        isCanvasOpen={layoutMode !== "chat"}
+        onToggleCanvas={handleToggleCanvas}
+      />
+    );
+  }, [
+    agentEntry,
+    handleCreateTaskCenterConversation,
+    handleCloseTaskCenterTab,
+    handleToggleCanvas,
+    handleSwitchTaskTopic,
+    isThemeWorkbench,
+    layoutMode,
+    taskCenterTabItems,
+  ]);
+  const handleOpenTaskCenterNewTaskPage = useCallback(() => {
+    if (_onNavigate) {
+      _onNavigate(
+        "agent",
+        buildHomeAgentParams({
+          projectId: projectId ?? undefined,
+        }),
+      );
+      return;
+    }
+
+    handleBackHome();
+  }, [_onNavigate, handleBackHome, projectId]);
+  const handleOpenTaskCenterSkillsPage = useCallback(() => {
+    if (!_onNavigate) {
+      return;
+    }
+
+    _onNavigate(
+      "skills",
+      projectId
+        ? {
+            creationProjectId: projectId,
+          }
+        : undefined,
+    );
+  }, [_onNavigate, projectId]);
+  const handleOpenTaskCenterMemoryPage = useCallback(() => {
+    _onNavigate?.("memory");
+  }, [_onNavigate]);
 
   const handleWriteFile = useWorkspaceWriteFileAction({
     activeTheme,
@@ -3977,7 +4309,7 @@ export function AgentChatWorkspace({
       referenceEntries: defaultCuratedTaskReferenceEntries,
     });
     if (!followUpAction) {
-      toast.error("当前还没有足够的项目结果基线，暂时无法直接进入复盘。");
+      toast.error("当前还没有足够的项目结果基线，暂时无法直接进入下一步判断。");
       return;
     }
 
@@ -3993,7 +4325,7 @@ export function AgentChatWorkspace({
         taskId,
       });
       if (!followUpAction) {
-        toast.error("当前复盘建议还缺少可继续的结果模板。");
+        toast.error("当前判断建议还缺少可继续的结果模板。");
         return;
       }
 
@@ -4151,7 +4483,7 @@ export function AgentChatWorkspace({
             action,
             sceneTitle: sceneAppExecutionSummaryState?.summary?.title,
             failureSignal: sceneAppExecutionFailureSignal,
-            sourceLabel: "生成主执行面",
+            sourceLabel: "生成",
           }),
           {
             closeDialog: false,
@@ -4234,7 +4566,7 @@ export function AgentChatWorkspace({
       const target = resolveSceneAppRuntimeArtifactOpenTarget({
         entry: artifactEntry,
         fallbackProjectId: projectId,
-        bannerPrefix: "已从生成主执行面打开结果文件",
+        bannerPrefix: "已从生成打开结果文件",
       });
       if (!target) {
         toast.error("当前这次运行还没有可打开的结果文件路径。");
@@ -4279,7 +4611,7 @@ export function AgentChatWorkspace({
               artifactEntry.artifactRef.kind,
             );
             if (!refreshed) {
-              toast.error("当前运行已不存在，无法继续准备治理文件。");
+              toast.error("当前运行已不存在，无法继续准备结果材料。");
               return;
             }
 
@@ -4301,7 +4633,7 @@ export function AgentChatWorkspace({
         const target = resolveSceneAppRuntimeArtifactOpenTarget({
           entry: resolvedEntry,
           fallbackProjectId: projectId,
-          bannerPrefix: "已从生成主执行面打开治理文件",
+          bannerPrefix: "已从生成打开结果材料",
         });
         if (!target) {
           toast.error("当前这次运行还没有可打开的证据或复核文件。");
@@ -4348,7 +4680,7 @@ export function AgentChatWorkspace({
         sceneAppReviewTargetRunSummary?.runId?.trim() ||
         "";
       if (!runId) {
-        toast.error("当前还没有可用于治理动作的运行样本。");
+        toast.error("当前还没有可用于后续动作的运行样本。");
         return;
       }
 
@@ -4361,7 +4693,7 @@ export function AgentChatWorkspace({
             action.artifactKinds,
           );
           if (!refreshed) {
-            toast.error("当前运行已不存在，无法继续准备治理动作。");
+            toast.error("当前运行已不存在，无法继续准备后续动作。");
             return;
           }
 
@@ -4377,11 +4709,11 @@ export function AgentChatWorkspace({
           const target = resolveSceneAppRuntimeArtifactOpenTarget({
             entry: targetEntry,
             fallbackProjectId: projectId,
-            bannerPrefix: "已从生成主执行面打开治理动作",
+            bannerPrefix: "已从生成打开后续动作",
           });
           if (!target) {
             toast.error(
-              `治理动作已准备完成，但当前没有可打开的${action.primaryArtifactLabel}路径。`,
+              `后续动作已准备完成，但当前没有可打开的${action.primaryArtifactLabel}路径。`,
             );
             return;
           }
@@ -4423,7 +4755,7 @@ export function AgentChatWorkspace({
         action,
         sceneappId: sceneAppExecutionSummaryState.summary.sceneappId,
         sceneTitle: sceneAppExecutionSummaryState.summary.title,
-        sourceLabel: "生成主执行面",
+        sourceLabel: "生成",
         projectId,
         linkedServiceSkillId:
           sceneAppExecutionSummaryState.summary.descriptorSnapshot
@@ -4967,14 +5299,16 @@ export function AgentChatWorkspace({
     const hasUnconsumedInitialDispatch =
       !shouldUseCompactGeneralWorkbench && isBootstrapDispatchPending;
 
-    const showChatLayout =
-      agentEntry === "claw" ||
-      hasDisplayMessages ||
-      hasPendingA2UIForm ||
-      isThemeWorkbench ||
-      hasUnconsumedInitialDispatch ||
-      isSending ||
-      queuedTurns.length > 0;
+    const showChatLayout = shouldShowChatLayout({
+      agentEntry,
+      hasDisplayMessages,
+      hasPendingA2UIForm,
+      isThemeWorkbench,
+      hasUnconsumedInitialDispatch,
+      isPreparingSend,
+      isSending,
+      queuedTurnCount: queuedTurns.length,
+    });
 
     const shouldHideGeneralWorkbenchInputForTheme =
       shouldUseCompactGeneralWorkbench;
@@ -5022,6 +5356,7 @@ export function AgentChatWorkspace({
     hasPendingA2UIForm,
     hideTopBar,
     isBootstrapDispatchPending,
+    isPreparingSend,
     isSending,
     isSpecializedThemeMode,
     isThemeWorkbench,
@@ -5555,6 +5890,7 @@ export function AgentChatWorkspace({
     recentSessionActionLabel,
     handleResumeRecentSession,
     handleOpenSceneAppsDirectory,
+    taskCenterTabsNode,
     hideHistoryToggle,
     showChatPanel: effectiveShowChatPanel,
     topBarChrome,
@@ -5653,7 +5989,10 @@ export function AgentChatWorkspace({
         currentTopicId={sessionId ?? null}
         topics={topics}
         onNewChat={shellHandleBackHome}
-        onSwitchTopic={switchTopic}
+        onOpenTaskCenterHome={handleOpenTaskCenterNewTaskPage}
+        onOpenSkillsPage={handleOpenTaskCenterSkillsPage}
+        onOpenMemoryPage={handleOpenTaskCenterMemoryPage}
+        onSwitchTopic={handleSwitchTaskTopic}
         onResumeTask={handleResumeSidebarTask}
         onDeleteTopic={deleteTopic}
         onRenameTopic={renameTopic}

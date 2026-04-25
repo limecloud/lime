@@ -74,7 +74,7 @@ export function SceneAppGovernancePanel({
   if (!hasSelectedSceneApp) {
     return (
       <section className="rounded-[28px] border border-dashed border-slate-200 bg-white p-5 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-        先选一套做法，复盘页才会带出最近结果、证据和下一步判断。
+        先选一套做法，结果页才会带出最近结果、证据和下一步判断。
       </section>
     );
   }
@@ -82,9 +82,9 @@ export function SceneAppGovernancePanel({
   if (loading && !governanceView) {
     return (
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="text-sm font-semibold text-slate-900">做法复盘</div>
+        <div className="text-sm font-semibold text-slate-900">结果判断</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          正在整理复盘视图…
+          正在整理结果判断…
         </div>
       </section>
     );
@@ -93,7 +93,7 @@ export function SceneAppGovernancePanel({
   if (error && !governanceView) {
     return (
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="text-sm font-semibold text-slate-900">做法复盘</div>
+        <div className="text-sm font-semibold text-slate-900">结果判断</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-rose-200 bg-rose-50 px-4 py-5 text-sm text-rose-700">
           {error}
         </div>
@@ -104,9 +104,9 @@ export function SceneAppGovernancePanel({
   if (!governanceView) {
     return (
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="text-sm font-semibold text-slate-900">做法复盘</div>
+        <div className="text-sm font-semibold text-slate-900">结果判断</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          当前还没有可整理的复盘信息，先跑一轮结果链再回来判断。
+          当前还没有可整理的结果信息，先跑一轮结果再回来判断。
         </div>
       </section>
     );
@@ -116,7 +116,7 @@ export function SceneAppGovernancePanel({
     <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-slate-900">做法复盘</div>
+          <div className="text-sm font-semibold text-slate-900">结果判断</div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
             把最近一轮结果翻成业务判断，决定现在适合继续、先修哪里，还是先停下来补材料。
           </p>

@@ -8,6 +8,7 @@ import type {
   ProviderDeclaredPromptCacheMode,
   ProviderType,
 } from "@/lib/types/provider";
+import { canonicalizeKnownProviderModelId } from "@/lib/model/xiaomiModelNormalization";
 import { getProviderPromptCacheMode } from "@/lib/model/providerPromptCacheSupport";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 
@@ -156,17 +157,64 @@ export function dedupeModelIds(modelIds: string[]): string[] {
   return result;
 }
 
-export function parseCustomModelsValue(value: string): string[] {
+interface ProviderModelNormalizationOptions {
+  providerId?: string | null;
+  providerType?: string | null;
+  apiHost?: string | null;
+}
+
+function normalizeProviderModelId(
+  modelId: string,
+  options?: ProviderModelNormalizationOptions,
+): string {
+  const trimmed = modelId.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (!options) {
+    return trimmed;
+  }
+
+  return (
+    canonicalizeKnownProviderModelId({
+      providerId: options.providerId,
+      providerType: options.providerType,
+      apiHost: options.apiHost,
+      modelId: trimmed,
+    }) || trimmed
+  );
+}
+
+function canonicalizeProviderModelIds(
+  modelIds: string[],
+  options?: ProviderModelNormalizationOptions,
+): string[] {
   return dedupeModelIds(
+    modelIds
+      .map((modelId) => normalizeProviderModelId(modelId, options))
+      .filter((modelId) => modelId.length > 0),
+  );
+}
+
+export function parseCustomModelsValue(
+  value: string,
+  options?: ProviderModelNormalizationOptions,
+): string[] {
+  return canonicalizeProviderModelIds(
     value
       .split(",")
       .map((item) => item.trim())
       .filter((item) => item.length > 0),
+    options,
   );
 }
 
-export function serializeCustomModels(models: string[]): string {
-  return dedupeModelIds(models).join(", ");
+export function serializeCustomModels(
+  models: string[],
+  options?: ProviderModelNormalizationOptions,
+): string {
+  return canonicalizeProviderModelIds(models, options).join(", ");
 }
 
 export function sortSelectableModels(

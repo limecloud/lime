@@ -84,7 +84,7 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
         risk_tags: riskTags,
         human_reviewer: params.template.decision.human_reviewer,
         reviewed_at: undefined,
-        followup_actions: ["补下一轮样本，再回到做法复盘继续判断。"],
+        followup_actions: ["补下一轮样本，再回到这套做法继续判断。"],
         regression_requirements:
           params.template.decision.regression_requirements,
         notes: `来自${sourceLabel}轻量反馈入口。`,

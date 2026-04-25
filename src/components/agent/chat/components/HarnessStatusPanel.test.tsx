@@ -782,6 +782,34 @@ describe("HarnessStatusPanel", () => {
     ).not.toBeNull();
   });
 
+  it("存在 thread_read runtime facts 时应展示运行时事实区块", () => {
+    renderPanel({
+      threadRead: {
+        thread_id: "thread-1",
+        status: "running",
+        decision_reason: "当前 provider 候选池共有 3 个兼容候选，已按连续性、能力与成本优选。",
+        fallback_chain: ["openai:gpt-5.4", "openai:gpt-5.4-mini"],
+        oem_policy: {
+          locked: true,
+          quotaLow: true,
+          defaultModel: "claude-sonnet-4",
+        },
+        runtime_summary: {
+          decisionReason:
+            "当前 provider 候选池共有 3 个兼容候选，已按连续性、能力与成本优选。",
+          fallbackChain: ["openai:gpt-5.4", "openai:gpt-5.4-mini"],
+        },
+      },
+    });
+
+    expect(document.body.textContent).toContain("运行时事实");
+    expect(document.body.textContent).toContain("决策原因");
+    expect(document.body.textContent).toContain("回退链");
+    expect(document.body.textContent).toContain("OEM 托管锁定");
+    expect(document.body.textContent).toContain("OEM 额度偏低");
+    expect(document.body.textContent).toContain("claude-sonnet-4");
+  });
+
   it("存在 sessionId 时应支持导出交接制品并展示产物列表", async () => {
     exportAgentRuntimeHandoffBundleMock.mockResolvedValue({
       session_id: "session-handoff-1",

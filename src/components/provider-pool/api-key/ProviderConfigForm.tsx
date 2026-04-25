@@ -180,7 +180,11 @@ export const ProviderConfigForm = forwardRef<
       project: provider.project || "",
       location: provider.location || "",
       region: provider.region || "",
-      customModels: (provider.custom_models || []).join(", "),
+      customModels: serializeCustomModels(provider.custom_models || [], {
+        providerId: provider.id,
+        providerType: provider.type as ProviderType,
+        apiHost: provider.api_host,
+      }),
     });
 
     // 保存状态
@@ -192,9 +196,21 @@ export const ProviderConfigForm = forwardRef<
     // 防抖定时器
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    const providerModelNormalizationOptions = useMemo(
+      () => ({
+        providerId: provider.id,
+        providerType: formState.providerType,
+        apiHost: formState.apiHost,
+      }),
+      [formState.apiHost, formState.providerType, provider.id],
+    );
     const selectedModels = useMemo(
-      () => parseCustomModelsValue(formState.customModels),
-      [formState.customModels],
+      () =>
+        parseCustomModelsValue(
+          formState.customModels,
+          providerModelNormalizationOptions,
+        ),
+      [formState.customModels, providerModelNormalizationOptions],
     );
     const enabledApiKeyCount = useMemo(
       () => provider.api_keys.filter((apiKey) => apiKey.enabled).length,
@@ -359,7 +375,11 @@ export const ProviderConfigForm = forwardRef<
         project: provider.project || "",
         location: provider.location || "",
         region: provider.region || "",
-        customModels: (provider.custom_models || []).join(", "),
+        customModels: serializeCustomModels(provider.custom_models || [], {
+          providerId: provider.id,
+          providerType: provider.type as ProviderType,
+          apiHost: provider.api_host,
+        }),
       });
       setSaveError(null);
       setModelDraft("");
@@ -386,10 +406,11 @@ export const ProviderConfigForm = forwardRef<
 
         try {
           // 解析自定义模型列表（逗号分隔）
-          const customModels = state.customModels
-            .split(",")
-            .map((m) => m.trim())
-            .filter((m) => m.length > 0);
+          const customModels = parseCustomModelsValue(state.customModels, {
+            providerId: provider.id,
+            providerType: state.providerType,
+            apiHost: state.apiHost,
+          });
 
           const request: UpdateProviderRequest = {
             type: state.providerType,
@@ -463,9 +484,12 @@ export const ProviderConfigForm = forwardRef<
 
     const applyCustomModels = useCallback(
       (models: string[]) => {
-        handleFieldChange("customModels", serializeCustomModels(models));
+        handleFieldChange(
+          "customModels",
+          serializeCustomModels(models, providerModelNormalizationOptions),
+        );
       },
-      [handleFieldChange],
+      [handleFieldChange, providerModelNormalizationOptions],
     );
 
     const setDefaultModel = useCallback(

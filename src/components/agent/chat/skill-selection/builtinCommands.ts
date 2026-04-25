@@ -24,6 +24,7 @@ export interface RuntimeSceneSlashCommand {
   description: string;
   aliases: string[];
   entryId?: string;
+  linkedSkillId?: string;
 }
 
 function normalizeSearchText(value: string): string {
@@ -96,6 +97,7 @@ function toRuntimeSceneSlashCommand(
     description: entry.summary,
     aliases: entry.aliases ?? [],
     entryId: entry.id,
+    linkedSkillId: entry.linkedSkillId,
   };
 }
 

@@ -326,7 +326,7 @@ function buildReviewDecisionSignalTitle(params: {
     return `${sceneTitle} · ${decisionLabel}`;
   }
 
-  return `最近复盘 · ${decisionLabel}`;
+  return `最近判断 · ${decisionLabel}`;
 }
 
 function buildReviewDecisionSignalSummary(
@@ -340,7 +340,7 @@ function buildReviewDecisionSignalSummary(
       : null,
   ]);
 
-  return sections.join(" ").trim() || "最近这轮结果已经产生新的复盘判断。";
+  return sections.join(" ").trim() || "最近这轮结果已经产生新的判断。";
 }
 
 export function buildCuratedTaskRecommendationSignalFromReviewDecision(

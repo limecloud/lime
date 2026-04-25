@@ -284,6 +284,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleResumeRecentSession?: ConversationScenePresentationParams["scene"]["onResumeRecentSession"];
   handleOpenSceneAppsDirectory?: ConversationScenePresentationParams["scene"]["onOpenSceneAppsDirectory"];
   projectId: string | null;
+  taskCenterTabsNode?: ConversationScenePresentationParams["scene"]["taskCenterTabsNode"];
   hideHistoryToggle: boolean;
   showChatPanel: boolean;
   topBarChrome: ConversationScenePresentationParams["scene"]["navbarChrome"];
@@ -431,6 +432,7 @@ export function useWorkspaceConversationSceneRuntime({
   handleResumeRecentSession,
   handleOpenSceneAppsDirectory,
   projectId,
+  taskCenterTabsNode,
   hideHistoryToggle,
   showChatPanel,
   topBarChrome,
@@ -826,10 +828,22 @@ export function useWorkspaceConversationSceneRuntime({
       onLaunchSceneApp: handleLaunchSceneApp,
       canResumeRecentSceneApp,
       onResumeRecentSceneApp: handleResumeRecentSceneApp,
-      recentSessionTitle,
-      recentSessionSummary,
-      recentSessionActionLabel,
-      onResumeRecentSession: handleResumeRecentSession,
+      recentSessionTitle:
+        messageListEmptyStateVariant === "task-center"
+          ? undefined
+          : recentSessionTitle,
+      recentSessionSummary:
+        messageListEmptyStateVariant === "task-center"
+          ? undefined
+          : recentSessionSummary,
+      recentSessionActionLabel:
+        messageListEmptyStateVariant === "task-center"
+          ? undefined
+          : recentSessionActionLabel,
+      onResumeRecentSession:
+        messageListEmptyStateVariant === "task-center"
+          ? undefined
+          : handleResumeRecentSession,
       onOpenSceneAppsDirectory: handleOpenSceneAppsDirectory,
       projectId,
       sessionId,
@@ -837,6 +851,7 @@ export function useWorkspaceConversationSceneRuntime({
       onOpenSettings: navigationActions.handleOpenAppearanceSettings,
       runtimeToolAvailability: inputbarScene.runtimeToolAvailability,
       runtimeTaskCard,
+      taskCenterTabsNode,
       onOpenMemoryWorkbench: () =>
         navigationActions.handleOpenRuntimeMemoryWorkbench({
           sessionId,

@@ -119,7 +119,7 @@ export function GeneralWorkbenchSidebarShell({
         data-testid="general-workbench-sidebar-header"
       >
         <div className={SIDEBAR_HEADER_META_ROW_CLASSNAME}>
-          <div className={SIDEBAR_EYEBROW_CLASSNAME}>生成工作台</div>
+          <div className={SIDEBAR_EYEBROW_CLASSNAME}>生成侧栏</div>
           {headerActionSlot ? (
             <div
               className={SIDEBAR_HEADER_ACTION_SLOT_CLASSNAME}

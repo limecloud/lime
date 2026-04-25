@@ -20,6 +20,9 @@ interface WorkspaceShellSceneProps {
   currentTopicId: ComponentProps<typeof ChatSidebar>["currentTopicId"];
   topics: ComponentProps<typeof ChatSidebar>["topics"];
   onNewChat: ComponentProps<typeof ChatSidebar>["onNewChat"];
+  onOpenTaskCenterHome?: ComponentProps<typeof ChatSidebar>["onOpenTaskCenterHome"];
+  onOpenSkillsPage?: ComponentProps<typeof ChatSidebar>["onOpenSkillsPage"];
+  onOpenMemoryPage?: ComponentProps<typeof ChatSidebar>["onOpenMemoryPage"];
   onSwitchTopic: ComponentProps<typeof ChatSidebar>["onSwitchTopic"];
   onResumeTask: ComponentProps<typeof ChatSidebar>["onResumeTask"];
   onDeleteTopic: ComponentProps<typeof ChatSidebar>["onDeleteTopic"];
@@ -57,6 +60,9 @@ export function WorkspaceShellScene({
   currentTopicId,
   topics,
   onNewChat,
+  onOpenTaskCenterHome,
+  onOpenSkillsPage,
+  onOpenMemoryPage,
   onSwitchTopic,
   onResumeTask,
   onDeleteTopic,
@@ -72,11 +78,19 @@ export function WorkspaceShellScene({
   onOpenSubagentSession,
   onReturnToParentSession,
 }: WorkspaceShellSceneProps) {
+  const shouldRenderChatSidebar =
+    !isThemeWorkbench &&
+    showChatPanel &&
+    showSidebar &&
+    sidebarContextVariant !== "task-center";
   const chatSidebarProps =
-    !isThemeWorkbench && showChatPanel && showSidebar
+    shouldRenderChatSidebar
       ? buildWorkspaceChatSidebarProps({
           contextVariant: sidebarContextVariant,
           onNewChat,
+          onOpenTaskCenterHome,
+          onOpenSkillsPage,
+          onOpenMemoryPage,
           topics,
           currentTopicId,
           onSwitchTopic,
@@ -100,7 +114,7 @@ export function WorkspaceShellScene({
     <PageContainer $compact={compactChrome}>
       {isThemeWorkbench ? (
         generalWorkbenchSidebarNode
-      ) : showChatPanel && showSidebar && chatSidebarProps ? (
+      ) : shouldRenderChatSidebar && chatSidebarProps ? (
         <ChatSidebar {...chatSidebarProps} />
       ) : null}
       {showGeneralWorkbenchLeftExpandButton ? (

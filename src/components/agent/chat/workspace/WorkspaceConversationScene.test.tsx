@@ -4,6 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceConversationScene } from "./WorkspaceConversationScene";
 
+const { mockWorkspaceMainArea } = vi.hoisted(() => ({
+  mockWorkspaceMainArea: vi.fn(),
+}));
+
 vi.mock("../components/CanvasWorkbenchLayout", () => ({
   CanvasWorkbenchLayout: () => <div data-testid="canvas-layout-stub" />,
 }));
@@ -29,15 +33,31 @@ vi.mock("../components/TeamWorkspaceDock", () => ({
 vi.mock("./WorkspaceMainArea", () => ({
   WorkspaceMainArea: ({
     navbarNode,
+    taskCenterTabsNode,
     chatContent,
     canvasContent,
+    ...rest
   }: {
     navbarNode?: React.ReactNode;
+    taskCenterTabsNode?: React.ReactNode;
     chatContent?: React.ReactNode;
     canvasContent?: React.ReactNode;
+    [key: string]: unknown;
   }) => (
-    <div data-testid="workspace-main-area-stub">
+    <div
+      data-testid="workspace-main-area-stub"
+      ref={() => {
+        mockWorkspaceMainArea({
+          navbarNode,
+          taskCenterTabsNode,
+          chatContent,
+          canvasContent,
+          ...rest,
+        });
+      }}
+    >
       {navbarNode}
+      {taskCenterTabsNode}
       {chatContent}
       {canvasContent}
     </div>
@@ -205,10 +225,11 @@ afterEach(() => {
     });
     mounted.container.remove();
   }
+  vi.clearAllMocks();
 });
 
 describe("WorkspaceConversationScene", () => {
-  it("生成主执行面应显示当前带入的灵感横条", () => {
+  it("生成应显示当前带入的灵感横条", () => {
     const container = renderScene({
       creationReplaySurface: {
         kind: "memory_entry",
@@ -234,5 +255,19 @@ describe("WorkspaceConversationScene", () => {
     expect(container.textContent).toContain("当前带入灵感");
     expect(container.textContent).toContain("品牌风格样本");
     expect(container.textContent).toContain("后续结果模板会默认把它一起带入。");
+  });
+
+  it("任务中心场景应固定展示顶部导航，不再传入自动隐藏开关", () => {
+    renderScene({
+      navbarVisible: true,
+      navbarChrome: "workspace-compact",
+      navbarContextVariant: "task-center",
+      taskCenterTabsNode: <div data-testid="task-center-tabs-stub">tabs</div>,
+    });
+
+    expect(mockWorkspaceMainArea).toHaveBeenCalled();
+    expect(
+      mockWorkspaceMainArea.mock.calls.at(-1)?.[0]?.autoHideTaskCenterNavbar,
+    ).toBeUndefined();
   });
 });

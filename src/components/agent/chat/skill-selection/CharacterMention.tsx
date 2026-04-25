@@ -50,6 +50,7 @@ import {
   LazyCharacterMentionPanel,
   preloadCharacterMentionPanel,
 } from "./characterMentionPanelLoader";
+import type { InputCapabilityDescriptor } from "./inputCapabilitySections";
 import {
   recordSlashEntryUsage,
   subscribeSlashEntryUsageChanged,
@@ -94,15 +95,8 @@ interface CharacterMentionProps {
   onChange: (value: string) => void;
   /** 选择角色回调 */
   onSelectCharacter?: (character: Character) => void;
-  /** 选择已安装技能回调 */
-  onSelectSkill?: (skill: Skill) => void;
   /** 统一选择输入能力回调 */
   onSelectInputCapability?: SelectInputCapabilityHandler;
-  /** 选择运行时场景命令回调 */
-  onSelectSceneCommand?: (
-    command: RuntimeSceneSlashCommand,
-    options?: InputCapabilityActivationOptions,
-  ) => void;
   /** 选择结果模板回调 */
   onSelectCuratedTask?: (
     task: CuratedTaskTemplateItem,
@@ -113,19 +107,12 @@ interface CharacterMentionProps {
       launcherPrefillHint?: string;
     },
   ) => void;
-  /** 选择技能目录项回调 */
-  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   projectId?: string | null;
   sessionId?: string | null;
   /** 当前默认带入的灵感引用 */
   defaultCuratedTaskReferenceMemoryIds?: string[];
   /** 当前默认带入的灵感引用对象 */
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
-  /** 选择内建命令回调 */
-  onSelectBuiltinCommand?: (
-    command: BuiltinInputCommand,
-    options?: InputCapabilityActivationOptions,
-  ) => void;
   /** 跳转到设置页安装技能 */
   onNavigateToSettings?: () => void;
   /** 是否启用输入自动补全与联想面板 */
@@ -239,7 +226,7 @@ function mergeTriggerSelectionText(params: {
 function toServiceSkillHomeItem(skill: ServiceSkillItem): ServiceSkillHomeItem {
   return {
     ...skill,
-    badge: skill.source === "cloud_catalog" ? "云目录" : "本地技能",
+    badge: "",
     recentUsedAt: null,
     isRecent: false,
     runnerLabel: getServiceSkillRunnerLabel(skill),
@@ -259,16 +246,12 @@ export function CharacterMention({
   value,
   onChange,
   onSelectCharacter,
-  onSelectSkill,
   onSelectInputCapability,
-  onSelectSceneCommand,
   onSelectCuratedTask,
-  onSelectServiceSkill,
   projectId,
   sessionId,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
-  onSelectBuiltinCommand,
   onNavigateToSettings,
   inputCompletionEnabled = true,
 }: CharacterMentionProps) {
@@ -517,7 +500,7 @@ export function CharacterMention({
 
     if (activeTrigger.mode === "slash") {
       const replayText = normalizeReplayText(options?.replayText);
-      if (onSelectInputCapability || onSelectSkill) {
+      if (onSelectInputCapability) {
         const leadingText = currentValue.slice(0, activeTrigger.triggerIndex);
         const nextSelection = replayText
           ? mergeTriggerSelectionText({
@@ -534,17 +517,13 @@ export function CharacterMention({
 
         onChange(normalizedValue);
         setShowMentions(false);
-        if (onSelectInputCapability) {
-          onSelectInputCapability(
-            {
-              kind: "installed_skill",
-              skill,
-            },
-            replayText ? { replayText } : undefined,
-          );
-        } else {
-          onSelectSkill?.(skill);
-        }
+        onSelectInputCapability(
+          {
+            kind: "installed_skill",
+            skill,
+          },
+          replayText ? { replayText } : undefined,
+        );
 
         setTimeout(() => {
           textarea.focus();
@@ -586,19 +565,15 @@ export function CharacterMention({
       return;
     }
 
-    if (onSelectInputCapability || onSelectSkill) {
+    if (onSelectInputCapability) {
       const newValue =
         currentValue.slice(0, activeTrigger.triggerIndex) + textAfterCursor;
       onChange(newValue.trimEnd() === "" ? "" : newValue);
       setShowMentions(false);
-      if (onSelectInputCapability) {
-        onSelectInputCapability({
-          kind: "installed_skill",
-          skill,
-        });
-      } else {
-        onSelectSkill?.(skill);
-      }
+      onSelectInputCapability({
+        kind: "installed_skill",
+        skill,
+      });
 
       setTimeout(() => {
         textarea.focus();
@@ -653,7 +628,7 @@ export function CharacterMention({
     const leadingText = currentValue.slice(0, activeTrigger.triggerIndex);
     const replayText = normalizeReplayText(options?.replayText);
 
-    if (onSelectInputCapability || onSelectBuiltinCommand) {
+    if (onSelectInputCapability) {
       const nextSelection = replayText
         ? mergeTriggerSelectionText({
             leadingText,
@@ -669,19 +644,13 @@ export function CharacterMention({
 
       onChange(normalizedValue);
       setShowMentions(false);
-      if (onSelectInputCapability) {
-        onSelectInputCapability(
-          {
-            kind: "builtin_command",
-            command,
-          },
-          replayText ? { replayText } : undefined,
-        );
-      } else if (options?.replayText) {
-        onSelectBuiltinCommand?.(command, options);
-      } else {
-        onSelectBuiltinCommand?.(command);
-      }
+      onSelectInputCapability(
+        {
+          kind: "builtin_command",
+          command,
+        },
+        replayText ? { replayText } : undefined,
+      );
 
       setTimeout(() => {
         textarea.focus();
@@ -728,12 +697,15 @@ export function CharacterMention({
       return;
     }
 
-    if (onSelectServiceSkill) {
+    if (onSelectInputCapability) {
       const newValue =
         currentValue.slice(0, activeTrigger.triggerIndex) + textAfterCursor;
       onChange(newValue.trimEnd() === "" ? "" : newValue);
       setShowMentions(false);
-      onSelectServiceSkill(skill);
+      onSelectInputCapability({
+        kind: "service_skill",
+        skill,
+      });
 
       setTimeout(() => {
         textarea.focus();
@@ -811,10 +783,15 @@ export function CharacterMention({
   ) => {
     const replayText = normalizeReplayText(options?.replayText);
 
-    if (!replayText && onSelectServiceSkill) {
-      const matchedVisibleSkill = serviceSkills.find((skill) =>
-        matchesRuntimeSceneCommandToServiceSkill(skill, command),
-      );
+    const matchedVisibleSkill = serviceSkills.find((skill) =>
+      matchesRuntimeSceneCommandToServiceSkill(skill, command),
+    );
+    const shouldResolveServiceSkill =
+      !replayText &&
+      onSelectInputCapability &&
+      (matchedVisibleSkill || command.linkedSkillId);
+
+    if (shouldResolveServiceSkill) {
       const matchedSkill =
         matchedVisibleSkill ||
         (await (async () => {
@@ -835,7 +812,10 @@ export function CharacterMention({
         matchedSkill &&
         matchedSkill.slotSchema.some((slot) => slot.required)
       ) {
-        onSelectServiceSkill(matchedSkill);
+        onSelectInputCapability({
+          kind: "service_skill",
+          skill: matchedSkill,
+        });
         setShowMentions(false);
         recordSlashEntryUsage({
           kind: "scene",
@@ -856,7 +836,7 @@ export function CharacterMention({
       return;
     }
 
-    if (onSelectInputCapability || onSelectSceneCommand) {
+    if (onSelectInputCapability) {
       const leadingText = currentValue.slice(0, activeTrigger.triggerIndex);
       const nextSelection = replayText
         ? mergeTriggerSelectionText({
@@ -873,19 +853,13 @@ export function CharacterMention({
 
       onChange(normalizedValue);
       setShowMentions(false);
-      if (onSelectInputCapability) {
-        onSelectInputCapability(
-          {
-            kind: "runtime_scene",
-            command,
-          },
-          replayText ? { replayText } : undefined,
-        );
-      } else if (replayText) {
-        onSelectSceneCommand?.(command, { replayText });
-      } else {
-        onSelectSceneCommand?.(command);
-      }
+      onSelectInputCapability(
+        {
+          kind: "runtime_scene",
+          command,
+        },
+        replayText ? { replayText } : undefined,
+      );
 
       setTimeout(() => {
         textarea.focus();
@@ -974,6 +948,52 @@ export function CharacterMention({
     });
   };
 
+  const handleSelectCapabilityDescriptor = (
+    item: InputCapabilityDescriptor,
+  ) => {
+    switch (item.kind) {
+      case "builtin_command":
+        handleSelectBuiltinCommand(item.command, {
+          replayText: item.replayText,
+        });
+        return;
+      case "service_skill":
+        handleSelectServiceSkill(item.skill);
+        return;
+      case "slash_command":
+        handleSelectSlashCommand(item.command, {
+          replayText: item.replayText,
+        });
+        return;
+      case "scene_command":
+        void handleSelectRuntimeSceneCommand(item.command, {
+          replayText: item.replayText,
+        });
+        return;
+      case "curated_task":
+        handleSelectCuratedTask(item.task, {
+          launchInputValues: item.launchInputValues,
+          referenceMemoryIds: item.referenceMemoryIds,
+          referenceEntries: item.referenceEntries,
+          launcherPrefillHint: item.launcherPrefillHint,
+        });
+        return;
+      case "character":
+        handleSelectCharacter(item.character);
+        return;
+      case "installed_skill":
+        handleSelectInstalledSkill(item.skill, {
+          replayText: item.replayText,
+        });
+        return;
+      case "available_skill":
+        handleSelectAvailableSkill(item.skill);
+        return;
+      default:
+        return;
+    }
+  };
+
   const handleCuratedTaskLauncherOpenChange = useCallback(
     (open: boolean) => {
       if (open) {
@@ -1024,7 +1044,7 @@ export function CharacterMention({
             options.referenceSelection.referenceEntries,
           ),
           launcherPrefillHint:
-            "已按最近复盘切到更适合的结果模板，你可以继续改后再发。",
+            "已按最近判断切到更适合的结果模板，你可以继续改后再发。",
         };
       });
     },
@@ -1199,14 +1219,7 @@ export function CharacterMention({
                 slashEntryUsageVersion={slashEntryUsageVersion}
                 commandRef={commandRef}
                 onQueryChange={setMentionQuery}
-                onSelectBuiltinCommand={handleSelectBuiltinCommand}
-                onSelectServiceSkill={handleSelectServiceSkill}
-                onSelectSlashCommand={handleSelectSlashCommand}
-                onSelectSceneCommand={handleSelectRuntimeSceneCommand}
-                onSelectCuratedTask={handleSelectCuratedTask}
-                onSelectCharacter={handleSelectCharacter}
-                onSelectInstalledSkill={handleSelectInstalledSkill}
-                onSelectAvailableSkill={handleSelectAvailableSkill}
+                onSelectCapability={handleSelectCapabilityDescriptor}
                 onNavigateToSettings={
                   onNavigateToSettings
                     ? () => {

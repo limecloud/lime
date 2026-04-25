@@ -1,4 +1,5 @@
 import {
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -62,6 +63,7 @@ import {
   createEmptyAgentSessionSnapshot,
   hasSessionHydrationActivity,
   resolveRestorableTopicSessionId,
+  shouldDeferSessionDetailHydration,
   type AgentSessionSnapshot,
 } from "./agentSessionState";
 import {
@@ -260,6 +262,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const hydratedSessionRef = useRef<string | null>(null);
   const skipAutoRestoreRef = useRef(false);
   const sessionSwitchRequestVersionRef = useRef(0);
+  const deferredSessionHydrationCancelRef = useRef<(() => void) | null>(null);
   const createFreshSessionPromiseRef = useRef<Promise<string | null> | null>(
     null,
   );
@@ -294,23 +297,33 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   );
 
   const invalidatePendingSessionSwitches = useCallback(() => {
+    deferredSessionHydrationCancelRef.current?.();
+    deferredSessionHydrationCancelRef.current = null;
     sessionSwitchRequestVersionRef.current += 1;
     return sessionSwitchRequestVersionRef.current;
   }, []);
 
-  const applySessionSnapshot = useCallback((snapshot: AgentSessionSnapshot) => {
-    setSessionId(snapshot.sessionId);
-    setMessages(snapshot.messages);
-    setThreadTurns(snapshot.threadTurns);
-    setThreadItems(snapshot.threadItems);
-    setCurrentTurnId(snapshot.currentTurnId);
-    setQueuedTurns(snapshot.queuedTurns);
-    setThreadRead(snapshot.threadRead);
-    setExecutionRuntime(snapshot.executionRuntime);
-    setTodoItems(snapshot.todoItems);
-    setChildSubagentSessions(snapshot.childSubagentSessions);
-    setSubagentParentContext(snapshot.subagentParentContext);
-  }, []);
+  const applySessionSnapshot = useCallback(
+    (snapshot: AgentSessionSnapshot) => {
+      sessionIdRef.current = snapshot.sessionId;
+      messagesRef.current = snapshot.messages;
+      threadTurnsRef.current = snapshot.threadTurns;
+      threadItemsRef.current = snapshot.threadItems;
+      executionRuntimeRef.current = snapshot.executionRuntime;
+      setSessionId(snapshot.sessionId);
+      setMessages(snapshot.messages);
+      setThreadTurns(snapshot.threadTurns);
+      setThreadItems(snapshot.threadItems);
+      setCurrentTurnId(snapshot.currentTurnId);
+      setQueuedTurns(snapshot.queuedTurns);
+      setThreadRead(snapshot.threadRead);
+      setExecutionRuntime(snapshot.executionRuntime);
+      setTodoItems(snapshot.todoItems);
+      setChildSubagentSessions(snapshot.childSubagentSessions);
+      setSubagentParentContext(snapshot.subagentParentContext);
+    },
+    [sessionIdRef],
+  );
 
   const applyReadModelSnapshot = useCallback(
     (snapshot: {
@@ -411,6 +424,14 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   useEffect(() => {
     executionRuntimeRef.current = executionRuntime;
   }, [executionRuntime]);
+
+  useEffect(
+    () => () => {
+      deferredSessionHydrationCancelRef.current?.();
+      deferredSessionHydrationCancelRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     const resolvedWorkspaceId = workspaceId?.trim();
@@ -853,12 +874,369 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     ],
   );
 
+  const applyCachedTopicSnapshot = useCallback(
+    (
+      topicId: string,
+      cachedSnapshot: ReturnType<typeof loadAgentSessionCachedSnapshot>,
+    ) => {
+      if (!cachedSnapshot) {
+        return false;
+      }
+
+      const selectedTopic = topics.find((topic) => topic.id === topicId);
+      hydratedSessionRef.current = topicId;
+      applySessionSnapshot({
+        ...createEmptyAgentSessionSnapshot(),
+        sessionId: topicId,
+        messages: cachedSnapshot.messages,
+        threadTurns: cachedSnapshot.threadTurns,
+        threadItems: cachedSnapshot.threadItems,
+        currentTurnId: cachedSnapshot.currentTurnId,
+      });
+      setExecutionStrategyState(
+        normalizeExecutionStrategy(
+          selectedTopic?.executionStrategy || executionStrategy,
+        ),
+      );
+      return true;
+    },
+    [
+      applySessionSnapshot,
+      executionStrategy,
+      setExecutionStrategyState,
+      topics,
+    ],
+  );
+
+  const applyCachedTopicChromeState = useCallback(
+    (topicId: string) => {
+      const topicPreference = loadSessionModelPreference(topicId);
+      if (topicPreference) {
+        applySessionModelPreference(topicId, topicPreference);
+      }
+
+      const shadowAccessMode = loadSessionAccessMode(topicId);
+      if (shadowAccessMode) {
+        setAccessModeState(shadowAccessMode);
+      } else {
+        setAccessModeState(resolvePersistedAccessMode(workspaceId));
+      }
+    },
+    [
+      applySessionModelPreference,
+      loadSessionAccessMode,
+      loadSessionModelPreference,
+      setAccessModeState,
+      workspaceId,
+    ],
+  );
+
+  const finalizeResolvedTopicDetail = useCallback(
+    (params: {
+      topicId: string;
+      detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>;
+      startedAt: number;
+      localSnapshotOverride?: {
+        sessionId: string;
+        messages: Message[];
+        threadTurns: AgentThreadTurn[];
+        threadItems: AgentThreadItem[];
+      } | null;
+      switchRequestVersion: number;
+      useTransition?: boolean;
+    }) => {
+      const {
+        topicId,
+        detail,
+        startedAt,
+        localSnapshotOverride = null,
+        switchRequestVersion,
+        useTransition = false,
+      } = params;
+
+      if (sessionSwitchRequestVersionRef.current !== switchRequestVersion) {
+        logAgentDebug(
+          "useAgentSession",
+          "switchTopic.staleResultIgnored",
+          {
+            currentSessionId: sessionIdRef.current,
+            switchRequestVersion,
+            topicId,
+            workspaceId,
+          },
+          { throttleMs: 1000 },
+        );
+        return false;
+      }
+
+      const runtimePreference =
+        createSessionModelPreferenceFromExecutionRuntime(
+          detail.execution_runtime,
+        );
+      const runtimeAccessMode = createSessionAccessModeFromExecutionRuntime(
+        detail.execution_runtime,
+      );
+      const runtimeWorkspaceId = normalizeProjectId(detail.workspace_id);
+      const selectedTopic = topics.find((topic) => topic.id === topicId);
+      const topicWorkspaceId = normalizeProjectId(selectedTopic?.workspaceId);
+      const shadowWorkspaceId = normalizeProjectId(
+        loadStoredSessionWorkspaceIdRaw(topicId),
+      );
+      const resolvedWorkspaceId = normalizeProjectId(workspaceId);
+      const knownWorkspaceId =
+        runtimeWorkspaceId || topicWorkspaceId || shadowWorkspaceId;
+
+      if (
+        resolvedWorkspaceId &&
+        knownWorkspaceId &&
+        knownWorkspaceId !== resolvedWorkspaceId
+      ) {
+        console.warn("[AsterChat] 检测到跨工作区会话恢复，已忽略", {
+          topicId,
+          currentWorkspaceId: resolvedWorkspaceId,
+          knownWorkspaceId,
+        });
+        persistSessionRestoreCandidate(null);
+        return false;
+      }
+
+      const runtimeExecutionStrategy = detail.execution_strategy
+        ? normalizeExecutionStrategy(detail.execution_strategy)
+        : null;
+      const topicExecutionStrategy = selectedTopic?.executionStrategy
+        ? normalizeExecutionStrategy(selectedTopic.executionStrategy)
+        : null;
+      const executionStrategyStorageKey =
+        getExecutionStrategyStorageKey(workspaceId);
+      const persistedExecutionStrategy =
+        executionStrategyStorageKey &&
+        loadPersistedString(executionStrategyStorageKey);
+      const shadowExecutionStrategyFallback =
+        runtimeExecutionStrategy || topicExecutionStrategy
+          ? null
+          : persistedExecutionStrategy
+            ? resolvePersistedExecutionStrategy(workspaceId)
+            : null;
+      const topicPreference =
+        runtimePreference || loadSessionModelPreference(topicId);
+      const shadowAccessMode = loadSessionAccessMode(topicId);
+
+      persistSessionRestoreCandidate(topicId);
+      const applyResolvedDetail = () => {
+        applySessionDetail(topicId, detail, {
+          localSnapshotOverride,
+          syncSessionId: true,
+          executionStrategyOverride:
+            runtimeExecutionStrategy ||
+            topicExecutionStrategy ||
+            shadowExecutionStrategyFallback ||
+            "react",
+        });
+      };
+
+      if (useTransition) {
+        startTransition(applyResolvedDetail);
+      } else {
+        applyResolvedDetail();
+      }
+
+      if (runtimeExecutionStrategy) {
+        markSessionExecutionStrategySynced(topicId, runtimeExecutionStrategy);
+      }
+
+      if (runtimeAccessMode) {
+        setAccessModeState(runtimeAccessMode);
+        persistSessionAccessMode(topicId, runtimeAccessMode);
+      } else if (shadowAccessMode) {
+        setAccessModeState(shadowAccessMode);
+        void runtime
+          .setSessionAccessMode?.(topicId, shadowAccessMode)
+          .catch((error) => {
+            console.warn(
+              "[AsterChat] 迁移会话 accessMode fallback 失败:",
+              error,
+            );
+          });
+      } else {
+        const workspaceDefaultAccessMode =
+          resolvePersistedAccessMode(workspaceId);
+        setAccessModeState(workspaceDefaultAccessMode);
+        persistSessionAccessMode(topicId, workspaceDefaultAccessMode);
+        void runtime
+          .setSessionAccessMode?.(topicId, workspaceDefaultAccessMode)
+          .catch((error) => {
+            console.warn("[AsterChat] 回填会话默认 accessMode 失败:", error);
+          });
+      }
+
+      logAgentDebug("useAgentSession", "switchTopic.success", {
+        durationMs: Date.now() - startedAt,
+        executionStrategySource: runtimeExecutionStrategy
+          ? "session_detail"
+          : topicExecutionStrategy
+            ? "topics_snapshot"
+            : shadowExecutionStrategyFallback
+              ? "shadow_cache"
+              : "default",
+        itemsCount: detail.items?.length ?? 0,
+        messagesCount: detail.messages.length,
+        modelPreferenceSource: runtimePreference
+          ? "execution_runtime"
+          : topicPreference
+            ? "session_storage"
+            : null,
+        accessModeSource: runtimeAccessMode
+          ? "execution_runtime"
+          : shadowAccessMode
+            ? "session_storage"
+            : "workspace_default",
+        queuedTurnsCount: detail.queued_turns?.length ?? 0,
+        topicId,
+        turnsCount: detail.turns?.length ?? 0,
+        workspaceId,
+      });
+
+      const persistedWorkspaceId = runtimeWorkspaceId || resolvedWorkspaceId;
+      if (persistedWorkspaceId) {
+        savePersistedSessionWorkspaceId(topicId, persistedWorkspaceId);
+      }
+
+      if (runtimeWorkspaceId) {
+        setTopics((prev) =>
+          prev.map((topic) =>
+            topic.id === topicId
+              ? { ...topic, workspaceId: runtimeWorkspaceId }
+              : topic,
+          ),
+        );
+      }
+
+      if (topicPreference) {
+        applySessionModelPreference(topicId, topicPreference);
+        if (!runtimePreference) {
+          void runtime
+            .setSessionProviderSelection(
+              topicId,
+              topicPreference.providerType,
+              topicPreference.model,
+            )
+            .then(() => {
+              markSessionModelPreferenceSynced(
+                topicId,
+                topicPreference.providerType,
+                topicPreference.model,
+              );
+            })
+            .catch((error) => {
+              console.warn(
+                "[AsterChat] 迁移会话 provider/model fallback 失败:",
+                error,
+              );
+            });
+        }
+      }
+
+      if (shadowExecutionStrategyFallback) {
+        void runtime
+          .setSessionExecutionStrategy(topicId, shadowExecutionStrategyFallback)
+          .then(() => {
+            markSessionExecutionStrategySynced(
+              topicId,
+              shadowExecutionStrategyFallback,
+            );
+            setTopics((prev) =>
+              prev.map((topic) =>
+                topic.id === topicId
+                  ? {
+                      ...topic,
+                      executionStrategy: shadowExecutionStrategyFallback,
+                    }
+                  : topic,
+              ),
+            );
+          })
+          .catch((error) => {
+            console.warn(
+              "[AsterChat] 迁移会话 executionStrategy fallback 失败:",
+              error,
+            );
+          });
+      }
+
+      setIsAutoRestoringSession(false);
+      return true;
+    },
+    [
+      applySessionDetail,
+      applySessionModelPreference,
+      loadSessionAccessMode,
+      loadSessionModelPreference,
+      markSessionExecutionStrategySynced,
+      markSessionModelPreferenceSynced,
+      persistSessionAccessMode,
+      persistSessionRestoreCandidate,
+      runtime,
+      sessionIdRef,
+      setAccessModeState,
+      topics,
+      workspaceId,
+    ],
+  );
+
+  const handleSwitchTopicError = useCallback(
+    (
+      error: unknown,
+      topicId: string,
+      options?: { preserveCurrentSnapshot?: boolean },
+    ) => {
+      console.error("[AsterChat] 切换话题失败:", error);
+      console.error("[AsterChat] 错误详情:", JSON.stringify(error, null, 2));
+      logAgentDebug(
+        "useAgentSession",
+        "switchTopic.error",
+        {
+          error,
+          topicId,
+          workspaceId,
+        },
+        { level: "error" },
+      );
+
+      if (isAsterSessionNotFoundError(error)) {
+        applySessionSnapshot(createEmptyAgentSessionSnapshot());
+        persistSessionRestoreCandidate(null);
+        hydratedSessionRef.current = null;
+        void loadTopics();
+        setIsAutoRestoringSession(false);
+        return;
+      }
+
+      if (!options?.preserveCurrentSnapshot) {
+        applySessionSnapshot(createEmptyAgentSessionSnapshot());
+        persistSessionRestoreCandidate(null);
+        hydratedSessionRef.current = null;
+      }
+
+      setIsAutoRestoringSession(false);
+      toast.error(
+        `加载对话历史失败: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    },
+    [
+      applySessionSnapshot,
+      loadTopics,
+      persistSessionRestoreCandidate,
+      workspaceId,
+    ],
+  );
+
   const switchTopic = useCallback(
     async (
       topicId: string,
       options?: {
         forceRefresh?: boolean;
         resumeSessionStartHooks?: boolean;
+        restoreSource?: "auto";
       },
     ) => {
       if (
@@ -880,6 +1258,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
       skipAutoRestoreRef.current = false;
       const switchRequestVersion = invalidatePendingSessionSwitches();
+      if (options?.restoreSource !== "auto") {
+        setIsAutoRestoringSession(false);
+      }
       try {
         const startedAt = Date.now();
         const cachedTargetSnapshot =
@@ -893,265 +1274,120 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           topicId,
           workspaceId,
         });
+        if (currentSessionId !== topicId) {
+          applyCachedTopicSnapshot(topicId, cachedTargetSnapshot);
+        }
+        const shouldDeferDetailHydration = shouldDeferSessionDetailHydration({
+          currentSessionId,
+          topicId,
+          forceRefresh: options?.forceRefresh,
+          resumeSessionStartHooks: options?.resumeSessionStartHooks,
+          cachedSnapshot: cachedTargetSnapshot,
+        });
+
+        if (shouldDeferDetailHydration) {
+          applyCachedTopicChromeState(topicId);
+          persistSessionRestoreCandidate(topicId);
+          setIsAutoRestoringSession(false);
+          logAgentDebug("useAgentSession", "switchTopic.deferHydration", {
+            cachedLocalMessagesCount:
+              cachedTargetSnapshot?.messages.length ?? 0,
+            currentSessionId,
+            topicId,
+            workspaceId,
+          });
+          deferredSessionHydrationCancelRef.current =
+            scheduleMinimumDelayIdleTask(
+              () => {
+                deferredSessionHydrationCancelRef.current = null;
+                void (async () => {
+                  try {
+                    const detail = await runtime.getSession(topicId);
+                    finalizeResolvedTopicDetail({
+                      topicId,
+                      detail,
+                      startedAt,
+                      localSnapshotOverride:
+                        cachedTargetSnapshot &&
+                        sessionIdRef.current === topicId &&
+                        messagesRef.current === cachedTargetSnapshot.messages &&
+                        threadTurnsRef.current ===
+                          cachedTargetSnapshot.threadTurns &&
+                        threadItemsRef.current ===
+                          cachedTargetSnapshot.threadItems
+                          ? {
+                              sessionId: topicId,
+                              messages: cachedTargetSnapshot.messages,
+                              threadTurns: cachedTargetSnapshot.threadTurns,
+                              threadItems: cachedTargetSnapshot.threadItems,
+                            }
+                          : null,
+                      switchRequestVersion,
+                      useTransition: true,
+                    });
+                  } catch (error) {
+                    if (
+                      sessionSwitchRequestVersionRef.current !==
+                      switchRequestVersion
+                    ) {
+                      return;
+                    }
+                    handleSwitchTopicError(error, topicId, {
+                      preserveCurrentSnapshot: true,
+                    });
+                  }
+                })();
+              },
+              {
+                minimumDelayMs: 0,
+                idleTimeoutMs: 1_500,
+              },
+            );
+          return;
+        }
+
         const detail =
           options?.resumeSessionStartHooks === true
             ? await runtime.getSession(topicId, {
                 resumeSessionStartHooks: true,
               })
             : await runtime.getSession(topicId);
-        if (sessionSwitchRequestVersionRef.current !== switchRequestVersion) {
-          logAgentDebug(
-            "useAgentSession",
-            "switchTopic.staleResultIgnored",
-            {
-              currentSessionId: sessionIdRef.current,
-              switchRequestVersion,
-              topicId,
-              workspaceId,
-            },
-            { throttleMs: 1000 },
-          );
-          return;
-        }
-        const runtimePreference =
-          createSessionModelPreferenceFromExecutionRuntime(
-            detail.execution_runtime,
-          );
-        const runtimeAccessMode = createSessionAccessModeFromExecutionRuntime(
-          detail.execution_runtime,
-        );
-        const runtimeWorkspaceId = normalizeProjectId(detail.workspace_id);
-        const selectedTopic = topics.find((topic) => topic.id === topicId);
-        const topicWorkspaceId = normalizeProjectId(selectedTopic?.workspaceId);
-        const shadowWorkspaceId = normalizeProjectId(
-          loadStoredSessionWorkspaceIdRaw(topicId),
-        );
-        const resolvedWorkspaceId = normalizeProjectId(workspaceId);
-        const knownWorkspaceId =
-          runtimeWorkspaceId || topicWorkspaceId || shadowWorkspaceId;
-        if (
-          resolvedWorkspaceId &&
-          knownWorkspaceId &&
-          knownWorkspaceId !== resolvedWorkspaceId
-        ) {
-          console.warn("[AsterChat] 检测到跨工作区会话恢复，已忽略", {
-            topicId,
-            currentWorkspaceId: resolvedWorkspaceId,
-            knownWorkspaceId,
-          });
-          persistSessionRestoreCandidate(null);
-          return;
-        }
-        const runtimeExecutionStrategy = detail.execution_strategy
-          ? normalizeExecutionStrategy(detail.execution_strategy)
-          : null;
-        const topicExecutionStrategy = selectedTopic?.executionStrategy
-          ? normalizeExecutionStrategy(selectedTopic.executionStrategy)
-          : null;
-        const executionStrategyStorageKey =
-          getExecutionStrategyStorageKey(workspaceId);
-        const persistedExecutionStrategy =
-          executionStrategyStorageKey &&
-          loadPersistedString(executionStrategyStorageKey);
-        const shadowExecutionStrategyFallback =
-          runtimeExecutionStrategy || topicExecutionStrategy
-            ? null
-            : persistedExecutionStrategy
-              ? resolvePersistedExecutionStrategy(workspaceId)
-              : null;
-        const topicPreference =
-          runtimePreference || loadSessionModelPreference(topicId);
-
-        persistSessionRestoreCandidate(topicId);
-        applySessionDetail(topicId, detail, {
-          localSnapshotOverride: cachedTargetSnapshot
-            ? {
-                sessionId: topicId,
-                messages: cachedTargetSnapshot.messages,
-                threadTurns: cachedTargetSnapshot.threadTurns,
-                threadItems: cachedTargetSnapshot.threadItems,
-              }
-            : null,
-          syncSessionId: true,
-          executionStrategyOverride:
-            runtimeExecutionStrategy ||
-            topicExecutionStrategy ||
-            shadowExecutionStrategyFallback ||
-            "react",
-        });
-        if (runtimeExecutionStrategy) {
-          markSessionExecutionStrategySynced(topicId, runtimeExecutionStrategy);
-        }
-        const shadowAccessMode = loadSessionAccessMode(topicId);
-        if (runtimeAccessMode) {
-          setAccessModeState(runtimeAccessMode);
-          persistSessionAccessMode(topicId, runtimeAccessMode);
-        } else if (shadowAccessMode) {
-          setAccessModeState(shadowAccessMode);
-          void runtime
-            .setSessionAccessMode?.(topicId, shadowAccessMode)
-            .catch((error) => {
-              console.warn(
-                "[AsterChat] 迁移会话 accessMode fallback 失败:",
-                error,
-              );
-            });
-        } else {
-          const workspaceDefaultAccessMode =
-            resolvePersistedAccessMode(workspaceId);
-          setAccessModeState(workspaceDefaultAccessMode);
-          persistSessionAccessMode(topicId, workspaceDefaultAccessMode);
-          void runtime
-            .setSessionAccessMode?.(topicId, workspaceDefaultAccessMode)
-            .catch((error) => {
-              console.warn("[AsterChat] 回填会话默认 accessMode 失败:", error);
-            });
-        }
-        logAgentDebug("useAgentSession", "switchTopic.success", {
-          durationMs: Date.now() - startedAt,
-          executionStrategySource: runtimeExecutionStrategy
-            ? "session_detail"
-            : topicExecutionStrategy
-              ? "topics_snapshot"
-              : shadowExecutionStrategyFallback
-                ? "shadow_cache"
-                : "default",
-          itemsCount: detail.items?.length ?? 0,
-          messagesCount: detail.messages.length,
-          modelPreferenceSource: runtimePreference
-            ? "execution_runtime"
-            : topicPreference
-              ? "session_storage"
-              : null,
-          accessModeSource: runtimeAccessMode
-            ? "execution_runtime"
-            : shadowAccessMode
-              ? "session_storage"
-              : "workspace_default",
-          queuedTurnsCount: detail.queued_turns?.length ?? 0,
+        finalizeResolvedTopicDetail({
           topicId,
-          turnsCount: detail.turns?.length ?? 0,
-          workspaceId,
+          detail,
+          startedAt,
+          localSnapshotOverride:
+            cachedTargetSnapshot &&
+            sessionIdRef.current === topicId &&
+            messagesRef.current === cachedTargetSnapshot.messages &&
+            threadTurnsRef.current === cachedTargetSnapshot.threadTurns &&
+            threadItemsRef.current === cachedTargetSnapshot.threadItems
+              ? {
+                  sessionId: topicId,
+                  messages: cachedTargetSnapshot.messages,
+                  threadTurns: cachedTargetSnapshot.threadTurns,
+                  threadItems: cachedTargetSnapshot.threadItems,
+                }
+              : null,
+          switchRequestVersion,
         });
-
-        const persistedWorkspaceId = runtimeWorkspaceId || resolvedWorkspaceId;
-        if (persistedWorkspaceId) {
-          savePersistedSessionWorkspaceId(topicId, persistedWorkspaceId);
-        }
-
-        if (runtimeWorkspaceId) {
-          setTopics((prev) =>
-            prev.map((topic) =>
-              topic.id === topicId
-                ? { ...topic, workspaceId: runtimeWorkspaceId }
-                : topic,
-            ),
-          );
-        }
-
-        if (topicPreference) {
-          applySessionModelPreference(topicId, topicPreference);
-          if (!runtimePreference) {
-            void runtime
-              .setSessionProviderSelection(
-                topicId,
-                topicPreference.providerType,
-                topicPreference.model,
-              )
-              .then(() => {
-                markSessionModelPreferenceSynced(
-                  topicId,
-                  topicPreference.providerType,
-                  topicPreference.model,
-                );
-              })
-              .catch((error) => {
-                console.warn(
-                  "[AsterChat] 迁移会话 provider/model fallback 失败:",
-                  error,
-                );
-              });
-          }
-        }
-
-        if (shadowExecutionStrategyFallback) {
-          void runtime
-            .setSessionExecutionStrategy(
-              topicId,
-              shadowExecutionStrategyFallback,
-            )
-            .then(() => {
-              markSessionExecutionStrategySynced(
-                topicId,
-                shadowExecutionStrategyFallback,
-              );
-              setTopics((prev) =>
-                prev.map((topic) =>
-                  topic.id === topicId
-                    ? {
-                        ...topic,
-                        executionStrategy: shadowExecutionStrategyFallback,
-                      }
-                    : topic,
-                ),
-              );
-            })
-            .catch((error) => {
-              console.warn(
-                "[AsterChat] 迁移会话 executionStrategy fallback 失败:",
-                error,
-              );
-            });
-        }
-        setIsAutoRestoringSession(false);
       } catch (error) {
-        console.error("[AsterChat] 切换话题失败:", error);
-        console.error("[AsterChat] 错误详情:", JSON.stringify(error, null, 2));
-        logAgentDebug(
-          "useAgentSession",
-          "switchTopic.error",
-          {
-            error,
-            topicId,
-            workspaceId,
-          },
-          { level: "error" },
-        );
-        if (isAsterSessionNotFoundError(error)) {
-          applySessionSnapshot(createEmptyAgentSessionSnapshot());
-          persistSessionRestoreCandidate(null);
-          void loadTopics();
-          setIsAutoRestoringSession(false);
-          return;
-        }
-        applySessionSnapshot(createEmptyAgentSessionSnapshot());
-        persistSessionRestoreCandidate(null);
-        setIsAutoRestoringSession(false);
-        toast.error(
-          `加载对话历史失败: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        handleSwitchTopicError(error, topicId);
       }
     },
     [
-      applySessionDetail,
-      applySessionSnapshot,
-      applySessionModelPreference,
-      loadSessionModelPreference,
-      loadTopics,
-      loadSessionAccessMode,
-      markSessionModelPreferenceSynced,
-      markSessionExecutionStrategySynced,
+      applyCachedTopicChromeState,
+      finalizeResolvedTopicDetail,
+      handleSwitchTopicError,
       messages.length,
       modelRef,
+      applyCachedTopicSnapshot,
       invalidatePendingSessionSwitches,
       persistSessionModelPreference,
       persistSessionRestoreCandidate,
-      persistSessionAccessMode,
       providerTypeRef,
       runtime,
       sessionIdRef,
-      setAccessModeState,
-      topics,
       workspaceId,
     ],
   );
@@ -1319,6 +1555,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     });
     switchTopic(targetSessionId, {
       resumeSessionStartHooks: true,
+      restoreSource: "auto",
     })
       .catch((error) => {
         console.warn("[AsterChat] 自动恢复会话失败:", error);

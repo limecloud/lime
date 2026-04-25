@@ -52,7 +52,7 @@ export function SceneAppDetailPanel({
   if (!detailView) {
     return (
       <section className="rounded-[28px] border border-dashed border-slate-200 bg-white p-6 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-        先回到做法目录选一套做法，再来补参考、启动信息和结果落点。
+        先回到全部做法选一套做法，再来补参考、启动信息和结果落点。
       </section>
     );
   }
@@ -276,7 +276,7 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前这套做法还没有整理出显式判断指标，后续会继续和真实结果对齐。
+                当前这套做法还没有整理出显式判断指标，后续会继续按真实结果补齐。
               </p>
             )}
             {detailView.scorecardFailureSignals.length ? (
@@ -502,7 +502,7 @@ export function SceneAppDetailPanel({
                     data-testid="sceneapp-detail-context-feedback-summary"
                     className="rounded-[18px] border border-sky-200 bg-sky-50/70 px-3 py-2 text-sm leading-6 text-sky-900"
                   >
-                    <span className="font-medium">最近复盘：</span>
+                    <span className="font-medium">最近判断：</span>
                     {detailView.contextPlan.feedbackSummary}
                   </div>
                 ) : null}
@@ -517,7 +517,7 @@ export function SceneAppDetailPanel({
                 {detailView.contextPlan.feedbackSignals.length ? (
                   <div>
                     <div className="text-xs font-medium text-slate-500">
-                      复盘信号
+                      判断信号
                     </div>
                     <div
                       data-testid="sceneapp-detail-context-feedback-signals"
@@ -692,7 +692,7 @@ export function SceneAppDetailPanel({
             开始这次生成
           </div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            这一步只负责补齐你这次的目标、参考和结果落点；真正执行会进入生成主执行面。
+            这一步只负责补齐你这次的目标、参考和结果落点；真正执行会进入生成。
           </p>
 
           <div className="mt-4">

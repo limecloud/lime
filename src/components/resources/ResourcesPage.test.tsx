@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, type ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanupMountedRoots,
@@ -61,13 +61,13 @@ const {
     projects: [
       {
         id: "project-1",
-        name: "默认资料库",
+        name: "默认项目",
         isArchived: false,
       },
     ],
     defaultProject: {
       id: "project-1",
-      name: "默认资料库",
+      name: "默认项目",
       isArchived: false,
     },
   };
@@ -136,8 +136,10 @@ vi.mock("./store", () => ({
 
 const mountedRoots: MountedRoot[] = [];
 
-function renderPage() {
-  return renderIntoDom(<ResourcesPage />, mountedRoots).container;
+function renderPage(
+  props?: Partial<ComponentProps<typeof ResourcesPage>>,
+) {
+  return renderIntoDom(<ResourcesPage {...props} />, mountedRoots).container;
 }
 
 function getBodyText() {
@@ -178,13 +180,13 @@ describe("ResourcesPage", () => {
     resourcesProjectsState.projects = [
       {
         id: "project-1",
-        name: "默认资料库",
+        name: "默认项目",
         isArchived: false,
       },
     ];
     resourcesProjectsState.defaultProject = {
       id: "project-1",
-      name: "默认资料库",
+      name: "默认项目",
       isArchived: false,
     };
     resourcesState.projectId = "project-1";
@@ -202,28 +204,73 @@ describe("ResourcesPage", () => {
     cleanupMountedRoots(mountedRoots);
   });
 
-  it("应把资料库首屏说明收进 tips", async () => {
+  it("应把项目资料页说明收进 tips", async () => {
     renderPage();
     await flushEffects();
 
     expect(getBodyText()).not.toContain(
-      "集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。",
+      "集中查看当前项目里的文档、图片和导入内容；继续开工时回生成，需要沉淀线索时去灵感库。",
     );
     expect(getBodyText()).not.toContain(
       "在目录浏览和跨目录分类视图之间切换，快速定位不同类型内容。",
     );
 
-    const heroTip = await hoverTip("资料库工作台说明");
+    const heroTip = await hoverTip("项目资料页说明");
     expect(getBodyText()).toContain(
-      "集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。",
+      "集中查看当前项目里的文档、图片和导入内容；继续开工时回生成，需要沉淀线索时去灵感库。",
     );
     await leaveTip(heroTip);
 
-    const categoryTip = await hoverTip("资料分类说明");
+    const categoryTip = await hoverTip("内容分类说明");
     expect(getBodyText()).toContain(
       "在目录浏览和跨目录分类视图之间切换，快速定位不同类型内容。",
     );
     await leaveTip(categoryTip);
+  });
+
+  it("应显式提供回生成和灵感库的迁移按钮", async () => {
+    const onNavigate = vi.fn();
+    const container = renderPage({ onNavigate });
+    await flushEffects();
+
+    const callout = container.querySelector(
+      '[data-testid="resources-migration-callout"]',
+    ) as HTMLDivElement | null;
+    expect(callout).toBeTruthy();
+    expect(callout?.textContent).toContain("项目资料只负责浏览、补图和整理");
+
+    const backToAgentButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("回生成"));
+    const backToMemoryButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("去灵感库"));
+
+    expect(backToAgentButton).toBeTruthy();
+    expect(backToMemoryButton).toBeTruthy();
+
+    await act(async () => {
+      backToAgentButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      backToMemoryButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenNthCalledWith(
+      1,
+      "agent",
+      expect.objectContaining({
+        agentEntry: "new-task",
+      }),
+    );
+    expect(onNavigate).toHaveBeenNthCalledWith(2, "memory");
   });
 
   it("切到图片分类后应挂载图片工作台", async () => {
@@ -251,7 +298,7 @@ describe("ResourcesPage", () => {
     resourcesProjectsState.projects = [
       {
         id: "project-1",
-        name: "默认资料库",
+        name: "默认项目",
         isArchived: false,
       },
       {
@@ -288,7 +335,7 @@ describe("ResourcesPage", () => {
     });
 
     expect(getBodyText()).toContain(
-      "当前资料库暂无图片，检测到「参考项目」包含 1 个图片。",
+      "当前项目暂无图片，检测到「参考项目」包含 1 个图片。",
     );
     expect(getBodyText()).toContain("切换查看");
 

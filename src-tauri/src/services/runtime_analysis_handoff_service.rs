@@ -106,6 +106,11 @@ struct AnalysisContextSummary {
     thread_status: String,
     primary_blocking_kind: String,
     primary_blocking_summary: String,
+    routing_mode: String,
+    decision_source: String,
+    decision_reason: String,
+    estimated_cost_class: String,
+    fallback_chain: Vec<String>,
     failure_modes: Vec<String>,
     suite_tags: Vec<String>,
     pending_request_count: usize,
@@ -365,6 +370,39 @@ pub fn export_runtime_analysis_handoff(
         .unwrap_or_else(|| thread_read.status.clone()),
         primary_blocking_kind,
         primary_blocking_summary,
+        routing_mode: value_string(
+            input_payload
+                .pointer("/runtimeContext/runtimeFacts/routingMode")
+                .unwrap_or(&Value::Null),
+        )
+        .or_else(|| normalize_optional_text(thread_read.routing_mode.clone()))
+        .unwrap_or_default(),
+        decision_source: value_string(
+            input_payload
+                .pointer("/runtimeContext/runtimeFacts/decisionSource")
+                .unwrap_or(&Value::Null),
+        )
+        .or_else(|| normalize_optional_text(thread_read.decision_source.clone()))
+        .unwrap_or_default(),
+        decision_reason: value_string(
+            input_payload
+                .pointer("/runtimeContext/runtimeFacts/decisionReason")
+                .unwrap_or(&Value::Null),
+        )
+        .or_else(|| normalize_optional_text(thread_read.decision_reason.clone()))
+        .unwrap_or_default(),
+        estimated_cost_class: value_string(
+            input_payload
+                .pointer("/runtimeContext/runtimeFacts/estimatedCostClass")
+                .unwrap_or(&Value::Null),
+        )
+        .or_else(|| normalize_optional_text(thread_read.estimated_cost_class.clone()))
+        .unwrap_or_default(),
+        fallback_chain: value_string_list(
+            input_payload
+                .pointer("/runtimeContext/runtimeFacts/fallbackChain")
+                .unwrap_or(&Value::Null),
+        ),
         failure_modes: failure_modes.clone(),
         suite_tags: suite_tags.clone(),
         pending_request_count: thread_read.pending_requests.len(),
@@ -1343,17 +1381,63 @@ mod tests {
                     created_at: None,
                 }),
             }),
-            task_kind: None,
-            service_model_slot: None,
-            routing_mode: None,
-            decision_source: None,
-            candidate_count: None,
-            capability_gap: None,
-            single_candidate_only: None,
-            limit_state: None,
-            estimated_cost_class: None,
-            cost_state: None,
-            limit_event: None,
+            task_kind: Some("generation_topic".to_string()),
+            service_model_slot: Some("planner".to_string()),
+            routing_mode: Some("fallback_chain".to_string()),
+            decision_source: Some("model_router".to_string()),
+            candidate_count: Some(2),
+            capability_gap: Some("vision".to_string()),
+            single_candidate_only: Some(false),
+            oem_policy: Some(json!({
+                "quotaStatus": "low_credit",
+                "defaultModel": "oem/gpt-5.4-mini",
+                "offerState": "managed"
+            })),
+            runtime_summary: Some(json!({
+                "decisionReason": "主路由能力不足，切到回退模型",
+                "capabilityGap": "vision",
+                "limitStatus": "soft_limited",
+                "estimatedCostClass": "low"
+            })),
+            decision_reason: Some("主路由能力不足，切到回退模型".to_string()),
+            fallback_chain: Some(vec![
+                "openai:gpt-5.4".to_string(),
+                "openai:gpt-5.4-mini".to_string(),
+            ]),
+            auxiliary_task_runtime: Some(vec![
+                json!({"route": "auxiliary.generate_title", "taskKind": "generation_topic"}),
+            ]),
+            limit_state: Some(lime_agent::SessionExecutionRuntimeLimitState {
+                status: "soft_limited".to_string(),
+                single_candidate_only: false,
+                provider_locked: false,
+                settings_locked: false,
+                oem_locked: false,
+                candidate_count: 2,
+                capability_gap: Some("vision".to_string()),
+                notes: vec!["需要回退链".to_string()],
+            }),
+            estimated_cost_class: Some("low".to_string()),
+            cost_state: Some(lime_agent::SessionExecutionRuntimeCostState {
+                status: "estimated".to_string(),
+                estimated_cost_class: Some("low".to_string()),
+                input_per_million: None,
+                output_per_million: None,
+                cache_read_per_million: None,
+                cache_write_per_million: None,
+                currency: None,
+                estimated_total_cost: None,
+                input_tokens: None,
+                output_tokens: None,
+                total_tokens: None,
+                cached_input_tokens: None,
+                cache_creation_input_tokens: None,
+            }),
+            limit_event: Some(lime_agent::SessionExecutionRuntimeLimitEvent {
+                event_kind: "fallback_applied".to_string(),
+                message: "因能力缺口触发回退链".to_string(),
+                retryable: true,
+            }),
         }
     }
 

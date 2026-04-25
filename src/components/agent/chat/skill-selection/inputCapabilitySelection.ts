@@ -1,4 +1,5 @@
 import type { Skill } from "@/lib/api/skills";
+import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import {
   findCuratedTaskTemplateById,
   type CuratedTaskInputValues,
@@ -24,6 +25,10 @@ export type InputCapabilitySelection =
   | {
       kind: "installed_skill";
       skill: Skill;
+    }
+  | {
+      kind: "service_skill";
+      skill: ServiceSkillHomeItem;
     }
   | {
       kind: "runtime_scene";
@@ -270,8 +275,12 @@ export function resolveInputCapabilityDispatch(
   capability: InputCapabilitySelection | null,
   input: string,
 ): ResolvedInputCapabilityDispatch {
-  const capabilityRoute = resolveInputCapabilitySendRoute(capability);
-  const displayContent = capability && input.trim() ? input : undefined;
+  const isSendCapability =
+    capability !== null && capability.kind !== "service_skill";
+  const capabilityRoute = isSendCapability
+    ? resolveInputCapabilitySendRoute(capability)
+    : undefined;
+  const displayContent = isSendCapability && input.trim() ? input : undefined;
   const requestMetadata =
     capability?.kind === "curated_task"
       ? buildCuratedTaskLaunchRequestMetadata({

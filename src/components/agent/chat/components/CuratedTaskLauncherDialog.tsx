@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  summarizeCuratedTaskFollowUpActions,
+  summarizeCuratedTaskOutputContract,
+  summarizeCuratedTaskRequiredInputs,
   findCuratedTaskTemplateById,
   hasFilledAllCuratedTaskRequiredInputs,
   resolveCuratedTaskInputValues,
@@ -272,6 +275,19 @@ export function CuratedTaskLauncherDialog({
 
     return `我会先给你 ${task.outputHint}。`;
   }, [task]);
+  const launcherStarterContract = useMemo(() => {
+    if (!task) {
+      return null;
+    }
+
+    return {
+      requiredSummary:
+        summarizeCuratedTaskRequiredInputs(task) || "当前无必填信息",
+      outputSummary:
+        summarizeCuratedTaskOutputContract(task) || task.outputHint,
+      followUpSummary: summarizeCuratedTaskFollowUpActions(task),
+    };
+  }, [task]);
 
   const latestReviewTaskSignal = useMemo(
     () =>
@@ -344,7 +360,7 @@ export function CuratedTaskLauncherDialog({
     }
 
     if (task.id === "account-project-review") {
-      return `下面的 ${carriedFields.join(" / ")} 已按这轮结果自动带入，你可以直接改成这次真正想复盘的版本。`;
+      return `下面的 ${carriedFields.join(" / ")} 已按这轮结果自动带入，你可以直接改成这次真正想判断的版本。`;
     }
 
     return `下面的 ${carriedFields.join(" / ")} 已按这轮结果自动带入，你可以直接改成这次真正想推进的版本。`;
@@ -425,6 +441,26 @@ export function CuratedTaskLauncherDialog({
                 <div className="rounded-[18px] border border-slate-200 bg-white/90 px-3.5 py-3 text-xs leading-5 text-slate-500">
                   {launcherOutcomeSummary}
                 </div>
+                {launcherStarterContract ? (
+                  <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs leading-5 text-slate-600">
+                    <div>
+                      <span className="font-medium text-slate-700">你先给：</span>
+                      {launcherStarterContract.requiredSummary}
+                    </div>
+                    <div className="mt-1">
+                      <span className="font-medium text-slate-700">会拿到：</span>
+                      {launcherStarterContract.outputSummary}
+                    </div>
+                    {launcherStarterContract.followUpSummary ? (
+                      <div className="mt-1">
+                        <span className="font-medium text-slate-700">
+                          接着可做：
+                        </span>
+                        {launcherStarterContract.followUpSummary}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </DialogHeader>
 
@@ -444,10 +480,10 @@ export function CuratedTaskLauncherDialog({
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                      围绕最近复盘
+                      围绕最近判断
                     </span>
                     <div className="text-xs font-semibold leading-5 text-slate-900">
-                      最近复盘已更新：{reviewFeedbackProjection.signal.title}
+                      最近判断已更新：{reviewFeedbackProjection.signal.title}
                     </div>
                   </div>
                   <div className="mt-1.5 text-xs leading-5 text-slate-600">
@@ -455,7 +491,7 @@ export function CuratedTaskLauncherDialog({
                   </div>
                   <div className="mt-1 text-xs leading-5 text-slate-600">
                     {primarySuggestedTask
-                      ? `这轮复盘更适合先回到「${primarySuggestedTask.title}」，切过去后我会继续带着当前参考对象。`
+                      ? `这轮判断更建议优先回到「${primarySuggestedTask.title}」，切过去后我会继续带着当前参考对象。`
                       : reviewFeedbackProjection.suggestionText}
                   </div>
                   {primarySuggestedTask && onApplyReviewSuggestion ? (
@@ -646,21 +682,15 @@ export function CuratedTaskLauncherDialog({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                                  {getCuratedTaskReferenceSourceLabel(entry)}
-                                </span>
-                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                                  {entry.categoryLabel}
-                                </span>
-                                {entry.tags.slice(0, 2).map((tag) => (
-                                  <span
-                                    key={`${entry.id}-${tag}`}
-                                    className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500"
-                                  >
-                                    {tag}
-                                  </span>
-                                ))}
+                              <div className="text-[11px] leading-5 text-slate-500">
+                                {[
+                                  getCuratedTaskReferenceSourceLabel(entry),
+                                  entry.categoryLabel,
+                                ]
+                                  .filter((segment): segment is string =>
+                                    Boolean(segment && segment.trim()),
+                                  )
+                                  .join(" · ")}
                               </div>
                               <div className="text-sm font-semibold text-slate-900">
                                 {entry.title}
@@ -668,6 +698,11 @@ export function CuratedTaskLauncherDialog({
                               <div className="text-xs leading-5 text-slate-600">
                                 {entry.summary}
                               </div>
+                              {entry.tags.length > 0 ? (
+                                <div className="text-[11px] leading-5 text-slate-500">
+                                  相关线索：{entry.tags.slice(0, 2).join("、")}
+                                </div>
+                              ) : null}
                               {entryReviewHighlights.length > 0 ? (
                                 <div className="rounded-[14px] border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs leading-5 text-emerald-900">
                                   <div className="font-medium text-emerald-900">

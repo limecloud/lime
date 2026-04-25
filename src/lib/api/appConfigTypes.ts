@@ -90,7 +90,12 @@ export interface WorkspacePreferencesConfig {
   service_models?: ServiceModelsConfig;
 }
 
-export type NavigationEnabledItemId = "plugins" | "openclaw" | "companion";
+export type NavigationEnabledItemId =
+  | "automation"
+  | "channels"
+  | "plugins"
+  | "openclaw"
+  | "companion";
 
 export interface NavigationConfig {
   schema_version?: number;

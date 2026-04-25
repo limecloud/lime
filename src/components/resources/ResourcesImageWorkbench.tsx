@@ -179,7 +179,7 @@ export function ResourcesImageWorkbench({
         title: material.name,
         width: material.metadata?.width,
         height: material.metadata?.height,
-        attributionName: "项目素材库",
+        attributionName: "项目资料",
         provider: "gallery",
       },
     });
@@ -220,10 +220,10 @@ export function ResourcesImageWorkbench({
           </div>
           <div>
             <h3 className="text-xl font-semibold tracking-tight text-slate-900">
-              先选择资料库
+              先选择项目
             </h3>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              选择项目后，这里会统一承接本地图片上传、图片库浏览，以及插入当前画布。
+              选择项目后，这里会承接本地图片上传、图片浏览，以及插入当前画布。
             </p>
           </div>
         </div>

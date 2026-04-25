@@ -78,7 +78,7 @@ function ReviewFeedbackProjectionBanner({
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-          围绕最近复盘
+          围绕最近判断
         </span>
         {projection.suggestedTaskTitles.length > 0 ? (
           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">
@@ -87,7 +87,7 @@ function ReviewFeedbackProjectionBanner({
         ) : null}
       </div>
       <div className="mt-2 text-sm font-medium leading-6 text-slate-900">
-        最近复盘已更新：{projection.signal.title}
+        最近判断已更新：{projection.signal.title}
       </div>
       <div className="mt-1 text-sm leading-6 text-slate-600">
         {projection.signal.summary}
@@ -490,7 +490,7 @@ export function SceneAppExecutionSummaryCard({
             {summary.runtimeBackflow.governanceArtifacts.length ? (
               <div className="mt-3">
                 <div className="text-xs font-medium text-slate-500">
-                  复盘材料
+                  结果材料
                 </div>
                 {renderPartChips(
                   summary.runtimeBackflow.governanceArtifacts,
@@ -689,7 +689,7 @@ export function SceneAppExecutionSummaryCard({
 
         <SceneAppProjectPackRuntimePanel
           title="最近可消费结果"
-          description="生成主执行面直接回看最近一轮可继续编辑、复核或发布的结果样本，不再只停留在摘要说明。"
+          description="生成直接回看最近一轮可继续编辑、复核或发布的结果样本，不再只停留在摘要说明。"
           emptyMessage="当前还没有可直接打开的结果样本，先继续跑出一轮带真实结果文件回流的结果包。"
           testIdPrefix="sceneapp-execution-summary"
           className="border-slate-200 bg-slate-50/70"
@@ -706,7 +706,7 @@ export function SceneAppExecutionSummaryCard({
           >
             <div className="text-xs font-medium text-slate-500">继续动作</div>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              如果要补上下文、查看经营口径或继续做人工复核，直接回到同一套做法闭环。
+              如果要补这轮信息、看结果判断或继续人工复核，直接回到同一套做法继续。
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {onReviewCurrentProject ? (
@@ -716,7 +716,7 @@ export function SceneAppExecutionSummaryCard({
                   data-testid="sceneapp-execution-summary-review-current-project"
                   onClick={onReviewCurrentProject}
                 >
-                  复盘当前项目
+                  继续这轮结果
                 </Button>
               ) : null}
               {onSaveAsInspiration ? (
@@ -752,7 +752,7 @@ export function SceneAppExecutionSummaryCard({
                   data-testid="sceneapp-execution-summary-open-detail"
                   onClick={onOpenSceneAppDetail}
                 >
-                  回生成准备
+                  回补这轮信息
                 </Button>
               ) : null}
               {onOpenSceneAppGovernance ? (
@@ -762,7 +762,7 @@ export function SceneAppExecutionSummaryCard({
                   data-testid="sceneapp-execution-summary-open-governance"
                   onClick={onOpenSceneAppGovernance}
                 >
-                  去做法复盘
+                  看最近结果
                 </Button>
               ) : null}
               {humanReviewAvailable ? (
@@ -800,7 +800,7 @@ export function SceneAppExecutionSummaryCard({
             ) : null}
             {latestPackResultUsesFallback ? (
               <p className="mt-3 text-xs leading-5 text-slate-500">
-                当前主运行还在继续，做法复盘会优先定位到最近一轮已交付样本，方便直接延续结果消费与放量判断。
+                当前主运行还在继续，最近结果会优先定位到最近一轮已交付样本，方便直接延续结果消费与下一步判断。
               </p>
             ) : null}
             {humanReviewAvailable && quickReviewActions.length ? (
@@ -836,10 +836,10 @@ export function SceneAppExecutionSummaryCard({
                 data-testid="sceneapp-execution-summary-orchestration"
               >
                 <div className="text-xs font-medium text-slate-500">
-                  生成后动作编排
+                  结果后的下一步
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  同一轮结果现在可以直接进入复盘、复盘材料准备或底层运行入口恢复，不再只是回页面找下一步。
+                  同一轮结果现在可以直接继续看结果、补结果材料或恢复到对应入口，不再只是回页面找下一步。
                 </p>
 
                 {followupDestinations.length ? (
@@ -984,7 +984,7 @@ export function SceneAppExecutionSummaryCard({
                       最近发布产物
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-600">
-                      当前会话里刚整理出来的发布稿、渠道预览稿和上传稿，会直接回流到这里继续复核，不需要离开生成主执行面。
+                      当前会话里刚整理出来的发布稿、渠道预览稿和上传稿，会直接回流到这里继续复核，不需要离开生成。
                     </p>
                     <div className="mt-3 grid gap-3 xl:grid-cols-3">
                       {contentPostEntries.map((entry) => (
@@ -1037,7 +1037,7 @@ export function SceneAppExecutionSummaryCard({
                 {latestPackResultDetailView.governanceArtifactEntries.length ? (
                   <div className="mt-4">
                     <div className="text-xs font-medium text-slate-500">
-                      基础复盘材料
+                      基础结果材料
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {latestPackResultDetailView.governanceArtifactEntries.map(

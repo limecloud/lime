@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ArrowRight,
   BrainCircuit,
   Database,
   FolderKanban,
@@ -1570,6 +1571,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     [buildMemoryPageParams, onNavigate],
   );
 
+  const handleOpenProjectResources = useCallback(() => {
+    onNavigate("resources");
+  }, [onNavigate]);
+
   function handleBringToCreation(entry: UnifiedMemory) {
     const categoryLabel = CATEGORY_LABELS[entry.category];
     const entryBannerMessage = `已从灵感库带入“${categoryLabel}”条目，可继续改写后发送。`;
@@ -1640,7 +1645,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         ),
       );
       setMemoryLauncherPrefillHintOverride(
-        "已按最近复盘切到更适合的结果模板，你可以继续改后再进入生成。",
+        "已按最近判断切到更适合的结果模板，你可以继续改后再进入生成。",
       );
     },
     [],
@@ -1709,7 +1714,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
             },
             requestKey: Date.now(),
           },
-          entryBannerMessage: `已从灵感库推荐“${task.title}”带着启动信息进入生成，可继续补充后发送。`,
+          entryBannerMessage: `已带着灵感库推荐“${task.title}”的启动信息回到生成，接着把这轮做下去就行。`,
         }),
       );
     },
@@ -1992,6 +1997,38 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         </aside>
 
         <main className="space-y-6">
+          <section
+            className="rounded-[26px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(239,246,255,0.96)_0%,rgba(255,255,255,0.98)_100%)] p-5 shadow-sm shadow-slate-950/5"
+            data-testid="memory-project-resources-callout"
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="rounded-full border-sky-200 bg-white px-3 py-1 text-sky-700"
+                  >
+                    辅助入口
+                  </Badge>
+                  <h2 className="text-base font-semibold text-slate-900">
+                    项目资料作为辅助页保留在这里
+                  </h2>
+                </div>
+                <p className="text-sm leading-6 text-slate-600">
+                  默认资料导航现在优先看灵感库；需要回看项目资料、导入内容和外部资料时，从这里打开项目资料。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenProjectResources}
+                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                打开项目资料
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </button>
+            </div>
+          </section>
+
           <MemorySurfacePanel
             title={currentSectionMeta?.label || "灵感库"}
             description={currentSectionMeta?.description}
@@ -2266,7 +2303,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               handleOpenInScene(sourceEntry);
                             }}
                           >
-                            去做法目录
+                            去全部做法
                           </button>
                         </div>
                       </article>
@@ -3441,7 +3478,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
               <MemorySurfacePanel
                 title="灵感条目明细"
-                description="这里展示当前灵感库真正可复用的条目，同时保留带回创作输入和进入做法目录两条动作。"
+                description="这里展示当前灵感库真正可复用的条目，同时保留带回创作输入和进入全部做法两条动作。"
                 actions={
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -3566,7 +3603,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                 className={BUTTON_CLASS_NAME}
                                 onClick={() => handleOpenInScene(memory)}
                               >
-                                去做法目录
+                                去全部做法
                               </button>
                             </div>
                           </div>

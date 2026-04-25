@@ -19,6 +19,7 @@ import {
 } from "./http-client";
 import { invokeExplicitMock, listenExplicitMock } from "./explicitMockFallback";
 import {
+  shouldDisallowMockEventFallbackInBrowser,
   shouldDisallowMockFallbackInBrowser,
   shouldPreferMockInBrowser,
 } from "./mockPriorityCommands";
@@ -178,6 +179,39 @@ function createSafeUnlisten(unlisten: UnlistenFn): UnlistenFn {
       console.warn("[safeListen] 取消事件监听失败，已忽略。", error);
     }
   };
+}
+
+function normalizeDevBridgeListenError(event: string, error: unknown): Error {
+  return new Error(
+    `[DevBridge] 浏览器模式无法连接事件桥，事件 "${event}" 监听失败。请先启动 Tauri 开发后端（例如 npm run tauri:dev 或 npm run tauri:dev:headless），并确认 http://127.0.0.1:3030/events 可访问。原始错误: ${toErrorMessage(error)}`,
+  );
+}
+
+function normalizeTauriListenError(event: string, error: unknown): Error {
+  return new Error(
+    `[Tauri] 原生事件桥不可用，事件 "${event}" 监听失败。请确认当前窗口的 event 插件桥接已经初始化完成，并检查前端预加载桥接是否可用。原始错误: ${toErrorMessage(error)}`,
+  );
+}
+
+function getTauriGlobalEventListen():
+  | ((event: string, handler: (event: { payload: unknown }) => void) => unknown)
+  | null {
+  const tauriGlobal = getTauriGlobal() as {
+    event?: {
+      listen?: unknown;
+    };
+  } | null;
+
+  return typeof tauriGlobal?.event?.listen === "function"
+    ? (tauriGlobal.event.listen as (
+        event: string,
+        handler: (event: { payload: unknown }) => void,
+      ) => unknown)
+    : null;
+}
+
+function shouldFailClosedOnMissingNativeEventBridge(event: string): boolean {
+  return shouldDisallowMockEventFallbackInBrowser(event);
 }
 
 function startInvokeTiming(command: string): string | null {
@@ -545,12 +579,34 @@ export async function safeListen<T = any>(
   event: string,
   handler: (event: { payload: T }) => void,
 ): Promise<UnlistenFn> {
+  const tauriGlobalListen = getTauriGlobalEventListen();
+  if (tauriGlobalListen) {
+    try {
+      const unlisten = await tauriGlobalListen(event, handler as never);
+      return createSafeUnlisten(
+        typeof unlisten === "function" ? (unlisten as UnlistenFn) : () => {},
+      );
+    } catch (error) {
+      if (shouldFailClosedOnMissingNativeEventBridge(event)) {
+        throw normalizeTauriListenError(event, error);
+      }
+      console.warn(
+        `[safeListen] Tauri 全局事件桥调用失败，跳过监听: ${event}`,
+        error,
+      );
+      return () => {};
+    }
+  }
+
   // 同步检查即可，不轮询等待，避免首屏并发监听全部阻塞
   if (hasTauriEventListenerCapability()) {
     try {
       return createSafeUnlisten(await baseListen(event, handler));
     } catch (error) {
       if (hasTauriRuntimeMarkers()) {
+        if (shouldFailClosedOnMissingNativeEventBridge(event)) {
+          throw normalizeTauriListenError(event, error);
+        }
         console.warn(
           `[safeListen] Tauri 事件桥调用失败，跳过监听: ${event}`,
           error,
@@ -566,6 +622,9 @@ export async function safeListen<T = any>(
       return createSafeUnlisten(await listenViaHttpEvent(event, handler));
     } catch (error) {
       if (!hasTauriRuntimeMarkers()) {
+        if (shouldDisallowMockEventFallbackInBrowser(event)) {
+          throw normalizeDevBridgeListenError(event, error);
+        }
         return createSafeUnlisten(await listenExplicitMock(event, handler));
       }
       console.warn(
@@ -577,6 +636,12 @@ export async function safeListen<T = any>(
   }
 
   if (hasTauriRuntimeMarkers()) {
+    if (shouldFailClosedOnMissingNativeEventBridge(event)) {
+      throw normalizeTauriListenError(
+        event,
+        new Error("Tauri 事件桥未就绪"),
+      );
+    }
     console.warn(`[safeListen] Tauri 事件桥未就绪，跳过监听: ${event}`);
     return () => {};
   }

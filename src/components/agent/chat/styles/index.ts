@@ -1,24 +1,69 @@
 import styled from "styled-components";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-export const Navbar = styled.div<{ $compact?: boolean }>`
+export const Navbar = styled.div<{
+  $compact?: boolean;
+  $collapsed?: boolean;
+  $taskCenter?: boolean;
+}>`
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: ${({ $compact }) => ($compact ? "8px" : "12px")};
-  padding: ${({ $compact }) => ($compact ? "7px 10px 7px" : "12px 16px 10px")};
-  min-height: ${({ $compact }) => ($compact ? "50px" : "64px")};
-  border-bottom: 1px solid rgba(167, 243, 208, 0.5);
-  background: linear-gradient(
+  justify-content: ${({ $collapsed }) =>
+    $collapsed ? "flex-end" : "space-between"};
+  gap: ${({ $compact, $collapsed, $taskCenter }) =>
+    $collapsed ? "10px" : $taskCenter ? "8px" : $compact ? "8px" : "12px"};
+  padding: ${({ $compact, $collapsed, $taskCenter }) =>
+    $collapsed
+      ? $compact
+        ? "6px 8px 2px"
+        : "6px 14px 2px"
+      : $taskCenter
+      ? $compact
+          ? "1px 8px 0"
+          : "1px 8px 0"
+      : $compact
+        ? "7px 10px 7px"
+        : "12px 16px 10px"};
+  min-height: ${({ $compact, $collapsed, $taskCenter }) =>
+    $collapsed
+      ? "auto"
+      : $taskCenter
+        ? "auto"
+        : $compact
+          ? "50px"
+          : "64px"};
+  border-bottom: ${({ $collapsed }) =>
+    $collapsed ? "none" : "1px solid rgba(167, 243, 208, 0.5)"};
+  border-bottom-color: ${({ $collapsed, $taskCenter }) =>
+    $collapsed
+      ? "transparent"
+      : $taskCenter
+        ? "transparent"
+        : "rgba(167, 243, 208, 0.5)"};
+  background: ${({ $collapsed, $taskCenter }) =>
+    $collapsed
+      ? "transparent"
+      : $taskCenter
+        ? "transparent"
+      : `linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.96) 0%,
     rgba(246, 253, 248, 0.94) 58%,
     rgba(240, 253, 244, 0.88) 100%
-  );
-  box-shadow:
-    inset 0 -1px 0 rgba(255, 255, 255, 0.74),
-    0 10px 28px rgba(15, 23, 42, 0.04);
-  backdrop-filter: blur(18px);
+  )`};
+  box-shadow: ${({ $collapsed, $taskCenter }) =>
+    $collapsed
+      ? "none"
+      : $taskCenter
+        ? "none"
+      : `inset 0 -1px 0 rgba(255, 255, 255, 0.74),
+    0 10px 28px rgba(15, 23, 42, 0.04)`};
+  backdrop-filter: ${({ $collapsed, $taskCenter }) =>
+    $collapsed || $taskCenter ? "none" : "blur(18px)"};
+  align-self: ${({ $collapsed }) => ($collapsed ? "flex-end" : "stretch")};
+  width: ${({ $collapsed }) => ($collapsed ? "fit-content" : "auto")};
+  max-width: ${({ $collapsed }) => ($collapsed ? "calc(100% - 24px)" : "100%")};
+  margin-left: ${({ $collapsed }) => ($collapsed ? "auto" : "0")};
   flex-shrink: 0;
   position: relative;
   z-index: 10;

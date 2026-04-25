@@ -275,7 +275,7 @@ export function buildCuratedTaskReferenceEntryFromSceneAppExecution(params: {
     id,
     sourceKind: "sceneapp_execution_summary",
     title,
-    summary: summaryText || "当前已有一轮项目结果与执行摘要，可直接带入复盘。",
+    summary: summaryText || "当前已有一轮项目结果与执行摘要，可直接带入下一步判断。",
     category: "experience",
     categoryLabel: "成果",
     tags,
@@ -283,7 +283,7 @@ export function buildCuratedTaskReferenceEntryFromSceneAppExecution(params: {
       "account-project-review": {
         project_goal:
           normalizeOptionalText(summary.title) ||
-          "复盘当前这轮项目结果并明确下一步优化动作",
+          "判断当前这轮项目结果并明确下一步优化动作",
         existing_results: buildSceneAppExistingResultsSummary({
           summary,
           latestRunDetailView,
@@ -367,7 +367,7 @@ export function buildSceneAppExecutionCuratedTaskFollowUpAction(params: {
 
   return {
     prompt,
-    bannerMessage: `已切到“${task.title}”这条下一步，并带着当前结果继续生成。`,
+    bannerMessage: `已切到“${task.title}”这条下一步，并带着当前结果继续进入生成。`,
     capabilityRoute: {
       kind: "curated_task",
       taskId: task.id,

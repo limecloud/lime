@@ -391,6 +391,7 @@ fn build_input_json(
             "recentTimeline": recent_timeline,
             "lastOutcome": &thread_read.last_outcome,
             "incidents": &thread_read.incidents,
+            "runtimeFacts": build_replay_runtime_facts(thread_read),
         },
         "observability": observability_summary,
         "linkedArtifacts": {
@@ -546,6 +547,26 @@ fn build_evidence_links_json(
         .map_err(|error| format!("序列化 evidence-links.json 失败: {error}"))
 }
 
+fn build_replay_runtime_facts(thread_read: &AgentRuntimeThreadReadModel) -> Value {
+    json!({
+        "taskKind": thread_read.task_kind,
+        "serviceModelSlot": thread_read.service_model_slot,
+        "routingMode": thread_read.routing_mode,
+        "decisionSource": thread_read.decision_source,
+        "candidateCount": thread_read.candidate_count,
+        "capabilityGap": thread_read.capability_gap,
+        "decisionReason": thread_read.decision_reason,
+        "fallbackChain": thread_read.fallback_chain,
+        "estimatedCostClass": thread_read.estimated_cost_class,
+        "limitState": thread_read.limit_state,
+        "costState": thread_read.cost_state,
+        "limitEvent": thread_read.limit_event,
+        "runtimeSummary": thread_read.runtime_summary,
+        "oemPolicy": thread_read.oem_policy,
+        "auxiliaryTaskRuntime": thread_read.auxiliary_task_runtime
+    })
+}
+
 fn build_success_criteria(
     detail: &SessionDetail,
     thread_read: &AgentRuntimeThreadReadModel,
@@ -578,6 +599,11 @@ fn build_success_criteria(
             "如果样本仍包含待处理请求，评分时必须确认这些请求是否已被正确处理或明确保留。"
                 .to_string(),
         );
+    }
+
+    if normalize_optional_text(thread_read.decision_reason.clone()).is_some() {
+        criteria
+            .push("结果应与当前 runtime 决策解释保持一致，除非样本明确要求切换路径。".to_string());
     }
 
     if !recent_artifacts.is_empty() {
@@ -1224,17 +1250,58 @@ mod tests {
                     },
                 ),
             }),
-            task_kind: None,
-            service_model_slot: None,
-            routing_mode: None,
-            decision_source: None,
-            candidate_count: None,
-            capability_gap: None,
-            single_candidate_only: None,
-            limit_state: None,
-            estimated_cost_class: None,
-            cost_state: None,
-            limit_event: None,
+            task_kind: Some("generation_topic".to_string()),
+            service_model_slot: Some("planner".to_string()),
+            routing_mode: Some("fallback_chain".to_string()),
+            decision_source: Some("model_router".to_string()),
+            candidate_count: Some(2),
+            capability_gap: Some("vision".to_string()),
+            single_candidate_only: Some(false),
+            oem_policy: Some(json!({
+                "quotaStatus": "low_credit",
+                "defaultModel": "oem/gpt-5.4-mini",
+                "offerState": "managed"
+            })),
+            runtime_summary: Some(json!({
+                "decisionReason": "主路由能力不足，切到回退模型",
+                "capabilityGap": "vision",
+                "limitStatus": "soft_limited",
+                "estimatedCostClass": "low"
+            })),
+            decision_reason: Some("主路由能力不足，切到回退模型".to_string()),
+            fallback_chain: Some(vec!["openai:gpt-5.4".to_string(), "openai:gpt-5.4-mini".to_string()]),
+            auxiliary_task_runtime: Some(vec![json!({"route": "auxiliary.generate_title", "taskKind": "generation_topic"})]),
+            limit_state: Some(lime_agent::SessionExecutionRuntimeLimitState {
+                status: "soft_limited".to_string(),
+                single_candidate_only: false,
+                provider_locked: false,
+                settings_locked: false,
+                oem_locked: false,
+                candidate_count: 2,
+                capability_gap: Some("vision".to_string()),
+                notes: vec!["需要回退链".to_string()],
+            }),
+            estimated_cost_class: Some("low".to_string()),
+            cost_state: Some(lime_agent::SessionExecutionRuntimeCostState {
+                status: "estimated".to_string(),
+                estimated_cost_class: Some("low".to_string()),
+                input_per_million: None,
+                output_per_million: None,
+                cache_read_per_million: None,
+                cache_write_per_million: None,
+                currency: None,
+                estimated_total_cost: None,
+                input_tokens: None,
+                output_tokens: None,
+                total_tokens: None,
+                cached_input_tokens: None,
+                cache_creation_input_tokens: None,
+            }),
+            limit_event: Some(lime_agent::SessionExecutionRuntimeLimitEvent {
+                event_kind: "fallback_applied".to_string(),
+                message: "因能力缺口触发回退链".to_string(),
+                retryable: true,
+            }),
         }
     }
 

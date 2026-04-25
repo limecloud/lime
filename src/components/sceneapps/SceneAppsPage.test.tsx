@@ -1381,17 +1381,16 @@ describe("SceneAppsPage", () => {
     window.localStorage.clear();
   });
 
-  it("应按分页方式拆开展示全部做法、生成准备与做法复盘", async () => {
+  it("应按分页方式拆开展示全部做法、补这轮信息与最近结果", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();
 
     expect(container.textContent).toContain("全部做法");
-    expect(container.textContent).toContain("做法目录");
-    expect(container.textContent).toContain("生成准备");
-    expect(container.textContent).toContain("做法复盘");
+    expect(container.textContent).toContain("补这轮信息");
+    expect(container.textContent).toContain("最近结果");
     expect(container.textContent).toContain("这轮做法：短视频编排");
     expect(container.textContent).toContain(
-      "这套做法已经接住当前上下文，准备和复盘都可以直接往下走。",
+      "这套做法已经接住当前上下文，这轮信息和最近结果都能直接续上。",
     );
     expect(container.textContent).not.toContain("全部做法 · 进入生成前的准备层");
     expect(container.textContent).not.toContain("当前目录");
@@ -1486,12 +1485,12 @@ describe("SceneAppsPage", () => {
       container.querySelector(
         '[data-testid="sceneapp-scorecard-aggregate-summary"]',
       )?.textContent,
-    ).toContain("先补复盘材料");
+    ).toContain("先补结果材料");
     expect(
       container.querySelector(
         '[data-testid="sceneapp-scorecard-aggregate-summary"]',
       )?.textContent,
-    ).toContain("结构化复盘包");
+    ).toContain("结果记录");
     expect(
       container.querySelector(
         '[data-testid="sceneapp-scorecard-aggregate-summary"]',
@@ -1552,7 +1551,7 @@ describe("SceneAppsPage", () => {
       container.querySelector(
         '[data-testid="sceneapp-governance-status-badge"]',
       )?.textContent,
-    ).toContain("先补复盘材料");
+    ).toContain("先补结果材料");
     expect(container.textContent).toContain("story-video-suite-run-1");
     expect(container.textContent).toContain("story-video-suite-run-2");
     expect(
@@ -1667,10 +1666,10 @@ describe("SceneAppsPage", () => {
     expect(buttonLabels).not.toContain("目录同步");
     expect(container.textContent).not.toContain("清空筛选");
     expect(buttonLabels).toContain("整套组合");
-    expect(buttonLabels).toContain("本地执行");
+    expect(buttonLabels).toContain("快速起手");
   });
 
-  it("场景目录卡片应回流最近运行与经营信号", async () => {
+  it("场景目录卡片应回流最近结果与判断信号", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();
     await openSceneAppsView(container, "catalog");
@@ -1678,15 +1677,15 @@ describe("SceneAppsPage", () => {
     const storyVideoCard = container.querySelector(
       '[data-testid="sceneapp-page-card-story-video-suite"]',
     );
-    expect(storyVideoCard?.textContent).toContain("先补复盘材料");
+    expect(storyVideoCard?.textContent).toContain("先补结果材料");
     expect(storyVideoCard?.textContent).toContain("建议继续优化");
     expect(storyVideoCard?.textContent).toContain("复核阻塞");
-    expect(storyVideoCard?.textContent).toContain("再继续进入周会、生成页或统计面");
-    expect(storyVideoCard?.textContent).toContain("最近运行：人工试跑");
+    expect(storyVideoCard?.textContent).toContain("再继续进入生成或统计面");
+    expect(storyVideoCard?.textContent).toContain("最近结果：人工试跑");
     expect(storyVideoCard?.textContent).toContain(
-      "复盘材料还没完全齐，暂时不适合直接放大",
+      "结果材料还没完全齐，暂时不适合直接放大",
     );
-    expect(storyVideoCard?.textContent).toContain("先准备结构化复盘包");
+    expect(storyVideoCard?.textContent).toContain("先补结果记录");
   });
 
   it("生成准备与评分页应提供最近可消费结果入口", async () => {
@@ -1721,7 +1720,7 @@ describe("SceneAppsPage", () => {
         relativePath: "exports/story-video-suite/latest/brief.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从做法复盘打开结果文件：主稿 · 任务简报。",
+      entryBannerMessage: "已从最近结果打开结果文件：主稿 · 任务简报。",
     });
   });
 
@@ -1771,7 +1770,7 @@ describe("SceneAppsPage", () => {
       container.querySelector(
         '[data-testid="sceneapp-governance-status-badge"]',
       )?.textContent,
-    ).toContain("先补复盘材料");
+    ).toContain("先补结果材料");
     expect(container.textContent).toContain("story-video-suite-run-1");
   });
 
@@ -1789,7 +1788,7 @@ describe("SceneAppsPage", () => {
       '[data-testid="sceneapps-open-governance"]',
     ) as HTMLButtonElement | null;
     expect(governanceButton).toBeTruthy();
-    expect(governanceButton?.textContent).toContain("先去生成准备");
+    expect(governanceButton?.textContent).toContain("先补这轮信息");
 
     act(() => {
       governanceButton?.click();
@@ -1814,7 +1813,7 @@ describe("SceneAppsPage", () => {
     expect(
       container.querySelector('[data-testid="sceneapps-empty-state"]')
         ?.textContent,
-    ).toContain("当前筛选后还没有可进入准备页的整套做法");
+    ).toContain("当前筛选后还没有可继续的整套做法");
 
     const resetButton = container.querySelector(
       '[data-testid="sceneapps-empty-reset-filters"]',
@@ -1846,7 +1845,7 @@ describe("SceneAppsPage", () => {
     expect(
       container.querySelector('[data-testid="sceneapps-empty-state"]')
         ?.textContent,
-    ).toContain("这套做法还没有首轮治理样本");
+    ).toContain("这套做法还没有首轮结果");
 
     const openDetailButton = container.querySelector(
       '[data-testid="sceneapps-governance-open-detail"]',
@@ -1903,8 +1902,8 @@ describe("SceneAppsPage", () => {
       container.querySelector('[data-testid="sceneapp-governance-summary"]')
         ?.textContent,
     ).toContain("复核阻塞");
-    expect(container.textContent).toContain("生成 / 看板");
-    expect(container.textContent).toContain("持续流程 / 自动化");
+    expect(container.textContent).toContain("生成");
+    expect(container.textContent).toContain("持续流程");
     expect(mockGetSceneAppRunSummary).toHaveBeenCalledWith(
       "story-video-suite-run-1",
     );
@@ -1969,7 +1968,7 @@ describe("SceneAppsPage", () => {
       await openSceneAppsView(container, "catalog");
 
       const searchInput = container.querySelector(
-        'input[placeholder="搜索做法标题"]',
+        'input[placeholder="搜索做法标题或想要的结果"]',
       ) as HTMLInputElement | null;
 
       expect(searchInput).toBeTruthy();
@@ -2033,7 +2032,7 @@ describe("SceneAppsPage", () => {
 
     await openSceneAppsView(container, "catalog");
     const searchInput = container.querySelector(
-      'input[placeholder="搜索做法标题"]',
+      'input[placeholder="搜索做法标题或想要的结果"]',
     ) as HTMLInputElement | null;
 
     await openSceneAppsView(container, "detail");
@@ -2065,7 +2064,7 @@ describe("SceneAppsPage", () => {
       expect(listSceneAppRecentVisits()).toEqual([]);
 
       const searchInput = container.querySelector(
-        'input[placeholder="搜索做法标题"]',
+        'input[placeholder="搜索做法标题或想要的结果"]',
       ) as HTMLInputElement | null;
 
       expect(searchInput).toBeTruthy();
@@ -2119,7 +2118,7 @@ describe("SceneAppsPage", () => {
       container.querySelector('[data-testid="sceneapp-recent-latest-title"]')
         ?.textContent,
     ).toContain("短视频编排");
-    expect(container.textContent).toContain("继续最近");
+    expect(container.textContent).toContain("最近看过");
 
     const secondaryRecentButton = container.querySelector(
       '[data-testid="sceneapp-recent-item-daily-trend-briefing:project-2"]',
@@ -2471,7 +2470,7 @@ describe("SceneAppsPage", () => {
         relativePath: "exports/story-video-suite/latest/brief.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从做法复盘打开结果文件：主稿 · 任务简报。",
+      entryBannerMessage: "已从最近结果打开结果文件：主稿 · 任务简报。",
     });
   });
 
@@ -2514,11 +2513,11 @@ describe("SceneAppsPage", () => {
           ".lime/harness/sessions/session-story-video-1/evidence/summary.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从做法复盘打开治理文件：证据摘要。",
+      entryBannerMessage: "已从最近结果打开结果材料：证据摘要。",
     });
   });
 
-  it("运行详情里的治理动作应支持准备周会复盘包", async () => {
+  it("运行详情里的后续动作应支持补结果材料", async () => {
     const { container, onNavigate } = renderSceneAppsPage();
     await flushEffects();
     await openSceneAppsView(container, "governance");
@@ -2536,7 +2535,7 @@ describe("SceneAppsPage", () => {
     const governanceActionButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-governance-action-weekly-review-pack"]',
     ) as HTMLButtonElement | null;
-    expect(governanceActionButton?.textContent).toContain("准备周会复盘包");
+    expect(governanceActionButton?.textContent).toContain("补结果材料");
     expect(governanceActionButton?.textContent).toContain("打开 人工复核记录");
 
     act(() => {
@@ -2558,11 +2557,11 @@ describe("SceneAppsPage", () => {
           ".lime/harness/sessions/session-story-video-1/review/review-decision.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从做法复盘打开治理动作：人工复核记录。",
+      entryBannerMessage: "已从最近结果打开后续动作：人工复核记录。",
     });
   });
 
-  it("治理看板里的推荐动作应复用同一条治理动作主链", async () => {
+  it("结果页里的推荐动作应复用同一条后续动作主链", async () => {
     const { container, onNavigate } = renderSceneAppsPage();
     await flushEffects();
     await openSceneAppsView(container, "governance");
@@ -2580,7 +2579,7 @@ describe("SceneAppsPage", () => {
     const governanceActionButton = container.querySelector(
       '[data-testid="sceneapp-governance-action-structured-governance-pack"]',
     ) as HTMLButtonElement | null;
-    expect(governanceActionButton?.textContent).toContain("准备结构化治理包");
+    expect(governanceActionButton?.textContent).toContain("补结果记录");
 
     act(() => {
       governanceActionButton?.click();
@@ -2599,11 +2598,11 @@ describe("SceneAppsPage", () => {
           ".lime/harness/sessions/session-story-video-1/review/review-decision.json",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从做法复盘打开治理动作：复核 JSON。",
+      entryBannerMessage: "已从最近结果打开后续动作：复核 JSON。",
     });
   });
 
-  it("sceneapps 深层结果面应显影最近复盘建议横幅", async () => {
+  it("sceneapps 深层结果面应显影最近判断建议横幅", async () => {
     recordCuratedTaskRecommendationSignal({
       source: "review_feedback",
       category: "experience",
@@ -2623,7 +2622,7 @@ describe("SceneAppsPage", () => {
     const scorecardBanner = container.querySelector(
       '[data-testid="sceneapp-scorecard-review-feedback-banner"]',
     );
-    expect(scorecardBanner?.textContent).toContain("最近复盘已更新：短视频编排 · 可继续复用");
+    expect(scorecardBanner?.textContent).toContain("最近判断已更新：短视频编排 · 可继续复用");
     expect(scorecardBanner?.textContent).toContain("内容主稿生成");
     expect(scorecardBanner?.textContent).toContain("复盘这个账号/项目");
     expect(
@@ -2647,7 +2646,7 @@ describe("SceneAppsPage", () => {
     const governanceBanner = container.querySelector(
       '[data-testid="sceneapp-governance-review-feedback-banner"]',
     );
-    expect(governanceBanner?.textContent).toContain("最近复盘已更新：短视频编排 · 可继续复用");
+    expect(governanceBanner?.textContent).toContain("最近判断已更新：短视频编排 · 可继续复用");
     expect(
       container.querySelector(
         '[data-testid="sceneapp-governance-review-feedback-banner-action"]',
@@ -2657,7 +2656,7 @@ describe("SceneAppsPage", () => {
     const runDetailBanner = container.querySelector(
       '[data-testid="sceneapp-run-detail-review-feedback-banner"]',
     );
-    expect(runDetailBanner?.textContent).toContain("最近复盘已更新：短视频编排 · 可继续复用");
+    expect(runDetailBanner?.textContent).toContain("最近判断已更新：短视频编排 · 可继续复用");
     expect(
       container.querySelector(
         '[data-testid="sceneapp-run-detail-review-feedback-banner-action"]',
@@ -2708,7 +2707,7 @@ describe("SceneAppsPage", () => {
         agentEntry: "claw",
         projectId: "project-1",
         entryBannerMessage:
-          "已切到“内容主稿生成”这条下一步，并带着当前结果继续生成。",
+          "已切到“内容主稿生成”这条下一步，并带着当前结果继续进入生成。",
         initialSceneAppExecutionSummary: expect.objectContaining({
           title: "短视频编排",
         }),
@@ -2920,7 +2919,7 @@ describe("SceneAppsPage", () => {
     expect(onNavigate).toHaveBeenCalledWith("agent", {
       agentEntry: "claw",
       initialSessionId: "session-story-video-2",
-      entryBannerMessage: "已从做法复盘恢复生成会话。",
+      entryBannerMessage: "已从最近结果恢复生成会话。",
     });
   });
 
@@ -2994,7 +2993,7 @@ describe("SceneAppsPage", () => {
       expect.objectContaining({
         agentEntry: "claw",
         projectId: "project-1",
-        entryBannerMessage: "已从做法复盘恢复本机技能入口。",
+        entryBannerMessage: "已从最近结果恢复本机技能入口。",
         initialPendingServiceSkillLaunch: expect.objectContaining({
           skillId: "sceneapp-service-analysis",
           initialSlotValues: {

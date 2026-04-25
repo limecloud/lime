@@ -569,7 +569,7 @@ function buildGenericPostSummary(params: {
     return "已查看任务列表";
   }
   if (normalizedName === "taskcreate") {
-    return normalizedSubject ? `已创建任务 ${normalizedSubject}` : "已创建任务";
+    return normalizedSubject ? `已开始 ${normalizedSubject}` : "已开始这一步";
   }
   if (normalizedName === "taskget") {
     return normalizedSubject
@@ -799,8 +799,8 @@ function buildGenericPreSummary(params: {
 
   if (normalizedName === "taskcreate") {
     return normalizedSubject
-      ? `先创建任务 ${normalizedSubject}`
-      : "先创建结构化任务";
+      ? `先开始 ${normalizedSubject}`
+      : "先开始这一步";
   }
 
   if (normalizedName === "tasklist") {

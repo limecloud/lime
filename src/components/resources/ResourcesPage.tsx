@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  ArrowRight,
   ArrowUp,
   File,
   FileText,
@@ -556,6 +557,10 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     onNavigate?.("agent", buildHomeAgentParams());
   }, [onNavigate]);
 
+  const handleOpenInspiration = useCallback(() => {
+    onNavigate?.("memory");
+  }, [onNavigate]);
+
   const activeCategoryLabel = resourceCategoryLabelMap[viewCategory];
   const ActiveCategoryIcon = resourceCategoryIconMap[viewCategory];
 
@@ -566,10 +571,10 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
   const defaultScopeStatusDescription = useMemo(() => {
     if (!projectId) {
-      return "先在左侧选择一个项目资料库。";
+      return "先在左侧选择一个项目。";
     }
     if (!isFolderMode) {
-      return `跨目录查看当前资料库内的${activeCategoryLabel}内容。`;
+      return `跨目录查看当前项目里的${activeCategoryLabel}内容。`;
     }
     if (currentFolder && breadcrumbs.length > 0) {
       return `路径：根目录 / ${breadcrumbs.map((folder) => folder.name).join(" / ")}`;
@@ -593,7 +598,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     }
 
     const categoryLabel = mediaCategoryLabelMap[crossProjectMediaHint.category];
-    return `当前资料库暂无${categoryLabel}，检测到「${crossProjectMediaHint.projectName}」包含 ${crossProjectMediaHint.count} 个${categoryLabel}。`;
+    return `当前项目暂无${categoryLabel}，检测到「${crossProjectMediaHint.projectName}」包含 ${crossProjectMediaHint.count} 个${categoryLabel}。`;
   }, [crossProjectMediaHint, defaultScopeStatusDescription]);
 
   const projectSummaryLabel = useMemo(() => {
@@ -615,7 +620,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(248,250,252,1)_0%,rgba(244,249,248,0.96)_52%,rgba(248,250,252,1)_100%)]">
       <div className="border-b border-slate-200/70 bg-white">
         <div className="mx-auto w-full max-w-[1480px] px-4 py-3 lg:px-6">
-          <CanvasBreadcrumbHeader label="资料库" onBackHome={handleBackHome} />
+          <CanvasBreadcrumbHeader label="项目资料" onBackHome={handleBackHome} />
         </div>
       </div>
 
@@ -625,11 +630,11 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-                  资料库
+                  项目资料
                 </h1>
                 <WorkbenchInfoTip
-                  ariaLabel="资料库工作台说明"
-                  content="集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。"
+                  ariaLabel="项目资料页说明"
+                  content="集中查看当前项目里的文档、图片和导入内容；继续开工时回生成，需要沉淀线索时去灵感库。"
                   tone="mint"
                 />
                 <span
@@ -651,7 +656,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                   variant="outline"
                   className="rounded-full border-slate-200 bg-slate-50 px-3 py-1 text-slate-700"
                 >
-                  {selectedProject?.name ?? "未选择资料库"}
+                  {selectedProject?.name ?? "未选择项目"}
                 </Badge>
                 {projectSummaryLabel && (
                   <Badge
@@ -681,14 +686,57 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
             </div>
           </section>
 
+          <section
+            className="rounded-[26px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(239,246,255,0.96)_0%,rgba(255,255,255,0.98)_100%)] p-5 shadow-sm shadow-slate-950/5"
+            data-testid="resources-migration-callout"
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                    当前定位
+                  </span>
+                  <h2 className="text-base font-semibold text-slate-900">
+                    项目资料只负责浏览、补图和整理
+                  </h2>
+                </div>
+                <p className="text-sm leading-6 text-slate-600">
+                  继续开工时回生成，需要沉淀线索时去灵感库；这里专注当前项目内容的查看与切换。
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-2xl border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  onClick={handleBackHome}
+                >
+                  回生成
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+                {onNavigate ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-2xl border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                    onClick={handleOpenInspiration}
+                  >
+                    去灵感库
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </section>
+
           <div className="grid gap-6 xl:grid-cols-[290px_minmax(0,1fr)]">
             <aside className="space-y-4">
               <section className="rounded-[26px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
                 <div className="px-1">
                   <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
-                    <span>资料分类</span>
+                    <span>内容分类</span>
                     <WorkbenchInfoTip
-                      ariaLabel="资料分类说明"
+                      ariaLabel="内容分类说明"
                       content="在目录浏览和跨目录分类视图之间切换，快速定位不同类型内容。"
                       tone="slate"
                     />
@@ -729,7 +777,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                             )}
                           >
                             {key === "all"
-                              ? "按目录管理完整资料库"
+                              ? "按目录查看完整项目内容"
                               : `聚合查看${label}内容`}
                           </span>
                         </span>
@@ -752,15 +800,15 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
               <section className="rounded-[26px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
                 <div className="px-1">
                   <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
-                    <span>资料库</span>
+                    <span>项目切换</span>
                     <WorkbenchInfoTip
-                      ariaLabel="资料库切换说明"
-                      content="资料库来源于项目，这里只负责切换和浏览，不在当前页面直接新建项目。"
+                      ariaLabel="项目切换说明"
+                      content="这里负责切换当前项目并查看内容；继续开工请回生成或灵感库。"
                       tone="slate"
                     />
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    按项目切换当前资料库，避免在这里继续保留旧的创建入口。
+                    按项目切换当前内容视图；继续开工请回生成或灵感库。
                   </p>
                 </div>
 
@@ -1016,7 +1064,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                 <div className="p-5">
                   {!projectId ? (
                     <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-10 text-center text-sm text-slate-500">
-                      请先在左侧选择资料库
+                      请先在左侧选择项目
                     </div>
                   ) : loading ? (
                     <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-10 text-center text-sm text-slate-500">
@@ -1031,7 +1079,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                         当前范围内暂无内容
                       </h3>
                       <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-                        资料库页当前只保留切换、浏览和打开主链。若要补图片，请切到上方图片视图继续上传；其他内容请回对应项目或创作链路处理。
+                        这里当前只负责切换、浏览和补图。若要继续开工，请回生成或灵感库；其他内容请回对应项目处理。
                       </p>
                     </div>
                   ) : (

@@ -162,7 +162,7 @@ function buildRecentVisitHint(record: SceneAppRecentVisitRecord): string {
     parts.push(`项目 ${record.projectId}`);
   }
   if (record.runId) {
-    parts.push("带运行复盘");
+    parts.push("带最近结果");
   }
   if (record.search) {
     parts.push(`筛选：${record.search}`);
@@ -514,7 +514,7 @@ export function useSceneAppsPageRuntime({
         partialErrors.push(formatSceneAppErrorMessage(runsResult.error));
       }
       if (scorecardResults.some((result) => !result.ok)) {
-        partialErrors.push("部分经营评分暂未回流，目录先按已拿到的运行事实展示。");
+        partialErrors.push("部分结果判断暂未回流，目录先按已拿到的运行事实展示。");
       }
       setCatalogRuntimeError(partialErrors[0] ?? null);
       setCatalogRuntimeLoading(false);
@@ -1129,7 +1129,7 @@ export function useSceneAppsPageRuntime({
         taskId,
       });
       if (!followUpAction) {
-        toast.error("当前复盘建议还缺少可继续的结果模板。");
+        toast.error("当前结果判断还缺少可继续的结果模板。");
         return;
       }
 
@@ -1355,7 +1355,7 @@ export function useSceneAppsPageRuntime({
         sceneappId:
           selectedRunSummary?.sceneappId ?? selectedDescriptor?.id ?? "",
         sceneTitle: selectedDescriptor?.title,
-        sourceLabel: "做法复盘",
+        sourceLabel: "最近结果",
         projectId: selectedProjectId,
         linkedServiceSkillId: selectedDescriptor?.linkedServiceSkillId,
         linkedSceneKey: selectedDescriptor?.linkedSceneKey,
@@ -1386,7 +1386,7 @@ export function useSceneAppsPageRuntime({
     ) => {
       openSelectedRunFileEntry(artifactEntry, {
         missingPathMessage: "当前这次运行还没有可打开的结果文件路径。",
-        bannerPrefix: "已从做法复盘打开结果文件",
+        bannerPrefix: "已从最近结果打开结果文件",
       });
     },
     [openSelectedRunFileEntry],
@@ -1413,7 +1413,7 @@ export function useSceneAppsPageRuntime({
               artifactEntry.artifactRef.kind,
             );
             if (!refreshed) {
-              toast.error("当前运行已不存在，无法继续准备治理文件。");
+              toast.error("当前运行已不存在，无法继续准备结果材料。");
               return;
             }
             setSelectedRunSummary(refreshed);
@@ -1425,7 +1425,7 @@ export function useSceneAppsPageRuntime({
 
         openSelectedRunFileEntry(artifactEntry, {
           missingPathMessage: "当前这次运行还没有可打开的证据或复核文件。",
-          bannerPrefix: "已从做法复盘打开治理文件",
+          bannerPrefix: "已从最近结果打开结果材料",
         });
       })();
     },
@@ -1452,7 +1452,7 @@ export function useSceneAppsPageRuntime({
             action.artifactKinds,
           );
           if (!refreshed) {
-            toast.error("当前运行已不存在，无法继续准备治理动作。");
+            toast.error("当前运行已不存在，无法继续准备后续动作。");
             return;
           }
 
@@ -1467,8 +1467,8 @@ export function useSceneAppsPageRuntime({
               (entry) => entry.artifactRef.kind === action.primaryArtifactKind,
             );
           openSelectedRunFileEntry(targetEntry, {
-            missingPathMessage: `治理动作已准备完成，但当前没有可打开的${action.primaryArtifactLabel}路径。`,
-            bannerPrefix: "已从做法复盘打开治理动作",
+            missingPathMessage: `后续动作已准备完成，但当前没有可打开的${action.primaryArtifactLabel}路径。`,
+            bannerPrefix: "已从最近结果打开后续动作",
           });
         } catch (error) {
           toast.error(formatSceneAppErrorMessage(error));

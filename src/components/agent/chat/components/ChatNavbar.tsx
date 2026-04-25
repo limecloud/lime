@@ -6,6 +6,7 @@ import {
   Home,
   PanelRightClose,
   PanelRightOpen,
+  Plus,
   Settings2,
   Sparkles,
 } from "lucide-react";
@@ -17,6 +18,8 @@ import { Navbar } from "../styles";
 interface ChatNavbarProps {
   isRunning: boolean;
   chrome?: "full" | "workspace-compact";
+  collapseChrome?: boolean;
+  contextVariant?: "default" | "task-center";
   entryContextLabel?: string;
   entryContextHint?: string;
   onToggleHistory: () => void;
@@ -57,9 +60,20 @@ const toolbarGhostIconButtonClassName =
 const toolbarTextButtonClassName =
   "gap-1.5 text-slate-700 hover:bg-white hover:text-slate-900";
 
+const taskCenterChromeShellClassName =
+  "flex w-full items-center justify-between gap-1.5 rounded-t-[18px] border border-b-0 border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_64%,rgba(240,249,255,0.88)_100%)] px-2 pt-1";
+
+const taskCenterIconButtonClassName =
+  "h-7 w-7 rounded-[10px] border border-transparent bg-transparent text-slate-500 shadow-none transition-[background-color,color] hover:bg-slate-100 hover:text-slate-900";
+
+const taskCenterPillButtonClassName =
+  "h-7 rounded-[10px] border border-transparent bg-transparent px-2 text-[11px] font-medium text-slate-700 shadow-none transition-[background-color,color] hover:bg-slate-100 hover:text-slate-900";
+
 export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   isRunning: _isRunning,
   chrome = "full",
+  collapseChrome = false,
+  contextVariant = "default",
   entryContextLabel,
   entryContextHint,
   onToggleHistory,
@@ -85,40 +99,170 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   contextCompactionRunning = false,
   onCompactContext,
 }) => {
+  const [workspaceSelectorOpen, setWorkspaceSelectorOpen] = React.useState(false);
+  const isTaskCenterChrome = contextVariant === "task-center";
   const isWorkspaceCompact = chrome === "workspace-compact";
+  const effectiveCollapseChrome = collapseChrome && !isTaskCenterChrome;
   const groupClassName = cn(
     toolbarGroupClassName,
-    isWorkspaceCompact && "rounded-[18px] p-1",
+    (isWorkspaceCompact || effectiveCollapseChrome) && "rounded-[18px] p-1",
+    effectiveCollapseChrome &&
+      "border-slate-200/70 bg-white shadow-sm shadow-slate-950/4 backdrop-blur-0",
   );
   const dividerClassName = cn(
     toolbarDividerClassName,
-    isWorkspaceCompact && "mx-1 h-5",
+    (isWorkspaceCompact || effectiveCollapseChrome) && "mx-1 h-5",
   );
   const embeddedButtonClassName = cn(
     toolbarEmbeddedButtonClassName,
-    isWorkspaceCompact && "h-8 rounded-[18px] px-3",
+    (isWorkspaceCompact || effectiveCollapseChrome) && "h-8 rounded-[18px] px-3",
   );
   const ghostIconButtonClassName = cn(
     toolbarGhostIconButtonClassName,
-    isWorkspaceCompact && "h-8 w-8 rounded-[18px]",
+    (isWorkspaceCompact || effectiveCollapseChrome) && "h-8 w-8 rounded-[18px]",
   );
   const showStatusTools = showHarnessToggle || showContextCompactionAction;
   const showNavigationTools =
+    !effectiveCollapseChrome &&
     !isWorkspaceCompact &&
     (Boolean(onBackHome) ||
       Boolean(onBackToResources) ||
       Boolean(onBackToProjectManagement));
-  const showWorkspaceTools = showHistoryToggle || showCanvasToggle;
-  const showProjectSelector = !isWorkspaceCompact;
+  const showWorkspaceTools =
+    !effectiveCollapseChrome && (showHistoryToggle || showCanvasToggle);
+  const showProjectSelector = !isWorkspaceCompact && !isTaskCenterChrome;
   const showCompactSettingsButton =
-    isWorkspaceCompact && Boolean(onToggleSettings);
-  const compactProjectSelectorClassName = isWorkspaceCompact
-    ? "min-w-[184px] max-w-[248px]"
-    : "min-w-[196px] max-w-[280px]";
+    isWorkspaceCompact && !isTaskCenterChrome && Boolean(onToggleSettings);
+  const compactProjectSelectorClassName =
+    isWorkspaceCompact || effectiveCollapseChrome
+      ? "min-w-[184px] max-w-[248px]"
+      : "min-w-[196px] max-w-[280px]";
   const showEntryContext = Boolean(entryContextLabel);
 
+  if (isTaskCenterChrome) {
+    return (
+      <Navbar
+        $compact
+        $collapsed={false}
+        $taskCenter
+        data-testid="task-center-workspace-bar"
+      >
+        <div className={taskCenterChromeShellClassName}>
+          <div className="flex min-w-0 flex-1 items-center">
+            <ProjectSelector
+              value={projectId}
+              onChange={(nextProjectId) => onProjectChange?.(nextProjectId)}
+              open={workspaceSelectorOpen}
+              onOpenChange={setWorkspaceSelectorOpen}
+              passiveTrigger
+              workspaceType={workspaceType}
+              placeholder="选择工作区"
+              dropdownSide="bottom"
+              dropdownAlign="start"
+              enableManagement={workspaceType === "general"}
+              density="compact"
+              chrome="workspace-tab"
+              className="w-auto max-w-[280px]"
+            />
+            <div className="ml-1 flex h-7 items-center border-l border-slate-200/80 pl-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={taskCenterIconButtonClassName}
+                onClick={() => {
+                  setWorkspaceSelectorOpen((current) => !current);
+                }}
+                aria-label={workspaceSelectorOpen ? "收起工作区菜单" : "展开工作区菜单"}
+                aria-expanded={workspaceSelectorOpen}
+                title={workspaceSelectorOpen ? "收起工作区菜单" : "展开工作区菜单"}
+                data-testid="task-center-workspace-menu-trigger"
+              >
+                <Plus size={15} />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-0">
+            {showContextCompactionAction ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={taskCenterIconButtonClassName}
+                onClick={onCompactContext}
+                disabled={contextCompactionRunning}
+                aria-label={
+                  contextCompactionRunning ? "正在压缩上下文" : "压缩上下文"
+                }
+                title={contextCompactionRunning ? "正在压缩上下文" : "压缩上下文"}
+              >
+                <Box size={15} />
+              </Button>
+            ) : null}
+
+            {showHarnessToggle ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  taskCenterPillButtonClassName,
+                  "gap-1 px-2.5",
+                  harnessPanelVisible && "bg-white text-slate-900",
+                  harnessAttentionLevel === "warning" &&
+                    !harnessPanelVisible &&
+                    "bg-amber-50/90 text-amber-800 hover:bg-amber-100 hover:text-amber-900",
+                )}
+                onClick={onToggleHarnessPanel}
+                aria-label={
+                  harnessPanelVisible
+                    ? `收起${harnessToggleLabel}`
+                    : `展开${harnessToggleLabel}`
+                }
+                aria-expanded={harnessPanelVisible}
+                title={
+                  harnessPanelVisible
+                    ? `收起${harnessToggleLabel}`
+                    : `展开${harnessToggleLabel}`
+                }
+              >
+                <Sparkles size={12} />
+                <span>{harnessToggleLabel}</span>
+                {harnessPendingCount > 0 ? (
+                  <span className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none text-emerald-700">
+                    {harnessPendingCount > 99 ? "99+" : harnessPendingCount}
+                  </span>
+                ) : null}
+                <ChevronDown
+                  className={cn(
+                    "h-3 w-3 transition-transform",
+                    harnessPanelVisible && "rotate-180",
+                  )}
+                />
+              </Button>
+            ) : null}
+
+            {onToggleSettings ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={taskCenterIconButtonClassName}
+                onClick={onToggleSettings}
+                aria-label="打开设置"
+                title="打开设置"
+              >
+                <Settings2 size={16} />
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </Navbar>
+    );
+  }
+
   return (
-    <Navbar $compact={isWorkspaceCompact}>
+    <Navbar $compact={isWorkspaceCompact} $collapsed={effectiveCollapseChrome}>
       <div className="flex items-center gap-2">
         {showNavigationTools ? (
           <div className={groupClassName}>
@@ -214,7 +358,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
             )}
           >
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="inline-flex w-fit items-center rounded-full border border-slate-200/80 bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm shadow-slate-950/5">
+              <span className="inline-flex w-fit items-center rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
                 {entryContextLabel}
               </span>
               {!isWorkspaceCompact && entryContextHint ? (
@@ -244,17 +388,21 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
               chrome="embedded"
               className={compactProjectSelectorClassName}
             />
-            <div className={dividerClassName} aria-hidden="true" />
-            <Button
-              variant="ghost"
-              size="icon"
-              className={ghostIconButtonClassName}
-              onClick={onToggleSettings}
-              aria-label="打开设置"
-              title="打开设置"
-            >
-              <Settings2 size={18} />
-            </Button>
+            {onToggleSettings ? (
+              <>
+                <div className={dividerClassName} aria-hidden="true" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={ghostIconButtonClassName}
+                  onClick={onToggleSettings}
+                  aria-label="打开设置"
+                  title="打开设置"
+                >
+                  <Settings2 size={18} />
+                </Button>
+              </>
+            ) : null}
           </div>
         ) : null}
 

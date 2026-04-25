@@ -18,10 +18,6 @@ import type {
   ServiceSkillHomeItem,
 } from "@/components/agent/chat/service-skills/types";
 import { recordServiceSkillUsage } from "@/components/agent/chat/service-skills/storage";
-import type {
-  BuiltinInputCommand,
-  RuntimeSceneSlashCommand,
-} from "./builtinCommands";
 import type { InputCapabilitySelection } from "./inputCapabilitySelection";
 import { recordMentionEntryUsage } from "./mentionEntryUsage";
 import { recordSlashEntryUsage } from "./slashEntryUsage";
@@ -310,20 +306,10 @@ interface HarnessProps {
   syncValue?: boolean;
   onNavigateToSettings?: () => void;
   onChangeSpy?: (value: string) => void;
-  onSelectBuiltinCommand?: (
-    command: BuiltinInputCommand,
-    options?: { replayText?: string },
-  ) => void;
   onSelectInputCapability?: (
     capability: InputCapabilitySelection,
     options?: { replayText?: string },
   ) => void;
-  onSelectSkill?: (skill: Skill) => void;
-  onSelectSceneCommand?: (
-    command: RuntimeSceneSlashCommand,
-    options?: { replayText?: string },
-  ) => void;
-  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   projectId?: string | null;
   sessionId?: string | null;
   defaultCuratedTaskReferenceMemoryIds?: string[];
@@ -339,11 +325,7 @@ const Harness: React.FC<HarnessProps> = ({
   syncValue = true,
   onNavigateToSettings,
   onChangeSpy,
-  onSelectBuiltinCommand,
   onSelectInputCapability,
-  onSelectSkill,
-  onSelectSceneCommand,
-  onSelectServiceSkill,
   projectId = null,
   sessionId = null,
   defaultCuratedTaskReferenceMemoryIds = [],
@@ -378,11 +360,7 @@ const Harness: React.FC<HarnessProps> = ({
             setValue(next);
           }
         }}
-        onSelectBuiltinCommand={onSelectBuiltinCommand}
         onSelectInputCapability={onSelectInputCapability}
-        onSelectSkill={onSelectSkill}
-        onSelectSceneCommand={onSelectSceneCommand}
-        onSelectServiceSkill={onSelectServiceSkill}
         projectId={projectId}
         sessionId={sessionId}
         defaultCuratedTaskReferenceMemoryIds={
@@ -726,9 +704,11 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
+    expect(document.body.textContent).toContain("统一调用注册表");
+    expect(document.body.textContent).toContain("先调命令，再补做法");
     expect(document.body.textContent).toContain("生成 / 表达");
     expect(document.body.textContent).toContain("搜索 / 读取");
-    expect(document.body.textContent).toContain("浏览器 / 执行");
+    expect(document.body.textContent).toContain("浏览器 / 编排");
     expect(document.body.textContent).toContain("@配图");
     expect(document.body.textContent).toContain("@封面");
     expect(document.body.textContent).toContain("@海报");
@@ -744,33 +724,6 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("@转写");
     expect(document.body.textContent).toContain("@链接解析");
     expect(document.body.textContent).toContain("@浏览器");
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择配图命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@配图"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "image_generate",
-        commandPrefix: "@配图",
-      }),
-    );
   });
 
   it("提供 onSelectInputCapability 时，选择配图命令应走统一 capability 回调", async () => {
@@ -811,627 +764,6 @@ describe("CharacterMention", () => {
     expect(onChangeSpy).toHaveBeenLastCalledWith("");
   });
 
-  it("提供 onSelectBuiltinCommand 时，选择海报命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@海报"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "poster_generate",
-        commandPrefix: "@海报",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择渠道预览命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@渠道预览"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "channel_preview_runtime",
-        commandPrefix: "@渠道预览",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择上传命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@上传"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "upload_runtime",
-        commandPrefix: "@上传",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择发布合规命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@发布合规"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "publish_compliance",
-        commandPrefix: "@发布合规",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择封面命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@封面"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "cover_generate",
-        commandPrefix: "@封面",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择修图命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@修图"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "image_edit",
-        commandPrefix: "@修图",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择重绘命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@重绘"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "image_variation",
-        commandPrefix: "@重绘",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择视频命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@视频"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "video_generate",
-        commandPrefix: "@视频",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择播报命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@播报"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "broadcast_generate",
-        commandPrefix: "@播报",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择素材命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@素材"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "modal_resource_search",
-        commandPrefix: "@素材",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择搜索命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@搜索"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "research",
-        commandPrefix: "@搜索",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择深搜命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@深搜"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "deep_search",
-        commandPrefix: "@深搜",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择研报命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@研报"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "research_report",
-        commandPrefix: "@研报",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择竞品命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@竞品"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "competitor_research",
-        commandPrefix: "@竞品",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择站点搜索命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@站点搜索"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "site_search",
-        commandPrefix: "@站点搜索",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择读PDF命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@读PDF"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "read_pdf",
-        commandPrefix: "@读PDF",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择总结命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@总结"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "summary",
-        commandPrefix: "@总结",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择翻译命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@翻译"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "translation",
-        commandPrefix: "@翻译",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择分析命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@分析"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "analysis",
-        commandPrefix: "@分析",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择转写命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@转写"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "transcription_generate",
-        commandPrefix: "@转写",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择链接解析命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@链接解析"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "url_parse",
-        commandPrefix: "@链接解析",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择抓取命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@抓取"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "web_scrape",
-        commandPrefix: "@抓取",
-      }),
-    );
-  });
-
-  it("提供 onSelectBuiltinCommand 时，选择网页读取命令应交给父组件接管", async () => {
-    const onSelectBuiltinCommand =
-      vi.fn<(command: BuiltinInputCommand) => void>();
-    const container = renderHarness({
-      onSelectBuiltinCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeAtAndWait(textarea);
-
-    const builtinButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("@网页读取"));
-    expect(builtinButton).toBeTruthy();
-
-    act(() => {
-      builtinButton?.click();
-    });
-
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "webpage_read",
-        commandPrefix: "@网页读取",
-      }),
-    );
-  });
-
   it("服务技能应出现在 @ 面板里", async () => {
     const container = renderHarness({
       serviceSkills: [
@@ -1466,12 +798,16 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain("推荐做法");
+    expect(document.body.textContent).toContain("场景做法");
     expect(document.body.textContent).toContain("每日趋势摘要");
     expect(document.body.textContent).toContain("GitHub 仓库雷达");
     expect(document.body.textContent).toContain("需要：当前无必填信息");
     expect(document.body.textContent).toContain("交付：趋势摘要 + 调度建议");
     expect(document.body.textContent).toContain("需要：仓库关键词");
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText.indexOf("搜索 / 读取")).toBeLessThan(
+      bodyText.indexOf("场景做法"),
+    );
   });
 
   it("最近使用的服务技能应优先显示在独立分组，且不在技能组里重复", async () => {
@@ -1518,8 +854,8 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain("最近使用");
-    expect(document.body.textContent).toContain("推荐做法");
+    expect(document.body.textContent).toContain("最近调用");
+    expect(document.body.textContent).toContain("场景做法");
     expect(document.body.textContent).toContain(
       "上次填写：关注平台=X + TikTok；关键词=AI 内容创作",
     );
@@ -1535,7 +871,7 @@ describe("CharacterMention", () => {
     expect(regularButtons).toHaveLength(1);
   });
 
-  it("@ 空查询时应优先显示最近使用的内建命令，且不在内建命令分组重复", async () => {
+  it("@ 空查询时应优先显示最近调用的内建命令，且不在内建命令分组重复", async () => {
     act(() => {
       recordMentionEntryUsage({
         kind: "builtin_command",
@@ -1549,7 +885,7 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain("最近使用");
+    expect(document.body.textContent).toContain("最近调用");
 
     const recentCommandButtons = Array.from(
       document.body.querySelectorAll("button"),
@@ -1557,13 +893,13 @@ describe("CharacterMention", () => {
     expect(recentCommandButtons).toHaveLength(1);
   });
 
-  it("@ 面板打开后新增内建命令 recent usage 时，应即时刷新最近使用分组", async () => {
+  it("@ 面板打开后新增内建命令 recent usage 时，应即时刷新最近调用分组", async () => {
     const container = renderHarness();
     const textarea = getTextarea(container);
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).not.toContain("最近使用");
+    expect(document.body.textContent).not.toContain("最近调用");
 
     await act(async () => {
       recordMentionEntryUsage({
@@ -1575,7 +911,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("最近使用");
+    expect(document.body.textContent).toContain("最近调用");
     expect(document.body.textContent).toContain("@搜索");
     expect(document.body.textContent).toContain("上次输入：关键词:AI Agent 融资");
   });
@@ -1592,16 +928,16 @@ describe("CharacterMention", () => {
     });
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectBuiltinCommand =
+    const onSelectInputCapability =
       vi.fn<
         (
-          command: BuiltinInputCommand,
+          capability: InputCapabilitySelection,
           options?: { replayText?: string },
         ) => void
       >();
     const container = renderHarness({
       onChangeSpy,
-      onSelectBuiltinCommand,
+      onSelectInputCapability,
     });
     const textarea = getTextarea(container);
 
@@ -1620,9 +956,12 @@ describe("CharacterMention", () => {
     });
 
     expect(onChangeSpy).toHaveBeenLastCalledWith(replayText);
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+    expect(onSelectInputCapability).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: "research",
+        kind: "builtin_command",
+        command: expect.objectContaining({
+          key: "research",
+        }),
       }),
       expect.objectContaining({
         replayText,
@@ -1643,16 +982,16 @@ describe("CharacterMention", () => {
     });
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectBuiltinCommand =
+    const onSelectInputCapability =
       vi.fn<
         (
-          command: BuiltinInputCommand,
+          capability: InputCapabilitySelection,
           options?: { replayText?: string },
         ) => void
       >();
     const container = renderHarness({
       onChangeSpy,
-      onSelectBuiltinCommand,
+      onSelectInputCapability,
     });
     const textarea = getTextarea(container);
 
@@ -1673,10 +1012,13 @@ describe("CharacterMention", () => {
     });
 
     expect(onChangeSpy).toHaveBeenLastCalledWith(replayText);
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+    expect(onSelectInputCapability).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: "research",
-        commandPrefix: "@搜索",
+        kind: "builtin_command",
+        command: expect.objectContaining({
+          key: "research",
+          commandPrefix: "@搜索",
+        }),
       }),
       expect.objectContaining({
         replayText,
@@ -1704,16 +1046,16 @@ describe("CharacterMention", () => {
     });
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectBuiltinCommand =
+    const onSelectInputCapability =
       vi.fn<
         (
-          command: BuiltinInputCommand,
+          capability: InputCapabilitySelection,
           options?: { replayText?: string },
         ) => void
       >();
     const container = renderHarness({
       onChangeSpy,
-      onSelectBuiltinCommand,
+      onSelectInputCapability,
     });
     const textarea = getTextarea(container);
 
@@ -1734,10 +1076,13 @@ describe("CharacterMention", () => {
     });
 
     expect(onChangeSpy).toHaveBeenLastCalledWith(replayText);
-    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+    expect(onSelectInputCapability).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: "research",
-        commandPrefix: "@搜索",
+        kind: "builtin_command",
+        command: expect.objectContaining({
+          key: "research",
+          commandPrefix: "@搜索",
+        }),
       }),
       expect.objectContaining({
         replayText,
@@ -1745,7 +1090,7 @@ describe("CharacterMention", () => {
     );
   });
 
-  it("@ 搜索时不应显示最近使用，而应回到普通命令结果", async () => {
+  it("@ 搜索时不应显示最近调用，而应回到普通命令结果", async () => {
     act(() => {
       recordMentionEntryUsage({
         kind: "builtin_command",
@@ -1772,7 +1117,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).not.toContain("最近使用");
+    expect(document.body.textContent).not.toContain("最近调用");
     expect(document.body.textContent).toContain("搜索 / 读取");
     expect(document.body.textContent).toContain("@搜索");
   });
@@ -1804,7 +1149,7 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("写作助手");
     expect(document.body.textContent).toContain("当你需要复用本地写作方法时使用。");
     expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
-    expect(document.body.textContent).toContain("交付：带着该方法进入生成主执行面");
+    expect(document.body.textContent).toContain("交付：带着该方法进入生成");
   });
 
   it("只有最近使用的服务技能时，不应同时出现空态文案", async () => {
@@ -1822,7 +1167,7 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain("最近使用");
+    expect(document.body.textContent).toContain("最近调用");
     expect(document.body.textContent).toContain("最近趋势摘要");
     expect(document.body.textContent).not.toContain("暂无可用角色或技能");
   });
@@ -1863,8 +1208,8 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).not.toContain("最近使用");
-    expect(document.body.textContent).not.toContain("推荐技能");
+    expect(document.body.textContent).not.toContain("最近调用");
+    expect(document.body.textContent).not.toContain("场景做法");
     expect(document.body.textContent).toContain("GitHub");
     expect(document.body.textContent).toContain("GitHub 仓库雷达");
   });
@@ -2003,7 +1348,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("浏览器 / 执行");
+    expect(document.body.textContent).toContain("浏览器 / 编排");
     expect(document.body.textContent).toContain("@代码");
   });
 
@@ -2166,7 +1511,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("浏览器 / 执行");
+    expect(document.body.textContent).toContain("浏览器 / 编排");
     expect(document.body.textContent).toContain("@浏览器");
   });
 
@@ -2263,13 +1608,18 @@ describe("CharacterMention", () => {
     expect(filtered[0]?.id).toBe("carousel-post-replication");
   });
 
-  it("提供 onSelectServiceSkill 时，选择服务技能应交给父组件接管", async () => {
-    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+  it("提供统一 capability 回调时，选择服务技能应走 current 主链", async () => {
+    const onSelectInputCapability = vi.fn<
+      (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void
+    >();
     const onChangeSpy = vi.fn<(value: string) => void>();
     const serviceSkill = createServiceSkill();
     const container = renderHarness({
       serviceSkills: [serviceSkill],
-      onSelectServiceSkill,
+      onSelectInputCapability,
       onChangeSpy,
     });
     const textarea = getTextarea(container);
@@ -2286,10 +1636,13 @@ describe("CharacterMention", () => {
     });
 
     expect(onChangeSpy).toHaveBeenCalledWith("");
-    expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkill);
+    expect(onSelectInputCapability).toHaveBeenCalledWith({
+      kind: "service_skill",
+      skill: serviceSkill,
+    });
   });
 
-  it("未提供 onSelectSkill 时，选择已安装技能应回填到输入框", async () => {
+  it("未提供统一 capability 回调时，选择已安装技能应回填到输入框", async () => {
     const onChangeSpy = vi.fn<(value: string) => void>();
     const container = renderHarness({
       skills: [createSkill("技能A", "skill-a", true)],
@@ -2356,7 +1709,8 @@ describe("CharacterMention", () => {
     await typeSlashAndWait(textarea, "/camp");
 
     expect(document.body.textContent).toContain("结果模板");
-    expect(document.body.textContent).toContain("/campaign-launch");
+    expect(document.body.textContent).toContain("新品发布场景");
+    expect(document.body.textContent).not.toContain("/campaign-launch");
     expect(document.body.textContent).toContain(
       "把链接解析、配图和封面串成一条产品链路。",
     );
@@ -2729,7 +2083,7 @@ describe("CharacterMention", () => {
     expect(reviewIndex).toBeLessThan(trendIndex);
   });
 
-  it("slash 面板的结果模板分组应显影最近复盘横幅", async () => {
+  it("slash 面板的结果模板分组应显影最近判断横幅", async () => {
     recordCuratedTaskRecommendationSignalFromReviewDecision(
       {
         session_id: "session-review-needs-evidence",
@@ -2756,9 +2110,9 @@ describe("CharacterMention", () => {
     const banner = document.body.querySelector(
       '[data-testid="input-capability-section-banner-result-templates"]',
     );
-    expect(banner?.textContent).toContain("最近复盘已更新：短视频编排 · 补证据");
+    expect(banner?.textContent).toContain("最近判断已更新：短视频编排 · 补证据");
     expect(banner?.textContent).toContain("这轮结果还缺证据");
-    expect(banner?.textContent).toContain("这轮复盘更建议优先回到");
+    expect(banner?.textContent).toContain("这轮判断更建议优先回到");
     expect(banner?.textContent).toContain("复盘这个账号/项目");
     expect(banner?.textContent).toContain("拆解一条爆款内容");
     expect(banner?.textContent).toContain(
@@ -2853,13 +2207,15 @@ describe("CharacterMention", () => {
 
     const sceneButtons = Array.from(
       document.body.querySelectorAll("button"),
-    ).filter((button) => button.textContent?.includes("/campaign-launch"));
+    ).filter((button) => button.textContent?.includes("新品发布场景"));
     expect(sceneButtons).toHaveLength(1);
+    expect(document.body.textContent).not.toContain("/campaign-launch");
 
     const skillButtons = Array.from(
       document.body.querySelectorAll("button"),
     ).filter((button) => button.textContent?.includes("技能A"));
     expect(skillButtons).toHaveLength(1);
+    expect(document.body.textContent).not.toContain("/skill-a");
 
     const curatedTaskButtons = Array.from(
       document.body.querySelectorAll("button"),
@@ -2910,7 +2266,7 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain(
       "优先接着已经跑过的方法，通常比重新挑一条更省重来成本。",
     );
-    expect(document.body.textContent).toContain("/skill-writer");
+    expect(document.body.textContent).not.toContain("/skill-writer");
     expect(document.body.textContent).toContain(
       "写作助手 · 当你需要复用本地写作方法时使用。",
     );
@@ -2919,7 +2275,7 @@ describe("CharacterMention", () => {
     );
     expect(document.body.textContent).toContain("脚本助手");
     expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
-    expect(document.body.textContent).toContain("交付：带着该方法进入生成主执行面");
+    expect(document.body.textContent).toContain("交付：带着该方法进入生成");
   });
 
   it("slash 面板打开后新增本地 skill 使用记录时，应即时刷新继续上次做法分组", async () => {
@@ -2950,7 +2306,7 @@ describe("CharacterMention", () => {
     });
 
     expect(document.body.textContent).toContain("继续上次做法");
-    expect(document.body.textContent).toContain("/skill-writer");
+    expect(document.body.textContent).not.toContain("/skill-writer");
     expect(document.body.textContent).toContain("写作助手");
   });
 
@@ -3003,10 +2359,8 @@ describe("CharacterMention", () => {
     ]);
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
     const container = renderHarness({
       onChangeSpy,
-      onSelectServiceSkill,
     });
     const textarea = getTextarea(container);
 
@@ -3014,7 +2368,7 @@ describe("CharacterMention", () => {
 
     const recentSceneButton = Array.from(
       document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("/x文章转存"));
+    ).find((button) => button.textContent?.includes("X文章转存"));
     expect(recentSceneButton).toBeTruthy();
 
     act(() => {
@@ -3024,7 +2378,6 @@ describe("CharacterMention", () => {
     expect(onChangeSpy).toHaveBeenLastCalledWith(
       "/x文章转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
     );
-    expect(onSelectServiceSkill).not.toHaveBeenCalled();
   });
 
   it("选择最近使用的结果模板时应预填上次启动参数与引用", async () => {
@@ -3088,90 +2441,6 @@ describe("CharacterMention", () => {
     );
   });
 
-  it("提供 onSelectSkill 时，最近使用的 slash skill 应回填 replayText 并切到 active capability", async () => {
-    act(() => {
-      recordSlashEntryUsage({
-        kind: "skill",
-        entryId: "skill-a",
-        usedAt: 1_712_345_678_900,
-        replayText: "整理最近发布计划",
-      });
-    });
-
-    const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectSkill = vi.fn<(skill: Skill) => void>();
-    const container = renderHarness({
-      skills: [createSkill("技能A", "skill-a", true)],
-      onChangeSpy,
-      onSelectSkill,
-    });
-    const textarea = getTextarea(container);
-
-    await typeSlashAndWait(textarea);
-
-    const recentSkillButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("/skill-a"));
-    expect(recentSkillButton).toBeTruthy();
-
-    act(() => {
-      recentSkillButton?.click();
-    });
-
-    expect(onSelectSkill).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "skill-a",
-        name: "技能A",
-      }),
-    );
-    expect(onChangeSpy).toHaveBeenLastCalledWith("整理最近发布计划");
-  });
-
-  it("提供 onSelectSceneCommand 时，最近使用的 scene 应回填 replayText 并切到 active capability", async () => {
-    act(() => {
-      saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
-      recordSlashEntryUsage({
-        kind: "scene",
-        entryId: "campaign-launch",
-        usedAt: 1_712_345_678_900,
-        replayText: "帮我做一版新品活动启动方案",
-      });
-    });
-
-    const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectSceneCommand = vi.fn<
-      (
-        command: RuntimeSceneSlashCommand,
-        options?: { replayText?: string },
-      ) => void
-    >();
-    const container = renderHarness({
-      onChangeSpy,
-      onSelectSceneCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeSlashAndWait(textarea);
-
-    const recentSceneButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("/campaign-launch"));
-    expect(recentSceneButton).toBeTruthy();
-
-    act(() => {
-      recentSceneButton?.click();
-    });
-
-    expect(onSelectSceneCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "campaign-launch",
-        commandPrefix: "/campaign-launch",
-      }),
-      { replayText: "帮我做一版新品活动启动方案" },
-    );
-    expect(onChangeSpy).toHaveBeenLastCalledWith("帮我做一版新品活动启动方案");
-  });
-
   it("slash 搜索时不应显示最近使用，而应回到搜索结果分组", async () => {
     act(() => {
       recordSlashEntryUsage({
@@ -3227,49 +2496,15 @@ describe("CharacterMention", () => {
 
     const sceneButton = Array.from(
       document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("/campaign-launch"));
+    ).find((button) => button.textContent?.includes("新品发布场景"));
     expect(sceneButton).toBeTruthy();
 
-    act(() => {
+    await act(async () => {
       sceneButton?.click();
+      await Promise.resolve();
     });
 
     expect(onChangeSpy).toHaveBeenCalledWith("/campaign-launch ");
-  });
-
-  it("提供 onSelectSceneCommand 时，slash 面板选择 scene 应切换为 active capability 而不是回填命令前缀", async () => {
-    act(() => {
-      saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
-    });
-
-    const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectSceneCommand = vi.fn<
-      (command: RuntimeSceneSlashCommand) => void
-    >();
-    const container = renderHarness({
-      onChangeSpy,
-      onSelectSceneCommand,
-    });
-    const textarea = getTextarea(container);
-
-    await typeSlashAndWait(textarea, "/camp");
-
-    const sceneButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("/campaign-launch"));
-    expect(sceneButton).toBeTruthy();
-
-    act(() => {
-      sceneButton?.click();
-    });
-
-    expect(onSelectSceneCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "campaign-launch",
-        commandPrefix: "/campaign-launch",
-      }),
-    );
-    expect(onChangeSpy).toHaveBeenCalledWith("");
   });
 
   it("提供 onSelectInputCapability 时，slash 面板选择 scene 应走统一 capability 回调", async () => {
@@ -3294,7 +2529,7 @@ describe("CharacterMention", () => {
 
     const sceneButton = Array.from(
       document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("/campaign-launch"));
+    ).find((button) => button.textContent?.includes("新品发布场景"));
     expect(sceneButton).toBeTruthy();
 
     act(() => {
@@ -3314,6 +2549,54 @@ describe("CharacterMention", () => {
     expect(onChangeSpy).toHaveBeenCalledWith("");
   });
 
+  it("提供 onSelectInputCapability 时，最近使用的 scene 应带 replayText 走统一 capability 回调", async () => {
+    act(() => {
+      saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
+      recordSlashEntryUsage({
+        kind: "scene",
+        entryId: "campaign-launch",
+        usedAt: 1_712_345_678_900,
+        replayText: "帮我做一版新品活动启动方案",
+      });
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectInputCapability = vi.fn<
+      (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void
+    >();
+    const container = renderHarness({
+      onChangeSpy,
+      onSelectInputCapability,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    const recentSceneButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("新品发布场景"));
+    expect(recentSceneButton).toBeTruthy();
+
+    act(() => {
+      recentSceneButton?.click();
+    });
+
+    expect(onSelectInputCapability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "runtime_scene",
+        command: expect.objectContaining({
+          key: "campaign-launch",
+          commandPrefix: "/campaign-launch",
+        }),
+      }),
+      { replayText: "帮我做一版新品活动启动方案" },
+    );
+    expect(onChangeSpy).toHaveBeenLastCalledWith("帮我做一版新品活动启动方案");
+  });
+
   it("slash 面板选择带必填参数的 scene 时应交给父层 A2UI 补参接管", async () => {
     act(() => {
       saveSkillCatalog(buildCatalogWithXSceneEntry(), "bootstrap_sync");
@@ -3323,10 +2606,15 @@ describe("CharacterMention", () => {
     ]);
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+    const onSelectInputCapability = vi.fn<
+      (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void
+    >();
     const container = renderHarness({
       onChangeSpy,
-      onSelectServiceSkill,
+      onSelectInputCapability,
     });
     const textarea = getTextarea(container);
 
@@ -3334,7 +2622,7 @@ describe("CharacterMention", () => {
 
     const sceneButton = Array.from(
       document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("/x文章转存"));
+    ).find((button) => button.textContent?.includes("X文章转存"));
     expect(sceneButton).toBeTruthy();
 
     await act(async () => {
@@ -3342,12 +2630,13 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(onSelectServiceSkill).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(onSelectInputCapability).toHaveBeenCalledWith({
+      kind: "service_skill",
+      skill: expect.objectContaining({
         id: "x-article-export",
         title: "X 文章转存",
       }),
-    );
+    });
     expect(onChangeSpy).not.toHaveBeenCalled();
   });
 
@@ -3371,36 +2660,6 @@ describe("CharacterMention", () => {
     });
 
     expect(onChangeSpy).toHaveBeenCalledWith("/skill-a ");
-  });
-
-  it("提供 onSelectSkill 时，slash 面板选择已安装技能应切换为 active capability 而不是回填 slash skill", async () => {
-    const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectSkill = vi.fn<(skill: Skill) => void>();
-    const container = renderHarness({
-      skills: [createSkill("技能A", "skill-a", true)],
-      onChangeSpy,
-      onSelectSkill,
-    });
-    const textarea = getTextarea(container);
-
-    await typeSlashAndWait(textarea, "/ski");
-
-    const skillButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("技能A"));
-    expect(skillButton).toBeTruthy();
-
-    act(() => {
-      skillButton?.click();
-    });
-
-    expect(onSelectSkill).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: "skill-a",
-        name: "技能A",
-      }),
-    );
-    expect(onChangeSpy).toHaveBeenCalledWith("");
   });
 
   it("提供 onSelectInputCapability 时，slash 面板选择已安装技能应走统一 capability 回调", async () => {
@@ -3440,6 +2699,54 @@ describe("CharacterMention", () => {
       undefined,
     );
     expect(onChangeSpy).toHaveBeenCalledWith("");
+  });
+
+  it("提供 onSelectInputCapability 时，最近使用的已安装技能应带 replayText 走统一 capability 回调", async () => {
+    act(() => {
+      recordSlashEntryUsage({
+        kind: "skill",
+        entryId: "skill-a",
+        usedAt: 1_712_345_678_900,
+        replayText: "整理最近发布计划",
+      });
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectInputCapability = vi.fn<
+      (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void
+    >();
+    const container = renderHarness({
+      skills: [createSkill("技能A", "skill-a", true)],
+      onChangeSpy,
+      onSelectInputCapability,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    const recentSkillButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("技能A"));
+    expect(recentSkillButton).toBeTruthy();
+
+    act(() => {
+      recentSkillButton?.click();
+    });
+
+    expect(onSelectInputCapability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "installed_skill",
+        skill: expect.objectContaining({
+          key: "skill-a",
+          name: "技能A",
+        }),
+      }),
+      { replayText: "整理最近发布计划" },
+    );
+    expect(onChangeSpy).toHaveBeenLastCalledWith("整理最近发布计划");
   });
 
   it("提及面板应锚定在输入框正上方，并禁止自动翻转到下方", async () => {

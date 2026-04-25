@@ -64,8 +64,8 @@ export function buildReviewFeedbackProjection(params: {
       suggestedTasks,
       suggestedTaskTitles,
       suggestionText: currentTaskTitle
-        ? `这轮复盘仍建议围绕「${currentTaskTitle}」继续推进，可直接沿当前结果往下做。`
-        : "这轮复盘仍建议围绕当前这一步继续推进，可直接沿当前结果往下做。",
+        ? `这轮判断仍建议围绕「${currentTaskTitle}」继续推进，可直接沿当前结果往下做。`
+        : "这轮判断仍建议围绕当前这一步继续推进，可直接沿当前结果往下做。",
     };
   }
 
@@ -78,6 +78,6 @@ export function buildReviewFeedbackProjection(params: {
     matchedCurrentTask: false,
     suggestedTasks,
     suggestedTaskTitles,
-    suggestionText: `这轮复盘更建议优先回到「${suggestedTaskTitles.join("」或「")}」；需要切换时，可从首页“继续上次做法”接着跑。`,
+    suggestionText: `这轮判断更建议优先回到「${suggestedTaskTitles.join("」或「")}」；需要切换时，可从首页“继续上次做法”接着跑。`,
   };
 }

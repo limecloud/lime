@@ -28,7 +28,7 @@ function SceneAppReviewFeedbackProjectionBanner({
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-          围绕最近复盘
+          围绕最近判断
         </span>
         {projection.suggestedTaskTitles.length > 0 ? (
           <span className="rounded-full border border-white bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600">
@@ -37,7 +37,7 @@ function SceneAppReviewFeedbackProjectionBanner({
         ) : null}
       </div>
       <div className="mt-2 text-sm font-medium leading-6 text-slate-900">
-        最近复盘已更新：{projection.signal.title}
+        最近判断已更新：{projection.signal.title}
       </div>
       <div className="mt-1 text-sm leading-6 text-slate-600">
         {projection.signal.summary}

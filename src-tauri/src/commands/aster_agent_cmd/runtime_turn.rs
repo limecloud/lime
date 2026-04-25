@@ -1,3 +1,4 @@
+use super::request_model_resolution::resolve_runtime_provider_auth_recovery_config;
 #[cfg(test)]
 use super::runtime_project_hooks::enforce_runtime_turn_user_prompt_submit_hooks;
 use super::runtime_project_hooks::{
@@ -29,6 +30,7 @@ const ARTIFACT_DOCUMENT_PERSIST_FAILED_WARNING_CODE: &str = "artifact_document_p
 const AUTO_CONTEXT_COMPACTION_EVENT_PREFIX: &str = "agent_context_compaction_auto_internal";
 const AUTO_CONTEXT_COMPACTION_FAILED_WARNING_CODE: &str = "context_compaction_auto_failed";
 const CONTEXT_COMPACTION_NOT_NEEDED_WARNING_CODE: &str = "context_compaction_not_needed";
+const RUNTIME_MODEL_PERMISSION_FALLBACK_WARNING_CODE: &str = "runtime_model_permission_fallback";
 const STOP_HOOK_CONTINUATION_UNSUPPORTED_WARNING_CODE: &str = "stop_hook_continuation_unsupported";
 const TURN_MEMORY_PREFETCH_PROMPT_MARKER: &str = "【运行时记忆召回】";
 const TURN_LOCAL_PATH_FOCUS_PROMPT_MARKER: &str = "【本回合本地路径焦点】";
@@ -53,6 +55,44 @@ fn emit_runtime_events(app: &AppHandle, event_name: &str, events: Vec<RuntimeAge
         if let Err(error) = app.emit(event_name, &event) {
             tracing::error!("[AsterAgent] 发送运行时事件失败: {}", error);
         }
+    }
+}
+
+fn is_runtime_model_permission_denied_error(message: &str) -> bool {
+    let normalized = message.trim().to_ascii_lowercase();
+    normalized.contains("authentication failed")
+        && normalized.contains("403")
+        && normalized.contains("illegal access")
+}
+
+fn build_submit_accepted_runtime_status() -> AgentRuntimeStatus {
+    AgentRuntimeStatus {
+        phase: "preparing".to_string(),
+        title: "已接收请求，正在准备执行".to_string(),
+        detail: "系统正在初始化本轮执行环境并整理上下文，稍后会继续返回更详细进度。".to_string(),
+        checkpoints: vec![
+            "请求已进入运行时主链".to_string(),
+            "正在准备工作区与会话上下文".to_string(),
+            "等待后续详细执行事件".to_string(),
+        ],
+        metadata: None,
+    }
+}
+
+fn emit_submit_accepted_runtime_status(app: &AppHandle, event_name: &str) {
+    if event_name.trim().is_empty() {
+        return;
+    }
+
+    let event = RuntimeAgentEvent::RuntimeStatus {
+        status: build_submit_accepted_runtime_status(),
+    };
+    if let Err(error) = app.emit(event_name, &event) {
+        tracing::warn!(
+            "[AsterAgent] 发送 submit accepted runtime_status 失败: event_name={}, error={}",
+            event_name,
+            error
+        );
     }
 }
 
@@ -925,6 +965,7 @@ impl RuntimeTurnExecutionContext {
                     execute_runtime_stream_with_strategy(
                         agent,
                         app,
+                        state,
                         db,
                         request,
                         &timeline_recorder,
@@ -2399,6 +2440,8 @@ async fn prepare_runtime_turn_ingress_context(
         &provider_resolution.limit_state,
         &provider_resolution.cost_state,
         provider_resolution.limit_event.as_ref(),
+        provider_resolution.oem_policy.as_ref(),
+        &provider_resolution.runtime_summary,
     );
     if let Some(resolved_provider_config) = provider_resolution.provider_config {
         request.provider_config = Some(resolved_provider_config);
@@ -2982,6 +3025,8 @@ fn merge_runtime_request_resolution_metadata(
     limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
     cost_state: &lime_agent::SessionExecutionRuntimeCostState,
     limit_event: Option<&lime_agent::SessionExecutionRuntimeLimitEvent>,
+    oem_policy: Option<&lime_agent::SessionExecutionRuntimeOemPolicy>,
+    runtime_summary: &lime_agent::SessionExecutionRuntimeSummary,
 ) -> Option<serde_json::Value> {
     let mut root = match request_metadata {
         Some(serde_json::Value::Object(object)) => object,
@@ -3000,8 +3045,12 @@ fn merge_runtime_request_resolution_metadata(
     insert_serialized_run_metadata(runtime_object, "routing_decision", routing_decision);
     insert_serialized_run_metadata(runtime_object, "limit_state", limit_state);
     insert_serialized_run_metadata(runtime_object, "cost_state", cost_state);
+    insert_serialized_run_metadata(runtime_object, "runtime_summary", runtime_summary);
     if let Some(limit_event) = limit_event {
         insert_serialized_run_metadata(runtime_object, "limit_event", limit_event);
+    }
+    if let Some(oem_policy) = oem_policy {
+        insert_serialized_run_metadata(runtime_object, "oem_policy", oem_policy);
     }
 
     Some(serde_json::Value::Object(root))
@@ -3541,6 +3590,7 @@ async fn remove_code_execution_extension_if_added(
 async fn execute_runtime_stream_with_strategy<F>(
     agent: &Agent,
     app: &AppHandle,
+    state: &AsterAgentState,
     db: &DbConnection,
     request: &AsterChatRequest,
     timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
@@ -3627,6 +3677,98 @@ where
             )
             .await
             .map_err(|fallback_err| fallback_err.message)
+        }
+        Err(primary_error) if is_runtime_model_permission_denied_error(&primary_error.message) => {
+            let recovery_result: Result<Option<String>, String> = async {
+                let Some(provider_config) = request.provider_config.as_ref() else {
+                    return Ok(None);
+                };
+                let provider_selector = provider_config
+                    .provider_id
+                    .as_deref()
+                    .unwrap_or(&provider_config.provider_name)
+                    .trim();
+                if provider_selector.is_empty() {
+                    return Ok(None);
+                }
+
+                let api_key_provider_service = app.state::<ApiKeyProviderServiceState>();
+                let Some(fallback_provider_config) = resolve_runtime_provider_auth_recovery_config(
+                    app,
+                    db,
+                    api_key_provider_service.inner(),
+                    request,
+                    provider_selector,
+                    &provider_config.model_name,
+                )
+                .await?
+                else {
+                    return Ok(None);
+                };
+
+                tracing::warn!(
+                    "[AsterAgent] 模型访问受限，自动回退同 provider 候选: session={}, provider={}, failed_model={}, fallback_model={}",
+                    session_id,
+                    provider_selector,
+                    provider_config.model_name,
+                    fallback_provider_config.model_name
+                );
+                emit_runtime_side_event(
+                    app,
+                    &request.event_name,
+                    timeline_recorder,
+                    workspace_root,
+                    RuntimeAgentEvent::Warning {
+                        code: Some(RUNTIME_MODEL_PERMISSION_FALLBACK_WARNING_CODE.to_string()),
+                        message: format!(
+                            "当前模型暂不可用，已自动切换到同 Provider 的兼容候选模型 `{}` 后重试。",
+                            fallback_provider_config.model_name
+                        ),
+                    },
+                );
+
+                apply_runtime_turn_provider_config(
+                    state,
+                    db,
+                    session_id,
+                    Some(&fallback_provider_config),
+                )
+                .await?;
+
+                let mut fallback_request = request.clone();
+                fallback_request.provider_config = Some(fallback_provider_config);
+
+                execute_runtime_stream_attempt(
+                    agent,
+                    app,
+                    db,
+                    &fallback_request,
+                    timeline_recorder,
+                    run_observation,
+                    runtime_memory_config,
+                    session_id,
+                    workspace_root,
+                    workspace_id,
+                    thread_id,
+                    turn_id,
+                    execution_profile,
+                    request_metadata,
+                    provider_continuation_capability,
+                    build_session_config(),
+                    cancel_token.clone(),
+                    request_tool_policy,
+                )
+                .await
+                .map(Some)
+                .map_err(|fallback_error| fallback_error.message)
+            }
+            .await;
+
+            match recovery_result {
+                Ok(Some(assistant_output)) => Ok(assistant_output),
+                Ok(None) => Err(primary_error.message),
+                Err(recovery_error) => Err(recovery_error),
+            }
         }
         Err(primary_error) => Err(primary_error.message),
     };
@@ -3924,6 +4066,7 @@ async fn execute_aster_chat_request(
         request.session_id,
         request.event_name
     );
+    emit_submit_accepted_runtime_status(app, &request.event_name);
 
     execute_runtime_turn_pipeline(
         app,
@@ -6598,6 +6741,69 @@ mod tests {
     }
 
     #[test]
+    fn collect_runtime_request_resolution_side_events_should_cover_generation_topic_current_chain()
+    {
+        let metadata = json!({
+            "lime_runtime": {
+                "task_profile": {
+                    "kind": "generation_topic",
+                    "source": "auxiliary_generation_topic",
+                    "traits": ["service_model_slot"],
+                    "serviceModelSlot": "generation_topic"
+                },
+                "routing_decision": {
+                    "routingMode": "single_candidate",
+                    "decisionSource": "service_model_setting",
+                    "decisionReason": "命中 service_models.generation_topic",
+                    "selectedProvider": "openai",
+                    "selectedModel": "gpt-5.4-mini",
+                    "candidateCount": 1,
+                    "fallbackChain": []
+                },
+                "limit_state": {
+                    "status": "single_candidate_only",
+                    "singleCandidateOnly": true,
+                    "providerLocked": false,
+                    "settingsLocked": true,
+                    "oemLocked": false,
+                    "candidateCount": 1
+                },
+                "cost_state": {
+                    "status": "estimated",
+                    "estimatedCostClass": "low"
+                }
+            }
+        });
+
+        let events = collect_runtime_request_resolution_side_events(Some(&metadata))
+            .into_iter()
+            .map(|event| {
+                serde_json::to_value(event)
+                    .ok()
+                    .and_then(|value| {
+                        value
+                            .get("type")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .expect("应能序列化 runtime event")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            events,
+            vec![
+                "task_profile_resolved".to_string(),
+                "candidate_set_resolved".to_string(),
+                "routing_decision_made".to_string(),
+                "limit_state_updated".to_string(),
+                "single_candidate_only".to_string(),
+                "cost_estimated".to_string(),
+            ]
+        );
+    }
+
+    #[test]
     fn collect_runtime_request_resolution_side_events_should_emit_routing_not_possible() {
         let metadata = json!({
             "lime_runtime": {
@@ -6665,5 +6871,26 @@ mod tests {
             .expect("应能序列化 runtime limit event");
 
         assert_eq!(event_type, "quota_low");
+    }
+
+    #[test]
+    fn build_submit_accepted_runtime_status_should_use_preparing_copy() {
+        let status = build_submit_accepted_runtime_status();
+
+        assert_eq!(status.phase, "preparing");
+        assert_eq!(status.title, "已接收请求，正在准备执行");
+        assert_eq!(
+            status.detail,
+            "系统正在初始化本轮执行环境并整理上下文，稍后会继续返回更详细进度。"
+        );
+        assert_eq!(
+            status.checkpoints,
+            vec![
+                "请求已进入运行时主链".to_string(),
+                "正在准备工作区与会话上下文".to_string(),
+                "等待后续详细执行事件".to_string(),
+            ]
+        );
+        assert!(status.metadata.is_none());
     }
 }

@@ -58,6 +58,12 @@ export interface ProjectSelectorProps {
   value: string | null;
   /** 选择变化回调 */
   onChange: (projectId: string) => void;
+  /** 受控展开状态 */
+  open?: boolean;
+  /** 展开状态变化回调 */
+  onOpenChange?: (open: boolean) => void;
+  /** 是否仅作被动展示，不响应点击 */
+  passiveTrigger?: boolean;
   /** 按主题类型筛选（可选，不传则显示所有项目） */
   workspaceType?: string;
   /** 占位符文本 */
@@ -75,7 +81,7 @@ export interface ProjectSelectorProps {
   /** 显示密度 */
   density?: "default" | "compact";
   /** 外观表面 */
-  chrome?: "default" | "embedded";
+  chrome?: "default" | "embedded" | "workspace-tab";
   /** 是否跳过默认项目目录健康检查 */
   skipDefaultWorkspaceReadyCheck?: boolean;
   /** 是否延后完整项目列表加载到展开时 */
@@ -158,6 +164,9 @@ function getProjectSummaryText(
 export function ProjectSelector({
   value,
   onChange,
+  open: openProp,
+  onOpenChange,
+  passiveTrigger = false,
   workspaceType,
   placeholder = "选择项目",
   disabled = false,
@@ -184,7 +193,7 @@ export function ProjectSelector({
     skipDefaultWorkspaceReadyCheck,
     autoLoad: !deferProjectListLoad,
   });
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -198,6 +207,18 @@ export function ProjectSelector({
   const [projectListHydrating, setProjectListHydrating] = useState(false);
   const [hasLoadedProjectList, setHasLoadedProjectList] =
     useState(!deferProjectListLoad);
+  const compact = density === "compact";
+  const embedded = chrome === "embedded";
+  const workspaceTab = chrome === "workspace-tab";
+  const compactLikeTrigger = compact || embedded || workspaceTab;
+  const compactPanel = compact || workspaceTab;
+  const open = openProp ?? internalOpen;
+  const entityLabel = workspaceTab ? "工作区" : "项目";
+  const createEntityLabel = workspaceTab ? "新建工作区" : "新建项目";
+  const managementTitle = workspaceTab ? "工作区管理" : "项目管理";
+  const managementDescription = workspaceTab
+    ? "当前只管理可见工作区，不影响本地目录与已有文件。"
+    : "当前只管理可见项目，不影响本地目录与已有文件。";
 
   const projectSource =
     workspaceType === "general" ? generalProjects : projects;
@@ -386,7 +407,10 @@ export function ProjectSelector({
   ]);
 
   const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
+    if (openProp === undefined) {
+      setInternalOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen);
 
     if (!nextOpen || !deferProjectListLoad || hasLoadedProjectList || loading) {
       return;
@@ -406,7 +430,7 @@ export function ProjectSelector({
     if (projectId !== value) {
       onChange(projectId);
     }
-    setOpen(false);
+    handleOpenChange(false);
   };
 
   const handleCreateProject = async (name: string, type: ProjectType) => {
@@ -415,8 +439,8 @@ export function ProjectSelector({
       workspaceType: type,
     });
     onChange(project.id);
-    setOpen(false);
-    toast.success("项目已创建");
+    handleOpenChange(false);
+    toast.success(`${entityLabel}已创建`);
   };
 
   const handleOpenRename = () => {
@@ -427,7 +451,7 @@ export function ProjectSelector({
 
     setRenameTargetId(currentSelectedProject.id);
     setRenameName(currentSelectedProject.name);
-    setOpen(false);
+    handleOpenChange(false);
     setRenameDialogOpen(true);
   };
 
@@ -438,7 +462,7 @@ export function ProjectSelector({
 
     const nextName = renameName.trim();
     if (!nextName) {
-      toast.error("项目名称不能为空");
+      toast.error(`${entityLabel}名称不能为空`);
       return;
     }
 
@@ -447,7 +471,7 @@ export function ProjectSelector({
       await rename(renameTarget.id, nextName);
       setRenameDialogOpen(false);
       setRenameTargetId(null);
-      toast.success("项目名称已更新");
+      toast.success(`${entityLabel}名称已更新`);
     } catch (error) {
       toast.error(
         `重命名失败: ${error instanceof Error ? error.message : String(error)}`,
@@ -464,7 +488,7 @@ export function ProjectSelector({
     }
 
     setDeleteTargetId(currentSelectedProject.id);
-    setOpen(false);
+    handleOpenChange(false);
     setDeleteDialogOpen(true);
   };
 
@@ -493,7 +517,7 @@ export function ProjectSelector({
 
       setDeleteDialogOpen(false);
       setDeleteTargetId(null);
-      toast.success("项目已删除，本地目录未删除");
+      toast.success(`${entityLabel}已删除，本地目录未删除`);
     } catch (error) {
       toast.error(
         `删除失败: ${error instanceof Error ? error.message : String(error)}`,
@@ -505,15 +529,13 @@ export function ProjectSelector({
 
   const managementHint =
     selectedProject && !canRenameProject(selectedProject)
-      ? "默认项目不可重命名或删除"
+      ? `默认${entityLabel}不可重命名或删除`
       : null;
-  const compact = density === "compact";
-  const embedded = chrome === "embedded";
   const projectSummaryText = getProjectSummaryText(selectedProject);
-  const popoverWidthClass = compact ? "w-[380px]" : "w-[420px]";
-  const headerPaddingClass = compact ? "px-4 py-3" : "px-4 py-4";
-  const bodyPaddingClass = compact ? "px-4 py-3" : "px-4 py-4";
-  const managementPaddingClass = compact ? "px-4 py-3" : "px-4 py-4";
+  const popoverWidthClass = compactPanel ? "w-[392px]" : "w-[420px]";
+  const headerPaddingClass = compactPanel ? "px-4 py-3" : "px-4 py-4";
+  const bodyPaddingClass = compactPanel ? "px-4 py-3" : "px-4 py-4";
+  const managementPaddingClass = compactPanel ? "px-4 py-3" : "px-4 py-4";
   const displayLoading = loading || projectListHydrating;
 
   return (
@@ -524,14 +546,19 @@ export function ProjectSelector({
             variant="outline"
             size="sm"
             className={cn(
-              embedded
+              workspaceTab
+                ? "-mb-px h-[36px] min-w-[164px] max-w-[280px] justify-start gap-2 rounded-t-[16px] rounded-b-[8px] border border-b-transparent border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_64%,rgba(240,249,255,0.88)_100%)] px-3 pb-1.5 pt-1 text-left shadow-none transition-[background-color,border-color] focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0"
+                : embedded
                 ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-transparent bg-transparent px-1.5 py-0 text-left shadow-none hover:bg-slate-50/80 focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0"
                 : compact
                   ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-slate-200/80 bg-white/94 px-2.5 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white"
                   : "h-11 min-w-[220px] max-w-[320px] justify-between gap-3 rounded-2xl border-slate-200/80 bg-white/92 px-3 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white hover:shadow-md hover:shadow-slate-950/8",
               className,
+              passiveTrigger &&
+                "pointer-events-none cursor-default select-none focus-visible:ring-0",
             )}
             disabled={disabled || displayLoading}
+            tabIndex={passiveTrigger ? -1 : undefined}
             title={
               selectedProject
                 ? `${selectedProject.name}\n${selectedProject.rootPath}`
@@ -541,49 +568,72 @@ export function ProjectSelector({
             <span
               className={cn(
                 "flex min-w-0 flex-1 items-center",
-                compact || embedded ? "gap-2.5" : "gap-3",
+                compactLikeTrigger ? "gap-2.5" : "gap-3",
               )}
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-slate-200/80 bg-slate-50 text-slate-600">
-                {selectedProject?.icon ? (
-                  <span
-                    className={compact || embedded ? "text-sm" : "text-base"}
-                  >
-                    {selectedProject.icon}
-                  </span>
-                ) : (
-                  <FolderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
-              </span>
-              {compact || embedded ? (
-                <span className="min-w-0 flex flex-1 items-center gap-2">
-                  <span className="truncate text-sm font-semibold text-slate-900">
-                    {selectedProject?.name || placeholder}
-                  </span>
-                  {selectedProject?.isDefault ? (
-                    <span className="shrink-0 rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[10px] font-medium leading-none text-amber-700">
-                      默认
-                    </span>
-                  ) : null}
-                </span>
-              ) : (
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-slate-900">
+              {workspaceTab ? (
+                <>
+                  <FolderIcon className="h-3.5 w-3.5 shrink-0 text-slate-700" />
+                  <span className="min-w-0 flex flex-1 items-center gap-2">
+                    <span className="truncate text-[13px] font-semibold leading-none text-slate-900">
                       {selectedProject?.name || placeholder}
                     </span>
-                    {selectedProject?.isDefault ? (
-                      <span className="shrink-0 rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[10px] font-medium leading-none text-amber-700">
-                        默认
-                      </span>
-                    ) : null}
                   </span>
-                </span>
+                </>
+              ) : (
+                <>
+                  <span
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center text-slate-600",
+                      "rounded-[14px] border border-slate-200/80 bg-slate-50",
+                    )}
+                  >
+                    {selectedProject?.icon ? (
+                      <span className={compactLikeTrigger ? "text-sm" : "text-base"}>
+                        {selectedProject.icon}
+                      </span>
+                    ) : (
+                      <FolderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                  </span>
+                  {compactLikeTrigger ? (
+                    <span className="min-w-0 flex flex-1 items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-slate-900">
+                        {selectedProject?.name || placeholder}
+                      </span>
+                      {selectedProject?.isDefault ? (
+                        <span className="shrink-0 rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[10px] font-medium leading-none text-amber-700">
+                          默认
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-slate-900">
+                          {selectedProject?.name || placeholder}
+                        </span>
+                        {selectedProject?.isDefault ? (
+                          <span className="shrink-0 rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[10px] font-medium leading-none text-amber-700">
+                            默认
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+                  )}
+                </>
               )}
             </span>
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100/90 text-slate-500">
-              <ChevronDown className="h-3.5 w-3.5" />
-            </span>
+            {!workspaceTab ? (
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100/90 text-slate-500">
+                <ChevronDown
+                  className={cn(
+                    "h-3.5 w-3.5 transition-transform",
+                    open && "rotate-180",
+                  )}
+                />
+              </span>
+            ) : null}
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -612,24 +662,24 @@ export function ProjectSelector({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">
-                      选择项目
+                      选择{entityLabel}
                     </div>
                     <div className="mt-1 text-xs leading-5 text-slate-500">
-                      在这里切换项目、搜索项目，并管理当前可见项目列表。
+                      在这里切换{entityLabel}、搜索{entityLabel}，并管理当前可见{entityLabel}列表。
                     </div>
                   </div>
                   <Badge
                     variant="outline"
                     className="border-slate-200/80 bg-white/85 text-slate-600"
                   >
-                    {filteredProjects.length} 个项目
+                    {filteredProjects.length} 个{entityLabel}
                   </Badge>
                 </div>
 
-                {!compact && projectSummaryText ? (
+                {!compactPanel && projectSummaryText ? (
                   <div className="rounded-[18px] border border-white/90 bg-white/85 px-3 py-2 text-[11px] leading-5 text-slate-600 shadow-sm">
                     <span className="font-medium text-slate-800">
-                      当前项目：
+                      当前{entityLabel}：
                     </span>
                     <span>{projectSummaryText}</span>
                   </div>
@@ -640,9 +690,9 @@ export function ProjectSelector({
                   <Input
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="搜索项目"
+                    placeholder={`搜索${entityLabel}`}
                     className={cn(
-                      compact ? "h-9" : "h-10",
+                      compactPanel ? "h-9" : "h-10",
                       "border-slate-200/80 bg-white/85 pl-9 focus-visible:border-slate-300 focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0",
                     )}
                   />
@@ -652,10 +702,10 @@ export function ProjectSelector({
 
             <div className={bodyPaddingClass}>
               <ScrollArea
-                className={cn(compact ? "max-h-[280px]" : "max-h-[320px]")}
+                className={cn(compactPanel ? "max-h-[280px]" : "max-h-[320px]")}
               >
                 <div
-                  className={cn("pr-2", compact ? "space-y-2" : "space-y-3")}
+                  className={cn("pr-2", compactPanel ? "space-y-2" : "space-y-3")}
                 >
                   {displayLoading ? (
                     <div className="rounded-[22px] border border-dashed border-slate-300/80 bg-white/80 px-4 py-8 text-center text-sm text-slate-500">
@@ -774,10 +824,10 @@ export function ProjectSelector({
               >
                 <div className={cn(compact ? "mb-2.5" : "mb-3")}>
                   <div className="text-sm font-semibold text-slate-900">
-                    项目管理
+                    {managementTitle}
                   </div>
                   <div className="mt-1 text-xs leading-5 text-slate-500">
-                    当前只管理可见项目，不影响本地目录与已有文件。
+                    {managementDescription}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -790,12 +840,12 @@ export function ProjectSelector({
                       "gap-1.5 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95",
                     )}
                     onClick={() => {
-                      setOpen(false);
+                      handleOpenChange(false);
                       setCreateDialogOpen(true);
                     }}
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    新建项目
+                    {createEntityLabel}
                   </Button>
                   <Button
                     type="button"
@@ -858,9 +908,9 @@ export function ProjectSelector({
       >
         <DialogContent className="sm:max-w-[460px] overflow-hidden border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(255,255,255,0.98)_100%)] p-0">
           <DialogHeader className="border-b border-white/80 px-6 py-5">
-            <DialogTitle>重命名项目</DialogTitle>
+            <DialogTitle>重命名{entityLabel}</DialogTitle>
             <DialogDescription>
-              更新项目名称，不会修改本地目录路径。
+              更新{entityLabel}名称，不会修改本地目录路径。
             </DialogDescription>
           </DialogHeader>
           <div className="px-6 py-5">
@@ -910,9 +960,11 @@ export function ProjectSelector({
       >
         <DialogContent className="sm:max-w-[480px] overflow-hidden border-rose-200/80 bg-[linear-gradient(180deg,rgba(255,241,242,0.96)_0%,rgba(255,255,255,0.98)_100%)] p-0">
           <DialogHeader className="border-b border-white/80 px-6 py-5">
-            <DialogTitle className="text-destructive">删除项目</DialogTitle>
+            <DialogTitle className="text-destructive">
+              删除{entityLabel}
+            </DialogTitle>
             <DialogDescription>
-              确定要删除项目
+              确定要删除{entityLabel}
               {deleteTarget ? `「${deleteTarget.name}」` : ""}
               吗？
             </DialogDescription>
@@ -946,7 +998,7 @@ export function ProjectSelector({
               onClick={() => void handleConfirmDelete()}
               disabled={isDeleting}
             >
-              {isDeleting ? "删除中..." : "删除项目"}
+              {isDeleting ? "删除中..." : `删除${entityLabel}`}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -351,6 +351,47 @@ describe("EmptyStateComposerPanel", () => {
     expect(container.textContent).toContain("品牌风格样本");
   });
 
+  it("首页输入区应直接聚焦输入主路径，不再展示额外起始卡片", () => {
+    const container = renderPanel();
+    const textarea = container.querySelector("textarea");
+
+    expect(
+      container.querySelector('[data-testid="empty-state-kickoff-guide"]'),
+    ).toBeNull();
+    expect(textarea).toBeTruthy();
+  });
+
+  it("带入项目参考时，应继续在输入区顶部展示参考对象", () => {
+    const container = renderPanel({
+      projectId: "project-1",
+      creationReplaySurface: {
+        kind: "memory_entry",
+        eyebrow: "当前带入灵感",
+        badgeLabel: "参考",
+        title: "品牌风格样本",
+        summary: "保留轻盈但专业的表达。",
+        hint: "后续结果模板会默认把它一起带入。",
+        defaultReferenceMemoryIds: ["memory-1"],
+        defaultReferenceEntries: [
+          {
+            id: "memory-1",
+            title: "品牌风格样本",
+            summary: "保留轻盈但专业的表达。",
+            category: "context",
+            categoryLabel: "参考",
+            tags: ["品牌", "语气"],
+          },
+        ],
+      },
+    });
+
+    expect(
+      container.querySelector('[data-testid="empty-state-kickoff-guide"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("参考");
+    expect(container.textContent).toContain("品牌风格样本");
+  });
+
   it("首页输入区已激活复盘模板时，应把 sceneapp 项目结果引用继续透传给 badge", () => {
     const container = renderPanel({
       activeCapability: {
@@ -358,15 +399,15 @@ describe("EmptyStateComposerPanel", () => {
         task: {
           id: "account-project-review",
           title: "复盘这个账号/项目",
-          summary: "围绕已有结果做一次复盘。",
-          outputHint: "复盘摘要 + 下一步建议",
-          resultDestination: "复盘摘要会先回到当前内容。",
-          categoryLabel: "复盘与优化",
-          prompt: "请帮我复盘这个账号或项目",
+          summary: "围绕已有结果判断当前该怎么推进。",
+          outputHint: "判断摘要 + 下一步建议",
+          resultDestination: "判断摘要会先回到当前内容。",
+          categoryLabel: "判断与优化",
+          prompt: "请帮我判断这个账号或项目当前该怎么推进",
           requiredInputs: ["账号或项目目标", "已有结果或数据"],
           requiredInputFields: [],
           optionalReferences: ["最近内容链接"],
-          outputContract: ["复盘摘要", "下一轮动作建议"],
+          outputContract: ["判断摘要", "下一轮动作建议"],
           followUpActions: ["继续做趋势摘要"],
           badge: "结果模板",
           actionLabel: "进入生成",

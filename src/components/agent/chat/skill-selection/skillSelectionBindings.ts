@@ -73,7 +73,6 @@ export function buildSkillSelectionBindings({
       skills,
       serviceSkills,
       serviceSkillGroups,
-      onSelectServiceSkill,
       onNavigateToSettings,
     },
     selectorProps: {

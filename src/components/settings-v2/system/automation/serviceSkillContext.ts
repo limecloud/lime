@@ -27,7 +27,7 @@ export interface AutomationServiceSkillContext {
   userInput: string | null;
 }
 
-const DEFAULT_SERVICE_SKILL_TITLE = "技能任务";
+const DEFAULT_SERVICE_SKILL_TITLE = "技能流程";
 const UNKNOWN_SERVICE_SKILL_LABEL = "未标记";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -48,7 +48,7 @@ function resolveRunnerLabel(value: unknown): string {
     case "instant":
       return "一次性交付";
     case "scheduled":
-      return "定时任务";
+      return "定时运行";
     case "managed":
       return "持续跟踪";
     default:

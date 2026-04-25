@@ -201,7 +201,7 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     summary:
       "把长文、资料或文章整理成多平台可直接发布的版本，不用再自己拆标题和结构。",
     outputHint: "多平台发布稿 + 标题组",
-    resultDestination: "多平台发布稿会先写回当前内容，继续在当前工作区整理和拆分。",
+    resultDestination: "多平台发布稿会先回到当前内容里，方便继续整理和拆分。",
     categoryLabel: "多平台改写",
     prompt:
       "请把这篇长文整理成多平台发布稿：先提炼核心观点，再给我输出标题组、摘要、正文结构，以及适合不同平台的发布版本和 CTA 建议。",
@@ -260,19 +260,19 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     id: "account-project-review",
     title: "复盘这个账号/项目",
     summary:
-      "围绕目标、已有结果和下一步动作做一次结构化复盘，适合内容账号、项目推进和运营回看。",
-    outputHint: "复盘摘要 + 下一步建议",
+      "围绕目标、已有结果和下一步动作判断当前该怎么推进，适合内容账号、项目推进和运营回看。",
+    outputHint: "判断摘要 + 下一步建议",
     resultDestination:
-      "复盘摘要会先回到当前内容，并把下一轮动作继续带回生成工作台。",
-    categoryLabel: "复盘与优化",
+      "判断摘要会先回到当前内容，并把下一轮动作继续带回生成。",
+    categoryLabel: "判断与优化",
     prompt:
-      "请帮我复盘这个账号或项目：先明确目标、当前结果、关键问题、哪些动作有效、哪些地方拖后腿，再给出下一轮最值得执行的优化建议。",
+      "请帮我判断这个账号或项目当前该怎么推进：先明确目标、当前结果、关键问题、哪些动作有效、哪些地方拖后腿，再给出下一轮最值得执行的优化建议。",
     requiredInputFields: [
       {
         key: "project_goal",
         label: "账号或项目目标",
         placeholder: "例如 一个季度涨粉 1 万、提升新品转化、连续 30 天稳定输出",
-        helperText: "先说明这次复盘到底要对齐什么目标。",
+        helperText: "先说明这次要对齐什么目标。",
         type: "text",
       },
       {
@@ -284,18 +284,18 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
       },
     ],
     optionalReferences: ["最近内容链接", "本轮想解决的问题"],
-    outputContract: ["复盘摘要", "关键问题", "下一轮动作建议"],
+    outputContract: ["判断摘要", "关键问题", "下一轮动作建议"],
     followUpActions: ["继续做趋势摘要", "生成下一轮内容方案"],
     followUpActionTargets: {
       "继续做趋势摘要": {
         taskId: "daily-trend-briefing",
         promptHint:
-          "请承接这轮复盘结论，先补一轮值得继续跟进的趋势与机会窗口。",
+          "请承接这轮判断结论，先补一轮值得继续跟进的趋势与机会窗口。",
       },
       "生成下一轮内容方案": {
         taskId: "social-post-starter",
         promptHint:
-          "请承接这轮复盘结论，直接生成下一轮最值得执行的内容方案。",
+          "请承接这轮判断结论，直接生成下一轮最值得执行的内容方案。",
       },
     },
     shouldEnableTeamMode: true,
@@ -1105,7 +1105,7 @@ function resolveRecommendationReasonLabel(
   signal: CuratedTaskRecommendationSignal,
 ): string {
   if (signal.source === "review_feedback") {
-    return "围绕最近复盘";
+    return "围绕最近判断";
   }
 
   const categoryLabel =
@@ -1123,8 +1123,8 @@ function resolveRecommendationReasonSummary(
 ): string {
   if (signal.source === "review_feedback") {
     return signal.title.length > 20
-      ? `复盘：${signal.title.slice(0, 20).trimEnd()}…`
-      : `复盘：${signal.title}`;
+      ? `判断：${signal.title.slice(0, 20).trimEnd()}…`
+      : `判断：${signal.title}`;
   }
 
   const categoryLabel = getCuratedTaskReferenceCategoryLabel(signal.category);

@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { getConfig } from "@/lib/api/appConfig";
 import type { CreationMode } from "./types";
-import { CREATION_MODE_CONFIG } from "./constants";
 import { Button } from "@/components/ui/button";
 import { ProjectSelector } from "@/components/projects/ProjectSelector";
 import { toast } from "sonner";
@@ -70,9 +69,6 @@ import {
   readImageAttachment,
 } from "../utils/imageAttachments";
 import {
-  getActiveSkillDisplayLabel,
-} from "../skill-selection/skillSelectionDisplay";
-import {
   resolveInputCapabilityDispatch,
   type InputCapabilitySelection,
 } from "../skill-selection/inputCapabilitySelection";
@@ -117,6 +113,18 @@ const PageContainer = styled.div.attrs({
   className: EMPTY_STATE_PAGE_CONTAINER_CLASSNAME,
 })`
   isolation: isolate;
+  background:
+    radial-gradient(
+      circle at 8% 12%,
+      rgba(132, 204, 22, 0.08),
+      rgba(132, 204, 22, 0) 28%
+    ),
+    radial-gradient(
+      circle at 76% 16%,
+      rgba(186, 230, 253, 0.16),
+      rgba(186, 230, 253, 0) 30%
+    ),
+    linear-gradient(180deg, #f8fcf7 0%, #f9fbf8 36%, #f5faf7 100%);
 `;
 
 const ContentWrapper = styled.div.attrs({
@@ -126,6 +134,7 @@ const ContentWrapper = styled.div.attrs({
   flex: 1 1 auto;
   min-height: 100%;
   animation: ${contentReveal} 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  padding: 0.45rem 0.25rem 1.25rem;
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
@@ -136,8 +145,12 @@ const RecommendationShelf = styled.div`
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.28rem;
-  padding: 0 0.2rem 0.05rem;
+  gap: 0.88rem;
+  border-radius: 30px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: linear-gradient(180deg, #fcfffb 0%, #f8fcfa 100%);
+  padding: 1rem 1.05rem 0.95rem;
+  box-shadow: 0 22px 42px -38px rgba(15, 23, 42, 0.16);
 `;
 
 const RecommendationShelfHeader = styled.div`
@@ -158,16 +171,16 @@ const RecommendationShelfHeaderBody = styled.div`
 `;
 
 const RecommendationShelfHeaderTitle = styled.div`
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgb(100 116 139);
+  color: rgb(71 85 105);
 `;
 
 const RecommendationShelfHeaderDescription = styled.div`
-  font-size: 11px;
-  line-height: 1.45;
-  color: rgb(148 163 184);
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgb(100 116 139);
 `;
 
 const RecommendationShelfInlineBadge = styled.span`
@@ -251,17 +264,17 @@ const RecommendationLeadCard = styled.button`
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.45rem;
-  border-radius: 22px;
-  border: 1px solid rgb(226 232 240);
+  gap: 0.72rem;
+  border-radius: 30px;
+  border: 1px solid rgba(191, 219, 254, 0.92);
   background:
     radial-gradient(
       circle at top right,
-      rgba(186, 230, 253, 0.42),
+      rgba(186, 230, 253, 0.48),
       rgba(255, 255, 255, 0) 42%
     ),
-    linear-gradient(180deg, rgb(255 255 255), rgb(248 250 252));
-  padding: 1rem 1rem 0.95rem;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(240, 249, 255, 0.94));
+  padding: 1.22rem 1.25rem 1.18rem;
   text-align: left;
   color: rgb(51 65 85);
   transition:
@@ -270,8 +283,8 @@ const RecommendationLeadCard = styled.button`
     transform 180ms ease;
 
   &:hover {
-    border-color: rgb(186 230 253);
-    box-shadow: 0 16px 40px -32px rgba(15, 23, 42, 0.28);
+    border-color: rgb(147 197 253);
+    box-shadow: 0 18px 42px -30px rgba(59, 130, 246, 0.22);
     transform: translateY(-1px);
   }
 `;
@@ -287,27 +300,27 @@ const RecommendationLeadEyebrowRow = styled.div`
 `;
 
 const RecommendationLeadEyebrow = styled.span`
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.4;
-  color: rgb(14 116 144);
+  color: rgb(3 105 161);
 `;
 
 const RecommendationLeadTitle = styled.div`
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.4;
   color: rgb(15 23 42);
 `;
 
 const RecommendationLeadSummary = styled.div`
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.65;
   color: rgb(71 85 105);
 `;
 
 const RecommendationLeadMeta = styled.div`
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   color: rgb(100 116 139);
 `;
@@ -316,17 +329,10 @@ const RecommendationLeadFooter = styled.div`
   display: inline-flex;
   align-items: center;
   gap: 0.38rem;
-  padding-top: 0.1rem;
-  font-size: 11px;
+  padding-top: 0.2rem;
+  font-size: 12px;
   font-weight: 600;
   color: rgb(15 23 42);
-`;
-
-const RecommendationAssistStrip = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.55rem;
 `;
 
 const RecommendationAssistGroup = styled.div`
@@ -337,19 +343,24 @@ const RecommendationAssistGroup = styled.div`
 `;
 
 const RecommendationAssistLabel = styled.div`
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.45;
-  color: rgb(100 116 139);
+  color: rgb(71 85 105);
 `;
 
 const RecommendationAssistList = styled.div`
   display: grid;
-  gap: 0.45rem;
+  gap: 0.55rem;
   grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
 
   @media (min-width: 768px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: 1240px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 `;
 
@@ -358,11 +369,12 @@ const RecommendationAssistCard = styled.button`
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.25rem;
-  border-radius: 16px;
-  border: 1px solid rgb(226 232 240);
-  background: rgb(248 250 252);
-  padding: 0.72rem 0.78rem;
+  gap: 0.35rem;
+  border-radius: 22px;
+  border: 1px solid rgba(219, 234, 254, 0.98);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.92));
+  padding: 0.96rem 1rem;
   text-align: left;
   color: rgb(51 65 85);
   transition:
@@ -371,7 +383,7 @@ const RecommendationAssistCard = styled.button`
     transform 180ms ease;
 
   &:hover {
-    border-color: rgb(203 213 225);
+    border-color: rgb(147 197 253);
     background: rgb(255 255 255);
     transform: translateY(-1px);
   }
@@ -387,20 +399,20 @@ const RecommendationAssistCardHeader = styled.div`
 `;
 
 const RecommendationAssistCardTitle = styled.div`
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.45;
   color: rgb(15 23 42);
 `;
 
 const RecommendationAssistCardSummary = styled.div`
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
   color: rgb(100 116 139);
 `;
 
 const RecommendationAssistFootnote = styled.div`
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
   color: rgb(148 163 184);
 `;
@@ -409,12 +421,13 @@ const RecommendationSupplementalPanel = styled.div`
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.42rem;
-  padding: 0.2rem 0.2rem 0;
+  gap: 0.56rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid rgba(226, 232, 240, 0.88);
 `;
 
 const RecommendationSupplementalLabel = styled.div`
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   color: rgb(148 163 184);
 `;
@@ -433,8 +446,8 @@ const RecommendationSupplementalLink = styled.button`
   border-radius: 9999px;
   border: 1px solid rgb(226 232 240);
   background: rgb(255 255 255);
-  padding: 0.34rem 0.62rem;
-  font-size: 11px;
+  padding: 0.42rem 0.78rem;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
   color: rgb(71 85 105);
@@ -447,6 +460,106 @@ const RecommendationSupplementalLink = styled.button`
     border-color: rgb(203 213 225);
     background: rgb(248 250 252);
     color: rgb(15 23 42);
+  }
+`;
+
+const RecommendationTabsRow = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+`;
+
+const RecommendationTabsRail = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+`;
+
+const RecommendationTabButton = styled.button<{ $active: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 36px;
+  border-radius: 9999px;
+  border: 1px solid
+    ${({ $active }) =>
+      $active ? "rgba(134, 239, 172, 0.72)" : "rgba(226, 232, 240, 0.94)"};
+  background: ${({ $active }) =>
+    $active
+      ? "linear-gradient(180deg, rgba(240, 253, 244, 0.98), rgba(220, 252, 231, 0.92))"
+      : "rgba(255, 255, 255, 0.94)"};
+  padding: 0.5rem 0.85rem;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: ${({ $active }) =>
+    $active ? "rgb(22 101 52)" : "rgb(71 85 105)"};
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+
+  &:hover {
+    border-color: ${({ $active }) =>
+      $active ? "rgba(110, 231, 183, 0.84)" : "rgba(203, 213, 225, 0.96)"};
+    color: rgb(15 23 42);
+    background: ${({ $active }) =>
+      $active
+        ? "linear-gradient(180deg, rgba(236, 253, 245, 1), rgba(220, 252, 231, 0.98))"
+        : "rgb(255 255 255)"};
+    box-shadow: 0 14px 28px -28px rgba(15, 23, 42, 0.16);
+    transform: translateY(-1px);
+  }
+`;
+
+const RecommendationTabCount = styled.span<{ $active: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 9999px;
+  background: ${({ $active }) =>
+    $active ? "rgba(255, 255, 255, 0.96)" : "rgba(248, 250, 252, 0.98)"};
+  border: 1px solid
+    ${({ $active }) =>
+      $active ? "rgba(134, 239, 172, 0.64)" : "rgba(226, 232, 240, 0.96)"};
+  padding: 0 0.35rem;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: ${({ $active }) =>
+    $active ? "rgb(21 128 61)" : "rgb(100 116 139)"};
+`;
+
+const RecommendationTabCaption = styled.div`
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgb(100 116 139);
+`;
+
+const RecommendationPanels = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.8rem;
+`;
+
+const RecommendationTabPanel = styled.section`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.78rem;
+
+  &[hidden] {
+    display: none;
   }
 `;
 
@@ -593,7 +706,8 @@ interface ContinuationShelfItem {
   onSelect: () => void;
 }
 
-const GENERAL_CATEGORY_LABEL = "通用对话";
+type LaunchDeckTab = "recommended" | "continuation" | "methods";
+
 // 需要显示创作模式选择器的主题
 const CREATION_THEMES: string[] = [];
 
@@ -641,14 +755,14 @@ function compareRecentShelfItems<
 function resolveResultShelfTitle(
   creationReplaySurface?: CreationReplaySurfaceModel | null,
 ): string {
-  return creationReplaySurface ? "沿着当前上下文继续" : "从这里开始";
+  return creationReplaySurface ? "沿着当前上下文继续" : "先开始这一轮";
 }
 
 function resolveResultShelfDescription(
   creationReplaySurface?: CreationReplaySurfaceModel | null,
 ): string {
   if (!creationReplaySurface) {
-    return "先拿一个结果开工，后面继续补参考、改方向、扩成更多版本，都还在同一轮里推进。";
+    return "先选一个结果起手；后面的补参考、改方向和续做，都留在这一轮里继续推进。";
   }
 
   if (creationReplaySurface.kind === "skill_scaffold") {
@@ -662,12 +776,24 @@ function resolveLeadRecommendationEyebrow(
   creationReplaySurface?: CreationReplaySurfaceModel | null,
 ): string {
   if (!creationReplaySurface) {
-    return "我建议先做这个";
+    return "先从这个开始";
   }
 
   return creationReplaySurface.kind === "skill_scaffold"
     ? "先沿着当前做法开工"
     : "先沿着当前参考开工";
+}
+
+function resolveLaunchDeckTabCaption(tab: LaunchDeckTab): string {
+  switch (tab) {
+    case "continuation":
+      return "把最近跑过的模板、方法和会话接回这一轮，省掉重复起手。";
+    case "methods":
+      return "不想先选结果模板时，也可以直接沿着现成做法开工。";
+    case "recommended":
+    default:
+      return "先从结果入口起手，后面的补参考、改方向和续做都留在这一轮里。";
+  }
 }
 
 function buildRecommendationContextSummary(
@@ -794,9 +920,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   }, []);
   const handleSelectInputCapability = useCallback(
     (capability: InputCapabilitySelection) => {
+      if (capability.kind === "service_skill") {
+        setActiveCapability(null);
+        onSelectServiceSkill?.(capability.skill);
+        return;
+      }
       setActiveCapability(capability);
     },
-    [],
+    [onSelectServiceSkill],
   );
   const handleSelectServiceSkill = useCallback(
     (skill: ServiceSkillHomeItem) => {
@@ -818,7 +949,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     onImportSkill,
     onRefreshSkills,
   });
-  const activeSkillDisplayLabel = getActiveSkillDisplayLabel(currentSkill);
   const hasAutoLaunchSiteSkill = hasAutoLaunchableSiteSkill(serviceSkills);
   const siteSkillAutoLaunchExample =
     getSiteSkillAutoLaunchExample(serviceSkills);
@@ -1071,7 +1201,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const getPlaceholder = () => {
     return hasAutoLaunchSiteSkill
       ? `直接说一句话，例如：${siteSkillAutoLaunchExample}`
-      : "有什么我可以帮你的？";
+      : "先说这轮要做什么，目标、对象或限制都可以。";
   };
 
   const handleApplyRecommendation = useCallback(
@@ -1166,7 +1296,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         options.referenceSelection.referenceEntries,
       );
       setCuratedTaskLauncherPrefillHint(
-        `已按最近复盘切到更适合的结果模板，你可以继续改后再进入生成。`,
+        `已按最近判断切到更适合的结果模板，你可以继续改后再进入生成。`,
       );
     },
     [],
@@ -1251,38 +1381,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     ],
   );
 
-  const workspaceBadges = useMemo(() => {
-    const badges: Array<{
-      key: string;
-      label: string;
-      tone?: "slate" | "sky" | "emerald" | "amber" | "lime";
-    }> = [
-      {
-        key: "theme",
-        label: GENERAL_CATEGORY_LABEL,
-        tone: "lime",
-      },
-    ];
-
-    if (showCreationModeSelector) {
-      badges.push({
-        key: "creation-mode",
-        label: CREATION_MODE_CONFIG[creationMode].name,
-        tone: "lime",
-      });
-    }
-
-    if (activeSkillDisplayLabel) {
-      badges.push({
-        key: "skill",
-        label: activeSkillDisplayLabel,
-        tone: "lime",
-      });
-    }
-
-    return badges.slice(0, 5);
-  }, [creationMode, showCreationModeSelector, activeSkillDisplayLabel]);
-
   const recommendationShelfItems = useMemo<RecommendationShelfItem[]>(() => {
     const curatedTemplateRecommendations = listFeaturedHomeCuratedTaskTemplates(
       curatedTaskTemplates,
@@ -1364,9 +1462,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             summary:
               skill.summary?.trim() ||
               resolveServiceSkillEntryDescription(skill),
-            badge: skill.isRecent ? "最近使用" : skill.badge,
             hint: requiresSlots
-              ? "对话内补参后开始"
+              ? "补齐这一步后开始"
               : `${skill.actionLabel} · 当前对话继续`,
             meta: buildServiceSkillCapabilityDescription(skill, {
               includeSummary: false,
@@ -1432,7 +1529,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       signal: latestReviewRecommendationSignal,
     });
     const highlightedRecommendations = recommendationSolutionItems
-      .filter((item) => item.reasonLabel === "围绕最近复盘")
+      .filter((item) => item.reasonLabel === "围绕最近判断")
       .slice(0, 2);
     if (highlightedRecommendations.length === 0) {
       return null;
@@ -1602,10 +1699,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   ]);
 
   const directMethodItems = useMemo(() => {
-    if (continuationShelfItems.length > 0) {
-      return continuationShelfItems.slice(0, 3);
-    }
-
     return recommendationServiceSkillItems.slice(0, 3).map((item) => ({
       key: item.key,
       title: item.title,
@@ -1614,7 +1707,51 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       testId: item.testId,
       onSelect: item.onSelect,
     }));
-  }, [continuationShelfItems, recommendationServiceSkillItems]);
+  }, [recommendationServiceSkillItems]);
+
+  const preferredLaunchDeckTab = useMemo<LaunchDeckTab>(() => {
+    if (leadRecommendationItem) {
+      return "recommended";
+    }
+    if (continuationShelfItems.length > 0) {
+      return "continuation";
+    }
+    if (directMethodItems.length > 0) {
+      return "methods";
+    }
+    return "recommended";
+  }, [continuationShelfItems.length, directMethodItems.length, leadRecommendationItem]);
+
+  const [launchDeckTab, setLaunchDeckTab] =
+    useState<LaunchDeckTab>(preferredLaunchDeckTab);
+
+  useEffect(() => {
+    const availableTabs = new Set<LaunchDeckTab>();
+    if (leadRecommendationItem || alternativeRecommendationItems.length > 0) {
+      availableTabs.add("recommended");
+    }
+    if (continuationShelfItems.length > 0) {
+      availableTabs.add("continuation");
+    }
+    if (directMethodItems.length > 0) {
+      availableTabs.add("methods");
+    }
+
+    if (availableTabs.size === 0 || availableTabs.has(launchDeckTab)) {
+      return;
+    }
+
+    setLaunchDeckTab(preferredLaunchDeckTab);
+  }, [
+    alternativeRecommendationItems.length,
+    continuationShelfItems.length,
+    directMethodItems.length,
+    launchDeckTab,
+    leadRecommendationItem,
+    preferredLaunchDeckTab,
+  ]);
+
+  const launchDeckTabCaption = resolveLaunchDeckTabCaption(launchDeckTab);
 
   const shouldShowSceneAppsPanel =
     sceneAppsLoading || featuredSceneApps.length > 0 || canResumeRecentSceneApp;
@@ -1734,7 +1871,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                   effectiveDefaultCuratedTaskReferenceMemoryIds,
                 activeCuratedTaskReferenceEntries ||
                   effectiveDefaultCuratedTaskReferenceEntries,
-                "已按最近复盘切到更适合的结果模板，你可以继续改后再进入生成。",
+                "已按最近判断切到更适合的结果模板，你可以继续改后再进入生成。",
               )
           : undefined
       }
@@ -1812,7 +1949,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <RecommendationSignalBanner data-testid="entry-review-feedback-banner">
           <RecommendationSignalBannerHeader>
             <RecommendationSignalBannerTitle>
-              最近复盘已更新：{reviewFeedbackBanner.title}
+              最近判断已更新：{reviewFeedbackBanner.title}
             </RecommendationSignalBannerTitle>
           </RecommendationSignalBannerHeader>
           <RecommendationSignalBannerSummary>
@@ -1838,58 +1975,110 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         </RecommendationSignalBanner>
       ) : null}
 
-      {leadRecommendationItem ? (
-        <RecommendationLeadCard
-          type="button"
-          data-testid={leadRecommendationItem.testId}
-          title={[leadRecommendationItem.summary, leadRecommendationItem.meta]
-            .filter((segment) => segment.trim().length > 0)
-            .join(" · ")}
-          onClick={() => {
-            leadRecommendationItem.onSelect();
-          }}
-        >
-          <RecommendationLeadEyebrowRow>
-            <RecommendationLeadEyebrow>
-              {resolveLeadRecommendationEyebrow(creationReplaySurface)}
-            </RecommendationLeadEyebrow>
-            {leadRecommendationItem.badge ? (
-              <RecommendationShelfInlineBadge>
-                {leadRecommendationItem.badge}
-              </RecommendationShelfInlineBadge>
-            ) : null}
-          </RecommendationLeadEyebrowRow>
-          <RecommendationLeadTitle>
-            {leadRecommendationItem.title}
-          </RecommendationLeadTitle>
-          <RecommendationLeadSummary>
-            {leadRecommendationItem.summary}
-          </RecommendationLeadSummary>
-          {leadRecommendationItem.contextSummary ? (
-            <RecommendationLeadMeta>
-              {leadRecommendationItem.contextSummary}
-            </RecommendationLeadMeta>
-          ) : null}
-          <RecommendationLeadMeta>{leadRecommendationItem.meta}</RecommendationLeadMeta>
-          <RecommendationLeadFooter>
-            开始这一轮
-            <ArrowRight className="h-3.5 w-3.5" />
-          </RecommendationLeadFooter>
-        </RecommendationLeadCard>
-      ) : (
-        <RecommendationShelfEmptyState>
-          当前还没有可直接推荐的起手结果，你可以直接描述目标，Lime 会先帮你组织这一轮。
-        </RecommendationShelfEmptyState>
-      )}
+      <RecommendationTabsRow>
+        <RecommendationTabsRail role="tablist" aria-label="首页起手入口">
+          {(leadRecommendationItem ||
+            alternativeRecommendationItems.length > 0) && (
+            <RecommendationTabButton
+              type="button"
+              role="tab"
+              aria-selected={launchDeckTab === "recommended"}
+              data-testid="entry-launch-tab-recommended"
+              $active={launchDeckTab === "recommended"}
+              onClick={() => setLaunchDeckTab("recommended")}
+            >
+              推荐起手
+              <RecommendationTabCount $active={launchDeckTab === "recommended"}>
+                {recommendationSolutionItems.length}
+              </RecommendationTabCount>
+            </RecommendationTabButton>
+          )}
 
-      {(alternativeRecommendationItems.length > 0 ||
-        directMethodItems.length > 0) && (
-        <RecommendationAssistStrip>
+          {continuationShelfItems.length > 0 ? (
+            <RecommendationTabButton
+              type="button"
+              role="tab"
+              aria-selected={launchDeckTab === "continuation"}
+              data-testid="entry-launch-tab-continuation"
+              $active={launchDeckTab === "continuation"}
+              onClick={() => setLaunchDeckTab("continuation")}
+            >
+              继续上次
+              <RecommendationTabCount $active={launchDeckTab === "continuation"}>
+                {continuationShelfItems.length}
+              </RecommendationTabCount>
+            </RecommendationTabButton>
+          ) : null}
+
+          {directMethodItems.length > 0 ? (
+            <RecommendationTabButton
+              type="button"
+              role="tab"
+              aria-selected={launchDeckTab === "methods"}
+              data-testid="entry-launch-tab-methods"
+              $active={launchDeckTab === "methods"}
+              onClick={() => setLaunchDeckTab("methods")}
+            >
+              做法入口
+              <RecommendationTabCount $active={launchDeckTab === "methods"}>
+                {directMethodItems.length}
+              </RecommendationTabCount>
+            </RecommendationTabButton>
+          ) : null}
+        </RecommendationTabsRail>
+
+        <RecommendationTabCaption>{launchDeckTabCaption}</RecommendationTabCaption>
+      </RecommendationTabsRow>
+
+      <RecommendationPanels>
+        <RecommendationTabPanel hidden={launchDeckTab !== "recommended"}>
+          {leadRecommendationItem ? (
+            <RecommendationLeadCard
+              type="button"
+              data-testid={leadRecommendationItem.testId}
+              title={[leadRecommendationItem.summary, leadRecommendationItem.meta]
+                .filter((segment) => segment.trim().length > 0)
+                .join(" · ")}
+              onClick={() => {
+                leadRecommendationItem.onSelect();
+              }}
+            >
+              <RecommendationLeadEyebrowRow>
+                <RecommendationLeadEyebrow>
+                  {resolveLeadRecommendationEyebrow(creationReplaySurface)}
+                </RecommendationLeadEyebrow>
+                {leadRecommendationItem.badge ? (
+                  <RecommendationShelfInlineBadge>
+                    {leadRecommendationItem.badge}
+                  </RecommendationShelfInlineBadge>
+                ) : null}
+              </RecommendationLeadEyebrowRow>
+              <RecommendationLeadTitle>
+                {leadRecommendationItem.title}
+              </RecommendationLeadTitle>
+              <RecommendationLeadSummary>
+                {leadRecommendationItem.summary}
+              </RecommendationLeadSummary>
+              {leadRecommendationItem.contextSummary ? (
+                <RecommendationLeadMeta>
+                  {leadRecommendationItem.contextSummary}
+                </RecommendationLeadMeta>
+              ) : null}
+              <RecommendationLeadMeta>{leadRecommendationItem.meta}</RecommendationLeadMeta>
+              <RecommendationLeadFooter>
+                开始这一轮
+                <ArrowRight className="h-3.5 w-3.5" />
+              </RecommendationLeadFooter>
+            </RecommendationLeadCard>
+          ) : (
+            <RecommendationShelfEmptyState>
+              当前还没有可直接推荐的起手结果，你可以直接描述目标，Lime 会先帮你组织这一轮。
+            </RecommendationShelfEmptyState>
+          )}
+
           {alternativeRecommendationItems.length > 0 ? (
             <RecommendationAssistGroup>
-              <RecommendationAssistLabel>
-                也可以换个结果开始
-              </RecommendationAssistLabel>
+              <RecommendationAssistLabel>其他起手结果</RecommendationAssistLabel>
               <RecommendationAssistList>
                 {alternativeRecommendationItems.map((item) => (
                   <RecommendationAssistCard
@@ -1923,16 +2112,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               </RecommendationAssistList>
             </RecommendationAssistGroup>
           ) : null}
+        </RecommendationTabPanel>
 
+        <RecommendationTabPanel hidden={launchDeckTab !== "continuation"}>
           <RecommendationAssistGroup>
-            <RecommendationAssistLabel>
-              {continuationShelfItems.length > 0
-                ? "继续上次做法"
-                : "已经知道做法时，也可以直接这样开工"}
-            </RecommendationAssistLabel>
-            {directMethodItems.length > 0 ? (
+            <RecommendationAssistLabel>继续上次做法</RecommendationAssistLabel>
+            {continuationShelfItems.length > 0 ? (
               <RecommendationAssistList>
-                {directMethodItems.map((item) => (
+                {continuationShelfItems.map((item) => (
                   <RecommendationAssistCard
                     key={item.key}
                     type="button"
@@ -1962,13 +2149,50 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               </RecommendationShelfEmptyState>
             )}
           </RecommendationAssistGroup>
-        </RecommendationAssistStrip>
-      )}
+        </RecommendationTabPanel>
+
+        <RecommendationTabPanel hidden={launchDeckTab !== "methods"}>
+          <RecommendationAssistGroup>
+            <RecommendationAssistLabel>也可以直接按做法开工</RecommendationAssistLabel>
+            {directMethodItems.length > 0 ? (
+              <RecommendationAssistList>
+                {directMethodItems.map((item) => (
+                  <RecommendationAssistCard
+                    key={item.key}
+                    type="button"
+                    data-testid={item.testId}
+                    title={item.summary}
+                    onClick={() => {
+                      item.onSelect();
+                    }}
+                  >
+                    <RecommendationAssistCardHeader>
+                      <RecommendationAssistCardTitle>
+                        {item.title}
+                      </RecommendationAssistCardTitle>
+                      {item.badge ? (
+                        <RecommendationShelfBadge>{item.badge}</RecommendationShelfBadge>
+                      ) : null}
+                    </RecommendationAssistCardHeader>
+                    <RecommendationAssistCardSummary>
+                      {item.summary}
+                    </RecommendationAssistCardSummary>
+                  </RecommendationAssistCard>
+                ))}
+              </RecommendationAssistList>
+            ) : (
+              <RecommendationShelfEmptyState>
+                当前还没有可直接复用的做法，先选一个结果起手也可以。
+              </RecommendationShelfEmptyState>
+            )}
+          </RecommendationAssistGroup>
+        </RecommendationTabPanel>
+      </RecommendationPanels>
 
       <RecommendationAssistFootnote data-testid="entry-result-destination-hint">
         {projectId
-          ? "本轮产出会沉淀到当前项目，跑通过的方法会继续留在这里。"
-          : "本轮产出会先写回当前任务，跑通过的方法会继续留在这里。"}
+          ? "本轮产出会沉淀到当前项目，后续继续也会优先从这里接回。"
+          : "本轮产出会先写回当前任务，后续继续也会优先从这里接回。"}
       </RecommendationAssistFootnote>
     </RecommendationShelf>
   );
@@ -2066,7 +2290,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
   const headerControls = onProjectChange ? (
     <div className="flex w-full justify-start sm:w-auto sm:justify-end">
-      <div className="inline-flex max-w-full items-center rounded-[24px] border border-slate-200/80 bg-white p-1 shadow-sm shadow-slate-950/5">
+      <div className="inline-flex max-w-full items-center rounded-[28px] border border-slate-200/90 bg-white/96 p-1.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.25)]">
         <ProjectSelector
           value={projectId ?? null}
           onChange={onProjectChange}
@@ -2077,19 +2301,19 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           enableManagement={activeTheme === "general"}
           density="compact"
           chrome="embedded"
-          className="min-w-[180px] max-w-[260px]"
+          className="min-w-[210px] max-w-[320px]"
         />
         {onOpenSettings ? (
           <>
             <div
-              className="mx-1 h-6 w-px shrink-0 bg-slate-200/80"
+              className="mx-1.5 h-7 w-px shrink-0 bg-slate-200/80"
               aria-hidden="true"
             />
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-9 w-9 rounded-[18px] text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              className="h-10 w-10 rounded-[20px] text-slate-500 hover:bg-slate-100 hover:text-slate-900"
               onClick={onOpenSettings}
               aria-label="打开设置"
               title="打开设置"
@@ -2111,7 +2335,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           slogan="青柠一下，灵感即来"
           description={workbenchCopy.description}
           supportingDescription={workbenchCopy.supportingDescription}
-          badges={workspaceBadges}
           cards={[]}
           prioritySlot={composerPanel}
           supportingSlot={

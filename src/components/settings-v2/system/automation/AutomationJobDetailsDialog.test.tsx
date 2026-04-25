@@ -170,26 +170,26 @@ describe("AutomationJobDetailsDialog", () => {
         status: "risk",
         statusLabel: "先补复核与修复",
         summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
-        nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+        nextAction: "优先准备结果对齐包，再决定是否继续放大。",
         scorecardActionLabel: "建议继续优化",
         topFailureSignalLabel: "复核阻塞",
         destinations: [
           {
             key: "weekly-review",
-            label: "周会复盘",
+            label: "结果对齐",
             description: "带着证据摘要和人工复核记录一起讨论。",
           },
           {
             key: "task-center",
-            label: "生成 / 看板",
-            description: "把结构化材料带回生成工作台或看板。",
+            label: "回到生成",
+            description: "把结构化材料带回生成主链继续推进。",
           },
         ],
         scorecardAggregate: {
           status: "risk",
           statusLabel: "先补复核与修复",
           summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
-          nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+          nextAction: "优先准备结果对齐包，再决定是否继续放大。",
           actionLabel: "建议继续优化",
           topFailureSignalLabel: "复核阻塞",
           profileRef: "story-video-scorecard",
@@ -205,18 +205,18 @@ describe("AutomationJobDetailsDialog", () => {
           destinations: [
             {
               key: "weekly-review",
-              label: "周会复盘",
+              label: "结果对齐",
               description: "带着证据摘要和人工复核记录一起讨论。",
             },
             {
               key: "task-center",
-              label: "生成 / 看板",
-              description: "把结构化材料带回生成工作台或看板。",
+              label: "回到生成",
+              description: "把结构化材料带回生成主链继续推进。",
             },
           ],
         },
-        automationSummary: "1 条自动化任务 · 1 条启用中 · 1 条带风险提醒",
-        latestAutomationLabel: "最近投放任务：浏览器巡检 · 等待人工接管",
+        automationSummary: "1 条持续流程 · 1 条启用中 · 1 条带风险提醒",
+        latestAutomationLabel: "最近运行：浏览器巡检 · 等待人工接管",
       },
     });
 
@@ -241,7 +241,7 @@ describe("AutomationJobDetailsDialog", () => {
         status: "risk",
         statusLabel: "先补复核与修复",
         summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
-        nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+        nextAction: "优先准备结果对齐包，再决定是否继续放大。",
         scorecardActionLabel: "建议继续优化",
         topFailureSignalLabel: "复核阻塞",
         destinations: [],
@@ -249,7 +249,7 @@ describe("AutomationJobDetailsDialog", () => {
           status: "risk",
           statusLabel: "先补复核与修复",
           summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
-          nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+          nextAction: "优先准备结果对齐包，再决定是否继续放大。",
           actionLabel: "建议继续优化",
           topFailureSignalLabel: "复核阻塞",
           profileRef: "story-video-scorecard",
@@ -259,18 +259,18 @@ describe("AutomationJobDetailsDialog", () => {
           destinations: [
             {
               key: "weekly-review",
-              label: "周会复盘",
+              label: "结果对齐",
               description: "带着证据摘要和人工复核记录一起讨论。",
             },
             {
               key: "task-center",
-              label: "生成 / 看板",
-              description: "把结构化材料带回生成工作台或看板。",
+              label: "回到生成",
+              description: "把结构化材料带回生成主链继续推进。",
             },
           ],
         },
-        automationSummary: "1 条自动化任务 · 1 条启用中 · 1 条带风险提醒",
-        latestAutomationLabel: "最近投放任务：浏览器巡检 · 等待人工接管",
+        automationSummary: "1 条持续流程 · 1 条启用中 · 1 条带风险提醒",
+        latestAutomationLabel: "最近运行：浏览器巡检 · 等待人工接管",
       },
       sceneAppRunDetailView: {
         runId: "run-sceneapp-1",
@@ -307,7 +307,7 @@ describe("AutomationJobDetailsDialog", () => {
         governanceActionEntries: [
           {
             key: "weekly-review-pack",
-            label: "周会复盘包",
+            label: "结果对齐包",
             helperText: "准备证据摘要与人工复核记录。",
             primaryArtifactKind: "review_decision_markdown",
             primaryArtifactLabel: "人工复核记录",
@@ -315,8 +315,8 @@ describe("AutomationJobDetailsDialog", () => {
           },
           {
             key: "structured-governance-pack",
-            label: "结构化复盘包",
-            helperText: "准备 JSON 复盘材料。",
+            label: "准备结构化结果包",
+            helperText: "准备 JSON 结果材料。",
             primaryArtifactKind: "review_decision_json",
             primaryArtifactLabel: "复盘 JSON",
             artifactKinds: ["review_decision_json"],
@@ -368,16 +368,16 @@ describe("AutomationJobDetailsDialog", () => {
   it("应把头部长说明收进 tip 并展示轻量摘要", async () => {
     await renderDialog();
 
-    expect(getBodyText()).toContain("任务详情与历史");
-    expect(getBodyText()).toContain("查看任务状态、输出投递和最近运行历史。");
-    expect(getBodyText()).toContain("工作区：默认工作区");
+    expect(getBodyText()).toContain("持续流程详情");
+    expect(getBodyText()).toContain("查看这条持续流程的状态、输出去向和最近运行。");
+    expect(getBodyText()).toContain("归属：默认工作区");
     expect(getBodyText()).not.toContain(
-      "查看任务状态、输出投递和最近运行历史；需要迁移旧浏览器任务时，也在这里确认遗留配置和风险提示。",
+      "查看这条持续流程的状态、输出去向和最近运行；需要迁移旧浏览器流程时，也在这里确认遗留配置和风险提示。",
     );
 
-    const headerTip = await hoverTip("任务详情说明");
+    const headerTip = await hoverTip("持续流程详情说明");
     expect(getBodyText()).toContain(
-      "查看任务状态、输出投递和最近运行历史；需要迁移旧浏览器任务时，也在这里确认遗留配置和风险提示。",
+      "查看这条持续流程的状态、输出去向和最近运行；需要迁移旧浏览器流程时，也在这里确认遗留配置和风险提示。",
     );
     await leaveTip(headerTip);
   });
@@ -411,13 +411,13 @@ describe("AutomationJobDetailsDialog", () => {
         status: "risk",
         statusLabel: "先补复核与修复",
         summary: "这套做法最近一轮还没形成可直接放大的复盘闭环。",
-        nextAction: "优先准备周会复盘包，再决定是否继续放大。",
+        nextAction: "优先准备结果对齐包，再决定是否继续放大。",
         scorecardActionLabel: "建议继续优化",
         topFailureSignalLabel: "复核阻塞",
         destinations: [],
         scorecardAggregate: null,
-        automationSummary: "1 条自动化任务 · 1 条启用中 · 1 条带风险提醒",
-        latestAutomationLabel: "最近投放任务：浏览器巡检 · 等待人工接管",
+        automationSummary: "1 条持续流程 · 1 条启用中 · 1 条带风险提醒",
+        latestAutomationLabel: "最近运行：浏览器巡检 · 等待人工接管",
       } as any,
       sceneAppRunDetailView: {
         runId: "sceneapp-run-1",
@@ -483,8 +483,8 @@ describe("AutomationJobDetailsDialog", () => {
         topFailureSignalLabel: null,
         destinations: [],
         scorecardAggregate: null,
-        automationSummary: "1 条自动化任务 · 1 条启用中",
-        latestAutomationLabel: "最近投放任务：浏览器巡检",
+        automationSummary: "1 条持续流程 · 1 条启用中",
+        latestAutomationLabel: "最近运行：浏览器巡检",
       } as any,
       sceneAppRunDetailView: {
         runId: "sceneapp-run-1",

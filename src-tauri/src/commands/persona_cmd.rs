@@ -16,7 +16,7 @@
 //! - Requirements 6.7: AI 一键生成人设
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::agent::build_auxiliary_session_config_with_turn_context;
 use crate::agent::AsterAgentWrapper;
@@ -28,6 +28,10 @@ use crate::commands::auxiliary_model_selection::{
 use crate::database::DbConnection;
 use crate::models::project_model::{CreatePersonaRequest, Persona, PersonaTemplate, PersonaUpdate};
 use crate::services::memory_profile_prompt_service::{build_memory_prompt, MemoryPromptContext};
+use crate::services::runtime_auxiliary_projection_service::{
+    project_auxiliary_runtime_to_parent_session, AuxiliaryRuntimeProjectionInput,
+    AuxiliaryRuntimeProjectionResult,
+};
 use lime_agent::merge_system_prompt_with_runtime_agents;
 use lime_services::persona_service::PersonaService;
 
@@ -293,9 +297,11 @@ pub struct GeneratedPersonaCommandResult {
 /// - 失败返回错误信息
 #[tauri::command]
 pub async fn generate_persona(
+    app: AppHandle,
     agent_state: State<'_, crate::agent::AsterAgentState>,
     db: State<'_, DbConnection>,
     config_manager: State<'_, crate::config::GlobalConfigManagerState>,
+    session_id: Option<String>,
     prompt: String,
 ) -> Result<GeneratedPersonaCommandResult, String> {
     use aster::conversation::message::Message;
@@ -316,12 +322,12 @@ pub async fn generate_persona(
     ensure_browser_mcp_tools_registered(agent_state.inner(), &db).await?;
 
     // 创建临时会话 ID
-    let session_id = format!("persona-gen-{}", uuid::Uuid::new_v4());
+    let auxiliary_session_id = format!("persona-gen-{}", uuid::Uuid::new_v4());
     let provider_scope = prepare_auxiliary_provider_scope(
         &agent_state,
         &db,
         &config_manager,
-        &session_id,
+        &auxiliary_session_id,
         AuxiliaryServiceModelSlot::AgentMeta,
         &PERSONA_FALLBACK_PROVIDER_CHAIN,
     )
@@ -341,7 +347,7 @@ pub async fn generate_persona(
     let user_prompt = format!("{system_prompt}\n\n请为以下描述生成人设配置：{prompt}");
 
     let result = async {
-        let cancel_token = agent_state.create_cancel_token(&session_id).await;
+        let cancel_token = agent_state.create_cancel_token(&auxiliary_session_id).await;
 
         let user_message = Message::user().with_text(&user_prompt);
         let base_runtime_prompt = merge_system_prompt_with_runtime_agents(None, None);
@@ -366,7 +372,7 @@ pub async fn generate_persona(
             ],
         );
         let session_config = build_auxiliary_session_config_with_turn_context(
-            &session_id,
+            &auxiliary_session_id,
             merged_prompt,
             true,
             build_auxiliary_turn_context_override(auxiliary_runtime_metadata),
@@ -408,13 +414,13 @@ pub async fn generate_persona(
                 }
             }
             Err(e) => {
-                agent_state.remove_cancel_token(&session_id).await;
+                agent_state.remove_cancel_token(&auxiliary_session_id).await;
                 return Err(format!("AI 调用失败: {e}"));
             }
         }
 
         // 清理取消令牌
-        agent_state.remove_cancel_token(&session_id).await;
+        agent_state.remove_cancel_token(&auxiliary_session_id).await;
 
         if full_content.is_empty() {
             return Err("AI 返回空内容".to_string());
@@ -432,13 +438,46 @@ pub async fn generate_persona(
     .await;
 
     let execution_runtime =
-        AsterAgentWrapper::get_runtime_session_execution_runtime(&db, &session_id).await;
+        AsterAgentWrapper::get_runtime_session_execution_runtime(&db, &auxiliary_session_id).await;
     provider_scope.restore(&agent_state, &db).await;
-    result.map(|persona| GeneratedPersonaCommandResult {
+    let result = result.map(|persona| GeneratedPersonaCommandResult {
         persona,
-        session_id: Some(session_id),
+        session_id: Some(auxiliary_session_id),
         execution_runtime,
-    })
+    })?;
+
+    if let (Some(parent_session_id), Some(auxiliary_session_id)) = (
+        session_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty()),
+        result.session_id.as_deref(),
+    ) {
+        if let Err(error) = project_auxiliary_runtime_to_parent_session(
+            &app,
+            &db,
+            AuxiliaryRuntimeProjectionInput {
+                parent_session_id: parent_session_id.to_string(),
+                auxiliary_session_id: auxiliary_session_id.to_string(),
+                execution_runtime: result.execution_runtime.clone(),
+                result: AuxiliaryRuntimeProjectionResult::PersonaGeneration {
+                    persona: serde_json::to_value(&result.persona)
+                        .unwrap_or(serde_json::Value::Null),
+                },
+            },
+        )
+        .await
+        {
+            tracing::warn!(
+                "[Persona] 投影父会话辅助运行时失败，已降级继续: parent_session_id={}, auxiliary_session_id={}, error={}",
+                parent_session_id,
+                auxiliary_session_id,
+                error
+            );
+        }
+    }
+
+    Ok(result)
 }
 
 /// 解析 AI 返回的人设 JSON

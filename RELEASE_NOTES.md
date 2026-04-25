@@ -1,79 +1,69 @@
-## Lime v1.18.0
+## Lime v1.19.0
 
-发布日期：`2026-04-24`
+发布日期：`2026-04-25`
 
 ### 发布概览
 
-- 本次发布目标 tag 为 `v1.18.0`。
-- 本说明按当前待递交工作树重新整理，覆盖这次准备一起递交的版本同步、Rust/runtime、前端工作台、SceneApp、Memory、automation、bridge、roadmap 文档与 Playwright 复盘材料，不再沿用旧版“只写版本号”的简化摘要。
-- 本次重新发布还补充纳入了聊天空态、技能入口、图片预览容错，以及 macOS release workflow 诊断文案修正，确保 `v1.18.0` 对外指向的是当前完整提交状态。
+- 本次发布目标 tag 为 `v1.19.0`。
+- 本说明按当前待递交工作树重新整理，覆盖这次准备一起递交的版本同步、Agent runtime/current surface、聊天工作台布局、Task Center、SceneApp、Memory、automation、bridge、roadmap 文档与现场材料，不再沿用旧版“只写版本号”的简化摘要。
+- 本次发布额外吸纳了近期关于人物切换、最新对话容器高度、导航层级精简与工作台展示密度的一组 UI 收口，确保 `v1.19.0` 对外指向的是当前完整提交状态。
 
 ### 递交范围
 
-- 已跟踪改动主要分布在：`src/` `94` 个文件、`src-tauri/` `42` 个文件、`docs/` `6` 个文件，以及根目录/版本与打包文件。
-- 未跟踪新增项共 `27` 个，包含：
-  - `docs/roadmap/task/` 任务层/模型层/经济调度路线图整套专题文档
-  - `18` 份 Playwright 现场记录与 `playwright-network-after-image.json` 抓包结果
-  - `src-tauri/src/dev_bridge/dispatcher/files.rs`
-  - `src/components/agent/chat/hooks/agentSilentTurnRecovery.{ts,test.ts}`
-  - `src/components/agent/chat/utils/saveSceneAppExecutionAsInspiration.{ts,test.ts}`
-  - `src/components/agent/chat/utils/sceneAppExecutionInspirationDraft.{ts,test.ts}`
-  - `src/components/memory/MemoryCuratedTaskSuggestionPanel.tsx`
-- 本次 release note 以“整批递交”视角书写，默认上述内容均属于本轮提交范围。
+- 已跟踪改动主要覆盖：`src/` 工作台与业务页面、`src-tauri/` runtime 与命令面、`docs/` 路线图与执行文档，以及根目录版本/打包文件。
+- 未跟踪新增项主要包含：
+  - 工作台布局与任务中心相关新文件：`TaskCenterTabStrip`、`chatLayoutVisibility`、`taskCenterTabs`、`chatSurfaceProps.test.ts`
+  - Rust 侧新增服务实现：`src-tauri/src/services/runtime_auxiliary_projection_service.rs`
+  - 一组 Playwright/截图/控制台现场材料，用于保留这批 GUI 调整与回归排查证据
+- 本次 release note 继续以“整批递交”视角书写，默认当前工作树中的这些版本、代码、文档和现场材料都属于本轮提交范围。
 
 ### 重点更新
 
-#### 0. 补充收口：发布前端构建阻断与 release 诊断信息校正
+#### 0. 发布同步与提交口径收口
 
-- `src/components/agent/chat/components/{EmptyState,ImageTaskViewer}.tsx`、`src/components/agent/chat/skill-selection/{CharacterMentionPanel,inputCapabilitySections}.ts` 与配套测试继续收口聊天空态、技能入口和图片预览体验。
-- `src/components/provider-pool/api-key/ProviderModelList.tsx` 修正 provider 模型来源判断的类型收窄问题，避免 release 构建因前端 TypeScript 报错提前中断。
-- `ImageTaskViewer.tsx` 为补图预览和弹窗预览统一补齐 `RenderableTaskImage` 的 fallback 渲染，避免新 props 约束下的构建失败。
-- `.github/workflows/release.yml` 将原先误导性的 “macOS notarization failed twice” 兜底报错改成“release build failed before notarized artifact became available”，方便后续直接定位真实前序构建错误，而不是被公证文案误导。
+- 根目录应用版本、Tauri 配置、CLI wrapper、Cargo 版本与 release note 统一提升到 `1.19.0`，避免发布 tag、桌面端版本、npm wrapper 和分发说明继续错位。
+- 本说明继续按“当前完整工作树一起递交”的口径整理，明确这次不是单点补版本，而是把当前待提交的 runtime、前端、文档和证据材料统一归档到同一个发布切片。
+- 校验章节会同步记录这次实际跑过的 `verify:app-version`、Rust 校验和前端 lint，方便后续直接作为发布前检查清单引用。
 
-#### 1. Agent runtime、任务层与模型层主线继续 current 化
+#### 1. Agent runtime、任务层与模型层继续 current 化
 
-- `src-tauri/crates/agent/src/session_execution_runtime.rs`、`protocol.rs`、`provider_safety.rs`、`credential_bridge.rs`，以及 `src-tauri/src/commands/aster_agent_cmd/{request_model_resolution,runtime_turn,dto,subagent_runtime}.rs` 继续扩展 runtime 路由、任务画像、provider 安全边界、会话上下文与事件投影。
-- `src-tauri/crates/aster-rust/crates/aster/src/{agents/agent.rs,skills/tool.rs}` 与 `src-tauri/src/agent/{aster_agent.rs,mod.rs}` 同步收敛 current runtime surface，减少 compat 语义继续回流。
-- 新增 `docs/roadmap/task/README.md` 及 `overview.md`、`architecture.md`、`task-taxonomy.md`、`model-routing.md`、`oem-and-local-policy.md`、`cost-limit-events.md`、`event-chain.md`、`runtime-integration.md`、`diagrams.md`、`rollout-plan.md`、`acceptance.md`，把任务层、模型层、成本/限额事件与 OEM/本地协同沉淀为专题路线图。
+- `src-tauri/crates/agent/`、`src-tauri/src/commands/aster_agent_cmd/`、`src-tauri/src/services/` 与 `src/lib/api/agentRuntime/` 继续围绕 session runtime、tool policy、handoff/evidence/replay/review 以及请求模型解析收敛 current surface。
+- `src-tauri/crates/core/` 与 `src-tauri/crates/services/` 继续补齐 agent session 数据层、schema、模型注册和 provider 归一化，减少运行时事实源分叉。
+- `docs/roadmap/task/`、`docs/exec-plans/limenext-progress.md` 与相关 acceptance/runtime-integration 文档同步更新，把任务层、模型层和交付验收条件继续沉淀为可追踪路线图。
 
-#### 2. 模型路由、媒体运行时与图片任务协议升级
+#### 2. 工作台、导航层级与布局展示继续整理
 
-- `src-tauri/crates/services/src/model_registry_service.rs`、`src-tauri/crates/core/src/api_host_utils.rs`、`src-tauri/src/commands/auxiliary_model_selection.rs` 持续补齐模型 taxonomy、host 归一化与服务模型选择主链。
-- `src-tauri/crates/media-runtime/src/lib.rs`、`src-tauri/crates/server/src/handlers/image_api_provider.rs`、`src-tauri/src/commands/media_task_cmd.rs`、`src-tauri/src/commands/aster_agent_cmd/tool_runtime/{creation_tools,media_cli_bridge}.rs` 继续收敛图片任务创建、artifact、执行与桥接协议。
-- 本轮额外修正两处图片任务契约漂移：
-  - 图片任务 tool schema 不再公开 `outputPath`，但仍保留 `output_path` 兼容解析。
-  - 图片任务 artifact 内的 `storyboard_slots` 逐格字段统一按 snake_case 写回，避免 current 文件协议和测试断言继续分叉。
-- `src-tauri/resources/default-skills/image_generate/SKILL.md` 与相关 command/runtime 也同步更新，保持默认技能与当前运行时口径一致。
+- `src/components/agent/chat/components/`、`workspace/`、`hooks/` 与 `utils/` 大范围调整聊天工作台、导航栏、侧栏、对话区和画布区的布局关系，重点围绕一级导航收敛、人物切换稳定性、最新对话容器高度和页面可视区域利用率继续修正。
+- 新增 `TaskCenterTabStrip`、`chatLayoutVisibility`、`taskCenterTabs` 等文件，把任务中心与聊天主视图的布局控制收成更清晰的 current 结构，减少 UI 逻辑散落在多个组件里。
+- `MessageList`、`ChatSidebar`、`ChatNavbar`、`WorkspaceConversationScene`、`WorkspaceMainArea`、`WorkspaceShellScene` 及其测试一并更新，确保工作台密度调整不会把最新对话区域挤空、重载或遮挡。
 
-#### 3. 聊天工作台、图片工作流、SceneApp 与 Memory 继续重构
+#### 3. SceneApp、Memory、Resources 与设置页继续并行收口
 
-- `src/components/agent/chat/` 大范围更新，涉及 `AgentChatWorkspace.tsx`、`EmptyState.tsx`、`CuratedTaskLauncherDialog.tsx`、`CharacterMention{,Panel}.tsx`、`CuratedTaskBadge.tsx`、`ImageTaskViewer.tsx`、`ImageWorkbenchMessagePreview.tsx`、`useWorkspaceImageTaskPreviewRuntime.ts`、`useWorkspaceImageWorkbenchActionRuntime.ts`、`useWorkspaceSendActions.ts`、`workspaceSendHelpers.ts` 等主链文件及配套测试。
-- 新增 `agentSilentTurnRecovery`，用于处理用户发送后出现“静默 turn”时的恢复判定，减少聊天面板看起来“没发出去”但后台其实已入队的错觉。
-- 新增 `saveSceneAppExecutionAsInspiration` 与 `sceneAppExecutionInspirationDraft`，支持把 SceneApp 执行结果沉淀到灵感库，并与精选任务推荐信号联动。
-- `src/components/memory/MemoryPage.tsx` 与新增的 `MemoryCuratedTaskSuggestionPanel.tsx` 把 Memory 页面从“看数据”继续推进到“基于记忆继续下一步任务”。
-- `src/components/sceneapps/{SceneAppsPage,SceneAppRunDetailPanel,useSceneAppsPageRuntime}.tsx` 与 `SceneAppExecutionSummaryCard.tsx` 继续补齐 follow-up、复盘和结果去向表达。
+- `src/components/sceneapps/`、`src/components/memory/`、`src/components/resources/`、`src/components/skills/`、`src/components/settings-v2/` 继续同步调整页面结构、结果展示和 follow-up 入口，让工作台新布局和周边页面表达保持一致。
+- `useSceneAppsPageRuntime.ts`、`sceneAppExecutionFollowupDestinations.ts`、`SceneAppExecutionSummaryCard.tsx` 与相关测试持续补齐 SceneApp 结果去向、复盘和后续动作表达。
+- `MemoryPage.tsx`、`ResourcesPage.tsx`、`AutomationHealthPanel.tsx`、`AutomationJob*`、`ChannelsDebugWorkbench.tsx` 等页面也同步纳入这轮整理，避免只有聊天主路径更新、外围页面仍停留在旧密度和旧结构。
 
-#### 4. Provider 设置、服务模型偏好与自动化页面整理
+#### 4. Bridge、API、mock 与前端事实源同步补齐
 
-- `src/components/provider-pool/api-key/{ProviderSetting,ProviderModelList}.tsx` 及测试继续增强 provider 设置、模型推荐、默认图片服务偏好与 UI 反馈。
-- `src/lib/mediaGeneration.ts`、`src/components/image-gen/useImageGen.ts`、`src/components/workspace/video/VideoCanvas.tsx` 与媒体相关前端状态同步更新，进一步对齐媒体默认配置与工作台行为。
-- `src/components/settings-v2/system/automation/` 下的 `AutomationJobDetailsDialog`、`AutomationJobFocusStrip`、`AutomationOverviewFocusCard`、`index.tsx` 继续围绕自动化任务焦点、结果复盘与下一步动作整理 UI。
+- `src/lib/dev-bridge/`、`src/lib/api/`、`src/lib/governance/`、`src/lib/tauri-mock/` 与 `src-tauri/src/dev_bridge/dispatcher/agent_sessions.rs` 等文件继续同步命令契约、前端客户端、mock 与治理目录册，减少 runtime surface 在桌面端和浏览器 fallback 之间继续漂移。
+- `src/lib/navigation/sidebarNav.ts`、`src/components/AppSidebar.tsx`、`src/RootRouter.tsx` 等导航事实源同步更新，配合这轮“只保留一级导航”的整理口径。
+- `src/hooks/useConfiguredProviders.ts`、`src/lib/serviceModels.ts`、`src/components/provider-pool/api-key/ProviderConfigForm.tsx` 及测试也随之刷新，保证 provider/model 配置与工作台入口描述保持一致。
 
-#### 5. Bridge、API、mock、文档与证据材料同步补齐
+#### 5. 文档、测试与现场材料继续跟上
 
-- 新增 `src-tauri/src/dev_bridge/dispatcher/files.rs`，补上会话文件保存、路径解析与文件预览桥接分发。
-- `src-tauri/src/dev_bridge/dispatcher/{app_runtime,providers,project_resources,agent_sessions}.rs`、`src/lib/api/{agentProtocol,agentExecutionRuntime}.ts`、`src/lib/api/agentRuntime/{agentClient,types}.ts`、`src/lib/dev-bridge/mockPriorityCommands.ts`、`src/lib/tauri-mock/core.ts` 同步更新，确保 bridge、mock、前端协议和 runtime 消费者保持同一组 current surface。
-- `docs/README.md`、`docs/aiprompts/{command-runtime,providers,query-loop,task-agent-taxonomy}.md`、`docs/exec-plans/limenext-progress.md` 同步刷新；未跟踪的 Playwright 记录与抓包文件一并纳入本轮递交说明，作为这批图片/工作台链路调整的现场证据。
+- 相关 `*.test.tsx` / `*.test.ts` 随工作台、导航、runtime、provider、SceneApp、settings 调整一并更新，保证这批用户可见改动有稳定回归。
+- `docs/roadmap/task/acceptance.md`、`runtime-integration.md` 与 `docs/exec-plans/limenext-progress.md` 继续同步当前主线进度和验收口径。
+- 截图、快照、console/network 导出等现场材料保留在工作树中，作为这批 GUI 调整和问题复盘的直接证据。
 
 ### 版本同步
 
-- 应用版本事实源已同步为 `1.18.0`：
+- 应用版本事实源已同步为 `1.19.0`：
   - `package.json`
   - `package-lock.json`
   - `src-tauri/Cargo.toml`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/tauri.conf.headless.json`
-- 发布与分发相关版本串已同步为 `1.18.0`：
+- 发布与分发相关版本串已同步为 `1.19.0`：
   - `packages/lime-cli-npm/package.json`
   - `packages/lime-cli-npm/README.md`
   - `src-tauri/Cargo.lock`
@@ -82,14 +72,19 @@
 
 ### 校验状态
 
-- 本会话已实际通过：
+- 本会话已实际执行并通过：
   - `npm run verify:app-version`
   - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
-  - `npm run lint`
   - `cargo test --manifest-path "src-tauri/Cargo.toml"`
-  - `cargo clippy --manifest-path "src-tauri/Cargo.toml"`
+  - `cargo clippy --manifest-path "src-tauri/Cargo.toml" --all-targets --all-features`
+  - `npm run lint`
+- `cargo test` 实际结果为 `1087 passed / 0 failed / 2 ignored`；ignored 用例是显式依赖真实联网环境的 `real_web_search_*`。
+- `cargo clippy` 通过，但当前工作树仍存在 3 条 warning：
+  - `crates/skills/src/lime_llm_provider.rs` 的 `too_many_arguments`
+  - `crates/agent/src/session_execution_runtime.rs` 的 `needless_lifetimes`
+  - `src/services/runtime_evidence_pack_service.rs` 的 `dead_code`
 
 
 ---
 
-**完整变更**: `v1.17.0` -> `v1.18.0`
+**完整变更**: `v1.18.0` -> `v1.19.0`

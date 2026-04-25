@@ -5,6 +5,7 @@ interface RuntimeSceneCommandLike {
   key?: string | null;
   commandPrefix?: string | null;
   aliases?: string[] | null;
+  linkedSkillId?: string | null;
 }
 
 interface RuntimeSceneBindingLike {
@@ -49,6 +50,7 @@ function buildRuntimeSceneCommandTokenSet(
   return buildRuntimeSceneTokenSet([
     command.key,
     command.commandPrefix,
+    command.linkedSkillId,
     ...(command.aliases ?? []),
   ]);
 }

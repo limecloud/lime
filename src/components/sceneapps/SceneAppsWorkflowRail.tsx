@@ -62,7 +62,7 @@ function buildWorkflowStages(
           ? selectedSceneName
             ? `当前已选「${selectedSceneName}」，如果这条场景不合适，可以随时回目录换场景。`
             : "当前已经选中一条 SceneApp，仍然可以回目录重新挑选。"
-          : "先从目录挑一条要推进的 SceneApp，再进入启动和治理。",
+          : "先从目录挑一条要推进的 SceneApp，再进入启动和看结果。",
     actionLabel: props.activeView === "catalog" ? "继续筛选" : "回到目录",
     tone:
       props.activeView === "catalog"
@@ -117,9 +117,9 @@ function buildWorkflowStages(
     ? {
         key: "governance",
         stepLabel: "Step 3",
-        title: "做法复盘",
+        title: "最近结果",
         statusLabel: "先选做法",
-        summary: "做法复盘只处理已经选中的做法，先回目录确定要复盘哪套做法。",
+        summary: "最近结果只处理已经选中的做法，先回全部做法确定要看哪套做法。",
         actionLabel: "先去目录",
         tone: "slate",
         onAction: props.onOpenCatalog,
@@ -128,27 +128,27 @@ function buildWorkflowStages(
       ? {
           key: "governance",
           stepLabel: "Step 3",
-          title: "做法复盘",
+          title: "最近结果",
           statusLabel:
             props.activeView === "governance"
-              ? "当前正在复盘"
+              ? "当前正在看结果"
               : "已有运行样本",
           summary:
             props.activeView === "governance"
-              ? "最近运行、复盘材料和放量判断都集中在这里，可以继续复盘或准备复盘动作。"
-              : "这套做法已经有运行样本，可以直接进入复盘页看结果、证据和复核判断。",
+              ? "最近结果、证据材料和下一步判断都集中在这里，可以继续查看结果或准备后续动作。"
+              : "这套做法已经有运行样本，可以直接进入结果页看结果、证据和复核判断。",
           actionLabel:
-            props.activeView === "governance" ? "继续复盘" : "进入复盘",
+            props.activeView === "governance" ? "继续看结果" : "进入结果页",
           tone: props.activeView === "governance" ? "sky" : "emerald",
           onAction: props.onOpenGovernance,
         }
       : {
           key: "governance",
           stepLabel: "Step 3",
-          title: "看治理",
+          title: "看结果",
           statusLabel: "等待首轮样本",
           summary:
-            "这套做法还没有首轮运行样本，当前不适合直接复盘，先去详情页跑出第一轮结果链。",
+            "这套做法还没有首轮运行样本，当前不适合直接判断，先去详情页跑出第一轮结果链。",
           actionLabel: "先去详情启动",
           tone: "amber",
           onAction: props.onOpenDetail,
@@ -168,7 +168,7 @@ export function SceneAppsWorkflowRail(props: SceneAppsWorkflowRailProps) {
             WORKFLOW PATH
           </div>
           <div className="mt-1 text-sm font-semibold text-slate-900">
-            按选做法、启动、复盘三步推进
+            按选做法、启动、看结果三步推进
           </div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
             不用自己猜下一步在哪一页。每一步都给出当前状态和下一条最短路径。

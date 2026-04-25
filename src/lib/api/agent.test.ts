@@ -551,6 +551,39 @@ describe("Agent API 治理护栏", () => {
     expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_list_sessions");
   });
 
+  it("listAgentRuntimeSessions 应支持请求包含归档会话", async () => {
+    mockSafeInvoke.mockResolvedValueOnce([
+      {
+        id: "session-runtime-archived",
+        name: "Archived Runtime Session",
+        created_at: 1710000000,
+        updated_at: 1710000123,
+        archived_at: 1710000300,
+      },
+    ]);
+
+    await expect(
+      listAgentRuntimeSessions({ includeArchived: true }),
+    ).resolves.toEqual([
+      {
+        id: "session-runtime-archived",
+        name: "Archived Runtime Session",
+        created_at: 1710000000,
+        updated_at: 1710000123,
+        archived_at: 1710000300,
+      },
+    ]);
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_list_sessions",
+      {
+        request: {
+          include_archived: true,
+        },
+      },
+    );
+  });
+
   it("getAgentRuntimeSession 应返回现役 runtime 详情并归一 queued_turns", async () => {
     mockSafeInvoke.mockResolvedValueOnce({
       id: "session-runtime-2",
@@ -1553,6 +1586,43 @@ describe("Agent API 治理护栏", () => {
     expect(mockSafeInvoke).toHaveBeenCalledWith("agent_generate_title", {
       previewText: "赛博朋克风城市夜景主视觉",
       titleKind: "image_task",
+    });
+  });
+
+  it("generateAgentRuntimeTitleResult 应保留 generation_topic runtime task profile", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      title: "城市夜景主视觉",
+      sessionId: "title-gen-1",
+      executionRuntime: {
+        session_id: "title-gen-1",
+        source: "runtime_snapshot",
+        task_profile: {
+          kind: "generation_topic",
+          source: "auxiliary_generation_topic",
+          service_model_slot: "generation_topic",
+        },
+        routing_decision: {
+          routingMode: "single_candidate",
+          decisionSource: "service_model_setting",
+          decisionReason: "命中 service_models.generation_topic",
+          candidateCount: 1,
+        },
+      },
+      usedFallback: false,
+    });
+
+    const result = await generateAgentRuntimeTitleResult({
+      previewText: "赛博朋克风城市夜景主视觉",
+      titleKind: "image_task",
+    });
+
+    expect(result.executionRuntime?.task_profile).toMatchObject({
+      kind: "generation_topic",
+      source: "auxiliary_generation_topic",
+      service_model_slot: "generation_topic",
+    });
+    expect(result.executionRuntime?.routing_decision).toMatchObject({
+      decisionReason: "命中 service_models.generation_topic",
     });
   });
 

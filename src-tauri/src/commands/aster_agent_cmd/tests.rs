@@ -4,7 +4,9 @@ mod tests {
     use crate::commands::aster_agent_cmd::action_runtime::{
         build_runtime_action_scope, build_runtime_action_session_config,
     };
-    use crate::commands::aster_agent_cmd::dto::AgentRuntimeActionScope;
+    use crate::commands::aster_agent_cmd::dto::{
+        AgentRuntimeActionScope, AgentRuntimeListSessionsRequest,
+    };
     use crate::commands::aster_agent_cmd::service_skill_launch::build_service_skill_preload_tool_projection;
     use crate::commands::aster_agent_cmd::tool_runtime::{
         append_fast_chat_request_tool_policy_session_permissions,
@@ -3288,6 +3290,17 @@ mod tests {
     }
 
     #[test]
+    fn test_agent_runtime_list_sessions_request_deserializes_include_archived_alias() {
+        let request: AgentRuntimeListSessionsRequest =
+            serde_json::from_value(serde_json::json!({
+                "includeArchived": true
+            }))
+            .expect("request should deserialize");
+
+        assert_eq!(request.include_archived, Some(true));
+    }
+
+    #[test]
     fn test_agent_runtime_update_session_request_deserializes_recent_access_mode_aliases() {
         let request: AgentRuntimeUpdateSessionRequest = serde_json::from_value(serde_json::json!({
             "sessionId": "session-1",
@@ -3312,6 +3325,18 @@ mod tests {
             legacy_request.recent_access_mode,
             Some(lime_agent::SessionExecutionRuntimeAccessMode::FullAccess)
         );
+    }
+
+    #[test]
+    fn test_agent_runtime_update_session_request_deserializes_archived_alias() {
+        let request: AgentRuntimeUpdateSessionRequest = serde_json::from_value(serde_json::json!({
+            "sessionId": "session-1",
+            "isArchived": true
+        }))
+        .expect("request should deserialize");
+
+        assert_eq!(request.session_id, "session-1");
+        assert_eq!(request.archived, Some(true));
     }
 
     #[test]

@@ -885,19 +885,19 @@ function resolveTaskSyncCopy(task: WorkspaceTask): {
   if (task.status === "success") {
     if (task.resourceMaterialId) {
       return {
-        label: "已同步到项目素材",
-        hint: "当前结果已经沉淀到项目素材库，可继续复用或组合后续命令。",
+        label: "已同步到项目资料",
+        hint: "当前结果已经沉淀到项目资料，可继续复用或组合后续命令。",
       };
     }
     if (task.resourceSaveError) {
       return {
-        label: "素材同步失败",
+        label: "同步失败",
         hint: task.resourceSaveError,
       };
     }
     return {
       label: "结果已生成",
-      hint: "视频已经可预览，素材入库会继续在后台自动完成。",
+      hint: "视频已经可预览，同步到项目资料会继续在后台自动完成。",
     };
   }
 
@@ -1368,8 +1368,8 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
         },
         {
           label: "任务同步",
-          value: projectId ? "结果自动入库" : "需先选择项目",
-          hint: projectId ? "成功后会沉淀到项目素材" : "当前无法提交视频任务",
+          value: projectId ? "结果自动同步" : "需先选择项目",
+          hint: projectId ? "成功后会沉淀到项目资料" : "当前无法提交视频任务",
         },
       ],
       [
@@ -1639,7 +1639,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                         variant="pill"
                         tone="sky"
                         align="start"
-                        content="成功结果会自动同步到项目素材；切换历史任务预览不会覆盖你当前输入的提示词。"
+                        content="成功结果会自动同步到项目资料；切换历史任务预览不会覆盖你当前输入的提示词。"
                       />
                     </StageFooterTips>
                     {focusedTask ? (
@@ -1742,10 +1742,10 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                         const syncMessage =
                           task.status === "success"
                             ? task.resourceMaterialId
-                              ? "已同步到项目素材"
+                              ? "已同步到项目资料"
                               : task.resourceSaveError
-                                ? `素材入库失败：${task.resourceSaveError}`
-                                : "结果已生成，正在同步到项目素材"
+                                ? `同步到项目资料失败：${task.resourceSaveError}`
+                                : "结果已生成，正在同步到项目资料"
                             : task.status === "error"
                               ? (task.errorMessage ?? "任务执行失败")
                               : task.status === "cancelled"

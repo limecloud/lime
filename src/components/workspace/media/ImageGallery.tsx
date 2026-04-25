@@ -1,6 +1,6 @@
 /**
  * @file ImageGallery.tsx
- * @description 图片素材库组件，用于项目素材管理和选择
+ * @description 项目资料图片组件，用于项目图片管理和选择
  * @module components/workspace/media/ImageGallery
  */
 
@@ -92,9 +92,9 @@ function getMaterialPreviewUrl(material: GalleryMaterial): string | null {
 }
 
 /**
- * 图片素材库组件
+ * 项目资料图片组件
  *
- * 提供图片素材的浏览、筛选和选择功能。
+ * 提供项目图片的浏览、筛选和选择功能。
  */
 export function ImageGallery({
   projectId,
@@ -292,7 +292,7 @@ export function ImageGallery({
               </p>
               <p className="text-sm">
                 可以先在 Claw 用 @素材
-                搜图，或到资料库上传本地图片，再回到这里筛选和插入。
+                搜图，或到项目资料上传本地图片，再回到这里筛选和插入。
               </p>
             </div>
           </div>

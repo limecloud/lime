@@ -11,6 +11,8 @@ use lime_core::models::model_registry::{
 use std::collections::HashSet;
 use tauri::Manager;
 
+const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
+
 #[derive(Debug, Clone)]
 struct ProviderResolutionContext {
     provider_selector: String,
@@ -40,6 +42,8 @@ pub(super) struct RuntimeRequestProviderResolution {
     pub limit_state: lime_agent::SessionExecutionRuntimeLimitState,
     pub cost_state: lime_agent::SessionExecutionRuntimeCostState,
     pub limit_event: Option<lime_agent::SessionExecutionRuntimeLimitEvent>,
+    pub oem_policy: Option<lime_agent::SessionExecutionRuntimeOemPolicy>,
+    pub runtime_summary: lime_agent::SessionExecutionRuntimeSummary,
 }
 
 #[derive(Debug, Clone)]
@@ -56,21 +60,30 @@ struct ResolvedRuntimeProviderSelection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct RequestOemRoutingContext {
-    tenant_id: String,
-    provider_source: Option<String>,
-    provider_key: Option<String>,
-    default_model: Option<String>,
-    config_mode: Option<String>,
-    offer_state: Option<String>,
-    quota_status: Option<String>,
-    fallback_to_local_allowed: Option<bool>,
-    can_invoke: Option<bool>,
+pub(crate) struct RequestOemRoutingContext {
+    pub tenant_id: String,
+    pub provider_source: Option<String>,
+    pub provider_key: Option<String>,
+    pub default_model: Option<String>,
+    pub config_mode: Option<String>,
+    pub offer_state: Option<String>,
+    pub quota_status: Option<String>,
+    pub fallback_to_local_allowed: Option<bool>,
+    pub can_invoke: Option<bool>,
 }
 
 fn normalize_identifier(value: &str) -> String {
     value.trim().to_ascii_lowercase()
 }
+
+fn canonical_provider_selector(provider_selector: &str) -> String {
+    match normalize_identifier(provider_selector).as_str() {
+        "mimo" | "xiaomimimo" => "xiaomi".to_string(),
+        normalized => normalized.to_string(),
+    }
+}
+
+const XIAOMI_HOST_KEYWORDS: [&str; 1] = ["xiaomimimo.com"];
 
 fn provider_alias_config_key(provider_key: &str) -> String {
     match normalize_identifier(provider_key).as_str() {
@@ -605,7 +618,7 @@ fn build_provider_resolution_context(
     api_key_provider_service: &ApiKeyProviderServiceState,
     provider_selector: &str,
 ) -> Result<ProviderResolutionContext, String> {
-    let provider_selector = normalize_identifier(provider_selector);
+    let provider_selector = canonical_provider_selector(provider_selector);
     let is_custom_provider =
         lime_core::models::provider_type::is_custom_provider_id(&provider_selector);
     let mut provider_type = provider_type_from_key(&provider_selector);
@@ -650,7 +663,7 @@ fn build_provider_resolution_context(
         !provider_id.trim().is_empty() && seen.insert(normalize_identifier(provider_id))
     });
 
-    Ok(ProviderResolutionContext {
+    let mut context = ProviderResolutionContext {
         aster_provider_name,
         alias_key: provider_alias_config_key(&provider_selector),
         compatibility_provider_key,
@@ -662,7 +675,10 @@ fn build_provider_resolution_context(
         provider_type,
         provider_selector,
         registry_provider_ids,
-    })
+    };
+    context.custom_models = canonicalize_provider_custom_models(&context, &context.custom_models);
+
+    Ok(context)
 }
 
 async fn load_model_registry_catalog(
@@ -730,6 +746,79 @@ fn find_model_meta<'a>(
     models
         .iter()
         .find(|model| normalize_identifier(&model.id) == normalized)
+}
+
+fn is_xiaomi_like_provider_context(context: &ProviderResolutionContext) -> bool {
+    let provider_selector = normalize_identifier(&context.provider_selector);
+    let compatibility_provider = normalize_identifier(&context.compatibility_provider_key);
+    let provider_type = context
+        .provider_type
+        .map(|provider_type| normalize_identifier(&provider_type.to_string()))
+        .unwrap_or_default();
+    let api_host = context
+        .configured_api_host
+        .as_deref()
+        .map(normalize_identifier)
+        .unwrap_or_default();
+
+    matches!(provider_selector.as_str(), "xiaomi" | "mimo" | "xiaomimimo")
+        || matches!(
+            compatibility_provider.as_str(),
+            "xiaomi" | "mimo" | "xiaomimimo"
+        )
+        || matches!(provider_type.as_str(), "xiaomi" | "mimo" | "xiaomimimo")
+        || XIAOMI_HOST_KEYWORDS
+            .iter()
+            .any(|keyword| api_host.contains(keyword))
+}
+
+fn canonicalize_xiaomi_model_id(model_id: &str) -> String {
+    let trimmed = model_id.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    match normalize_identifier(trimmed).as_str() {
+        "mimo-v2-pro" | "mimo-v2.5" | "mimo-v2.5-pro" => "mimo-v2.5-pro".to_string(),
+        _ => trimmed.to_string(),
+    }
+}
+
+fn canonicalize_known_provider_model_id(
+    context: &ProviderResolutionContext,
+    model_id: &str,
+) -> String {
+    let trimmed = model_id.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    if is_xiaomi_like_provider_context(context) {
+        return canonicalize_xiaomi_model_id(trimmed);
+    }
+
+    trimmed.to_string()
+}
+
+fn canonicalize_provider_custom_models(
+    context: &ProviderResolutionContext,
+    model_ids: &[String],
+) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut result = Vec::new();
+
+    for model_id in model_ids {
+        let canonical = canonicalize_known_provider_model_id(context, model_id);
+        if canonical.is_empty() {
+            continue;
+        }
+
+        if seen.insert(normalize_identifier(&canonical)) {
+            result.push(canonical);
+        }
+    }
+
+    result
 }
 
 fn model_has_reasoning_capability(
@@ -1052,6 +1141,165 @@ fn capability_score(model: &EnhancedModelMetadata) -> u8 {
     score
 }
 
+fn estimated_cost_rank(cost_class: Option<&str>) -> u8 {
+    match cost_class.map(normalize_identifier).as_deref() {
+        Some("low") => 3,
+        Some("medium") => 2,
+        Some("high") => 1,
+        _ => 0,
+    }
+}
+
+fn choose_best_multi_candidate_model(
+    current_model_id: &str,
+    models: &[EnhancedModelMetadata],
+    thinking_enabled: bool,
+    has_images: bool,
+) -> Option<String> {
+    let current_model = find_model_meta(current_model_id, models);
+    let current_family = current_model
+        .and_then(|model| model.family.as_deref())
+        .map(normalize_identifier)
+        .unwrap_or_else(|| normalize_model_lineage_key(current_model_id));
+    let current_lineage = normalize_model_lineage_key(current_model_id);
+
+    let mut candidates = models
+        .iter()
+        .filter(|candidate| is_compatible_candidate_model(candidate, thinking_enabled, has_images))
+        .filter(|candidate| !is_likely_non_chat_model(candidate))
+        .collect::<Vec<_>>();
+
+    if candidates.is_empty() {
+        return None;
+    }
+
+    candidates.sort_by(|left, right| {
+        let left_same_family = !current_family.is_empty()
+            && left.family.as_deref().map(normalize_identifier) == Some(current_family.clone());
+        let right_same_family = !current_family.is_empty()
+            && right.family.as_deref().map(normalize_identifier) == Some(current_family.clone());
+        let left_same_lineage =
+            !current_lineage.is_empty() && normalize_model_lineage_key(&left.id) == current_lineage;
+        let right_same_lineage = !current_lineage.is_empty()
+            && normalize_model_lineage_key(&right.id) == current_lineage;
+        let left_reasoning = model_has_reasoning_capability(Some(left), &left.id);
+        let right_reasoning = model_has_reasoning_capability(Some(right), &right.id);
+        let left_vision = supports_vision(Some(left), &left.id);
+        let right_vision = supports_vision(Some(right), &right.id);
+        let left_cost = estimated_cost_rank(estimate_cost_class(&left.id, Some(left)).as_deref());
+        let right_cost =
+            estimated_cost_rank(estimate_cost_class(&right.id, Some(right)).as_deref());
+
+        left_same_family
+            .cmp(&right_same_family)
+            .reverse()
+            .then(left_same_lineage.cmp(&right_same_lineage).reverse())
+            .then(
+                (left_reasoning == thinking_enabled)
+                    .cmp(&(right_reasoning == thinking_enabled))
+                    .reverse(),
+            )
+            .then(
+                (left_vision == has_images)
+                    .cmp(&(right_vision == has_images))
+                    .reverse(),
+            )
+            .then(
+                capability_score(left)
+                    .cmp(&capability_score(right))
+                    .reverse(),
+            )
+            .then(left_cost.cmp(&right_cost).reverse())
+            .then(left.is_latest.cmp(&right.is_latest).reverse())
+            .then(
+                tier_weight(&left.tier)
+                    .cmp(&tier_weight(&right.tier))
+                    .reverse(),
+            )
+            .then(compare_release_date_desc(left, right).cmp(&0))
+            .then(left.id.cmp(&right.id))
+    });
+
+    candidates.first().map(|model| model.id.clone())
+}
+
+fn should_auto_reselect_multi_candidate_model(context: &ProviderResolutionContext) -> bool {
+    !context.is_custom_provider
+}
+
+fn choose_provider_permission_recovery_model(
+    context: &ProviderResolutionContext,
+    current_model_id: &str,
+    models: &[EnhancedModelMetadata],
+    thinking_enabled: bool,
+    has_images: bool,
+) -> Option<String> {
+    if !context.is_custom_provider || !is_xiaomi_like_provider_context(context) {
+        return None;
+    }
+
+    let normalized_current_id = normalize_identifier(current_model_id);
+    let current_model = find_model_meta(current_model_id, models);
+    let current_family = current_model
+        .and_then(|model| model.family.as_deref())
+        .map(normalize_identifier)
+        .unwrap_or_else(|| normalize_model_lineage_key(current_model_id));
+    let current_lineage = normalize_model_lineage_key(current_model_id);
+
+    let mut candidates = models
+        .iter()
+        .filter(|candidate| normalize_identifier(&candidate.id) != normalized_current_id)
+        .filter(|candidate| is_compatible_candidate_model(candidate, thinking_enabled, has_images))
+        .filter(|candidate| !is_likely_non_chat_model(candidate))
+        .collect::<Vec<_>>();
+
+    if candidates.is_empty() {
+        return None;
+    }
+
+    candidates.sort_by(|left, right| {
+        let left_same_family = !current_family.is_empty()
+            && left.family.as_deref().map(normalize_identifier) == Some(current_family.clone());
+        let right_same_family = !current_family.is_empty()
+            && right.family.as_deref().map(normalize_identifier) == Some(current_family.clone());
+        let left_same_lineage =
+            !current_lineage.is_empty() && normalize_model_lineage_key(&left.id) == current_lineage;
+        let right_same_lineage = !current_lineage.is_empty()
+            && normalize_model_lineage_key(&right.id) == current_lineage;
+        let left_non_flash = !normalize_identifier(&left.id).contains("flash");
+        let right_non_flash = !normalize_identifier(&right.id).contains("flash");
+        let left_reasoning_match =
+            model_has_reasoning_capability(Some(left), &left.id) == thinking_enabled;
+        let right_reasoning_match =
+            model_has_reasoning_capability(Some(right), &right.id) == thinking_enabled;
+        let left_vision_match = supports_vision(Some(left), &left.id) == has_images;
+        let right_vision_match = supports_vision(Some(right), &right.id) == has_images;
+
+        left_same_family
+            .cmp(&right_same_family)
+            .reverse()
+            .then(left_same_lineage.cmp(&right_same_lineage).reverse())
+            .then(left_non_flash.cmp(&right_non_flash).reverse())
+            .then(left_reasoning_match.cmp(&right_reasoning_match).reverse())
+            .then(left_vision_match.cmp(&right_vision_match).reverse())
+            .then(
+                capability_score(left)
+                    .cmp(&capability_score(right))
+                    .reverse(),
+            )
+            .then(left.is_latest.cmp(&right.is_latest).reverse())
+            .then(
+                tier_weight(&left.tier)
+                    .cmp(&tier_weight(&right.tier))
+                    .reverse(),
+            )
+            .then(compare_release_date_desc(left, right).cmp(&0))
+            .then(left.id.cmp(&right.id))
+    });
+
+    candidates.first().map(|candidate| candidate.id.clone())
+}
+
 fn tier_weight(tier: &ModelTier) -> u8 {
     match tier {
         ModelTier::Mini => 1,
@@ -1117,15 +1365,19 @@ fn resolve_vision_model_id(
         })
 }
 
-fn resolve_provider_model_compatibility(provider_key: &str, model_id: &str) -> String {
-    let normalized_provider = normalize_identifier(provider_key);
-    let normalized_model = normalize_identifier(model_id);
+fn resolve_provider_model_compatibility(
+    context: &ProviderResolutionContext,
+    model_id: &str,
+) -> String {
+    let normalized_provider = normalize_identifier(&context.compatibility_provider_key);
+    let canonical_model = canonicalize_known_provider_model_id(context, model_id);
+    let normalized_model = normalize_identifier(&canonical_model);
 
     if normalized_provider == "codex" && normalized_model == "gpt-5.3-codex" {
         return "gpt-5.2-codex".to_string();
     }
 
-    model_id.to_string()
+    canonical_model
 }
 
 fn extract_request_thinking_enabled(request: &AsterChatRequest) -> Option<bool> {
@@ -1177,7 +1429,18 @@ fn extract_metadata_bool(
         .find_map(|key| object.get(*key).and_then(serde_json::Value::as_bool))
 }
 
-fn resolve_request_oem_routing_context(
+fn extract_turn_context_runtime(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<&serde_json::Map<String, serde_json::Value>> {
+    request_metadata
+        .and_then(serde_json::Value::as_object)
+        .and_then(|root| root.get(LIME_RUNTIME_METADATA_KEY))
+        .and_then(serde_json::Value::as_object)
+        .and_then(|runtime| runtime.get("task_profile"))
+        .and_then(serde_json::Value::as_object)
+}
+
+pub(crate) fn resolve_request_oem_routing_context(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<RequestOemRoutingContext> {
     let routing = extract_harness_nested_object(request_metadata, &["oem_routing", "oemRouting"])?;
@@ -1199,11 +1462,61 @@ fn resolve_request_oem_routing_context(
     })
 }
 
-fn request_oem_routing_is_locked(context: Option<&RequestOemRoutingContext>) -> bool {
+pub(crate) fn request_oem_routing_is_locked(context: Option<&RequestOemRoutingContext>) -> bool {
     context.is_some_and(|value| {
         matches!(value.config_mode.as_deref(), Some("managed"))
             || matches!(value.fallback_to_local_allowed, Some(false))
     })
+}
+
+fn build_request_oem_policy(
+    context: Option<&RequestOemRoutingContext>,
+) -> Option<lime_agent::SessionExecutionRuntimeOemPolicy> {
+    let context = context?;
+    Some(lime_agent::SessionExecutionRuntimeOemPolicy {
+        tenant_id: context.tenant_id.clone(),
+        provider_source: context.provider_source.clone(),
+        provider_key: context.provider_key.clone(),
+        default_model: context.default_model.clone(),
+        config_mode: context.config_mode.clone(),
+        offer_state: context.offer_state.clone(),
+        quota_status: context.quota_status.clone(),
+        fallback_to_local_allowed: context.fallback_to_local_allowed,
+        can_invoke: context.can_invoke,
+    })
+}
+
+fn build_runtime_summary(
+    routing_decision: &lime_agent::SessionExecutionRuntimeRoutingDecision,
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+    cost_state: &lime_agent::SessionExecutionRuntimeCostState,
+    limit_event: Option<&lime_agent::SessionExecutionRuntimeLimitEvent>,
+) -> lime_agent::SessionExecutionRuntimeSummary {
+    lime_agent::SessionExecutionRuntimeSummary {
+        candidate_count: Some(routing_decision.candidate_count),
+        routing_mode: Some(routing_decision.routing_mode.clone()),
+        decision_source: Some(routing_decision.decision_source.clone()),
+        decision_reason: Some(routing_decision.decision_reason.clone()),
+        fallback_chain: routing_decision.fallback_chain.clone(),
+        estimated_cost_class: routing_decision
+            .estimated_cost_class
+            .clone()
+            .or_else(|| cost_state.estimated_cost_class.clone()),
+        estimated_total_cost: cost_state.estimated_total_cost,
+        limit_status: Some(limit_state.status.clone()),
+        limit_event_kind: limit_event.map(|event| event.event_kind.clone()),
+        limit_event_message: limit_event.map(|event| event.message.clone()),
+        capability_gap: routing_decision
+            .capability_gap
+            .clone()
+            .or_else(|| limit_state.capability_gap.clone()),
+        single_candidate_only: Some(limit_state.single_candidate_only),
+        oem_locked: Some(limit_state.oem_locked),
+        quota_low: Some(matches!(
+            limit_event.map(|event| event.event_kind.as_str()),
+            Some("quota_low")
+        )),
+    }
 }
 
 fn build_request_oem_limit_event(
@@ -1232,6 +1545,12 @@ fn build_request_oem_limit_event(
 fn resolve_request_service_model_slot(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<String> {
+    if let Some(slot) = extract_turn_context_runtime(request_metadata)
+        .and_then(|runtime| extract_metadata_text(runtime, &["service_model_slot"]))
+    {
+        return Some(slot);
+    }
+
     if extract_harness_nested_object(
         request_metadata,
         &["translation_skill_launch", "translationSkillLaunch"],
@@ -1248,6 +1567,36 @@ fn resolve_request_service_model_slot(
     .is_some()
     {
         return Some("resource_prompt_rewrite".to_string());
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &["topic_skill_launch", "topicSkillLaunch"],
+    )
+    .is_some()
+    {
+        return Some("topic".to_string());
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &[
+            "generation_topic_skill_launch",
+            "generationTopicSkillLaunch",
+        ],
+    )
+    .is_some()
+    {
+        return Some("generation_topic".to_string());
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &["agent_meta_skill_launch", "agentMetaSkillLaunch"],
+    )
+    .is_some()
+    {
+        return Some("agent_meta".to_string());
     }
 
     if extract_harness_string(request_metadata, &["turn_purpose", "turnPurpose"])
@@ -1376,6 +1725,69 @@ fn build_runtime_task_profile(
         return lime_agent::SessionExecutionRuntimeTaskProfile {
             kind: "resource_search".to_string(),
             source: "resource_search_skill_launch".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: extract_harness_string(
+                request_metadata,
+                &["entry_source", "entrySource"],
+            ),
+        };
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &["topic_skill_launch", "topicSkillLaunch"],
+    )
+    .is_some()
+    {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "topic".to_string(),
+            source: "auxiliary_topic".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: extract_harness_string(
+                request_metadata,
+                &["entry_source", "entrySource"],
+            ),
+        };
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &[
+            "generation_topic_skill_launch",
+            "generationTopicSkillLaunch",
+        ],
+    )
+    .is_some()
+    {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "generation_topic".to_string(),
+            source: "auxiliary_generation_topic".to_string(),
+            traits,
+            service_model_slot,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: extract_harness_string(
+                request_metadata,
+                &["entry_source", "entrySource"],
+            ),
+        };
+    }
+
+    if extract_harness_nested_object(
+        request_metadata,
+        &["agent_meta_skill_launch", "agentMetaSkillLaunch"],
+    )
+    .is_some()
+    {
+        return lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "agent_meta".to_string(),
+            source: "auxiliary_agent_meta".to_string(),
             traits,
             service_model_slot,
             scene_kind: None,
@@ -1630,12 +2042,50 @@ fn build_routing_decision(
     }
 }
 
+fn compose_routing_decision_reason(
+    base_reason: impl Into<String>,
+    selection: Option<&ResolvedRuntimeProviderSelection>,
+    oem_locked: bool,
+    fallback_note: Option<&str>,
+) -> String {
+    let mut parts = vec![base_reason.into()];
+
+    if let Some(selection) = selection {
+        if selection.candidate_count > 1 {
+            parts.push(format!(
+                "当前 provider 候选池共有 {} 个兼容候选，已按连续性、能力与成本优选。",
+                selection.candidate_count
+            ));
+        }
+        if selection.fallback_chain.len() >= 2 {
+            parts.push(format!(
+                "回退链为 {}。",
+                selection.fallback_chain.join(" -> ")
+            ));
+        }
+        if let Some(gap) = selection.capability_gap.as_deref() {
+            parts.push(format!("当前仍存在能力提示：{gap}。"));
+        }
+    }
+
+    if oem_locked {
+        parts.push("当前回合受 OEM 托管约束，自动策略不会越出 OEM 允许范围。".to_string());
+    }
+
+    if let Some(note) = fallback_note.map(str::trim).filter(|note| !note.is_empty()) {
+        parts.push(note.to_string());
+    }
+
+    parts.join(" ")
+}
+
 fn build_no_candidate_resolution(
     task_profile: lime_agent::SessionExecutionRuntimeTaskProfile,
     decision_source: &str,
     decision_reason: String,
     oem_locked: bool,
     limit_event: Option<lime_agent::SessionExecutionRuntimeLimitEvent>,
+    oem_policy: Option<lime_agent::SessionExecutionRuntimeOemPolicy>,
 ) -> RuntimeRequestProviderResolution {
     let capability_gap = if task_profile.kind == "vision_chat" {
         Some("vision_candidate_missing".to_string())
@@ -1661,6 +2111,12 @@ fn build_no_candidate_resolution(
         None,
     );
     let cost_state = build_cost_state(None, None, "unavailable");
+    let runtime_summary = build_runtime_summary(
+        &routing_decision,
+        &limit_state,
+        &cost_state,
+        limit_event.as_ref(),
+    );
 
     RuntimeRequestProviderResolution {
         provider_config: None,
@@ -1669,6 +2125,8 @@ fn build_no_candidate_resolution(
         limit_state,
         cost_state,
         limit_event,
+        oem_policy,
+        runtime_summary,
     }
 }
 
@@ -1838,6 +2296,8 @@ async fn build_runtime_request_provider_config_from_preference(
     let context =
         build_provider_resolution_context(db, api_key_provider_service, provider_selector)?;
     let (catalog, _alias_config) = load_model_registry_catalog(app, &context).await;
+    let normalized_model_preference =
+        canonicalize_known_provider_model_id(&context, model_preference);
     let thinking_enabled = resolve_request_thinking_enabled(request).await?;
     let has_images = request
         .images
@@ -1860,11 +2320,26 @@ async fn build_runtime_request_provider_config_from_preference(
         });
 
     let mut resolved_model = if thinking_enabled {
-        resolve_thinking_model_id(model_preference, &catalog)
+        resolve_thinking_model_id(&normalized_model_preference, &catalog)
     } else {
-        resolve_base_model_on_thinking_off(model_preference, &catalog)
+        resolve_base_model_on_thinking_off(&normalized_model_preference, &catalog)
     };
     let mut fallback_chain = Vec::new();
+    if compatible_candidate_count > 1 && should_auto_reselect_multi_candidate_model(&context) {
+        if let Some(best_candidate) = choose_best_multi_candidate_model(
+            &resolved_model,
+            &catalog,
+            thinking_enabled,
+            has_images,
+        ) {
+            if best_candidate != resolved_model {
+                fallback_chain.push(format!("{}:{}", context.provider_selector, resolved_model));
+                resolved_model = best_candidate;
+                fallback_chain.push(format!("{}:{}", context.provider_selector, resolved_model));
+            }
+        }
+    }
+
     let should_fallback_unknown_model = allow_runtime_fallback
         && !context.is_custom_provider
         && find_model_meta(&resolved_model, &catalog).is_none();
@@ -1889,8 +2364,7 @@ async fn build_runtime_request_provider_config_from_preference(
             fallback_chain.push(format!("{}:{}", context.provider_selector, resolved_model));
         }
     }
-    resolved_model =
-        resolve_provider_model_compatibility(&context.compatibility_provider_key, &resolved_model);
+    resolved_model = resolve_provider_model_compatibility(&context, &resolved_model);
     if has_images {
         resolved_model = resolve_vision_model_id(&resolved_model, &catalog)?;
     }
@@ -1962,6 +2436,75 @@ async fn build_runtime_request_provider_config_from_preference(
     })
 }
 
+pub(super) async fn resolve_runtime_provider_auth_recovery_config(
+    app: &AppHandle,
+    db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
+    request: &AsterChatRequest,
+    provider_selector: &str,
+    failed_model: &str,
+) -> Result<Option<ConfigureProviderRequest>, String> {
+    let context =
+        build_provider_resolution_context(db, api_key_provider_service, provider_selector)?;
+    let failed_model = canonicalize_known_provider_model_id(&context, failed_model);
+    let (catalog, _alias_config) = load_model_registry_catalog(app, &context).await;
+    let thinking_enabled = resolve_request_thinking_enabled(request).await?;
+    let has_images = request
+        .images
+        .as_ref()
+        .map(|images| !images.is_empty())
+        .unwrap_or(false);
+
+    let Some(fallback_model) = choose_provider_permission_recovery_model(
+        &context,
+        &failed_model,
+        &catalog,
+        thinking_enabled,
+        has_images,
+    ) else {
+        return Ok(None);
+    };
+
+    if normalize_identifier(&fallback_model) == normalize_identifier(&failed_model) {
+        return Ok(None);
+    }
+
+    let provider_strategy = resolve_runtime_provider_configuration_strategy(&context);
+    let base_url = match provider_strategy {
+        RuntimeProviderConfigurationStrategy::Manual { base_url } => base_url,
+        RuntimeProviderConfigurationStrategy::CredentialPool => None,
+    };
+    let model_meta = find_model_meta(&fallback_model, &catalog);
+    let model_capabilities = model_meta
+        .map(|model| model.capabilities.clone())
+        .unwrap_or_else(|| {
+            let inferred_task_families = infer_model_task_families(
+                &fallback_model,
+                Some(&context.provider_selector),
+                None,
+                None,
+            );
+            infer_model_capabilities(
+                &fallback_model,
+                Some(&context.provider_selector),
+                &inferred_task_families,
+                None,
+                None,
+            )
+        });
+
+    Ok(Some(ConfigureProviderRequest {
+        provider_id: Some(context.provider_selector.clone()),
+        provider_name: context.aster_provider_name,
+        model_name: fallback_model,
+        api_key: None,
+        base_url,
+        model_capabilities: Some(model_capabilities),
+        tool_call_strategy: None,
+        toolshim_model: None,
+    }))
+}
+
 pub(super) async fn resolve_runtime_request_provider_resolution(
     app: &AppHandle,
     db: &DbConnection,
@@ -1972,6 +2515,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
     let request_oem_routing = resolve_request_oem_routing_context(request.metadata.as_ref());
     let oem_locked = request_oem_routing_is_locked(request_oem_routing.as_ref());
     let oem_limit_event = build_request_oem_limit_event(request_oem_routing.as_ref());
+    let oem_policy = build_request_oem_policy(request_oem_routing.as_ref());
 
     if request.provider_config.is_some() {
         let explicit_provider = request.provider_config.as_ref().and_then(|config| {
@@ -1998,7 +2542,12 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
         let routing_decision = build_routing_decision(
             &task_profile,
             "provider_config",
-            "请求已显式传入 provider_config，运行时仅补齐能力与工具策略。".to_string(),
+            compose_routing_decision_reason(
+                "请求已显式传入 provider_config，运行时仅补齐能力与工具策略。",
+                None,
+                oem_locked,
+                None,
+            ),
             None,
             explicit_provider.clone(),
             explicit_model.clone(),
@@ -2012,6 +2561,12 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                 .as_ref()
                 .and_then(|config| estimate_cost_class(&config.model_name, None)),
             "estimated",
+        );
+        let runtime_summary = build_runtime_summary(
+            &routing_decision,
+            &limit_state,
+            &cost_state,
+            oem_limit_event.as_ref(),
         );
 
         return Ok(RuntimeRequestProviderResolution {
@@ -2031,6 +2586,8 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             limit_state,
             cost_state,
             limit_event: oem_limit_event,
+            oem_policy: oem_policy.clone(),
+            runtime_summary,
         });
     }
 
@@ -2060,6 +2617,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     .to_string(),
                 oem_locked,
                 oem_limit_event.clone(),
+                oem_policy.clone(),
             ));
         };
         let (model_preference, model_preference_source) =
@@ -2127,6 +2685,12 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
         );
 
         let cost_state = build_cost_state(Some(&selection), None, "estimated");
+        let runtime_summary = build_runtime_summary(
+            &routing_decision,
+            &limit_state,
+            &cost_state,
+            oem_limit_event.as_ref(),
+        );
 
         return Ok(RuntimeRequestProviderResolution {
             provider_config: Some(selection.provider_config),
@@ -2135,6 +2699,8 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             limit_state,
             cost_state,
             limit_event: oem_limit_event,
+            oem_policy: oem_policy.clone(),
+            runtime_summary,
         });
     }
 
@@ -2183,6 +2749,12 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     Some("service_scene_launch".to_string()),
                 );
                 let cost_state = build_cost_state(Some(&selection), None, "estimated");
+                let runtime_summary = build_runtime_summary(
+                    &routing_decision,
+                    &limit_state,
+                    &cost_state,
+                    oem_limit_event.as_ref(),
+                );
 
                 return Ok(RuntimeRequestProviderResolution {
                     provider_config: Some(selection.provider_config),
@@ -2191,6 +2763,8 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     limit_state,
                     cost_state,
                     limit_event: oem_limit_event,
+                    oem_policy: oem_policy.clone(),
+                    runtime_summary,
                 });
             }
             Err(error) => {
@@ -2251,9 +2825,14 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                 let routing_decision = build_routing_decision(
                     &task_profile,
                     "service_model_setting",
-                    format!(
-                        "当前回合命中 {}，优先使用设置中的 provider/model。",
-                        setting_preference.settings_source
+                    compose_routing_decision_reason(
+                        format!(
+                            "当前回合命中 {}，优先使用设置中的 provider/model。",
+                            setting_preference.settings_source
+                        ),
+                        Some(&selection),
+                        oem_locked,
+                        fallback_note.as_deref(),
                     ),
                     Some(&selection),
                     Some(setting_preference.provider_selector.clone()),
@@ -2261,6 +2840,12 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     Some(setting_preference.settings_source.clone()),
                 );
                 let cost_state = build_cost_state(Some(&selection), None, "estimated");
+                let runtime_summary = build_runtime_summary(
+                    &routing_decision,
+                    &limit_state,
+                    &cost_state,
+                    oem_limit_event.as_ref(),
+                );
 
                 return Ok(RuntimeRequestProviderResolution {
                     provider_config: Some(selection.provider_config),
@@ -2269,6 +2854,8 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     limit_state,
                     cost_state,
                     limit_event: oem_limit_event,
+                    oem_policy: oem_policy.clone(),
+                    runtime_summary,
                 });
             }
             Err(error) => {
@@ -2301,6 +2888,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             }),
             oem_locked,
             oem_limit_event.clone(),
+            oem_policy.clone(),
         ));
     };
     let (model_preference, model_preference_source) =
@@ -2338,8 +2926,8 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
     )
     .await?;
     let mut notes = vec!["当前回合沿用会话最近一次持久化的 provider/model 默认值。".to_string()];
-    if let Some(note) = fallback_note {
-        notes.push(note);
+    if let Some(note) = fallback_note.as_ref() {
+        notes.push(note.clone());
     }
     let limit_state = build_limit_state(
         if selection.candidate_count <= 1 {
@@ -2363,8 +2951,12 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
         } else {
             "auto_default"
         },
-        "当前回合没有显式指定 provider/model，运行时沿用会话默认并在当前 provider 内做能力兼容。"
-            .to_string(),
+        compose_routing_decision_reason(
+            "当前回合没有显式指定 provider/model，运行时沿用会话默认并在当前 provider 内做能力兼容。",
+            Some(&selection),
+            oem_locked,
+            fallback_note.as_deref(),
+        ),
         Some(&selection),
         Some(provider_selector),
         Some(model_preference),
@@ -2372,6 +2964,12 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
     );
 
     let cost_state = build_cost_state(Some(&selection), None, "estimated");
+    let runtime_summary = build_runtime_summary(
+        &routing_decision,
+        &limit_state,
+        &cost_state,
+        oem_limit_event.as_ref(),
+    );
 
     Ok(RuntimeRequestProviderResolution {
         provider_config: Some(selection.provider_config),
@@ -2380,6 +2978,8 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
         limit_state,
         cost_state,
         limit_event: oem_limit_event,
+        oem_policy,
+        runtime_summary,
     })
 }
 
@@ -2566,9 +3166,60 @@ mod tests {
 
     #[test]
     fn codex_compatibility_falls_back_to_supported_model() {
+        let context = ProviderResolutionContext {
+            provider_selector: "codex".to_string(),
+            aster_provider_name: "openai".to_string(),
+            compatibility_provider_key: "codex".to_string(),
+            registry_provider_ids: vec!["codex".to_string()],
+            alias_key: "codex".to_string(),
+            custom_models: vec![],
+            is_custom_provider: false,
+            provider_type: Some(ApiProviderType::Codex),
+            provider_group: None,
+            configured_api_host: Some("https://api.openai.com/v1".to_string()),
+            has_credentials: true,
+        };
+
         assert_eq!(
-            resolve_provider_model_compatibility("codex", "gpt-5.3-codex"),
+            resolve_provider_model_compatibility(&context, "gpt-5.3-codex"),
             "gpt-5.2-codex"
+        );
+    }
+
+    #[test]
+    fn xiaomi_compatibility_canonicalizes_display_name_and_legacy_alias() {
+        let context = ProviderResolutionContext {
+            provider_selector: "custom-mimo".to_string(),
+            aster_provider_name: "anthropic".to_string(),
+            compatibility_provider_key: "anthropic-compatible".to_string(),
+            registry_provider_ids: vec!["xiaomi".to_string()],
+            alias_key: "custom-mimo".to_string(),
+            custom_models: vec![],
+            is_custom_provider: true,
+            provider_type: Some(ApiProviderType::AnthropicCompatible),
+            provider_group: None,
+            configured_api_host: Some("https://token-plan-cn.xiaomimimo.com/anthropic".to_string()),
+            has_credentials: true,
+        };
+
+        assert_eq!(
+            resolve_provider_model_compatibility(&context, "MiMo-V2.5-Pro"),
+            "mimo-v2.5-pro"
+        );
+        assert_eq!(
+            resolve_provider_model_compatibility(&context, "mimo-v2-pro"),
+            "mimo-v2.5-pro"
+        );
+        assert_eq!(
+            canonicalize_provider_custom_models(
+                &context,
+                &[
+                    "MiMo-V2.5-Pro".to_string(),
+                    "mimo-v2-pro".to_string(),
+                    "mimo-v2-flash".to_string(),
+                ],
+            ),
+            vec!["mimo-v2.5-pro".to_string(), "mimo-v2-flash".to_string()]
         );
     }
 
@@ -2616,6 +3267,172 @@ mod tests {
         assert_eq!(
             resolve_catalog_fallback_model_id("glm-5.1", &models, false, false),
             "glm-4.7"
+        );
+    }
+
+    #[test]
+    fn multi_candidate_selection_prefers_same_family_lower_cost_model() {
+        let models = vec![
+            build_model(
+                "gpt-5.4",
+                Some("gpt-5.4"),
+                false,
+                false,
+                true,
+                ModelTier::Pro,
+                Some("2026-01-03"),
+            ),
+            build_model(
+                "gpt-5.4-mini",
+                Some("gpt-5.4"),
+                false,
+                false,
+                true,
+                ModelTier::Mini,
+                Some("2026-01-04"),
+            ),
+            build_model(
+                "gemini-2.5-pro",
+                Some("gemini-2.5"),
+                false,
+                false,
+                true,
+                ModelTier::Pro,
+                Some("2026-01-05"),
+            ),
+        ];
+
+        assert_eq!(
+            choose_best_multi_candidate_model("gpt-5.4", &models, false, false).as_deref(),
+            Some("gpt-5.4-mini")
+        );
+    }
+
+    #[test]
+    fn multi_candidate_selection_prefers_reasoning_model_when_thinking_enabled() {
+        let mut models = vec![
+            build_model(
+                "gpt-5.4-mini",
+                Some("gpt-5.4"),
+                false,
+                false,
+                true,
+                ModelTier::Mini,
+                Some("2026-01-03"),
+            ),
+            build_model(
+                "gpt-5.4-mini-thinking",
+                Some("gpt-5.4"),
+                false,
+                false,
+                true,
+                ModelTier::Mini,
+                Some("2026-01-04"),
+            ),
+        ];
+        models[1].capabilities.reasoning = true;
+        models[1].task_families.push(ModelTaskFamily::Reasoning);
+
+        assert_eq!(
+            choose_best_multi_candidate_model("gpt-5.4-mini", &models, true, false).as_deref(),
+            Some("gpt-5.4-mini-thinking")
+        );
+    }
+
+    #[test]
+    fn multi_candidate_selection_prefers_vision_candidate_when_images_present() {
+        let models = vec![
+            build_model(
+                "gpt-5.4-mini",
+                Some("gpt-5.4"),
+                false,
+                false,
+                true,
+                ModelTier::Mini,
+                Some("2026-01-03"),
+            ),
+            build_model(
+                "gpt-5.4",
+                Some("gpt-5.4"),
+                true,
+                true,
+                true,
+                ModelTier::Pro,
+                Some("2026-01-04"),
+            ),
+        ];
+
+        assert_eq!(
+            choose_best_multi_candidate_model("gpt-5.4-mini", &models, false, true).as_deref(),
+            Some("gpt-5.4")
+        );
+    }
+
+    #[test]
+    fn custom_provider_multi_candidate_reselection_is_disabled() {
+        let context = ProviderResolutionContext {
+            provider_selector: "custom-mimo".to_string(),
+            aster_provider_name: "anthropic".to_string(),
+            compatibility_provider_key: "anthropic-compatible".to_string(),
+            registry_provider_ids: vec!["xiaomi".to_string()],
+            alias_key: "custom-mimo".to_string(),
+            custom_models: vec!["mimo-v2.5-pro".to_string(), "mimo-v2-flash".to_string()],
+            is_custom_provider: true,
+            provider_type: Some(ApiProviderType::AnthropicCompatible),
+            provider_group: None,
+            configured_api_host: Some("https://token-plan-cn.xiaomimimo.com/anthropic".to_string()),
+            has_credentials: true,
+        };
+
+        assert!(!should_auto_reselect_multi_candidate_model(&context));
+    }
+
+    #[test]
+    fn xiaomi_permission_recovery_prefers_non_flash_candidate() {
+        let context = ProviderResolutionContext {
+            provider_selector: "custom-mimo".to_string(),
+            aster_provider_name: "anthropic".to_string(),
+            compatibility_provider_key: "anthropic-compatible".to_string(),
+            registry_provider_ids: vec!["xiaomi".to_string()],
+            alias_key: "custom-mimo".to_string(),
+            custom_models: vec!["mimo-v2.5-pro".to_string(), "mimo-v2-flash".to_string()],
+            is_custom_provider: true,
+            provider_type: Some(ApiProviderType::AnthropicCompatible),
+            provider_group: None,
+            configured_api_host: Some("https://token-plan-cn.xiaomimimo.com/anthropic".to_string()),
+            has_credentials: true,
+        };
+        let models = vec![
+            build_model(
+                "mimo-v2.5-pro",
+                Some("mimo-v2"),
+                false,
+                false,
+                true,
+                ModelTier::Pro,
+                Some("2026-04-01"),
+            ),
+            build_model(
+                "mimo-v2-flash",
+                Some("mimo-v2"),
+                false,
+                false,
+                true,
+                ModelTier::Mini,
+                Some("2026-04-02"),
+            ),
+        ];
+
+        assert_eq!(
+            choose_provider_permission_recovery_model(
+                &context,
+                "mimo-v2-flash",
+                &models,
+                false,
+                false
+            )
+            .as_deref(),
+            Some("mimo-v2.5-pro")
         );
     }
 
@@ -2861,6 +3678,54 @@ mod tests {
         assert_eq!(summary_profile.source, "summary_skill_launch");
         assert_eq!(summary_profile.service_model_slot, None);
 
+        let mut topic_request = base_request.clone();
+        topic_request.metadata = Some(serde_json::json!({
+            "harness": {
+                "topic_skill_launch": {
+                    "kind": "topic_request"
+                }
+            }
+        }));
+        let topic_profile = build_runtime_task_profile(&topic_request);
+        assert_eq!(topic_profile.kind, "topic");
+        assert_eq!(topic_profile.source, "auxiliary_topic");
+        assert_eq!(topic_profile.service_model_slot.as_deref(), Some("topic"));
+
+        let mut generation_topic_request = base_request.clone();
+        generation_topic_request.metadata = Some(serde_json::json!({
+            "harness": {
+                "generation_topic_skill_launch": {
+                    "kind": "generation_topic_request"
+                }
+            }
+        }));
+        let generation_topic_profile = build_runtime_task_profile(&generation_topic_request);
+        assert_eq!(generation_topic_profile.kind, "generation_topic");
+        assert_eq!(
+            generation_topic_profile.source,
+            "auxiliary_generation_topic"
+        );
+        assert_eq!(
+            generation_topic_profile.service_model_slot.as_deref(),
+            Some("generation_topic")
+        );
+
+        let mut agent_meta_request = base_request.clone();
+        agent_meta_request.metadata = Some(serde_json::json!({
+            "harness": {
+                "agent_meta_skill_launch": {
+                    "kind": "agent_meta_request"
+                }
+            }
+        }));
+        let agent_meta_profile = build_runtime_task_profile(&agent_meta_request);
+        assert_eq!(agent_meta_profile.kind, "agent_meta");
+        assert_eq!(agent_meta_profile.source, "auxiliary_agent_meta");
+        assert_eq!(
+            agent_meta_profile.service_model_slot.as_deref(),
+            Some("agent_meta")
+        );
+
         let mut rewrite_request = base_request;
         rewrite_request.metadata = Some(serde_json::json!({
             "harness": {
@@ -3040,5 +3905,12 @@ mod tests {
             ),
             Some("http://127.0.0.1:11434".to_string())
         );
+    }
+
+    #[test]
+    fn canonical_provider_selector_maps_legacy_mimo_ids() {
+        assert_eq!(canonical_provider_selector("mimo"), "xiaomi");
+        assert_eq!(canonical_provider_selector("xiaomimimo"), "xiaomi");
+        assert_eq!(canonical_provider_selector("xiaomi"), "xiaomi");
     }
 }

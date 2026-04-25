@@ -480,6 +480,7 @@ fn canonicalize_image_task_alias_fields(record: &mut serde_json::Map<String, ser
         ("anchorHint", "anchor_hint"),
         ("anchorSectionTitle", "anchor_section_title"),
         ("anchorText", "anchor_text"),
+        ("titleGenerationResult", "title_generation_result"),
         ("targetOutputId", "target_output_id"),
         ("targetOutputRefId", "target_output_ref_id"),
         ("referenceImages", "reference_images"),
@@ -525,6 +526,8 @@ struct ImageTaskInput {
     prompt: String,
     #[serde(default)]
     title: Option<String>,
+    #[serde(default, alias = "title_generation_result")]
+    title_generation_result: Option<serde_json::Value>,
     #[serde(default)]
     mode: Option<String>,
     #[serde(default, alias = "raw_text")]
@@ -688,6 +691,22 @@ fn image_task_input_schema() -> serde_json::Value {
     insert_property(
         "title",
         serde_json::json!({ "type": "string", "description": "任务标题（可选）。" }),
+    );
+    insert_property(
+        "titleGenerationResult",
+        serde_json::json!({
+            "type": ["object", "null"],
+            "description": "辅助标题生成的 runtime 诊断快照（可选）。",
+            "additionalProperties": true
+        }),
+    );
+    insert_property(
+        "title_generation_result",
+        serde_json::json!({
+            "type": ["object", "null"],
+            "description": "辅助标题生成的 runtime 诊断快照（snake_case 兼容，可选）。",
+            "additionalProperties": true
+        }),
     );
     insert_property(
         "mode",
@@ -864,6 +883,7 @@ fn build_image_generation_task_request(
     let ImageTaskInput {
         prompt,
         title,
+        title_generation_result,
         mode,
         raw_text,
         layout_hint,
@@ -926,6 +946,7 @@ fn build_image_generation_task_request(
         project_root_path: context.working_directory.to_string_lossy().to_string(),
         prompt,
         title,
+        title_generation_result,
         mode,
         raw_text,
         layout_hint,
@@ -1550,6 +1571,14 @@ mod tests {
             ImageTaskInput {
                 prompt: "未来感青柠实验室".to_string(),
                 title: Some("青柠主视觉".to_string()),
+                title_generation_result: Some(serde_json::json!({
+                    "title": "青柠主视觉",
+                    "sessionId": "title-session-1",
+                    "executionRuntime": {
+                        "route": "auxiliary.generate_title"
+                    },
+                    "usedFallback": false
+                })),
                 mode: Some("generate".to_string()),
                 raw_text: Some("@配图 未来感青柠实验室".to_string()),
                 layout_hint: None,
@@ -1595,6 +1624,17 @@ mod tests {
             Some("content-image-compat-1")
         );
         assert_eq!(request.entry_source.as_deref(), Some("at_image_command"));
+        assert_eq!(
+            request.title_generation_result,
+            Some(serde_json::json!({
+                "title": "青柠主视觉",
+                "sessionId": "title-session-1",
+                "executionRuntime": {
+                    "route": "auxiliary.generate_title"
+                },
+                "usedFallback": false
+            }))
+        );
 
         let output =
             create_image_generation_task_artifact_inner(request).expect("create image artifact");
@@ -1653,6 +1693,10 @@ mod tests {
     fn image_task_input_should_accept_snake_case_fields_from_skill_context() {
         let input: ImageTaskInput = serde_json::from_value(serde_json::json!({
             "prompt": "未来感青柠实验室",
+            "title_generation_result": {
+                "title": "未来感青柠实验室",
+                "session_id": "title-session-2"
+            },
             "raw_text": "@配图 未来感青柠实验室",
             "layout_hint": "storyboard_3x3",
             "aspect_ratio": "1:1",
@@ -1675,6 +1719,13 @@ mod tests {
         .expect("parse snake_case image task input");
 
         assert_eq!(input.raw_text.as_deref(), Some("@配图 未来感青柠实验室"));
+        assert_eq!(
+            input.title_generation_result,
+            Some(serde_json::json!({
+                "title": "未来感青柠实验室",
+                "session_id": "title-session-2"
+            }))
+        );
         assert_eq!(input.layout_hint.as_deref(), Some("storyboard_3x3"));
         assert_eq!(input.aspect_ratio.as_deref(), Some("1:1"));
         assert_eq!(input.count, Some(9));
@@ -1764,6 +1815,8 @@ mod tests {
         let normalized = normalize_flat_image_task_tool_params(serde_json::json!({
             "prompt": "三国主要人物",
             "count": "9",
+            "titleGenerationResult": { "title": "三国主要人物", "sessionId": "title-camel" },
+            "title_generation_result": { "title": "三国主要人物", "sessionId": "title-snake" },
             "providerId": "custom-provider-camel",
             "provider_id": "custom-provider-snake",
             "model": "gpt-images-2",
@@ -1789,9 +1842,14 @@ mod tests {
             record.get("anchor_hint"),
             Some(&serde_json::json!("section-top"))
         );
+        assert_eq!(
+            record.get("title_generation_result"),
+            Some(&serde_json::json!({ "title": "三国主要人物", "sessionId": "title-snake" }))
+        );
         assert!(!record.contains_key("providerId"));
         assert!(!record.contains_key("projectId"));
         assert!(!record.contains_key("anchorHint"));
+        assert!(!record.contains_key("titleGenerationResult"));
         assert!(!record.contains_key("referenceImages"));
         assert!(!record.contains_key("skillInputImages"));
 
@@ -1800,6 +1858,10 @@ mod tests {
         assert_eq!(input.provider_id.as_deref(), Some("custom-provider-snake"));
         assert_eq!(input.project_id.as_deref(), Some("project-snake"));
         assert_eq!(input.anchor_hint.as_deref(), Some("section-top"));
+        assert_eq!(
+            input.title_generation_result,
+            Some(serde_json::json!({ "title": "三国主要人物", "sessionId": "title-snake" }))
+        );
         assert!(input.reference_images.is_empty());
     }
 
@@ -1812,6 +1874,7 @@ mod tests {
 
         for field in [
             "raw_text",
+            "title_generation_result",
             "layout_hint",
             "aspect_ratio",
             "provider_id",

@@ -116,7 +116,7 @@ describe("deriveHarnessSessionState", () => {
     expect(state.activeFileWrites[0]?.preview).toContain("实时草稿");
   });
 
-  it("应为搜索工具调用生成工作台可消费的搜索输出信号", () => {
+  it("应为搜索工具调用生成可消费的搜索输出信号", () => {
     const messages = [
       createMessage({
         toolCalls: [

@@ -1,4 +1,5 @@
 import React, { type ComponentProps } from "react";
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { WorkspaceMainArea } from "./WorkspaceMainArea";
@@ -128,5 +129,50 @@ describe("WorkspaceMainArea", () => {
         '[data-testid="layout-transition-root"]',
       )?.dataset.effectiveMode,
     ).toBe("chat");
+  });
+
+  it("任务中心自动隐藏顶栏时应通过小图标展开完整顶部工具", () => {
+    const { container } = mountHarness(
+      WorkspaceMainAreaHarness,
+      {
+        autoHideTaskCenterNavbar: true,
+        navbarNode: <div data-testid="workspace-navbar">navbar</div>,
+        taskCenterTabsNode: <div data-testid="task-center-tabs">tabs</div>,
+      },
+      mountedRoots,
+    );
+
+    const shell = container.querySelector<HTMLElement>(
+      '[data-testid="workspace-navbar-auto-hide-shell"]',
+    );
+    const panel = container.querySelector<HTMLElement>(
+      '[data-testid="workspace-navbar-auto-hide-panel"]',
+    );
+    const backdrop = container.querySelector<HTMLButtonElement>(
+      '[data-testid="workspace-navbar-backdrop"]',
+    );
+    expect(shell?.dataset.visible).toBe("false");
+    expect(panel?.dataset.visible).toBe("false");
+    expect(backdrop?.dataset.visible).toBe("false");
+
+    const currentHandle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="workspace-navbar-reveal-handle"]',
+    );
+
+    act(() => {
+      currentHandle?.click();
+    });
+
+    expect(shell?.dataset.visible).toBe("true");
+    expect(panel?.dataset.visible).toBe("true");
+    expect(backdrop?.dataset.visible).toBe("true");
+
+    act(() => {
+      backdrop?.click();
+    });
+
+    expect(shell?.dataset.visible).toBe("false");
+    expect(panel?.dataset.visible).toBe("false");
+    expect(backdrop?.dataset.visible).toBe("false");
   });
 });

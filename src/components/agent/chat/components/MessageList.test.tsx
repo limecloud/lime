@@ -273,7 +273,7 @@ describe("MessageList", () => {
     expect(container.textContent).not.toContain("开始一段新的对话吧");
   });
 
-  it("生成页空列表时应展示执行面空态而不是普通新对话文案", () => {
+  it("任务中心空列表时应展示最近对话空态而不是普通新对话文案", () => {
     const container = render([], {
       emptyStateVariant: "task-center",
     });
@@ -281,18 +281,18 @@ describe("MessageList", () => {
     expect(
       container.querySelector('[data-testid="message-list-empty-task-center"]'),
     ).not.toBeNull();
-    expect(container.textContent).toContain("创作");
-    expect(container.textContent).toContain("生成");
+    expect(container.textContent).toContain("对话");
+    expect(container.textContent).toContain("最近对话");
     expect(container.textContent).toContain(
-      "这里是 Lime 的生成主执行面，可以继续进行中的创作、回看最近结果和旧历史。",
+      "这里集中展示最近对话、待继续会话和更早归档，方便你随时回到上一次工作现场。",
     );
     expect(container.textContent).toContain(
-      "还没开始生成时，从“开始生成”发起也很自然；跑过的结果、做法和中间素材后面都会继续留在这里。",
+      "还没有对话时，可以先从“新建对话”开始；后续的结果、素材和中间过程都会继续留在这里。",
     );
-    expect(container.textContent).toContain("左侧会继续显示待继续的生成记录");
-    expect(container.textContent).toContain("最近结果会继续在这里回访");
+    expect(container.textContent).toContain("左侧会优先显示待继续的对话");
+    expect(container.textContent).toContain("最近对话和归档会按时间自动整理");
     expect(container.textContent).toContain(
-      "常用做法和恢复中的会话会自动回到这里",
+      "恢复中的会话会自动回到这里继续",
     );
     expect(container.textContent).not.toContain("开始一段新的对话吧");
   });

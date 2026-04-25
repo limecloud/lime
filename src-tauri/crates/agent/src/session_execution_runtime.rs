@@ -4,6 +4,7 @@ use aster::session::extension_data::{ExtensionData, ExtensionState};
 use aster::session::{
     Session, SessionRuntimeSnapshot, TurnContextOverride, TurnOutputSchemaRuntime, TurnStatus,
 };
+use lime_core::database::dao::agent_timeline::{AgentThreadItem, AgentThreadItemPayload};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 
@@ -13,6 +14,9 @@ const LIME_RUNTIME_ROUTING_DECISION_KEY: &str = "routing_decision";
 const LIME_RUNTIME_LIMIT_STATE_KEY: &str = "limit_state";
 const LIME_RUNTIME_COST_STATE_KEY: &str = "cost_state";
 const LIME_RUNTIME_LIMIT_EVENT_KEY: &str = "limit_event";
+const LIME_RUNTIME_OEM_POLICY_KEY: &str = "oem_policy";
+const LIME_RUNTIME_SUMMARY_KEY: &str = "runtime_summary";
+const RUNTIME_MODEL_PERMISSION_FALLBACK_WARNING_CODE: &str = "runtime_model_permission_fallback";
 
 fn normalize_optional_text(value: Option<String>) -> Option<String> {
     let trimmed = value?.trim().to_string();
@@ -401,6 +405,61 @@ pub struct SessionExecutionRuntimeLimitEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExecutionRuntimeOemPolicy {
+    pub tenant_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offer_state: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_to_local_allowed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub can_invoke: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExecutionRuntimeSummary {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fallback_chain: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_cost_class: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimated_total_cost: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_event_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_event_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capability_gap: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub single_candidate_only: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oem_locked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_low: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SessionExecutionRuntime {
     pub session_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -446,6 +505,10 @@ pub struct SessionExecutionRuntime {
     pub cost_state: Option<SessionExecutionRuntimeCostState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit_event: Option<SessionExecutionRuntimeLimitEvent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oem_policy: Option<SessionExecutionRuntimeOemPolicy>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_summary: Option<SessionExecutionRuntimeSummary>,
 }
 
 fn resolve_session_token_usage(session: &Session) -> Option<crate::protocol::AgentTokenUsage> {
@@ -903,6 +966,43 @@ fn extract_limit_event_from_metadata(
     Some(limit_event)
 }
 
+fn extract_oem_policy_from_metadata(
+    metadata: &std::collections::HashMap<String, Value>,
+) -> Option<SessionExecutionRuntimeOemPolicy> {
+    let mut oem_policy: SessionExecutionRuntimeOemPolicy =
+        extract_lime_runtime_payload(metadata, LIME_RUNTIME_OEM_POLICY_KEY)?;
+    oem_policy.tenant_id =
+        normalize_optional_text(Some(std::mem::take(&mut oem_policy.tenant_id)))?;
+    oem_policy.provider_source = normalize_optional_text(oem_policy.provider_source);
+    oem_policy.provider_key = normalize_optional_text(oem_policy.provider_key);
+    oem_policy.default_model = normalize_optional_text(oem_policy.default_model);
+    oem_policy.config_mode = normalize_optional_text(oem_policy.config_mode);
+    oem_policy.offer_state = normalize_optional_text(oem_policy.offer_state);
+    oem_policy.quota_status = normalize_optional_text(oem_policy.quota_status);
+    Some(oem_policy)
+}
+
+fn extract_runtime_summary_from_metadata(
+    metadata: &std::collections::HashMap<String, Value>,
+) -> Option<SessionExecutionRuntimeSummary> {
+    let mut summary: SessionExecutionRuntimeSummary =
+        extract_lime_runtime_payload(metadata, LIME_RUNTIME_SUMMARY_KEY)?;
+    summary.routing_mode = normalize_optional_text(summary.routing_mode);
+    summary.decision_source = normalize_optional_text(summary.decision_source);
+    summary.decision_reason = normalize_optional_text(summary.decision_reason);
+    summary.estimated_cost_class = normalize_optional_text(summary.estimated_cost_class);
+    summary.limit_status = normalize_optional_text(summary.limit_status);
+    summary.limit_event_kind = normalize_optional_text(summary.limit_event_kind);
+    summary.limit_event_message = normalize_optional_text(summary.limit_event_message);
+    summary.capability_gap = normalize_optional_text(summary.capability_gap);
+    summary.fallback_chain = summary
+        .fallback_chain
+        .into_iter()
+        .filter_map(|value| normalize_optional_text(Some(value)))
+        .collect();
+    Some(summary)
+}
+
 fn extract_recent_harness_context_from_runtime_snapshot(
     snapshot: &SessionRuntimeSnapshot,
 ) -> RecentHarnessContext {
@@ -1072,6 +1172,8 @@ pub fn build_session_execution_runtime(
         limit_state: None,
         cost_state: None,
         limit_event: None,
+        oem_policy: None,
+        runtime_summary: None,
     };
 
     if let Some(snapshot) = snapshot {
@@ -1127,6 +1229,14 @@ pub fn build_session_execution_runtime(
                 .context_override
                 .as_ref()
                 .and_then(|value| extract_cost_state_from_metadata(&value.metadata));
+            runtime.oem_policy = latest_turn
+                .context_override
+                .as_ref()
+                .and_then(|value| extract_oem_policy_from_metadata(&value.metadata));
+            runtime.runtime_summary = latest_turn
+                .context_override
+                .as_ref()
+                .and_then(|value| extract_runtime_summary_from_metadata(&value.metadata));
             let metadata_limit_event = latest_turn
                 .context_override
                 .as_ref()
@@ -1183,14 +1293,59 @@ pub fn build_session_execution_runtime(
     Some(runtime)
 }
 
+fn has_runtime_model_permission_fallback_warning(items: &[AgentThreadItem], turn_id: &str) -> bool {
+    items.iter().any(|item| {
+        item.turn_id == turn_id
+            && matches!(
+                &item.payload,
+                AgentThreadItemPayload::Warning {
+                    code: Some(code),
+                    ..
+                } if code == RUNTIME_MODEL_PERMISSION_FALLBACK_WARNING_CODE
+            )
+    })
+}
+
+pub fn reconcile_session_execution_runtime_permission_fallback(
+    runtime: &mut SessionExecutionRuntime,
+    items: &[AgentThreadItem],
+    persisted_session_model_name: Option<&str>,
+) {
+    let Some(latest_turn_id) = runtime.latest_turn_id.as_deref() else {
+        return;
+    };
+    if !has_runtime_model_permission_fallback_warning(items, latest_turn_id) {
+        return;
+    }
+
+    let Some(session_model_name) = persisted_session_model_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+    else {
+        return;
+    };
+
+    runtime.model_name = Some(session_model_name.clone());
+
+    if let Some(output_schema_runtime) = runtime.output_schema_runtime.as_mut() {
+        output_schema_runtime.model_name = Some(session_model_name.clone());
+    }
+
+    if let Some(routing_decision) = runtime.routing_decision.as_mut() {
+        routing_decision.selected_model = Some(session_model_name);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         apply_usage_to_cost_state, build_session_execution_runtime, detect_runtime_limit_event,
+        reconcile_session_execution_runtime_permission_fallback, SessionExecutionRuntime,
         SessionExecutionRuntimeAccessMode, SessionExecutionRuntimeCostState,
         SessionExecutionRuntimeLimitEvent, SessionExecutionRuntimePreferences,
         SessionExecutionRuntimeRecentTeamRole, SessionExecutionRuntimeRecentTeamSelection,
-        SessionExecutionRuntimeSource,
+        SessionExecutionRuntimeRoutingDecision, SessionExecutionRuntimeSource,
     };
     use aster::model::ModelConfig;
     use aster::session::ExtensionState;
@@ -1200,6 +1355,9 @@ mod tests {
         TurnStatus,
     };
     use chrono::{Duration, Utc};
+    use lime_core::database::dao::agent_timeline::{
+        AgentThreadItem, AgentThreadItemPayload, AgentThreadItemStatus,
+    };
     use serde_json::json;
     use std::path::PathBuf;
 
@@ -2084,6 +2242,103 @@ mod tests {
                 message: "OEM 云端额度偏低".to_string(),
                 retryable: true,
             })
+        );
+        assert_eq!(
+            runtime
+                .oem_policy
+                .as_ref()
+                .and_then(|value| value.tenant_id.clone().into()),
+            Some("tenant-1".to_string())
+        );
+        assert_eq!(
+            runtime
+                .runtime_summary
+                .as_ref()
+                .and_then(|value| value.limit_event_kind.as_deref()),
+            Some("quota_low")
+        );
+    }
+
+    #[test]
+    fn permission_fallback_warning_prefers_persisted_session_model_in_runtime_view() {
+        let mut runtime = SessionExecutionRuntime {
+            session_id: "session-fallback".to_string(),
+            provider_selector: Some("custom-mimo".to_string()),
+            provider_name: Some("anthropic".to_string()),
+            model_name: Some("mimo-v2-flash".to_string()),
+            execution_strategy: Some("react".to_string()),
+            output_schema_runtime: None,
+            source: SessionExecutionRuntimeSource::RuntimeSnapshot,
+            mode: None,
+            latest_turn_id: Some("turn-fallback".to_string()),
+            latest_turn_status: Some("completed".to_string()),
+            recent_access_mode: None,
+            recent_preferences: None,
+            recent_team_selection: None,
+            recent_theme: None,
+            recent_session_mode: None,
+            recent_gate_key: None,
+            recent_run_title: None,
+            recent_content_id: None,
+            task_profile: None,
+            routing_decision: Some(SessionExecutionRuntimeRoutingDecision {
+                routing_mode: "multi_candidate".to_string(),
+                decision_source: "request_override".to_string(),
+                decision_reason:
+                    "当前回合的 provider/model 选择优先遵循显式偏好，其次回退到会话默认。"
+                        .to_string(),
+                selected_provider: Some("custom-mimo".to_string()),
+                selected_model: Some("mimo-v2-flash".to_string()),
+                requested_provider: Some("custom-mimo".to_string()),
+                requested_model: Some("mimo-v2-flash".to_string()),
+                candidate_count: 7,
+                estimated_cost_class: Some("medium".to_string()),
+                capability_gap: None,
+                fallback_chain: Vec::new(),
+                settings_source: None,
+                service_model_slot: None,
+            }),
+            limit_state: None,
+            cost_state: None,
+            limit_event: None,
+            oem_policy: None,
+            runtime_summary: None,
+        };
+        let items = vec![AgentThreadItem {
+            id: "warning-1".to_string(),
+            thread_id: "session-fallback".to_string(),
+            turn_id: "turn-fallback".to_string(),
+            sequence: 1,
+            status: AgentThreadItemStatus::Completed,
+            started_at: Utc::now().to_rfc3339(),
+            completed_at: Some(Utc::now().to_rfc3339()),
+            updated_at: Utc::now().to_rfc3339(),
+            payload: AgentThreadItemPayload::Warning {
+                message: "当前模型暂不可用，已自动切换到兼容候选。".to_string(),
+                code: Some("runtime_model_permission_fallback".to_string()),
+            },
+        }];
+
+        reconcile_session_execution_runtime_permission_fallback(
+            &mut runtime,
+            &items,
+            Some("mimo-v2.5-pro"),
+        );
+
+        assert_eq!(runtime.model_name.as_deref(), Some("mimo-v2.5-pro"));
+        assert_eq!(
+            runtime
+                .routing_decision
+                .as_ref()
+                .and_then(|value| value.selected_model.as_deref()),
+            Some("mimo-v2.5-pro")
+        );
+        assert_eq!(
+            runtime
+                .routing_decision
+                .as_ref()
+                .and_then(|value| value.requested_model.as_deref()),
+            Some("mimo-v2-flash")
         );
     }
 

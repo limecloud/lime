@@ -21,7 +21,7 @@ describe("curatedTaskTemplates", () => {
 
     expect(resolved).toEqual({
       task: findCuratedTaskTemplateById("social-post-starter"),
-      promptHint: "请承接这轮复盘结论，直接生成下一轮最值得执行的内容方案。",
+      promptHint: "请承接这轮判断结论，直接生成下一轮最值得执行的内容方案。",
     });
   });
 

@@ -552,7 +552,8 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             recipe_json TEXT,
             user_recipe_values_json TEXT,
             provider_name TEXT,
-            model_config_json TEXT
+            model_config_json TEXT,
+            archived_at TEXT
         )",
         [],
     )?;
@@ -626,6 +627,12 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         "ALTER TABLE agent_sessions ADD COLUMN model_config_json TEXT",
         [],
     );
+    let _ = conn.execute("ALTER TABLE agent_sessions ADD COLUMN archived_at TEXT", []);
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_sessions_archived_updated_at
+         ON agent_sessions(archived_at, updated_at DESC)",
+        [],
+    )?;
 
     // Agent 消息表
     // 存储每个会话的消息历史

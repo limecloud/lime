@@ -127,12 +127,23 @@
   - `topic / generation_topic / agent_meta` 辅助会话已携带同构 `lime_runtime` metadata，但仍停留在 auxiliary/compat 观测面，不算 current submit-turn 事件主链
   - `agent_generate_title / generate_persona` 已开始把 auxiliary session 的 `execution_runtime` 诊断快照回传给命令结果，供调用方读取同构 `task_profile / routing_decision / limit_state / cost_state`
   - 这份命令结果诊断仍属于 auxiliary/compat 本地观察面，不等于 current submit-turn 的 thread read / evidence / replay 真相
+- 图片任务稳定工件
+  - `@配图` 首发与重试链已把 `agent_generate_title` 的完整结果透传到图片任务协议，并以 `title_generation_result` 固化到 task artifact payload
+  - 这一步的定位是“稳定 task artifact 事实层”，用于后续重试、诊断、evidence 消费复读 auxiliary runtime 快照
+  - evidence pack 已开始从图片 task artifact 提取 `title_generation_result.execution_runtime`，导出到 `runtime.json / artifacts.json / observabilitySummary.signalCoverage`
+  - `runtime_replay_case_service / runtime_analysis_handoff_service / runtime_review_decision_service` 继续通过统一 evidence pack 复用这份辅助 runtime 快照，不再分别单点拼装
+  - 它仍不等于 current submit-turn 的 thread/evidence/replay 主链，只是把 auxiliary 观察面从函数返回值提升到可持久化工件，并通过 evidence pack 进入统一消费面
+
+当前已继续补齐：
+
+- 多候选自动优选已进入 `request_model_resolution.rs` current 主链，并输出更完整的 `decision_reason`
+- `thread_read` 已补齐 `decision_reason / fallback_chain / oem_policy / runtime_summary / auxiliary_task_runtime`，且当 current `execution_runtime` 缺失时，会从 auxiliary runtime task artifact 快照回退提升 `task_kind / service_model_slot / routing_mode / decision_source / decision_reason / candidate_count / fallback_chain / capability_gap / estimated_cost_class`
+- `runtime_handoff_artifact_service / runtime_evidence_pack_service / runtime_replay_case_service / runtime_analysis_handoff_service` 已统一消费这组 current runtime 事实，减少旧的手工推断
 
 仍待后续补齐：
 
-- 更丰富的多候选自动优选
 - 更多 OEM policy 字段、服务端下发配额策略与设置页展示的闭环
-- `topic / generation_topic / agent_meta` 从 auxiliary 本地 metadata 继续提升到 current runtime 事件 / evidence 主链
+- `topic / generation_topic / agent_meta` 已补齐 current submit-turn 入口识别、`service_model_slot` 映射与基础 side-event 覆盖；当前剩余缺口收缩为：补更完整的端到端验证与把 auxiliary 事实进一步沉到更稳定的 submit-turn 运行时来源。
 
 这些事件的关系见 [event-chain.md](./event-chain.md)。
 

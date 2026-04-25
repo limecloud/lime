@@ -602,7 +602,7 @@ function ReviewFeedbackProjectionCard({
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-          围绕最近复盘
+          围绕最近判断
         </span>
         {!projection.matchedCurrentTask &&
         projection.suggestedTaskTitles.length > 0 ? (
@@ -612,7 +612,7 @@ function ReviewFeedbackProjectionCard({
         ) : null}
       </div>
       <div className="mt-1 text-[11px] font-medium leading-5 text-slate-900">
-        最近复盘已更新：{projection.signal.title}
+        最近判断已更新：{projection.signal.title}
       </div>
       <div className="mt-1 text-[11px] leading-5 text-slate-500">
         {projection.signal.summary}
@@ -676,7 +676,7 @@ function buildReviewFeedbackFollowUpActionPayload(params: {
 
   return {
     prompt,
-    bannerMessage: `已切到“${targetTask.title}”这条下一步，并带着这轮结果继续生成。`,
+    bannerMessage: `已切到“${targetTask.title}”这条下一步，并带着这轮结果继续进入生成。`,
     capabilityRoute: {
       kind: "curated_task",
       taskId: targetTask.id,
@@ -787,7 +787,7 @@ function buildCuratedTaskFollowUpBannerMessage(params: {
 
   const targetTaskTitle = params.targetTask?.title?.trim();
   if (targetTaskTitle) {
-    return `已切到“${targetTaskTitle}”这条下一步，并带着这轮结果继续生成。`;
+    return `已切到“${targetTaskTitle}”这条下一步，并带着这轮结果继续进入生成。`;
   }
 
   const currentTaskTitle = params.curatedTask?.taskTitle?.trim();

@@ -42,10 +42,14 @@ function getSkillBadge(item: SkillCatalogItem, isRecent: boolean): string {
   if (isRecent) {
     return "最近使用";
   }
-  if (item.source === "cloud_catalog") {
-    return "云目录";
+  if (
+    item.defaultExecutorBinding === "browser_assist" ||
+    item.execution.kind === "site_adapter"
+  ) {
+    return "浏览器继续";
   }
-  return "本地技能";
+
+  return "现成做法";
 }
 
 function buildHomeItems(
@@ -101,7 +105,7 @@ function buildCatalogMeta(catalog: SkillCatalog): ServiceSkillCatalogMeta {
     syncedAt: catalog.syncedAt,
     itemCount: catalog.items.length,
     groupCount: catalog.groups.length,
-    sourceLabel: isSeeded ? "本地 Seeded 目录" : "租户技能目录",
+    sourceLabel: isSeeded ? "起步做法" : "已同步做法",
     isSeeded,
   };
 }

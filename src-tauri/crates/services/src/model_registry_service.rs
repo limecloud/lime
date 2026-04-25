@@ -2021,6 +2021,16 @@ impl ModelRegistryService {
         let matched_custom_models = self
             .match_local_models_by_ids(custom_models, Some(scoped_provider_candidates.as_slice()))
             .await;
+        let scoped_catalog_models = self
+            .collect_local_models_for_candidates(&scoped_provider_candidates)
+            .await;
+
+        if Self::should_prefer_scoped_catalog_for_host(api_host, &scoped_provider_candidates)
+            && !scoped_catalog_models.is_empty()
+        {
+            return (scoped_catalog_models, ModelFetchSource::Catalog);
+        }
+
         if !matched_custom_models.is_empty() {
             return (matched_custom_models, ModelFetchSource::CustomModels);
         }
@@ -2036,14 +2046,24 @@ impl ModelRegistryService {
             );
         }
 
-        let scoped_catalog_models = self
-            .collect_local_models_for_candidates(&scoped_provider_candidates)
-            .await;
         if !scoped_catalog_models.is_empty() {
             return (scoped_catalog_models, ModelFetchSource::Catalog);
         }
 
         (Vec::new(), ModelFetchSource::LocalFallback)
+    }
+
+    fn should_prefer_scoped_catalog_for_host(
+        api_host: &str,
+        scoped_provider_candidates: &[String],
+    ) -> bool {
+        if !api_host.to_lowercase().contains("xiaomimimo.com") {
+            return false;
+        }
+
+        scoped_provider_candidates
+            .iter()
+            .any(|candidate| candidate == "xiaomi")
     }
 
     async fn collect_local_models_for_candidates(
@@ -3751,7 +3771,35 @@ mod tests {
             )
             .await;
 
-        assert_eq!(fallback_models.len(), 3);
+        assert_eq!(fallback_models.len(), 5);
+        assert!(fallback_models.contains(&"mimo-v2.5-pro".to_string()));
+        assert!(fallback_models.contains(&"mimo-v2.5".to_string()));
+        assert!(fallback_models.contains(&"mimo-v2-pro".to_string()));
+        assert!(fallback_models.contains(&"mimo-v2-omni".to_string()));
+        assert!(fallback_models.contains(&"mimo-v2-flash".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_anthropic_compatible_local_fallback_prefers_catalog_for_known_mimo_host_even_with_custom_models(
+    ) {
+        let service = create_service_with_repo_resource_dir();
+        service
+            .initialize()
+            .await
+            .expect("initialize model registry");
+
+        let fallback_models = service
+            .get_local_fallback_model_ids_with_hints(
+                "custom-mimo",
+                "https://token-plan-cn.xiaomimimo.com/anthropic",
+                Some(ApiProviderType::AnthropicCompatible),
+                &["mimo-v2.5-pro".to_string(), "mimo-v2-flash".to_string()],
+            )
+            .await;
+
+        assert_eq!(fallback_models.len(), 5);
+        assert!(fallback_models.contains(&"mimo-v2.5-pro".to_string()));
+        assert!(fallback_models.contains(&"mimo-v2.5".to_string()));
         assert!(fallback_models.contains(&"mimo-v2-pro".to_string()));
         assert!(fallback_models.contains(&"mimo-v2-omni".to_string()));
         assert!(fallback_models.contains(&"mimo-v2-flash".to_string()));

@@ -140,9 +140,12 @@ afterEach(() => {
 });
 
 describe("ResourcesImageWorkbench", () => {
-  it("未选择项目时应提示先选择资料库", () => {
+  it("未选择项目时应提示先选择项目", () => {
     const container = renderWorkbench(null);
-    expect(container.textContent).toContain("先选择资料库");
+    expect(container.textContent).toContain("先选择项目");
+    expect(container.textContent).toContain(
+      "选择项目后，这里会承接本地图片上传、图片浏览，以及插入当前画布。",
+    );
   });
 
   it("应支持选中后插入当前画布", async () => {
@@ -168,6 +171,7 @@ describe("ResourcesImageWorkbench", () => {
           previewUrl: "asset://city.jpg",
           contentUrl: "asset://city.jpg",
           title: "城市夜景",
+          attributionName: "项目资料",
         }),
       }),
     );

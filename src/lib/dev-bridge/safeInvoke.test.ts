@@ -44,6 +44,7 @@ vi.mock("./http-client", () => ({
 
 vi.mock("./mockPriorityCommands", () => ({
   shouldPreferMockInBrowser: vi.fn(() => false),
+  shouldDisallowMockEventFallbackInBrowser: vi.fn(() => false),
   shouldDisallowMockFallbackInBrowser: vi.fn(() => false),
 }));
 
@@ -56,6 +57,7 @@ import {
   safeInvoke,
 } from "./safeInvoke";
 import {
+  shouldDisallowMockEventFallbackInBrowser,
   shouldDisallowMockFallbackInBrowser,
   shouldPreferMockInBrowser,
 } from "./mockPriorityCommands";
@@ -223,6 +225,28 @@ describe("safeInvoke", () => {
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
+  it("仅暴露全局 Tauri event.listen 时 safeListen 也应走原生事件桥", async () => {
+    const unlisten = vi.fn();
+    const globalListen = vi.fn().mockResolvedValueOnce(unlisten);
+    (window as any).__TAURI__ = {
+      event: {
+        listen: globalListen,
+      },
+    };
+
+    const safeUnlisten = await safeListen("config-changed", vi.fn());
+
+    safeUnlisten();
+    safeUnlisten();
+
+    expect(globalListen).toHaveBeenCalledWith(
+      "config-changed",
+      expect.any(Function),
+    );
+    expect(mocks.baseListen).not.toHaveBeenCalled();
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
   it("浏览器开发模式下 safeListen 优先走 HTTP 事件桥", async () => {
     const unlisten = vi.fn();
     mocks.hasDevBridgeEventListenerCapability.mockReturnValue(true);
@@ -259,6 +283,40 @@ describe("safeInvoke", () => {
       expect.any(Function),
     );
     expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("运行时真相事件在事件桥失败时不应静默退回显式 mock", async () => {
+    mocks.hasDevBridgeEventListenerCapability.mockReturnValue(true);
+    mocks.listenViaHttpEvent.mockRejectedValueOnce(
+      new Error("connection failed"),
+    );
+    vi.mocked(shouldDisallowMockEventFallbackInBrowser).mockReturnValueOnce(
+      true,
+    );
+
+    await expect(
+      safeListen("aster_stream_session-1", vi.fn()),
+    ).rejects.toThrow('事件 "aster_stream_session-1" 监听失败');
+
+    expect(mocks.explicitMockListen).not.toHaveBeenCalled();
+  });
+
+  it("Tauri 标记存在但原生事件桥缺失时，运行时真相事件不应静默跳过监听", async () => {
+    (window as any).__TAURI__ = {
+      core: {
+        invoke: vi.fn(),
+      },
+    };
+    vi.mocked(shouldDisallowMockEventFallbackInBrowser).mockReturnValueOnce(
+      true,
+    );
+
+    await expect(
+      safeListen("aster_stream_session-1", vi.fn()),
+    ).rejects.toThrow('事件 "aster_stream_session-1" 监听失败');
+
+    expect(mocks.baseListen).not.toHaveBeenCalled();
+    expect(mocks.explicitMockListen).not.toHaveBeenCalled();
   });
 
   it("Tauri 运行时存在但事件桥缺失时 safeListen 返回空清理函数", async () => {
@@ -310,5 +368,24 @@ describe("safeInvoke", () => {
     } finally {
       consoleWarnSpy.mockRestore();
     }
+  });
+
+  it("Tauri 原生事件桥调用异常时，运行时真相事件应显式失败", async () => {
+    (window as any).__TAURI_INTERNALS__ = {
+      invoke: vi.fn(),
+      transformCallback: vi.fn(),
+    };
+    vi.mocked(shouldDisallowMockEventFallbackInBrowser).mockReturnValueOnce(
+      true,
+    );
+    mocks.baseListen.mockRejectedValueOnce(
+      new TypeError(
+        "Cannot read properties of undefined (reading 'transformCallback')",
+      ),
+    );
+
+    await expect(
+      safeListen("aster_stream_session-1", vi.fn()),
+    ).rejects.toThrow('事件 "aster_stream_session-1" 监听失败');
   });
 });

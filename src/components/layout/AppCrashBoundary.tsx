@@ -1,5 +1,10 @@
 import React from "react";
 import { reportFrontendError } from "@/lib/crashReporting";
+import { getRuntimeAppVersion } from "@/lib/appVersion";
+import {
+  isModuleImportFailureErrorMessage,
+  prepareModuleImportAutoReload,
+} from "./CrashRecoveryPanel.helpers";
 import { CrashRecoveryPanel } from "./CrashRecoveryPanel";
 
 interface AppCrashBoundaryProps {
@@ -40,14 +45,32 @@ export class AppCrashBoundary extends React.Component<
     const componentStack = info.componentStack || "";
     this.setState({ componentStack });
 
+    const pageUrl =
+      typeof window !== "undefined" ? window.location.href : "unknown";
+    const shouldAutoReload =
+      typeof window !== "undefined" &&
+      isModuleImportFailureErrorMessage(error.message);
+    const autoReloadUrl =
+      shouldAutoReload && typeof window !== "undefined"
+        ? prepareModuleImportAutoReload(
+            window.location.href,
+            getRuntimeAppVersion(),
+            window.sessionStorage,
+          )
+        : null;
+
     void reportFrontendError(error, {
       source: "app-crash-boundary",
       workflow_step: "root_render",
       component: "AppCrashBoundary",
       component_stack: componentStack,
-      page_url:
-        typeof window !== "undefined" ? window.location.href : "unknown",
+      page_url: pageUrl,
+      auto_resource_reload_triggered: Boolean(autoReloadUrl),
     });
+
+    if (autoReloadUrl && typeof window !== "undefined") {
+      window.location.replace(autoReloadUrl);
+    }
   }
 
   private handleRetry = () => {

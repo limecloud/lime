@@ -16,6 +16,7 @@ import type {
   AsterExecutionStrategy,
   AsterSessionDetail,
   AsterSessionInfo,
+  AgentRuntimeListSessionsOptions,
   AgentRuntimeGetSessionOptions,
   AgentRuntimeUpdateSessionRequest,
 } from "./types";
@@ -50,9 +51,12 @@ export function createSessionClient({
     });
   }
 
-  async function listAgentRuntimeSessions(): Promise<AsterSessionInfo[]> {
+  async function listAgentRuntimeSessions(
+    options?: AgentRuntimeListSessionsOptions,
+  ): Promise<AsterSessionInfo[]> {
     const startedAt = Date.now();
     let settled = false;
+    const includeArchived = options?.includeArchived === true;
     const slowTimer: number | null =
       typeof window !== "undefined"
         ? window.setTimeout(() => {
@@ -80,11 +84,19 @@ export function createSessionClient({
     try {
       const sessions = await invokeCommand<AsterSessionInfo[]>(
         AGENT_RUNTIME_COMMANDS.listSessions,
+        includeArchived
+          ? {
+              request: {
+                include_archived: true,
+              },
+            }
+          : undefined,
       );
       settled = true;
       logAgentDebug("AgentApi", "runtimeListSessions.success", {
         durationMs: Date.now() - startedAt,
         sessionsCount: sessions.length,
+        includeArchived,
       });
       return sessions;
     } catch (error) {

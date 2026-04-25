@@ -2304,7 +2304,7 @@ function buildMockSceneAppProjectPackPlan(
         : "当前还没有绑定项目，结果包只能先按运行时结果临时回流。",
       contextOverlay.compilerPlan.referenceCount > 0 ||
       contextOverlay.snapshot.tasteProfile
-        ? "结果包会连同参考与风格快照一起进入后续治理链。"
+        ? "结果包会连同参考与风格快照一起进入后续结果跟进。"
         : "结果包会继续进入 evidence 与 scorecard 主链。",
     ],
   };
@@ -2341,7 +2341,7 @@ function buildMockSceneAppScorecard(sceneappId: string): SceneAppScorecard {
     sceneappId,
     updatedAt: "2026-04-15T00:00:00.000Z",
     summary:
-      "该 SceneApp 已具备平台化治理入口，下一步重点是继续优化交付稳定性。",
+      "该 SceneApp 已具备最近结果入口，下一步重点是继续优化交付稳定性。",
     metrics: [
       {
         key: "delivery_readiness",

@@ -134,6 +134,12 @@ struct RuntimeRequestTelemetrySummary {
     requests: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+struct RuntimeAuxiliaryRuntimeSnapshotSummary {
+    applicable_count: usize,
+    snapshots: Vec<Value>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeEvidenceSignalCoverageEntry {
     signal: &'static str,
@@ -182,10 +188,13 @@ pub fn export_runtime_evidence_pack(
     let request_telemetry = collect_request_telemetry(detail, workspace_root.as_path());
     let verification =
         collect_runtime_verification(detail, Some(workspace_root.as_path()), &recent_artifacts);
+    let auxiliary_runtime =
+        collect_auxiliary_runtime_snapshots(Some(workspace_root.as_path()), &recent_artifacts);
     let signal_coverage = build_signal_coverage(
         thread_read,
         &recent_artifacts,
         &request_telemetry,
+        &auxiliary_runtime,
         &verification,
     );
     let known_gaps = build_known_gaps(&recent_artifacts, &signal_coverage);
@@ -194,6 +203,7 @@ pub fn export_runtime_evidence_pack(
         thread_read,
         &recent_artifact_paths,
         &request_telemetry,
+        &auxiliary_runtime,
         &verification,
         &signal_coverage,
         &known_gaps,
@@ -228,6 +238,7 @@ pub fn export_runtime_evidence_pack(
                 workspace_root.as_path(),
                 &recent_artifact_paths,
                 &file_checkpoints.checkpoints,
+                &auxiliary_runtime,
                 &observability_summary,
                 &known_gaps,
                 exported_at.as_str(),
@@ -252,6 +263,7 @@ pub fn export_runtime_evidence_pack(
                 thread_read,
                 &recent_artifact_paths,
                 &file_checkpoints.checkpoints,
+                &auxiliary_runtime,
                 &observability_summary,
                 &request_telemetry,
                 &verification,
@@ -326,11 +338,13 @@ pub(crate) fn build_runtime_evidence_sceneapp_snapshot(
     let request_telemetry = workspace_root
         .map(|root| collect_request_telemetry(detail, root))
         .unwrap_or_default();
+    let auxiliary_runtime = collect_auxiliary_runtime_snapshots(workspace_root, &recent_artifacts);
     let verification = collect_runtime_verification(detail, workspace_root, &recent_artifacts);
     let signal_coverage = build_signal_coverage(
         thread_read,
         &recent_artifacts,
         &request_telemetry,
+        &auxiliary_runtime,
         &verification,
     );
     let known_gaps = build_known_gaps(&recent_artifacts, &signal_coverage);
@@ -510,6 +524,7 @@ fn build_runtime_json(
     workspace_root: &Path,
     recent_artifacts: &[String],
     file_checkpoints: &[crate::commands::aster_agent_cmd::AgentRuntimeFileCheckpointSummary],
+    auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
     observability_summary: &Value,
     known_gaps: &[String],
     exported_at: &str,
@@ -534,6 +549,7 @@ fn build_runtime_json(
         },
         "thread": {
             "status": thread_read.status,
+            "runtimeFacts": build_thread_runtime_facts_json(thread_read),
             "activeTurnId": thread_read.active_turn_id,
             "interruptState": thread_read.interrupt_state,
             "latestTurnStatus": thread_read.diagnostics.as_ref().and_then(|value| value.latest_turn_status.clone()),
@@ -593,6 +609,7 @@ fn build_runtime_json(
             })
         }).collect::<Vec<_>>(),
         "observabilitySummary": observability_summary,
+        "auxiliaryRuntimeSnapshots": build_auxiliary_runtime_snapshots_json(auxiliary_runtime),
         "recentArtifacts": recent_artifacts,
         "fileCheckpointCount": file_checkpoints.len(),
         "fileCheckpoints": file_checkpoints,
@@ -640,6 +657,7 @@ fn build_artifacts_json(
     thread_read: &AgentRuntimeThreadReadModel,
     recent_artifacts: &[String],
     file_checkpoints: &[crate::commands::aster_agent_cmd::AgentRuntimeFileCheckpointSummary],
+    auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
     observability_summary: &Value,
     request_telemetry: &RuntimeRequestTelemetrySummary,
     verification: &RuntimeEvidenceVerificationSummary,
@@ -653,7 +671,9 @@ fn build_artifacts_json(
         "artifactCount": recent_artifacts.len(),
         "fileCheckpointCount": file_checkpoints.len(),
         "fileCheckpoints": file_checkpoints,
+        "auxiliaryRuntimeSnapshots": build_auxiliary_runtime_snapshots_json(auxiliary_runtime),
         "observabilitySummary": observability_summary,
+        "threadRuntimeFacts": build_thread_runtime_facts_json(thread_read),
         "requests": {
             "pending": thread_read.pending_requests.iter().map(|item| {
                 json!({
@@ -684,6 +704,16 @@ fn build_artifacts_json(
 
     serde_json::to_string_pretty(&payload)
         .map_err(|error| format!("序列化 artifacts.json 失败: {error}"))
+}
+
+fn build_auxiliary_runtime_snapshots_json(
+    summary: &RuntimeAuxiliaryRuntimeSnapshotSummary,
+) -> Value {
+    json!({
+        "applicableArtifactCount": summary.applicable_count,
+        "snapshotCount": summary.snapshots.len(),
+        "snapshots": summary.snapshots.clone()
+    })
 }
 
 fn build_known_gaps(
@@ -870,6 +900,120 @@ fn request_log_matches_session(
     }
 }
 
+fn build_thread_runtime_facts_json(thread_read: &AgentRuntimeThreadReadModel) -> Value {
+    json!({
+        "taskKind": thread_read.task_kind,
+        "serviceModelSlot": thread_read.service_model_slot,
+        "routingMode": thread_read.routing_mode,
+        "decisionSource": thread_read.decision_source,
+        "candidateCount": thread_read.candidate_count,
+        "capabilityGap": thread_read.capability_gap,
+        "singleCandidateOnly": thread_read.single_candidate_only,
+        "decisionReason": thread_read.decision_reason,
+        "fallbackChain": thread_read.fallback_chain,
+        "estimatedCostClass": thread_read.estimated_cost_class,
+        "limitState": thread_read.limit_state,
+        "costState": thread_read.cost_state,
+        "limitEvent": thread_read.limit_event,
+        "runtimeSummary": thread_read.runtime_summary,
+        "oemPolicy": thread_read.oem_policy,
+        "auxiliaryTaskRuntime": thread_read.auxiliary_task_runtime
+    })
+}
+
+fn build_runtime_fact_signal_coverage(
+    thread_read: &AgentRuntimeThreadReadModel,
+) -> Vec<RuntimeEvidenceSignalCoverageEntry> {
+    vec![
+        RuntimeEvidenceSignalCoverageEntry {
+            signal: "decisionReason",
+            status: if normalize_optional_text(thread_read.decision_reason.clone()).is_some() {
+                "exported"
+            } else {
+                "missing"
+            },
+            source: "thread_read.decision_reason",
+            detail: if normalize_optional_text(thread_read.decision_reason.clone()).is_some() {
+                "thread_read 已导出 decision_reason。".to_string()
+            } else {
+                "thread_read 缺少 decision_reason。".to_string()
+            },
+        },
+        RuntimeEvidenceSignalCoverageEntry {
+            signal: "fallbackChain",
+            status: if thread_read
+                .fallback_chain
+                .as_ref()
+                .is_some_and(|items| !items.is_empty())
+            {
+                "exported"
+            } else {
+                "missing"
+            },
+            source: "thread_read.fallback_chain",
+            detail: if thread_read
+                .fallback_chain
+                .as_ref()
+                .is_some_and(|items| !items.is_empty())
+            {
+                "thread_read 已导出 fallback_chain。".to_string()
+            } else {
+                "thread_read 缺少 fallback_chain。".to_string()
+            },
+        },
+        RuntimeEvidenceSignalCoverageEntry {
+            signal: "oemPolicy",
+            status: if thread_read.oem_policy.is_some() {
+                "exported"
+            } else {
+                "missing"
+            },
+            source: "thread_read.oem_policy",
+            detail: if thread_read.oem_policy.is_some() {
+                "thread_read 已导出 oem_policy。".to_string()
+            } else {
+                "thread_read 缺少 oem_policy。".to_string()
+            },
+        },
+        RuntimeEvidenceSignalCoverageEntry {
+            signal: "runtimeSummary",
+            status: if thread_read.runtime_summary.is_some() {
+                "exported"
+            } else {
+                "missing"
+            },
+            source: "thread_read.runtime_summary",
+            detail: if thread_read.runtime_summary.is_some() {
+                "thread_read 已导出 runtime_summary。".to_string()
+            } else {
+                "thread_read 缺少 runtime_summary。".to_string()
+            },
+        },
+        RuntimeEvidenceSignalCoverageEntry {
+            signal: "auxiliaryTaskRuntime",
+            status: if thread_read
+                .auxiliary_task_runtime
+                .as_ref()
+                .is_some_and(|items| !items.is_empty())
+            {
+                "exported"
+            } else {
+                "missing"
+            },
+            source: "thread_read.auxiliary_task_runtime",
+            detail: if thread_read
+                .auxiliary_task_runtime
+                .as_ref()
+                .is_some_and(|items| !items.is_empty())
+            {
+                "thread_read 已导出 auxiliary_task_runtime。".to_string()
+            } else {
+                "thread_read 缺少 auxiliary_task_runtime。".to_string()
+            },
+        },
+    ]
+}
+
 fn request_log_to_json(log: RequestLog) -> Value {
     json!({
         "id": log.id,
@@ -942,11 +1086,14 @@ fn build_runtime_observability_summary_json(
     thread_read: &AgentRuntimeThreadReadModel,
     recent_artifacts: &[String],
     request_telemetry: &RuntimeRequestTelemetrySummary,
+    auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
     verification: &RuntimeEvidenceVerificationSummary,
     signal_coverage: &[RuntimeEvidenceSignalCoverageEntry],
     known_gaps: &[String],
 ) -> Value {
     let diagnostics = thread_read.diagnostics.as_ref();
+    let mut signal_coverage = signal_coverage.to_vec();
+    signal_coverage.extend(build_runtime_fact_signal_coverage(thread_read));
     let mut payload = json!({
         "schemaVersion": "v1",
         "correlation": {
@@ -974,7 +1121,8 @@ fn build_runtime_observability_summary_json(
             "failedToolCallCount": diagnostics.map(|value| value.failed_tool_call_count).unwrap_or(0),
             "failedCommandCount": diagnostics.map(|value| value.failed_command_count).unwrap_or(0),
             "subagentCount": detail.child_subagent_sessions.len(),
-            "recentArtifactCount": recent_artifacts.len()
+            "recentArtifactCount": recent_artifacts.len(),
+            "auxiliaryRuntimeSnapshotCount": auxiliary_runtime.snapshots.len()
         },
         "latest": {
             "warning": latest_warning_json(diagnostics),
@@ -1012,6 +1160,40 @@ fn collect_runtime_verification(
         browser_evidence: collect_browser_evidence(detail),
         gui_smoke: collect_gui_smoke_result(detail),
     }
+}
+
+fn collect_auxiliary_runtime_snapshots(
+    workspace_root: Option<&Path>,
+    recent_artifacts: &[RuntimeRecentArtifact],
+) -> RuntimeAuxiliaryRuntimeSnapshotSummary {
+    let mut summary = RuntimeAuxiliaryRuntimeSnapshotSummary::default();
+
+    for artifact in recent_artifacts {
+        if !is_auxiliary_runtime_applicable(artifact) {
+            continue;
+        }
+
+        summary.applicable_count += 1;
+
+        let Some(workspace_root) = workspace_root else {
+            continue;
+        };
+
+        let absolute_path = resolve_workspace_path(workspace_root, artifact.path.as_str());
+        let Ok(raw) = fs::read_to_string(&absolute_path) else {
+            continue;
+        };
+        let Ok(document) = serde_json::from_str::<Value>(raw.as_str()) else {
+            continue;
+        };
+
+        if let Some(snapshot) = extract_auxiliary_runtime_snapshot(document, artifact.path.as_str())
+        {
+            summary.snapshots.push(snapshot);
+        }
+    }
+
+    summary
 }
 
 fn collect_artifact_validator_summary(
@@ -1158,6 +1340,7 @@ fn build_signal_coverage(
     thread_read: &AgentRuntimeThreadReadModel,
     recent_artifacts: &[RuntimeRecentArtifact],
     request_telemetry: &RuntimeRequestTelemetrySummary,
+    auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
     verification: &RuntimeEvidenceVerificationSummary,
 ) -> Vec<RuntimeEvidenceSignalCoverageEntry> {
     let diagnostics = thread_read.diagnostics.as_ref();
@@ -1212,6 +1395,30 @@ fn build_signal_coverage(
         },
         request_telemetry_entry,
     ];
+
+    if auxiliary_runtime.applicable_count > 0 {
+        coverage.push(RuntimeEvidenceSignalCoverageEntry {
+            signal: "auxiliaryTaskRuntime",
+            status: if auxiliary_runtime.snapshots.is_empty() {
+                "known_gap"
+            } else {
+                "exported"
+            },
+            source: "image_task.title_generation_result",
+            detail: if auxiliary_runtime.snapshots.is_empty() {
+                format!(
+                    "当前检测到 {} 个图片任务工件，但未从稳定 task artifact 中提取到 title_generation_result.execution_runtime 快照。",
+                    auxiliary_runtime.applicable_count
+                )
+            } else {
+                format!(
+                    "当前证据包已从 {} 个图片任务工件中导出 {} 条辅助标题生成 runtime 快照。",
+                    auxiliary_runtime.applicable_count,
+                    auxiliary_runtime.snapshots.len()
+                )
+            },
+        });
+    }
 
     if verification.artifact_validator.applicable {
         coverage.push(RuntimeEvidenceSignalCoverageEntry {
@@ -1503,6 +1710,278 @@ fn browser_evidence_record_outcome(record: &Value) -> Option<bool> {
     None
 }
 
+fn is_auxiliary_runtime_applicable(artifact: &RuntimeRecentArtifact) -> bool {
+    let normalized_path = artifact.path.replace('\\', "/").to_ascii_lowercase();
+    if normalized_path.contains(".lime/tasks/image_generate/") {
+        return true;
+    }
+    if normalized_path.contains("/auxiliary-runtime/") {
+        return true;
+    }
+
+    artifact
+        .metadata
+        .as_ref()
+        .and_then(|metadata| {
+            read_json_string(
+                metadata,
+                &[
+                    &["task_type"][..],
+                    &["taskType"][..],
+                    &["type"][..],
+                    &["artifactType"][..],
+                ],
+            )
+        })
+        .map(|value| {
+            value.eq_ignore_ascii_case("image_generate")
+                || value.eq_ignore_ascii_case("auxiliary_runtime_projection")
+        })
+        .unwrap_or(false)
+}
+
+fn extract_auxiliary_runtime_snapshot(document: Value, artifact_path: &str) -> Option<Value> {
+    if let Some(snapshot) = extract_auxiliary_runtime_projection_snapshot(&document, artifact_path)
+    {
+        return Some(snapshot);
+    }
+
+    let title_generation_result = find_json_value_at_paths(
+        &document,
+        &[
+            &["title_generation_result"][..],
+            &["titleGenerationResult"][..],
+            &["payload", "title_generation_result"][..],
+            &["payload", "titleGenerationResult"][..],
+            &["record", "payload", "title_generation_result"][..],
+            &["record", "payload", "titleGenerationResult"][..],
+        ],
+    )?;
+    let execution_runtime = find_json_value_at_paths(
+        title_generation_result,
+        &[
+            &["execution_runtime"][..],
+            &["executionRuntime"][..],
+            &["runtime"][..],
+        ],
+    )?
+    .clone();
+
+    let session_id = read_json_string(
+        title_generation_result,
+        &[&["sessionId"][..], &["session_id"][..]],
+    )
+    .or_else(|| {
+        read_json_string(
+            &execution_runtime,
+            &[&["session_id"][..], &["sessionId"][..]],
+        )
+    });
+
+    Some(json!({
+        "artifactPath": artifact_path,
+        "source": "image_task.title_generation_result",
+        "title": read_json_string(title_generation_result, &[&["title"][..]]),
+        "sessionId": session_id,
+        "usedFallback": read_json_bool(
+            title_generation_result,
+            &[&["usedFallback"][..], &["used_fallback"][..]]
+        ),
+        "fallbackReason": read_json_string(
+            title_generation_result,
+            &[&["fallbackReason"][..], &["fallback_reason"][..]]
+        ),
+        "route": read_json_string(&execution_runtime, &[&["route"][..]]),
+        "runtimeSource": read_json_string(&execution_runtime, &[&["source"][..]]),
+        "taskKind": read_json_string(
+            &execution_runtime,
+            &[
+                &["task_profile", "kind"][..],
+                &["task_profile", "task_kind"][..],
+                &["taskProfile", "kind"][..],
+                &["taskProfile", "taskKind"][..],
+                &["task_kind"][..],
+                &["taskKind"][..],
+            ]
+        ),
+        "routingMode": read_json_string(
+            &execution_runtime,
+            &[
+                &["routing_decision", "routingMode"][..],
+                &["routing_decision", "routing_mode"][..],
+                &["routingDecision", "routingMode"][..],
+                &["routingDecision", "routing_mode"][..],
+                &["routing_mode"][..],
+                &["routingMode"][..],
+            ]
+        ),
+        "decisionSource": read_json_string(
+            &execution_runtime,
+            &[
+                &["routing_decision", "decisionSource"][..],
+                &["routing_decision", "decision_source"][..],
+                &["routingDecision", "decisionSource"][..],
+                &["routingDecision", "decision_source"][..],
+                &["decision_source"][..],
+                &["decisionSource"][..],
+            ]
+        ),
+        "estimatedCostClass": read_json_string(
+            &execution_runtime,
+            &[
+                &["cost_state", "estimatedCostClass"][..],
+                &["cost_state", "estimated_cost_class"][..],
+                &["costState", "estimatedCostClass"][..],
+                &["costState", "estimated_cost_class"][..],
+                &["estimated_cost_class"][..],
+                &["estimatedCostClass"][..],
+            ]
+        ),
+        "executionRuntime": execution_runtime
+    }))
+}
+
+fn extract_auxiliary_runtime_projection_snapshot(
+    document: &Value,
+    artifact_path: &str,
+) -> Option<Value> {
+    let projection_kind = read_json_string(
+        document,
+        &[&["projectionKind"][..], &["projection_kind"][..]],
+    )?;
+    let execution_runtime = find_json_value_at_paths(
+        document,
+        &[&["executionRuntime"][..], &["execution_runtime"][..]],
+    )
+    .cloned();
+    let title_generation_result = find_json_value_at_paths(
+        document,
+        &[
+            &["titleGenerationResult"][..],
+            &["title_generation_result"][..],
+        ],
+    );
+    let persona_generation_result = find_json_value_at_paths(
+        document,
+        &[
+            &["personaGenerationResult"][..],
+            &["persona_generation_result"][..],
+        ],
+    );
+
+    let session_id = read_json_string(
+        document,
+        &[
+            &["auxiliarySessionId"][..],
+            &["auxiliary_session_id"][..],
+            &["sessionId"][..],
+            &["session_id"][..],
+        ],
+    )
+    .or_else(|| {
+        execution_runtime.as_ref().and_then(|runtime| {
+            read_json_string(runtime, &[&["sessionId"][..], &["session_id"][..]])
+        })
+    });
+    let source = read_json_string(document, &[&["source"][..]]).unwrap_or_else(|| {
+        if projection_kind.eq_ignore_ascii_case("persona_generation") {
+            "auxiliary.generate_persona".to_string()
+        } else {
+            "auxiliary.title_generation_result".to_string()
+        }
+    });
+    let title = title_generation_result
+        .and_then(|result| read_json_string(result, &[&["title"][..]]))
+        .or_else(|| {
+            persona_generation_result.and_then(|result| {
+                read_json_string(
+                    result,
+                    &[
+                        &["persona", "name"][..],
+                        &["personaName"][..],
+                        &["persona_name"][..],
+                    ],
+                )
+            })
+        });
+
+    Some(json!({
+        "artifactPath": artifact_path,
+        "source": source,
+        "projectionKind": projection_kind,
+        "title": title,
+        "sessionId": session_id,
+        "usedFallback": title_generation_result.and_then(|result| {
+            read_json_bool(result, &[&["usedFallback"][..], &["used_fallback"][..]])
+        }),
+        "fallbackReason": title_generation_result.and_then(|result| {
+            read_json_string(
+                result,
+                &[&["fallbackReason"][..], &["fallback_reason"][..]]
+            )
+        }),
+        "route": execution_runtime.as_ref().and_then(|runtime| {
+            read_json_string(runtime, &[&["route"][..]])
+        }),
+        "runtimeSource": execution_runtime.as_ref().and_then(|runtime| {
+            read_json_string(runtime, &[&["source"][..]])
+        }),
+        "taskKind": execution_runtime.as_ref().and_then(|runtime| {
+            read_json_string(
+                runtime,
+                &[
+                    &["task_profile", "kind"][..],
+                    &["task_profile", "task_kind"][..],
+                    &["taskProfile", "kind"][..],
+                    &["taskProfile", "taskKind"][..],
+                    &["task_kind"][..],
+                    &["taskKind"][..],
+                ]
+            )
+        }),
+        "routingMode": execution_runtime.as_ref().and_then(|runtime| {
+            read_json_string(
+                runtime,
+                &[
+                    &["routing_decision", "routingMode"][..],
+                    &["routing_decision", "routing_mode"][..],
+                    &["routingDecision", "routingMode"][..],
+                    &["routingDecision", "routing_mode"][..],
+                    &["routing_mode"][..],
+                    &["routingMode"][..],
+                ]
+            )
+        }),
+        "decisionSource": execution_runtime.as_ref().and_then(|runtime| {
+            read_json_string(
+                runtime,
+                &[
+                    &["routing_decision", "decisionSource"][..],
+                    &["routing_decision", "decision_source"][..],
+                    &["routingDecision", "decisionSource"][..],
+                    &["routingDecision", "decision_source"][..],
+                    &["decision_source"][..],
+                    &["decisionSource"][..],
+                ]
+            )
+        }),
+        "estimatedCostClass": execution_runtime.as_ref().and_then(|runtime| {
+            read_json_string(
+                runtime,
+                &[
+                    &["cost_state", "estimatedCostClass"][..],
+                    &["cost_state", "estimated_cost_class"][..],
+                    &["costState", "estimatedCostClass"][..],
+                    &["costState", "estimated_cost_class"][..],
+                    &["estimated_cost_class"][..],
+                    &["estimatedCostClass"][..],
+                ]
+            )
+        }),
+        "executionRuntime": execution_runtime
+    }))
+}
+
 fn is_artifact_validator_applicable(artifact: &RuntimeRecentArtifact) -> bool {
     artifact.path.ends_with(".artifact.json")
         || artifact
@@ -1608,6 +2087,37 @@ fn resolve_workspace_path(workspace_root: &Path, path: &str) -> PathBuf {
     } else {
         workspace_root.join(path.replace('/', std::path::MAIN_SEPARATOR_STR))
     }
+}
+
+fn find_json_value_at_paths<'a>(value: &'a Value, paths: &[&[&str]]) -> Option<&'a Value> {
+    for path in paths {
+        if let Some(found) = find_json_value(value, path) {
+            return Some(found);
+        }
+    }
+
+    None
+}
+
+fn find_json_value<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
+    let mut current = value;
+    for segment in path {
+        current = current.get(*segment)?;
+    }
+    Some(current)
+}
+
+fn read_json_string(value: &Value, paths: &[&[&str]]) -> Option<String> {
+    let resolved = find_json_value_at_paths(value, paths)?;
+    match resolved {
+        Value::String(text) => normalize_optional_text(Some(text.clone())),
+        Value::Number(number) => Some(number.to_string()),
+        _ => None,
+    }
+}
+
+fn read_json_bool(value: &Value, paths: &[&[&str]]) -> Option<bool> {
+    find_json_value_at_paths(value, paths).and_then(Value::as_bool)
 }
 
 fn is_browser_tool_name(tool_name: &str) -> bool {
@@ -1894,17 +2404,63 @@ mod tests {
                     latest_pending_request: None,
                 },
             ),
-            task_kind: None,
-            service_model_slot: None,
-            routing_mode: None,
-            decision_source: None,
-            candidate_count: None,
-            capability_gap: None,
-            single_candidate_only: None,
-            limit_state: None,
-            estimated_cost_class: None,
-            cost_state: None,
-            limit_event: None,
+            task_kind: Some("generation_topic".to_string()),
+            service_model_slot: Some("planner".to_string()),
+            routing_mode: Some("fallback_chain".to_string()),
+            decision_source: Some("model_router".to_string()),
+            candidate_count: Some(2),
+            capability_gap: Some("vision".to_string()),
+            single_candidate_only: Some(false),
+            oem_policy: Some(json!({
+                "quotaStatus": "low_credit",
+                "defaultModel": "oem/gpt-5.4-mini",
+                "offerState": "managed"
+            })),
+            runtime_summary: Some(json!({
+                "decisionReason": "主路由能力不足，切到回退模型",
+                "capabilityGap": "vision",
+                "limitStatus": "soft_limited",
+                "estimatedCostClass": "low"
+            })),
+            decision_reason: Some("主路由能力不足，切到回退模型".to_string()),
+            fallback_chain: Some(vec![
+                "openai:gpt-5.4".to_string(),
+                "openai:gpt-5.4-mini".to_string(),
+            ]),
+            auxiliary_task_runtime: Some(vec![
+                json!({"route": "auxiliary.generate_title", "taskKind": "generation_topic"}),
+            ]),
+            limit_state: Some(lime_agent::SessionExecutionRuntimeLimitState {
+                status: "soft_limited".to_string(),
+                single_candidate_only: false,
+                provider_locked: false,
+                settings_locked: false,
+                oem_locked: false,
+                candidate_count: 2,
+                capability_gap: Some("vision".to_string()),
+                notes: vec!["需要回退链".to_string()],
+            }),
+            estimated_cost_class: Some("low".to_string()),
+            cost_state: Some(lime_agent::SessionExecutionRuntimeCostState {
+                status: "estimated".to_string(),
+                estimated_cost_class: Some("low".to_string()),
+                input_per_million: None,
+                output_per_million: None,
+                cache_read_per_million: None,
+                cache_write_per_million: None,
+                currency: None,
+                estimated_total_cost: None,
+                input_tokens: None,
+                output_tokens: None,
+                total_tokens: None,
+                cached_input_tokens: None,
+                cache_creation_input_tokens: None,
+            }),
+            limit_event: Some(lime_agent::SessionExecutionRuntimeLimitEvent {
+                event_kind: "fallback_applied".to_string(),
+                message: "因能力缺口触发回退链".to_string(),
+                retryable: true,
+            }),
         }
     }
 
@@ -1959,6 +2515,166 @@ mod tests {
             ),
         )
         .expect("write unmatched request log");
+    }
+
+    fn write_image_task_fixture(root: &Path, relative_path: &str) {
+        let absolute_path = root.join(relative_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        fs::create_dir_all(
+            absolute_path
+                .parent()
+                .expect("image task path should have parent"),
+        )
+        .expect("create image task dir");
+        fs::write(
+            absolute_path,
+            serde_json::to_string_pretty(&json!({
+                "task_id": "task-image-1",
+                "task_type": "image_generate",
+                "task_family": "image",
+                "title": "城市夜景主视觉",
+                "summary": "城市夜景图片任务",
+                "payload": {
+                    "prompt": "赛博朋克风城市夜景主视觉",
+                    "title_generation_result": {
+                        "title": "城市夜景主视觉",
+                        "sessionId": "title-gen-1",
+                        "usedFallback": false,
+                        "fallbackReason": null,
+                        "executionRuntime": {
+                            "route": "auxiliary.generate_title",
+                            "session_id": "title-gen-1",
+                            "task_profile": {
+                                "kind": "generation_topic",
+                                "source": "auxiliary_generation_topic"
+                            },
+                            "routing_decision": {
+                                "routingMode": "single_candidate",
+                                "decisionSource": "service_model_setting",
+                                "candidateCount": 1
+                            },
+                            "cost_state": {
+                                "status": "estimated",
+                                "estimatedCostClass": "low"
+                            }
+                        }
+                    }
+                },
+                "status": "pending_submit",
+                "normalized_status": "pending",
+                "created_at": "2026-04-24T10:00:00Z",
+                "updated_at": null,
+                "submitted_at": null,
+                "started_at": null,
+                "completed_at": null,
+                "cancelled_at": null,
+                "idempotency_key": null,
+                "retry_count": 0,
+                "source_task_id": null,
+                "result": null,
+                "last_error": null,
+                "current_attempt_id": "attempt-1",
+                "attempts": [],
+                "relationships": {},
+                "progress": {},
+                "ui_hints": {}
+            }))
+            .expect("serialize image task"),
+        )
+        .expect("write image task");
+    }
+
+    fn write_auxiliary_runtime_projection_fixture(
+        root: &Path,
+        relative_path: &str,
+        projection_kind: &str,
+    ) {
+        let absolute_path = root.join(relative_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        fs::create_dir_all(
+            absolute_path
+                .parent()
+                .expect("auxiliary projection path should have parent"),
+        )
+        .expect("create auxiliary projection dir");
+
+        let document = if projection_kind == "persona_generation" {
+            json!({
+                "schemaVersion": 1,
+                "artifactType": "auxiliary_runtime_projection",
+                "projectionKind": "persona_generation",
+                "source": "auxiliary.generate_persona",
+                "parentSessionId": "session-1",
+                "auxiliarySessionId": "persona-gen-1",
+                "executionRuntime": {
+                    "route": "auxiliary.generate_persona",
+                    "session_id": "persona-gen-1",
+                    "source": "runtime_snapshot",
+                    "task_profile": {
+                        "kind": "agent_meta",
+                        "source": "auxiliary_agent_meta"
+                    },
+                    "routing_decision": {
+                        "routingMode": "single_candidate",
+                        "decisionSource": "service_model_setting",
+                        "candidateCount": 1
+                    },
+                    "cost_state": {
+                        "status": "estimated",
+                        "estimatedCostClass": "low"
+                    }
+                },
+                "personaGenerationResult": {
+                    "sessionId": "persona-gen-1",
+                    "persona": {
+                        "name": "理性产品经理",
+                        "description": "强调问题拆解与收益平衡",
+                        "style": "结构化",
+                        "tone": "克制",
+                        "targetAudience": "团队负责人",
+                        "forbiddenWords": ["绝对"],
+                        "preferredWords": ["权衡"]
+                    }
+                }
+            })
+        } else {
+            json!({
+                "schemaVersion": 1,
+                "artifactType": "auxiliary_runtime_projection",
+                "projectionKind": "title_generation",
+                "source": "auxiliary.title_generation_result",
+                "parentSessionId": "session-1",
+                "auxiliarySessionId": "title-gen-2",
+                "executionRuntime": {
+                    "route": "auxiliary.generate_title",
+                    "session_id": "title-gen-2",
+                    "source": "runtime_snapshot",
+                    "task_profile": {
+                        "kind": "topic",
+                        "source": "auxiliary_title_generation"
+                    },
+                    "routing_decision": {
+                        "routingMode": "single_candidate",
+                        "decisionSource": "service_model_setting",
+                        "candidateCount": 1
+                    },
+                    "cost_state": {
+                        "status": "estimated",
+                        "estimatedCostClass": "low"
+                    }
+                },
+                "titleGenerationResult": {
+                    "title": "多模型调度方案",
+                    "sessionId": "title-gen-2",
+                    "usedFallback": false,
+                    "fallbackReason": null
+                }
+            })
+        };
+
+        fs::write(
+            absolute_path,
+            serde_json::to_string_pretty(&document).expect("serialize auxiliary projection"),
+        )
+        .expect("write auxiliary projection");
     }
 
     #[test]
@@ -2206,5 +2922,142 @@ mod tests {
         let artifacts = fs::read_to_string(artifacts_path).expect("artifacts");
         assert!(artifacts.contains("\"telemetry\""));
         assert!(artifacts.contains("\"matchedRequestCount\": 0"));
+    }
+
+    #[test]
+    fn should_export_auxiliary_runtime_snapshots_from_image_task_artifact() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+        let image_task_relative_path = ".lime/tasks/image_generate/task-image-1.json";
+
+        write_request_telemetry_fixture(temp_dir.path());
+        write_image_task_fixture(temp_dir.path(), image_task_relative_path);
+
+        if let AgentThreadItemPayload::FileArtifact { path, metadata, .. } =
+            &mut detail.items[1].payload
+        {
+            *path = image_task_relative_path.to_string();
+            *metadata = Some(json!({
+                "task_type": "image_generate"
+            }));
+        }
+
+        let result =
+            export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        assert!(result
+            .known_gaps
+            .iter()
+            .all(|gap| !gap.contains("title_generation_result.execution_runtime")));
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let artifacts_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/artifacts.json");
+
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+        let runtime_snapshots = runtime
+            .pointer("/auxiliaryRuntimeSnapshots/snapshots")
+            .and_then(Value::as_array)
+            .expect("runtime snapshots should exist");
+        assert_eq!(
+            runtime
+                .pointer("/auxiliaryRuntimeSnapshots/applicableArtifactCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/auxiliaryRuntimeSnapshots/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/observabilitySummary/counts/auxiliaryRuntimeSnapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        let runtime_snapshot = runtime_snapshots
+            .first()
+            .expect("runtime snapshot should exist");
+        assert_eq!(
+            runtime_snapshot.get("artifactPath").and_then(Value::as_str),
+            Some(image_task_relative_path)
+        );
+        assert_eq!(
+            runtime_snapshot.get("source").and_then(Value::as_str),
+            Some("image_task.title_generation_result")
+        );
+        assert_eq!(
+            runtime_snapshot.get("title").and_then(Value::as_str),
+            Some("城市夜景主视觉")
+        );
+        assert_eq!(
+            runtime_snapshot.get("sessionId").and_then(Value::as_str),
+            Some("title-gen-1")
+        );
+        assert_eq!(
+            runtime_snapshot.get("route").and_then(Value::as_str),
+            Some("auxiliary.generate_title")
+        );
+        assert_eq!(
+            runtime_snapshot.get("taskKind").and_then(Value::as_str),
+            Some("generation_topic")
+        );
+        assert_eq!(
+            runtime_snapshot.get("routingMode").and_then(Value::as_str),
+            Some("single_candidate")
+        );
+        assert_eq!(
+            runtime_snapshot
+                .get("decisionSource")
+                .and_then(Value::as_str),
+            Some("service_model_setting")
+        );
+        assert_eq!(
+            runtime_snapshot
+                .get("estimatedCostClass")
+                .and_then(Value::as_str),
+            Some("low")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/observabilitySummary/signalCoverage")
+                .and_then(Value::as_array)
+                .and_then(|items| {
+                    items.iter().find(|item| {
+                        item.get("signal").and_then(Value::as_str) == Some("auxiliaryTaskRuntime")
+                    })
+                })
+                .and_then(|item| item.get("status"))
+                .and_then(Value::as_str),
+            Some("exported")
+        );
+
+        let artifacts = serde_json::from_str::<Value>(
+            fs::read_to_string(artifacts_path)
+                .expect("artifacts")
+                .as_str(),
+        )
+        .expect("parse artifacts json");
+        assert_eq!(
+            artifacts
+                .pointer("/auxiliaryRuntimeSnapshots/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            artifacts
+                .pointer("/auxiliaryRuntimeSnapshots/snapshots/0/route")
+                .and_then(Value::as_str),
+            Some("auxiliary.generate_title")
+        );
     }
 }

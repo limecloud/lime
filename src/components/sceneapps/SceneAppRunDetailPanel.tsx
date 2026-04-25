@@ -108,7 +108,7 @@ export function SceneAppRunDetailPanel({
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
         <div className="text-sm font-semibold text-slate-900">这轮结果</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          当前还没有可查看的这轮结果，先试跑一轮再回来复盘。
+          当前还没有可查看的这轮结果，先试跑一轮再回来判断。
         </div>
       </section>
     );

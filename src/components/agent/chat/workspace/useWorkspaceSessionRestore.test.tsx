@@ -66,11 +66,6 @@ describe("useWorkspaceSessionRestore", () => {
     const setActiveTheme = vi.fn();
     const setCreationMode = vi.fn();
     const setTaskFiles = vi.fn();
-    const readSessionFile = vi.fn(async (name: string) =>
-      name === "content-posts/restored-preview.md"
-        ? "# 春日咖啡活动\n\n首屏预览"
-        : null,
-    );
     const { render } = renderHook({
       sessionId: "session-content-preview",
       sessionMeta: {
@@ -93,7 +88,6 @@ describe("useWorkspaceSessionRestore", () => {
           updatedAt: 200,
         },
       ],
-      readSessionFile,
       taskFilesLength: 0,
       setActiveTheme,
       setCreationMode,
@@ -103,16 +97,13 @@ describe("useWorkspaceSessionRestore", () => {
     await render();
     await flushEffects();
 
-    expect(readSessionFile).toHaveBeenCalledWith(
-      "content-posts/restored-preview.md",
-    );
     expect(setCreationMode).toHaveBeenCalledWith("guided");
     expect(setTaskFiles).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
+          id: "session-file:content-posts/restored-preview.md",
           name: "content-posts/restored-preview.md",
           type: "document",
-          content: "# 春日咖啡活动\n\n首屏预览",
           metadata: expect.objectContaining({
             contentPostIntent: "preview",
             contentPostLabel: "渠道预览稿",

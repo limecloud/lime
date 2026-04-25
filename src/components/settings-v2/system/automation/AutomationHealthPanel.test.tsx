@@ -79,10 +79,10 @@ async function renderPanel() {
 }
 
 describe("AutomationHealthPanel", () => {
-  it("风险任务应展示人工处理原因", async () => {
+  it("风险提醒应展示人工处理原因", async () => {
     const container = await renderPanel();
 
-    expect(container.textContent).toContain("风险任务");
+    expect(container.textContent).toContain("风险提醒");
     expect(container.textContent).toContain("等待人工处理");
     expect(container.textContent).toContain("等待你确认是否继续执行");
   });

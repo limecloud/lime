@@ -344,6 +344,7 @@ function renderSettingsContent(
           onTabChange={onTabChange}
           onTabPrefetch={onTabPrefetch}
           onOpenCompanion={onOpenCompanion}
+          onNavigate={onNavigate}
         />
       );
 

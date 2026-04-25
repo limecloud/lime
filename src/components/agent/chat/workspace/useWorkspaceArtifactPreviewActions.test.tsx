@@ -107,6 +107,12 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
+async function flushAsyncWork(times = 4) {
+  for (let index = 0; index < times; index += 1) {
+    await Promise.resolve();
+  }
+}
+
 afterEach(() => {
   while (mountedRoots.length > 0) {
     const mounted = mountedRoots.pop();
@@ -333,5 +339,161 @@ describe("useWorkspaceArtifactPreviewActions", () => {
       size: "# 正式结果".length,
       error: null,
     });
+  });
+
+  it("点击占位任务文件时应按需读取会话内容并打开通用画布", async () => {
+    const readSessionFile = vi.fn(async () => "# 会话主稿\n\n按需恢复");
+    const setTaskFiles = vi.fn();
+    const setGeneralCanvasState = vi.fn();
+    const setSelectedArtifactId = vi.fn();
+    const setLayoutMode = vi.fn();
+    const suppressBrowserAssistCanvasAutoOpen = vi.fn();
+    const placeholderFile = {
+      id: "session-file:content-posts/draft.md",
+      name: "content-posts/draft.md",
+      type: "document" as const,
+      version: 1,
+      createdAt: 100,
+      updatedAt: 100,
+    };
+    const { render, getValue } = renderHook({
+      taskFiles: [placeholderFile],
+      sessionFiles: [
+        {
+          name: "content-posts/draft.md",
+          fileType: "document",
+          metadata: {
+            contentPostIntent: "draft",
+          },
+          size: 20,
+          createdAt: 100,
+          updatedAt: 200,
+        },
+      ],
+      readSessionFile,
+      setTaskFiles,
+      setGeneralCanvasState,
+      setSelectedArtifactId,
+      setLayoutMode,
+      suppressBrowserAssistCanvasAutoOpen,
+    });
+
+    await render();
+
+    await act(async () => {
+      getValue().handleTaskFileClick(placeholderFile);
+      await flushAsyncWork();
+    });
+
+    expect(readSessionFile).toHaveBeenCalledWith("content-posts/draft.md");
+    expect(setTaskFiles).toHaveBeenCalledTimes(1);
+
+    const taskFilesUpdater = setTaskFiles.mock.calls[0]?.[0];
+    expect(typeof taskFilesUpdater).toBe("function");
+    expect(taskFilesUpdater([placeholderFile])).toEqual([
+      expect.objectContaining({
+        id: "session-file:content-posts/draft.md",
+        name: "content-posts/draft.md",
+        type: "document",
+        content: "# 会话主稿\n\n按需恢复",
+        metadata: expect.objectContaining({
+          contentPostIntent: "draft",
+        }),
+        createdAt: 100,
+        updatedAt: 200,
+      }),
+    ]);
+    expect(suppressBrowserAssistCanvasAutoOpen).toHaveBeenCalledTimes(1);
+    expect(setSelectedArtifactId).toHaveBeenCalledWith(null);
+    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+    expect(setGeneralCanvasState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isOpen: true,
+        filename: "content-posts/draft.md",
+        content: "# 会话主稿\n\n按需恢复",
+        contentType: "markdown",
+      }),
+    );
+  });
+
+  it("点击占位任务文件时应按需读取会话内容并更新主题工作台画布", async () => {
+    const readSessionFile = vi.fn(async () => "# 主题工作台内容");
+    const setTaskFiles = vi.fn();
+    const setSelectedFileId = vi.fn();
+    const setCanvasState = vi.fn();
+    const setLayoutMode = vi.fn();
+    const placeholderFile = {
+      id: "session-file:result.md",
+      name: "result.md",
+      type: "document" as const,
+      version: 1,
+      createdAt: 10,
+      updatedAt: 10,
+    };
+    const { render, getValue } = renderHook({
+      activeTheme: "article",
+      mappedTheme: "general",
+      layoutMode: "chat",
+      isThemeWorkbench: true,
+      taskFiles: [placeholderFile],
+      sessionFiles: [
+        {
+          name: "result.md",
+          fileType: "document",
+          size: 20,
+          createdAt: 10,
+          updatedAt: 30,
+        },
+      ],
+      readSessionFile,
+      setTaskFiles,
+      setSelectedFileId,
+      setCanvasState,
+      setLayoutMode,
+    });
+
+    await render();
+
+    await act(async () => {
+      getValue().handleTaskFileClick(placeholderFile);
+      await flushAsyncWork();
+    });
+
+    expect(readSessionFile).toHaveBeenCalledWith("result.md");
+    expect(setSelectedFileId).toHaveBeenCalledWith(
+      "session-file:result.md",
+    );
+    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+
+    const taskFilesUpdater = setTaskFiles.mock.calls[0]?.[0];
+    expect(typeof taskFilesUpdater).toBe("function");
+    expect(taskFilesUpdater([placeholderFile])).toEqual([
+      expect.objectContaining({
+        id: "session-file:result.md",
+        name: "result.md",
+        content: "# 主题工作台内容",
+        updatedAt: 30,
+      }),
+    ]);
+
+    const canvasStateUpdater = setCanvasState.mock.calls[0]?.[0];
+    expect(typeof canvasStateUpdater).toBe("function");
+    expect(
+      canvasStateUpdater({
+        type: "document",
+        content: "旧内容",
+        platform: "markdown",
+        versions: [],
+        currentVersionId: "version-1",
+        isEditing: true,
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        type: "document",
+        content: "# 主题工作台内容",
+        platform: "markdown",
+        currentVersionId: "version-1",
+      }),
+    );
   });
 });

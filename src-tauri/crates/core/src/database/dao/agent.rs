@@ -468,6 +468,7 @@ pub struct AgentModelUsageRow {
 pub struct AgentSessionOverviewRow {
     pub session: AgentSession,
     pub messages_count: usize,
+    pub archived_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -587,22 +588,26 @@ impl AgentDao {
 
     pub fn list_session_overviews(
         conn: &Connection,
+        include_archived: bool,
     ) -> Result<Vec<AgentSessionOverviewRow>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT s.id, s.model, s.system_prompt, s.title, s.created_at, s.updated_at,
-                    s.working_dir, s.execution_strategy, COUNT(m.id) AS messages_count
+                    s.working_dir, s.execution_strategy, COUNT(m.id) AS messages_count,
+                    s.archived_at
              FROM agent_sessions s
              LEFT JOIN agent_messages m ON m.session_id = s.id
+             WHERE (?1 = 1 OR s.archived_at IS NULL)
              GROUP BY s.id, s.model, s.system_prompt, s.title, s.created_at, s.updated_at,
-                      s.working_dir, s.execution_strategy
+                      s.working_dir, s.execution_strategy, s.archived_at
              ORDER BY s.updated_at DESC",
         )?;
 
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map([if include_archived { 1 } else { 0 }], |row| {
             let messages_count: i64 = row.get(8)?;
             Ok(AgentSessionOverviewRow {
                 session: map_agent_session_row(row)?,
                 messages_count: messages_count.max(0) as usize,
+                archived_at: row.get(9)?,
             })
         })?;
 
@@ -615,12 +620,13 @@ impl AgentDao {
     ) -> Result<Option<AgentSessionOverviewRow>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT s.id, s.model, s.system_prompt, s.title, s.created_at, s.updated_at,
-                    s.working_dir, s.execution_strategy, COUNT(m.id) AS messages_count
+                    s.working_dir, s.execution_strategy, COUNT(m.id) AS messages_count,
+                    s.archived_at
              FROM agent_sessions s
              LEFT JOIN agent_messages m ON m.session_id = s.id
              WHERE s.id = ?1
              GROUP BY s.id, s.model, s.system_prompt, s.title, s.created_at, s.updated_at,
-                      s.working_dir, s.execution_strategy",
+                      s.working_dir, s.execution_strategy, s.archived_at",
         )?;
         let mut rows = stmt.query([session_id])?;
 
@@ -629,6 +635,7 @@ impl AgentDao {
             Ok(Some(AgentSessionOverviewRow {
                 session: map_agent_session_row(row)?,
                 messages_count: messages_count.max(0) as usize,
+                archived_at: row.get(9)?,
             }))
         } else {
             Ok(None)
@@ -1195,6 +1202,19 @@ impl AgentDao {
         )?;
         Ok(())
     }
+
+    pub fn update_archived_at(
+        conn: &Connection,
+        session_id: &str,
+        archived_at: Option<&str>,
+        updated_at: &str,
+    ) -> Result<(), rusqlite::Error> {
+        conn.execute(
+            "UPDATE agent_sessions SET archived_at = ?1, updated_at = ?2 WHERE id = ?3",
+            params![archived_at, updated_at, session_id],
+        )?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1219,7 +1239,8 @@ mod tests {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 working_dir TEXT,
-                execution_strategy TEXT
+                execution_strategy TEXT,
+                archived_at TEXT
             );
             CREATE TABLE agent_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1537,10 +1558,11 @@ mod tests {
         )
         .unwrap();
 
-        let overviews = AgentDao::list_session_overviews(&conn).unwrap();
+        let overviews = AgentDao::list_session_overviews(&conn, false).unwrap();
         assert_eq!(overviews.len(), 2);
         assert_eq!(overviews[0].session.id, "session-b");
         assert_eq!(overviews[0].messages_count, 0);
+        assert_eq!(overviews[0].archived_at, None);
         assert_eq!(overviews[1].session.id, "session-a");
         assert_eq!(overviews[1].messages_count, 2);
 
@@ -1559,6 +1581,51 @@ mod tests {
             .expect("renamed overview");
         assert_eq!(renamed.session.title.as_deref(), Some("新的标题"));
         assert_eq!(renamed.session.updated_at, "2026-03-12T09:00:00+08:00");
+    }
+
+    #[test]
+    fn list_session_overviews_should_filter_archived_sessions_by_default() {
+        let conn = setup_pattern_test_db();
+
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, archived_at)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6)",
+            params![
+                "session-active",
+                "gpt-4.1",
+                "活跃会话",
+                "2026-03-10T10:00:00+08:00",
+                "2026-03-12T10:00:00+08:00",
+                Option::<String>::None,
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, archived_at)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6)",
+            params![
+                "session-archived",
+                "gpt-4.1",
+                "归档会话",
+                "2026-03-09T10:00:00+08:00",
+                "2026-03-11T10:00:00+08:00",
+                Some("2026-03-11T10:00:00+08:00".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let active_only = AgentDao::list_session_overviews(&conn, false).unwrap();
+        assert_eq!(active_only.len(), 1);
+        assert_eq!(active_only[0].session.id, "session-active");
+
+        let with_archived = AgentDao::list_session_overviews(&conn, true).unwrap();
+        assert_eq!(with_archived.len(), 2);
+        assert_eq!(with_archived[0].session.id, "session-active");
+        assert_eq!(with_archived[1].session.id, "session-archived");
+        assert_eq!(
+            with_archived[1].archived_at.as_deref(),
+            Some("2026-03-11T10:00:00+08:00"),
+        );
     }
 
     #[test]

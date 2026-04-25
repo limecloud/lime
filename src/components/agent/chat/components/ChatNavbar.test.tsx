@@ -145,27 +145,95 @@ describe("ChatNavbar", () => {
     ).toBeNull();
   });
 
-  it("生成顶栏应展示轻量上下文提示", () => {
+  it("任务中心折叠顶栏应隐藏左侧重导航，但保留右侧项目与工具入口", () => {
     const container = renderChatNavbar({
-      entryContextLabel: "生成",
-      entryContextHint: "在这里继续推进当前创作、回看最近结果和旧历史。",
+      collapseChrome: true,
+      onBackHome: vi.fn(),
+      onBackToResources: vi.fn(),
+      onBackToProjectManagement: vi.fn(),
+      onToggleSettings: vi.fn(),
+      showHistoryToggle: true,
+      showCanvasToggle: true,
+      projectId: "project-1",
+      workspaceType: "general",
+      showContextCompactionAction: true,
     });
 
-    expect(container.textContent).toContain("生成");
-    expect(container.textContent).toContain("在这里继续推进当前创作、回看最近结果和旧历史。");
+    expect(
+      container.querySelector('button[aria-label="返回新建任务"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("返回资源");
+    expect(container.textContent).not.toContain("项目管理");
+    expect(container.querySelector('[aria-label="切换历史"]')).toBeNull();
+    expect(container.querySelector('[aria-label="展开画布"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="project-selector"]'),
+    ).not.toBeNull();
+    expect(container.querySelector('[aria-label="打开设置"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="压缩上下文"]')).not.toBeNull();
   });
 
-  it("紧凑顶栏应只保留生成标签，不额外展开说明", () => {
+  it("任务中心顶栏应渲染第一层 workspace tab bar", () => {
+    const onBackToProjectManagement = vi.fn();
     const container = renderChatNavbar({
-      chrome: "workspace-compact",
-      entryContextLabel: "生成",
-      entryContextHint: "在这里继续推进当前创作、回看最近结果和旧历史。",
+      contextVariant: "task-center",
+      projectId: "project-1",
+      workspaceType: "general",
+      onBackToProjectManagement,
+      onToggleSettings: vi.fn(),
     });
 
-    expect(container.textContent).toContain("生成");
-    expect(container.textContent).not.toContain(
-      "在这里继续推进当前创作、回看最近结果和旧历史。",
+    expect(
+      container.querySelector('[data-testid="task-center-workspace-bar"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="project-selector"]'),
+    ).not.toBeNull();
+    expect(mockProjectSelector).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chrome: "workspace-tab",
+        open: false,
+        passiveTrigger: true,
+      }),
     );
+    expect(
+      container.querySelector('[data-testid="task-center-workspace-menu-trigger"]'),
+    ).not.toBeNull();
+    expect(container.querySelector('[aria-label="打开设置"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="切换历史"]')).toBeNull();
+
+    act(() => {
+      (
+        container.querySelector(
+          'button[aria-label="展开工作区菜单"]',
+        ) as HTMLButtonElement | null
+      )?.click();
+    });
+
+    expect(onBackToProjectManagement).not.toHaveBeenCalled();
+    expect(mockProjectSelector).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        chrome: "workspace-tab",
+        open: true,
+        passiveTrigger: true,
+      }),
+    );
+  });
+
+  it("任务中心顶栏应保留 Harness 状态入口", () => {
+    const container = renderChatNavbar({
+      contextVariant: "task-center",
+      showHarnessToggle: true,
+      harnessPendingCount: 3,
+    });
+
+    const button = container.querySelector(
+      'button[aria-label="展开Harness"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button).not.toBeNull();
+    expect(button?.textContent).toContain("Harness");
+    expect(button?.textContent).toContain("3");
   });
 
   it("点击顶栏按钮后应切换 Harness 面板显隐", () => {

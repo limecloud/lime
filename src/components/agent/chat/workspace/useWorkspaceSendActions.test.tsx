@@ -1669,14 +1669,14 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
-  it("@素材 应把资源库提词重写配置注入到 metadata 与发送覆盖", async () => {
+  it("@素材 应把项目资料提词重写配置注入到 metadata 与发送覆盖", async () => {
     const harness = mountHook({
       input: "@素材 类型:图片 关键词:咖啡馆木桌背景 用途:公众号头图 数量:8",
       serviceModels: {
         resource_prompt_rewrite: {
           preferredProviderId: "resource-provider",
           preferredModelId: "resource-model",
-          customPrompt: "请先结合资料库语义补齐检索意图",
+          customPrompt: "请先结合项目资料语义补齐检索意图",
         },
       },
     });
@@ -1695,7 +1695,7 @@ describe("useWorkspaceSendActions", () => {
             resource_search_skill_launch: {
               resource_search_task: {
                 prompt:
-                  "请先结合资料库语义补齐检索意图\n\n咖啡馆木桌背景 公众号头图",
+                  "请先结合项目资料语义补齐检索意图\n\n咖啡馆木桌背景 公众号头图",
               },
             },
           },

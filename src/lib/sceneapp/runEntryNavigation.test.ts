@@ -23,7 +23,7 @@ describe("resolveSceneAppRunEntryNavigationTarget", () => {
       },
       sceneappId: "story-video-suite",
       sceneTitle: "短视频编排",
-      sourceLabel: "生成主执行面",
+      sourceLabel: "生成",
     });
 
     expect(target).toEqual(
@@ -35,7 +35,7 @@ describe("resolveSceneAppRunEntryNavigationTarget", () => {
           contentId: "content-1",
           autoRunInitialPromptOnMount: true,
           initialUserPrompt: "继续补齐这轮短视频结果包。",
-          entryBannerMessage: "已从生成主执行面恢复生成上下文。",
+          entryBannerMessage: "已从生成恢复生成上下文。",
           initialAutoSendRequestMetadata: expect.objectContaining({
             harness: expect.objectContaining({
               service_scene_launch: expect.objectContaining({
@@ -104,7 +104,7 @@ describe("resolveSceneAppRunEntryNavigationTarget", () => {
         sessionId: "session-1",
       },
       sceneappId: "   ",
-      sourceLabel: "生成主执行面",
+      sourceLabel: "生成",
     });
 
     expect(target).toBeNull();

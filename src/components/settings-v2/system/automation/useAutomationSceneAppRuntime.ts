@@ -150,7 +150,7 @@ export function useAutomationSceneAppRuntime({
         setError(
           descriptorResult.status === "rejected"
             ? formatSceneAppErrorMessage(descriptorResult.reason)
-            : "当前自动化任务关联的做法已不存在。",
+            : "当前这条持续流程关联的做法已不存在。",
         );
         return;
       }

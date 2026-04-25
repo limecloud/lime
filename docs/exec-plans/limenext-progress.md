@@ -1,6 +1,6 @@
 # LimeNext 推进日志
 
-> 注：自 2026-04-19 起，LimeNext current 前台主词固定为 `技能 / 灵感库 / 生成`。历史日志里若继续出现 `SceneApp / 创作场景 / Project Pack / 复盘 / 记忆工作台 / 任务工作台 / 任务视图` 等词，默认按当时实现阶段或 compat 旧称理解，不再代表 current 产品口径。
+> 注：自 2026-04-19 起，LimeNext current 前台主词固定为 `我的方法 / 灵感库 / 生成`。历史日志里若继续出现 `技能 / SceneApp / 创作场景 / Project Pack / 复盘 / 记忆工作台 / 任务工作台 / 任务视图` 等词，默认按当时实现阶段或 compat 旧称理解，不再代表 current 产品口径。
 >
 > 补充说明：2026-04-17 中段几次关于“纯标题目录 / 无图场景墙”的尝试，当前都已被后续 `经营信号目录卡片` 方案取代。阅读本日志时，凡旧条目仍写“纯标题目录”，都按已废弃试探理解；current 以最新“目录卡片经营信号回流”条目为准。
 >
@@ -8,9 +8,210 @@
 >
 > 补充说明（2026-04-22）：`sceneapp` 对象级 `SceneAppCurrent*` 过渡类型已全部删除。历史日志若继续出现 `SceneAppCurrentDescriptor / SceneAppCurrentPlanResult / SceneAppCurrentCatalog` 等表述，默认按当时过渡阶段理解；current 事实源已切回 base `SceneAppDescriptor / SceneAppCatalog / SceneAppPlanResult`，current 标量只保留 `SceneAppExecutorBindingFamily / SceneAppExecutionRuntimeAction / SceneAppType / SceneAppLaunchRequirementCoreKind`。
 
+## 2026-04-25
+
+### 已完成
+
+- 把 `新建任务 / EmptyState` 首页主区从“顺序堆叠的信息货架”重排成更接近参考图的 `输入主舞台 + tab 化入口 deck`，避免首屏仍像说明页而不是开工页：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/Inputbar/styles.ts`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页推荐区当前不再把 `主推荐 / 其他起手结果 / 继续上次做法 / 做法入口` 全部顺序摊开；现在先收成一块带 tab 的入口 deck，默认聚焦 `推荐起手`，并按 `继续上次 / 做法入口` 分层切换
+    - `推荐起手` 当前仍保留 `主推荐大卡 + 次级卡` 的结果导向结构，但卡区已经收进统一 surface，不再像三段说明区那样散开
+    - `继续上次` 与 `做法入口` 当前正式拆成两套前台口径；不再沿用旧的 `directMethodItems` 回退逻辑把最近记录重复渲染到“做法入口”里
+    - 首页大输入框当前也同步加厚成更明确的主卡壳：圆角、边框、阴影和底部轻设置区都更接近首页主舞台，而不是通用聊天输入条
+  - 当前定向验证：
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/Inputbar/styles.ts"`
+    - `pnpm vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx"`
+    - `npm run verify:gui-smoke`
+  - 结果：
+    - `eslint` 通过
+    - `vitest` 通过：`2 files / 73 tests passed`
+    - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page` 当前都已跑通，说明这轮首页壳层重排没有把 GUI 主路径打断
+
+- 把 `我的方法 -> launcher` 里的参考对象头部从“来源 / 分类 / tag 标签墙”收成轻量元信息，并同步把方法页搜索提示从对象词改成动作词：
+  - 已更新：
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `CuratedTaskLauncherDialog` 里的参考对象卡当前不再把 `来源 / 分类 / tag` 堆成一排 pill；现在先给一条 `来源 · 类型` 元信息，再把 tag 收成正文里的 `相关线索`
+    - 用户当前进入 launcher 时，会更先看到“这条参考是什么、为什么和这轮有关”，而不是像在看素材目录标签
+    - `我的方法` 页搜索框当前也不再写 `站点或做法标题` 这类对象化提示，而是统一成 `搜索想拿的结果、这一步或做法名`
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run verify:gui-smoke`
+
+- 把 `service skill / 我的方法 / 首页结果模板` 里还残留的“工作区 / 补参 / 创建任务”系统动作词继续压回 `生成` 主链，避免首页、方法页和做法入口已经切到结果口径后，实际按钮、提示和结果去向仍把用户拉回旧心智：
+  - 已更新：
+    - `src/components/agent/chat/service-skills/skillPresentation.ts`
+    - `src/components/agent/chat/service-skills/skillPresentation.test.ts`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.ts`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/utils/workflowStepPresentation.ts`
+    - `src/components/agent/chat/utils/toolProcessSummary.ts`
+    - `src/components/agent/chat/utils/toolProcessSummary.test.ts`
+    - `src/components/agent/chat/utils/toolDisplayInfo.ts`
+    - `src/components/agent/chat/utils/toolDisplayInfo.test.ts`
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `src/lib/api/serviceSkills.ts`
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `service skill` 当前已统一从 `对话内补参 / 创建任务 / 创建跟踪 / 进入工作区` 收成 `开始这一步 / 开始持续 / 开始跟进 / 补齐这一步 / 接着继续`
+    - `service skill` 的运行说明与结果去向当前也已统一改成 `回到生成 / 回到当前内容`，不再默认把用户带回 `当前工作区`
+    - `我的方法` 页里与继续开工直接相关的入口说明、回跳 banner、已沉淀方法说明和草稿 CTA 当前也同步改成 `回到生成 / 把这轮做下去`，不再继续暴露 `补参` 口径
+    - 首页 `service skill` 推荐卡当前已把缺信息提示收成 `补齐这一步后开始`，结果模板里 `长文转多平台发布稿` 的结果去向也同步改成当前内容 / 生成口径
+    - workflow 空态进度当前已从 `等待创建任务` 收成 `等待开始`，避免做法流程 rail 再把用户拉回旧任务系统
+    - runtime 工具过程提示当前也已把 `先创建任务 / 已创建任务 / 创建任务中` 收成 `先开始这一步 / 已开始 / 开始中`，避免做法已经回到 `生成`，但执行经过又重新掉回旧任务系统
+    - `灵感库` 当前把结果模板回跳 banner 也统一成 `回到生成 / 把这轮做下去`；`serviceSkills` 底层兜底结果去向与自动化入口标题也已同步跟上，不再只在前台卡片层换词
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/service-skills/skillPresentation.test.ts" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskTemplates.test.ts" "src/components/agent/chat/utils/workflowStepPresentation.test.ts"`
+    - `npm exec vitest run "src/components/agent/chat/utils/toolProcessSummary.test.ts" "src/components/agent/chat/utils/toolDisplayInfo.test.ts"`
+    - `npm exec vitest run "src/components/memory/MemoryPage.test.tsx" "src/lib/api/serviceSkills.test.ts"`
+    - `npx eslint "src/components/agent/chat/service-skills/skillPresentation.ts" "src/components/agent/chat/service-skills/skillPresentation.test.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.ts" "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/utils/workflowStepPresentation.ts"`
+    - `npx eslint "src/components/agent/chat/utils/toolProcessSummary.ts" "src/components/agent/chat/utils/toolProcessSummary.test.ts" "src/components/agent/chat/utils/toolDisplayInfo.ts" "src/components/agent/chat/utils/toolDisplayInfo.test.ts"`
+    - `npx eslint "src/components/memory/MemoryPage.tsx" "src/components/memory/MemoryPage.test.tsx" "src/lib/api/serviceSkills.ts" "src/components/settings-v2/system/automation/index.tsx"`
+    - `npm run verify:gui-smoke`
+  - 结果：
+    - 上述前台口径收口相关定向 `vitest`、`eslint` 与 `verify:gui-smoke` 当前都已通过；说明首页 / 我的方法 / service skill / 灵感库 / automation 入口这一组 current 主词已经能在现有 GUI 主链里稳定共存
+
+- 把 `持续流程` 页当前还残留的旧 `任务 / 工作区 / 自动化任务` 词继续压回 current 前台对象，避免 `系统 -> 持续流程` 已经是正式入口，但弹窗、概览、健康面板、详情摘要和 sceneapp 回流文案仍把用户拉回旧自动化任务系统：
+  - 已更新：
+    - `src/components/settings-v2/system/automation/AutomationJobDialog.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx`
+    - `src/components/settings-v2/system/automation/AutomationOverviewFocusCard.tsx`
+    - `src/components/settings-v2/system/automation/AutomationHealthPanel.tsx`
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `src/components/settings-v2/system/automation/automationPresentation.ts`
+    - `src/components/settings-v2/system/automation/serviceSkillContext.ts`
+    - `src/components/settings-v2/system/automation/useAutomationSceneAppRuntime.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/presentation.ts`
+    - `src/components/settings-v2/system/automation/AutomationJobDialog.test.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx`
+    - `src/components/settings-v2/system/automation/AutomationOverviewFocusCard.test.tsx`
+    - `src/components/settings-v2/system/automation/AutomationHealthPanel.test.tsx`
+    - `src/components/settings-v2/system/automation/index.test.tsx`
+    - `src/lib/sceneapp/product.test.ts`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `持续流程` 弹窗头部、详情页、默认列表、概览卡与健康面板当前已统一改用 `持续流程 / 归属 / 开始方式 / 当前状态 / 当前起手内容`，不再继续暴露 `任务详情 / 任务类型 / 工作区 / 未填写任务描述` 这一套旧对象词
+    - `service skill` 在 `持续流程` 页里的摘要、上下文和运行上下文当前也已统一成 `技能流程 / 定时运行 / 技能：...`，避免自动化页里又长回第二套 `技能任务` 语言
+    - 输出投递说明当前也已同步收成 `运行完成后投递 / 投递失败不阻塞本轮 / 投递失败记为本轮失败`，不再把失败策略继续表述成旧任务执行语义
+    - `sceneapp` 回流到 `持续流程` 详情和概览卡时，当前摘要源也不再生成 `自动化任务 / 最近投放任务 / 打开自动化任务`，而是统一成 `持续流程 / 最近运行 / 打开持续流程`
+    - 因此这一步继续服务 P1 前台对象语言收口：`系统 -> 持续流程` 当前终于不只是入口名称变了，而是页面内外的 current 文案也开始围绕同一条持续流程主词收敛
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/settings-v2/system/automation/AutomationJobDialog.test.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx" "src/components/settings-v2/system/automation/AutomationOverviewFocusCard.test.tsx" "src/components/settings-v2/system/automation/AutomationHealthPanel.test.tsx" "src/components/settings-v2/system/automation/index.test.tsx" "src/lib/sceneapp/product.test.ts"`
+    - `npx eslint "src/components/settings-v2/system/automation/AutomationJobDialog.tsx" "src/components/settings-v2/system/automation/automationPresentation.ts" "src/components/settings-v2/system/automation/serviceSkillContext.ts" "src/components/settings-v2/system/automation/AutomationOverviewFocusCard.tsx" "src/components/settings-v2/system/automation/AutomationHealthPanel.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx" "src/components/settings-v2/system/automation/index.tsx" "src/components/settings-v2/system/automation/useAutomationSceneAppRuntime.ts" "src/lib/sceneapp/presentation.ts" "src/lib/sceneapp/product.ts" "src/components/settings-v2/system/automation/AutomationJobDialog.test.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx" "src/components/settings-v2/system/automation/AutomationOverviewFocusCard.test.tsx" "src/components/settings-v2/system/automation/AutomationHealthPanel.test.tsx" "src/components/settings-v2/system/automation/index.test.tsx" "src/lib/sceneapp/product.test.ts"`
+    - `npm run verify:gui-smoke`
+  - 结果：
+    - 自动化页与 sceneapp 摘要源相关定向 `vitest` 通过：`6 files / 51 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page` 当前都已跑通，说明这轮 `持续流程` 前台收口没有把 GUI 主路径打断
+
+- 把 `消息渠道` 页当前还残留的旧 `联调 / 调试 / 高级工作台` 技术词收轻一层，避免 `系统 -> 消息渠道` 虽然已经是 current 正式入口，但首页说明、接入检查和日志页标题仍然更像开发工具面，而不是系统辅助页：
+  - 已更新：
+    - `src/components/channels/ImConfigPage.tsx`
+    - `src/components/settings-v2/system/channels/ChannelsDebugWorkbench.tsx`
+    - `src/components/channels/ImConfigPage.test.tsx`
+    - `src/components/settings-v2/system/channels/ChannelsDebugWorkbench.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `消息渠道` 首页当前已把说明文案从 `对话和投递` 收成更明确的 `消息接收 / 回复 / 结果投递`，避免用户一进来先读到系统内部词
+    - 各渠道卡片里的 `联调检查` 当前已统一收成 `接入检查`，查看入口也改成 `查看日志与检查`，不再直接暴露开发排障语气
+    - 下方折叠区与 `ChannelsDebugWorkbench` 当前也已统一从 `联调与排查` 收成 `日志与检查`，继续保留 current 运行排查能力，但不再把当前页面说成另一套调试工作台
+    - `ImConfigPage` 里的折叠头当前顺手修掉了一处嵌套 `button` 结构警告，避免 `WorkbenchInfoTip` 继续在当前页触发 DOM nesting warning
+    - 因此这一步继续服务 P1 前台对象语言收口：`系统 -> 消息渠道` 当前不再一边叫“消息渠道”，一边在核心说明层继续用 `联调 / 调试` 这套旧技术面口径
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/channels/ImConfigPage.test.tsx" "src/components/settings-v2/system/channels/ChannelsDebugWorkbench.test.tsx"`
+    - `npx eslint "src/components/channels/ImConfigPage.tsx" "src/components/channels/ImConfigPage.test.tsx" "src/components/settings-v2/system/channels/ChannelsDebugWorkbench.tsx" "src/components/settings-v2/system/channels/ChannelsDebugWorkbench.test.tsx"`
+    - `npm run verify:gui-smoke`
+    - `npm run smoke:agent-runtime-tool-surface-page`
+  - 结果：
+    - `消息渠道` 相关定向 `vitest` 通过：`2 files / 9 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 本轮未拿到最终通过；`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface` 均已通过，但最后 `smoke:agent-runtime-tool-surface-page` 两次都停在 `wait-empty-state`，报 `等待 首页空态加载 超时`
+    - 该超时链路与本轮 `消息渠道` 页面不在同一路径；当前先按仓库现有环境 / 主壳 smoke 波动记录，不把它直接记成 `消息渠道` 页回归
+
+- 把 `resources / 项目资料` 页与相邻图片、视频同步提示里的旧 `资料库 / 资料分类 / 项目素材库` 继续压回 `项目资料` 口径，避免辅助页标题已经换了，但页内说明、切换区和结果同步提示仍停在旧库心智：
+  - 已更新：
+    - `src/components/resources/ResourcesPage.tsx`
+    - `src/components/resources/ResourcesPage.test.tsx`
+    - `src/components/resources/ResourcesImageWorkbench.tsx`
+    - `src/components/resources/ResourcesImageWorkbench.test.tsx`
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `src/i18n/patches/zh.json`
+    - `src/i18n/patches/en.json`
+    - `src/i18n/__tests__/translation-coverage.test.ts`
+    - `src/components/image-gen/README.md`
+    - `src/components/workspace/media/ImageGallery.tsx`
+    - `src/lib/governance/legacySurfaceCatalog.json`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`
+    - `src/lib/serviceModels.test.ts`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/workspace/video/VideoWorkspace.tsx`
+    - `src/components/workspace/video/VideoTipsBehavior.test.tsx`
+    - `docs/roadmap/limenextv2/entry-migration-map.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `项目资料` 页首 tips 当前已从“导入资源 / 项目资料 / 外部素材”这套旧对象说明，收成更直接的 `当前项目里的文档、图片和导入内容`
+    - 迁移提示条当前也已统一成 `浏览 / 补图 / 整理`，并明确 `回生成 / 去灵感库`，不再继续强调“默认主导航”这类入口治理术语
+    - 左侧 `资料分类` 当前已改成 `内容分类`，项目切换区也不再继续把自己讲成“项目资料主入口”
+    - 跨项目图片提示、未选项目提示和空态说明当前已统一回 `当前项目 / 项目资料` 口径，不再出现 `资料库`
+    - `灵感库` 首屏里的 `项目资料` 辅助入口说明当前也已从 `项目素材` 收回 `项目资料 / 导入内容`，避免 `灵感库 -> 项目资料` 回桥继续暴露旧对象
+    - 图片工作台发给画布的来源名，以及视频工作台里的同步提示、摘要卡和成功状态当前也已统一从 `项目素材库 / 项目素材` 收成 `项目资料`
+    - `i18n` patch、`translation coverage`、`image-gen` README、治理目录和 `ImageGallery` 注释里的旧 `资料库 / 项目素材` 现在也已统一改成 `项目资料`
+    - `Inputbar` 工作流示例、`@素材` 提词重写夹具和 `serviceModels` 配置夹具里的旧 `检索项目素材 / 资料库语义 / 资料库上下文` 也已同步收回 `项目资料`
+    - `entry-migration-map` 里的 current 页面语义与后续目标当前也已从 `项目资源 / 导入素材 / 项目素材浏览能力` 收成 `项目资料 / 导入内容 / 项目资料浏览能力`
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/resources/ResourcesPage.test.tsx" "src/components/resources/ResourcesImageWorkbench.test.tsx" "src/components/workspace/video/VideoTipsBehavior.test.tsx"`
+    - `npm exec vitest run "src/components/memory/MemoryPage.test.tsx"`
+    - `npm exec vitest run "src/i18n/__tests__/translation-coverage.test.ts" "src/lib/serviceModels.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npx eslint "src/components/resources/ResourcesPage.tsx" "src/components/resources/ResourcesPage.test.tsx" "src/components/resources/ResourcesImageWorkbench.tsx" "src/components/resources/ResourcesImageWorkbench.test.tsx" "src/components/workspace/video/VideoWorkspace.tsx" "src/components/workspace/video/VideoTipsBehavior.test.tsx"`
+    - `npx eslint "src/components/memory/MemoryPage.tsx" "src/components/memory/MemoryPage.test.tsx"`
+    - `npx eslint "src/i18n/__tests__/translation-coverage.test.ts" "src/components/workspace/media/ImageGallery.tsx" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/lib/serviceModels.test.ts" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm run verify:gui-smoke`
+  - 结果：
+    - `项目资料 / 图片工作台 / 视频 tips` 定向 `vitest` 通过：`3 files / 14 tests passed`
+    - `灵感库` 辅助入口定向 `vitest` 通过：`1 file / 20 tests passed`
+    - `i18n / 工作流夹具 / 项目资料测试夹具` 定向 `vitest` 通过：`4 files / 151 tests passed`
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 本轮未通过；headless Tauri 在 `DevBridge` 就绪前提前退出，最终卡在仓库现有 Rust 编译错误：
+      - `src/dev_bridge/dispatcher/agent_sessions.rs:182`
+      - `crate::commands::aster_agent_cmd::agent_runtime_list_sessions(db, logs)` 缺少第三个参数 `Option<AgentRuntimeListSessionsRequest>`
+    - 该错误发生在 Rust 当前主干编译阶段，和本轮 `项目资料` / `视频` 前台文案收口不在同一改动边界；当前先按仓库现有编译阻塞记录，不直接记成这轮页面回归
+
 ## 2026-04-24
 
 ### 已完成
+
+- 把左侧 `任务` 分组里缺失的 `生成` 主入口补回 current 导航，避免文档、测试和真实前台继续分叉：
+  - 已更新：
+    - `src/lib/navigation/sidebarNav.ts`
+    - `src/components/AppSidebar.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 左侧一级导航当前继续保持 `任务 / 能力 / 资料 / 系统` 四段式结构，但 `任务` 分组不再只剩 `新建任务`
+    - `生成` 当前已作为固定主入口回到 `任务` 分组，并直接走 `agentEntry=claw` 主执行面
+    - 因此 current 侧栏终于重新对齐 V2 文档口径：`新建任务 / 生成 / 我的方法 / 灵感库 / 设置`
+    - 这一步也同步回应了前面入口收口后的一个真实断层：用户不需要只靠首页或回跳才能重新进入 `生成`
+  - 当前定向验证：
+    - `npm exec vitest run "src/lib/navigation/sidebarNav.test.ts" "src/components/AppSidebar.test.tsx"`
+    - `npx eslint "src/lib/navigation/sidebarNav.ts" "src/components/AppSidebar.test.tsx"`
+    - `npm run verify:gui-smoke`
 
 - 把 `我的方法 / slash / @` 里的“方法库 / 技能组 / 已安装技能”再收成更接近 skill-first 的前台口径，避免首页已经切到 `先拿结果 -> 再续这轮`，但方法页和输入层还在继续暴露目录/来源语义：
   - 已更新：
@@ -5862,3 +6063,224 @@
   - `vitest` 通过：`3 files / 140 tests passed`
   - `eslint` 通过
   - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- `@ / slash` 输入能力面板当前又继续前推了一刀，避免首页和 `我的方法` 已经逐步切到 `先拿结果 -> 继续上次做法 -> 已经沉淀的方法`，但真正进入输入补全面板后，用户仍然会在行项目右侧看到 `技能 / 结果模板 / 工作台操作 · /new / 云目录式` 这一类对象标签：
+  - `inputCapabilitySections` 当前已把 `recent service skill`、`service skill group`、`scene result`、`recent installed skill`、`recent curated task` 这些条目的 `kindLabel` 收掉；分组标题负责说明语义，行项目只保留标题和轻合同描述
+  - `slash command` 当前只保留最小可识别的命令前缀，例如 `/new /clear /compact`；不再继续把 `工作台操作 / 提示命令 / 状态帮助` 这层分类重复挂到条目右侧
+  - `@` 面板里的内建命令分组当前也不再重复挂 `搜索 / 读取 / 生成 / 表达` 这类类别标签；用户先看到的是动作本身，而不是分类名
+  - `CharacterMentionPanel` 当前又加了一层前台保险：即使后续数据层误塞了标签，除了真正需要识别的 slash 命令前缀，其它 `kindLabel` 也不会再轻易显影到用户前台
+- 因此用户当前沿着 `输入框 -> @ / slash 面板 -> 选一条继续` 这条主链时，认知会进一步从“我在挑某种能力对象”收回到“我现在先接这一步”：
+  - recent continuation 当前会优先展示“这条结果 / 这套方法”的标题和合同，而不是对象类别
+  - scene / result / local skill 当前不会再额外挂 `结果模板 / 技能 / /skill-key` 这类次级标签
+  - 工作台命令仍然保留最小的 `/command` 前缀，避免完全失去命令识别性
+- 这一步继续遵守 P1 / P2 的 current 边界：
+  - 不新增第二套输入补全面板
+  - 不改 `onSelect*`、launcher、scene command、installed skill 的现有激活协议
+  - 继续只在 `inputCapabilitySections` 与 `CharacterMentionPanel` 上做前台呈现减法，不改底层能力编排和选择主链
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.test.ts"`
+  - `npx eslint "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.test.ts"`
+  - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - `vitest` 通过：`2 files / 93 tests passed`
+  - `eslint` 通过
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 首页推荐 shelf 当前又继续前推了一刀，避免 `我的方法`、`slash`、`@` 面板已经逐步收成“先做哪一步 / 为什么先做这一步”，但 `EmptyState` 里的 service skill 推荐卡仍然会以 `云目录 / 最近使用` 这类 badge-first 方式抢占标题层：
+  - `EmptyState` 当前已把 service skill 推荐项上的 `badge` 去掉；首页推荐 shelf 里这类卡片现在只保留标题、摘要、`需要 / 交付` 合同，不再把 `云目录 / 最近使用` 直接挂到卡头
+  - `CharacterMention` 运行时回退把 `scene -> service skill` 补参接管时，当前也不再额外给 `ServiceSkillHomeItem` 注入 `云目录 / 本地技能` badge，避免其它入口后续再把来源标签漏回前台
+- 因此用户当前沿着 `首页 -> 直接开工的做法` 和 `slash scene -> A2UI 补参接管` 这两条主链时，认知会继续从“这是哪个来源的能力对象”收回到“这条做法现在能帮我做什么”：
+  - 首页 service skill 推荐卡当前会先解释动作与交付，不再先解释目录来源
+  - runtime scene 回退成 service skill 时，也不会再把 `云目录 / 本地技能` 这类历史 badge 带回当前链路
+- 这一步继续遵守 P1 / P2 的 current 边界：
+  - 不改首页推荐排序与 lead/alternative 逻辑
+  - 不改 `onSelectServiceSkill`、scene 接管、launcher 或 service skill 执行合同
+  - 继续只在 `EmptyState` 与 `CharacterMention` 的前台投影层做减法，不碰底层能力选择主链
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+  - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx"`
+  - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - `vitest` 通过：`2 files / 137 tests passed`
+  - `eslint` 通过
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+  - 补充说明：这次 `verify:gui-smoke` 走的是重新拉起 headless Tauri 的路径，期间出现了异常 API Key UTF-8 warning 与 `3030/8999` 端口已占用噪音；但最终 smoke 全链已通过，应视为环境复用噪音，而不是本轮首页收口回归
+
+- `我的方法` 页顶栏当前也继续做了一刀减法，避免首页、`slash`、`@` 面板都已经逐步收成前台动作语言，但方法页里的当前草稿条仍然用 `来源：...` 这种偏后台对象说明的口径：
+  - `SkillsWorkspacePage` 当前已把当前草稿条里的 `来源：{摘要}` 改成 `这次沿用：{摘要}`，让这条信息更像“这轮准备沿用哪条起手线索”，而不是在解释对象出处
+- 因此用户当前沿着 `首页 -> 我的方法 -> 当前草稿 -> 带回生成` 这条链路时，首屏认知会继续从“这是哪个对象来的”收回到“这轮准备接着什么继续做”：
+  - 当前草稿条当前会先说“这次沿用什么”
+  - `上次目标` 仍然保留，继续承担真正影响下一步动作的语义
+- 这一步继续遵守 P2 的 current 边界：
+  - 不改当前草稿条的结构、按钮、路由或带回生成主链
+  - 继续只做文案层减法，不碰方法页的数据和激活协议
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - `vitest` 通过：`1 file / 27 tests passed`
+  - `eslint` 通过
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 首页 `EmptyState` hero 当前又继续做了一刀减法，避免 `我的方法`、`slash`、首页推荐 shelf 都已经逐步收成前台起手层，但首屏顶部仍然挂着 `通用对话 / 模式 / 已挂载做法` 这一排系统状态 badge，把用户重新拉回“先读状态条”的心智：
+  - `EmptyState` 当前已移除 hero 的 `workspaceBadges` 注入，首屏现在只保留 `slogan / 创作说明 / 结果入口 / 继续这轮`
+  - 首页当前不再把 `通用对话`、创作模式和当前已挂载方法做成顶部 pill；即使已经选中本地方法，这层状态也只留在输入主执行面里，不再在 hero 再喊一次
+- 因此用户当前沿着 `新建任务 -> 结果入口 -> 输入 -> 发送` 这条链路时，首屏认知会继续从“我先确认系统状态”收回到“我现在先拿什么结果开工”：
+  - hero 当前只负责创作语义和起手承诺
+  - 方法、模板、当前模型这些真正影响执行的状态，当前分别留在结果入口、输入执行面和高级设置里，不再叠成第二条状态带
+- 这一步继续遵守 P1 / P2 的 current 边界：
+  - 不改首页推荐排序、输入执行协议或 capability route
+  - 不新增新的 hero 提示层或替代 badge 样式
+  - 继续只在 `EmptyState` 前台投影层做减法，不碰底层能力选择主链
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+  - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+  - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - `vitest` 通过：`1 file / 49 tests passed`
+  - `eslint` 通过
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+  - 补充说明：本轮 smoke 仍出现了异常 API Key UTF-8 warning、`8999` 端口占用与 companion 端口占用噪音，但最终整条 GUI 主链已跑通，应按环境复用噪音处理，而不是首页 hero 收口回归
+
+- `我的方法` 页顶栏和当前草稿条当前又继续做了一刀减法，避免首页 hero 已经去掉系统状态带后，方法页首屏仍然残留 `当前草稿 / 项目内整理 / 技术化 tip` 这一类对象提示：
+  - `SkillsWorkspacePage` 当前已把方法主入口 tips 改成 `先从结果起手，顺手的做法和自己沉淀下来的方法都在这里续上`，不再继续解释 `Agent / adapter / runtime / YAML`
+  - 搜索 tips 当前也从“整理自己的方法”收成“先找这轮想拿的结果方向，没命中再接着自己顺手的方法”，减少管理台心智
+  - 当前草稿 strip 当前已把 `当前草稿` 改成 `这次续用`，并移除了 `项目内整理` 来源 pill；草稿动作同步收成 `继续整理`
+  - 右侧 continuation 区的 tips 当前也从“方法库 / 沉淀区说明”收成“最近顺手的做法 / 自己的固定做法”这种前台口径
+- 因此用户当前沿着 `首页 -> 我的方法 -> 当前草稿/继续上次做法/已经沉淀的方法 -> 生成` 这条链路时，首屏认知会继续从“我在看一个方法对象目录”收回到“我这轮接着哪套做法往下做”：
+  - 顶栏 tips 当前先回答“这里怎么继续开工”，而不是“这是哪套系统结构”
+  - 当前草稿条当前先表达“这次续用什么”，而不是“这条东西来自哪里”
+  - 右侧两块当前也更像下一步动作入口，而不是方法库存说明
+- 这一步继续遵守 P2 的 current 边界：
+  - 不改 `SkillsWorkspacePage` 的布局骨架、分区顺序、跳转路由或带回生成主链
+  - 不新增第二套方法详情页或草稿管理协议
+  - 继续只在方法页首屏文案与轻标签层做减法，不碰底层数据、recent continuation 与 launcher 主链
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - `vitest` 通过：`1 file / 27 tests passed`
+  - `eslint` 通过
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+  - 补充说明：本轮 smoke 继续出现了异常 API Key UTF-8 warning，以及 `3030/8999` 与 companion 端口占用噪音；但最终 GUI 主链已通过，应按环境复用噪音处理，而不是本轮方法页收口回归
+
+- `我的方法` 页顶栏当前又继续做了一刀减法，避免首页和方法页都已经逐步压低系统说明后，header 右上角仍然挂着一个和下方重复的 `整理` 入口，把首屏重新拉回“先管理方法”而不是“先继续这轮”：
+  - `SkillsWorkspacePage` 当前已移除顶栏右上角那颗重复的 `整理` 按钮
+  - `整理` 入口当前只保留在真正需要它的局部位置，例如当前草稿条和 `已经沉淀的方法` 区域，不再在页头重复提醒
+- 因此用户当前沿着 `首页 -> 我的方法 -> 继续这轮 / 已沉淀的方法 -> 生成` 这条链路时，首屏重心会继续从“先打开管理入口”收回到“先选一条做法继续”：
+  - 顶栏当前只保留与当前页主任务直接相关的动作
+  - 整理动作当前退到具体上下文里出现，不再抢首屏标题区
+- 这一步继续遵守 P2 的 current 边界：
+  - 不改 `SkillsWorkspacePage` 的分区结构、弹窗路由或整理功能本身
+  - 不新增新的管理页入口层级
+  - 继续只做前台可见入口减法，不碰方法页数据与整理弹窗主链
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - `npm run verify:gui-smoke -- --timeout-ms 180000`
+  - `vitest` 通过：`1 file / 27 tests passed`
+  - `eslint` 通过
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+  - 补充说明：本轮 `verify:gui-smoke` 复用了已运行的 headless Tauri 环境，仍经过完整 GUI 主链 smoke；最终通过，应视为当前 UI 收口已在真实主路径上坐实
+
+- `skill-first` 主线当前继续对齐了一刀，直接处理了 `我的方法 / launcher / service skill` 里仍残留的目录心智，避免页面首屏已经收成“先拿结果 -> 继续上次做法 -> 已经沉淀的方法”，但实际数据和补参弹窗还在讲 `云目录 / Seeded 目录 / 租户技能目录 / 最近整理`：
+  - `useServiceSkills` 当前已把 service skill 的默认 badge 从来源标签改成前台动作语义：非 recent 做法统一回到 `现成做法`，站点型做法统一回到 `浏览器继续`；`catalogMeta.sourceLabel` 也同步收成 `起步做法 / 已同步做法`
+  - `SkillsWorkspacePage` 当前已去掉 header 搜索区下方的 `最近整理` 目录说明，不再在“我的方法”页首屏提醒用户这是一个被整理过的目录
+  - `SkillsWorkspacePage` 的失败提示当前也已改成面向前台入口的两类提示：`现成做法暂时没同步下来` / `已经沉淀的方法暂时没读到`，避免错误态把用户拉回“云端目录 / 本地目录”心智
+  - `CuratedTaskLauncherDialog` 当前又补上了和页面卡片同一套 `你先给 / 会拿到 / 接着可做` 轻合同；因此用户从 `我的方法` 或 slash 进入 launcher 后，看到的不再只是“确认几件事”，而是和入口页一致的 skill-first 起手合同
+- 因此当前主链又更接近 Ribbi 的 `前台卖任务，不卖目录来源`：
+  - `我的方法` 页首屏不再拿 catalog 元信息解释自己
+  - service skill 数据层默认也不再把来源标签往前台漏
+  - launcher 和方法页当前已经回到同一套起手合同，而不是各讲一套
+- 这一步继续遵守 P2 的 current 边界：
+  - 不改 runtime 协议、service skill 执行链和 sceneapps route
+  - 不新增长期 compat 包装层
+  - 继续只收 `skill-first` 前台投影与事实源表述，不碰底层 agent / tool 合同
+
+- `@命令` 当前继续回到主线，直接把 mention 面板收成更像 Ribbi 式的统一调用面，而不是“角色 / 技能混排列表”：
+  - `inputCapabilitySections` 当前已把 mention recent 分组从 `最近使用` 收成 `最近调用`，把 `推荐做法` 收成 `场景做法`，把 `角色` 收成 `协作角色`
+  - `CharacterMentionPanel` 当前已把输入提示和空态从 `搜索角色或技能 / 暂无可用角色或技能` 收成 `搜索 @命令、做法或协作角色 / 暂无可用 @命令、做法或协作角色`，明确 `@` 主体首先是调用面
+  - mention 面板当前也补了命令主导的 landing 语义：recent 调用高亮保留，`场景做法 / 我的方法 / 更多做法 / 协作角色` 这些补位分组统一压轻，不再和命令分组抢同一层视觉重心
+  - 因此用户当前沿着 `生成 -> @` 进入时，会先理解“我在调什么命令”，然后才看到整套做法、我的方法与协作对象；更接近 Ribbi 那种 `统一调用注册表`，而不是“另一个技能面板”
+- 这一步继续遵守 P2 的 current 边界：
+  - 不改 `@` 选择后的 capability route、service skill 接管或 builtin command 执行合同
+  - 不新开独立命令页，不把 `@` 长成第二执行系统
+  - 继续只收 mention 输入层的前台分组、提示和视觉重心
+
+- `@命令` 这一轮又继续补了一刀注册表语义，避免 mention 面板虽然已经“命令优先”，但首屏仍然不够像 Ribbi 那种统一调用注册表：
+  - `inputCapabilitySections` 当前已把 `浏览器 / 执行` 收成 `浏览器 / 编排`，让这组能力更贴近 `browser / code / web orchestration agents`，不再像一组模糊的杂项执行动作
+  - mention 空查询当前已新增 `统一调用注册表` 首屏 banner：有 recent 时优先讲“继续最近调用，或切到其他执行器”，没有 recent 时明确讲“先调命令，再补做法”，并再次强调所有调用都会继续写回当前生成线程
+  - mention 空查询的补位层当前也继续下沉：`场景做法 / 分组做法 / 我的方法 / 更多做法 / 协作角色` 现在统一压成命令后的补位层；`协作角色` 也下移到方法区之后，不再夹在方法中间抢注意力
+  - `CharacterMentionPanel` 当前也补了方法层 helper 文案：`场景做法 / 我的方法 / 更多做法` 明确是命令后的补位入口，而不是和上面的 `@命令` 同层竞争
+- 因此用户当前沿着 `生成 -> @` 打开空查询面板时，会先读到“这是统一调用注册表”，再沿着 `最近调用 / 命令家族 / 做法补位 / 协作角色` 这条顺序做选择：
+  - `@` 首屏当前先卖执行器与命令家族，而不是混排对象目录
+  - 浏览器与代码类命令当前也明确回到“编排执行器”心智，而不是挂在一个模糊的“执行”分组里
+  - 协作角色当前继续保留，但已经退回命令和方法之后，避免重新长成第二主入口
+- 这一步继续遵守 P2 的 current 边界：
+  - 不改 `onSelectInputCapability`、`capabilityRoute`、builtin command 执行链或 service skill 接管链
+  - 不新增新的命令页、执行页或角色页
+  - 继续只在 mention 输入层做结构语义收口，不碰底层 runtime contract
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/agent/chat/skill-selection/inputCapabilitySections.test.ts" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+  - `npm run verify:gui-smoke`
+  - `vitest` 通过：`2 files / 94 tests passed`
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+  - `verify:local` 本轮已确认经过 `verify:app-version / lint / typecheck`，但仓库当前因大范围脏改动触发全量 smart 批次，后续批次出现既有 React warning 风暴；因此这轮仍以 mention 定向回归 + GUI smoke 作为主线交付证明
+
+- `@命令` 当前又继续做了一刀治理减法，直接收掉 `CharacterMention` 对外还保留的旧选择表面，避免前台已经讲“统一调用注册表”，真正落地时却仍靠 `onSelectBuiltinCommand / onSelectSceneCommand / onSelectSkill` 三套并行接线：
+  - `CharacterMention` 当前已删除上述三条 public callback surface；内建命令、runtime scene、已安装方法现在只认 `onSelectInputCapability` 这条 current 主链
+  - mention / slash 两侧的选择分支也同步收口：当上层给了 `onSelectInputCapability` 时，不再额外分流到旧 callback；只有在没有 current capability 边界的 fallback 场景下，才保留输入框文本回填
+  - `CharacterMention.test.tsx` 当前也同步删掉了对应 compat 测试，改成围绕 current 路径补守卫：最近使用的 scene / 已安装方法现在都断言 `replayText` 会沿 `onSelectInputCapability` 一起回到发送主链
+- 因此当前 `@ / /` 的选择后合同又更接近路线图里要求的单一事实源：
+  - current：`onSelectInputCapability -> activeCapability -> resolveInputCapabilityDispatch -> capabilityRoute/displayContent`
+  - compat：仅剩“未提供 current callback 时的文本回填”这一条局部 fallback，用于脱离主工作区的纯输入场景
+  - deprecated / dead：`CharacterMention` 级别的 `onSelectBuiltinCommand / onSelectSceneCommand / onSelectSkill` 已不再保留
+- 这一步继续遵守 P2 的 current 边界：
+  - 不改 service skill 补参与 A2UI 接管链
+  - 不改 `InputbarController / EmptyState` 里的 active capability 事实源
+  - 继续只清理 `CharacterMention` 的并行选择边界，不碰 runtime 协议和发送路由
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+  - `npx eslint "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+  - `npm run typecheck`
+  - `npm run verify:gui-smoke`
+  - `vitest` 通过：`1 file / 62 tests passed`
+  - `eslint` 通过
+  - `typecheck` 通过
+  - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- `@命令` 当前继续沿着 `统一调用注册表` 主线把最后一条明显的选择分叉收掉：`service skill` 不再作为 `CharacterMention -> Inputbar / EmptyState` 的特例 surface 暴露，而是并回统一 capability 选择协议，父层内部再转到既有的 service skill 启动链：
+  - `InputCapabilitySelection` 当前已新增 `service_skill`，但它被明确标成“只用于统一选择边界，不直接进入 send route”；因此 current 主链不再把 service skill 误当成普通 capability route 发送
+  - `CharacterMention` 当前在 `@` 选择 service skill、以及 `/scene` 命中带补参需求的 linked scene 时，都会优先走 `onSelectInputCapability({ kind: "service_skill" })`；普通 runtime scene 则继续停留在 `runtime_scene` 主链，不再因为 scene 查询统一 callback 就额外走一轮异步 service skill 探测
+  - `skillSelectionBindings` 当前也已停止把 `onSelectServiceSkill` 继续透传给主输入区的 `CharacterMention`；对 `Inputbar / EmptyState` 来说，current 选择边界现在只剩 `onSelectInputCapability`
+  - `useInputbarController` 与 `EmptyState` 当前则把 `service_skill` capability 作为内部转发分支消费：清掉已有 active capability 后，继续复用既有 `onSelectServiceSkill -> workspaceServiceSkillEntryActions` 启动链，因此这一步只统一“选择协议”，不重写 service skill 执行合同
+  - `RuntimeSceneSlashCommand` 当前补上了 `linkedSkillId` 事实源；所以只有真正 linked 的 scene 才会继续尝试 A2UI / service skill 补参接管，普通 scene 不再被误判成 service skill 特例
+- 因此当前 `@ / /` 的 current / compat 口径又更清楚了一层：
+  - `current`：`CharacterMention -> onSelectInputCapability -> Inputbar / EmptyState -> service_skill 内部转发或 capability route`
+  - `compat`：`CharacterMention` 仅保留“没有 current callback 时，把 service skill 名称回填到输入框”这条纯输入 fallback
+  - `deprecated / dead`：主输入区上游继续直接依赖 `onSelectServiceSkill` 作为选择协议的做法，当前已不再保留
+- 这一步继续遵守 P2 的 current 边界：
+  - 不改 `workspaceServiceSkillEntryActions`、`service_skill_launch` metadata 和既有 service skill 工作区启动链
+  - 不把 service skill 粗暴并进 `capabilityRoute` 发送合同，避免把补参型做法误降级成普通 slash route
+  - 继续只收口 `@命令` 的选择边界，不扩散到 runtime / workspace 执行协议
+- 这次子改动目前已完成的定向验证：
+  - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+  - `npx eslint "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/skill-selection/builtinCommands.ts" "src/components/agent/chat/service-skills/runtimeSceneBinding.ts" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+  - `vitest` 通过：`3 files / 157 tests passed`
+  - `eslint` 通过
+  - `typecheck / verify:gui-smoke`：本轮已启动；当前环境因 `verify:gui-smoke` 触发独立 Cargo target 全量重建，仍在等待最终收口日志
+
+- `@命令` 当前又继续往里收了一刀，把 `CharacterMentionPanel` 从“内部还保留多套 item -> callback 分发”的状态收成纯展示层，避免虽然外层已经统一成 `onSelectInputCapability`，但面板内部仍各自知道 `builtin / service skill / scene / installed skill` 的旧分叉：
+  - `CharacterMentionPanel` 当前只再暴露 `onSelectCapability(item)`，不再直接持有 `onSelectBuiltinCommand / onSelectServiceSkill / onSelectSceneCommand / onSelectInstalledSkill` 这一串内部 surface
+  - `CharacterMention` 当前接管全部 item 选择分发；因此 mention/slash 的真正行为事实源现在进一步集中到 `CharacterMention` 自己，而不是“面板分一部分、输入组件分一部分”
+  - `SkillSelector` 也同步复用同一条 `onSelectCapability(item)` 内部分发，但它只消费 `service_skill / installed_skill / available_skill` 三类与技能选择器主任务直接相关的 item，不再让面板替它理解选择语义
+- 因此当前 `@命令` 这一层的分类又更清楚了一点：
+  - `current`：`CharacterMentionPanel` 负责渲染，`CharacterMention` 负责选择语义，`Inputbar / EmptyState` 负责 capability 消费与 service skill 转发
+  - `compat`：仅剩 `SkillSelector` 和工作区入口对 `onSelectServiceSkill` 的执行型消费；这条仍属于既有 service skill 工作区启动链，不是 `@命令` 选择协议
+  - `dead`：`CharacterMentionPanel` 内部那套 `service skill` 特例分发当前已收掉
+- 这次子改动新增的定向验证当前已通过：
+  - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/skill-selection/SkillSelector.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+  - `npx eslint "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/SkillSelector.tsx"`
+  - `vitest` 通过：`4 files / 165 tests passed`
+  - `eslint` 通过
+- 这轮补跑后的交付验证结论：
+  - `npm run typecheck` 通过
+  - `npm run smoke:agent-runtime-tool-surface-page -- --timeout-ms 240000` 通过
+  - `npm run verify:gui-smoke -- --timeout-ms 240000` 首轮在 `smoke:agent-runtime-tool-surface-page` 的 `wait-runtime-summary` 阶段超时；但同一环境下随后的单独复跑已通过，因此当前更接近页面级 smoke 偶发卡顿，而不是本轮 `@命令` 收口引入的新结构性失败

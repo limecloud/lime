@@ -121,15 +121,35 @@ export function useWorkspaceTopicSwitch({
       }
 
       try {
+        const currentProjectId = normalizeProjectId(projectId);
+        const topicBoundProjectId = normalizeProjectId(
+          loadTopicBoundProjectId(topicId),
+        );
         logAgentDebug("AgentChatPage", "switchTopic.start", {
-          currentProjectId: projectId ?? null,
+          currentProjectId: currentProjectId ?? null,
           externalProjectId: externalProjectId ?? null,
           forceRefresh: options?.forceRefresh === true,
           topicId,
         });
+
+        if (
+          !externalProjectId &&
+          currentProjectId &&
+          topicBoundProjectId === currentProjectId
+        ) {
+          rememberProjectId(currentProjectId);
+          logAgentDebug("AgentChatPage", "switchTopic.fastPathCurrentProject", {
+            currentProjectId,
+            forceRefresh: options?.forceRefresh === true,
+            topicId,
+          });
+          await runTopicSwitch(topicId, options);
+          return;
+        }
+
         const decision = await resolveTopicSwitchProject({
           lockedProjectId: externalProjectId ?? null,
-          topicBoundProjectId: loadTopicBoundProjectId(topicId),
+          topicBoundProjectId,
           lastProjectId: getRememberedProjectId(),
           loadProjectById: async (candidateProjectId) => {
             const project = await getProject(candidateProjectId);
@@ -173,7 +193,6 @@ export function useWorkspaceTopicSwitch({
           toast.info("未找到可用项目，已自动创建默认项目");
         }
 
-        const currentProjectId = normalizeProjectId(projectId);
         if (currentProjectId !== targetProjectId) {
           deferTopicSwitch(topicId, targetProjectId, options);
           logAgentDebug("AgentChatPage", "switchTopic.deferUntilProjectReady", {

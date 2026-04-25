@@ -635,22 +635,25 @@ describe("AutomationSettings", () => {
     const container = await renderSettings();
 
     expect(getBodyText()).not.toContain(
-      "统一管理 Agent 自动化任务的创建、运行历史和调度器配置。",
+      "把值得持续跟进的做法接成长期跟进，统一查看持续流程、运行和调度设置。",
     );
     expect(getBodyText()).not.toContain(
-      "默认页只保留 Agent 对话任务相关动作。",
+      "默认页只保留从 Agent 对话接回来的持续流程动作。模板会先帮你写好节奏、起手信息和输出去向，浏览器自动化不再保留单独起手入口。",
     );
-    expect(container.textContent).toContain("统一管理自动化任务、运行状态和调度入口。");
+    expect(container.textContent).toContain("统一查看持续流程、运行状态和调度设置。");
+    expect(container.textContent).toContain("系统入口");
     expect(container.textContent).not.toContain("Automation Workspace");
 
-    const heroTip = await hoverTip("自动化工作台说明");
+    const heroTip = await hoverTip("持续流程说明");
     expect(getBodyText()).toContain(
-      "统一管理 Agent 自动化任务的创建、运行历史和调度器配置。",
+      "把值得持续跟进的做法接成长期跟进，统一查看持续流程、运行和调度设置。",
     );
     await leaveTip(heroTip);
 
-    const taskTip = await hoverTip("任务入口说明");
-    expect(getBodyText()).toContain("默认页只保留 Agent 对话任务相关动作。");
+    const taskTip = await hoverTip("开始这条说明");
+    expect(getBodyText()).toContain(
+      "默认页只保留从 Agent 对话接回来的持续流程动作。模板会先帮你写好节奏、起手信息和输出去向，浏览器自动化不再保留单独起手入口。",
+    );
     await leaveTip(taskTip);
   });
 
@@ -659,7 +662,7 @@ describe("AutomationSettings", () => {
     await openJobDetails(container, "job-browser-1");
     const documentText = document.body.textContent ?? "";
 
-    expect(documentText).toContain("任务详情与历史");
+    expect(documentText).toContain("持续流程详情");
     expect(documentText).toContain("浏览器自动化已下线");
     expect(documentText).toContain("系统不会再自动启动 Chrome");
     expect(documentText).toContain("等待人工处理");
@@ -669,7 +672,7 @@ describe("AutomationSettings", () => {
     expect(documentText).toContain("最近一次投递结果");
     expect(documentText).toContain("投递失败");
     expect(documentText).toContain("写入本地文件失败: permission denied");
-    expect(documentText).toContain("投递失败记为任务失败");
+    expect(documentText).toContain("投递失败记为本轮失败");
     expect(documentText).toContain("投递键: dlv-run-browser-1");
     expect(documentText).toContain("执行重试: 0 / 投递尝试: 2");
     expect(documentText).not.toContain("浏览器实时接管");
@@ -750,10 +753,10 @@ describe("AutomationSettings", () => {
       onOpenWorkspace: vi.fn(),
     });
 
-    expect(container.textContent).toContain("自动化设置");
-    expect(container.textContent).toContain("打开自动化工作台");
-    expect(container.textContent).not.toContain("任务详情与历史");
-    expect(container.textContent).not.toContain("新建任务");
+    expect(container.textContent).toContain("持续流程设置");
+    expect(container.textContent).toContain("打开持续流程");
+    expect(container.textContent).not.toContain("持续流程详情");
+    expect(container.textContent).not.toContain("新建持续流程");
     expect(container.textContent).toContain("启用调度器");
     expect(container.querySelector("table")).toBeNull();
     expect(
@@ -768,13 +771,13 @@ describe("AutomationSettings", () => {
       onOpenSettings: vi.fn(),
     });
 
-    expect(container.textContent).toContain("自动化");
-    expect(container.textContent).toContain("任务入口");
-    expect(container.textContent).toContain("任务列表");
-    expect(container.textContent).not.toContain("任务详情与历史");
-    expect(container.textContent).toContain("自动化设置");
-    expect(container.textContent).toContain("新建任务");
-    expect(container.textContent).toContain("任务");
+    expect(container.textContent).toContain("持续流程");
+    expect(container.textContent).toContain("开始这条");
+    expect(container.textContent).toContain("已在运行的持续流程");
+    expect(container.textContent).not.toContain("持续流程详情");
+    expect(container.textContent).toContain("持续流程设置");
+    expect(container.textContent).toContain("新建持续流程");
+    expect(container.textContent).toContain("持续流程");
     expect(container.textContent).toContain("概览");
     expect(container.textContent).not.toContain("保存调度器");
     expect(container.textContent).not.toContain("启用调度器");
@@ -801,7 +804,7 @@ describe("AutomationSettings", () => {
         "[data-testid='automation-job-details-dialog']",
       ),
     ).not.toBeNull();
-    expect(document.body.textContent).toContain("任务详情与历史");
+    expect(document.body.textContent).toContain("持续流程详情");
     expect(document.body.textContent).toContain("浏览器巡检");
     expect(mockGetAutomationRunHistory).toHaveBeenLastCalledWith(
       "job-browser-1",
@@ -968,9 +971,9 @@ describe("AutomationSettings", () => {
       mode: "workspace",
     });
 
-    expect(container.textContent).toContain("自动化");
-    expect(container.textContent).toContain("任务入口");
-    expect(container.textContent).toContain("任务列表");
+    expect(container.textContent).toContain("持续流程");
+    expect(container.textContent).toContain("开始这条");
+    expect(container.textContent).toContain("已在运行的持续流程");
     expect(container.querySelector("table")).not.toBeNull();
   });
 
@@ -983,7 +986,7 @@ describe("AutomationSettings", () => {
       mode: "workspace",
     });
 
-    expect(container.textContent).toContain("自动化页面加载失败");
+    expect(container.textContent).toContain("持续流程页面加载失败");
     expect(container.textContent).toContain("scheduler offline");
     expect(container.textContent).toContain("重新加载");
     expect(container.querySelector("table")).toBeNull();
@@ -1117,21 +1120,21 @@ describe("AutomationSettings", () => {
     );
     const dialogText = document.body.textContent ?? "";
 
-    expect(serviceSkillSummary?.textContent).toContain("技能任务");
-    expect(serviceSkillSummary?.textContent).toContain("定时任务");
+    expect(serviceSkillSummary?.textContent).toContain("技能流程");
+    expect(serviceSkillSummary?.textContent).toContain("定时运行");
     expect(serviceSkillSummary?.textContent).toContain("客户端执行");
     expect(serviceSkillSummary?.textContent).toContain("云目录");
-    expect(serviceSkillSummary?.textContent).toContain("技能项: 每日趋势摘要");
+    expect(serviceSkillSummary?.textContent).toContain("技能：每日趋势摘要");
     expect(serviceSkillSummary?.textContent).toContain(
       "参数摘要: 监测平台: X / Twitter · 行业关键词: AI Agent，创作者工具",
     );
     expect(runWindow?.textContent).toContain("下次:");
     expect(runWindow?.textContent).toContain("最近:");
-    expect(runServiceSkillSummary?.textContent).toContain("技能任务运行上下文");
-    expect(runServiceSkillSummary?.textContent).toContain("定时任务");
+    expect(runServiceSkillSummary?.textContent).toContain("技能流程运行上下文");
+    expect(runServiceSkillSummary?.textContent).toContain("定时运行");
     expect(runServiceSkillSummary?.textContent).toContain("客户端执行");
     expect(runServiceSkillSummary?.textContent).toContain(
-      "技能项: 每日趋势摘要",
+      "技能：每日趋势摘要",
     );
     expect(runServiceSkillSummary?.textContent).toContain(
       "参数摘要: 监测平台: 小红书 · 行业关键词: AI 短视频",
@@ -1140,12 +1143,12 @@ describe("AutomationSettings", () => {
       "补充要求: 优先记录增速最快的话题。",
     );
     expect(dialog).not.toBeNull();
-    expect(dialogText).toContain("技能任务上下文");
+    expect(dialogText).toContain("技能流程上下文");
     expect(dialogText).toContain("每日趋势摘要");
-    expect(dialogText).toContain("定时任务");
+    expect(dialogText).toContain("定时运行");
     expect(dialogText).toContain("客户端执行");
     expect(dialogText).toContain("云目录");
-    expect(dialogText).toContain("工作主题: general");
+    expect(dialogText).toContain("主题: general");
     expect(dialogText).toContain("主稿绑定: content-service-skill-1");
     expect(dialogText).toContain("参数摘要");
     expect(dialogText).toContain("监测平台: X / Twitter");
@@ -1289,15 +1292,15 @@ describe("AutomationSettings", () => {
     });
 
     const dialogText = document.body.textContent ?? "";
-    expect(dialogText).toContain("做法闭环");
+    expect(dialogText).toContain("接回生成");
     expect(dialogText).toContain("故事短视频套件");
-    expect(dialogText).toContain("结果包、复盘材料和这轮判断");
+    expect(dialogText).toContain("结果、结果材料和下一步判断");
     expect(dialogText).toContain("按 Project Pack 对齐");
     expect(dialogText).toContain("Project Pack");
 
     const governanceButton = Array.from(
       document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("查看做法复盘"));
+    ).find((button) => button.textContent?.includes("看这轮结果"));
     await act(async () => {
       governanceButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();

@@ -279,13 +279,13 @@ describe("ChannelsDebugWorkbench", () => {
     vi.unstubAllGlobals();
   });
 
-  it("旧的概览或配置入口应直接落到高级调试区，且不再暴露渠道配置表单", async () => {
+  it("旧的概览或配置入口应直接落到日志与检查区，且不再暴露渠道配置表单", async () => {
     renderPage();
     await flushEffects(10);
 
     const text = document.body.textContent ?? "";
-    expect(text).toContain("高级排障");
-    expect(text).toContain("这里只保留网关、日志和运行状态");
+    expect(text).toContain("日志与检查");
+    expect(text).toContain("这里只保留网关、日志和运行检查");
     expect(text).toContain("日志");
     expect(text).toContain("运行");
     expect(

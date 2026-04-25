@@ -114,9 +114,9 @@ export const CuratedTaskBadge: React.FC<CuratedTaskBadgeProps> = ({
   const reviewSummary = visibleReviewProjection
     ? truncateBadgeReviewText(
         visibleReviewProjection.matchedCurrentTask
-          ? visibleReviewProjection.signal.title.startsWith("最近复盘")
+          ? visibleReviewProjection.signal.title.startsWith("最近判断")
             ? visibleReviewProjection.signal.title
-            : `复盘：${visibleReviewProjection.signal.title}`
+            : `判断：${visibleReviewProjection.signal.title}`
           : `更适合：${primarySuggestedTask?.title || visibleReviewProjection.signal.title}`,
       )
     : null;
@@ -164,11 +164,11 @@ export const CuratedTaskBadge: React.FC<CuratedTaskBadgeProps> = ({
         <span
           data-testid="curated-task-badge-review-signal"
           className="inline-flex max-w-[240px] items-center rounded-full border border-emerald-300/70 bg-white/90 px-2 py-0.5 text-[11px] leading-4 text-emerald-700"
-          title={`围绕最近复盘 · ${visibleReviewProjection?.signal.summary || visibleReviewProjection?.signal.title || ""}`}
+          title={`围绕最近判断 · ${visibleReviewProjection?.signal.summary || visibleReviewProjection?.signal.title || ""}`}
         >
           <span className="truncate">
             {visibleReviewProjection?.matchedCurrentTask
-              ? `围绕最近复盘 · ${reviewSummary}`
+              ? `围绕最近判断 · ${reviewSummary}`
               : reviewSummary}
           </span>
         </span>
@@ -178,7 +178,7 @@ export const CuratedTaskBadge: React.FC<CuratedTaskBadgeProps> = ({
           type="button"
           data-testid="curated-task-badge-review-action"
           className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-white/90 px-2 py-0.5 text-[11px] leading-4 text-sky-700 transition hover:bg-white"
-          title={`按最近复盘切到「${primarySuggestedTask.title}」`}
+          title={`按最近判断切到「${primarySuggestedTask.title}」`}
           onClick={() => onApplyReviewSuggestion(primarySuggestedTask)}
         >
           <span className="truncate">改用「{primarySuggestedTask.title}」</span>

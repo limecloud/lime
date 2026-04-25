@@ -567,8 +567,8 @@ describe("sceneapp product", () => {
     );
     expect(runtimeBackfilledSummary.scorecardAggregate?.destinations).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ key: "weekly-review", label: "周会复盘" }),
-        expect.objectContaining({ key: "task-center", label: "生成 / 看板" }),
+        expect.objectContaining({ key: "weekly-review", label: "看结果" }),
+        expect.objectContaining({ key: "task-center", label: "生成" }),
       ]),
     );
   });
@@ -728,7 +728,7 @@ describe("sceneapp product", () => {
         entryAction: expect.objectContaining({
           kind: "open_automation_job",
           jobId: "automation-job-story-video-1",
-          label: "打开自动化任务",
+          label: "打开持续流程",
         }),
       }),
     );
@@ -814,13 +814,13 @@ describe("sceneapp product", () => {
       expect.arrayContaining([
         expect.objectContaining({
           key: "weekly-review-pack",
-          label: "准备周会复盘包",
+          label: "补结果材料",
           primaryArtifactKind: "review_decision_markdown",
           artifactKinds: ["evidence_summary", "review_decision_markdown"],
         }),
         expect.objectContaining({
           key: "structured-governance-pack",
-          label: "准备结构化治理包",
+          label: "补结果记录",
           primaryArtifactKind: "review_decision_json",
           artifactKinds: [
             "evidence_summary",
@@ -884,7 +884,7 @@ describe("sceneapp product", () => {
       }),
     );
     expect(governanceView.summary).toContain("复核阻塞");
-    expect(governanceView.nextAction).toContain("准备周会复盘包");
+    expect(governanceView.nextAction).toContain("补结果材料");
     expect(governanceView.contextBaseline).toEqual(
       expect.objectContaining({
         scopeLabel: "项目 project-story-video",
@@ -912,14 +912,14 @@ describe("sceneapp product", () => {
     );
     expect(governanceView.destinations).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ key: "weekly-review", label: "周会复盘" }),
+        expect.objectContaining({ key: "weekly-review", label: "看结果" }),
         expect.objectContaining({
           key: "task-center",
-          label: "生成 / 看板",
+          label: "生成",
         }),
         expect.objectContaining({
           key: "automation-job",
-          label: "持续流程 / 自动化",
+          label: "持续流程",
         }),
       ]),
     );
@@ -1013,10 +1013,10 @@ describe("sceneapp product", () => {
       expect.objectContaining({
         status: "idle",
         statusLabel: "等待首轮运行",
-        latestRunLabel: "最近运行：尚未开始",
+        latestRunLabel: "最近结果：尚未开始",
       }),
     );
-    expect(governanceView.summary).toContain("首轮复盘样本");
+    expect(governanceView.summary).toContain("首轮结果样本");
     expect(governanceView.destinations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1055,11 +1055,11 @@ describe("sceneapp product", () => {
       }),
     );
     expect(summary.summary).toContain("复核阻塞");
-    expect(summary.nextAction).toContain("周会复盘包");
+    expect(summary.nextAction).toContain("结果材料");
     expect(summary.destinations).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ label: "周会复盘" }),
-        expect.objectContaining({ label: "生成 / 看板" }),
+        expect.objectContaining({ label: "看结果" }),
+        expect.objectContaining({ label: "生成" }),
       ]),
     );
   });
@@ -1135,10 +1135,10 @@ describe("sceneapp product", () => {
     expect(card.businessLabel).toBe("多模态组合");
     expect(card.status).toBe("good");
     expect(card.automationSummary).toBe(
-      "2 条自动化任务 · 1 条启用中 · 当前无风险提醒",
+      "2 条持续流程 · 1 条启用中 · 当前无风险提醒",
     );
     expect(card.latestAutomationLabel).toBe(
-      "最近投放任务：短视频编排｜定时投放 · 成功",
+      "最近运行：短视频编排｜定时投放 · 成功",
     );
     expect(card.patternSummary).toContain("步骤链");
     expect(card.scorecardAggregate).toEqual(
@@ -1173,8 +1173,8 @@ describe("sceneapp product", () => {
     );
     expect(card.scorecardAggregate?.destinations).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ key: "weekly-review", label: "周会复盘" }),
-        expect.objectContaining({ key: "task-center", label: "生成 / 看板" }),
+        expect.objectContaining({ key: "weekly-review", label: "看结果" }),
+        expect.objectContaining({ key: "task-center", label: "生成" }),
       ]),
     );
   });

@@ -30,15 +30,15 @@ export function SceneAppRunList({
   return (
     <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
       <div>
-        <div className="text-sm font-semibold text-slate-900">最近运行</div>
+        <div className="text-sm font-semibold text-slate-900">结果记录</div>
         <p className="mt-1 text-sm leading-6 text-slate-500">
-          同一个 SceneApp 在不同项目和时间里的表现，会统一回流到这里。
+          同一套做法在不同项目和时间里的最近结果，会统一回到这里。
         </p>
       </div>
 
       {loading ? (
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          正在加载运行记录…
+          正在加载结果记录…
         </div>
       ) : error ? (
         <div className="mt-5 rounded-[22px] border border-dashed border-rose-200 bg-rose-50 px-4 py-5 text-sm text-rose-700">
@@ -46,7 +46,7 @@ export function SceneAppRunList({
         </div>
       ) : runs.length === 0 ? (
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          当前还没有运行记录，适合先做第一轮试跑。
+          当前还没有结果记录，适合先做第一轮试跑。
         </div>
       ) : (
         <div className="mt-4 flex flex-col gap-3">

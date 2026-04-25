@@ -377,19 +377,19 @@ function resolveDerivedServiceSkillOutputDestination(
 
   if (item.siteCapabilityBinding) {
     return item.siteCapabilityBinding.saveMode === "project_resource"
-      ? "结果会沉淀为当前项目资源，方便后续复用。"
-      : "结果会优先写回当前内容，继续在当前工作区整理。";
+      ? "结果会收进当前项目资料，后面还能继续拿来用。"
+      : "结果会先回到当前内容里，方便接着往下改。";
   }
 
   if (item.runnerType === "scheduled") {
-    return "首轮结果会进入当前工作区；后续结果会同步到生成工作台。";
+    return "第一轮结果会先回到生成，后面按时间继续接回来。";
   }
 
   if (item.runnerType === "managed") {
-    return "首轮策略会进入当前工作区；后续跟踪结果会持续回流。";
+    return "这轮判断会先回到生成，后面新的结果和提醒也会继续带回来。";
   }
 
-  return "结果会写回当前工作区，方便继续编辑。";
+  return "结果会回到生成，方便接着改。";
 }
 
 function buildDerivedServiceSkillCompatibility(

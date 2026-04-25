@@ -199,7 +199,7 @@ const WORKSPACE_TEMPLATES: AutomationWorkspaceTemplate[] = [
     id: "daily-brief",
     tag: "定时摘要",
     name: "每日摘要",
-    description: "每天固定时间整理项目或工作区的关键进展。",
+    description: "每天固定时间整理这条内容链的关键进展。",
     detail: "适合日报、晨报和巡检总结。",
     actionLabel: "使用摘要模板",
     icon: Bell,
@@ -239,11 +239,11 @@ const WORKSPACE_TEMPLATES: AutomationWorkspaceTemplate[] = [
   },
   {
     id: "blank",
-    tag: "空白创建",
-    name: "空白任务",
-    description: "从零定义调度、payload 和输出，不受模板约束。",
-    detail: "适合已经熟悉 automation 模型的配置场景。",
-    actionLabel: "新建空白任务",
+    tag: "空白起手",
+    name: "空白持续流程",
+    description: "从零定义节奏、起手提示和输出去向，不受模板约束。",
+    detail: "适合已经熟悉持续流程配置的人。",
+    actionLabel: "空白开始",
     icon: Plus,
   },
 ];
@@ -673,7 +673,7 @@ export function AutomationSettings({
           await Promise.allSettled([
             withAutomationLoadTimeout(
               getAutomationSchedulerConfig(),
-              "自动化调度器配置",
+              "持续流程调度配置",
               AUTOMATION_CORE_LOAD_TIMEOUT_MS,
             ),
             withAutomationLoadTimeout(
@@ -683,7 +683,7 @@ export function AutomationSettings({
             ),
             withAutomationLoadTimeout(
               getAutomationJobs(),
-              "自动化任务列表",
+              "持续流程列表",
               AUTOMATION_CORE_LOAD_TIMEOUT_MS,
             ),
           ]);
@@ -705,7 +705,7 @@ export function AutomationSettings({
           coreErrors.push(
             resolveAutomationLoadErrorMessage(
               schedulerConfigResult.reason,
-              "自动化调度器配置加载失败",
+              "持续流程调度配置加载失败",
             ),
           );
         }
@@ -727,13 +727,13 @@ export function AutomationSettings({
           coreErrors.push(
             resolveAutomationLoadErrorMessage(
               jobsResult.reason,
-              "自动化任务列表加载失败",
+              "持续流程列表加载失败",
             ),
           );
         }
 
         if (!nextSchedulerConfig) {
-          throw new Error(coreErrors.join("；") || "自动化调度器配置加载失败");
+          throw new Error(coreErrors.join("；") || "持续流程调度配置加载失败");
         }
 
         if (!isCurrentRequest()) {
@@ -766,20 +766,20 @@ export function AutomationSettings({
           autoOpenedInitialJobIdRef.current = initialSelectedJobId;
         }
         if (coreErrors.length > 0) {
-          toast.error(`自动化页面存在部分数据未加载：${coreErrors.join("；")}`);
+          toast.error(`持续流程页有部分数据未加载：${coreErrors.join("；")}`);
         }
 
         void Promise.allSettled([
           withAutomationLoadTimeout(
             listProjects(),
-            "工作区列表",
+            "归属位置列表",
             AUTOMATION_AUXILIARY_LOAD_TIMEOUT_MS,
           ),
           withAutomationLoadTimeout(
             getAutomationHealth({
               top_limit: Math.max(6, nextJobs.length),
             }),
-            "自动化健康状态",
+            "持续流程健康状态",
             AUTOMATION_AUXILIARY_LOAD_TIMEOUT_MS,
           ),
         ]).then(([workspacesSettled, healthSettled]) => {
@@ -795,7 +795,7 @@ export function AutomationSettings({
             auxiliaryErrors.push(
               resolveAutomationLoadErrorMessage(
                 workspacesSettled.reason,
-                "工作区列表加载失败",
+                "归属位置列表加载失败",
               ),
             );
           }
@@ -806,14 +806,14 @@ export function AutomationSettings({
             auxiliaryErrors.push(
               resolveAutomationLoadErrorMessage(
                 healthSettled.reason,
-                "自动化健康状态加载失败",
+                "持续流程健康状态加载失败",
               ),
             );
           }
 
           if (auxiliaryErrors.length > 0) {
             toast.error(
-              `自动化页面存在部分数据未加载：${auxiliaryErrors.join("；")}`,
+              `持续流程页有部分数据未加载：${auxiliaryErrors.join("；")}`,
             );
           }
         });
@@ -824,12 +824,12 @@ export function AutomationSettings({
 
         const message = resolveAutomationLoadErrorMessage(
           error,
-          "加载自动化设置失败",
+          "加载持续流程失败",
         );
         if (!hasVisibleContent) {
           setLoadError(message);
         }
-        toast.error(`加载自动化设置失败: ${message}`);
+        toast.error(`加载持续流程失败: ${message}`);
       } finally {
         if (!silent && isCurrentRequest()) {
           setLoading(false);
@@ -857,7 +857,7 @@ export function AutomationSettings({
         return;
       }
       toast.error(
-        `加载任务历史失败: ${error instanceof Error ? error.message : error}`,
+        `加载运行历史失败: ${error instanceof Error ? error.message : error}`,
       );
       setJobRuns([]);
     } finally {
@@ -966,7 +966,9 @@ export function AutomationSettings({
           ? await createAutomationJob(payload.request)
           : await updateAutomationJob(payload.id, payload.request);
 
-      toast.success(payload.mode === "create" ? "任务已创建" : "任务已更新");
+      toast.success(
+        payload.mode === "create" ? "持续流程已创建" : "持续流程已更新",
+      );
       setDialogOpen(false);
       setDialogInitialValues(null);
       await refreshAll(true);
@@ -975,7 +977,7 @@ export function AutomationSettings({
       await refreshHistory(result.id);
     } catch (error) {
       toast.error(
-        `保存任务失败: ${error instanceof Error ? error.message : error}`,
+        `保存持续流程失败: ${error instanceof Error ? error.message : error}`,
       );
       throw error;
     } finally {
@@ -984,17 +986,17 @@ export function AutomationSettings({
   }
 
   async function handleDeleteJob(job: AutomationJobRecord) {
-    if (!window.confirm(`确认删除自动化任务“${job.name}”吗？`)) {
+    if (!window.confirm(`确认删除持续流程“${job.name}”吗？`)) {
       return;
     }
 
     try {
       await deleteAutomationJob(job.id);
-      toast.success("任务已删除");
+      toast.success("持续流程已删除");
       await refreshAll(true);
     } catch (error) {
       toast.error(
-        `删除任务失败: ${error instanceof Error ? error.message : error}`,
+        `删除持续流程失败: ${error instanceof Error ? error.message : error}`,
       );
     }
   }
@@ -1015,7 +1017,7 @@ export function AutomationSettings({
       await refreshHistory(job.id);
     } catch (error) {
       toast.error(
-        `执行任务失败: ${error instanceof Error ? error.message : error}`,
+        `立即运行失败: ${error instanceof Error ? error.message : error}`,
       );
     } finally {
       setRunningJobId(null);
@@ -1072,7 +1074,7 @@ export function AutomationSettings({
   const handleContinueSelectedSceneAppReview = useCallback(
     (taskId: string) => {
       if (!onNavigate) {
-        toast.error("当前入口暂不支持直接回到生成工作台。");
+        toast.error("当前入口暂不支持直接回到生成。");
         return;
       }
       if (!selectedSceneAppExecutionReferenceEntry) {
@@ -1160,7 +1162,7 @@ export function AutomationSettings({
   const handleContinueOverviewSceneAppReview = useCallback(
     (taskId: string) => {
       if (!onNavigate) {
-        toast.error("当前入口暂不支持直接回到生成工作台。");
+        toast.error("当前入口暂不支持直接回到生成。");
         return;
       }
       if (!overviewSceneAppExecutionReferenceEntry) {
@@ -1280,7 +1282,7 @@ export function AutomationSettings({
       >,
     ) => {
       openSelectedSceneAppFileEntry(artifactEntry, {
-        missingPathMessage: "当前这条自动化任务还没有可打开的结果文件路径。",
+        missingPathMessage: "当前这条持续流程还没有可打开的结果文件路径。",
         bannerPrefix: "已从自动化详情打开结果包文件",
       });
     },
@@ -1309,7 +1311,7 @@ export function AutomationSettings({
               artifactEntry.artifactRef.kind,
             );
             if (!refreshed) {
-              toast.error("当前运行已不存在，无法继续准备治理文件。");
+              toast.error("当前运行已不存在，无法继续准备结果材料。");
               return;
             }
             selectedSceneAppRuntime.setLinkedRun(refreshed);
@@ -1325,7 +1327,7 @@ export function AutomationSettings({
               );
             openSelectedSceneAppFileEntry(targetEntry, {
               missingPathMessage: "当前这次运行还没有可打开的证据或复核文件。",
-              bannerPrefix: "已从自动化详情打开治理文件",
+              bannerPrefix: "已从持续流程详情打开结果材料",
             });
             return;
           } catch (error) {
@@ -1336,7 +1338,7 @@ export function AutomationSettings({
 
         openSelectedSceneAppFileEntry(artifactEntry, {
           missingPathMessage: "当前这次运行还没有可打开的证据或复核文件。",
-          bannerPrefix: "已从自动化详情打开治理文件",
+          bannerPrefix: "已从持续流程详情打开结果材料",
         });
       })();
     },
@@ -1364,7 +1366,7 @@ export function AutomationSettings({
             action.artifactKinds,
           );
           if (!refreshed) {
-            toast.error("当前运行已不存在，无法继续准备治理动作。");
+            toast.error("当前运行已不存在，无法继续准备后续动作。");
             return;
           }
 
@@ -1379,8 +1381,8 @@ export function AutomationSettings({
               (entry) => entry.artifactRef.kind === action.primaryArtifactKind,
             );
           openSelectedSceneAppFileEntry(targetEntry, {
-            missingPathMessage: `治理动作已准备完成，但当前没有可打开的${action.primaryArtifactLabel}路径。`,
-            bannerPrefix: "已从自动化详情打开治理动作",
+            missingPathMessage: `后续动作已准备完成，但当前没有可打开的${action.primaryArtifactLabel}路径。`,
+            bannerPrefix: "已从持续流程详情打开后续动作",
           });
         } catch (error) {
           toast.error(formatSceneAppErrorMessage(error));
@@ -1433,20 +1435,20 @@ export function AutomationSettings({
   );
 
   const heroTitle = settingsOnly
-    ? "自动化设置"
+    ? "持续流程设置"
     : workspaceOnly
-      ? "自动化"
-      : "自动化工作台";
+      ? "持续流程"
+      : "持续流程";
   const heroDescription = settingsOnly
-    ? "这里只管理全局调度器开关、轮询间隔和执行历史保留。任务创建和运行处理都在左侧自动化工作台完成。"
+    ? "这里只管理全局调度器开关、轮询间隔和执行历史保留。开始持续和最近运行都在持续流程页继续。"
     : workspaceOnly
-      ? "默认进入当前进展，当前只保留 Agent 对话任务的创建与运行。统计和风险提醒收进单独的概览页。"
-      : "统一管理 Agent 自动化任务的创建、运行历史和调度器配置。";
+      ? "把值得持续跟进的做法接成长期跟进，当前先聚焦从 Agent 对话接回来的持续流程。"
+      : "把值得持续跟进的做法接成长期跟进，统一查看持续流程、运行和调度设置。";
   const headerSummary = settingsOnly
     ? "管理调度器开关、轮询间隔和历史保留。"
     : workspaceOnly
-      ? "聚焦任务创建、运行和概览切换。"
-      : "统一管理自动化任务、运行状态和调度入口。";
+      ? "聚焦开始持续、最近运行和概览切换。"
+      : "统一查看持续流程、运行状态和调度设置。";
 
   if (loading && !schedulerConfig) {
     return (
@@ -1461,10 +1463,10 @@ export function AutomationSettings({
       <Card className="rounded-[28px] border-slate-200/80 bg-white shadow-sm shadow-slate-950/5">
         <CardContent className="flex min-h-40 flex-col items-center justify-center gap-3 py-10 text-center">
           <div className="text-lg font-semibold text-slate-900">
-            自动化页面加载失败
+            持续流程页面加载失败
           </div>
           <p className="max-w-[520px] text-sm leading-6 text-slate-500">
-            {loadError ?? "自动化调度器配置暂时不可用，请稍后重试。"}
+            {loadError ?? "持续流程调度配置暂时不可用，请稍后重试。"}
           </p>
           <Button onClick={() => void refreshAll()}>重新加载</Button>
         </CardContent>
@@ -1478,11 +1480,19 @@ export function AutomationSettings({
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
+              {!settingsOnly ? (
+                <Badge
+                  variant="outline"
+                  className="rounded-full border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
+                >
+                  系统入口
+                </Badge>
+              ) : null}
               <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
                 {heroTitle}
               </h1>
               <WorkbenchInfoTip
-                ariaLabel="自动化工作台说明"
+                ariaLabel="持续流程说明"
                 content={heroDescription}
                 tone="mint"
               />
@@ -1494,17 +1504,17 @@ export function AutomationSettings({
             {showWorkspacePanels ? (
               <Button variant="default" onClick={() => openCreateDialog()}>
                 <Plus className="mr-2 h-4 w-4" />
-                新建任务
+                新建持续流程
               </Button>
             ) : null}
             {workspaceOnly && onOpenSettings ? (
               <Button variant="outline" onClick={onOpenSettings}>
-                自动化设置
+                持续流程设置
               </Button>
             ) : null}
             {settingsOnly && onOpenWorkspace ? (
               <Button variant="outline" onClick={onOpenWorkspace}>
-                打开自动化工作台
+                打开持续流程
               </Button>
             ) : null}
             <Button
@@ -1530,7 +1540,7 @@ export function AutomationSettings({
               调度器：{schedulerConfig.enabled ? "已启用" : "已停用"}
             </span>
             <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-              任务数：{jobs.length}
+              持续流程数：{jobs.length}
             </span>
             <span
               className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
@@ -1552,7 +1562,7 @@ export function AutomationSettings({
             </span>
             {legacyBrowserJobCount > 0 ? (
               <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
-                遗留浏览器任务：{legacyBrowserJobCount}
+                遗留浏览器流程：{legacyBrowserJobCount}
               </span>
             ) : null}
           </div>
@@ -1570,7 +1580,7 @@ export function AutomationSettings({
                   data-testid="automation-tab-tasks"
                   className="rounded-[14px] px-4 py-3"
                 >
-                  任务
+                  持续流程
                 </TabsTrigger>
                 <TabsTrigger
                   value="overview"
@@ -1596,7 +1606,7 @@ export function AutomationSettings({
                   </CardTitle>
                   <WorkbenchInfoTip
                     ariaLabel="调度器设置说明"
-                    content="这里只保留全局开关、轮询间隔和历史保留。任务创建与运行处理不再和设置区混排。"
+                    content="这里只保留全局开关、轮询间隔和历史保留。开始持续与运行处理不再和设置区混排。"
                     tone="slate"
                   />
                 </div>
@@ -1705,22 +1715,22 @@ export function AutomationSettings({
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   <div>
                     <div className="text-xs font-medium tracking-[0.14em] text-slate-500">
-                      任务入口
+                      开始这条
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <CardTitle className="text-xl text-slate-900">
-                        先创建任务，再处理执行细节
+                        先把这条持续流程开起来
                       </CardTitle>
                       <WorkbenchInfoTip
-                        ariaLabel="任务入口说明"
-                        content="默认页只保留 Agent 对话任务相关动作。模板负责预填 schedule、payload 和 delivery，浏览器自动化不再提供创建入口。"
+                        ariaLabel="开始这条说明"
+                        content="默认页只保留从 Agent 对话接回来的持续流程动作。模板会先帮你写好节奏、起手信息和输出去向，浏览器自动化不再保留单独起手入口。"
                         tone="slate"
                       />
                     </div>
                   </div>
                   <Button variant="outline" onClick={() => openCreateDialog()}>
                     <Plus className="mr-2 h-4 w-4" />
-                    空白新建
+                    空白开始
                   </Button>
                 </div>
               </CardHeader>
@@ -1728,8 +1738,8 @@ export function AutomationSettings({
                 {legacyBrowserJobCount > 0 ? (
                   <div className="mb-4 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-6 text-amber-800">
                     检测到 {legacyBrowserJobCount}{" "}
-                    条旧浏览器自动化任务。系统已停用这类任务，不会再后台启动
-                    Chrome；请删除旧任务，并改用 Agent 对话任务重建。
+                    条旧浏览器流程。系统已停用这类流程，不会再后台启动
+                    Chrome；请删除旧流程，并改用 Agent 对话持续流程重建。
                   </div>
                 ) : null}
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1786,16 +1796,16 @@ export function AutomationSettings({
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <CardTitle className="text-xl text-slate-900">
-                          任务列表
+                          已在运行的持续流程
                         </CardTitle>
                         <WorkbenchInfoTip
-                          ariaLabel="任务列表说明"
-                          content="每个 job 都绑定工作区、调度规则和 payload。详情改为按需打开，点击任务行或详情按钮查看运行历史、输出投递和 payload 摘要。"
+                          ariaLabel="持续流程列表说明"
+                          content="每条持续流程都挂着归属、节奏和起手信息。需要看最近运行、输出去向或细节时，再打开详情。"
                           tone="slate"
                         />
                       </div>
                     </div>
-                    <Badge variant="outline">{jobs.length} 个 job</Badge>
+                    <Badge variant="outline">{jobs.length} 条</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1803,16 +1813,12 @@ export function AutomationSettings({
                     <Table className="min-w-[1120px]">
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="min-w-[320px]">任务</TableHead>
-                          <TableHead className="min-w-[140px]">
-                            工作区
-                          </TableHead>
-                          <TableHead className="min-w-[150px]">调度</TableHead>
-                          <TableHead className="min-w-[110px]">模式</TableHead>
-                          <TableHead className="min-w-[210px]">状态</TableHead>
-                          <TableHead className="min-w-[150px]">
-                            执行窗口
-                          </TableHead>
+                          <TableHead className="min-w-[320px]">持续流程</TableHead>
+                          <TableHead className="min-w-[140px]">归属</TableHead>
+                          <TableHead className="min-w-[150px]">节奏</TableHead>
+                          <TableHead className="min-w-[110px]">方式</TableHead>
+                          <TableHead className="min-w-[210px]">当前状态</TableHead>
+                          <TableHead className="min-w-[150px]">最近执行</TableHead>
                           <TableHead className="min-w-[240px] text-right">
                             操作
                           </TableHead>
@@ -1856,7 +1862,7 @@ export function AutomationSettings({
                                     {job.name}
                                   </div>
                                   <div className="max-w-[320px] text-xs leading-5 text-slate-500">
-                                    {job.description || "未填写任务描述"}
+                                    {job.description || "未填写流程说明"}
                                   </div>
                                   {serviceSkillContext ? (
                                     <div
@@ -1868,7 +1874,7 @@ export function AutomationSettings({
                                           variant="outline"
                                           className="border-sky-200 bg-sky-50 text-sky-700"
                                         >
-                                          技能任务
+                                          技能流程
                                         </Badge>
                                         <Badge variant="outline">
                                           {serviceSkillContext.runnerLabel}
@@ -2053,17 +2059,17 @@ export function AutomationSettings({
                   ) : (
                     <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
                       <div className="text-base font-medium text-slate-900">
-                        还没有 automation job
+                        还没有持续流程
                       </div>
                       <p className="mt-2 text-sm text-slate-500">
-                        从这里开始创建结构化任务，之后所有定时执行都只走这套链路。
+                        从这里开始接第一条持续流程，后面所有定时继续都走这条主链。
                       </p>
                       <Button
                         className="mt-5"
                         onClick={() => openCreateDialog()}
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        新建第一条任务
+                        开始第一条持续流程
                       </Button>
                     </div>
                   )}
@@ -2083,7 +2089,7 @@ export function AutomationSettings({
                       </CardTitle>
                       <WorkbenchInfoTip
                         ariaLabel="运行概览说明"
-                        content="统计、健康与风险提醒统一收在这里，不再进入任务首屏。"
+                        content="统计、健康与风险提醒统一收在这里，不再进入持续流程首屏。"
                         tone="slate"
                       />
                     </div>
@@ -2122,7 +2128,7 @@ export function AutomationSettings({
                   </div>
                   <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
                     <div className="text-sm font-medium text-slate-900">
-                      活跃任务
+                      当前活跃
                     </div>
                     <div className="mt-3 text-base font-semibold text-slate-900">
                       {status?.active_job_name ?? "当前空闲"}

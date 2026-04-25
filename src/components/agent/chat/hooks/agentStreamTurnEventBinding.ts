@@ -99,6 +99,15 @@ interface RegisterAgentStreamTurnEventBindingOptions {
   setIsSending: Dispatch<SetStateAction<boolean>>;
 }
 
+function extractRuntimeEventType(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+
+  const type = (payload as { type?: unknown }).type;
+  return typeof type === "string" && type.trim() ? type : null;
+}
+
 export async function registerAgentStreamTurnEventBinding(
   options: RegisterAgentStreamTurnEventBindingOptions,
 ) {
@@ -163,6 +172,7 @@ export async function registerAgentStreamTurnEventBinding(
 
   let firstEventReceived = false;
   let lastEventReceivedAt = 0;
+  const warnedUnknownEventTypes = new Set<string>();
   let inactivityWatchdogId: ReturnType<typeof setTimeout> | null = null;
   const clearInactivityWatchdog = () => {
     if (inactivityWatchdogId) {
@@ -312,7 +322,24 @@ export async function registerAgentStreamTurnEventBinding(
     eventName,
     (event: { payload: unknown }) => {
       const data = parseAgentEvent(event.payload);
+      const eventType = extractRuntimeEventType(event.payload);
       if (!data) {
+        if (!eventType) {
+          return;
+        }
+        if (!firstEventReceived) {
+          firstEventReceived = true;
+          clearFirstEventWatchdog();
+        }
+        lastEventReceivedAt = Date.now();
+        callbacks.activateStream(activeSessionId, effectiveWaitingRuntimeStatus);
+        if (!warnedUnknownEventTypes.has(eventType)) {
+          warnedUnknownEventTypes.add(eventType);
+          console.warn(
+            `[AsterChat] 收到未识别的运行时事件，已保留流活跃态: ${eventName} · ${eventType}`,
+          );
+        }
+        scheduleInactivityWatchdog();
         return;
       }
       if (!firstEventReceived) {

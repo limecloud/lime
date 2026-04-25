@@ -84,7 +84,7 @@ export type AutomationJobDialogInitialValues = Partial<AutomationJobFormState>;
 
 const TEXT_ONLY_DELIVERY_CHANNEL = "telegram";
 const LEGACY_BROWSER_AUTOMATION_MESSAGE =
-  "浏览器自动化已下线，系统不会再自动启动 Chrome。请删除这条旧任务，并改用 Agent 对话任务重建。";
+  "浏览器自动化已下线，系统不会再自动启动 Chrome。请删除这条旧流程，并改用 Agent 对话持续流程重建。";
 
 function toDateTimeLocal(value?: string | null): string {
   if (!value) {
@@ -282,12 +282,12 @@ function buildSchedule(form: AutomationJobFormState): TaskSchedule {
   }
 
   if (!form.at_local) {
-    throw new Error("一次性任务时间不能为空");
+    throw new Error("一次性触发时间不能为空");
   }
 
   const date = new Date(form.at_local);
   if (Number.isNaN(date.getTime())) {
-    throw new Error("一次性任务时间格式无效");
+    throw new Error("一次性触发时间格式无效");
   }
 
   return {
@@ -314,7 +314,7 @@ function scheduleHint(form: AutomationJobFormState): string {
     return "使用 Cron 表达式驱动执行。";
   }
   return form.at_local
-    ? "一次性任务，到点后自动停用。"
+    ? "一次性触发，到点后自动停用。"
     : "选择一次性触发时间。";
 }
 
@@ -409,13 +409,13 @@ export function AutomationJobDialog({
       "未选择",
     [form.workspace_id, workspaces],
   );
-  const dialogTitle = mode === "create" ? "新建自动化任务" : "编辑自动化任务";
+  const dialogTitle = mode === "create" ? "新建持续流程" : "调整持续流程";
   const dialogSummary = isLegacyBrowserJob
-    ? "查看历史配置快照并迁移到新的 Agent 对话任务。"
-    : "配置任务名称、调度、提示词和输出投递。";
+    ? "查看历史配置快照并迁移到 Agent 对话持续流程。"
+    : "配置流程名称、节奏、启动提示和输出去向。";
   const dialogTipContent = isLegacyBrowserJob
     ? "浏览器自动化已下线，当前弹窗只保留历史配置展示与迁移参考，不允许继续保存。"
-    : "用结构化 job 承载 Agent 对话任务，统一管理调度、工作区、输出投递和运行历史。";
+    : "用这条持续流程承接 Agent 对话里已经跑顺的做法，统一管理节奏、归属位置、输出去向和运行历史。";
   const scheduleKindLabel =
     form.schedule_kind === "every"
       ? "固定间隔"
@@ -433,15 +433,15 @@ export function AutomationJobDialog({
       }
 
       if (!form.name.trim()) {
-        throw new Error("任务名称不能为空");
+        throw new Error("流程名称不能为空");
       }
       if (!form.workspace_id.trim()) {
-        throw new Error("请选择工作区");
+        throw new Error("请选择归属位置");
       }
 
       const schedule = buildSchedule(form);
       if (!form.prompt.trim()) {
-        throw new Error("任务提示词不能为空");
+        throw new Error("启动提示不能为空");
       }
       const runtimePolicies = createRuntimePoliciesFromAccessMode(
         form.agent_access_mode,
@@ -514,7 +514,7 @@ export function AutomationJobDialog({
       }
     } catch (submitError) {
       setError(
-        submitError instanceof Error ? submitError.message : "保存任务失败",
+        submitError instanceof Error ? submitError.message : "保存持续流程失败",
       );
     }
   }
@@ -533,7 +533,7 @@ export function AutomationJobDialog({
                   {dialogTitle}
                 </DialogTitle>
                 <WorkbenchInfoTip
-                  ariaLabel="自动化任务弹窗说明"
+                  ariaLabel="持续流程弹窗说明"
                   content={dialogTipContent}
                   tone="mint"
                 />
@@ -543,7 +543,7 @@ export function AutomationJobDialog({
               </DialogDescription>
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-                  工作区：{workspaceLabel}
+                  归属：{workspaceLabel}
                 </span>
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
                   调度：{scheduleKindLabel}
@@ -555,10 +555,8 @@ export function AutomationJobDialog({
                       : "border-sky-200 bg-sky-50 text-sky-700"
                   }`}
                 >
-                  任务类型：
-                  {isLegacyBrowserJob
-                    ? "浏览器自动化（已下线）"
-                    : "Agent 对话任务"}
+                  开始方式：
+                  {isLegacyBrowserJob ? "浏览器自动化" : "Agent 对话"}
                 </span>
                 <span
                   className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
@@ -575,17 +573,18 @@ export function AutomationJobDialog({
                     权限：{accessModeLabel}
                   </span>
                 ) : null}
-                {!isLegacyBrowserJob ? (
-                  <span
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                      form.enabled
+                <span
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    isLegacyBrowserJob
+                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                      : form.enabled
                         ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                         : "border-slate-200 bg-slate-50 text-slate-600"
-                    }`}
-                  >
-                    任务状态：{form.enabled ? "已启用" : "已停用"}
-                  </span>
-                ) : null}
+                  }`}
+                >
+                  当前状态：
+                  {isLegacyBrowserJob ? "已下线" : form.enabled ? "已启用" : "已停用"}
+                </span>
               </div>
             </div>
           </DialogHeader>
@@ -596,7 +595,7 @@ export function AutomationJobDialog({
           >
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="automation-job-name">任务名称</Label>
+                <Label htmlFor="automation-job-name">流程名称</Label>
                 <Input
                   id="automation-job-name"
                   value={form.name}
@@ -606,11 +605,11 @@ export function AutomationJobDialog({
                       name: event.target.value,
                     }))
                   }
-                  placeholder="例如：每日品牌线索巡检"
-                />
-              </div>
+                placeholder="例如：每日品牌线索巡检"
+              />
+            </div>
               <div className="space-y-2">
-                <Label>工作区</Label>
+                <Label>归属位置</Label>
                 <Select
                   value={form.workspace_id}
                   onValueChange={(value) =>
@@ -618,7 +617,7 @@ export function AutomationJobDialog({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="选择工作区" />
+                    <SelectValue placeholder="选择归属位置" />
                   </SelectTrigger>
                   <SelectContent>
                     {workspaces.map((workspace) => (
@@ -632,7 +631,7 @@ export function AutomationJobDialog({
             </div>
 
             <div className="mt-5 space-y-2">
-              <Label htmlFor="automation-job-description">任务描述</Label>
+              <Label htmlFor="automation-job-description">流程说明</Label>
               <Textarea
                 id="automation-job-description"
                 value={form.description}
@@ -642,24 +641,22 @@ export function AutomationJobDialog({
                     description: event.target.value,
                   }))
                 }
-                placeholder="说明 automation 触发后希望得到什么结果"
+                placeholder="说明这条持续流程跑起来后希望得到什么结果"
                 className="min-h-[90px]"
               />
             </div>
 
             <div className="mt-5 grid gap-5 md:grid-cols-4">
               <div className="space-y-2">
-                <Label>任务类型</Label>
+                <Label>开始方式</Label>
                 <Select value={form.payload_kind} disabled>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="agent_turn">Agent 对话任务</SelectItem>
+                    <SelectItem value="agent_turn">Agent 对话</SelectItem>
                     {isLegacyBrowserJob ? (
-                      <SelectItem value="browser_session">
-                        浏览器自动化（已下线）
-                      </SelectItem>
+                      <SelectItem value="browser_session">浏览器自动化</SelectItem>
                     ) : null}
                   </SelectContent>
                 </Select>
@@ -842,7 +839,7 @@ export function AutomationJobDialog({
             ) : (
               <>
                 <div className="mt-5 space-y-2">
-                  <Label htmlFor="automation-job-prompt">执行提示词</Label>
+                  <Label htmlFor="automation-job-prompt">启动提示</Label>
                   <Textarea
                     id="automation-job-prompt"
                     value={form.prompt}
@@ -852,7 +849,7 @@ export function AutomationJobDialog({
                         prompt: event.target.value,
                       }))
                     }
-                    placeholder="描述自动化真正要执行的工作内容"
+                    placeholder="描述这条持续流程每次启动时要做什么"
                     className="min-h-[120px] sm:min-h-[140px]"
                   />
                 </div>
@@ -870,7 +867,7 @@ export function AutomationJobDialog({
                         system_prompt: event.target.value,
                       }))
                     }
-                    placeholder="可选，控制这条 automation 的执行风格"
+                    placeholder="可选，控制这条持续流程的执行风格"
                     className="min-h-[96px] sm:min-h-[110px]"
                   />
                 </div>
@@ -878,10 +875,10 @@ export function AutomationJobDialog({
                   <div className="flex items-center justify-between rounded-[18px] border border-slate-200/80 bg-slate-50/70 px-4 py-3">
                     <div>
                       <div className="text-sm font-medium text-slate-900">
-                        启用任务
+                        启用这条
                       </div>
                       <div className="text-xs text-slate-500">
-                        关闭后 job 不参与轮询
+                        关闭后这条持续流程不再参与轮询
                       </div>
                     </div>
                     <Switch
@@ -897,7 +894,7 @@ export function AutomationJobDialog({
                         允许 Web 搜索
                       </div>
                       <div className="text-xs text-slate-500">
-                        为这个 job 单独开启搜索能力
+                        为这条持续流程单独开启搜索能力
                       </div>
                     </div>
                     <Switch
@@ -963,7 +960,7 @@ export function AutomationJobDialog({
                         <SelectContent>
                           <SelectItem value="none">关闭</SelectItem>
                           <SelectItem value="announce">
-                            任务完成后投递
+                            运行完成后投递
                           </SelectItem>
                         </SelectContent>
                       </Select>
@@ -1089,10 +1086,10 @@ export function AutomationJobDialog({
                       <div className="mt-4 flex items-center justify-between rounded-[18px] border border-slate-200/80 bg-slate-50/70 px-4 py-3">
                         <div>
                           <div className="text-sm font-medium text-slate-900">
-                            投递失败不阻塞任务
+                            投递失败不阻塞本轮
                           </div>
                           <div className="text-xs text-slate-500">
-                            关闭后投递失败也会记为 job 执行失败
+                            关闭后投递失败也会记为本轮运行失败
                           </div>
                         </div>
                         <Switch
@@ -1110,8 +1107,8 @@ export function AutomationJobDialog({
                           ? "Webhook 适合系统对接；当前会携带 output_schema、output_format、结构化 output_data，以及稳定的 delivery_attempt_id 幂等键。"
                           : form.delivery_channel === "google_sheets"
                             ? "Google Sheets 使用 service account 直连，目标格式为 spreadsheet_id=...;sheet=...;credentials_file=绝对路径，可选 include_header=true 和 value_input_option=USER_ENTERED；追加行会自动带 delivery_attempt_id 等元数据列。"
-                            : form.delivery_channel === "local_file"
-                              ? "本地文件适合先落最小输出闭环；text 会按契约渲染，json 会写入结构化 payload。"
+                          : form.delivery_channel === "local_file"
+                              ? "本地文件适合先落最小输出闭环；text 会按契约渲染，json 会写入结构化结果。"
                               : "Telegram 继续作为兼容通知通道，只发送文本提醒，不承诺结构化输出契约。"}
                       </div>
                     </>
@@ -1146,7 +1143,7 @@ export function AutomationJobDialog({
                 : isLegacyBrowserJob
                   ? "该类型不可保存"
                   : mode === "create"
-                    ? "创建任务"
+                    ? "创建持续流程"
                     : "保存修改"}
             </Button>
           </DialogFooter>

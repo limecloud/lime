@@ -108,9 +108,9 @@ const SERVICE_MODEL_SECTIONS: ServiceModelSectionDefinition[] = [
   },
   {
     key: "resource_prompt_rewrite",
-    title: "资源库提词重写助理",
-    description: "指定用于基于资料库上下文改写提问的模型。",
-    modelHint: "关闭后，资料库提问不会再自动补全上下文重写。",
+    title: "项目资料提词重写助理",
+    description: "指定用于基于项目资料上下文改写提问的模型。",
+    modelHint: "关闭后，项目资料提问不会再自动补全上下文重写。",
     taskFamilies: ["chat", "reasoning"],
     allowDisable: true,
     allowCustomPrompt: true,

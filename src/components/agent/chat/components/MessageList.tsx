@@ -1409,18 +1409,18 @@ const MessageListInner: React.FC<MessageListProps> = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-                      创作
+                      对话
                     </span>
 
                     <div className="mt-4 space-y-2">
                       <h2 className="text-[32px] font-semibold tracking-tight text-slate-900 md:text-[36px]">
-                        生成
+                        最近对话
                       </h2>
                       <p className="max-w-[48rem] text-[15px] leading-7 text-slate-600">
-                        这里是 Lime 的生成主执行面，可以继续进行中的创作、回看最近结果和旧历史。
+                        这里集中展示最近对话、待继续会话和更早归档，方便你随时回到上一次工作现场。
                       </p>
                       <p className="text-sm leading-7 text-slate-500">
-                        还没开始生成时，从“开始生成”发起也很自然；跑过的结果、做法和中间素材后面都会继续留在这里。
+                        还没有对话时，可以先从“新建对话”开始；后续的结果、素材和中间过程都会继续留在这里。
                       </p>
                     </div>
                   </div>
@@ -1428,13 +1428,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
                 <div className="mt-6 flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                    左侧会继续显示待继续的生成记录
+                    左侧会优先显示待继续的对话
                   </span>
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                    最近结果会继续在这里回访
+                    最近对话和归档会按时间自动整理
                   </span>
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                    常用做法和恢复中的会话会自动回到这里继续生成
+                    恢复中的会话会自动回到这里继续
                   </span>
                 </div>
               </section>

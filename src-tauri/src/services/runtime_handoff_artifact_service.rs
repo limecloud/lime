@@ -297,6 +297,17 @@ fn build_plan_markdown(
         }
     }
     let _ = writeln!(markdown);
+    let _ = writeln!(markdown, "## 运行时事实");
+    let _ = writeln!(markdown);
+    let runtime_fact_lines = build_runtime_fact_lines(thread_read);
+    if runtime_fact_lines.is_empty() {
+        let _ = writeln!(markdown, "- 当前没有可导出的任务 / 路由 / 经济事实。");
+    } else {
+        for line in runtime_fact_lines {
+            let _ = writeln!(markdown, "- {line}");
+        }
+    }
+    let _ = writeln!(markdown);
     let _ = writeln!(markdown, "## 最近产物");
     let _ = writeln!(markdown);
     if recent_artifacts.is_empty() {
@@ -388,6 +399,7 @@ fn build_progress_json(
         }).collect::<Vec<_>>(),
         "artifacts": recent_artifacts,
         "latestTurnSummary": latest_turn_summary,
+        "runtimeFacts": build_runtime_facts_json(thread_read),
         "diagnostics": {
             "primaryBlockingKind": thread_read.diagnostics.as_ref().and_then(|value| value.primary_blocking_kind.clone()),
             "primaryBlockingSummary": thread_read.diagnostics.as_ref().and_then(|value| value.primary_blocking_summary.clone()),
@@ -495,6 +507,17 @@ fn build_handoff_markdown(
         }
     }
     let _ = writeln!(markdown);
+    let _ = writeln!(markdown, "## 运行时事实");
+    let _ = writeln!(markdown);
+    let runtime_fact_lines = build_runtime_fact_lines(thread_read);
+    if runtime_fact_lines.is_empty() {
+        let _ = writeln!(markdown, "- 当前没有可导出的任务 / 路由 / 经济事实。");
+    } else {
+        for line in runtime_fact_lines {
+            let _ = writeln!(markdown, "- {line}");
+        }
+    }
+    let _ = writeln!(markdown);
     let _ = writeln!(markdown, "## 审查与恢复建议");
     let _ = writeln!(markdown);
     if review_actions.is_empty() {
@@ -595,6 +618,17 @@ fn build_review_summary_markdown(
         );
     }
     let _ = writeln!(markdown);
+    let _ = writeln!(markdown, "## 运行时事实");
+    let _ = writeln!(markdown);
+    let runtime_fact_lines = build_runtime_fact_lines(thread_read);
+    if runtime_fact_lines.is_empty() {
+        let _ = writeln!(markdown, "- 当前没有可导出的任务 / 路由 / 经济事实。");
+    } else {
+        for line in runtime_fact_lines {
+            let _ = writeln!(markdown, "- {line}");
+        }
+    }
+    let _ = writeln!(markdown);
     let _ = writeln!(markdown, "## 建议动作");
     let _ = writeln!(markdown);
     if review_actions.is_empty() {
@@ -619,6 +653,142 @@ fn build_review_summary_markdown(
     }
 
     markdown
+}
+
+fn build_runtime_fact_lines(thread_read: &AgentRuntimeThreadReadModel) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    if let Some(task_kind) = normalize_optional_text(thread_read.task_kind.clone()) {
+        lines.push(format!("任务类型：{task_kind}"));
+    }
+    if let Some(service_model_slot) =
+        normalize_optional_text(thread_read.service_model_slot.clone())
+    {
+        lines.push(format!("服务模型槽位：{service_model_slot}"));
+    }
+    if let Some(routing_mode) = normalize_optional_text(thread_read.routing_mode.clone()) {
+        lines.push(format!("路由模式：{routing_mode}"));
+    }
+    if let Some(decision_source) = normalize_optional_text(thread_read.decision_source.clone()) {
+        lines.push(format!("决策来源：{decision_source}"));
+    }
+    if let Some(candidate_count) = thread_read.candidate_count {
+        lines.push(format!("候选数：{candidate_count}"));
+    }
+    if let Some(capability_gap) = normalize_optional_text(thread_read.capability_gap.clone()) {
+        lines.push(format!("能力缺口：{capability_gap}"));
+    }
+    if let Some(decision_reason) = normalize_optional_text(thread_read.decision_reason.clone()) {
+        lines.push(format!("决策解释：{decision_reason}"));
+    }
+    if let Some(fallback_chain) = thread_read
+        .fallback_chain
+        .as_ref()
+        .filter(|items| !items.is_empty())
+    {
+        lines.push(format!("回退链：{}", fallback_chain.join(" -> ")));
+    }
+    if let Some(estimated_cost_class) =
+        normalize_optional_text(thread_read.estimated_cost_class.clone())
+    {
+        lines.push(format!("预估成本等级：{estimated_cost_class}"));
+    }
+    if let Some(limit_state) = thread_read.limit_state.as_ref() {
+        lines.push(format!("额度状态：{}", limit_state.status));
+        if !limit_state.notes.is_empty() {
+            lines.push(format!("额度备注：{}", limit_state.notes.join("；")));
+        }
+    }
+    if let Some(cost_state) = thread_read.cost_state.as_ref() {
+        lines.push(format!("成本状态：{}", cost_state.status));
+        if let Some(value) = normalize_optional_text(cost_state.estimated_cost_class.clone()) {
+            lines.push(format!("成本等级：{value}"));
+        }
+    }
+    if let Some(limit_event) = thread_read.limit_event.as_ref() {
+        lines.push(format!("最近额度事件：{}", limit_event.event_kind));
+        if let Some(message) = normalize_optional_text(Some(limit_event.message.clone())) {
+            lines.push(format!("额度事件说明：{message}"));
+        }
+    }
+    if let Some(runtime_summary) = thread_read.runtime_summary.as_ref() {
+        if let Some(value) = runtime_summary
+            .get("decisionReason")
+            .and_then(|value| value.as_str())
+        {
+            lines.push(format!("运行时摘要 / 决策解释：{value}"));
+        }
+        if let Some(value) = runtime_summary
+            .get("capabilityGap")
+            .and_then(|value| value.as_str())
+        {
+            lines.push(format!("运行时摘要 / 能力缺口：{value}"));
+        }
+        if let Some(value) = runtime_summary
+            .get("limitStatus")
+            .and_then(|value| value.as_str())
+        {
+            lines.push(format!("运行时摘要 / 额度：{value}"));
+        }
+        if let Some(value) = runtime_summary
+            .get("estimatedCostClass")
+            .and_then(|value| value.as_str())
+        {
+            lines.push(format!("运行时摘要 / 成本：{value}"));
+        }
+    }
+    if let Some(oem_policy) = thread_read.oem_policy.as_ref() {
+        if let Some(value) = oem_policy
+            .get("quotaStatus")
+            .and_then(|value| value.as_str())
+        {
+            lines.push(format!("OEM 额度状态：{value}"));
+        }
+        if let Some(value) = oem_policy
+            .get("defaultModel")
+            .and_then(|value| value.as_str())
+        {
+            lines.push(format!("OEM 模型：{value}"));
+        }
+        if let Some(value) = oem_policy
+            .get("offerState")
+            .and_then(|value| value.as_str())
+        {
+            lines.push(format!("OEM 策略状态：{value}"));
+        }
+    }
+    if let Some(auxiliary_runtime) = thread_read
+        .auxiliary_task_runtime
+        .as_ref()
+        .filter(|items| !items.is_empty())
+    {
+        lines.push(format!(
+            "辅助任务运行时快照：{} 条",
+            auxiliary_runtime.len()
+        ));
+    }
+
+    lines
+}
+
+fn build_runtime_facts_json(thread_read: &AgentRuntimeThreadReadModel) -> serde_json::Value {
+    json!({
+        "taskKind": thread_read.task_kind,
+        "serviceModelSlot": thread_read.service_model_slot,
+        "routingMode": thread_read.routing_mode,
+        "decisionSource": thread_read.decision_source,
+        "candidateCount": thread_read.candidate_count,
+        "capabilityGap": thread_read.capability_gap,
+        "decisionReason": thread_read.decision_reason,
+        "fallbackChain": thread_read.fallback_chain,
+        "estimatedCostClass": thread_read.estimated_cost_class,
+        "limitState": thread_read.limit_state,
+        "costState": thread_read.cost_state,
+        "limitEvent": thread_read.limit_event,
+        "runtimeSummary": thread_read.runtime_summary,
+        "oemPolicy": thread_read.oem_policy,
+        "auxiliaryTaskRuntime": thread_read.auxiliary_task_runtime
+    })
 }
 
 fn build_resume_order() -> Vec<&'static str> {
@@ -1003,17 +1173,58 @@ mod tests {
                     },
                 ),
             }),
-            task_kind: None,
-            service_model_slot: None,
-            routing_mode: None,
-            decision_source: None,
-            candidate_count: None,
-            capability_gap: None,
-            single_candidate_only: None,
-            limit_state: None,
-            estimated_cost_class: None,
-            cost_state: None,
-            limit_event: None,
+            task_kind: Some("generation_topic".to_string()),
+            service_model_slot: Some("planner".to_string()),
+            routing_mode: Some("fallback_chain".to_string()),
+            decision_source: Some("model_router".to_string()),
+            candidate_count: Some(2),
+            capability_gap: Some("vision".to_string()),
+            single_candidate_only: Some(false),
+            oem_policy: Some(json!({
+                "quotaStatus": "low_credit",
+                "defaultModel": "oem/gpt-5.4-mini",
+                "offerState": "managed"
+            })),
+            runtime_summary: Some(json!({
+                "decisionReason": "主路由能力不足，切到回退模型",
+                "capabilityGap": "vision",
+                "limitStatus": "soft_limited",
+                "estimatedCostClass": "low"
+            })),
+            decision_reason: Some("主路由能力不足，切到回退模型".to_string()),
+            fallback_chain: Some(vec!["openai:gpt-5.4".to_string(), "openai:gpt-5.4-mini".to_string()]),
+            auxiliary_task_runtime: Some(vec![json!({"route": "auxiliary.generate_title", "taskKind": "generation_topic"})]),
+            limit_state: Some(lime_agent::SessionExecutionRuntimeLimitState {
+                status: "soft_limited".to_string(),
+                single_candidate_only: false,
+                provider_locked: false,
+                settings_locked: false,
+                oem_locked: false,
+                candidate_count: 2,
+                capability_gap: Some("vision".to_string()),
+                notes: vec!["需要回退链".to_string()],
+            }),
+            estimated_cost_class: Some("low".to_string()),
+            cost_state: Some(lime_agent::SessionExecutionRuntimeCostState {
+                status: "estimated".to_string(),
+                estimated_cost_class: Some("low".to_string()),
+                input_per_million: None,
+                output_per_million: None,
+                cache_read_per_million: None,
+                cache_write_per_million: None,
+                currency: None,
+                estimated_total_cost: None,
+                input_tokens: None,
+                output_tokens: None,
+                total_tokens: None,
+                cached_input_tokens: None,
+                cache_creation_input_tokens: None,
+            }),
+            limit_event: Some(lime_agent::SessionExecutionRuntimeLimitEvent {
+                event_kind: "fallback_applied".to_string(),
+                message: "因能力缺口触发回退链".to_string(),
+                retryable: true,
+            }),
         }
     }
 
@@ -1053,6 +1264,8 @@ mod tests {
         let plan = fs::read_to_string(plan_path).expect("plan");
         assert!(plan.contains("会话计划"));
         assert!(plan.contains("补前端入口"));
+        assert!(plan.contains("运行时事实"));
+        assert!(plan.contains("决策解释：主路由能力不足，切到回退模型"));
 
         let handoff = fs::read_to_string(handoff_path).expect("handoff");
         assert!(handoff.contains("已完成后端导出链路"));

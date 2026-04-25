@@ -603,7 +603,11 @@ pub struct AgentRuntimeThreadReadModel {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub decision_source: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub candidate_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_chain: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capability_gap: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -611,11 +615,165 @@ pub struct AgentRuntimeThreadReadModel {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub single_candidate_only: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub oem_policy: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_summary: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auxiliary_task_runtime: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub limit_state: Option<lime_agent::SessionExecutionRuntimeLimitState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_state: Option<lime_agent::SessionExecutionRuntimeCostState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit_event: Option<lime_agent::SessionExecutionRuntimeLimitEvent>,
+}
+
+fn extract_oem_policy_summary(
+    runtime: Option<&lime_agent::SessionExecutionRuntime>,
+) -> Option<serde_json::Value> {
+    if let Some(policy) = runtime.and_then(|value| value.oem_policy.as_ref()) {
+        let limit_event = runtime.and_then(|value| value.limit_event.as_ref());
+        let routing = runtime.and_then(|value| value.routing_decision.as_ref());
+        let limit_state = runtime.and_then(|value| value.limit_state.as_ref());
+        return Some(serde_json::json!({
+            "tenantId": policy.tenant_id,
+            "providerSource": policy.provider_source,
+            "providerKey": policy.provider_key,
+            "defaultModel": policy.default_model,
+            "configMode": policy.config_mode,
+            "offerState": policy.offer_state,
+            "quotaStatus": policy.quota_status,
+            "fallbackToLocalAllowed": policy.fallback_to_local_allowed,
+            "canInvoke": policy.can_invoke,
+            "locked": limit_state.map(|state| state.oem_locked),
+            "quotaLow": matches!(limit_event.map(|event| event.event_kind.as_str()), Some("quota_low")),
+            "limitEventKind": limit_event.map(|event| event.event_kind.clone()),
+            "limitEventMessage": limit_event.map(|event| event.message.clone()),
+            "decisionSource": routing.map(|decision| decision.decision_source.clone()),
+            "selectedProvider": routing.and_then(|decision| decision.selected_provider.clone()),
+            "selectedModel": routing.and_then(|decision| decision.selected_model.clone()),
+        }));
+    }
+
+    let limit_state = runtime.and_then(|value| value.limit_state.as_ref());
+    let limit_event = runtime.and_then(|value| value.limit_event.as_ref());
+    let routing = runtime.and_then(|value| value.routing_decision.as_ref());
+
+    let oem_locked = limit_state.map(|state| state.oem_locked);
+    let quota_low = matches!(
+        limit_event.map(|event| event.event_kind.as_str()),
+        Some("quota_low")
+    );
+
+    if oem_locked != Some(true) && !quota_low {
+        return None;
+    }
+
+    Some(serde_json::json!({
+        "locked": oem_locked,
+        "quotaLow": quota_low,
+        "limitEventKind": limit_event.map(|event| event.event_kind.clone()),
+        "limitEventMessage": limit_event.map(|event| event.message.clone()),
+        "decisionSource": routing.map(|decision| decision.decision_source.clone()),
+        "selectedProvider": routing.and_then(|decision| decision.selected_provider.clone()),
+        "selectedModel": routing.and_then(|decision| decision.selected_model.clone()),
+    }))
+}
+
+fn extract_runtime_summary(
+    runtime: Option<&lime_agent::SessionExecutionRuntime>,
+) -> Option<serde_json::Value> {
+    if let Some(summary) = runtime.and_then(|value| value.runtime_summary.as_ref()) {
+        return serde_json::to_value(summary).ok();
+    }
+
+    let runtime = runtime?;
+    let routing = runtime.routing_decision.as_ref();
+    let limit_state = runtime.limit_state.as_ref();
+    let cost_state = runtime.cost_state.as_ref();
+    let limit_event = runtime.limit_event.as_ref();
+
+    if routing.is_none() && limit_state.is_none() && cost_state.is_none() && limit_event.is_none() {
+        return None;
+    }
+
+    Some(serde_json::json!({
+        "candidateCount": routing.map(|value| value.candidate_count),
+        "routingMode": routing.map(|value| value.routing_mode.clone()),
+        "decisionSource": routing.map(|value| value.decision_source.clone()),
+        "decisionReason": routing.map(|value| value.decision_reason.clone()),
+        "fallbackChain": routing.map(|value| value.fallback_chain.clone()).unwrap_or_default(),
+        "estimatedCostClass": routing
+            .and_then(|value| value.estimated_cost_class.clone())
+            .or_else(|| cost_state.and_then(|value| value.estimated_cost_class.clone())),
+        "estimatedTotalCost": cost_state.and_then(|value| value.estimated_total_cost),
+        "limitStatus": limit_state.map(|value| value.status.clone()),
+        "limitEventKind": limit_event.map(|value| value.event_kind.clone()),
+        "limitEventMessage": limit_event.map(|value| value.message.clone()),
+        "capabilityGap": routing
+            .and_then(|value| value.capability_gap.clone())
+            .or_else(|| limit_state.and_then(|value| value.capability_gap.clone())),
+        "singleCandidateOnly": limit_state.map(|value| value.single_candidate_only),
+        "oemLocked": limit_state.map(|value| value.oem_locked),
+        "quotaLow": Some(matches!(limit_event.map(|value| value.event_kind.as_str()), Some("quota_low"))),
+    }))
+}
+
+fn extract_auxiliary_runtime_snapshots(detail: &SessionDetail) -> Option<Vec<serde_json::Value>> {
+    let snapshots = detail
+        .items
+        .iter()
+        .filter_map(|item| match &item.payload {
+            lime_core::database::dao::agent_timeline::AgentThreadItemPayload::FileArtifact {
+                path,
+                content,
+                metadata,
+                ..
+            } if path.contains("/auxiliary-runtime/")
+                || metadata
+                    .as_ref()
+                    .and_then(|value| value.get("artifactType"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some("auxiliary_runtime_projection") =>
+            {
+                let document = content
+                    .as_ref()
+                    .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())?;
+                let projection_kind = document
+                    .get("projectionKind")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string);
+                let execution_runtime = document.get("executionRuntime").cloned();
+                let route = execution_runtime.as_ref().and_then(|runtime| {
+                    runtime
+                        .get("route")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                });
+                let task_kind = execution_runtime.as_ref().and_then(|runtime| {
+                    runtime
+                        .get("task_profile")
+                        .and_then(|profile| profile.get("kind"))
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                });
+                Some(serde_json::json!({
+                    "artifactPath": path,
+                    "projectionKind": projection_kind,
+                    "route": route,
+                    "taskKind": task_kind,
+                    "executionRuntime": execution_runtime,
+                }))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    if snapshots.is_empty() {
+        None
+    } else {
+        Some(snapshots)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -727,6 +885,53 @@ impl AgentRuntimeReplayedActionRequiredView {
             }
         })
     }
+}
+
+fn read_auxiliary_runtime_string(
+    auxiliary_task_runtime: Option<&Vec<serde_json::Value>>,
+    path: &[&str],
+) -> Option<String> {
+    auxiliary_task_runtime?.iter().rev().find_map(|snapshot| {
+        let runtime = snapshot.get("executionRuntime")?;
+        let mut current = runtime;
+        for key in path {
+            current = current.get(*key)?;
+        }
+        current.as_str().map(str::to_string)
+    })
+}
+
+fn read_auxiliary_runtime_u32(
+    auxiliary_task_runtime: Option<&Vec<serde_json::Value>>,
+    path: &[&str],
+) -> Option<u32> {
+    auxiliary_task_runtime?.iter().rev().find_map(|snapshot| {
+        let runtime = snapshot.get("executionRuntime")?;
+        let mut current = runtime;
+        for key in path {
+            current = current.get(*key)?;
+        }
+        current.as_u64().and_then(|value| u32::try_from(value).ok())
+    })
+}
+
+fn read_auxiliary_runtime_string_vec(
+    auxiliary_task_runtime: Option<&Vec<serde_json::Value>>,
+    path: &[&str],
+) -> Option<Vec<String>> {
+    auxiliary_task_runtime?.iter().rev().find_map(|snapshot| {
+        let runtime = snapshot.get("executionRuntime")?;
+        let mut current = runtime;
+        for key in path {
+            current = current.get(*key)?;
+        }
+        let items = current.as_array()?;
+        let values = items
+            .iter()
+            .filter_map(|item| item.as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+        (!values.is_empty()).then_some(values)
+    })
 }
 
 impl AgentRuntimeThreadReadModel {
@@ -844,6 +1049,61 @@ impl AgentRuntimeThreadReadModel {
             .execution_runtime
             .as_ref()
             .and_then(|runtime| runtime.limit_event.clone());
+        let oem_policy = extract_oem_policy_summary(detail.execution_runtime.as_ref());
+        let runtime_summary = extract_runtime_summary(detail.execution_runtime.as_ref());
+        let auxiliary_task_runtime = extract_auxiliary_runtime_snapshots(detail);
+        let auxiliary_task_kind = read_auxiliary_runtime_string(
+            auxiliary_task_runtime.as_ref(),
+            &["task_profile", "kind"],
+        )
+        .or_else(|| {
+            auxiliary_task_runtime.as_ref().and_then(|snapshots| {
+                snapshots.iter().rev().find_map(|snapshot| {
+                    snapshot
+                        .get("taskKind")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                })
+            })
+        });
+        let auxiliary_service_model_slot = read_auxiliary_runtime_string(
+            auxiliary_task_runtime.as_ref(),
+            &["task_profile", "service_model_slot"],
+        );
+        let auxiliary_routing_mode = read_auxiliary_runtime_string(
+            auxiliary_task_runtime.as_ref(),
+            &["routing_decision", "routing_mode"],
+        );
+        let auxiliary_decision_source = read_auxiliary_runtime_string(
+            auxiliary_task_runtime.as_ref(),
+            &["routing_decision", "decision_source"],
+        );
+        let auxiliary_decision_reason = read_auxiliary_runtime_string(
+            auxiliary_task_runtime.as_ref(),
+            &["routing_decision", "decision_reason"],
+        );
+        let auxiliary_candidate_count = read_auxiliary_runtime_u32(
+            auxiliary_task_runtime.as_ref(),
+            &["routing_decision", "candidate_count"],
+        );
+        let auxiliary_fallback_chain = read_auxiliary_runtime_string_vec(
+            auxiliary_task_runtime.as_ref(),
+            &["routing_decision", "fallback_chain"],
+        );
+        let auxiliary_capability_gap = read_auxiliary_runtime_string(
+            auxiliary_task_runtime.as_ref(),
+            &["routing_decision", "capability_gap"],
+        );
+        let auxiliary_estimated_cost_class = read_auxiliary_runtime_string(
+            auxiliary_task_runtime.as_ref(),
+            &["cost_state", "estimated_cost_class"],
+        )
+        .or_else(|| {
+            read_auxiliary_runtime_string(
+                auxiliary_task_runtime.as_ref(),
+                &["routing_decision", "estimated_cost_class"],
+            )
+        });
 
         Self {
             thread_id: detail.thread_id.clone(),
@@ -860,28 +1120,55 @@ impl AgentRuntimeThreadReadModel {
             latest_compaction_boundary,
             file_checkpoint_summary,
             diagnostics,
-            task_kind: task_profile.map(|profile| profile.kind.clone()),
-            service_model_slot: task_profile.and_then(|profile| profile.service_model_slot.clone()),
-            routing_mode: routing_decision.map(|decision| decision.routing_mode.clone()),
-            decision_source: routing_decision.map(|decision| decision.decision_source.clone()),
-            candidate_count: routing_decision.map(|decision| decision.candidate_count),
+            task_kind: task_profile
+                .map(|profile| profile.kind.clone())
+                .or(auxiliary_task_kind),
+            service_model_slot: task_profile
+                .and_then(|profile| profile.service_model_slot.clone())
+                .or(auxiliary_service_model_slot),
+            routing_mode: routing_decision
+                .map(|decision| decision.routing_mode.clone())
+                .or(auxiliary_routing_mode),
+            decision_source: routing_decision
+                .map(|decision| decision.decision_source.clone())
+                .or(auxiliary_decision_source),
+            decision_reason: routing_decision
+                .map(|decision| decision.decision_reason.clone())
+                .or(auxiliary_decision_reason),
+            candidate_count: routing_decision
+                .map(|decision| decision.candidate_count)
+                .or(auxiliary_candidate_count),
+            fallback_chain: routing_decision
+                .and_then(|decision| {
+                    if decision.fallback_chain.is_empty() {
+                        None
+                    } else {
+                        Some(decision.fallback_chain.clone())
+                    }
+                })
+                .or(auxiliary_fallback_chain),
             capability_gap: routing_decision
                 .and_then(|decision| decision.capability_gap.clone())
                 .or_else(|| {
                     limit_state
                         .as_ref()
                         .and_then(|state| state.capability_gap.clone())
-                }),
+                })
+                .or(auxiliary_capability_gap),
             estimated_cost_class: routing_decision
                 .and_then(|decision| decision.estimated_cost_class.clone())
                 .or_else(|| {
                     cost_state
                         .as_ref()
                         .and_then(|state| state.estimated_cost_class.clone())
-                }),
+                })
+                .or(auxiliary_estimated_cost_class),
             single_candidate_only: limit_state
                 .as_ref()
                 .map(|state| state.single_candidate_only),
+            oem_policy,
+            runtime_summary,
+            auxiliary_task_runtime,
             limit_state,
             cost_state,
             limit_event,
@@ -1851,6 +2138,12 @@ pub struct AgentRuntimeRespondActionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AgentRuntimeListSessionsRequest {
+    #[serde(default, alias = "includeArchived")]
+    pub include_archived: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct AgentRuntimeUpdateSessionRequest {
     #[serde(alias = "sessionId")]
     pub session_id: String,
@@ -1864,6 +2157,8 @@ pub struct AgentRuntimeUpdateSessionRequest {
     pub model_name: Option<String>,
     #[serde(default, alias = "executionStrategy")]
     pub execution_strategy: Option<AsterExecutionStrategy>,
+    #[serde(default, alias = "isArchived")]
+    pub archived: Option<bool>,
     #[serde(default, alias = "recentAccessMode")]
     pub recent_access_mode: Option<lime_agent::SessionExecutionRuntimeAccessMode>,
     #[serde(default, alias = "recentPreferences")]
@@ -2265,11 +2560,26 @@ mod tests {
                 message: "429 Too Many Requests".to_string(),
                 retryable: true,
             }),
+            oem_policy: None,
+            runtime_summary: None,
         });
 
         let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
 
         assert_eq!(thread_read.estimated_cost_class.as_deref(), Some("low"));
+        assert_eq!(
+            thread_read.decision_reason.as_deref(),
+            Some("命中 service_models.translation")
+        );
+        assert_eq!(thread_read.fallback_chain, None);
+        assert_eq!(
+            thread_read
+                .runtime_summary
+                .as_ref()
+                .and_then(|value| value.get("decisionReason"))
+                .and_then(serde_json::Value::as_str),
+            Some("命中 service_models.translation")
+        );
         assert_eq!(
             thread_read
                 .cost_state
@@ -2283,6 +2593,227 @@ mod tests {
                 .as_ref()
                 .map(|value| value.event_kind.as_str()),
             Some("rate_limit_hit")
+        );
+    }
+
+    #[test]
+    fn thread_read_should_promote_auxiliary_runtime_into_current_thread_read_when_runtime_missing()
+    {
+        let detail =
+            build_session_detail(
+                vec![AgentThreadTurn {
+                    id: "turn-1".to_string(),
+                    thread_id: "thread-1".to_string(),
+                    prompt_text: "继续生成标题".to_string(),
+                    status: AgentThreadTurnStatus::Completed,
+                    started_at: "2026-03-23T09:10:00Z".to_string(),
+                    completed_at: Some("2026-03-23T09:10:05Z".to_string()),
+                    error_message: None,
+                    created_at: "2026-03-23T09:10:00Z".to_string(),
+                    updated_at: "2026-03-23T09:10:05Z".to_string(),
+                }],
+                vec![AgentThreadItem {
+                id: "artifact-1".to_string(),
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                sequence: 1,
+                status: AgentThreadItemStatus::Completed,
+                started_at: "2026-03-23T09:10:03Z".to_string(),
+                completed_at: Some("2026-03-23T09:10:04Z".to_string()),
+                updated_at: "2026-03-23T09:10:04Z".to_string(),
+                payload: AgentThreadItemPayload::FileArtifact {
+                    path: ".lime/artifacts/thread-1/auxiliary-runtime/title.json".to_string(),
+                    source: "artifact_snapshot".to_string(),
+                    content: Some(serde_json::json!({
+                        "projectionKind": "title_generation_runtime",
+                        "executionRuntime": {
+                            "route": "auxiliary.generate_title",
+                            "task_profile": {
+                                "kind": "generation_topic",
+                                "service_model_slot": "title_generation"
+                            },
+                            "routing_decision": {
+                                "routing_mode": "fallback_chain",
+                                "decision_source": "service_model_setting",
+                                "decision_reason": "辅助标题生成命中服务模型并回退到低成本模型",
+                                "candidate_count": 2,
+                                "capability_gap": "vision",
+                                "fallback_chain": ["openai:gpt-5.4", "openai:gpt-5.4-mini"],
+                                "estimated_cost_class": "low"
+                            },
+                            "cost_state": {
+                                "estimated_cost_class": "low"
+                            }
+                        }
+                    }).to_string()),
+                    metadata: Some(serde_json::json!({
+                        "artifactType": "auxiliary_runtime_projection"
+                    })),
+                },
+            }],
+            );
+
+        let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
+
+        assert_eq!(thread_read.task_kind.as_deref(), Some("generation_topic"));
+        assert_eq!(
+            thread_read.service_model_slot.as_deref(),
+            Some("title_generation")
+        );
+        assert_eq!(thread_read.routing_mode.as_deref(), Some("fallback_chain"));
+        assert_eq!(
+            thread_read.decision_source.as_deref(),
+            Some("service_model_setting")
+        );
+        assert_eq!(
+            thread_read.decision_reason.as_deref(),
+            Some("辅助标题生成命中服务模型并回退到低成本模型")
+        );
+        assert_eq!(thread_read.candidate_count, Some(2));
+        assert_eq!(thread_read.capability_gap.as_deref(), Some("vision"));
+        assert_eq!(thread_read.estimated_cost_class.as_deref(), Some("low"));
+        assert_eq!(
+            thread_read.fallback_chain,
+            Some(vec![
+                "openai:gpt-5.4".to_string(),
+                "openai:gpt-5.4-mini".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn thread_read_should_surface_oem_policy_summary() {
+        let mut detail = build_session_detail(Vec::new(), Vec::new());
+        detail.execution_runtime = Some(lime_agent::SessionExecutionRuntime {
+            session_id: "session-1".to_string(),
+            provider_selector: Some("lime-hub".to_string()),
+            provider_name: Some("lime-hub".to_string()),
+            model_name: Some("claude-sonnet-4".to_string()),
+            execution_strategy: None,
+            output_schema_runtime: None,
+            source: lime_agent::SessionExecutionRuntimeSource::RuntimeSnapshot,
+            mode: None,
+            latest_turn_id: None,
+            latest_turn_status: None,
+            recent_access_mode: None,
+            recent_preferences: None,
+            recent_team_selection: None,
+            recent_theme: None,
+            recent_session_mode: None,
+            recent_gate_key: None,
+            recent_run_title: None,
+            recent_content_id: None,
+            task_profile: None,
+            routing_decision: Some(lime_agent::SessionExecutionRuntimeRoutingDecision {
+                routing_mode: "single_candidate".to_string(),
+                decision_source: "session_default".to_string(),
+                decision_reason: "当前回合受 OEM 托管约束。".to_string(),
+                selected_provider: Some("lime-hub".to_string()),
+                selected_model: Some("claude-sonnet-4".to_string()),
+                requested_provider: None,
+                requested_model: None,
+                candidate_count: 1,
+                estimated_cost_class: Some("medium".to_string()),
+                capability_gap: None,
+                fallback_chain: Vec::new(),
+                settings_source: None,
+                service_model_slot: None,
+            }),
+            limit_state: Some(lime_agent::SessionExecutionRuntimeLimitState {
+                status: "single_candidate_only".to_string(),
+                single_candidate_only: true,
+                provider_locked: true,
+                settings_locked: false,
+                oem_locked: true,
+                candidate_count: 1,
+                capability_gap: None,
+                notes: vec!["当前回合受 OEM 路由约束。".to_string()],
+            }),
+            cost_state: None,
+            limit_event: Some(lime_agent::SessionExecutionRuntimeLimitEvent {
+                event_kind: "quota_low".to_string(),
+                message: "OEM 云端额度偏低".to_string(),
+                retryable: true,
+            }),
+            oem_policy: None,
+            runtime_summary: None,
+        });
+
+        let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
+
+        assert_eq!(
+            thread_read
+                .oem_policy
+                .as_ref()
+                .and_then(|value| value.get("locked"))
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            thread_read
+                .oem_policy
+                .as_ref()
+                .and_then(|value| value.get("quotaLow"))
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn thread_read_should_include_auxiliary_runtime_projection_snapshots() {
+        let mut detail = build_session_detail(Vec::new(), Vec::new());
+        detail.items.push(AgentThreadItem {
+            id: "artifact-1".to_string(),
+            thread_id: detail.thread_id.clone(),
+            turn_id: "turn-aux".to_string(),
+            sequence: 1,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-04-24T10:00:00Z".to_string(),
+            completed_at: Some("2026-04-24T10:00:00Z".to_string()),
+            updated_at: "2026-04-24T10:00:00Z".to_string(),
+            payload: AgentThreadItemPayload::FileArtifact {
+                path:
+                    ".lime/harness/sessions/session-1/auxiliary-runtime/title-generation-aux-1.json"
+                        .to_string(),
+                source: "auxiliary.generate_title".to_string(),
+                content: Some(
+                    serde_json::json!({
+                        "artifactType": "auxiliary_runtime_projection",
+                        "projectionKind": "title_generation",
+                        "executionRuntime": {
+                            "route": "auxiliary.generate_title",
+                            "task_profile": {
+                                "kind": "generation_topic"
+                            }
+                        }
+                    })
+                    .to_string(),
+                ),
+                metadata: Some(serde_json::json!({
+                    "artifactType": "auxiliary_runtime_projection"
+                })),
+            },
+        });
+
+        let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
+
+        assert_eq!(
+            thread_read
+                .auxiliary_task_runtime
+                .as_ref()
+                .and_then(|items| items.first())
+                .and_then(|value| value.get("projectionKind"))
+                .and_then(serde_json::Value::as_str),
+            Some("title_generation")
+        );
+        assert_eq!(
+            thread_read
+                .auxiliary_task_runtime
+                .as_ref()
+                .and_then(|items| items.first())
+                .and_then(|value| value.get("route"))
+                .and_then(serde_json::Value::as_str),
+            Some("auxiliary.generate_title")
         );
     }
 

@@ -275,6 +275,39 @@ describe("模型辅助函数", () => {
     ).toBe("gpt-5.3-codex, gpt-5.2");
   });
 
+  test("parseCustomModelsValue 应规范化 MiMo 展示名与历史别名", () => {
+    expect(
+      parseCustomModelsValue(
+        "MiMo-V2.5-Pro, mimo-v2-pro, mimo-v2.5, mimo-v2-flash",
+        {
+          providerId: "custom-mimo",
+          providerType: "anthropic-compatible",
+          apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
+        },
+      ),
+    ).toEqual(["mimo-v2.5-pro", "mimo-v2-flash"]);
+  });
+
+  test("serializeCustomModels 应输出规范化后的 MiMo 模型 ID", () => {
+    expect(
+      serializeCustomModels(["MiMo-V2.5-Pro", "mimo-v2-pro", "mimo-v2.5"], {
+        providerId: "custom-mimo",
+        providerType: "anthropic-compatible",
+        apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
+      }),
+    ).toBe("mimo-v2.5-pro");
+  });
+
+  test("非 Xiaomi Provider 不应误改写模型 ID", () => {
+    expect(
+      parseCustomModelsValue("mimo-v2-pro", {
+        providerId: "openai",
+        providerType: "openai",
+        apiHost: "https://api.openai.com/v1",
+      }),
+    ).toEqual(["mimo-v2-pro"]);
+  });
+
   test("sortSelectableModels 应优先最新和带发布日期的模型", () => {
     const models = [
       createModel({
