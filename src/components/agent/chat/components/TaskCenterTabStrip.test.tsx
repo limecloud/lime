@@ -161,7 +161,7 @@ describe("TaskCenterTabStrip", () => {
     expect(container.textContent).not.toContain("新对话");
   });
 
-  it("应在右侧保留轻量工具按钮", () => {
+  it("应在右侧保留轻量工具按钮，并显示明确的工作台入口", () => {
     const onToggleHistory = vi.fn();
     const onToggleCanvas = vi.fn();
     const { container } = renderTabStrip({
@@ -182,13 +182,14 @@ describe("TaskCenterTabStrip", () => {
     act(() => {
       (
         container.querySelector(
-          '[data-testid="task-center-tab-canvas"]',
+          '[data-testid="task-center-tab-workbench"]',
         ) as HTMLButtonElement | null
       )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(onToggleHistory).toHaveBeenCalledTimes(1);
     expect(onToggleCanvas).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("工作台");
     expect(
       container.querySelector('[data-testid="task-center-tab-toolbar"]'),
     ).toBeTruthy();

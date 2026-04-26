@@ -112,10 +112,21 @@ export function shouldDeferSessionDetailHydration(options: {
 export function resolveRestorableTopicSessionId(
   candidateSessionId: string | null | undefined,
   topics: Topic[],
+  options?: {
+    allowDetachedCandidate?: boolean;
+  },
 ): string | null {
   const normalizedCandidate = candidateSessionId?.trim();
   if (topics.length === 0) {
     return normalizedCandidate ?? null;
+  }
+
+  if (
+    normalizedCandidate &&
+    options?.allowDetachedCandidate === true &&
+    !topics.some((topic) => topic.id === normalizedCandidate)
+  ) {
+    return normalizedCandidate;
   }
 
   return resolveRestorableSessionId({

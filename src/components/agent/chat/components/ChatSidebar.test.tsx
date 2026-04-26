@@ -285,6 +285,47 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("归档");
   });
 
+  it("点击归档分组中的对话时，不应把它当成普通任务切换入口", () => {
+    const now = Date.now();
+    const onSwitchTopic = vi.fn();
+    const onOpenArchivedTopic = vi.fn();
+    const container = renderSidebar({
+      contextVariant: "task-center",
+      currentTopicId: null,
+      onSwitchTopic,
+      onOpenArchivedTopic,
+      topics: [
+        {
+          ...defaultTopics[0],
+          id: "topic-recent",
+          title: "最近对话",
+          updatedAt: new Date(now - 2_000),
+          status: "done",
+          sourceSessionId: "topic-recent",
+        },
+        {
+          ...defaultTopics[0],
+          id: "topic-older",
+          title: "归档对话",
+          updatedAt: new Date(now - 1000 * 60 * 60 * 24 * 5),
+          status: "done",
+          sourceSessionId: "topic-older",
+        },
+      ],
+    });
+
+    act(() => {
+      (
+        Array.from(container.querySelectorAll('[role="button"]')).find((node) =>
+          node.textContent?.includes("归档对话"),
+        ) as HTMLElement | undefined
+      )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onOpenArchivedTopic).toHaveBeenCalledWith("topic-older");
+    expect(onSwitchTopic).not.toHaveBeenCalledWith("topic-older");
+  });
+
   it("任务中心侧栏不应再显示 continuation fallback 文案", async () => {
     const container = renderSidebar({
       contextVariant: "task-center",

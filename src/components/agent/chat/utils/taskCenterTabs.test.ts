@@ -3,8 +3,14 @@ import type { Topic } from "../hooks/agentChatShared";
 import {
   areTaskCenterTabIdsEqual,
   buildDefaultTaskCenterTabIds,
+  isTaskCenterTopicSwitchPending,
   normalizeTaskCenterWorkspaceTabMap,
   reconcileTaskCenterTabIds,
+  replaceTaskCenterTabIdsForWorkspace,
+  resolveTaskCenterFallbackTopicId,
+  shouldHideTaskCenterTabsForDetachedSession,
+  resolveTaskCenterPreviewTopicId,
+  resolveTaskCenterVisibleTabIds,
   resolveTaskCenterTabIdsForWorkspace,
   shouldResumeTaskSession,
   updateTaskCenterTabIdsForWorkspace,
@@ -113,11 +119,32 @@ describe("taskCenterTabs", () => {
     });
   });
 
+  it("导航栏打开单个任务时，应覆盖当前 workspace 的旧多标签状态", () => {
+    const currentMap = {
+      "workspace-a": ["topic-a", "topic-b", "topic-c"],
+      "workspace-b": ["topic-d"],
+    };
+
+    expect(
+      replaceTaskCenterTabIdsForWorkspace(
+        currentMap,
+        "workspace-a",
+        "topic-selected",
+      ),
+    ).toEqual({
+      "workspace-a": ["topic-selected"],
+      "workspace-b": ["topic-d"],
+    });
+  });
+
   it("应兼容旧的全局数组存储并迁移到当前 workspace", () => {
     expect(
-      normalizeTaskCenterWorkspaceTabMap(["topic-a", "topic-b"], {
-        workspaceId: "workspace-a",
-      }),
+      normalizeTaskCenterWorkspaceTabMap(
+        ["topic-a", "title-gen-1", "topic-b"],
+        {
+          workspaceId: "workspace-a",
+        },
+      ),
     ).toEqual({
       "workspace-a": ["topic-a", "topic-b"],
     });
@@ -159,5 +186,157 @@ describe("taskCenterTabs", () => {
   it("应正确比较标签 id 列表是否一致", () => {
     expect(areTaskCenterTabIdsEqual(["a", "b"], ["a", "b"])).toBe(true);
     expect(areTaskCenterTabIdsEqual(["a", "b"], ["b", "a"])).toBe(false);
+  });
+
+  it("打开不在 open tabs 中的归档对话时，顶部只应展示当前对话", () => {
+    const topics = [
+      createTopic("topic-open-a"),
+      createTopic("topic-open-b"),
+      createTopic("topic-archived-preview", {
+        updatedAt: new Date("2026-04-10T00:00:00.000Z"),
+      }),
+    ];
+
+    expect(
+      resolveTaskCenterVisibleTabIds({
+        openTabIds: ["topic-open-a", "topic-open-b"],
+        topics,
+        currentTopicId: "topic-archived-preview",
+      }),
+    ).toEqual(["topic-archived-preview"]);
+  });
+
+  it("当前对话已在 open tabs 中时，应继续展示原有任务标签", () => {
+    const topics = [
+      createTopic("topic-open-a"),
+      createTopic("topic-open-b"),
+      createTopic("title-gen-1"),
+    ];
+
+    expect(
+      resolveTaskCenterVisibleTabIds({
+        openTabIds: ["topic-open-a", "title-gen-1", "topic-open-b"],
+        topics,
+        currentTopicId: "topic-open-b",
+      }),
+    ).toEqual(["topic-open-a", "topic-open-b"]);
+  });
+
+  it("当前会话不在任务列表时，只应在没有切换中任务时恢复 fallback", () => {
+    const topics = [createTopic("topic-open-a"), createTopic("topic-open-b")];
+
+    expect(
+      resolveTaskCenterFallbackTopicId({
+        sessionId: null,
+        switchingTopicId: null,
+        openTabIds: ["topic-open-a", "topic-open-b"],
+        topics,
+      }),
+    ).toBe("topic-open-a");
+
+    expect(
+      resolveTaskCenterFallbackTopicId({
+        sessionId: null,
+        switchingTopicId: "topic-open-a",
+        openTabIds: ["topic-open-a", "topic-open-b"],
+        topics,
+      }),
+    ).toBeNull();
+  });
+
+  it("当前会话已在任务列表中时，不应触发 fallback 恢复", () => {
+    const topics = [createTopic("topic-open-a"), createTopic("topic-open-b")];
+
+    expect(
+      resolveTaskCenterFallbackTopicId({
+        sessionId: "topic-open-b",
+        switchingTopicId: null,
+        openTabIds: ["topic-open-a", "topic-open-b"],
+        topics,
+      }),
+    ).toBeNull();
+  });
+
+  it("辅助运行时会话不应进入任务中心标签", () => {
+    const topics = [
+      createTopic("topic-open-a"),
+      createTopic("title-gen-1"),
+      createTopic("persona-gen-1"),
+      createTopic("topic-open-b"),
+    ];
+
+    expect(
+      reconcileTaskCenterTabIds({
+        existingIds: ["topic-open-a", "title-gen-1", "persona-gen-1"],
+        topics,
+        currentTopicId: "persona-gen-1",
+      }),
+    ).toEqual(["topic-open-a"]);
+  });
+
+  it("切换归档会话时，应立即把目标会话作为预览焦点", () => {
+    expect(
+      resolveTaskCenterPreviewTopicId({
+        sessionId: "topic-open-a",
+        detachedTopicId: "topic-archived",
+        switchingTopicId: "topic-archived",
+      }),
+    ).toBe("topic-archived");
+  });
+
+  it("归档会话完成切换后，应继续保持 detached 会话焦点", () => {
+    expect(
+      resolveTaskCenterPreviewTopicId({
+        sessionId: "topic-archived",
+        detachedTopicId: "topic-archived",
+        switchingTopicId: null,
+      }),
+    ).toBe("topic-archived");
+  });
+
+  it("切换中的目标会话尚未成为当前会话时，应标记为待恢复态", () => {
+    expect(
+      isTaskCenterTopicSwitchPending({
+        sessionId: "topic-open-a",
+        switchingTopicId: "topic-archived",
+      }),
+    ).toBe(true);
+
+    expect(
+      isTaskCenterTopicSwitchPending({
+        sessionId: "topic-archived",
+        switchingTopicId: "topic-archived",
+      }),
+    ).toBe(false);
+  });
+
+  it("detached 会话处于当前预览时，应隐藏顶部任务标签", () => {
+    expect(
+      shouldHideTaskCenterTabsForDetachedSession({
+        sessionId: "topic-archived",
+        detachedTopicId: "topic-archived",
+        openTabIds: ["topic-open-a", "topic-open-b"],
+      }),
+    ).toBe(true);
+  });
+
+  it("从导航栏直达且不在 open tabs 中的会话，应隐藏顶部任务标签", () => {
+    expect(
+      shouldHideTaskCenterTabsForDetachedSession({
+        sessionId: "topic-archived",
+        initialSessionId: "topic-archived",
+        openTabIds: ["topic-open-a", "topic-open-b"],
+      }),
+    ).toBe(true);
+  });
+
+  it("当前会话已进入 open tabs 时，不应隐藏顶部任务标签", () => {
+    expect(
+      shouldHideTaskCenterTabsForDetachedSession({
+        sessionId: "topic-open-b",
+        initialSessionId: "topic-open-b",
+        openTabIds: ["topic-open-a", "topic-open-b"],
+      }),
+    ).toBe(false);
   });
 });

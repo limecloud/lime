@@ -14,10 +14,12 @@ interface PendingTopicSwitchState {
   targetProjectId: string;
   forceRefresh?: boolean;
   resumeSessionStartHooks?: boolean;
+  allowDetachedSession?: boolean;
 }
 
 interface UseWorkspaceProjectSelectionOptions {
   externalProjectId?: string | null;
+  initialSessionId?: string | null;
   newChatAt?: number;
   storageKey?: string;
 }
@@ -27,6 +29,7 @@ export function useWorkspaceProjectSelection(
 ) {
   const {
     externalProjectId,
+    initialSessionId,
     newChatAt,
     storageKey = LAST_PROJECT_ID_KEY,
   } = options;
@@ -50,7 +53,10 @@ export function useWorkspaceProjectSelection(
 
   const incomingNewChatRequestKey =
     typeof newChatAt === "number" ? String(newChatAt) : null;
-  const shouldDisableSessionRestore = incomingNewChatRequestKey !== null;
+  const hasExplicitInitialSession =
+    typeof initialSessionId === "string" && initialSessionId.trim().length > 0;
+  const shouldDisableSessionRestore =
+    incomingNewChatRequestKey !== null || hasExplicitInitialSession;
   const shouldResetToFreshHomeContext =
     !normalizedExternalProjectId &&
     incomingNewChatRequestKey !== null &&
@@ -130,6 +136,7 @@ export function useWorkspaceProjectSelection(
       options?: {
         forceRefresh?: boolean;
         resumeSessionStartHooks?: boolean;
+        allowDetachedSession?: boolean;
       },
     ) => {
       const normalizedTargetProjectId = normalizeProjectId(targetProjectId);
@@ -145,6 +152,9 @@ export function useWorkspaceProjectSelection(
         ...(options?.forceRefresh === true ? { forceRefresh: true } : {}),
         ...(options?.resumeSessionStartHooks === true
           ? { resumeSessionStartHooks: true }
+          : {}),
+        ...(options?.allowDetachedSession === true
+          ? { allowDetachedSession: true }
           : {}),
       };
       setInternalProjectId(normalizedTargetProjectId);

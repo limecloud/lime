@@ -11,6 +11,8 @@ export interface ParsedVideoWorkbenchCommand {
 }
 
 const VIDEO_COMMAND_PREFIX_REGEX = /^\s*(@视频|@video)(?:\s+|$)([\s\S]*)$/i;
+const RESERVED_VIDEO_MULTIWORD_ALIAS_REGEX =
+  /^(?:search|to\s+gif|compare)(?:\s|$)/i;
 const DURATION_REGEX =
   /(?:时长\s*)?(\d+)\s*(?:秒钟|秒|s)(?=[\s,，。；;:：]|$)/i;
 const ASPECT_RATIO_REGEX = /(自适应|adaptive|16:9|9:16|1:1|4:3|3:4|21:9)/i;
@@ -81,6 +83,12 @@ export function parseVideoWorkbenchCommand(
   }
 
   const body = (matched[2] || "").trim();
+  if (
+    normalizeTrigger(matched[1] || "") === "@video" &&
+    RESERVED_VIDEO_MULTIWORD_ALIAS_REGEX.test(body)
+  ) {
+    return null;
+  }
 
   return {
     rawText: text,

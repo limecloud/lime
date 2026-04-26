@@ -57,9 +57,7 @@ import {
   type SkillSelectionSourceProps,
 } from "../skill-selection/skillSelectionBindings";
 import type { Character } from "@/lib/api/memory";
-import type { Skill } from "@/lib/api/skills";
 import type { WorkspaceSettings } from "@/types/workspace";
-import type { ServiceSkillHomeItem } from "../service-skills/types";
 import type { MessageImage } from "../types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import { isGeneralResearchTheme } from "../utils/generalAgentPrompt";
@@ -912,12 +910,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const clearSelectedSkill = useCallback(() => {
     setActiveCapability(null);
   }, []);
-  const handleSelectInstalledSkill = useCallback((skill: Skill) => {
-    setActiveCapability({
-      kind: "installed_skill",
-      skill,
-    });
-  }, []);
   const handleSelectInputCapability = useCallback(
     (capability: InputCapabilitySelection) => {
       if (capability.kind === "service_skill") {
@@ -929,21 +921,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     },
     [onSelectServiceSkill],
   );
-  const handleSelectServiceSkill = useCallback(
-    (skill: ServiceSkillHomeItem) => {
-      setActiveCapability(null);
-      onSelectServiceSkill?.(skill);
-    },
-    [onSelectServiceSkill],
-  );
   const skillSelection = buildSkillSelectionProps({
     skills,
     serviceSkills,
     serviceSkillGroups,
     isSkillsLoading,
     activeSkill: currentSkill,
-    onSelectSkill: handleSelectInstalledSkill,
-    onSelectServiceSkill: handleSelectServiceSkill,
+    onSelectInputCapability: handleSelectInputCapability,
     onClearSkill: clearSelectedSkill,
     onNavigateToSettings,
     onImportSkill,
@@ -1469,9 +1453,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               includeSummary: false,
             }),
             testId: `entry-service-skill-${skill.id}`,
-            onSelect: () => {
-              handleSelectServiceSkill(skill);
-            },
+            onSelect: () =>
+              handleSelectInputCapability({
+                kind: "service_skill",
+                skill,
+              }),
           };
         })
       : [];
@@ -1482,7 +1468,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     effectiveDefaultCuratedTaskReferenceEntries,
     effectiveDefaultCuratedTaskReferenceMemoryIds,
     handleCuratedTaskLauncherRequest,
-    handleSelectServiceSkill,
+    handleSelectInputCapability,
     isGeneralTheme,
     projectId,
     serviceSkills,
@@ -1623,7 +1609,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           usedAt,
           testId: `entry-continuation-method-${skill.key}`,
           onSelect: () => {
-            handleSelectInstalledSkill(skill);
+            handleSelectInputCapability({
+              kind: "installed_skill",
+              skill,
+            });
             if (usage?.replayText) {
               setInput(usage.replayText);
             }
@@ -1668,9 +1657,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                   .join(" · "),
                 usedAt,
                 testId: `entry-continuation-method-${skill.id}`,
-                onSelect: () => {
-                  handleSelectServiceSkill(skill);
-                },
+                onSelect: () =>
+                  handleSelectInputCapability({
+                    kind: "service_skill",
+                    skill,
+                  }),
               };
             })
             .filter((item): item is ContinuationShelfItem => item !== null)
@@ -1688,8 +1679,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     effectiveDefaultCuratedTaskReferenceEntries,
     effectiveDefaultCuratedTaskReferenceMemoryIds,
     handleCuratedTaskLauncherRequest,
-    handleSelectInstalledSkill,
-    handleSelectServiceSkill,
+    handleSelectInputCapability,
     onSelectServiceSkill,
     recentInstalledSkillUsageBySkillKey,
     recentSceneUsageBySceneKey,

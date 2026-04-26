@@ -6,7 +6,8 @@ import {
 export type DeepSearchWorkbenchCommandTrigger =
   | "@深搜"
   | "@deep"
-  | "@deepsearch";
+  | "@deepsearch"
+  | "@Researchers Pro";
 
 export interface ParsedDeepSearchWorkbenchCommand extends Omit<
   ParsedSearchWorkbenchCommand,
@@ -17,7 +18,7 @@ export interface ParsedDeepSearchWorkbenchCommand extends Omit<
 }
 
 const DEEP_SEARCH_COMMAND_PREFIX_REGEX =
-  /^\s*(@深搜|@deep|@deepsearch)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@深搜|@deep|@deepsearch|@Researchers Pro)(?:\s+|$)([\s\S]*)$/i;
 
 function normalizeTrigger(value: string): DeepSearchWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
@@ -26,6 +27,9 @@ function normalizeTrigger(value: string): DeepSearchWorkbenchCommandTrigger {
   }
   if (normalized === "@deepsearch") {
     return "@deepsearch";
+  }
+  if (normalized === "@researchers pro") {
+    return "@Researchers Pro";
   }
   return "@深搜";
 }

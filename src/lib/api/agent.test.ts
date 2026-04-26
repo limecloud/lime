@@ -584,6 +584,47 @@ describe("Agent API 治理护栏", () => {
     );
   });
 
+  it("listAgentRuntimeSessions 应支持工作区限流与仅归档过滤", async () => {
+    mockSafeInvoke.mockResolvedValueOnce([
+      {
+        id: "session-runtime-archived",
+        name: "Archived Runtime Session",
+        created_at: 1710000000,
+        updated_at: 1710000123,
+        archived_at: 1710000300,
+        workspace_id: "workspace-1",
+      },
+    ]);
+
+    await expect(
+      listAgentRuntimeSessions({
+        archivedOnly: true,
+        workspaceId: "workspace-1",
+        limit: 12,
+      }),
+    ).resolves.toEqual([
+      {
+        id: "session-runtime-archived",
+        name: "Archived Runtime Session",
+        created_at: 1710000000,
+        updated_at: 1710000123,
+        archived_at: 1710000300,
+        workspace_id: "workspace-1",
+      },
+    ]);
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_list_sessions",
+      {
+        request: {
+          archived_only: true,
+          workspace_id: "workspace-1",
+          limit: 12,
+        },
+      },
+    );
+  });
+
   it("getAgentRuntimeSession 应返回现役 runtime 详情并归一 queued_turns", async () => {
     mockSafeInvoke.mockResolvedValueOnce({
       id: "session-runtime-2",

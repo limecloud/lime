@@ -1,4 +1,8 @@
-export type BroadcastWorkbenchCommandTrigger = "@播报" | "@播客" | "@broadcast";
+export type BroadcastWorkbenchCommandTrigger =
+  | "@播报"
+  | "@播客"
+  | "@broadcast"
+  | "@Speaker 1";
 
 export interface ParsedBroadcastWorkbenchCommand {
   rawText: string;
@@ -13,7 +17,7 @@ export interface ParsedBroadcastWorkbenchCommand {
 }
 
 const BROADCAST_COMMAND_PREFIX_REGEX =
-  /^\s*(@播报|@播客|@broadcast)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@播报|@播客|@broadcast|@Speaker 1)(?:\s+|$)([\s\S]*)$/i;
 const CONTENT_MARKER_REGEX =
   /(?:正文|内容|文章|原文|文稿|稿件|text|content)\s*[:：]/i;
 const FIELD_LABEL_REGEX =
@@ -49,6 +53,9 @@ function normalizeTrigger(value: string): BroadcastWorkbenchCommandTrigger {
   }
   if (normalized === "@broadcast") {
     return "@broadcast";
+  }
+  if (normalized === "@speaker 1") {
+    return "@Speaker 1";
   }
   return "@播报";
 }

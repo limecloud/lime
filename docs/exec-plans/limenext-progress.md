@@ -12,6 +12,70 @@
 
 ### 已完成
 
+- 对齐 `docs/research/ribbi/command-inventory.md` 里仍可安全挂到 `research` current 主链的搜索别名，把 `@Search Agent` 与 `@Instagram Research` 收进现有搜索命令，而不是新增搜索型 agent / 社媒研究协议：
+  - 已更新：
+    - `src/components/agent/chat/utils/searchWorkbenchCommand.ts`
+    - `src/components/agent/chat/utils/searchWorkbenchCommand.test.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`
+    - `src/lib/base-setup/seededCommandPackage.ts`
+    - `src/lib/base-setup/seededCommandPackage.test.ts`
+    - `src/lib/api/skillCatalog.test.ts`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `@Search Agent` 当前只是 `research` 的前台别名，不会把 Lime 带回“模型 agent 槽位”那套协议
+    - `@Instagram Research` 当前也继续走 `research_skill_launch`，但在未显式声明站点时会自动补 `site=Instagram`
+    - 这样做对齐的是前台命令习惯，而不是新增第二套社媒研究 runtime；recent usage、catalog trigger 与发送链当前都已同步打通
+
+- 对齐 `docs/research/ribbi/command-inventory.md` 里的 `@Image Logo Decomposition`，把它收成 Lime current 的 `@Logo拆解 / @Image Logo Decomposition` 前台命令，但底层继续复用 `analysis` 主链，不新增第二套媒体拆解协议：
+  - 已更新：
+    - `src/components/agent/chat/utils/logoDecompositionWorkbenchCommand.ts`
+    - `src/components/agent/chat/utils/logoDecompositionWorkbenchCommand.test.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`
+    - `src/components/agent/chat/utils/mentionCommandReplayText.ts`
+    - `src/components/agent/chat/utils/mentionCommandReplayText.test.ts`
+    - `src/lib/base-setup/seededCommandPackage.ts`
+    - `src/lib/base-setup/seededCommandPackage.test.ts`
+    - `src/lib/api/skillCatalog.test.ts`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `@Logo拆解` 当前已成为 Lime 自己的前台命令，且继续兼容直接输入 `@Image Logo Decomposition`
+    - 底层没有新增 `logo_*` runtime；仍统一复用 `analysis_skill_launch -> Skill(analysis)` current 主链
+    - 当前会把入口来源固定为 `at_logo_decomposition_command`，并额外带上 `analysis_mode=image_logo_decomposition`，让首刀更聚焦图片 / Logo 结构拆解，而不是退回泛分析
+    - 最近使用回放、命令目录、输入面板能力分组也已同步补齐；这条命令现在不只是命名对齐，而是能真正进入发送链
+
+- 对齐 `docs/research/ribbi/command-inventory.md` 的文件阅读能力，把新前台入口 `@读文件 / @Read File Content` 收进现有 `summary` current 主链，而不是新开第二套文件读取协议：
+  - 已更新：
+    - `src/components/agent/chat/utils/fileReadWorkbenchCommand.ts`
+    - `src/components/agent/chat/utils/fileReadWorkbenchCommand.test.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`
+    - `src/components/agent/chat/utils/mentionCommandReplayText.ts`
+    - `src/components/agent/chat/utils/mentionCommandReplayText.test.ts`
+    - `src/lib/base-setup/seededCommandPackage.ts`
+    - `src/lib/base-setup/seededCommandPackage.test.ts`
+    - `src/lib/api/skillCatalog.test.ts`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src-tauri/src/commands/aster_agent_cmd/summary_skill_launch.rs`
+    - `src-tauri/src/commands/aster_agent_cmd/tests.rs`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `@读文件` 当前已作为新的前台投影落到 `file_read_runtime`，但底层没有新增协议；仍继续复用 `summary_skill_launch.kind=summary_request`
+    - 文件路径当前会结构化写入 `request_metadata.harness.summary_skill_launch.summary_request.source_path`，并把入口来源固定为 `at_file_read_command`
+    - 最近使用回放、裸命令补全和能力分组当前也已同步补齐；`@读文件` 不再只是“目录里有”，而是能真正进入发送链、回放链和输入面板
+    - Rust 侧 `summary_skill_launch` 当前也会显式识别并提示 `source_path`，让模型首刀更稳定地围绕给定文件做总结，而不是退回普通聊天或先去探测工具目录
+  - 当前定向验证：
+    - `npx vitest run "src/components/agent/chat/utils/fileReadWorkbenchCommand.test.ts" "src/components/agent/chat/utils/mentionCommandReplayText.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/lib/base-setup/seededCommandPackage.test.ts" "src/lib/api/skillCatalog.test.ts"`
+    - `npx eslint "src/components/agent/chat/utils/fileReadWorkbenchCommand.ts" "src/components/agent/chat/utils/fileReadWorkbenchCommand.test.ts" "src/components/agent/chat/utils/mentionCommandReplayText.ts" "src/components/agent/chat/utils/mentionCommandReplayText.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/lib/base-setup/seededCommandPackage.ts" "src/lib/base-setup/seededCommandPackage.test.ts" "src/lib/api/skillCatalog.test.ts"`
+    - `cd src-tauri && cargo test test_merge_system_prompt_with_summary_skill_launch`
+    - `npm run verify:gui-smoke`
+  - 结果：
+    - 上述前端定向 `vitest` 当前已通过：`5 files / 168 tests passed`
+    - 定向 `eslint` 当前已通过
+    - Rust 定向测试当前已通过：`2 passed / 0 failed`
+    - `verify:gui-smoke` 本轮已成功拉起 `DevBridge`，并继续跑到 `smoke:site-adapters`；但因为这次使用独立临时 Cargo target 冷编译、耗时过长，当前未等待到最终整组 smoke 结论，已手动停止
+
 - 把 `新建任务 / EmptyState` 首页主区从“顺序堆叠的信息货架”重排成更接近参考图的 `输入主舞台 + tab 化入口 deck`，避免首屏仍像说明页而不是开工页：
   - 已更新：
     - `src/components/agent/chat/components/EmptyState.tsx`
@@ -193,6 +257,51 @@
       - `src/dev_bridge/dispatcher/agent_sessions.rs:182`
       - `crate::commands::aster_agent_cmd::agent_runtime_list_sessions(db, logs)` 缺少第三个参数 `Option<AgentRuntimeListSessionsRequest>`
     - 该错误发生在 Rust 当前主干编译阶段，和本轮 `项目资料` / `视频` 前台文案收口不在同一改动边界；当前先按仓库现有编译阻塞记录，不直接记成这轮页面回归
+
+- 对齐 `docs/research/ribbi/command-inventory.md` 第二批高价值 `@命令`，把社媒 Preview / Publish 的平台型入口继续收进现有 `content_post_with_cover` current 主链，而不是新开命令家族：
+  - 已更新：
+    - `src/components/agent/chat/utils/contentPostPlatform.ts`
+    - `src/components/agent/chat/utils/channelPreviewWorkbenchCommand.ts`
+    - `src/components/agent/chat/utils/publishWorkbenchCommand.ts`
+    - `src/components/agent/chat/utils/browserTaskRequirement.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`
+    - `src/lib/base-setup/seededCommandPackage.ts`
+    - `src/components/agent/chat/utils/channelPreviewWorkbenchCommand.test.ts`
+    - `src/components/agent/chat/utils/publishWorkbenchCommand.test.ts`
+    - `src/components/agent/chat/utils/browserTaskRequirement.test.ts`
+    - `src/lib/base-setup/seededCommandPackage.test.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `@Instagram Preview / @TikTok Preview / @Twitter Preview / @YouTube Preview` 当前都已并到原有 `channel_preview_runtime`，不新增新的 `commandKey`
+    - `@TikTok Publish / @Twitter Publish / @YouTube Publish` 当前都已并到原有 `publish_runtime`，继续复用 `content_post_with_cover`
+    - `Twitter` 当前在发布链里统一归一为 `platform_type=x`、`platform_label=X / Twitter`，避免前台 alias、平台枚举和 seeded skill 平台选项继续各说各话
+    - 浏览器前置要求识别当前也已补上 `Instagram / TikTok / YouTube / X / Twitter`，保证这批别名不是“只能 parse”，而是能完整落到现有发布执行链
+
+- 对齐 `docs/research/ribbi/command-inventory.md` 下一批搜索 / 读取工具别名，把 Ribbi 的搜索与网页读取入口继续压回现有 `research / modal_resource_search / webpage_read / research_report` 主链，而不是为单个命令名新开 skill：
+  - 已更新：
+    - `src/components/agent/chat/utils/searchWorkbenchCommand.ts`
+    - `src/components/agent/chat/utils/resourceSearchWorkbenchCommand.ts`
+    - `src/components/agent/chat/utils/urlParseWorkbenchCommand.ts`
+    - `src/components/agent/chat/utils/reportWorkbenchCommand.ts`
+    - `src/lib/base-setup/seededCommandPackage.ts`
+    - `src/components/agent/chat/utils/searchWorkbenchCommand.test.ts`
+    - `src/components/agent/chat/utils/resourceSearchWorkbenchCommand.test.ts`
+    - `src/components/agent/chat/utils/urlParseWorkbenchCommand.test.ts`
+    - `src/components/agent/chat/utils/reportWorkbenchCommand.test.ts`
+    - `src/lib/base-setup/seededCommandPackage.test.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `@Search / @Google Search / @Daily Search` 当前都已并到原有 `research` 命令族；其中 `@Daily Search` 在未显式声明时间范围时默认补 `最近一天`
+    - `@Pinterest Image Search` 当前已并到原有 `modal_resource_search`，继续复用图片素材检索主链，不新增 provider 协议
+    - `@URL Summarize` 当前已并到原有 `webpage_read`，继续走 `url_parse` 的摘要读取主链
+    - `@Report Search` 当前已并到原有 `research_report`，继续复用 `report_generate`
+    - 这批改动仍然只是 trigger / parser / metadata alias 扩展，不新增新的 `commandKey`、skill 或运行时 taxonomy
+  - 当前定向验证：
+    - `npm exec vitest run "src/components/agent/chat/utils/searchWorkbenchCommand.test.ts" "src/components/agent/chat/utils/resourceSearchWorkbenchCommand.test.ts" "src/components/agent/chat/utils/urlParseWorkbenchCommand.test.ts" "src/components/agent/chat/utils/reportWorkbenchCommand.test.ts" "src/lib/base-setup/seededCommandPackage.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"`
+  - 结果：
+    - 定向 `vitest` 通过：`6 files / 127 tests passed`
 
 ## 2026-04-24
 
@@ -6284,3 +6393,156 @@
   - `npm run typecheck` 通过
   - `npm run smoke:agent-runtime-tool-surface-page -- --timeout-ms 240000` 通过
   - `npm run verify:gui-smoke -- --timeout-ms 240000` 首轮在 `smoke:agent-runtime-tool-surface-page` 的 `wait-runtime-summary` 阶段超时；但同一环境下随后的单独复跑已通过，因此当前更接近页面级 smoke 偶发卡顿，而不是本轮 `@命令` 收口引入的新结构性失败
+
+- `@命令` / 统一调用注册表当前又继续收掉了一条父层选择分叉：`SkillSelector` 对外不再保留 `onSelectSkill / onSelectServiceSkill` 这组旧 surface，而是彻底并回 `onSelectInputCapability`，让 `我的方法`、空态推荐和输入区技能选择都回到同一条 capability 选择协议：
+  - `SkillSelector` 当前对外只再暴露 `onSelectInputCapability`；已安装做法和 service skill 都直接吐出统一 capability，面板内部不再替父层维持两套旧 callback 协议
+  - `skillSelectionBindings` 当前也同步改成只把 `onSelectInputCapability` 下发给 `SkillSelector`；因此 `Inputbar / EmptyState` 选择技能时，current 主链已统一成 `SkillSelector -> onSelectInputCapability -> activeCapability / service skill 内部转发`
+  - `EmptyState` 当前把推荐卡、持续流程里残留的 `handleSelectInstalledSkill / handleSelectServiceSkill` 全部收掉，已安装做法和 service skill 的点击都直接走 `handleSelectInputCapability`
+  - 同时保留 `SkillSelectionSourceProps.onSelectServiceSkill` 这条执行型入口，仅用于父层把 `service_skill` capability 内部转回既有工作区启动链；它现在属于执行消费边界，不再是选择协议
+- 因此当前这一层的治理分类继续收清：
+  - `current`：`CharacterMention / SkillSelector -> onSelectInputCapability -> Inputbar / EmptyState -> installed_skill | service_skill capability 消费`
+  - `compat`：`onSelectServiceSkill` 仅保留在 `Inputbar / EmptyState / workspace` 这条执行型消费链里，用于接既有 service skill 工作区启动合同
+  - `dead`：`SkillSelector` 对外 `onSelectSkill / onSelectServiceSkill`，以及 `EmptyState` 内部 `handleSelectInstalledSkill / handleSelectServiceSkill` 这批旧选择 surface 当前已收掉
+- 这一步与路线图主目标的关系：
+  - 它继续把 `@命令 / 我的方法 / 空态推荐` 三处选择入口往 Ribbi 式统一调用注册表收敛，减少“前台讲统一调用，父层却还留多套选择回调”的断层
+  - 下一步应继续回到 `@命令` 主链，把仍残留的命令族与 capability 注册表事实源再往单一合同收口，而不是回头给旧 callback 补 compat
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/SkillSelector.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+  - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/skill-selection/SkillSelector.tsx" "src/components/agent/chat/skill-selection/skillSelectionBindings.ts" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.tsx"`
+  - `npm run typecheck`
+  - `vitest` 通过：`4 files / 126 tests passed`
+  - `eslint` 通过
+  - `typecheck` 通过
+
+- `@命令` 当前又回到更直接的 Ribbi 对齐主线，先补了一批“能直接复用现有 current 执行链、但 Lime 还没显式认出来”的优先命令别名，避免我们为了追 Ribbi 命令面去新开平级协议或假命令：
+  - 这轮优先补的是当前最贴现有主链的 10 个 Ribbi 风格入口：
+    - `@Browser Agent` -> `browser_runtime`
+    - `@Code Agent` -> `code_runtime`
+    - `@Read Webpage` / `@Get Homepage` -> `webpage_read`
+    - `@Image Search` / `@Fetch Image` -> `modal_resource_search`
+    - `@Audio Extractor` -> `transcription_generate`
+    - `@Website Voiceover` -> `voice_runtime`
+    - `@Write Translate` -> `translation`
+    - `@Web Composer` / `@HTML Preview` -> `webpage_generate`
+  - 这些入口当前都没有新开 commandKey，也没有新增新的 agent/tool 协议；而是统一作为现有 command projection 的额外 trigger hint 与 parser alias，继续落在既有 `browser / code / url_parse / resource_search / transcription / voice / translation / webpage` 主链
+  - `useWorkspaceSendActions` 当前也补上了多词 `@命令` 前缀识别，因此这批 Ribbi 风格别名不只是“catalog 里有名字”，而是真的能带着原始消息进入当前发送主链
+- 因此当前这一刀的分类继续保持干净：
+  - `current`：新增的是现有 command family 的 Ribbi-compatible alias surface，继续收敛到同一条 `builtin_command -> current executor` 主链
+  - `compat`：无新增 compat 命令；旧中文入口仍保留为当前前台名词，和新别名一起共用同一条执行合同
+  - `dead`：没有为这批对齐需求新增平级 commandKey、第二套 parser 协议或第二套发送 metadata
+- 这一步与路线图主目标的关系：
+  - 它直接推进了 `@ / /` 作为统一调用注册表的可用面，让 Lime 现在开始能认出一批 Ribbi 风格的浏览器、代码、网页读取、图片搜索与网页编排命令，而不是只在研究文档里对照名字
+  - 下一步应继续补“高价值但还没 current 映射”的命令族，例如 preview/publish 渠道化入口与更明确的 browser/code/web orchestration 投影，但仍优先复用现有 command family，不新开第二协议
+- 这次子改动的定向验证当前已通过：
+  - `npm exec vitest run "src/lib/base-setup/seededCommandPackage.test.ts" "src/components/agent/chat/utils/browserWorkbenchCommand.test.ts" "src/components/agent/chat/utils/codeWorkbenchCommand.test.ts" "src/components/agent/chat/utils/urlParseWorkbenchCommand.test.ts" "src/components/agent/chat/utils/resourceSearchWorkbenchCommand.test.ts" "src/components/agent/chat/utils/transcriptionWorkbenchCommand.test.ts" "src/components/agent/chat/utils/voiceWorkbenchCommand.test.ts" "src/components/agent/chat/utils/translationWorkbenchCommand.test.ts" "src/components/agent/chat/utils/webpageWorkbenchCommand.test.ts"`
+  - `npm exec vitest run "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" -t "@Read Webpage|@Browser Agent"`
+  - `npx eslint "src/lib/base-setup/seededCommandPackage.ts" "src/lib/base-setup/seededCommandPackage.test.ts" "src/components/agent/chat/utils/browserWorkbenchCommand.ts" "src/components/agent/chat/utils/browserWorkbenchCommand.test.ts" "src/components/agent/chat/utils/codeWorkbenchCommand.ts" "src/components/agent/chat/utils/codeWorkbenchCommand.test.ts" "src/components/agent/chat/utils/urlParseWorkbenchCommand.ts" "src/components/agent/chat/utils/urlParseWorkbenchCommand.test.ts" "src/components/agent/chat/utils/resourceSearchWorkbenchCommand.ts" "src/components/agent/chat/utils/resourceSearchWorkbenchCommand.test.ts" "src/components/agent/chat/utils/transcriptionWorkbenchCommand.ts" "src/components/agent/chat/utils/transcriptionWorkbenchCommand.test.ts" "src/components/agent/chat/utils/voiceWorkbenchCommand.ts" "src/components/agent/chat/utils/voiceWorkbenchCommand.test.ts" "src/components/agent/chat/utils/translationWorkbenchCommand.ts" "src/components/agent/chat/utils/translationWorkbenchCommand.test.ts" "src/components/agent/chat/utils/webpageWorkbenchCommand.ts" "src/components/agent/chat/utils/webpageWorkbenchCommand.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"`
+  - `npm run typecheck`
+  - parser / catalog 定向 `vitest` 通过：`9 files / 45 tests passed`
+  - 发送链定向 `vitest` 通过：`1 file / 93 tests passed`
+  - `eslint` 通过
+  - `typecheck` 通过
+
+- `@命令` 当前继续沿“高置信别名直接挂回现有 current 主链”的策略补了 4 个 Ribbi 入口，不做新 commandKey、不做第二套 expert 协议：
+  - `@Video Search` -> `modal_resource_search`
+    - 继续走现有素材检索主链，并在 parser 层默认锁成 `resource_type=video`
+  - `@Researchers Pro` -> `deep_search`
+    - 继续走深搜 / `research` 主链，不额外新开“研究专家”协议
+  - `@Speaker 1` -> `broadcast_generate`
+    - 继续走口播 / 播报技能主链，保留现有 `broadcast_skill_launch`
+  - `@Flyer 3` -> `poster_generate`
+    - 继续走海报生成入口，并复用现有 `image_skill_launch` 装配合同
+- 这一步继续遵守 current / compat 边界：
+  - current：只新增 parser alias 与 seeded command trigger hint，全部回挂既有 `modal_resource_search / deep_search / broadcast_generate / poster_generate`
+  - compat：无新增 compat 命令、无新增旧协议兜底
+  - dead：没有因为 Ribbi 命名而发明新的 expert profile commandKey、模型槽位或独立 runtime contract
+
+- `@命令` 当前继续补了 3 个“业务入口型 expert profile”，但仍坚持只挂回现有 current 主链，不新开 `expert_*` 协议：
+  - `@Product Search` -> `competitor_research`
+    - 继续走产品/竞品研究主链，不新增第二套产品搜索 executor
+  - `@Vision 1` -> `image_generate`
+    - 继续走视觉生成主链，作为 `@配图` 的 Ribbi 风格入口
+  - `@Sales 1` -> `presentation_generate`
+    - 继续走演示稿主链，并在 parser 层默认收口为 `sales_deck`
+- 这一步的 current / compat 口径保持不变：
+  - current：只新增 parser alias、默认语义和 seeded command trigger hint
+  - compat：不新增并行 expert profile runtime
+  - dead：没有把 `Product / Vision / Sales` 再做成独立命令家族或模型槽位按钮
+
+- 任务中心导航与会话加载本轮又补了两刀，直接对应“工作台按钮不见了”和“打开会话仍慢”：
+  - 左侧一级导航当前新增显式 `工作台` 入口，点击后优先回到当前 workspace 的 `claw` 会话；如果当前已经在 `claw`，该入口会保持高亮
+  - `AppSidebar` 顶部新增的 `工作台` 已在真实页面复测可见，`Playwright` 当前能看到 `新建任务 / 工作台 / 我的方法 / 灵感库` 四个主入口
+  - `useAgentSession` 当前不再在进入 `claw` 工作台后无条件拉整包会话，而是改成带 `workspaceId` 调 `runtime.listSessions(...)`，减少“打开某个会话时又把整个库捞回来”的额外负担
+- 这一步与当前主线的关系：
+  - 它先修复任务中心当前最直接的导航回退问题，让用户能稳定回到工作台
+  - 同时继续把“会话打开慢”从 `AppSidebar` 一层推进到 `claw` 自己的 topics hydrate 层，避免只修左侧列表、不修进入页内部的全量拉取
+- 这次子改动的最小验证当前已通过：
+  - `npm exec vitest run "src/components/AppSidebar.test.tsx" "src/lib/navigation/sidebarNav.test.ts" "src/components/agent/chat/hooks/agentRuntimeAdapter.test.ts"`
+  - `npx eslint "src/components/AppSidebar.tsx" "src/components/AppSidebar.test.tsx" "src/lib/navigation/sidebarNav.ts" "src/lib/navigation/sidebarNav.test.ts" "src/components/agent/chat/hooks/agentRuntimeAdapter.ts" "src/components/agent/chat/hooks/agentRuntimeAdapter.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts"`
+  - `Playwright` 真实页面复测：左侧已出现 `工作台` 按钮，点击后主区顶部能看到 `工作台` 入口
+
+- 继续排查“打开某个对话仍然很慢”时，已确认一个后端主因并先收一刀：
+  - `agent_runtime_get_session` 之前在“读取会话详情”前会无条件执行 `resume_runtime_queue_if_needed(...)`，导致单纯打开对话也可能顺带恢复队列、拉起浏览器 runtime，并把耗时堆进 `resume_queue_ms`
+  - 当前已把 `agent_runtime_get_session` 和 `agent_runtime_get_thread_read` 收回纯读取语义，不再在只读查询里自动恢复排队执行；恢复动作继续只保留给显式 `agent_runtime_resume_thread`
+  - 这一步直接对应用户现场里“打开归档/切回对话时很慢、还伴随 Chrome profile 拉起与内存波动”的链路，目的是先把“打开会话 = 可能触发执行恢复”这个错误耦合拆掉
+
+- `@命令` 当前继续按 Ribbi 对齐主线补上了第一条“持续运营 expert”入口，但仍只挂回现有 current `local_service_skill` 主链，没有新开第二套 expert/runtime 协议：
+  - `@Growth Expert` -> `growth_runtime` -> `local_service_skill(account-performance-tracking)`
+  - 新增的 current 入口是 `@增长`，并把 `@Growth Expert` 作为 trigger hint / parser alias；因此前台统一仍是 Lime 当前命名，不再把 Ribbi 的 profile 名直接做成第二排主入口
+  - `growthWorkbenchCommand` 当前已支持解析：
+    - 平台：`平台:X / platform:TikTok`
+    - 账号：`账号:@openai,@anthropic / accounts:@capcut,@notion`
+    - 回报频率：`回报频率:每天 09:00 / cadence: every day 08:00`
+    - 告警阈值：`告警阈值:互动率低于 2% / alert: engagement down 20%`
+    - 未显式写 `账号:` 时，也会最小化从 `@handle` 推断账号列表
+  - `useWorkspaceSendActions` 当前会把这类输入统一改写成 `service_scene_launch.kind=local_service_skill`，并写入：
+    - `scene_key=growth_runtime`
+    - `entry_source=at_growth_command`
+    - `platform / account_list / report_cadence / alert_threshold`
+    - `slot_values`
+  - mention usage / service skill usage / replay text 现在也能正确记录这组增长字段，不再只支持 `@配音` 的 `target_language / voice_style`
+  - `seededCommandPackage` 当前已补上 `growth_runtime` 的 command projection，并绑定 `account-performance-tracking`
+  - current / compat / dead 口径保持一致：
+    - current：新增的是 `growth_runtime` 这个对现有 service skill 的前台入口投影
+    - compat：无新增 compat 命令、无新增旧协议过桥
+    - dead：没有把 `Growth Expert` 实现成新的 expert profile runtime、模型槽位或独立自动化协议
+  - 这次定向验证当前已通过：
+    - `npx vitest run "src/components/agent/chat/utils/growthWorkbenchCommand.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/lib/base-setup/seededCommandPackage.test.ts" "src/lib/api/skillCatalog.test.ts"`
+    - `npx eslint "src/components/agent/chat/utils/growthWorkbenchCommand.ts" "src/components/agent/chat/utils/growthWorkbenchCommand.test.ts" "src/components/agent/chat/utils/mentionCommandReplayText.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/lib/base-setup/seededCommandPackage.ts" "src/lib/base-setup/seededCommandPackage.test.ts" "src/lib/api/skillCatalog.test.ts"`
+    - 定向 `vitest` 通过：`4 files / 118 tests passed`
+    - `eslint` 通过
+
+- `@命令` 当前继续按 Ribbi 对齐主线补上了 4 个写作入口，但仍只挂回现有 current 内容成稿主链，没有新开 `writing / blog / newsletter` 第二协议：
+  - `@Writing Partner / @Writers 1 / @Blog 1 / @Newsletters Pro` -> `writing_runtime` -> `content_post_with_cover`
+  - 新增的 current 入口是 `@写作`，并把 `@文案 / @write` 作为本地 parser alias；Ribbi 风格命名只作为 trigger hint / alias，不再继续做独立 expert profile runtime
+  - `useWorkspaceSendActions` 当前会把这组输入统一改写成 `/content_post_with_cover ...`，并写入 `request_metadata.harness.publish_command.entry_source = at_writing_command`
+  - `writing_runtime` 的 seeded command、replay text、最近使用平台补齐、输入能力分组当前都已接通
+  - current / compat / dead 口径保持一致：
+    - current：新增的是 `writing_runtime` 这个对现有 `content_post_with_cover` 的前台入口投影
+    - compat：无新增 compat 命令、无新增旧协议桥接
+    - dead：没有把 `Writing Partner / Blog 1 / Newsletters Pro` 再做成独立 runtime、模型槽位或 blog/newsletter 专用协议
+
+- `@命令` 当前又补了一组“网页编排 / 网页素材处理”对齐，但仍全部挂回现有 current 主链，没有新开 `computer / fetch / web-copy / web-style` 第二协议：
+  - `@Mini Tester / @Web Scheduler / @Web Manage` -> `browser_runtime`
+  - `@Fetch` -> `web_scrape` -> `url_parse`
+  - `@Web Copy` -> `writing_runtime` -> `content_post_with_cover`
+  - `@Web Style` -> `webpage_generate`
+  - 这一步继续遵守 current / compat 边界：
+    - current：只新增 parser alias 与 seeded trigger hint，全部回挂既有 `browser_runtime / web_scrape / writing_runtime / webpage_generate`
+    - compat：无新增 compat 命令、无新增旧协议桥接
+    - dead：没有把这些 Ribbi 标签做成独立 runtime family，也没有把 `Ribbi Computer / GPT 5 Search / Quick Agent` 这类当前缺少诚实宿主的项硬塞进前台
+
+- 任务中心本轮继续修复“打开一个会话却出现多个顶部任务 Tab”和“直达会话等待 12 秒才出现 Tab”的问题：
+  - `claw + initialSessionId` 直达入口现在会在任务 Tab 初始状态阶段直接把当前 workspace 的 `lime_task_center_open_task_ids` 覆盖为单个会话 id，不再继承旧 localStorage 里的 6 个历史 Tab
+  - 归档 / detached 会话在目标不属于当前 active topics 时，不再触发 `reconcile` 回退生成默认多任务 Tab；打开归档会话时顶部不会混入普通任务
+  - 直达已有会话时，`topics` 加载从原先 `SESSION_ENTRY_DEFERRED_LOAD_MS=12s` 改为立即加载；12 秒延迟只保留给空白新建任务首页和 skills / provider / memory 等辅助加载，避免会话恢复被首页懒加载策略误伤
+  - Playwright 真实页面复测：
+    - 人为写入 6 个旧 Tab 后点击最近对话，单 Tab 就绪约 `298ms`，storage 覆盖为 `["420a426f-11cf-4749-96b5-fc11e2220775"]`
+    - 打开归档会话 `f24b2d03-b4a9-4ab4-a3ab-ec2a55e90d4d` 后顶部 `task-center-tab-*` 为 `[]`，storage 覆盖为该归档会话 id，不再显示普通任务
+  - 本轮验证：
+    - `npm run test -- "src/components/agent/chat/utils/taskCenterTabs.test.ts"` 通过：`19 tests`
+    - `npm run test -- "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签"` 通过：`3 tests`
+    - `npm run bridge:health -- --timeout-ms 120000` 通过
+    - `npm run verify:gui-smoke` 通过
+  - 剩余风险：
+    - 归档详情 `f24b2d03-b4a9-4ab4-a3ab-ec2a55e90d4d` 本次后端 `agent_runtime_get_session` 仍约 `3.2s`，主要耗时落在 `detail_ms≈3.0s`；这已经不是顶部多 Tab/12 秒 topics defer 问题，后续应单独排查归档会话详情读取路径

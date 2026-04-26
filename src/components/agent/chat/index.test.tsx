@@ -15,6 +15,7 @@ import {
   resolveBrowserAssistSessionScopeKey,
   resolveBrowserAssistSessionStorageKey,
 } from "./utils/browserAssistSession";
+import { TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY } from "./utils/taskCenterTabs";
 
 const {
   mockUseDeveloperFeatureFlags,
@@ -1310,6 +1311,133 @@ afterEach(() => {
   sessionStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe("AgentChatPage 任务中心初始会话标签", () => {
+  it("从导航栏直达普通会话时应覆盖旧多任务标签", async () => {
+    localStorage.setItem(
+      TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY,
+      JSON.stringify({
+        "workspace-test": ["topic-old-a", "topic-old-b", "topic-old-c"],
+      }),
+    );
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        sessionId: "topic-selected",
+        topics: [
+          {
+            id: "topic-selected",
+            title: "目标对话",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT),
+          },
+          {
+            id: "topic-old-a",
+            title: "旧任务 A",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT - 1_000),
+          },
+          {
+            id: "topic-old-b",
+            title: "旧任务 B",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT - 2_000),
+          },
+        ],
+      }),
+    );
+
+    const container = renderPage({
+      agentEntry: "claw",
+      initialSessionId: "topic-selected",
+      projectId: "workspace-test",
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="task-center-tab-topic-selected"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="task-center-tab-topic-old-a"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="task-center-tab-topic-old-b"]'),
+    ).toBeNull();
+    expect(
+      JSON.parse(
+        localStorage.getItem(TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY) ?? "{}",
+      )["workspace-test"],
+    ).toEqual(["topic-selected"]);
+  });
+
+  it("从导航栏直达归档会话时不应回退展示普通任务标签", async () => {
+    localStorage.setItem(
+      TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY,
+      JSON.stringify({
+        "workspace-test": ["topic-open-a", "topic-open-b"],
+      }),
+    );
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        sessionId: "topic-archived",
+        topics: [
+          {
+            id: "topic-open-a",
+            title: "普通任务 A",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT),
+          },
+          {
+            id: "topic-open-b",
+            title: "普通任务 B",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT - 1_000),
+          },
+        ],
+      }),
+    );
+
+    const container = renderPage({
+      agentEntry: "claw",
+      initialSessionId: "topic-archived",
+      projectId: "workspace-test",
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="task-center-tab-topic-open-a"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="task-center-tab-topic-open-b"]'),
+    ).toBeNull();
+    expect(
+      JSON.parse(
+        localStorage.getItem(TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY) ?? "{}",
+      )["workspace-test"],
+    ).toEqual(["topic-archived"]);
+  });
+
+  it("从导航栏直达会话时应立即加载 topics，避免顶部标签等待 12 秒", async () => {
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        sessionId: "topic-selected",
+        topics: [
+          {
+            id: "topic-selected",
+            title: "目标对话",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT),
+          },
+        ],
+      }),
+    );
+
+    renderPage({
+      agentEntry: "claw",
+      initialSessionId: "topic-selected",
+      projectId: "workspace-test",
+    });
+    await flushEffects(1);
+
+    const workspaceCall = mockUseAgentChatUnified.mock.calls
+      .map((call) => call[0] as { workspaceId?: string; initialTopicsLoadMode?: string })
+      .find((options) => options.workspaceId === "workspace-test");
+    expect(workspaceCall?.initialTopicsLoadMode).toBe("immediate");
+  });
 });
 
 describe("AgentChatPage 停止 Team 协作", () => {

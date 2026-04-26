@@ -47,6 +47,20 @@ describe("parseReportWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 @Report Search，并继续落到同一条研报主链", () => {
+    const result = parseReportWorkbenchCommand(
+      "@Report Search query: AI Agent funding site: 36Kr range: 2026 output: investor memo",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Report Search",
+      query: "AI Agent funding",
+      site: "36Kr",
+      timeRange: "2026",
+      outputFormat: "investor memo",
+    });
+  });
+
   it("非研报命令应返回空", () => {
     expect(parseReportWorkbenchCommand("@搜索 OpenAI 最新融资")).toBeNull();
   });

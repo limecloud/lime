@@ -110,4 +110,24 @@ describe("defaultAgentRuntimeAdapter", () => {
       "auto",
     );
   });
+
+  it("listSessions 应透传筛选参数给 runtime client", async () => {
+    const client = {
+      ...mockRuntimeClient,
+      listAgentRuntimeSessions: vi.fn().mockResolvedValue([]),
+    };
+    const adapter = createAgentRuntimeAdapter({
+      client,
+    });
+
+    await expect(
+      adapter.listSessions({
+        workspaceId: "workspace-9",
+      }),
+    ).resolves.toEqual([]);
+
+    expect(client.listAgentRuntimeSessions).toHaveBeenCalledWith({
+      workspaceId: "workspace-9",
+    });
+  });
 });

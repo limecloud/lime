@@ -1,4 +1,5 @@
 import type { Topic } from "../hooks/agentChatShared";
+import { isAuxiliaryAgentSessionId } from "@/lib/api/agentRuntime/sessionIdentity";
 import { normalizeProjectId } from "./topicProjectResolution";
 
 export const TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY =
@@ -97,7 +98,12 @@ function normalizeTaskCenterTabIds(
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
-    .filter((item, index, ids) => Boolean(item) && ids.indexOf(item) === index)
+    .filter(
+      (item, index, ids) =>
+        Boolean(item) &&
+        !isAuxiliaryAgentSessionId(item) &&
+        ids.indexOf(item) === index,
+    )
     .slice(0, maxCount);
 }
 
@@ -247,6 +253,21 @@ export function updateTaskCenterTabIdsForWorkspace(
   };
 }
 
+export function replaceTaskCenterTabIdsForWorkspace(
+  tabMap: TaskCenterWorkspaceTabMap,
+  workspaceId: string | null | undefined,
+  topicId: string,
+  maxCount = MAX_TASK_CENTER_OPEN_TABS,
+): TaskCenterWorkspaceTabMap {
+  const nextIds = normalizeTaskCenterTabIds([topicId], 1);
+  return updateTaskCenterTabIdsForWorkspace(
+    tabMap,
+    workspaceId,
+    nextIds,
+    maxCount,
+  );
+}
+
 export function buildDefaultTaskCenterTabIds(
   topics: Topic[],
   currentTopicId: string | null,
@@ -254,8 +275,129 @@ export function buildDefaultTaskCenterTabIds(
 ): string[] {
   return sortTaskCenterTabCandidates(topics, currentTopicId)
     .map((topic) => topic.id)
-    .filter((topicId, index, ids) => ids.indexOf(topicId) === index)
+    .filter(
+      (topicId, index, ids) =>
+        !isAuxiliaryAgentSessionId(topicId) && ids.indexOf(topicId) === index,
+    )
     .slice(0, maxCount);
+}
+
+export function resolveTaskCenterVisibleTabIds(params: {
+  openTabIds: string[];
+  topics: Topic[];
+  currentTopicId: string | null;
+  maxCount?: number;
+}): string[] {
+  const {
+    openTabIds,
+    topics,
+    currentTopicId,
+    maxCount = MAX_TASK_CENTER_OPEN_TABS,
+  } = params;
+  const topicIdSet = new Set(
+    topics
+      .map((topic) => topic.id)
+      .filter((topicId) => !isAuxiliaryAgentSessionId(topicId)),
+  );
+  const visibleOpenTabIds = normalizeTaskCenterTabIds(
+    openTabIds,
+    maxCount,
+  ).filter((topicId) => topicIdSet.has(topicId));
+
+  if (
+    currentTopicId &&
+    topicIdSet.has(currentTopicId) &&
+    !visibleOpenTabIds.includes(currentTopicId)
+  ) {
+    return [currentTopicId];
+  }
+
+  return visibleOpenTabIds;
+}
+
+export function resolveTaskCenterFallbackTopicId(params: {
+  sessionId?: string | null;
+  switchingTopicId?: string | null;
+  openTabIds: string[];
+  topics: Pick<Topic, "id">[];
+  maxCount?: number;
+}): string | null {
+  const switchingTopicId = params.switchingTopicId?.trim() || null;
+  if (switchingTopicId) {
+    return null;
+  }
+
+  const topicIdSet = new Set(
+    params.topics
+      .map((topic) => topic.id)
+      .filter((topicId) => !isAuxiliaryAgentSessionId(topicId)),
+  );
+  const sessionId = params.sessionId?.trim() || null;
+  if (sessionId && topicIdSet.has(sessionId)) {
+    return null;
+  }
+
+  return (
+    normalizeTaskCenterTabIds(
+      params.openTabIds,
+      params.maxCount ?? MAX_TASK_CENTER_OPEN_TABS,
+    ).find((topicId) => topicIdSet.has(topicId)) ?? null
+  );
+}
+
+export function shouldHideTaskCenterTabsForDetachedSession(params: {
+  sessionId?: string | null;
+  initialSessionId?: string | null;
+  detachedTopicId?: string | null;
+  openTabIds?: string[];
+}): boolean {
+  const sessionId = params.sessionId?.trim() || null;
+  if (!sessionId) {
+    return false;
+  }
+
+  const detachedTopicId = params.detachedTopicId?.trim() || null;
+  if (detachedTopicId === sessionId) {
+    return true;
+  }
+
+  const initialSessionId = params.initialSessionId?.trim() || null;
+  if (!initialSessionId || initialSessionId !== sessionId) {
+    return false;
+  }
+
+  return !normalizeTaskCenterTabIds(params.openTabIds ?? []).includes(sessionId);
+}
+
+export function resolveTaskCenterPreviewTopicId(params: {
+  sessionId?: string | null;
+  detachedTopicId?: string | null;
+  switchingTopicId?: string | null;
+}): string | null {
+  const switchingTopicId = params.switchingTopicId?.trim() || null;
+  if (switchingTopicId) {
+    return switchingTopicId;
+  }
+
+  const sessionId = params.sessionId?.trim() || null;
+  const detachedTopicId = params.detachedTopicId?.trim() || null;
+  if (sessionId && detachedTopicId === sessionId) {
+    return detachedTopicId;
+  }
+
+  return null;
+}
+
+export function isTaskCenterTopicSwitchPending(params: {
+  sessionId?: string | null;
+  switchingTopicId?: string | null;
+}): boolean {
+  const switchingTopicId = params.switchingTopicId?.trim() || null;
+  if (!switchingTopicId) {
+    return false;
+  }
+
+  return switchingTopicId !== (params.sessionId?.trim() || null);
 }
 
 export function reconcileTaskCenterTabIds(params: {
@@ -270,7 +412,11 @@ export function reconcileTaskCenterTabIds(params: {
     currentTopicId,
     maxCount = MAX_TASK_CENTER_OPEN_TABS,
   } = params;
-  const topicIdSet = new Set(topics.map((topic) => topic.id));
+  const topicIdSet = new Set(
+    topics
+      .map((topic) => topic.id)
+      .filter((topicId) => !isAuxiliaryAgentSessionId(topicId)),
+  );
   const nextIds = existingIds.filter((topicId) => topicIdSet.has(topicId));
 
   if (currentTopicId && topicIdSet.has(currentTopicId)) {

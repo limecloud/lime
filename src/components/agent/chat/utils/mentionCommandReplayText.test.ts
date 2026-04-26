@@ -8,8 +8,10 @@ import { parseComplianceWorkbenchCommand } from "./complianceWorkbenchCommand";
 import { parseCompetitorWorkbenchCommand } from "./competitorWorkbenchCommand";
 import { parseCoverWorkbenchCommand } from "./coverWorkbenchCommand";
 import { parseDeepSearchWorkbenchCommand } from "./deepSearchWorkbenchCommand";
+import { parseFileReadWorkbenchCommand } from "./fileReadWorkbenchCommand";
 import { parseFormWorkbenchCommand } from "./formWorkbenchCommand";
 import { parseImageWorkbenchCommand } from "./imageWorkbenchCommand";
+import { parseLogoDecompositionWorkbenchCommand } from "./logoDecompositionWorkbenchCommand";
 import {
   buildMentionCommandReplayText,
   resolveMentionCommandMergedPrefillReplayText,
@@ -261,6 +263,19 @@ describe("buildMentionCommandReplayText", () => {
     ).toBe("文件:/tmp/agent-report.pdf 输出:投资人摘要 要求:提炼三点结论");
   });
 
+  it("应把 @读文件 回放整理成来源与要求骨架", () => {
+    const parsedCommand = parseFileReadWorkbenchCommand(
+      '@读文件 "/tmp/agent-notes.md" 重点:融资额与发布时间 输出:三点要点',
+    );
+
+    expect(
+      buildMentionCommandReplayText({
+        commandKey: "file_read_runtime",
+        parsedCommand: parsedCommand!,
+      }),
+    ).toBe("文件:/tmp/agent-notes.md 重点:融资额与发布时间 输出:三点要点");
+  });
+
   it("应把 @排版 回放整理成平台字段骨架", () => {
     const parsedCommand = parseTypesettingWorkbenchCommand(
       "@排版 平台:小红书 帮我把下面文案整理成短句节奏",
@@ -395,6 +410,19 @@ describe("buildMentionCommandReplayText", () => {
         parsedCommand: parsedCommand!,
       }),
     ).toBe("帮我拆解某代码助手最近为什么火");
+  });
+
+  it("应把 @Logo拆解 回放整理成分析字段骨架", () => {
+    const parsedCommand = parseLogoDecompositionWorkbenchCommand(
+      "@Logo拆解 内容:品牌主 Logo 重点:配色与字形 输出:拆解清单",
+    );
+
+    expect(
+      buildMentionCommandReplayText({
+        commandKey: "logo_decomposition",
+        parsedCommand: parsedCommand!,
+      }),
+    ).toBe("内容:品牌主 Logo 重点:配色与字形 输出:拆解清单");
   });
 
   it("应把 @发布合规 回放整理成带默认约束的字段骨架", () => {
@@ -598,5 +626,25 @@ describe("resolveMentionCommandMergedPrefillReplayText", () => {
         },
       }),
     ).toBe("文件:/tmp/agent-report.pdf 重点:融资情况与发布时间 输出:投资人摘要");
+  });
+
+  it("部分 @读文件 输入应补齐最近一次成功的文件与偏好", () => {
+    const parsedCommand = parseFileReadWorkbenchCommand("@读文件 输出:三点要点");
+
+    expect(
+      resolveMentionCommandMergedPrefillReplayText({
+        commandKey: "file_read_runtime",
+        parsedCommand: parsedCommand!,
+        slotValues: {
+          source_path: "/tmp/agent-notes.md",
+          focus: "融资情况与发布时间",
+          length: "short",
+          style: "投资人简报",
+          output_format: "三点要点",
+        },
+      }),
+    ).toBe(
+      "文件:/tmp/agent-notes.md 重点:融资情况与发布时间 长度:简短 风格:投资人简报 输出:三点要点",
+    );
   });
 });

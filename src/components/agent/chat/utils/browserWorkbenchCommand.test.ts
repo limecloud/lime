@@ -41,6 +41,43 @@ describe("parseBrowserWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 Ribbi 风格的 @Browser Agent 命令", () => {
+    const result = parseBrowserWorkbenchCommand(
+      "@Browser Agent open openai.com/pricing and compare plans",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Browser Agent",
+      launchUrl: "https://openai.com/pricing",
+    });
+  });
+
+  it("应把 Mini Tester / Web Scheduler / Web Manage 收到同一条浏览器执行主链", () => {
+    const testerResult = parseBrowserWorkbenchCommand(
+      "@Mini Tester open https://example.com and verify the CTA flow",
+    );
+    const schedulerResult = parseBrowserWorkbenchCommand(
+      "@Web Scheduler 打开 https://calendar.google.com 并安排明早 9 点回访提醒",
+    );
+    const manageResult = parseBrowserWorkbenchCommand(
+      "@Web Manage open https://notion.so and update the launch checklist",
+    );
+
+    expect(testerResult).toMatchObject({
+      trigger: "@Mini Tester",
+      launchUrl: "https://example.com",
+    });
+    expect(schedulerResult).toMatchObject({
+      trigger: "@Web Scheduler",
+      launchUrl: "https://calendar.google.com",
+      browserRequirement: "required",
+    });
+    expect(manageResult).toMatchObject({
+      trigger: "@Web Manage",
+      launchUrl: "https://notion.so",
+    });
+  });
+
   it("不应误识别其他命令", () => {
     expect(parseBrowserWorkbenchCommand("@搜索 OpenAI 最新融资")).toBeNull();
   });

@@ -2,7 +2,11 @@ export type UrlParseWorkbenchCommandTrigger =
   | "@链接解析"
   | "@链接"
   | "@抓取"
+  | "@Fetch"
   | "@网页读取"
+  | "@URL Summarize"
+  | "@Read Webpage"
+  | "@Get Homepage"
   | "@web_scrape"
   | "@url_parse"
   | "@url";
@@ -23,7 +27,7 @@ export interface ParsedUrlParseWorkbenchCommand {
 }
 
 const URL_PARSE_COMMAND_PREFIX_REGEX =
-  /^\s*(@链接解析|@链接|@抓取|@网页读取|@web_scrape|@url_parse|@url)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@链接解析|@链接|@抓取|@Fetch|@网页读取|@URL Summarize|@Read Webpage|@Get Homepage|@web_scrape|@url_parse|@url)(?:\s+|$)([\s\S]*)$/i;
 const FIELD_LABEL_REGEX =
   /(?:(链接|网址|地址|url|link|source)|(提取|目标|模式|goal|extract(?:[_\s-]?goal)?|extract)|(要求|提示|说明|prompt|instruction))\s*[:：=]\s*/gi;
 const URL_REGEX = /https?:\/\/[^\s"'，。；;]+/i;
@@ -64,11 +68,23 @@ interface ExtractedUrlParseFields {
 
 function normalizeTrigger(value: string): UrlParseWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
+  if (normalized === "@url summarize") {
+    return "@URL Summarize";
+  }
+  if (normalized === "@read webpage") {
+    return "@Read Webpage";
+  }
+  if (normalized === "@get homepage") {
+    return "@Get Homepage";
+  }
   if (normalized === "@链接") {
     return "@链接";
   }
   if (normalized === "@抓取") {
     return "@抓取";
+  }
+  if (normalized === "@fetch") {
+    return "@Fetch";
   }
   if (normalized === "@网页读取") {
     return "@网页读取";
@@ -88,13 +104,18 @@ function normalizeTrigger(value: string): UrlParseWorkbenchCommandTrigger {
 export function isUrlParseScrapeTrigger(
   trigger: UrlParseWorkbenchCommandTrigger,
 ): boolean {
-  return trigger === "@抓取" || trigger === "@web_scrape";
+  return trigger === "@抓取" || trigger === "@Fetch" || trigger === "@web_scrape";
 }
 
 export function isUrlParseReadTrigger(
   trigger: UrlParseWorkbenchCommandTrigger,
 ): boolean {
-  return trigger === "@网页读取";
+  return (
+    trigger === "@网页读取" ||
+    trigger === "@URL Summarize" ||
+    trigger === "@Read Webpage" ||
+    trigger === "@Get Homepage"
+  );
 }
 
 function trimDecorations(value: string): string {

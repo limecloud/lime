@@ -41,6 +41,19 @@ describe("parseUrlParseWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 @Fetch，并继续走网页抓取主链", () => {
+    const result = parseUrlParseWorkbenchCommand(
+      "@Fetch https://example.com/post fetch full text for archive",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Fetch",
+      url: "https://example.com/post",
+      extractGoal: "full_text",
+      prompt: "for archive",
+    });
+  });
+
   it("应把 @网页读取 识别为页面阅读命令，并默认输出摘要", () => {
     const result = parseUrlParseWorkbenchCommand(
       "@网页读取 https://example.com/post 帮我读这篇文章并告诉我核心结论",
@@ -51,6 +64,39 @@ describe("parseUrlParseWorkbenchCommand", () => {
       url: "https://example.com/post",
       extractGoal: "summary",
       prompt: "帮我读这篇文章并告诉我核心结论",
+    });
+  });
+
+  it("应兼容 @Read Webpage 与 @Get Homepage 两个 Ribbi 风格入口", () => {
+    const readResult = parseUrlParseWorkbenchCommand(
+      "@Read Webpage https://example.com/post summarize the launch notes",
+    );
+    const homepageResult = parseUrlParseWorkbenchCommand(
+      "@Get Homepage https://example.com extract the homepage highlights",
+    );
+
+    expect(readResult).toMatchObject({
+      trigger: "@Read Webpage",
+      url: "https://example.com/post",
+      extractGoal: "summary",
+    });
+    expect(homepageResult).toMatchObject({
+      trigger: "@Get Homepage",
+      url: "https://example.com",
+      extractGoal: "summary",
+    });
+  });
+
+  it("应兼容 @URL Summarize，并复用网页阅读摘要主链", () => {
+    const result = parseUrlParseWorkbenchCommand(
+      "@URL Summarize https://example.com/post summarize the launch notes",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@URL Summarize",
+      url: "https://example.com/post",
+      extractGoal: "summary",
+      prompt: "the launch notes",
     });
   });
 

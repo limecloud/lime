@@ -6,6 +6,7 @@
 use crate::agent::aster_state::{AsterAgentState, SessionConfigBuilder};
 use crate::database::DbConnection;
 use aster::session::TurnContextOverride;
+use lime_core::database::dao::agent::SessionArchiveFilter;
 
 pub use lime_agent::{
     PersistedSessionMetadata, SessionDetail, SessionInfo, SessionTitlePreviewMessage,
@@ -70,9 +71,11 @@ impl AsterAgentWrapper {
     /// 列出所有会话
     pub fn list_sessions_sync(
         db: &DbConnection,
-        include_archived: bool,
+        archive_filter: SessionArchiveFilter,
+        workspace_id: Option<&str>,
+        limit: Option<usize>,
     ) -> Result<Vec<SessionInfo>, String> {
-        lime_agent::list_sessions_sync(db, include_archived)
+        lime_agent::list_sessions_sync(db, archive_filter, workspace_id, limit)
     }
 
     /// 获取会话详情

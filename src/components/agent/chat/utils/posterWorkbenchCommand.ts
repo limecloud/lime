@@ -1,4 +1,7 @@
-export type PosterWorkbenchCommandTrigger = "@海报" | "@poster";
+export type PosterWorkbenchCommandTrigger =
+  | "@海报"
+  | "@poster"
+  | "@Flyer 3";
 
 export interface ParsedPosterWorkbenchCommand {
   rawText: string;
@@ -11,7 +14,8 @@ export interface ParsedPosterWorkbenchCommand {
   aspectRatio?: string;
 }
 
-const POSTER_COMMAND_PREFIX_REGEX = /^\s*(@海报|@poster)(?:\s+|$)([\s\S]*)$/i;
+const POSTER_COMMAND_PREFIX_REGEX =
+  /^\s*(@海报|@poster|@Flyer 3)(?:\s+|$)([\s\S]*)$/i;
 const EXPLICIT_PLATFORM_REGEX =
   /(?:平台|platform)\s*[:：=]?\s*(微信公众号|公众号|视频号|小红书|抖音|微博|知乎|B站|b站|bilibili|Instagram|YouTube|TikTok)(?=$|[\s,，。；;:：])/i;
 const LEADING_PLATFORM_REGEX =
@@ -22,7 +26,14 @@ const SIZE_REGEX =
   /\b(\d{3,4}x\d{3,4}|1:1|16:9|9:16|4:3|3:4|4:5|5:4|3:2|2:3|21:9)\b/i;
 
 function normalizeTrigger(value: string): PosterWorkbenchCommandTrigger {
-  return value.trim().toLowerCase() === "@poster" ? "@poster" : "@海报";
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "@poster") {
+    return "@poster";
+  }
+  if (normalized === "@flyer 3") {
+    return "@Flyer 3";
+  }
+  return "@海报";
 }
 
 function normalizePlatform(value?: string): string | undefined {

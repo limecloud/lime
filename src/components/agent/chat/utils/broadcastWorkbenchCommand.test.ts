@@ -46,6 +46,20 @@ describe("parseBroadcastWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 @Speaker 1，并继续走播报主链", () => {
+    const result = parseBroadcastWorkbenchCommand(
+      "@Speaker 1 audience: founders tone: friendly 8 minutes turn this article into an audio-ready brief",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Speaker 1",
+      audience: "founders",
+      tone: "friendly",
+      durationHintMinutes: 8,
+      prompt: "this article into an audio-ready brief",
+    });
+  });
+
   it("非播报命令应返回空", () => {
     expect(parseBroadcastWorkbenchCommand("@视频 做一条新品视频")).toBeNull();
   });

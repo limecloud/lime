@@ -2,7 +2,12 @@ import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
 import type { AgentThreadItem, AgentThreadTurn, Message } from "../types";
 import { filterConversationThreadItems } from "../utils/threadTimelineView";
 import { normalizeHistoryMessages } from "./agentChatHistory";
-import { loadTransient, saveTransient } from "./agentChatStorage";
+import {
+  loadPersisted,
+  loadTransient,
+  savePersisted,
+  saveTransient,
+} from "./agentChatStorage";
 import { getScopedStorageKey } from "./agentChatShared";
 
 export interface AgentSessionScopedKeys {
@@ -31,14 +36,36 @@ const MAX_CACHED_SESSION_SNAPSHOTS = 12;
 const MAX_CACHED_SESSION_MESSAGES = 32;
 const MAX_CACHED_SESSION_TURNS = 24;
 const MAX_CACHED_SESSION_ITEMS = 96;
+const MAX_PERSISTED_CACHED_SESSION_MESSAGES = 12;
+const MAX_PERSISTED_CACHED_SESSION_TURNS = 8;
+const MAX_PERSISTED_CACHED_SESSION_ITEMS = 32;
+
+interface AgentSessionCachedSnapshotTrimLimits {
+  maxMessages: number;
+  maxTurns: number;
+  maxItems: number;
+}
+
+const TRANSIENT_SNAPSHOT_LIMITS: AgentSessionCachedSnapshotTrimLimits = {
+  maxMessages: MAX_CACHED_SESSION_MESSAGES,
+  maxTurns: MAX_CACHED_SESSION_TURNS,
+  maxItems: MAX_CACHED_SESSION_ITEMS,
+};
+
+const PERSISTED_SNAPSHOT_LIMITS: AgentSessionCachedSnapshotTrimLimits = {
+  maxMessages: MAX_PERSISTED_CACHED_SESSION_MESSAGES,
+  maxTurns: MAX_PERSISTED_CACHED_SESSION_TURNS,
+  maxItems: MAX_PERSISTED_CACHED_SESSION_ITEMS,
+};
 
 function trimCachedSnapshot(
   snapshot: AgentSessionCachedSnapshot,
+  limits: AgentSessionCachedSnapshotTrimLimits = TRANSIENT_SNAPSHOT_LIMITS,
 ): AgentSessionCachedSnapshot {
   const messages = normalizeHistoryMessages(
-    snapshot.messages.slice(-MAX_CACHED_SESSION_MESSAGES),
+    snapshot.messages.slice(-limits.maxMessages),
   );
-  const threadTurns = snapshot.threadTurns.slice(-MAX_CACHED_SESSION_TURNS);
+  const threadTurns = snapshot.threadTurns.slice(-limits.maxTurns);
   const retainedTurnIds = new Set(
     threadTurns
       .map((turn) => (typeof turn.id === "string" ? turn.id.trim() : ""))
@@ -52,7 +79,7 @@ function trimCachedSnapshot(
             typeof item.turn_id === "string" ? item.turn_id.trim() : "";
           return !turnId || retainedTurnIds.has(turnId);
         })
-        .slice(-MAX_CACHED_SESSION_ITEMS),
+        .slice(-limits.maxItems),
     ),
   );
   const currentTurnId =
@@ -121,19 +148,23 @@ function normalizeCachedThreadItems(value: unknown): AgentThreadItem[] {
 
 function normalizeCachedSnapshotRecord(
   value: unknown,
+  limits?: AgentSessionCachedSnapshotTrimLimits,
 ): AgentSessionCachedSnapshotRecord | null {
   if (!value || typeof value !== "object") {
     return null;
   }
 
   const record = value as Record<string, unknown>;
-  const snapshot = trimCachedSnapshot({
-    messages: normalizeCachedMessages(record.messages),
-    threadTurns: normalizeCachedThreadTurns(record.threadTurns),
-    threadItems: normalizeCachedThreadItems(record.threadItems),
-    currentTurnId:
-      typeof record.currentTurnId === "string" ? record.currentTurnId : null,
-  });
+  const snapshot = trimCachedSnapshot(
+    {
+      messages: normalizeCachedMessages(record.messages),
+      threadTurns: normalizeCachedThreadTurns(record.threadTurns),
+      threadItems: normalizeCachedThreadItems(record.threadItems),
+      currentTurnId:
+        typeof record.currentTurnId === "string" ? record.currentTurnId : null,
+    },
+    limits,
+  );
 
   return {
     ...snapshot,
@@ -150,17 +181,42 @@ export function loadAgentSessionCachedSnapshot(
 ): AgentSessionCachedSnapshot | null {
   const cacheKey = getScopedStorageKey(workspaceId, "aster_session_snapshots");
   const snapshotMap = loadTransient<Record<string, unknown>>(cacheKey, {});
-  const snapshot = normalizeCachedSnapshotRecord(snapshotMap[sessionId]);
+  const transientSnapshot = normalizeCachedSnapshotRecord(
+    snapshotMap[sessionId],
+    TRANSIENT_SNAPSHOT_LIMITS,
+  );
 
-  if (!snapshot) {
+  if (transientSnapshot) {
+    return {
+      messages: transientSnapshot.messages,
+      threadTurns: transientSnapshot.threadTurns,
+      threadItems: transientSnapshot.threadItems,
+      currentTurnId: transientSnapshot.currentTurnId,
+    };
+  }
+
+  const persistedCacheKey = getScopedStorageKey(
+    workspaceId,
+    "aster_session_snapshots_persisted",
+  );
+  const persistedSnapshotMap = loadPersisted<Record<string, unknown>>(
+    persistedCacheKey,
+    {},
+  );
+  const persistedSnapshot = normalizeCachedSnapshotRecord(
+    persistedSnapshotMap[sessionId],
+    PERSISTED_SNAPSHOT_LIMITS,
+  );
+
+  if (!persistedSnapshot) {
     return null;
   }
 
   return {
-    messages: snapshot.messages,
-    threadTurns: snapshot.threadTurns,
-    threadItems: snapshot.threadItems,
-    currentTurnId: snapshot.currentTurnId,
+    messages: persistedSnapshot.messages,
+    threadTurns: persistedSnapshot.threadTurns,
+    threadItems: persistedSnapshot.threadItems,
+    currentTurnId: persistedSnapshot.currentTurnId,
   };
 }
 
@@ -170,28 +226,64 @@ export function saveAgentSessionCachedSnapshot(
   snapshot: AgentSessionCachedSnapshot,
 ): void {
   const cacheKey = getScopedStorageKey(workspaceId, "aster_session_snapshots");
+  const persistedCacheKey = getScopedStorageKey(
+    workspaceId,
+    "aster_session_snapshots_persisted",
+  );
   const currentMap = loadTransient<Record<string, unknown>>(cacheKey, {});
-  const trimmedSnapshot = trimCachedSnapshot(snapshot);
-  const nextMap = {
+  const persistedMap = loadPersisted<Record<string, unknown>>(
+    persistedCacheKey,
+    {},
+  );
+  const trimmedSnapshot = trimCachedSnapshot(snapshot, TRANSIENT_SNAPSHOT_LIMITS);
+  const persistedSnapshot = trimCachedSnapshot(
+    snapshot,
+    PERSISTED_SNAPSHOT_LIMITS,
+  );
+  const nextTransientMap = {
     ...currentMap,
     [sessionId]: {
       ...trimmedSnapshot,
       updatedAt: Date.now(),
     } satisfies AgentSessionCachedSnapshotRecord,
   };
+  const nextPersistedMap = {
+    ...persistedMap,
+    [sessionId]: {
+      ...persistedSnapshot,
+      updatedAt: Date.now(),
+    } satisfies AgentSessionCachedSnapshotRecord,
+  };
 
-  const prunedEntries = Object.entries(nextMap)
-    .map(([id, value]) => [id, normalizeCachedSnapshotRecord(value)] as const)
-    .filter(
-      (
-        entry,
-      ): entry is [string, AgentSessionCachedSnapshotRecord] =>
-        entry[1] !== null,
-    )
-    .sort((left, right) => right[1].updatedAt - left[1].updatedAt)
-    .slice(0, MAX_CACHED_SESSION_SNAPSHOTS);
+  const pruneSnapshotEntries = (
+    snapshotMap: Record<string, unknown>,
+    limits: AgentSessionCachedSnapshotTrimLimits,
+  ) =>
+    Object.entries(snapshotMap)
+      .map(
+        ([id, value]) =>
+          [id, normalizeCachedSnapshotRecord(value, limits)] as const,
+      )
+      .filter(
+        (
+          entry,
+        ): entry is [string, AgentSessionCachedSnapshotRecord] =>
+          entry[1] !== null,
+      )
+      .sort((left, right) => right[1].updatedAt - left[1].updatedAt)
+      .slice(0, MAX_CACHED_SESSION_SNAPSHOTS);
 
-  saveTransient(cacheKey, Object.fromEntries(prunedEntries));
+  const prunedTransientEntries = pruneSnapshotEntries(
+    nextTransientMap,
+    TRANSIENT_SNAPSHOT_LIMITS,
+  );
+  const prunedPersistedEntries = pruneSnapshotEntries(
+    nextPersistedMap,
+    PERSISTED_SNAPSHOT_LIMITS,
+  );
+
+  saveTransient(cacheKey, Object.fromEntries(prunedTransientEntries));
+  savePersisted(persistedCacheKey, Object.fromEntries(prunedPersistedEntries));
 }
 
 export function getAgentSessionScopedKeys(

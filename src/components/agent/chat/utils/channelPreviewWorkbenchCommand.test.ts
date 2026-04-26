@@ -30,6 +30,32 @@ describe("parseChannelPreviewWorkbenchCommand", () => {
     });
   });
 
+  it("应把平台型 Preview trigger 映射到默认平台", () => {
+    const result = parseChannelPreviewWorkbenchCommand(
+      "@Instagram Preview turn this launch brief into a first-screen draft",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Instagram Preview",
+      platformType: "instagram",
+      platformLabel: "Instagram",
+      prompt: "turn this launch brief into a first-screen draft",
+    });
+  });
+
+  it("应把 Twitter Preview 归一到 X / Twitter 平台", () => {
+    const result = parseChannelPreviewWorkbenchCommand(
+      "@Twitter Preview turn this thread into a channel preview draft",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Twitter Preview",
+      platformType: "x",
+      platformLabel: "X / Twitter",
+      prompt: "turn this thread into a channel preview draft",
+    });
+  });
+
   it("没有显式平台时也应保留渠道预览意图", () => {
     const result = parseChannelPreviewWorkbenchCommand(
       "@预览 帮我先看一下这篇稿子的封面和开头排版节奏",

@@ -81,6 +81,9 @@ const conversationTabButtonClassName =
 const tabUtilityButtonClassName =
   "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-transparent bg-transparent text-slate-500 shadow-none transition-[background-color,color] hover:bg-slate-100 hover:text-slate-900";
 
+const tabWorkbenchButtonClassName =
+  "inline-flex h-7 shrink-0 items-center gap-1 rounded-[10px] border border-transparent bg-transparent px-2.5 text-[11px] font-medium text-slate-700 shadow-none transition-[background-color,color] hover:bg-slate-100 hover:text-slate-900";
+
 export function TaskCenterTabStrip({
   items,
   onSelectTask,
@@ -203,10 +206,13 @@ export function TaskCenterTabStrip({
             {showCanvasToggle ? (
               <button
                 type="button"
-                className={tabUtilityButtonClassName}
-                data-testid="task-center-tab-canvas"
-                aria-label={isCanvasOpen ? "折叠画布" : "展开画布"}
-                title={isCanvasOpen ? "折叠画布" : "展开画布"}
+                className={cn(
+                  tabWorkbenchButtonClassName,
+                  isCanvasOpen && "bg-white text-slate-900",
+                )}
+                data-testid="task-center-tab-workbench"
+                aria-label={isCanvasOpen ? "收起工作台" : "展开工作台"}
+                title={isCanvasOpen ? "收起工作台" : "展开工作台"}
                 onClick={onToggleCanvas}
               >
                 {isCanvasOpen ? (
@@ -214,6 +220,7 @@ export function TaskCenterTabStrip({
                 ) : (
                   <PanelRightOpen className="h-4 w-4" />
                 )}
+                <span>工作台</span>
               </button>
             ) : null}
           </div>

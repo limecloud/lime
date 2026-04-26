@@ -446,6 +446,9 @@ describe("skillCatalog", () => {
     const webScrapeEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "web_scrape",
     );
+    const webpageEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "webpage_generate",
+    );
     const webpageReadEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "webpage_read",
     );
@@ -461,6 +464,9 @@ describe("skillCatalog", () => {
     const channelPreviewEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "channel_preview_runtime",
     );
+    const writingEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "writing_runtime",
+    );
     const uploadEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "upload_runtime",
     );
@@ -469,6 +475,12 @@ describe("skillCatalog", () => {
     );
     const publishEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "publish_runtime",
+    );
+    const logoDecompositionEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "logo_decomposition",
+    );
+    const fileReadEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "file_read_runtime",
     );
 
     expect(
@@ -487,9 +499,11 @@ describe("skillCatalog", () => {
         "competitor_research",
         "site_search",
         "read_pdf",
+        "file_read_runtime",
         "summary",
         "translation",
         "analysis",
+        "logo_decomposition",
         "transcription_generate",
         "web_scrape",
         "webpage_read",
@@ -498,6 +512,8 @@ describe("skillCatalog", () => {
         "form_generate",
         "browser_runtime",
         "voice_runtime",
+        "growth_runtime",
+        "writing_runtime",
         "channel_preview_runtime",
         "upload_runtime",
         "code_runtime",
@@ -521,10 +537,24 @@ describe("skillCatalog", () => {
       supportsStreaming: true,
       supportsTimeline: true,
     });
+    expect(browserEntry?.triggers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prefix: "@Browser Agent" }),
+        expect.objectContaining({ prefix: "@Mini Tester" }),
+        expect.objectContaining({ prefix: "@Web Scheduler" }),
+        expect.objectContaining({ prefix: "@Web Manage" }),
+      ]),
+    );
     expect(webScrapeEntry?.binding).toMatchObject({
       skillId: "url_parse",
       executionKind: "task_queue",
     });
+    expect(webScrapeEntry?.triggers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prefix: "@抓取" }),
+        expect.objectContaining({ prefix: "@Fetch" }),
+      ]),
+    );
     expect(webpageReadEntry?.binding).toMatchObject({
       skillId: "url_parse",
       executionKind: "task_queue",
@@ -549,6 +579,42 @@ describe("skillCatalog", () => {
       skillId: "content_post_with_cover",
       executionKind: "native_skill",
     });
+    expect(writingEntry?.binding).toMatchObject({
+      skillId: "content_post_with_cover",
+      executionKind: "native_skill",
+    });
+    expect(writingEntry?.triggers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prefix: "@Web Copy" }),
+      ]),
+    );
+    expect(webpageEntry?.triggers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prefix: "@Web Composer" }),
+        expect.objectContaining({ prefix: "@HTML Preview" }),
+        expect.objectContaining({ prefix: "@Web Style" }),
+      ]),
+    );
+    expect(fileReadEntry?.binding).toMatchObject({
+      skillId: "summary",
+      executionKind: "agent_turn",
+    });
+    expect(
+      listSkillCatalogCommandEntries(seeded).find(
+        (entry) => entry.commandKey === "research",
+      )?.triggers,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prefix: "@Search Agent" }),
+        expect.objectContaining({ prefix: "@Instagram Research" }),
+      ]),
+    );
+    expect(fileReadEntry?.triggers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prefix: "@读文件" }),
+        expect.objectContaining({ prefix: "@Read File Content" }),
+      ]),
+    );
     expect(uploadEntry?.binding).toMatchObject({
       skillId: "content_post_with_cover",
       executionKind: "native_skill",
@@ -557,6 +623,16 @@ describe("skillCatalog", () => {
       skillId: "analysis",
       executionKind: "agent_turn",
     });
+    expect(logoDecompositionEntry?.binding).toMatchObject({
+      skillId: "analysis",
+      executionKind: "agent_turn",
+    });
+    expect(logoDecompositionEntry?.triggers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ prefix: "@Logo拆解" }),
+        expect.objectContaining({ prefix: "@Image Logo Decomposition" }),
+      ]),
+    );
     expect(publishEntry?.renderContract).toMatchObject({
       resultKind: "artifact",
       detailKind: "artifact_detail",

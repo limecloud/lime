@@ -187,7 +187,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     key: "listSessions",
     command: AGENT_RUNTIME_COMMANDS.listSessions,
     domain: "session",
-    requestType: "{ includeArchived?: boolean } | void",
+    requestType: "{ includeArchived?: boolean; archivedOnly?: boolean; workspaceId?: string; limit?: number } | void",
     responseType: "AsterSessionInfo[]",
     lifecycle: "current",
     mockStrategy: "bridge-only",

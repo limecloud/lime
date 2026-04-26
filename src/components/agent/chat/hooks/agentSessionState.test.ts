@@ -94,6 +94,32 @@ describe("agentSessionState", () => {
     expect(resolved).toBe("session-active");
   });
 
+  it("限量话题列表未命中候选时，应保留候选会话用于直接恢复", () => {
+    const resolved = resolveRestorableTopicSessionId(
+      "session-detached",
+      [
+        {
+          id: "session-active",
+          title: "活跃会话",
+          createdAt: new Date("2026-03-28T00:00:00.000Z"),
+          updatedAt: new Date("2026-03-29T00:00:00.000Z"),
+          workspaceId: "ws-1",
+          messagesCount: 1,
+          executionStrategy: "react",
+          status: "done",
+          lastPreview: "已完成",
+          isPinned: false,
+          hasUnread: false,
+          tag: null,
+          sourceSessionId: "session-active",
+        },
+      ],
+      { allowDetachedCandidate: true },
+    );
+
+    expect(resolved).toBe("session-detached");
+  });
+
   it("切到其他会话且命中有效本地快照时应允许延后 detail hydration", () => {
     expect(
       shouldDeferSessionDetailHydration({

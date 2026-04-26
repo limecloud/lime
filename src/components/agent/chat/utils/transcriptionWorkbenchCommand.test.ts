@@ -31,6 +31,18 @@ describe("parseTranscriptionWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 Ribbi 风格的 @Audio Extractor 命令", () => {
+    const result = parseTranscriptionWorkbenchCommand(
+      "@Audio Extractor https://example.com/demo.mp4 export markdown",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Audio Extractor",
+      sourceUrl: "https://example.com/demo.mp4",
+      outputFormat: "markdown",
+    });
+  });
+
   it("缺少来源时也应保留转写意图，交给 Agent 继续追问", () => {
     const result =
       parseTranscriptionWorkbenchCommand("@转写 帮我整理成会议纪要");

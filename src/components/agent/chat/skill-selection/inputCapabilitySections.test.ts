@@ -126,6 +126,11 @@ describe("buildInputCapabilitySections", () => {
           commandPrefix: "@配图",
         }),
         createBuiltinCommand({
+          key: "writing_runtime",
+          label: "写作",
+          commandPrefix: "@写作",
+        }),
+        createBuiltinCommand({
           key: "publish_runtime",
           label: "发布",
           commandPrefix: "@发布",
@@ -138,6 +143,11 @@ describe("buildInputCapabilitySections", () => {
     expect(headings).toContain("生成 / 表达");
     expect(headings).toContain("预览 / 发布");
     expect(headings).not.toContain("内建命令");
+    expect(
+      sections
+        .find((section) => section.heading === "生成 / 表达")
+        ?.items.map((item) => item.title),
+    ).toContain("@写作");
   });
 
   it("slash 空查询应先收成先拿结果与工作台操作，不默认展开提示命令和状态帮助", () => {

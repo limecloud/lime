@@ -18,6 +18,7 @@ import {
   preloadCharacterMentionPanel,
 } from "./characterMentionPanelLoader";
 import type { InputCapabilityDescriptor } from "./inputCapabilitySections";
+import type { SelectInputCapabilityHandler } from "./inputCapabilitySelection";
 import {
   getActiveSkillDisplayLabel,
   SKILL_SELECTION_DISPLAY_COPY,
@@ -31,8 +32,7 @@ interface SkillSelectorProps {
   serviceSkillGroups?: ServiceSkillGroup[];
   activeSkill?: Skill | null;
   isLoading?: boolean;
-  onSelectSkill: (skill: Skill) => void;
-  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+  onSelectInputCapability: SelectInputCapabilityHandler;
   onClearSkill?: () => void;
   onNavigateToSettings?: () => void;
   onImportSkill?: () => void | Promise<void>;
@@ -53,9 +53,8 @@ interface SkillSelectorContentProps {
   importing: boolean;
   commandRef: React.RefObject<HTMLDivElement>;
   onQueryChange: (query: string) => void;
-  onSelectInstalledSkill: (skill: Skill) => void;
+  onSelectInputCapability: SelectInputCapabilityHandler;
   onSelectAvailableSkill: (skill: Skill) => void;
-  onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   onClearSkill?: () => void;
   onNavigateToSettings?: () => void;
   onRefresh?: () => void;
@@ -76,9 +75,8 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
   importing,
   commandRef,
   onQueryChange,
-  onSelectInstalledSkill,
+  onSelectInputCapability,
   onSelectAvailableSkill,
-  onSelectServiceSkill,
   onClearSkill,
   onNavigateToSettings,
   onRefresh,
@@ -89,10 +87,16 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
     (item: InputCapabilityDescriptor) => {
       switch (item.kind) {
         case "service_skill":
-          onSelectServiceSkill?.(item.skill);
+          onSelectInputCapability({
+            kind: "service_skill",
+            skill: item.skill,
+          });
           return;
         case "installed_skill":
-          onSelectInstalledSkill(item.skill);
+          onSelectInputCapability({
+            kind: "installed_skill",
+            skill: item.skill,
+          });
           return;
         case "available_skill":
           onSelectAvailableSkill(item.skill);
@@ -101,11 +105,7 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
           return;
       }
     },
-    [
-      onSelectAvailableSkill,
-      onSelectInstalledSkill,
-      onSelectServiceSkill,
-    ],
+    [onSelectAvailableSkill, onSelectInputCapability],
   );
 
   return (
@@ -215,8 +215,7 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
   serviceSkillGroups = [],
   activeSkill = null,
   isLoading = false,
-  onSelectSkill,
-  onSelectServiceSkill,
+  onSelectInputCapability,
   onClearSkill,
   onNavigateToSettings,
   onImportSkill,
@@ -294,18 +293,15 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
     skills.length,
   ]);
 
-  const handleSelectInstalledSkill = (skill: Skill) => {
-    onSelectSkill(skill);
+  const handleSelectCapability = (capability: Parameters<
+    SelectInputCapabilityHandler
+  >[0]) => {
+    onSelectInputCapability(capability);
     setOpen(false);
   };
 
   const handleClearSkill = () => {
     onClearSkill?.();
-    setOpen(false);
-  };
-
-  const handleSelectServiceSkill = (skill: ServiceSkillHomeItem) => {
-    onSelectServiceSkill?.(skill);
     setOpen(false);
   };
 
@@ -378,9 +374,8 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
             importing={importing}
             commandRef={commandRef}
             onQueryChange={setQuery}
-            onSelectInstalledSkill={handleSelectInstalledSkill}
+            onSelectInputCapability={handleSelectCapability}
             onSelectAvailableSkill={handleSelectAvailableSkill}
-            onSelectServiceSkill={handleSelectServiceSkill}
             onClearSkill={handleClearSkill}
             onNavigateToSettings={
               onNavigateToSettings

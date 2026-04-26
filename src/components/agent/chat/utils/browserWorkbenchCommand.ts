@@ -7,7 +7,11 @@ import { detectBrowserTaskRequirement } from "./browserTaskRequirement";
 export type BrowserWorkbenchCommandTrigger =
   | "@浏览器"
   | "@browser"
-  | "@browse";
+  | "@browse"
+  | "@Browser Agent"
+  | "@Mini Tester"
+  | "@Web Scheduler"
+  | "@Web Manage";
 
 export interface ParsedBrowserWorkbenchCommand {
   rawText: string;
@@ -21,7 +25,7 @@ export interface ParsedBrowserWorkbenchCommand {
 }
 
 const BROWSER_COMMAND_PREFIX_REGEX =
-  /^\s*(@浏览器|@browser|@browse)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@Browser Agent|@Mini Tester|@Web Scheduler|@Web Manage|@浏览器|@browser|@browse)(?:\s+|$)([\s\S]*)$/i;
 const PROMPT_PREFIX_REGEX =
   /^\s*(帮我|给我|请|打开|访问|进入|前往|去|导航到|open|visit|navigate)(?:\s|$|[:：])*/i;
 
@@ -31,6 +35,18 @@ function trimDecorations(value: string): string {
 
 function normalizeTrigger(value: string): BrowserWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
+  if (normalized === "@browser agent") {
+    return "@Browser Agent";
+  }
+  if (normalized === "@mini tester") {
+    return "@Mini Tester";
+  }
+  if (normalized === "@web scheduler") {
+    return "@Web Scheduler";
+  }
+  if (normalized === "@web manage") {
+    return "@Web Manage";
+  }
   if (normalized === "@browser") {
     return "@browser";
   }

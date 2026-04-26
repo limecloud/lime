@@ -12,12 +12,17 @@ const {
   mockSubscribeAppConfigChanged,
   mockListAgentRuntimeSessions,
   mockUpdateAgentRuntimeSession,
+  mockScheduleMinimumDelayIdleTask,
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(),
   mockGetPluginsForSurface: vi.fn(),
   mockSubscribeAppConfigChanged: vi.fn(),
   mockListAgentRuntimeSessions: vi.fn(),
   mockUpdateAgentRuntimeSession: vi.fn(),
+  mockScheduleMinimumDelayIdleTask: vi.fn((task: () => void) => {
+    task();
+    return () => undefined;
+  }),
 }));
 
 vi.mock("@/lib/api/appConfig", () => ({
@@ -35,10 +40,7 @@ vi.mock("@/lib/api/agentRuntime", () => ({
 }));
 
 vi.mock("@/lib/utils/scheduleMinimumDelayIdleTask", () => ({
-  scheduleMinimumDelayIdleTask: (task: () => void) => {
-    task();
-    return () => undefined;
-  },
+  scheduleMinimumDelayIdleTask: mockScheduleMinimumDelayIdleTask,
 }));
 
 interface MountedSidebar {
@@ -98,19 +100,22 @@ describe("AppSidebar", () => {
     mockGetPluginsForSurface.mockResolvedValue([]);
     mockListAgentRuntimeSessions.mockResolvedValue([]);
     mockUpdateAgentRuntimeSession.mockResolvedValue(undefined);
-    mockSubscribeAppConfigChanged.mockImplementation(
-      (listener: () => void) => {
-        (globalThis as typeof globalThis & { __appConfigListener?: () => void })
-          .__appConfigListener = listener;
-        return () => {
-          (
-            globalThis as typeof globalThis & {
-              __appConfigListener?: () => void;
-            }
-          ).__appConfigListener = undefined;
-        };
-      },
-    );
+    mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
+      task();
+      return () => undefined;
+    });
+    mockSubscribeAppConfigChanged.mockImplementation((listener: () => void) => {
+      (
+        globalThis as typeof globalThis & { __appConfigListener?: () => void }
+      ).__appConfigListener = listener;
+      return () => {
+        (
+          globalThis as typeof globalThis & {
+            __appConfigListener?: () => void;
+          }
+        ).__appConfigListener = undefined;
+      };
+    });
   });
 
   afterEach(() => {
@@ -181,6 +186,7 @@ describe("AppSidebar", () => {
 
     expect(container.textContent).toContain("任务");
     expect(container.textContent).toContain("新建任务");
+    expect(container.textContent).toContain("工作台");
     expect(container.textContent).not.toContain("生成");
     expect(container.textContent).toContain("我的方法");
     expect(container.textContent).toContain("灵感库");
@@ -200,13 +206,20 @@ describe("AppSidebar", () => {
       container.querySelectorAll('[data-testid="app-sidebar-main-nav"] button'),
     ).map((button) => button.getAttribute("aria-label"));
     const footerNavButtons = Array.from(
-      container.querySelectorAll('[data-testid="app-sidebar-footer-nav"] button'),
+      container.querySelectorAll(
+        '[data-testid="app-sidebar-footer-nav"] button',
+      ),
     ).map((button) => button.getAttribute("aria-label"));
     const footerArea = container.querySelector(
       '[data-testid="app-sidebar-footer-area"]',
     );
 
-    expect(mainNavButtons).toEqual(["新建任务", "我的方法", "灵感库"]);
+    expect(mainNavButtons).toEqual([
+      "新建任务",
+      "工作台",
+      "我的方法",
+      "灵感库",
+    ]);
     expect(footerNavButtons).toEqual(["设置", "持续流程", "消息渠道"]);
     expect(footerArea).not.toBeNull();
     expect(getComputedStyle(footerArea as Element).paddingBottom).toBe("16px");
@@ -222,8 +235,59 @@ describe("AppSidebar", () => {
     await flushEffects(2);
 
     expect(
-      container.querySelector('button[aria-label="新建任务"][aria-current="page"]'),
+      container.querySelector(
+        'button[aria-label="新建任务"][aria-current="page"]',
+      ),
     ).not.toBeNull();
+  });
+
+  it("工作台入口应高亮 claw 页面，并优先带回最近会话", async () => {
+    const onNavigate = vi.fn();
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: "session-recent",
+        name: "最近会话",
+        created_at: 1713000000,
+        updated_at: 1713000600,
+        archived_at: null,
+        workspace_id: "project-1",
+        messages_count: 3,
+      },
+    ]);
+
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "claw",
+        projectId: "project-1",
+        initialSessionId: "session-current",
+      } as AgentPageParams,
+      onNavigate,
+    });
+    await flushEffects(2);
+
+    expect(
+      container.querySelector(
+        'button[aria-label="工作台"][aria-current="page"]',
+      ),
+    ).not.toBeNull();
+
+    act(() => {
+      (
+        container.querySelector(
+          'button[aria-label="工作台"]',
+        ) as HTMLButtonElement | null
+      )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agentEntry: "claw",
+        initialSessionId: "session-current",
+        projectId: "project-1",
+      }),
+    );
   });
 
   it("生成页不应再展示旧的侧栏生成入口", async () => {
@@ -238,25 +302,36 @@ describe("AppSidebar", () => {
     expect(container.querySelector('button[aria-label="生成"]')).toBeNull();
   });
 
-  it("一级导航下方应继续展示最近对话与归档", async () => {
-    mockListAgentRuntimeSessions.mockResolvedValue([
-      {
-        id: "session-recent",
-        name: "最近会话",
-        created_at: 1714000000,
-        updated_at: 1714000600,
-        archived_at: null,
-        workspace_id: "project-1",
-      },
-      {
-        id: "session-archived",
-        name: "归档会话",
-        created_at: 1713000000,
-        updated_at: 1713000600,
-        archived_at: 1713003600,
-        workspace_id: "project-1",
-      },
-    ]);
+  it("一级导航下方应继续展示最近对话与归档，并对归档列表懒加载", async () => {
+    mockListAgentRuntimeSessions.mockImplementation(
+      async (options?: {
+        archivedOnly?: boolean;
+        includeArchived?: boolean;
+        limit?: number;
+        workspaceId?: string;
+      }) =>
+        options?.archivedOnly
+          ? [
+              {
+                id: "session-archived",
+                name: "归档会话",
+                created_at: 1713000000,
+                updated_at: 1713000600,
+                archived_at: 1713003600,
+                workspace_id: "project-1",
+              },
+            ]
+          : [
+              {
+                id: "session-recent",
+                name: "最近会话",
+                created_at: 1714000000,
+                updated_at: 1714000600,
+                archived_at: null,
+                workspace_id: "project-1",
+              },
+            ],
+    );
 
     const container = mountSidebarContainer({
       currentPage: "settings",
@@ -266,7 +341,12 @@ describe("AppSidebar", () => {
     expect(container.textContent).toContain("最近对话");
     expect(container.textContent).toContain("归档");
     expect(container.textContent).toContain("最近会话");
-    expect(container.textContent).toContain("归档会话");
+    expect(container.textContent).not.toContain("归档会话");
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
+      limit: 37,
+      workspaceId: undefined,
+    });
 
     const mainNav = container.querySelector(
       '[data-testid="app-sidebar-main-nav"]',
@@ -277,29 +357,95 @@ describe("AppSidebar", () => {
     const recentConversationList = container.querySelector(
       '[data-testid="app-sidebar-recent-conversations"]',
     );
-    const archivedConversationList = container.querySelector(
-      '[data-testid="app-sidebar-archived-conversations"]',
-    );
+    const archivedToggle = container.querySelector(
+      'button[aria-expanded="false"]',
+    ) as HTMLButtonElement | null;
 
     expect(mainNav).not.toBeNull();
     expect(conversationShelf).not.toBeNull();
     expect(recentConversationList).not.toBeNull();
-    expect(archivedConversationList).not.toBeNull();
     expect(getComputedStyle(recentConversationList as Element).overflowY).toBe(
       "auto",
     );
-    expect(getComputedStyle(archivedConversationList as Element).overflowY).toBe(
-      "auto",
-    );
+    expect(archivedToggle).not.toBeNull();
     expect(
       Boolean(
         mainNav &&
-          conversationShelf &&
-          (mainNav.compareDocumentPosition(conversationShelf) &
-            Node.DOCUMENT_POSITION_FOLLOWING) !==
-            0,
+        conversationShelf &&
+        (mainNav.compareDocumentPosition(conversationShelf) &
+          Node.DOCUMENT_POSITION_FOLLOWING) !==
+          0,
       ),
     ).toBe(true);
+
+    await act(async () => {
+      archivedToggle?.click();
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+
+    const archivedConversationList = container.querySelector(
+      '[data-testid="app-sidebar-archived-conversations"]',
+    );
+    expect(archivedConversationList).not.toBeNull();
+    expect(container.textContent).toContain("归档会话");
+    expect(
+      getComputedStyle(archivedConversationList as Element).overflowY,
+    ).toBe("auto");
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
+      archivedOnly: true,
+      limit: 25,
+      workspaceId: undefined,
+    });
+  });
+
+  it("最近对话应限制初始渲染数量，并保留当前会话可见", async () => {
+    mockListAgentRuntimeSessions.mockResolvedValue(
+      Array.from({ length: 25 }, (_, index) => {
+        const order = index + 1;
+        return {
+          id: `session-${order}`,
+          name: `会话 ${order}`,
+          created_at: 1714000000 - order,
+          updated_at: 1714000600 - order,
+          archived_at: null,
+          workspace_id: "project-1",
+        };
+      }),
+    );
+
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "claw",
+        projectId: "project-1",
+        initialSessionId: "session-25",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    expect(container.querySelector('button[title="会话 1"]')).not.toBeNull();
+    expect(container.querySelector('button[title="会话 25"]')).not.toBeNull();
+    expect(container.querySelector('button[title="会话 24"]')).toBeNull();
+    expect(container.textContent).toContain("查看更多对话");
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
+      limit: 37,
+      workspaceId: "project-1",
+    });
+
+    const targetButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("查看更多对话"),
+    );
+
+    expect(targetButton).not.toBeUndefined();
+
+    await act(async () => {
+      (targetButton as HTMLButtonElement | undefined)?.click();
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+
+    expect(container.querySelector('button[title="会话 24"]')).not.toBeNull();
   });
 
   it("切换人物或项目上下文时不应把已有最近对话重置成加载态", async () => {
@@ -326,6 +472,10 @@ describe("AppSidebar", () => {
     expect(mounted.container.textContent).toContain("最近会话");
     expect(mounted.container.textContent).not.toContain("正在加载对话");
     expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
+      limit: 37,
+      workspaceId: "project-1",
+    });
 
     await act(async () => {
       mounted.root.render(
@@ -346,7 +496,72 @@ describe("AppSidebar", () => {
 
     expect(mounted.container.textContent).toContain("最近会话");
     expect(mounted.container.textContent).not.toContain("正在加载对话");
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(2);
+    expect(mockListAgentRuntimeSessions).toHaveBeenLastCalledWith({
+      limit: 37,
+      workspaceId: "project-2",
+    });
+  });
+
+  it("打开已有会话时若导航已有缓存任务，不应立即刷新最近对话列表", async () => {
+    const scheduledTasks: Array<() => void> = [];
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: "session-current",
+        name: "最近会话",
+        created_at: 1713000000,
+        updated_at: 1713000600,
+        archived_at: null,
+        workspace_id: "project-1",
+        messages_count: 3,
+      },
+    ]);
+
+    const mounted = mountSidebar({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
     expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
+
+    mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
+      scheduledTasks.push(task);
+      return () => undefined;
+    });
+
+    act(() => {
+      mounted.root.render(
+        <AppSidebar
+          currentPage="agent"
+          currentPageParams={
+            {
+              agentEntry: "claw",
+              projectId: "project-1",
+              initialSessionId: "session-current",
+            } as AgentPageParams
+          }
+          onNavigate={vi.fn()}
+        />,
+      );
+    });
+    await flushEffects(2);
+
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
+    expect(scheduledTasks).toHaveLength(1);
+
+    await act(async () => {
+      scheduledTasks[0]?.();
+      await Promise.resolve();
+    });
+
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(2);
+    expect(mockListAgentRuntimeSessions).toHaveBeenLastCalledWith({
+      limit: 37,
+      workspaceId: "project-1",
+    });
   });
 
   it("点击导航栏归档动作时应走统一 session update 命令", async () => {
@@ -375,6 +590,10 @@ describe("AppSidebar", () => {
     ) as HTMLButtonElement | null;
 
     expect(archiveButton).not.toBeNull();
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
+      limit: 37,
+      workspaceId: "project-1",
+    });
 
     await act(async () => {
       archiveButton?.click();
@@ -457,9 +676,7 @@ describe("AppSidebar", () => {
     });
     await flushEffects(2);
 
-    expect(
-      container.querySelector('button[aria-label="创作场景"]'),
-    ).toBeNull();
+    expect(container.querySelector('button[aria-label="创作场景"]')).toBeNull();
   });
 
   it("点击当前已激活的我的方法入口时不应重复导航", async () => {

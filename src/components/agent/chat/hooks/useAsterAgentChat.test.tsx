@@ -28,6 +28,7 @@ const {
   mockWechatChannelSetRuntimeModel,
   mockGetDefaultProvider,
   mockResolveClawWorkspaceProviderSelection,
+  mockScheduleMinimumDelayIdleTask,
 } = vi.hoisted(() => ({
   mockInitAsterAgent: vi.fn(),
   mockSubmitAgentRuntimeTurn: vi.fn(),
@@ -59,6 +60,10 @@ const {
   mockWechatChannelSetRuntimeModel: vi.fn(async () => undefined),
   mockGetDefaultProvider: vi.fn(),
   mockResolveClawWorkspaceProviderSelection: vi.fn(),
+  mockScheduleMinimumDelayIdleTask: vi.fn((task: () => void) => {
+    task();
+    return () => undefined;
+  }),
 }));
 
 vi.mock("@/lib/api/agentRuntime", () => ({
@@ -129,6 +134,10 @@ vi.mock("@/lib/api/appConfig", () => ({
   getDefaultProvider: mockGetDefaultProvider,
 }));
 
+vi.mock("@/lib/utils/scheduleMinimumDelayIdleTask", () => ({
+  scheduleMinimumDelayIdleTask: mockScheduleMinimumDelayIdleTask,
+}));
+
 vi.mock("../utils/clawWorkspaceProviderSelection", () => ({
   resolveClawWorkspaceProviderSelection:
     mockResolveClawWorkspaceProviderSelection,
@@ -163,6 +172,8 @@ function mountHook(
     getSyncedSessionRecentPreferences?: (
       sessionId: string,
     ) => ChatToolPreferences | null;
+    initialTopicsLoadMode?: "immediate" | "deferred";
+    initialTopicsDeferredDelayMs?: number;
   } = {},
 ): HookHarness {
   const container = document.createElement("div");
@@ -179,6 +190,8 @@ function mountHook(
       onWriteFile: currentOptions.onWriteFile,
       getSyncedSessionRecentPreferences:
         currentOptions.getSyncedSessionRecentPreferences,
+      initialTopicsLoadMode: currentOptions.initialTopicsLoadMode,
+      initialTopicsDeferredDelayMs: currentOptions.initialTopicsDeferredDelayMs,
     });
     return null;
   }
@@ -286,7 +299,7 @@ function seedSessionSnapshots(
   );
 }
 
-beforeEach(() => {
+  beforeEach(() => {
   (
     globalThis as typeof globalThis & {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -311,9 +324,14 @@ beforeEach(() => {
   mockSafeListen.mockReset();
   mockParseSkillSlashCommand.mockReset();
   mockTryExecuteSlashSkillCommand.mockReset();
-  mockWechatChannelSetRuntimeModel.mockReset();
-  mockGetDefaultProvider.mockReset();
-  mockResolveClawWorkspaceProviderSelection.mockReset();
+    mockWechatChannelSetRuntimeModel.mockReset();
+    mockGetDefaultProvider.mockReset();
+    mockResolveClawWorkspaceProviderSelection.mockReset();
+    mockScheduleMinimumDelayIdleTask.mockReset();
+    mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
+      task();
+      return () => undefined;
+    });
   mockToast.success.mockReset();
   mockToast.error.mockReset();
   mockToast.info.mockReset();
@@ -428,6 +446,10 @@ describe("useAsterAgentChat 首页新会话", () => {
 
       expect(mockInitAsterAgent).toHaveBeenCalledTimes(1);
       expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
+      expect(mockListAgentRuntimeSessions).toHaveBeenNthCalledWith(1, {
+        workspaceId,
+        limit: 60,
+      });
       expect(harness.getValue().topics.map((topic) => topic.id)).toEqual([
         sessionId,
       ]);
@@ -467,6 +489,30 @@ describe("useAsterAgentChat 首页新会话", () => {
     } finally {
       harness.unmount();
     }
+  });
+
+  it("deferred 话题加载模式下应延后 Agent 预热，避免抢占首屏会话恢复", async () => {
+    const scheduledTasks: Array<() => void> = [];
+    mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
+      scheduledTasks.push(task);
+      return () => undefined;
+    });
+
+    mountHook("ws-test", {
+      initialTopicsLoadMode: "deferred",
+      initialTopicsDeferredDelayMs: 12_000,
+    });
+    await flushEffects();
+
+    expect(mockInitAsterAgent).not.toHaveBeenCalled();
+    expect(mockScheduleMinimumDelayIdleTask).toHaveBeenCalled();
+
+    await act(async () => {
+      scheduledTasks.forEach((task) => task());
+      await Promise.resolve();
+    });
+
+    expect(mockInitAsterAgent).toHaveBeenCalledTimes(1);
   });
 
   it("Agent 初始化返回 provider_selector 时应优先回填真实 provider 标识", async () => {
@@ -774,9 +820,10 @@ describe("useAsterAgentChat 任务快照", () => {
         await harness.getValue().stopSending();
       });
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
-        resumeSessionStartHooks: true,
-      });
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
+        sessionId,
+        undefined,
+      );
       expect(mockInterruptAgentRuntimeTurn).toHaveBeenCalledWith({
         session_id: sessionId,
       });
@@ -911,9 +958,10 @@ describe("useAsterAgentChat 任务快照", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
-        resumeSessionStartHooks: true,
-      });
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
+        sessionId,
+        undefined,
+      );
       expect(harness.getValue().queuedTurns).toEqual([
         {
           queued_turn_id: "queued-hydrated-1",
@@ -1224,7 +1272,7 @@ describe("useAsterAgentChat team 订阅", () => {
       expect(listeners.map((item) => item.eventName)).toContain(
         `agent_subagent_status:${sessionId}`,
       );
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(2);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(1);
 
       const listener = listeners
         .filter(
@@ -1245,7 +1293,7 @@ describe("useAsterAgentChat team 订阅", () => {
       });
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(3);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(2);
     } finally {
       harness.unmount();
     }
@@ -1307,7 +1355,7 @@ describe("useAsterAgentChat team 订阅", () => {
       expect(listeners.map((item) => item.eventName)).toContain(
         `agent_subagent_status:${sessionId}`,
       );
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(2);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(1);
 
       const listener = listeners
         .filter(
@@ -1328,7 +1376,7 @@ describe("useAsterAgentChat team 订阅", () => {
       });
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(3);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(2);
     } finally {
       harness.unmount();
     }
@@ -5733,9 +5781,10 @@ describe("useAsterAgentChat 偏好持久化", () => {
     try {
       await flushEffects();
       await flushEffects();
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
-        resumeSessionStartHooks: true,
-      });
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
+        sessionId,
+        undefined,
+      );
       expect(
         JSON.parse(
           localStorage.getItem(`agent_session_workspace_${sessionId}`) ||
@@ -5800,9 +5849,10 @@ describe("useAsterAgentChat 偏好持久化", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
-        resumeSessionStartHooks: true,
-      });
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
+        sessionId,
+        undefined,
+      );
       expect(harness.getValue().sessionId).toBeNull();
       expect(
         sessionStorage.getItem(`aster_curr_sessionId_${workspaceId}`),

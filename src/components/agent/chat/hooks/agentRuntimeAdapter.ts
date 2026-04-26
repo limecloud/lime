@@ -11,6 +11,7 @@ import {
 import {
   createAgentRuntimeClient,
   type AgentRuntimeGetSessionOptions,
+  type AgentRuntimeListSessionsOptions,
   type AgentRuntimeReplayedActionRequiredView,
   type AgentRuntimeClient,
   type AsterAgentStatus,
@@ -40,7 +41,9 @@ export interface AgentRuntimeAdapter {
     name?: string,
     executionStrategy?: AsterExecutionStrategy,
   ): Promise<string>;
-  listSessions(): Promise<AsterSessionInfo[]>;
+  listSessions(
+    options?: AgentRuntimeListSessionsOptions,
+  ): Promise<AsterSessionInfo[]>;
   getSession(
     sessionId: string,
     options?: AgentRuntimeGetSessionOptions,
@@ -123,8 +126,8 @@ export function createAgentRuntimeAdapter({
         executionStrategy,
       );
     },
-    async listSessions() {
-      return client.listAgentRuntimeSessions();
+    async listSessions(options) {
+      return client.listAgentRuntimeSessions(options);
     },
     async getSession(sessionId, options) {
       return client.getAgentRuntimeSession(sessionId, options);

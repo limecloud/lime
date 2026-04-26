@@ -42,6 +42,29 @@ const PLATFORM_HINTS: BrowserPlatformHint[] = [
     launchUrl: "https://member.bilibili.com/",
     patterns: [/b站|bilibili|member\.bilibili\.com/i],
   },
+  {
+    label: "Instagram",
+    launchUrl: "https://www.instagram.com/",
+    patterns: [/instagram|instagram\.com/i],
+  },
+  {
+    label: "TikTok",
+    launchUrl: "https://www.tiktok.com/upload",
+    patterns: [/tiktok|tiktok\.com/i],
+  },
+  {
+    label: "YouTube Studio",
+    launchUrl: "https://studio.youtube.com/",
+    patterns: [/youtube|studio\.youtube\.com|youtube\.com/i],
+  },
+  {
+    label: "X / Twitter",
+    launchUrl: "https://x.com/compose/post",
+    patterns: [
+      /twitter|x\s*\/\s*twitter|x\.com/i,
+      /(?:^|[^a-z])x(?:$|[^a-z])/i,
+    ],
+  },
 ];
 
 const REQUIRED_ACTION_PATTERN =

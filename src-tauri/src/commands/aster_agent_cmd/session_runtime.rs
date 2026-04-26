@@ -5,6 +5,7 @@ use super::runtime_project_hooks::{
 use super::*;
 use aster::hooks::{SessionEndReason, SessionSource};
 use aster::session::load_shared_session_runtime_snapshot;
+use lime_core::database::dao::agent::SessionArchiveFilter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionProviderRoutingState {
@@ -305,10 +306,19 @@ pub(crate) fn update_runtime_session_execution_strategy_internal(
 
 pub(crate) fn list_runtime_sessions_internal(
     db: &DbConnection,
-    include_archived: bool,
+    archive_filter: SessionArchiveFilter,
+    workspace_id: Option<&str>,
+    limit: Option<usize>,
 ) -> Result<Vec<SessionInfo>, String> {
-    tracing::info!("[AsterAgent] 列出会话");
-    AsterAgentWrapper::list_sessions_sync(db, include_archived)
+    tracing::info!(
+        "[AsterAgent] 列出会话: archive_filter={}, workspace_id={}, limit={}",
+        archive_filter.as_log_label(),
+        workspace_id.unwrap_or("-"),
+        limit
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "-".to_string())
+    );
+    AsterAgentWrapper::list_sessions_sync(db, archive_filter, workspace_id, limit)
 }
 
 pub(crate) fn rename_runtime_session_internal(

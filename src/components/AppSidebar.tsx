@@ -42,6 +42,7 @@ import {
   updateAgentRuntimeSession,
   type AsterSessionInfo,
 } from "@/lib/api/agentRuntime";
+import { isAuxiliaryAgentSessionId } from "@/lib/api/agentRuntime/sessionIdentity";
 import {
   DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
   FOOTER_SIDEBAR_NAV_ITEMS,
@@ -73,6 +74,34 @@ const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
 const SIDEBAR_PLUGIN_CENTER_NAV_ITEM_ID = "plugins";
 const SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS = 1200;
 const SIDEBAR_PLUGIN_BROWSER_IDLE_TIMEOUT_MS = 6000;
+const SIDEBAR_RECENT_SESSION_PAGE_SIZE = 18;
+const SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE = 12;
+const SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS = 12_000;
+
+function buildSidebarSessionRequestLimit(
+  visibleCount: number,
+  pageSize: number,
+): number {
+  const normalizedVisibleCount = Math.max(visibleCount, pageSize);
+  return normalizedVisibleCount + pageSize + 1;
+}
+
+function splitSidebarSessionResult(params: {
+  sessions: AsterSessionInfo[];
+  visibleCount: number;
+  pageSize: number;
+}): {
+  sessions: AsterSessionInfo[];
+  hasMore: boolean;
+} {
+  const { sessions, visibleCount, pageSize } = params;
+  const targetCount = Math.max(visibleCount, pageSize) + pageSize;
+  return {
+    sessions: sessions.slice(0, targetCount),
+    hasMore: sessions.length > targetCount,
+  };
+}
+
 function scheduleSidebarPluginLoad(task: () => void): () => void {
   const minimumDelayMs = hasTauriInvokeCapability()
     ? SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS
@@ -82,6 +111,18 @@ function scheduleSidebarPluginLoad(task: () => void): () => void {
     minimumDelayMs,
     idleTimeoutMs: SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS,
   });
+}
+
+function hasCachedSidebarSessionEntry(
+  sessions: AsterSessionInfo[],
+  sessionId?: string | null,
+): boolean {
+  const normalizedSessionId = sessionId?.trim();
+  if (!normalizedSessionId) {
+    return false;
+  }
+
+  return sessions.some((session) => session.id === normalizedSessionId);
 }
 
 interface SidebarNavigationTarget {
@@ -105,7 +146,9 @@ function resolveSidebarNavigationTarget(
     return null;
   }
 
-  const rawParams = item.resolveParams ? item.resolveParams(item.params) : item.params;
+  const rawParams = item.resolveParams
+    ? item.resolveParams(item.params)
+    : item.params;
 
   return {
     page: item.page,
@@ -124,7 +167,8 @@ function isSameSidebarNavigationTarget(
   }
 
   return (
-    target.page === page && target.paramsKey === serializeNavigationParams(params)
+    target.page === page &&
+    target.paramsKey === serializeNavigationParams(params)
   );
 }
 
@@ -438,9 +482,7 @@ const ConversationSection = styled.div`
   padding: 10px;
   border-radius: 24px;
   border: 1px solid var(--sidebar-border);
-  background:
-    var(--sidebar-card-surface),
-    var(--sidebar-search-bg);
+  background: var(--sidebar-card-surface), var(--sidebar-search-bg);
   box-shadow:
     inset 0 1px 0 var(--sidebar-card-highlight),
     var(--sidebar-card-shadow);
@@ -523,6 +565,28 @@ const ConversationList = styled.div`
   &::-webkit-scrollbar-thumb {
     background: var(--sidebar-border);
     border-radius: 9999px;
+  }
+`;
+
+const ConversationListMoreButton = styled.button`
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--sidebar-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+
+  &:hover {
+    background: var(--sidebar-hover);
+    border-color: var(--sidebar-search-border-hover);
+    color: var(--sidebar-foreground);
   }
 `;
 
@@ -706,17 +770,52 @@ function getIconByName(iconName: string): LucideIcon {
 }
 
 function sortSidebarSessions(sessions: AsterSessionInfo[]): AsterSessionInfo[] {
-  return [...sessions].sort((left, right) => {
-    if (left.updated_at !== right.updated_at) {
-      return right.updated_at - left.updated_at;
-    }
+  return sessions
+    .filter((session) => !isAuxiliaryAgentSessionId(session.id))
+    .sort((left, right) => {
+      if (left.updated_at !== right.updated_at) {
+        return right.updated_at - left.updated_at;
+      }
 
-    if (left.created_at !== right.created_at) {
-      return right.created_at - left.created_at;
-    }
+      if (left.created_at !== right.created_at) {
+        return right.created_at - left.created_at;
+      }
 
-    return left.id.localeCompare(right.id);
-  });
+      return left.id.localeCompare(right.id);
+    });
+}
+
+function buildVisibleSidebarSessions(params: {
+  sessions: AsterSessionInfo[];
+  currentSessionId?: string | null;
+  limit: number;
+}): AsterSessionInfo[] {
+  const { sessions, currentSessionId, limit } = params;
+  if (limit <= 0) {
+    return [];
+  }
+
+  if (sessions.length <= limit) {
+    return sessions;
+  }
+
+  const visibleSessions = sessions.slice(0, limit);
+  const normalizedCurrentSessionId = currentSessionId?.trim();
+  if (
+    !normalizedCurrentSessionId ||
+    visibleSessions.some((session) => session.id === normalizedCurrentSessionId)
+  ) {
+    return visibleSessions;
+  }
+
+  const currentSession = sessions.find(
+    (session) => session.id === normalizedCurrentSessionId,
+  );
+  if (!currentSession) {
+    return visibleSessions;
+  }
+
+  return [...visibleSessions.slice(0, Math.max(limit - 1, 0)), currentSession];
 }
 
 function formatSidebarSessionTime(updatedAt: number): string {
@@ -778,7 +877,8 @@ export function AppSidebar({
   const isClawTaskCenter = activePage === "agent" && agentEntry === "claw";
   const isNewTaskHome = activePage === "agent" && agentEntry === "new-task";
   const currentProjectId = activeAgentPageParams?.projectId?.trim() || null;
-  const currentSessionId = activeAgentPageParams?.initialSessionId?.trim() || null;
+  const currentSessionId =
+    activeAgentPageParams?.initialSessionId?.trim() || null;
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") {
       return false;
@@ -803,14 +903,36 @@ export function AppSidebar({
   const [sidebarPlugins, setSidebarPlugins] = useState<PluginUIInfo[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const sidebarSessionsRef = useRef<AsterSessionInfo[]>([]);
-  const [sidebarSessions, setSidebarSessions] = useState<AsterSessionInfo[]>([]);
-  const [sidebarSessionsLoading, setSidebarSessionsLoading] = useState(false);
-  const [sidebarSessionActionId, setSidebarSessionActionId] = useState<string | null>(
-    null,
+  const archivedSidebarSessionsRef = useRef<AsterSessionInfo[]>([]);
+  const [sidebarSessions, setSidebarSessions] = useState<AsterSessionInfo[]>(
+    [],
   );
+  const [sidebarSessionsHasMore, setSidebarSessionsHasMore] = useState(false);
+  const [sidebarSessionsLoading, setSidebarSessionsLoading] = useState(false);
+  const [archivedSessionEntries, setArchivedSessionEntries] = useState<
+    AsterSessionInfo[]
+  >([]);
+  const [archivedSessionEntriesHasMore, setArchivedSessionEntriesHasMore] =
+    useState(false);
+  const [archivedSidebarSessionsLoading, setArchivedSidebarSessionsLoading] =
+    useState(false);
+  const [sidebarSessionActionId, setSidebarSessionActionId] = useState<
+    string | null
+  >(null);
   const [recentSessionsCollapsed, setRecentSessionsCollapsed] = useState(false);
   const [archivedSessionsCollapsed, setArchivedSessionsCollapsed] =
-    useState(false);
+    useState(true);
+  const [recentSessionsVisibleCount, setRecentSessionsVisibleCount] = useState(
+    SIDEBAR_RECENT_SESSION_PAGE_SIZE,
+  );
+  const [archivedSessionsVisibleCount, setArchivedSessionsVisibleCount] =
+    useState(SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE);
+  const hasCachedCurrentSessionSidebarEntry =
+    hasCachedSidebarSessionEntry(sidebarSessionsRef.current, currentSessionId) ||
+    hasCachedSidebarSessionEntry(
+      archivedSidebarSessionsRef.current,
+      currentSessionId,
+    );
 
   useEffect(() => {
     const loadNavConfig = async () => {
@@ -834,13 +956,15 @@ export function AppSidebar({
 
   const filteredMainNavItems = useMemo<SidebarNavItem[]>(() => {
     return MAIN_SIDEBAR_NAV_ITEMS.filter(
-      (item) => item.configurable === false || enabledNavItems.includes(item.id),
+      (item) =>
+        item.configurable === false || enabledNavItems.includes(item.id),
     );
   }, [enabledNavItems]);
 
   const filteredFooterNavItems = useMemo<SidebarNavItem[]>(() => {
     return FOOTER_SIDEBAR_NAV_ITEMS.filter(
-      (item) => item.configurable === false || enabledNavItems.includes(item.id),
+      (item) =>
+        item.configurable === false || enabledNavItems.includes(item.id),
     );
   }, [enabledNavItems]);
 
@@ -944,12 +1068,42 @@ export function AppSidebar({
     !(activePage === "agent" && activeAgentPageParams?.immersiveHome);
   const shouldShowSessionLoadingState =
     sidebarSessionsLoading && sidebarSessions.length === 0;
+  const shouldShowArchivedSessionLoadingState =
+    archivedSidebarSessionsLoading && archivedSessionEntries.length === 0;
 
   useEffect(() => {
     sidebarSessionsRef.current = sidebarSessions;
   }, [sidebarSessions]);
+  useEffect(() => {
+    archivedSidebarSessionsRef.current = archivedSessionEntries;
+  }, [archivedSessionEntries]);
 
-  const refreshSidebarSessions = useCallback(async () => {
+  useEffect(() => {
+    setRecentSessionsVisibleCount(SIDEBAR_RECENT_SESSION_PAGE_SIZE);
+  }, [currentProjectId]);
+
+  useEffect(() => {
+    setArchivedSessionsVisibleCount(SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE);
+  }, [currentProjectId]);
+
+  const recentSessionRequestLimit = useMemo(
+    () =>
+      buildSidebarSessionRequestLimit(
+        recentSessionsVisibleCount,
+        SIDEBAR_RECENT_SESSION_PAGE_SIZE,
+      ),
+    [recentSessionsVisibleCount],
+  );
+  const archivedSessionRequestLimit = useMemo(
+    () =>
+      buildSidebarSessionRequestLimit(
+        archivedSessionsVisibleCount,
+        SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE,
+      ),
+    [archivedSessionsVisibleCount],
+  );
+
+  const loadRecentSidebarSessions = useCallback(async () => {
     if (!shouldShowConversationList) {
       return;
     }
@@ -959,46 +1113,118 @@ export function AppSidebar({
     );
     try {
       const sessions = await listAgentRuntimeSessions({
-        includeArchived: true,
+        limit: recentSessionRequestLimit,
+        workspaceId: currentProjectId ?? undefined,
       });
-      setSidebarSessions(sortSidebarSessions(sessions));
+      const sortedSessions = sortSidebarSessions(sessions);
+      const { sessions: nextSessions, hasMore } = splitSidebarSessionResult({
+        sessions: sortedSessions,
+        visibleCount: recentSessionsVisibleCount,
+        pageSize: SIDEBAR_RECENT_SESSION_PAGE_SIZE,
+      });
+      setSidebarSessions(nextSessions);
+      setSidebarSessionsHasMore(hasMore);
     } catch (error) {
       console.error("加载导航任务列表失败:", error);
       setSidebarSessions([]);
+      setSidebarSessionsHasMore(false);
     } finally {
       setSidebarSessionsLoading(false);
     }
-  }, [shouldShowConversationList]);
+  }, [
+    currentProjectId,
+    recentSessionRequestLimit,
+    recentSessionsVisibleCount,
+    shouldShowConversationList,
+  ]);
+  const loadRecentSidebarSessionsRef = useRef(loadRecentSidebarSessions);
+  useEffect(() => {
+    loadRecentSidebarSessionsRef.current = loadRecentSidebarSessions;
+  }, [loadRecentSidebarSessions]);
+
+  const loadArchivedSidebarSessions = useCallback(async () => {
+    if (!shouldShowConversationList || archivedSessionsCollapsed) {
+      return;
+    }
+
+    setArchivedSidebarSessionsLoading(
+      (current) => current || archivedSidebarSessionsRef.current.length === 0,
+    );
+    try {
+      const sessions = await listAgentRuntimeSessions({
+        archivedOnly: true,
+        limit: archivedSessionRequestLimit,
+        workspaceId: currentProjectId ?? undefined,
+      });
+      const sortedSessions = sortSidebarSessions(
+        sessions.filter((session) => Boolean(session.archived_at)),
+      );
+      const { sessions: nextSessions, hasMore } = splitSidebarSessionResult({
+        sessions: sortedSessions,
+        visibleCount: archivedSessionsVisibleCount,
+        pageSize: SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE,
+      });
+      setArchivedSessionEntries(nextSessions);
+      setArchivedSessionEntriesHasMore(hasMore);
+    } catch (error) {
+      console.error("加载归档任务列表失败:", error);
+      setArchivedSessionEntries([]);
+      setArchivedSessionEntriesHasMore(false);
+    } finally {
+      setArchivedSidebarSessionsLoading(false);
+    }
+  }, [
+    archivedSessionRequestLimit,
+    archivedSessionsCollapsed,
+    archivedSessionsVisibleCount,
+    currentProjectId,
+    shouldShowConversationList,
+  ]);
+  const loadArchivedSidebarSessionsRef = useRef(loadArchivedSidebarSessions);
+  useEffect(() => {
+    loadArchivedSidebarSessionsRef.current = loadArchivedSidebarSessions;
+  }, [loadArchivedSidebarSessions]);
+
+  const refreshSidebarSessions = useCallback(async () => {
+    await loadRecentSidebarSessions();
+    if (!archivedSessionsCollapsed) {
+      await loadArchivedSidebarSessions();
+    }
+  }, [
+    archivedSessionsCollapsed,
+    loadArchivedSidebarSessions,
+    loadRecentSidebarSessions,
+  ]);
 
   useEffect(() => {
     if (!shouldShowConversationList) {
       return;
     }
 
-    let cancelled = false;
+    if (isClawTaskCenter && hasCachedCurrentSessionSidebarEntry) {
+      return scheduleMinimumDelayIdleTask(
+        () => {
+          void loadRecentSidebarSessionsRef.current();
+        },
+        {
+          minimumDelayMs: SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS,
+          idleTimeoutMs: SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS,
+        },
+      );
+    }
 
-    const loadSessions = async () => {
-      try {
-        const sessions = await listAgentRuntimeSessions({
-          includeArchived: true,
-        });
-        if (!cancelled) {
-          setSidebarSessions(sortSidebarSessions(sessions));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error("加载导航任务列表失败:", error);
-          setSidebarSessions([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setSidebarSessionsLoading(false);
-        }
-      }
-    };
+    void loadRecentSidebarSessionsRef.current();
+  }, [
+    currentProjectId,
+    hasCachedCurrentSessionSidebarEntry,
+    isClawTaskCenter,
+    shouldShowConversationList,
+  ]);
 
-    setSidebarSessionsLoading(sidebarSessionsRef.current.length === 0);
-    void loadSessions();
+  useEffect(() => {
+    if (!shouldShowConversationList) {
+      return;
+    }
 
     const handleFocus = () => {
       void refreshSidebarSessions();
@@ -1007,10 +1233,58 @@ export function AppSidebar({
     window.addEventListener("focus", handleFocus);
 
     return () => {
-      cancelled = true;
       window.removeEventListener("focus", handleFocus);
     };
   }, [refreshSidebarSessions, shouldShowConversationList]);
+
+  useEffect(() => {
+    if (!shouldShowConversationList || archivedSessionsCollapsed) {
+      return;
+    }
+
+    void loadArchivedSidebarSessionsRef.current();
+  }, [archivedSessionsCollapsed, currentProjectId, shouldShowConversationList]);
+
+  useEffect(() => {
+    if (!shouldShowConversationList || !sidebarSessionsHasMore) {
+      return;
+    }
+
+    if (recentSessionsVisibleCount < sidebarSessions.length) {
+      return;
+    }
+
+    void loadRecentSidebarSessions();
+  }, [
+    loadRecentSidebarSessions,
+    recentSessionsVisibleCount,
+    shouldShowConversationList,
+    sidebarSessions.length,
+    sidebarSessionsHasMore,
+  ]);
+
+  useEffect(() => {
+    if (
+      !shouldShowConversationList ||
+      archivedSessionsCollapsed ||
+      !archivedSessionEntriesHasMore
+    ) {
+      return;
+    }
+
+    if (archivedSessionsVisibleCount < archivedSessionEntries.length) {
+      return;
+    }
+
+    void loadArchivedSidebarSessions();
+  }, [
+    archivedSessionEntries.length,
+    archivedSessionEntriesHasMore,
+    archivedSessionsCollapsed,
+    archivedSessionsVisibleCount,
+    loadArchivedSidebarSessions,
+    shouldShowConversationList,
+  ]);
 
   const assistantItems = useMemo<SidebarNavItem[]>(() => {
     return sidebarPlugins.map((plugin) => {
@@ -1026,23 +1300,50 @@ export function AppSidebar({
   const shouldShowPluginExtensionsSection =
     enabledNavItems.includes(SIDEBAR_PLUGIN_CENTER_NAV_ITEM_ID) &&
     assistantItems.length > 0;
-  const filteredSidebarSessions = useMemo(() => {
-    if (!currentProjectId) {
-      return sidebarSessions;
-    }
+  const recentSidebarSessions = useMemo(() => {
+    const filteredSessions = currentProjectId
+      ? sidebarSessions.filter(
+          (session) =>
+            !session.workspace_id || session.workspace_id === currentProjectId,
+        )
+      : sidebarSessions;
 
-    return sidebarSessions.filter(
-      (session) => !session.workspace_id || session.workspace_id === currentProjectId,
-    );
+    return filteredSessions.filter((session) => !session.archived_at);
   }, [currentProjectId, sidebarSessions]);
-  const recentSidebarSessions = useMemo(
-    () => filteredSidebarSessions.filter((session) => !session.archived_at),
-    [filteredSidebarSessions],
+  const archivedSidebarSessions = useMemo(() => {
+    const filteredSessions = currentProjectId
+      ? archivedSessionEntries.filter(
+          (session) =>
+            !session.workspace_id || session.workspace_id === currentProjectId,
+        )
+      : archivedSessionEntries;
+
+    return filteredSessions.filter((session) => Boolean(session.archived_at));
+  }, [archivedSessionEntries, currentProjectId]);
+  const visibleRecentSidebarSessions = useMemo(
+    () =>
+      buildVisibleSidebarSessions({
+        sessions: recentSidebarSessions,
+        currentSessionId,
+        limit: recentSessionsVisibleCount,
+      }),
+    [currentSessionId, recentSessionsVisibleCount, recentSidebarSessions],
   );
-  const archivedSidebarSessions = useMemo(
-    () => filteredSidebarSessions.filter((session) => Boolean(session.archived_at)),
-    [filteredSidebarSessions],
+  const visibleArchivedSidebarSessions = useMemo(
+    () =>
+      buildVisibleSidebarSessions({
+        sessions: archivedSidebarSessions,
+        currentSessionId,
+        limit: archivedSessionsVisibleCount,
+      }),
+    [archivedSessionsVisibleCount, archivedSidebarSessions, currentSessionId],
   );
+  const hasMoreRecentSidebarSessions =
+    sidebarSessionsHasMore ||
+    recentSessionsVisibleCount < recentSidebarSessions.length;
+  const hasMoreArchivedSidebarSessions =
+    archivedSessionEntriesHasMore ||
+    archivedSessionsVisibleCount < archivedSidebarSessions.length;
 
   const isActive = (item: SidebarNavItem): boolean => {
     if (!item.page) {
@@ -1057,6 +1358,37 @@ export function AppSidebar({
   };
 
   const handleNavigate = (item: SidebarNavItem) => {
+    if (item.id === "workbench") {
+      const fallbackSessionId =
+        currentSessionId ??
+        recentSidebarSessions[0]?.id ??
+        sidebarSessions[0]?.id ??
+        undefined;
+      const targetParams = buildClawAgentParams({
+        projectId: currentProjectId ?? undefined,
+        initialSessionId: fallbackSessionId,
+      });
+      const target = {
+        page: "agent" as Page,
+        rawParams: targetParams,
+        paramsKey: serializeNavigationParams(targetParams),
+      } satisfies SidebarNavigationTarget;
+
+      if (
+        isSameSidebarNavigationTarget(
+          target,
+          requestedNavigationTargetRef.current.page,
+          requestedNavigationTargetRef.current.rawParams,
+        )
+      ) {
+        return;
+      }
+
+      requestedNavigationTargetRef.current = target;
+      onNavigate(target.page, target.rawParams);
+      return;
+    }
+
     const target = resolveSidebarNavigationTarget(item);
 
     if (!target) {
@@ -1162,18 +1494,26 @@ export function AppSidebar({
   const handleToggleSessionArchive = useCallback(
     async (session: AsterSessionInfo, archived: boolean) => {
       const nextUpdatedAt = Math.floor(Date.now() / 1000);
+      const nextSession = {
+        ...session,
+        updated_at: nextUpdatedAt,
+        archived_at: archived ? nextUpdatedAt : null,
+      } satisfies AsterSessionInfo;
       setSidebarSessionActionId(session.id);
       setSidebarSessions((current) =>
         sortSidebarSessions(
-          current.map((item) =>
-            item.id === session.id
-              ? {
-                  ...item,
-                  updated_at: nextUpdatedAt,
-                  archived_at: archived ? nextUpdatedAt : null,
-                }
-              : item,
-          ),
+          current
+            .map((item) => (item.id === session.id ? nextSession : item))
+            .filter((item) => !item.archived_at),
+        ),
+      );
+      setArchivedSessionEntries((current) =>
+        sortSidebarSessions(
+          archived
+            ? [nextSession, ...current.filter((item) => item.id !== session.id)]
+            : current
+                .map((item) => (item.id === session.id ? nextSession : item))
+                .filter((item) => Boolean(item.archived_at)),
         ),
       );
 
@@ -1251,7 +1591,9 @@ export function AppSidebar({
                 <ConversationSectionHeader>
                   <ConversationSectionTitle
                     type="button"
-                    onClick={() => setRecentSessionsCollapsed((value) => !value)}
+                    onClick={() =>
+                      setRecentSessionsCollapsed((value) => !value)
+                    }
                     aria-expanded={!recentSessionsCollapsed}
                   >
                     <ChevronDown
@@ -1276,13 +1618,16 @@ export function AppSidebar({
                         正在加载对话
                       </ConversationEmptyState>
                     ) : recentSidebarSessions.length > 0 ? (
-                      recentSidebarSessions.map((session) => {
-                        const isCurrentConversation = currentSessionId === session.id;
+                      visibleRecentSidebarSessions.map((session) => {
+                        const isCurrentConversation =
+                          currentSessionId === session.id;
                         return (
                           <ConversationItemRow
                             key={session.id}
                             $active={isCurrentConversation}
-                            data-active={isCurrentConversation ? "true" : "false"}
+                            data-active={
+                              isCurrentConversation ? "true" : "false"
+                            }
                           >
                             <ConversationItemButton
                               type="button"
@@ -1295,7 +1640,9 @@ export function AppSidebar({
                               }
                               title={resolveSidebarSessionTitle(session)}
                             >
-                              <ConversationItemDot $active={isCurrentConversation} />
+                              <ConversationItemDot
+                                $active={isCurrentConversation}
+                              />
                               <ConversationItemLabel>
                                 {resolveSidebarSessionTitle(session)}
                               </ConversationItemLabel>
@@ -1324,6 +1671,19 @@ export function AppSidebar({
                         还没有开始对话
                       </ConversationEmptyState>
                     )}
+                    {hasMoreRecentSidebarSessions ? (
+                      <ConversationListMoreButton
+                        type="button"
+                        onClick={() =>
+                          setRecentSessionsVisibleCount(
+                            (current) =>
+                              current + SIDEBAR_RECENT_SESSION_PAGE_SIZE,
+                          )
+                        }
+                      >
+                        查看更多对话
+                      </ConversationListMoreButton>
+                    ) : null}
                   </ConversationList>
                 ) : null}
               </ConversationSection>
@@ -1332,7 +1692,9 @@ export function AppSidebar({
                 <ConversationSectionHeader>
                   <ConversationSectionTitle
                     type="button"
-                    onClick={() => setArchivedSessionsCollapsed((value) => !value)}
+                    onClick={() =>
+                      setArchivedSessionsCollapsed((value) => !value)
+                    }
                     aria-expanded={!archivedSessionsCollapsed}
                   >
                     <ChevronDown
@@ -1343,9 +1705,13 @@ export function AppSidebar({
                 </ConversationSectionHeader>
                 {!archivedSessionsCollapsed ? (
                   <ConversationList data-testid="app-sidebar-archived-conversations">
-                    {shouldShowSessionLoadingState ? null : archivedSidebarSessions.length >
-                      0 ? (
-                      archivedSidebarSessions.map((session) => (
+                    {shouldShowArchivedSessionLoadingState ? (
+                      <ConversationEmptyState>
+                        <Clock3 size={14} />
+                        正在加载归档
+                      </ConversationEmptyState>
+                    ) : archivedSidebarSessions.length > 0 ? (
+                      visibleArchivedSidebarSessions.map((session) => (
                         <ConversationItemRow
                           key={session.id}
                           $active={currentSessionId === session.id}
@@ -1357,9 +1723,13 @@ export function AppSidebar({
                             type="button"
                             $active={currentSessionId === session.id}
                             aria-current={
-                              currentSessionId === session.id ? "page" : undefined
+                              currentSessionId === session.id
+                                ? "page"
+                                : undefined
                             }
-                            onClick={() => handleNavigateToConversation(session)}
+                            onClick={() =>
+                              handleNavigateToConversation(session)
+                            }
                             title={resolveSidebarSessionTitle(session)}
                           >
                             <ConversationItemDot
@@ -1392,6 +1762,19 @@ export function AppSidebar({
                         暂无归档内容
                       </ConversationEmptyState>
                     )}
+                    {hasMoreArchivedSidebarSessions ? (
+                      <ConversationListMoreButton
+                        type="button"
+                        onClick={() =>
+                          setArchivedSessionsVisibleCount(
+                            (current) =>
+                              current + SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE,
+                          )
+                        }
+                      >
+                        查看更多归档
+                      </ConversationListMoreButton>
+                    ) : null}
                   </ConversationList>
                 ) : null}
               </ConversationSection>
@@ -1409,7 +1792,10 @@ export function AppSidebar({
             $collapsed={collapsed}
             data-testid="app-sidebar-footer-area"
           >
-            <Section $collapsed={collapsed} data-testid="app-sidebar-footer-nav">
+            <Section
+              $collapsed={collapsed}
+              data-testid="app-sidebar-footer-nav"
+            >
               {filteredFooterNavItems.map((item) => renderNavItem(item))}
             </Section>
 

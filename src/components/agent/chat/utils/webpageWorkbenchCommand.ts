@@ -1,4 +1,10 @@
-export type WebpageWorkbenchCommandTrigger = "@网页" | "@webpage" | "@landing";
+export type WebpageWorkbenchCommandTrigger =
+  | "@网页"
+  | "@webpage"
+  | "@landing"
+  | "@Web Composer"
+  | "@HTML Preview"
+  | "@Web Style";
 
 export type WebpageType =
   | "landing_page"
@@ -20,7 +26,7 @@ export interface ParsedWebpageWorkbenchCommand {
 }
 
 const WEBPAGE_COMMAND_PREFIX_REGEX =
-  /^\s*(@网页|@webpage|@landing)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@网页|@webpage|@landing|@Web Composer|@HTML Preview|@Web Style)(?:\s+|$)([\s\S]*)$/i;
 const EXPLICIT_PAGE_TYPE_REGEX =
   /(?:类型|页面类型|type)\s*[:：=]?\s*(落地页|landing(?:\s+page)?|官网|首页|home(?:\s+page)?|活动页|campaign(?:\s+page)?|产品页|product(?:\s+page)?|文档页|docs?(?:\s+page)?|作品集|portfolio|简历页|resume(?:\s+page)?)(?=$|[\s,，。；;:：])/i;
 const LEADING_PAGE_TYPE_REGEX =
@@ -39,6 +45,15 @@ const PROMPT_PREFIX_REGEX =
 
 function normalizeTrigger(value: string): WebpageWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
+  if (normalized === "@web composer") {
+    return "@Web Composer";
+  }
+  if (normalized === "@html preview") {
+    return "@HTML Preview";
+  }
+  if (normalized === "@web style") {
+    return "@Web Style";
+  }
   if (normalized === "@webpage") {
     return "@webpage";
   }

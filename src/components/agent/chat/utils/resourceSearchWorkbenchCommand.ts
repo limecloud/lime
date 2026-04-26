@@ -1,7 +1,11 @@
 export type ResourceSearchWorkbenchCommandTrigger =
   | "@素材"
   | "@资源"
-  | "@resource";
+  | "@resource"
+  | "@Image Search"
+  | "@Fetch Image"
+  | "@Pinterest Image Search"
+  | "@Video Search";
 
 export type ResourceSearchType = "image" | "bgm" | "sfx" | "video";
 
@@ -18,7 +22,7 @@ export interface ParsedResourceSearchWorkbenchCommand {
 }
 
 const RESOURCE_SEARCH_COMMAND_PREFIX_REGEX =
-  /^\s*(@素材|@资源|@resource)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@素材|@资源|@resource|@Image Search|@Fetch Image|@Pinterest Image Search|@Video Search)(?:\s+|$)([\s\S]*)$/i;
 const FIELD_LABEL_REGEX =
   /(?:(标题|title)|(类型|资源类型|resource(?:[_\s-]?type)?|type)|(关键词|查询|query)|(用途|usage)|(数量|count))\s*[:：=]?\s*/gi;
 const PROMPT_PREFIX_REGEX =
@@ -50,6 +54,18 @@ function normalizeTrigger(
   value: string,
 ): ResourceSearchWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
+  if (normalized === "@pinterest image search") {
+    return "@Pinterest Image Search";
+  }
+  if (normalized === "@image search") {
+    return "@Image Search";
+  }
+  if (normalized === "@fetch image") {
+    return "@Fetch Image";
+  }
+  if (normalized === "@video search") {
+    return "@Video Search";
+  }
   if (normalized === "@资源") {
     return "@资源";
   }
@@ -149,6 +165,29 @@ function inferResourceTypeFromText(
   ) {
     return "image";
   }
+  return undefined;
+}
+
+function resolveDefaultResourceType(
+  trigger: ResourceSearchWorkbenchCommandTrigger,
+  resourceType?: ResourceSearchType,
+): ResourceSearchType | undefined {
+  if (resourceType) {
+    return resourceType;
+  }
+
+  if (
+    trigger === "@Image Search" ||
+    trigger === "@Fetch Image" ||
+    trigger === "@Pinterest Image Search"
+  ) {
+    return "image";
+  }
+
+  if (trigger === "@Video Search") {
+    return "video";
+  }
+
   return undefined;
 }
 
@@ -342,10 +381,13 @@ export function parseResourceSearchWorkbenchCommand(
   }
 
   const body = (matched[2] || "").trim();
+  const trigger = normalizeTrigger(matched[1] || "");
   const explicitFields = extractExplicitFields(body);
   let strippedText = explicitFields.strippedText;
-  const inferredResourceType =
-    explicitFields.resourceType || inferResourceTypeFromText(strippedText);
+  const inferredResourceType = resolveDefaultResourceType(
+    trigger,
+    explicitFields.resourceType || inferResourceTypeFromText(strippedText),
+  );
 
   strippedText = stripLeadingResourceType(strippedText, inferredResourceType);
   strippedText = trimDecorations(strippedText.replace(PROMPT_PREFIX_REGEX, ""));
@@ -364,7 +406,7 @@ export function parseResourceSearchWorkbenchCommand(
 
   return {
     rawText: text,
-    trigger: normalizeTrigger(matched[1] || ""),
+    trigger,
     body,
     prompt,
     title: explicitFields.title,

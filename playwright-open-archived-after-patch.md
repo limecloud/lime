@@ -1,0 +1,179 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - button "Lime Lime" [ref=e8] [cursor=pointer]:
+            - img "Lime" [ref=e10]
+            - generic [ref=e11]: Lime
+          - button "折叠导航栏" [ref=e12] [cursor=pointer]:
+            - img [ref=e13]
+        - button "搜索任务" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - generic [ref=e20]: 搜索任务
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - button "新建任务" [ref=e23] [cursor=pointer]:
+            - img [ref=e24]
+            - generic [ref=e25]: 新建任务
+          - button "工作台" [ref=e26] [cursor=pointer]:
+            - img [ref=e27]
+            - generic [ref=e29]: 工作台
+          - button "我的方法" [ref=e30] [cursor=pointer]:
+            - img [ref=e31]
+            - generic [ref=e33]: 我的方法
+          - button "灵感库" [ref=e34] [cursor=pointer]:
+            - img [ref=e35]
+            - generic [ref=e47]: 灵感库
+        - generic [ref=e48]:
+          - generic [ref=e49]:
+            - generic [ref=e50]:
+              - button "最近对话" [expanded] [ref=e51] [cursor=pointer]:
+                - img [ref=e52]
+                - text: 最近对话
+              - button "新建对话" [ref=e54] [cursor=pointer]:
+                - img [ref=e55]
+            - generic [ref=e57]:
+              - generic [ref=e58]:
+                - button "新对话 11分" [ref=e502] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e63]:
+                - button "新对话 2时" [ref=e64] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e72]:
+                - button "新对话 2时" [ref=e73] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e77]:
+                - button "新对话 2时" [ref=e78] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e82]:
+                - button "Smoke harness response 9时" [ref=e83] [cursor=pointer]
+                - button "归档 Smoke harness response"
+              - generic [ref=e87]:
+                - button "新对话 9时" [ref=e88] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e92]:
+                - button "新对话 9时" [ref=e93] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e97]:
+                - button "新对话 9时" [ref=e98] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e102]:
+                - button "新对话 9时" [ref=e103] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e107]:
+                - button "新对话 15时" [ref=e108] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e112]:
+                - button "新对话 16时" [ref=e113] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e117]:
+                - button "新对话 16时" [ref=e118] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e122]:
+                - button "新对话 16时" [ref=e123] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e127]:
+                - button "新对话 16时" [ref=e128] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e132]:
+                - button "新对话 16时" [ref=e133] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e137]:
+                - button "新对话 16时" [ref=e138] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e142]:
+                - button "新对话 16时" [ref=e143] [cursor=pointer]
+                - button "归档 新对话"
+              - generic [ref=e147]:
+                - button "新对话 16时" [ref=e148] [cursor=pointer]
+                - button "归档 新对话"
+              - button "查看更多对话" [ref=e152] [cursor=pointer]
+          - generic [ref=e153]:
+            - button "归档" [expanded] [ref=e155] [cursor=pointer]:
+              - img [ref=e156]
+              - text: 归档
+            - generic [ref=e497]:
+              - button "你好！👋 我是 **Lime 助手*... 归档 18时" [active] [ref=e498] [cursor=pointer]:
+                - generic [ref=e500]: 你好！👋 我是 **Lime 助手*...
+                - generic [ref=e501]: 归档 18时
+              - button "恢复 你好！👋 我是 **Lime 助手*..." [ref=e503] [cursor=pointer]:
+                - img [ref=e504]
+        - generic [ref=e158]:
+          - generic [ref=e159]:
+            - button "设置" [ref=e160] [cursor=pointer]:
+              - img [ref=e161]
+              - generic [ref=e164]: 设置
+            - button "持续流程" [ref=e165] [cursor=pointer]:
+              - img [ref=e166]
+              - generic [ref=e170]: 持续流程
+            - button "消息渠道" [ref=e171] [cursor=pointer]:
+              - img [ref=e172]
+              - generic [ref=e174]: 消息渠道
+          - button "切换到深色模式" [ref=e176] [cursor=pointer]:
+            - img [ref=e177]
+    - main [ref=e183]:
+      - generic [ref=e325]:
+        - generic [ref=e327]:
+          - generic [ref=e328]:
+            - button "默认项目":
+              - generic:
+                - img
+                - generic
+            - button "展开工作区菜单" [ref=e330] [cursor=pointer]:
+              - img [ref=e331]
+          - generic [ref=e332]:
+            - button "压缩上下文" [ref=e333] [cursor=pointer]:
+              - img [ref=e334]
+            - button "打开设置" [ref=e337] [cursor=pointer]:
+              - img [ref=e338]
+        - generic [ref=e342]:
+          - button "新建对话" [ref=e345] [cursor=pointer]:
+            - img [ref=e346]
+          - button "展开工作台" [ref=e348] [cursor=pointer]:
+            - img [ref=e349]
+            - generic [ref=e352]: 工作台
+        - generic [ref=e359]:
+          - generic [ref=e508]:
+            - generic [ref=e511]:
+              - paragraph [ref=e514]: 你好
+              - generic:
+                - button "引用消息"
+                - button "复制消息"
+            - generic "Lime" [ref=e517]:
+              - generic [ref=e520]:
+                - generic
+                - generic [ref=e521]
+              - button "title-generation-title-gen-8e13e64c-0eb3-4771-aff4-8988f684c650.json 12:05 包含结构化结果，点击在画布中查看完整内容。 .lime/harness/sessions/f24b2d03-b4a9-4ab4-a3ab-ec…c-0eb3-4771-aff4-8988f684c650.json 在画布中打开" [ref=e538] [cursor=pointer]:
+                - generic [ref=e539]
+              - generic [ref=e559]:
+                - generic [ref=e560]: 已完成
+                - generic [ref=e562]: ·
+                - generic [ref=e563]: 00:00
+                - generic [ref=e564]: ·
+                - generic [ref=e565]: 输入 15.8K / 输出 139
+                - generic [ref=e566]: ·
+                - generic [ref=e567]: 缓存 12.3K（读 12.3K / 写 0）
+              - generic:
+                - button "引用消息"
+                - button "复制消息"
+                - button "保存为技能"
+                - button "保存到灵感库"
+          - generic [ref=e406]:
+            - generic [ref=e408]:
+              - button "添加图片" [ref=e409] [cursor=pointer]:
+                - img [ref=e410]
+              - textbox "在这里输入消息, 按 Enter 发送" [ref=e415]
+              - generic [ref=e416]:
+                - button "展开输入框" [ref=e417] [cursor=pointer]
+                - button "开始语音输入" [ref=e420] [cursor=pointer]
+                - button "发送" [disabled] [ref=e424]
+            - generic [ref=e429]:
+              - button "展开高级设置" [ref=e430] [cursor=pointer]:
+                - img [ref=e433]
+                - generic [ref=e436]: 高级设置
+                - img [ref=e437]
+              - generic "当前模型：Custom-cae6e762-fb45-4f71-878c-3106510ade78 / mimo-v2.5-pro" [ref=e439]:
+                - generic [ref=e440]: 当前模型
+                - generic [ref=e441]: mimo-v2.5-pro
+  - region "Notifications alt+T"

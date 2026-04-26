@@ -1,5 +1,6 @@
 use super::*;
 use crate::commands::aster_agent_cmd::dto::AgentRuntimeListSessionsRequest;
+use lime_core::database::dao::agent::SessionArchiveFilter;
 
 /// 创建新会话
 #[tauri::command]
@@ -30,22 +31,47 @@ pub async fn agent_runtime_list_sessions(
     request: Option<AgentRuntimeListSessionsRequest>,
 ) -> Result<Vec<SessionInfo>, String> {
     let started_at = Instant::now();
-    let include_archived = request
-        .and_then(|value| value.include_archived)
-        .unwrap_or(false);
+    let request = request.unwrap_or_default();
+    let archive_filter = if request.archived_only.unwrap_or(false) {
+        SessionArchiveFilter::ArchivedOnly
+    } else if request.include_archived.unwrap_or(false) {
+        SessionArchiveFilter::All
+    } else {
+        SessionArchiveFilter::ActiveOnly
+    };
+    let workspace_id = request
+        .workspace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let limit = request.limit.map(|value| value.min(200));
     logs.write()
         .await
-        .add("info", "[AgentDiag] agent_runtime_list_sessions.start");
+        .add(
+            "info",
+            &format!(
+                "[AgentDiag] agent_runtime_list_sessions.start archive_filter={} workspace_id={} limit={}",
+                archive_filter.as_log_label(),
+                workspace_id.unwrap_or("-"),
+                limit
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "-".to_string())
+            ),
+        );
 
-    match list_runtime_sessions_internal(db.inner(), include_archived) {
+    match list_runtime_sessions_internal(db.inner(), archive_filter, workspace_id, limit) {
         Ok(sessions) => {
             logs.write().await.add(
                 "info",
                 &format!(
-                    "[AgentDiag] agent_runtime_list_sessions.success duration_ms={} sessions={} include_archived={}",
+                    "[AgentDiag] agent_runtime_list_sessions.success duration_ms={} sessions={} archive_filter={} workspace_id={} limit={}",
                     started_at.elapsed().as_millis(),
                     sessions.len(),
-                    include_archived
+                    archive_filter.as_log_label(),
+                    workspace_id.unwrap_or("-"),
+                    limit
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "-".to_string())
                 ),
             );
             Ok(sessions)
@@ -54,8 +80,13 @@ pub async fn agent_runtime_list_sessions(
             logs.write().await.add(
                 "error",
                 &format!(
-                    "[AgentDiag] agent_runtime_list_sessions.error duration_ms={} error={}",
+                    "[AgentDiag] agent_runtime_list_sessions.error duration_ms={} archive_filter={} workspace_id={} limit={} error={}",
                     started_at.elapsed().as_millis(),
+                    archive_filter.as_log_label(),
+                    workspace_id.unwrap_or("-"),
+                    limit
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "-".to_string()),
                     crate::logger::sanitize_log_message(&error)
                 ),
             );

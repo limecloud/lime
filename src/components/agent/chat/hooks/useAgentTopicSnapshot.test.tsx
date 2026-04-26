@@ -2,6 +2,15 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "../types";
+
+const { mockLogAgentDebug } = vi.hoisted(() => ({
+  mockLogAgentDebug: vi.fn(),
+}));
+
+vi.mock("@/lib/agentDebug", () => ({
+  logAgentDebug: mockLogAgentDebug,
+}));
+
 import { useAgentTopicSnapshot } from "./useAgentTopicSnapshot";
 
 type HookProps = Parameters<typeof useAgentTopicSnapshot>[0];
@@ -34,6 +43,7 @@ async function mountHook(props?: Partial<HookProps>): Promise<HookHarness> {
   const defaultProps: HookProps = {
     sessionId: "session-1",
     hasActiveTopic: true,
+    suppressInactiveTopicWarning: false,
     messages: [createMessage()],
     isSending: false,
     pendingActionCount: 0,
@@ -103,6 +113,7 @@ describe("useAgentTopicSnapshot", () => {
       mounted.container.remove();
     }
     vi.clearAllMocks();
+    mockLogAgentDebug.mockClear();
     vi.useRealTimers();
   });
 
@@ -246,6 +257,23 @@ describe("useAgentTopicSnapshot", () => {
           status: "running",
         }),
       );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("detached 会话缺少活动话题时不应继续输出 warning", async () => {
+    const updateTopicSnapshot = vi.fn();
+    const harness = await mountHook({
+      hasActiveTopic: false,
+      suppressInactiveTopicWarning: true,
+      topicsCount: 8,
+      updateTopicSnapshot,
+    });
+
+    try {
+      expect(updateTopicSnapshot).not.toHaveBeenCalled();
+      expect(mockLogAgentDebug).not.toHaveBeenCalled();
     } finally {
       harness.unmount();
     }

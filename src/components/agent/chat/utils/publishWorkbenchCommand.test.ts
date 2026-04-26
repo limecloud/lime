@@ -28,6 +28,32 @@ describe("parsePublishWorkbenchCommand", () => {
     });
   });
 
+  it("应把平台型 Publish trigger 映射到默认平台", () => {
+    const result = parsePublishWorkbenchCommand(
+      "@YouTube Publish refine this launch draft into a ready-to-post script",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@YouTube Publish",
+      platformType: "youtube",
+      platformLabel: "YouTube",
+      prompt: "refine this launch draft into a ready-to-post script",
+    });
+  });
+
+  it("应把 Twitter Publish 归一到 X / Twitter 平台", () => {
+    const result = parsePublishWorkbenchCommand(
+      "@Twitter Publish turn this draft into a post thread package",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Twitter Publish",
+      platformType: "x",
+      platformLabel: "X / Twitter",
+      prompt: "turn this draft into a post thread package",
+    });
+  });
+
   it("没有显式平台时也应保留发布意图", () => {
     const result = parsePublishWorkbenchCommand(
       "@发文 请帮我整理这篇稿子，并给出发布前检查清单",

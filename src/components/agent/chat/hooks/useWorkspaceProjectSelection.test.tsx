@@ -8,6 +8,7 @@ interface HookHarness {
   getValue: () => ReturnType<typeof useWorkspaceProjectSelection>;
   rerender: (props?: {
     externalProjectId?: string | null;
+    initialSessionId?: string | null;
     newChatAt?: number;
   }) => void;
   unmount: () => void;
@@ -16,6 +17,7 @@ interface HookHarness {
 function mountHook(
   initialProps: {
     externalProjectId?: string | null;
+    initialSessionId?: string | null;
     newChatAt?: number;
   } = {},
 ): HookHarness {
@@ -27,6 +29,7 @@ function mountHook(
 
   function TestComponent(props: {
     externalProjectId?: string | null;
+    initialSessionId?: string | null;
     newChatAt?: number;
   }) {
     hookValue = useWorkspaceProjectSelection(props);
@@ -35,6 +38,7 @@ function mountHook(
 
   const render = (props?: {
     externalProjectId?: string | null;
+    initialSessionId?: string | null;
     newChatAt?: number;
   }) => {
     act(() => {
@@ -113,6 +117,20 @@ describe("useWorkspaceProjectSelection", () => {
 
       expect(harness.getValue().projectId).toBeUndefined();
       expect(harness.getValue().getRememberedProjectId()).toBe("project-a");
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("显式指定初始会话时应禁用自动恢复旧会话", () => {
+    localStorage.setItem(LAST_PROJECT_ID_KEY, JSON.stringify("project-local"));
+    const harness = mountHook({
+      initialSessionId: "session-42",
+    });
+
+    try {
+      expect(harness.getValue().projectId).toBe("project-local");
+      expect(harness.getValue().shouldDisableSessionRestore).toBe(true);
     } finally {
       harness.unmount();
     }

@@ -14,7 +14,11 @@ import type { ParsedCoverWorkbenchCommand } from "./coverWorkbenchCommand";
 import type {
   ParsedDeepSearchWorkbenchCommand,
 } from "./deepSearchWorkbenchCommand";
+import type {
+  ParsedFileReadWorkbenchCommand,
+} from "./fileReadWorkbenchCommand";
 import type { FormType, ParsedFormWorkbenchCommand } from "./formWorkbenchCommand";
+import type { ParsedGrowthWorkbenchCommand } from "./growthWorkbenchCommand";
 import type { ParsedImageWorkbenchCommand } from "./imageWorkbenchCommand";
 import type { ParsedPdfWorkbenchCommand } from "./pdfWorkbenchCommand";
 import type { ParsedPosterWorkbenchCommand } from "./posterWorkbenchCommand";
@@ -47,8 +51,10 @@ import type {
 } from "./urlParseWorkbenchCommand";
 import type { ParsedVideoWorkbenchCommand } from "./videoWorkbenchCommand";
 import type { ParsedVoiceWorkbenchCommand } from "./voiceWorkbenchCommand";
+import type { ParsedWritingWorkbenchCommand } from "./writingWorkbenchCommand";
 import type { ParsedWebpageWorkbenchCommand, WebpageType } from "./webpageWorkbenchCommand";
 import type { ServiceSkillSlotValues } from "../service-skills/types";
+import { normalizeContentPostPlatform } from "./contentPostPlatform";
 
 type ReplayParsedCommand = {
   body: string;
@@ -65,7 +71,9 @@ interface BuildMentionCommandReplayTextInput {
     | ParsedCoverWorkbenchCommand
     | ParsedSearchWorkbenchCommand
     | ParsedDeepSearchWorkbenchCommand
+    | ParsedFileReadWorkbenchCommand
     | ParsedFormWorkbenchCommand
+    | ParsedGrowthWorkbenchCommand
     | ParsedImageWorkbenchCommand
     | ParsedPdfWorkbenchCommand
     | ParsedPosterWorkbenchCommand
@@ -82,6 +90,7 @@ interface BuildMentionCommandReplayTextInput {
     | ParsedUrlParseWorkbenchCommand
     | ParsedVideoWorkbenchCommand
     | ParsedVoiceWorkbenchCommand
+    | ParsedWritingWorkbenchCommand
     | ParsedWebpageWorkbenchCommand
     | ParsedBroadcastWorkbenchCommand
     | ParsedBrowserWorkbenchCommand
@@ -187,6 +196,7 @@ const CODE_TASK_TYPE_VALUES = [
 ] as const;
 const RESOURCE_TYPE_VALUES = ["image", "bgm", "sfx", "video"] as const;
 const DEFAULT_PDF_READ_PROMPT = "请阅读这份 PDF 并提炼关键信息";
+const DEFAULT_FILE_READ_PROMPT = "请阅读这个文件并提炼关键信息";
 const DEFAULT_PRESENTATION_PROMPT = "请生成一份可直接讲述的演示文稿草稿";
 const DEFAULT_FORM_PROMPT = "请生成一个可直接在聊天区渲染的 A2UI 表单";
 const DEFAULT_WEBPAGE_PROMPT = "请生成一个可直接预览的网页";
@@ -587,6 +597,32 @@ function buildPdfReplayText(
   ]);
 }
 
+function buildFileReadReplayText(
+  parsedCommand: ParsedFileReadWorkbenchCommand,
+): string | undefined {
+  const sourcePath = normalizeText(parsedCommand.sourcePath);
+  const focus = normalizeText(parsedCommand.focus);
+  const style = normalizeText(parsedCommand.style);
+  const outputFormat = normalizeText(parsedCommand.outputFormat);
+  const prompt = normalizeText(parsedCommand.prompt);
+  const length = parsedCommand.length
+    ? SUMMARY_LENGTH_LABELS[parsedCommand.length]
+    : undefined;
+
+  if (!sourcePath && !focus && !length && !style && !outputFormat && !prompt) {
+    return normalizeText(parsedCommand.body);
+  }
+
+  return joinReplayFields([
+    sourcePath ? `文件:${sourcePath}` : undefined,
+    focus ? `重点:${focus}` : undefined,
+    length ? `长度:${length}` : undefined,
+    style ? `风格:${style}` : undefined,
+    outputFormat ? `输出:${outputFormat}` : undefined,
+    prompt ? `要求:${prompt}` : undefined,
+  ]);
+}
+
 function buildUrlParseReplayText(
   parsedCommand: ParsedUrlParseWorkbenchCommand,
 ): string | undefined {
@@ -866,6 +902,64 @@ function buildVoiceReplayText(
   ]);
 }
 
+function resolveGrowthPlatformReplayLabel(input: {
+  platformType?: string;
+  platformLabel?: string;
+}): string | undefined {
+  const normalizedLabel = normalizeText(input.platformLabel);
+  if (normalizedLabel) {
+    return normalizedLabel;
+  }
+
+  const normalizedType = normalizeText(input.platformType);
+  if (!normalizedType) {
+    return undefined;
+  }
+
+  const platformLabelMap: Record<string, string> = {
+    wechat_official_account: "微信公众号后台",
+    xiaohongshu: "小红书",
+    zhihu: "知乎",
+    douyin: "抖音",
+    bilibili: "B站",
+    instagram: "Instagram",
+    youtube: "YouTube",
+    tiktok: "TikTok",
+    x: "X / Twitter",
+  };
+
+  return (
+    platformLabelMap[normalizedType] ||
+    normalizeContentPostPlatform(normalizedType).platformLabel ||
+    normalizedType
+  );
+}
+
+function buildGrowthReplayText(
+  parsedCommand: ParsedGrowthWorkbenchCommand,
+): string | undefined {
+  const platform = resolveGrowthPlatformReplayLabel({
+    platformType: parsedCommand.platformType,
+    platformLabel: parsedCommand.platformLabel,
+  });
+  const accountList = normalizeText(parsedCommand.accountList);
+  const reportCadence = normalizeText(parsedCommand.reportCadence);
+  const alertThreshold = normalizeText(parsedCommand.alertThreshold);
+  const prompt = normalizeText(parsedCommand.prompt);
+
+  if (!platform && !accountList && !reportCadence && !alertThreshold && !prompt) {
+    return normalizeText(parsedCommand.body);
+  }
+
+  return joinReplayFields([
+    platform ? `平台:${platform}` : undefined,
+    accountList ? `账号:${accountList}` : undefined,
+    reportCadence ? `回报:${reportCadence}` : undefined,
+    alertThreshold ? `告警:${alertThreshold}` : undefined,
+    prompt,
+  ]);
+}
+
 function buildBrowserReplayText(
   parsedCommand: ParsedBrowserWorkbenchCommand,
 ): string | undefined {
@@ -889,7 +983,8 @@ function buildPublishLikeReplayText(
   parsedCommand: Pick<
     | ParsedChannelPreviewWorkbenchCommand
     | ParsedUploadWorkbenchCommand
-    | ParsedPublishWorkbenchCommand,
+    | ParsedPublishWorkbenchCommand
+    | ParsedWritingWorkbenchCommand,
     "body" | "platformLabel" | "prompt"
   >,
 ): string | undefined {
@@ -979,6 +1074,12 @@ export function buildMentionCommandReplayText(
     return buildPdfReplayText(input.parsedCommand as ParsedPdfWorkbenchCommand);
   }
 
+  if (input.commandKey === "file_read_runtime") {
+    return buildFileReadReplayText(
+      input.parsedCommand as ParsedFileReadWorkbenchCommand,
+    );
+  }
+
   if (input.commandKey === "typesetting") {
     return buildTypesettingReplayText(
       input.parsedCommand as ParsedTypesettingWorkbenchCommand,
@@ -1014,6 +1115,12 @@ export function buildMentionCommandReplayText(
   }
 
   if (input.commandKey === "analysis") {
+    return buildAnalysisReplayText(
+      input.parsedCommand as ParsedAnalysisWorkbenchCommand,
+    );
+  }
+
+  if (input.commandKey === "logo_decomposition") {
     return buildAnalysisReplayText(
       input.parsedCommand as ParsedAnalysisWorkbenchCommand,
     );
@@ -1057,6 +1164,12 @@ export function buildMentionCommandReplayText(
     );
   }
 
+  if (input.commandKey === "writing_runtime") {
+    return buildPublishLikeReplayText(
+      input.parsedCommand as ParsedWritingWorkbenchCommand,
+    );
+  }
+
   if (input.commandKey === "transcription_generate") {
     return buildTranscriptionReplayText(
       input.parsedCommand as ParsedTranscriptionWorkbenchCommand,
@@ -1065,6 +1178,12 @@ export function buildMentionCommandReplayText(
 
   if (input.commandKey === "voice_runtime") {
     return buildVoiceReplayText(input.parsedCommand as ParsedVoiceWorkbenchCommand);
+  }
+
+  if (input.commandKey === "growth_runtime") {
+    return buildGrowthReplayText(
+      input.parsedCommand as ParsedGrowthWorkbenchCommand,
+    );
   }
 
   if (input.commandKey === "browser_runtime") {
@@ -1224,6 +1343,23 @@ function buildMentionCommandReplayTextFromSlotValues(params: {
     } as ParsedPdfWorkbenchCommand);
   }
 
+  if (commandKey === "file_read_runtime") {
+    const prompt =
+      normalizeText(slotValues.prompt) === DEFAULT_FILE_READ_PROMPT
+        ? undefined
+        : slotValues.prompt;
+
+    return buildFileReadReplayText({
+      body: "",
+      prompt,
+      sourcePath: slotValues.source_path,
+      focus: slotValues.focus,
+      length: normalizeEnumValue(slotValues.length, SUMMARY_LENGTH_VALUES),
+      style: slotValues.style,
+      outputFormat: slotValues.output_format,
+    } as ParsedFileReadWorkbenchCommand);
+  }
+
   if (commandKey === "typesetting") {
     return buildTypesettingReplayText({
       body: "",
@@ -1301,7 +1437,11 @@ function buildMentionCommandReplayTextFromSlotValues(params: {
     } as ParsedTranslationWorkbenchCommand);
   }
 
-  if (commandKey === "analysis" || commandKey === "publish_compliance") {
+  if (
+    commandKey === "analysis" ||
+    commandKey === "logo_decomposition" ||
+    commandKey === "publish_compliance"
+  ) {
     return buildAnalysisReplayText({
       body: "",
       content: slotValues.content,
@@ -1341,7 +1481,8 @@ function buildMentionCommandReplayTextFromSlotValues(params: {
   if (
     commandKey === "channel_preview_runtime" ||
     commandKey === "upload_runtime" ||
-    commandKey === "publish_runtime"
+    commandKey === "publish_runtime" ||
+    commandKey === "writing_runtime"
   ) {
     return buildPublishLikeReplayText({
       body: "",
@@ -1373,6 +1514,17 @@ function buildMentionCommandReplayTextFromSlotValues(params: {
       voiceStyle: slotValues.voice_style,
       prompt: slotValues.user_input,
     } as ParsedVoiceWorkbenchCommand);
+  }
+
+  if (commandKey === "growth_runtime") {
+    return buildGrowthReplayText({
+      body: "",
+      platformType: slotValues.platform,
+      accountList: slotValues.account_list,
+      reportCadence: slotValues.report_cadence,
+      alertThreshold: slotValues.alert_threshold,
+      prompt: slotValues.user_input,
+    } as ParsedGrowthWorkbenchCommand);
   }
 
   return undefined;
@@ -1510,6 +1662,32 @@ export function resolveMentionCommandMergedPrefillReplayText(input: {
         slotValues.output_format,
       ),
     } as ParsedPdfWorkbenchCommand);
+  }
+
+  if (commandKey === "file_read_runtime") {
+    const parsedCommand = input.parsedCommand as ParsedFileReadWorkbenchCommand;
+    const fallbackPrompt =
+      normalizeText(slotValues.prompt) === DEFAULT_FILE_READ_PROMPT
+        ? undefined
+        : slotValues.prompt;
+
+    return buildFileReadReplayText({
+      body: "",
+      prompt: resolvePreferredText(parsedCommand.prompt, fallbackPrompt),
+      sourcePath: resolvePreferredText(
+        parsedCommand.sourcePath,
+        slotValues.source_path,
+      ),
+      focus: resolvePreferredText(parsedCommand.focus, slotValues.focus),
+      length:
+        parsedCommand.length ??
+        normalizeEnumValue(slotValues.length, SUMMARY_LENGTH_VALUES),
+      style: resolvePreferredText(parsedCommand.style, slotValues.style),
+      outputFormat: resolvePreferredText(
+        parsedCommand.outputFormat,
+        slotValues.output_format,
+      ),
+    } as ParsedFileReadWorkbenchCommand);
   }
 
   return currentReplayText;

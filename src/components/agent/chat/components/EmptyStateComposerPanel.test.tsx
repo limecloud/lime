@@ -131,7 +131,7 @@ function createSkillSelection(
 ): SkillSelectionProps {
   return createSkillSelectionProps({
     skills: [],
-    onSelectSkill: vi.fn(),
+    onSelectInputCapability: vi.fn(),
     onClearSkill: vi.fn(),
     onNavigateToSettings: vi.fn(),
     onImportSkill: vi.fn(),

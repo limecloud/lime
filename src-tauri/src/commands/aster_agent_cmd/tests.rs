@@ -3301,6 +3301,21 @@ mod tests {
     }
 
     #[test]
+    fn test_agent_runtime_list_sessions_request_deserializes_archive_scope_and_limit() {
+        let request: AgentRuntimeListSessionsRequest =
+            serde_json::from_value(serde_json::json!({
+                "archivedOnly": true,
+                "workspaceId": "workspace-1",
+                "limit": 24
+            }))
+            .expect("request should deserialize");
+
+        assert_eq!(request.archived_only, Some(true));
+        assert_eq!(request.workspace_id.as_deref(), Some("workspace-1"));
+        assert_eq!(request.limit, Some(24));
+    }
+
+    #[test]
     fn test_agent_runtime_update_session_request_deserializes_recent_access_mode_aliases() {
         let request: AgentRuntimeUpdateSessionRequest = serde_json::from_value(serde_json::json!({
             "sessionId": "session-1",
@@ -4967,6 +4982,37 @@ mod tests {
         assert!(merged.contains("Read / Glob"));
         assert!(merged.contains("结果必须忠于原文"));
         assert!(merged.contains("当前任务已经显式进入总结技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_summary_skill_launch_includes_source_path() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "summary_skill_launch": {
+                    "skill_name": "summary",
+                    "kind": "summary_request",
+                    "summary_request": {
+                        "prompt": "请提炼这份文件的三点结论",
+                        "raw_text": "@读文件 /tmp/agent-notes.md 提炼三点结论",
+                        "source_path": "/tmp/agent-notes.md",
+                        "focus": "融资额与发布时间",
+                        "output_format": "三点要点",
+                        "entry_source": "at_file_read_command"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_summary_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("当前显式文件路径：/tmp/agent-notes.md"));
+        assert!(merged.contains("\"source_path\":\"/tmp/agent-notes.md\""));
+        assert!(merged.contains("当前入口来源：at_file_read_command"));
     }
 
     #[test]

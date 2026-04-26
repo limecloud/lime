@@ -48,6 +48,20 @@ describe("parseCompetitorWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 @Product Search，并继续走产品研究主链", () => {
+    const result = parseCompetitorWorkbenchCommand(
+      "@Product Search OpenAI Operator 与 Manus 的产品定位差异",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Product Search",
+      query: "OpenAI Operator 与 Manus 的产品定位差异",
+      prompt: "OpenAI Operator 与 Manus 的产品定位差异",
+      focus: DEFAULT_COMPETITOR_FOCUS,
+      outputFormat: DEFAULT_COMPETITOR_OUTPUT_FORMAT,
+    });
+  });
+
   it("非竞品命令应返回空", () => {
     expect(parseCompetitorWorkbenchCommand("@研报 AI Agent 竞争格局")).toBeNull();
   });

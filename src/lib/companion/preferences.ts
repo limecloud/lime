@@ -81,7 +81,7 @@ function loadPersistedCurrentAgentPreference(): SessionModelPreference | null {
 
 async function loadRuntimeCurrentAgentPreference(): Promise<SessionModelPreference | null> {
   try {
-    const latestSession = [...(await listAgentRuntimeSessions())].sort(
+    const latestSession = [...(await listAgentRuntimeSessions({ limit: 1 }))].sort(
       (left, right) => right.updated_at - left.updated_at,
     )[0];
 

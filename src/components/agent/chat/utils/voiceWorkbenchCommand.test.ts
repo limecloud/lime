@@ -29,6 +29,19 @@ describe("parseVoiceWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 Ribbi 风格的 @Website Voiceover 命令", () => {
+    const result = parseVoiceWorkbenchCommand(
+      "@Website Voiceover 语言: 英文 风格: 纪录片 给这个产品页做配音稿",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Website Voiceover",
+      targetLanguage: "英文",
+      voiceStyle: "纪录片",
+      prompt: "给这个产品页做配音稿",
+    });
+  });
+
   it("无正文时仍应返回空 prompt，交给后续链路兜底", () => {
     const result = parseVoiceWorkbenchCommand("@配音");
 

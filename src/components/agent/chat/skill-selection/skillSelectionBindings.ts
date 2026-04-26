@@ -3,6 +3,7 @@ import type {
   ServiceSkillGroup,
   ServiceSkillHomeItem,
 } from "@/components/agent/chat/service-skills/types";
+import type { SelectInputCapabilityHandler } from "./inputCapabilitySelection";
 
 export interface SkillSelectionSourceProps {
   skills?: Skill[];
@@ -17,7 +18,7 @@ export interface SkillSelectionSourceProps {
 
 export interface SkillSelectionControllerProps {
   activeSkill?: Skill | null;
-  onSelectSkill: (skill: Skill) => void;
+  onSelectInputCapability: SelectInputCapabilityHandler;
   onClearSkill?: () => void;
 }
 
@@ -61,8 +62,7 @@ export function buildSkillSelectionBindings({
   serviceSkillGroups = [],
   activeSkill = null,
   isSkillsLoading = false,
-  onSelectSkill,
-  onSelectServiceSkill,
+  onSelectInputCapability,
   onClearSkill,
   onNavigateToSettings,
   onImportSkill,
@@ -81,8 +81,7 @@ export function buildSkillSelectionBindings({
       serviceSkillGroups,
       activeSkill,
       isLoading: isSkillsLoading,
-      onSelectSkill,
-      onSelectServiceSkill,
+      onSelectInputCapability,
       onClearSkill,
       onNavigateToSettings,
       onImportSkill,

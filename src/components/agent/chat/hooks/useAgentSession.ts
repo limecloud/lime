@@ -49,7 +49,9 @@ import {
 } from "./agentChatStorage";
 import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
+import { isAuxiliaryAgentSessionId } from "@/lib/api/agentRuntime/sessionIdentity";
 import { filterConversationThreadItems } from "../utils/threadTimelineView";
+import { shouldResumeTaskSession } from "../utils/taskCenterTabs";
 import {
   createSessionAccessModeFromExecutionRuntime,
   createSessionModelPreferenceFromExecutionRuntime,
@@ -75,6 +77,7 @@ import { hasRecoverableSilentTurnActivity } from "./agentSilentTurnRecovery";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 
 const INITIAL_TOPICS_IDLE_TIMEOUT_MS = 1_500;
+const INITIAL_TOPICS_SESSION_REQUEST_LIMIT = 60;
 
 interface UseAgentSessionOptions {
   runtime: AgentRuntimeAdapter;
@@ -159,6 +162,14 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     (candidateSessionId: string | null | undefined): string | null => {
       const normalizedCandidate = candidateSessionId?.trim();
       if (!normalizedCandidate) {
+        return null;
+      }
+
+      if (isAuxiliaryAgentSessionId(normalizedCandidate)) {
+        logAgentDebug("useAgentSession", "restoreCandidate.skipAuxiliary", {
+          candidateSessionId: normalizedCandidate,
+          workspaceId: normalizeProjectId(workspaceId),
+        });
         return null;
       }
 
@@ -267,6 +278,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     null,
   );
   const missingSessionVerificationRef = useRef<string | null>(null);
+  const detachedSessionIdRef = useRef<string | null>(null);
+  const topicsListMayBeTruncatedRef = useRef(false);
   const sessionStateWorkspaceRef = useRef<string | null>(
     workspaceId?.trim() || null,
   );
@@ -289,9 +302,13 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
   const persistSessionRestoreCandidate = useCallback(
     (nextSessionId: string | null) => {
-      restoreCandidateSessionIdRef.current = nextSessionId;
-      saveTransient(scopedKeys.currentSessionKey, nextSessionId);
-      savePersisted(scopedKeys.persistedSessionKey, nextSessionId);
+      const sanitizedSessionId =
+        nextSessionId && isAuxiliaryAgentSessionId(nextSessionId)
+          ? null
+          : nextSessionId;
+      restoreCandidateSessionIdRef.current = sanitizedSessionId;
+      saveTransient(scopedKeys.currentSessionKey, sanitizedSessionId);
+      savePersisted(scopedKeys.persistedSessionKey, sanitizedSessionId);
     },
     [scopedKeys],
   );
@@ -302,6 +319,24 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     sessionSwitchRequestVersionRef.current += 1;
     return sessionSwitchRequestVersionRef.current;
   }, []);
+
+  const listWorkspaceTopics = useCallback(async () => {
+    const sessions = await runtime.listSessions({
+      workspaceId,
+      limit: INITIAL_TOPICS_SESSION_REQUEST_LIMIT,
+    });
+    const workspaceSessions = filterSessionsByWorkspace(sessions);
+    const visibleSessions = workspaceSessions.filter(
+      (session) => !isAuxiliaryAgentSessionId(session.id),
+    );
+
+    return {
+      sessions,
+      workspaceSessions,
+      visibleSessions,
+      topicList: visibleSessions.map(mapSessionToTopic),
+    };
+  }, [filterSessionsByWorkspace, runtime, workspaceId]);
 
   const applySessionSnapshot = useCallback(
     (snapshot: AgentSessionSnapshot) => {
@@ -530,6 +565,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     let cancelled = false;
 
     if (!workspaceId?.trim()) {
+      topicsListMayBeTruncatedRef.current = false;
       setTopics([]);
       setTopicsReady(true);
       return;
@@ -539,28 +575,32 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       setTopicsReady(false);
       const startedAt = Date.now();
       logAgentDebug("useAgentSession", "listSessions.start", {
+        limit: INITIAL_TOPICS_SESSION_REQUEST_LIMIT,
         workspaceId,
       });
-      runtime
-        .listSessions()
-        .then((sessions) => {
+      listWorkspaceTopics()
+        .then(({ sessions, workspaceSessions, visibleSessions, topicList }) => {
           if (cancelled) {
             return;
           }
-          const topicList =
-            filterSessionsByWorkspace(sessions).map(mapSessionToTopic);
           logAgentDebug("useAgentSession", "listSessions.success", {
             durationMs: Date.now() - startedAt,
+            hiddenAuxiliarySessionsCount:
+              workspaceSessions.length - visibleSessions.length,
+            limit: INITIAL_TOPICS_SESSION_REQUEST_LIMIT,
             sessionsCount: sessions.length,
             topicsCount: topicList.length,
             workspaceId,
           });
+          topicsListMayBeTruncatedRef.current =
+            sessions.length >= INITIAL_TOPICS_SESSION_REQUEST_LIMIT;
           setTopics(topicList);
         })
         .catch((error) => {
           if (cancelled) {
             return;
           }
+          topicsListMayBeTruncatedRef.current = false;
           console.error("[AsterChat] 加载话题失败:", error);
           logAgentDebug(
             "useAgentSession",
@@ -568,6 +608,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             {
               durationMs: Date.now() - startedAt,
               error,
+              limit: INITIAL_TOPICS_SESSION_REQUEST_LIMIT,
               workspaceId,
             },
             { level: "error" },
@@ -598,15 +639,15 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       cancelled = true;
     };
   }, [
-    filterSessionsByWorkspace,
     initialTopicsDeferredDelayMs,
     initialTopicsLoadMode,
-    runtime,
+    listWorkspaceTopics,
     workspaceId,
   ]);
 
   const loadTopics = useCallback(async () => {
     if (!workspaceId?.trim()) {
+      topicsListMayBeTruncatedRef.current = false;
       setTopics([]);
       setTopicsReady(true);
       return;
@@ -615,20 +656,26 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     setTopicsReady(false);
     const startedAt = Date.now();
     logAgentDebug("useAgentSession", "loadTopics.start", {
+      limit: INITIAL_TOPICS_SESSION_REQUEST_LIMIT,
       workspaceId,
     });
     try {
-      const sessions = await runtime.listSessions();
-      const topicList =
-        filterSessionsByWorkspace(sessions).map(mapSessionToTopic);
+      const { sessions, workspaceSessions, visibleSessions, topicList } =
+        await listWorkspaceTopics();
       logAgentDebug("useAgentSession", "loadTopics.success", {
         durationMs: Date.now() - startedAt,
+        hiddenAuxiliarySessionsCount:
+          workspaceSessions.length - visibleSessions.length,
+        limit: INITIAL_TOPICS_SESSION_REQUEST_LIMIT,
         sessionsCount: sessions.length,
         topicsCount: topicList.length,
         workspaceId,
       });
+      topicsListMayBeTruncatedRef.current =
+        sessions.length >= INITIAL_TOPICS_SESSION_REQUEST_LIMIT;
       setTopics(topicList);
     } catch (error) {
+      topicsListMayBeTruncatedRef.current = false;
       console.error("[AsterChat] 加载话题失败:", error);
       logAgentDebug(
         "useAgentSession",
@@ -636,6 +683,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         {
           durationMs: Date.now() - startedAt,
           error,
+          limit: INITIAL_TOPICS_SESSION_REQUEST_LIMIT,
           workspaceId,
         },
         { level: "error" },
@@ -643,7 +691,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     } finally {
       setTopicsReady(true);
     }
-  }, [filterSessionsByWorkspace, runtime, workspaceId]);
+  }, [listWorkspaceTopics, workspaceId]);
 
   const createFreshSession = useCallback(
     async (sessionName?: string): Promise<string | null> => {
@@ -898,6 +946,13 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           selectedTopic?.executionStrategy || executionStrategy,
         ),
       );
+      logAgentDebug("useAgentSession", "switchTopic.cachedSnapshotApplied", {
+        cachedMessagesCount: cachedSnapshot.messages.length,
+        cachedThreadItemsCount: cachedSnapshot.threadItems.length,
+        cachedTurnsCount: cachedSnapshot.threadTurns.length,
+        topicId,
+        workspaceId,
+      });
       return true;
     },
     [
@@ -905,6 +960,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       executionStrategy,
       setExecutionStrategyState,
       topics,
+      workspaceId,
     ],
   );
 
@@ -929,6 +985,68 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       setAccessModeState,
       workspaceId,
     ],
+  );
+
+  const loadRuntimeSessionDetail = useCallback(
+    async (params: {
+      topicId: string;
+      startedAt: number;
+      mode: "direct" | "deferred";
+      resumeSessionStartHooks?: boolean;
+    }) => {
+      const {
+        topicId,
+        startedAt,
+        mode,
+        resumeSessionStartHooks = false,
+      } = params;
+      const requestStartedAt = Date.now();
+      logAgentDebug("useAgentSession", "switchTopic.fetchDetail.start", {
+        elapsedBeforeRequestMs: requestStartedAt - startedAt,
+        mode,
+        resumeSessionStartHooks,
+        topicId,
+        workspaceId,
+      });
+
+      try {
+        const detail = resumeSessionStartHooks
+          ? await runtime.getSession(topicId, {
+              resumeSessionStartHooks: true,
+            })
+          : await runtime.getSession(topicId);
+        logAgentDebug("useAgentSession", "switchTopic.fetchDetail.success", {
+          itemsCount: detail.items?.length ?? 0,
+          messagesCount: detail.messages.length,
+          mode,
+          queuedTurnsCount: detail.queued_turns?.length ?? 0,
+          requestDurationMs: Date.now() - requestStartedAt,
+          resumeSessionStartHooks,
+          topicId,
+          totalElapsedMs: Date.now() - startedAt,
+          turnsCount: detail.turns?.length ?? 0,
+          workspaceId,
+        });
+        return detail;
+      } catch (error) {
+        logAgentDebug(
+          "useAgentSession",
+          "switchTopic.fetchDetail.error",
+          {
+            error,
+            mode,
+            requestDurationMs: Date.now() - requestStartedAt,
+            resumeSessionStartHooks,
+            topicId,
+            totalElapsedMs: Date.now() - startedAt,
+            workspaceId,
+          },
+          { level: "error" },
+        );
+        throw error;
+      }
+    },
+    [runtime, workspaceId],
   );
 
   const finalizeResolvedTopicDetail = useCallback(
@@ -1022,6 +1140,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       const shadowAccessMode = loadSessionAccessMode(topicId);
 
       persistSessionRestoreCandidate(topicId);
+      hydratedSessionRef.current = topicId;
       const applyResolvedDetail = () => {
         applySessionDetail(topicId, detail, {
           localSnapshotOverride,
@@ -1236,6 +1355,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       options?: {
         forceRefresh?: boolean;
         resumeSessionStartHooks?: boolean;
+        allowDetachedSession?: boolean;
         restoreSource?: "auto";
       },
     ) => {
@@ -1257,6 +1377,11 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       }
 
       skipAutoRestoreRef.current = false;
+      if (options?.allowDetachedSession === true) {
+        detachedSessionIdRef.current = topicId;
+      } else {
+        detachedSessionIdRef.current = null;
+      }
       const switchRequestVersion = invalidatePendingSessionSwitches();
       if (options?.restoreSource !== "auto") {
         setIsAutoRestoringSession(false);
@@ -1302,7 +1427,11 @@ export function useAgentSession(options: UseAgentSessionOptions) {
                 deferredSessionHydrationCancelRef.current = null;
                 void (async () => {
                   try {
-                    const detail = await runtime.getSession(topicId);
+                    const detail = await loadRuntimeSessionDetail({
+                      topicId,
+                      startedAt,
+                      mode: "deferred",
+                    });
                     finalizeResolvedTopicDetail({
                       topicId,
                       detail,
@@ -1346,12 +1475,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           return;
         }
 
-        const detail =
-          options?.resumeSessionStartHooks === true
-            ? await runtime.getSession(topicId, {
-                resumeSessionStartHooks: true,
-              })
-            : await runtime.getSession(topicId);
+        const detail = await loadRuntimeSessionDetail({
+          topicId,
+          startedAt,
+          mode: "direct",
+          resumeSessionStartHooks: options?.resumeSessionStartHooks === true,
+        });
         finalizeResolvedTopicDetail({
           topicId,
           detail,
@@ -1379,6 +1508,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       applyCachedTopicChromeState,
       finalizeResolvedTopicDetail,
       handleSwitchTopicError,
+      loadRuntimeSessionDetail,
       messages.length,
       modelRef,
       applyCachedTopicSnapshot,
@@ -1386,7 +1516,6 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       persistSessionModelPreference,
       persistSessionRestoreCandidate,
       providerTypeRef,
-      runtime,
       sessionIdRef,
       workspaceId,
     ],
@@ -1402,12 +1531,18 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       const targetSessionId = resolveRestorableTopicSessionId(
         restoreCandidate,
         topics,
+        {
+          allowDetachedCandidate: topicsListMayBeTruncatedRef.current,
+        },
       );
 
       if (targetSessionId) {
+        const targetTopic = topics.find(
+          (topic) => topic.id === targetSessionId,
+        );
         await switchTopic(targetSessionId, {
           forceRefresh: true,
-          resumeSessionStartHooks: true,
+          resumeSessionStartHooks: shouldResumeTaskSession(targetTopic),
         });
         if (sessionIdRef.current) {
           return sessionIdRef.current;
@@ -1528,6 +1663,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     const targetSessionId = resolveRestorableTopicSessionId(
       scopedCandidate,
       topics,
+      {
+        allowDetachedCandidate: topicsListMayBeTruncatedRef.current,
+      },
     );
     if (!targetSessionId) {
       setIsAutoRestoringSession(false);
@@ -1553,8 +1691,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       topicsCount: topics.length,
       workspaceId: resolvedWorkspaceId,
     });
+    const targetTopic = topics.find((topic) => topic.id === targetSessionId);
     switchTopic(targetSessionId, {
-      resumeSessionStartHooks: true,
+      resumeSessionStartHooks: shouldResumeTaskSession(targetTopic),
       restoreSource: "auto",
     })
       .catch((error) => {
@@ -1601,7 +1740,24 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     if (!sessionId) return;
     if (!topicsReady) return;
 
-    if (topics.length > 0 && !topics.some((topic) => topic.id === sessionId)) {
+    const sessionMissingFromTopics =
+      topics.length > 0 && !topics.some((topic) => topic.id === sessionId);
+
+    if (
+      sessionMissingFromTopics &&
+      detachedSessionIdRef.current === sessionId
+    ) {
+      missingSessionVerificationRef.current = null;
+      return;
+    }
+
+    if (sessionMissingFromTopics) {
+      if (isAuxiliaryAgentSessionId(sessionId)) {
+        persistSessionRestoreCandidate(null);
+        missingSessionVerificationRef.current = null;
+        return;
+      }
+
       const shouldVerifyMissingSession = hasSessionHydrationActivity({
         currentTurnId,
         threadTurnsCount: threadTurns.length,
@@ -1700,6 +1856,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       messages.length > 0 && (threadTurns.length > 0 || threadItems.length > 0);
     const hasPreservedMessageCache =
       preserveRestoredMessages && messages.length > 0;
+    const selectedTopic = topics.find((topic) => topic.id === sessionId);
+    const shouldResumeHydrationSession = shouldResumeTaskSession(selectedTopic);
     logAgentDebug("useAgentSession", "hydrateSession.start", {
       cacheMode: hasLocalTimelineCache
         ? "timeline_cache"
@@ -1707,6 +1865,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           ? "message_cache"
           : "empty",
       messagesCount: messages.length,
+      resumeSessionStartHooks: shouldResumeHydrationSession,
       sessionId,
       threadItemsCount: threadItems.length,
       threadTurnsCount: threadTurns.length,
@@ -1715,7 +1874,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
     switchTopic(sessionId, {
       forceRefresh: true,
-      resumeSessionStartHooks: true,
+      ...(shouldResumeHydrationSession
+        ? { resumeSessionStartHooks: true }
+        : {}),
+      ...(detachedSessionIdRef.current === sessionId
+        ? { allowDetachedSession: true }
+        : {}),
     }).catch((error) => {
       console.warn("[AsterChat] 会话水合失败:", error);
       logAgentDebug(
@@ -1935,6 +2099,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     setTopics,
     topicsReady,
     isAutoRestoringSession,
+    isDetachedActiveSession: detachedSessionIdRef.current === sessionId,
     loadTopics,
     createFreshSession,
     ensureSession,

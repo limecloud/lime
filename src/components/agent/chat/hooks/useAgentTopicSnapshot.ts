@@ -9,6 +9,7 @@ const TOPIC_PREVIEW_UPDATE_THROTTLE_MS = 600;
 interface UseAgentTopicSnapshotOptions {
   sessionId: string | null;
   hasActiveTopic: boolean;
+  suppressInactiveTopicWarning?: boolean;
   messages: Message[];
   isSending: boolean;
   pendingActionCount: number;
@@ -37,6 +38,7 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
   const {
     sessionId,
     hasActiveTopic,
+    suppressInactiveTopicWarning = false,
     messages,
     isSending,
     pendingActionCount,
@@ -121,7 +123,12 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
     };
 
     if (!sessionId || !hasActiveTopic) {
-      if (sessionId && !hasActiveTopic) {
+      if (
+        sessionId &&
+        !hasActiveTopic &&
+        topicsCount > 0 &&
+        !suppressInactiveTopicWarning
+      ) {
         logAgentDebug(
           "useAgentTopicSnapshot",
           "skipWithoutActiveTopic",
@@ -215,6 +222,7 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
     pendingActionCount,
     queuedTurnCount,
     sessionId,
+    suppressInactiveTopicWarning,
     threadStatus,
     topicsCount,
     updateTopicSnapshot,

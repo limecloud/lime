@@ -2137,10 +2137,16 @@ pub struct AgentRuntimeRespondActionRequest {
     pub action_scope: Option<AgentRuntimeActionScope>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct AgentRuntimeListSessionsRequest {
     #[serde(default, alias = "includeArchived")]
     pub include_archived: Option<bool>,
+    #[serde(default, alias = "archivedOnly")]
+    pub archived_only: Option<bool>,
+    #[serde(default, alias = "workspaceId")]
+    pub workspace_id: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]

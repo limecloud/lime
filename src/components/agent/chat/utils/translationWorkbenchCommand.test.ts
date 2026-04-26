@@ -43,6 +43,17 @@ describe("parseTranslationWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 Ribbi 风格的 @Write Translate 命令", () => {
+    const result = parseTranslationWorkbenchCommand(
+      "@Write Translate 把这段产品说明译成英文，保留品牌语气",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Write Translate",
+      prompt: "把这段产品说明译成英文，保留品牌语气",
+    });
+  });
+
   it("非翻译命令应返回空", () => {
     expect(parseTranslationWorkbenchCommand("@总结 你好世界")).toBeNull();
   });

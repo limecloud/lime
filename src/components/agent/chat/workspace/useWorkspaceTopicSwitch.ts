@@ -14,12 +14,22 @@ interface PendingTopicSwitchState {
   targetProjectId: string;
   forceRefresh?: boolean;
   resumeSessionStartHooks?: boolean;
+  allowDetachedSession?: boolean;
 }
 
 interface TopicSwitchOptions {
   forceRefresh?: boolean;
   resumeSessionStartHooks?: boolean;
+  allowDetachedSession?: boolean;
 }
+
+export type WorkspaceTopicSwitchResult =
+  | "success"
+  | "deferred"
+  | "blocked"
+  | "missing"
+  | "busy"
+  | "error";
 
 interface UseWorkspaceTopicSwitchParams {
   projectId?: string;
@@ -61,16 +71,21 @@ export function useWorkspaceTopicSwitch({
     async (topicId: string, options?: TopicSwitchOptions) => {
       const forwardedOptions =
         options?.forceRefresh === true ||
-        options?.resumeSessionStartHooks === true
+        options?.resumeSessionStartHooks === true ||
+        options?.allowDetachedSession === true
           ? {
               ...(options?.forceRefresh === true ? { forceRefresh: true } : {}),
               ...(options?.resumeSessionStartHooks === true
                 ? { resumeSessionStartHooks: true }
                 : {}),
+              ...(options?.allowDetachedSession === true
+                ? { allowDetachedSession: true }
+                : {}),
             }
           : undefined;
       const startedAt = Date.now();
       logAgentDebug("AgentChatPage", "runTopicSwitch.start", {
+        allowDetachedSession: options?.allowDetachedSession === true,
         currentProjectId: projectId ?? null,
         forceRefresh: options?.forceRefresh === true,
         topicId,
@@ -83,6 +98,7 @@ export function useWorkspaceTopicSwitch({
           await originalSwitchTopic(topicId);
         }
         logAgentDebug("AgentChatPage", "runTopicSwitch.success", {
+          allowDetachedSession: options?.allowDetachedSession === true,
           durationMs: Date.now() - startedAt,
           forceRefresh: options?.forceRefresh === true,
           topicId,
@@ -92,6 +108,7 @@ export function useWorkspaceTopicSwitch({
           "AgentChatPage",
           "runTopicSwitch.error",
           {
+            allowDetachedSession: options?.allowDetachedSession === true,
             durationMs: Date.now() - startedAt,
             error,
             forceRefresh: options?.forceRefresh === true,
@@ -112,12 +129,13 @@ export function useWorkspaceTopicSwitch({
           "AgentChatPage",
           "switchTopic.skipWhileResolving",
           {
+            allowDetachedSession: options?.allowDetachedSession === true,
             forceRefresh: options?.forceRefresh === true,
             topicId,
           },
           { level: "warn", throttleMs: 1000 },
         );
-        return;
+        return "busy" as const;
       }
 
       try {
@@ -126,6 +144,7 @@ export function useWorkspaceTopicSwitch({
           loadTopicBoundProjectId(topicId),
         );
         logAgentDebug("AgentChatPage", "switchTopic.start", {
+          allowDetachedSession: options?.allowDetachedSession === true,
           currentProjectId: currentProjectId ?? null,
           externalProjectId: externalProjectId ?? null,
           forceRefresh: options?.forceRefresh === true,
@@ -139,12 +158,13 @@ export function useWorkspaceTopicSwitch({
         ) {
           rememberProjectId(currentProjectId);
           logAgentDebug("AgentChatPage", "switchTopic.fastPathCurrentProject", {
+            allowDetachedSession: options?.allowDetachedSession === true,
             currentProjectId,
             forceRefresh: options?.forceRefresh === true,
             topicId,
           });
           await runTopicSwitch(topicId, options);
-          return;
+          return "success" as const;
         }
 
         const decision = await resolveTopicSwitchProject({
@@ -180,12 +200,12 @@ export function useWorkspaceTopicSwitch({
 
         if (decision.status === "blocked") {
           toast.error("该任务绑定了其他项目，请先切换到对应项目");
-          return;
+          return "blocked" as const;
         }
 
         if (decision.status === "missing") {
           toast.error("未找到可用项目，请先创建项目");
-          return;
+          return "missing" as const;
         }
 
         const targetProjectId = decision.projectId;
@@ -196,22 +216,25 @@ export function useWorkspaceTopicSwitch({
         if (currentProjectId !== targetProjectId) {
           deferTopicSwitch(topicId, targetProjectId, options);
           logAgentDebug("AgentChatPage", "switchTopic.deferUntilProjectReady", {
+            allowDetachedSession: options?.allowDetachedSession === true,
             currentProjectId,
             forceRefresh: options?.forceRefresh === true,
             targetProjectId,
             topicId,
           });
-          return;
+          return "deferred" as const;
         }
 
         rememberProjectId(targetProjectId);
         await runTopicSwitch(topicId, options);
+        return "success" as const;
       } catch (error) {
         console.error("[AgentChatPage] 解析任务项目失败:", error);
         logAgentDebug(
           "AgentChatPage",
           "switchTopic.error",
           {
+            allowDetachedSession: options?.allowDetachedSession === true,
             error,
             forceRefresh: options?.forceRefresh === true,
             projectId: projectId ?? null,
@@ -220,6 +243,7 @@ export function useWorkspaceTopicSwitch({
           { level: "error" },
         );
         toast.error("切换会话失败，请稍后重试");
+        return "error" as const;
       } finally {
         finishTopicProjectResolution();
       }
@@ -245,12 +269,14 @@ export function useWorkspaceTopicSwitch({
 
     const currentProjectId = normalizeProjectId(projectId);
     logAgentDebug("AgentChatPage", "switchTopic.resumePending", {
+      allowDetachedSession: pending.allowDetachedSession === true,
       forceRefresh: pending.forceRefresh === true,
       resumeSessionStartHooks: pending.resumeSessionStartHooks === true,
       projectId: currentProjectId,
       topicId: pending.topicId,
     });
     runTopicSwitch(pending.topicId, {
+      allowDetachedSession: pending.allowDetachedSession === true,
       forceRefresh: pending.forceRefresh === true,
       resumeSessionStartHooks: pending.resumeSessionStartHooks === true,
     }).catch((error) => {
@@ -259,6 +285,7 @@ export function useWorkspaceTopicSwitch({
         "AgentChatPage",
         "switchTopic.resumePendingError",
         {
+          allowDetachedSession: pending.allowDetachedSession === true,
           error,
           forceRefresh: pending.forceRefresh === true,
           resumeSessionStartHooks: pending.resumeSessionStartHooks === true,

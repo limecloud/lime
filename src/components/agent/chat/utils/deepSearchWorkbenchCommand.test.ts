@@ -48,6 +48,21 @@ describe("parseDeepSearchWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 @Researchers Pro，并继续走深搜主链", () => {
+    const result = parseDeepSearchWorkbenchCommand(
+      "@Researchers Pro GitHub 最近一周 openai agents sdk issue 讨论",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Researchers Pro",
+      site: "GitHub",
+      timeRange: "最近一周",
+      query: "openai agents sdk issue 讨论",
+      depth: "deep",
+      prompt: "openai agents sdk issue 讨论",
+    });
+  });
+
   it("非深搜命令应返回空", () => {
     expect(parseDeepSearchWorkbenchCommand("@搜索 AI Agent 融资")).toBeNull();
   });

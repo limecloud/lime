@@ -1,0 +1,151 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - button "Lime Lime" [ref=e8] [cursor=pointer]:
+            - img "Lime" [ref=e10]
+            - generic [ref=e11]: Lime
+          - button "折叠导航栏" [ref=e12] [cursor=pointer]:
+            - img [ref=e13]
+        - button "搜索任务" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - generic [ref=e20]: 搜索任务
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - button "新建任务" [ref=e23] [cursor=pointer]:
+            - img [ref=e24]
+            - generic [ref=e25]: 新建任务
+          - button "工作台" [ref=e26] [cursor=pointer]:
+            - img [ref=e27]
+            - generic [ref=e29]: 工作台
+          - button "我的方法" [ref=e30] [cursor=pointer]:
+            - img [ref=e31]
+            - generic [ref=e33]: 我的方法
+          - button "灵感库" [ref=e34] [cursor=pointer]:
+            - img [ref=e35]
+            - generic [ref=e47]: 灵感库
+        - generic [ref=e48]:
+          - generic [ref=e49]:
+            - generic [ref=e50]:
+              - button "最近对话" [expanded] [ref=e51] [cursor=pointer]:
+                - img [ref=e52]
+                - text: 最近对话
+              - button "新建对话" [ref=e54] [cursor=pointer]:
+                - img [ref=e55]
+            - generic [ref=e408]:
+              - img [ref=e409]
+              - text: 还没有开始对话
+          - button "归档" [ref=e151] [cursor=pointer]:
+            - img [ref=e152]
+            - text: 归档
+        - generic [ref=e154]:
+          - generic [ref=e155]:
+            - button "设置" [ref=e156] [cursor=pointer]:
+              - img [ref=e157]
+              - generic [ref=e160]: 设置
+            - button "持续流程" [ref=e161] [cursor=pointer]:
+              - img [ref=e162]
+              - generic [ref=e166]: 持续流程
+            - button "消息渠道" [ref=e167] [cursor=pointer]:
+              - img [ref=e168]
+              - generic [ref=e170]: 消息渠道
+          - button "切换到深色模式" [ref=e172] [cursor=pointer]:
+            - img [ref=e173]
+    - main [ref=e179]:
+      - generic [ref=e320]:
+        - generic [ref=e322]:
+          - generic [ref=e323]:
+            - button "默认项目":
+              - generic:
+                - img
+                - generic
+            - button "展开工作区菜单" [ref=e325] [cursor=pointer]:
+              - img [ref=e326]
+          - generic [ref=e327]:
+            - button "压缩上下文" [ref=e412] [cursor=pointer]:
+              - img [ref=e413]
+            - button "打开设置" [ref=e328] [cursor=pointer]:
+              - img [ref=e329]
+        - generic [ref=e333]:
+          - generic [ref=e335]:
+            - generic [ref=e416]:
+              - button "Smoke harness response" [ref=e417] [cursor=pointer]:
+                - img [ref=e418]
+                - generic [ref=e420]: Smoke harness response
+              - button "关闭 Smoke harness response" [ref=e421] [cursor=pointer]:
+                - img [ref=e422]
+            - generic [ref=e425]:
+              - button "新对话" [ref=e426] [cursor=pointer]:
+                - img [ref=e427]
+                - generic [ref=e429]: 新对话
+              - button "关闭 新对话" [ref=e430] [cursor=pointer]:
+                - img [ref=e431]
+            - generic [ref=e434]:
+              - button "First greeting" [ref=e435] [cursor=pointer]:
+                - img [ref=e436]
+                - generic [ref=e438]: First greeting
+              - button "关闭 First greeting" [ref=e439] [cursor=pointer]:
+                - img [ref=e440]
+            - generic [ref=e443]:
+              - button "Initial greeting session" [ref=e444] [cursor=pointer]:
+                - img [ref=e445]
+                - generic [ref=e447]: Initial greeting session
+              - button "关闭 Initial greeting session" [ref=e448] [cursor=pointer]:
+                - img [ref=e449]
+            - generic [ref=e452]:
+              - button "smoke harness repetition" [ref=e453] [cursor=pointer]:
+                - img [ref=e454]
+                - generic [ref=e456]: smoke harness repetition
+              - button "关闭 smoke harness repetition" [ref=e457] [cursor=pointer]:
+                - img [ref=e458]
+            - generic [ref=e461]:
+              - button "新对话" [ref=e462] [cursor=pointer]:
+                - img [ref=e463]
+                - generic [ref=e465]: 新对话
+              - button "关闭 新对话" [ref=e466] [cursor=pointer]:
+                - img [ref=e467]
+            - button "新建对话" [ref=e336] [cursor=pointer]:
+              - img [ref=e337]
+          - button "展开工作台" [ref=e339] [cursor=pointer]:
+            - img [ref=e340]
+            - generic [ref=e343]: 工作台
+        - generic [ref=e350]:
+          - generic [ref=e471]:
+            - generic [ref=e474]:
+              - paragraph [ref=e477]: 请回复一句：smoke harness
+              - generic:
+                - button "引用消息"
+                - button "复制消息"
+            - generic "Lime" [ref=e480]:
+              - group [ref=e483]:
+                - generic "已完成思考 The user wants me to reply with a simple smoke test message." [ref=e484] [cursor=pointer]
+              - generic [ref=e497]:
+                - generic
+                - paragraph [ref=e499]: smoke harness ✅
+              - generic [ref=e501]:
+                - generic [ref=e502]: 已完成
+                - generic [ref=e504]: ·
+                - generic [ref=e505]: 00:03
+                - generic [ref=e506]: ·
+                - generic [ref=e507]: 输入 15.0K / 输出 21
+                - generic [ref=e508]: ·
+                - generic [ref=e509]: 缓存 14.9K（读 14.9K / 写 0）
+          - generic [ref=e372]:
+            - generic [ref=e374]:
+              - button "添加图片" [ref=e375] [cursor=pointer]:
+                - img [ref=e376]
+              - textbox "在这里输入消息, 按 Enter 发送" [ref=e381]
+              - generic [ref=e382]:
+                - button "展开输入框" [ref=e383] [cursor=pointer]
+                - button "开始语音输入" [ref=e386] [cursor=pointer]
+                - button "发送" [disabled] [ref=e390]
+            - generic [ref=e395]:
+              - button "展开高级设置" [ref=e396] [cursor=pointer]:
+                - img [ref=e399]
+                - generic [ref=e402]: 高级设置
+                - img [ref=e403]
+              - generic "当前模型：Custom-cae6e762-fb45-4f71-878c-3106510ade78 / mimo-v2.5-pro" [ref=e405]:
+                - generic [ref=e406]: 当前模型
+                - generic [ref=e407]: mimo-v2.5-pro
+  - region "Notifications alt+T"

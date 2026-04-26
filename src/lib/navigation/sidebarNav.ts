@@ -1,6 +1,7 @@
 import {
   BrainCircuit,
   Bot,
+  PanelsTopLeft,
   MessageCircleMore,
   Plus,
   Puzzle,
@@ -16,7 +17,10 @@ import {
   type PageParams,
 } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
-import { buildHomeAgentParams } from "@/lib/workspace/navigation";
+import {
+  buildClawAgentParams,
+  buildHomeAgentParams,
+} from "@/lib/workspace/navigation";
 
 export interface SidebarNavItemDefinition {
   id: string;
@@ -62,6 +66,18 @@ export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
       buildHomeAgentParams(params as AgentPageParams | undefined),
     isActive: (currentPage, currentParams) =>
       isAgentEntryActive(currentPage, currentParams, "new-task"),
+    configurable: false,
+  },
+  {
+    id: "workbench",
+    label: "工作台",
+    icon: PanelsTopLeft,
+    page: "agent",
+    params: buildClawAgentParams(),
+    resolveParams: (params) =>
+      buildClawAgentParams(params as AgentPageParams | undefined),
+    isActive: (currentPage, currentParams) =>
+      isAgentEntryActive(currentPage, currentParams, "claw"),
     configurable: false,
   },
   {

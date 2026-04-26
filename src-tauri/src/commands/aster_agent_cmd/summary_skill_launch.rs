@@ -187,6 +187,7 @@ fn build_summary_skill_launch_system_prompt(
     let prompt = extract_object_string(summary_request, &["prompt"])
         .unwrap_or_else(|| "请总结当前对话中的关键信息".to_string());
     let content = extract_object_string(summary_request, &["content"]);
+    let source_path = extract_object_string(summary_request, &["source_path", "sourcePath"]);
     let focus = extract_object_string(summary_request, &["focus"]);
     let length = extract_object_string(summary_request, &["length"]);
     let style = extract_object_string(summary_request, &["style"]);
@@ -212,6 +213,11 @@ fn build_summary_skill_launch_system_prompt(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .is_some()
+        || source_path
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_some()
         || raw_text
             .as_deref()
             .map(str::trim)
@@ -245,6 +251,9 @@ fn build_summary_skill_launch_system_prompt(
 
     if let Some(value) = content.as_deref() {
         lines.push(format!("- 当前显式正文：{value}。"));
+    }
+    if let Some(value) = source_path.as_deref() {
+        lines.push(format!("- 当前显式文件路径：{value}。"));
     }
     if let Some(value) = focus.as_deref() {
         lines.push(format!("- 当前关注重点：{value}。"));

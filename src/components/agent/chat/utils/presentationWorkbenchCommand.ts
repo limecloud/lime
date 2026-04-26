@@ -2,7 +2,8 @@ export type PresentationWorkbenchCommandTrigger =
   | "@PPT"
   | "@ppt"
   | "@slides"
-  | "@演示";
+  | "@演示"
+  | "@Sales 1";
 
 export type PresentationDeckType =
   | "pitch_deck"
@@ -23,7 +24,7 @@ export interface ParsedPresentationWorkbenchCommand {
 }
 
 const PRESENTATION_COMMAND_PREFIX_REGEX =
-  /^\s*(@PPT|@ppt|@slides|@演示)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@PPT|@ppt|@slides|@演示|@Sales 1)(?:\s+|$)([\s\S]*)$/i;
 const EXPLICIT_DECK_TYPE_REGEX =
   /(?:类型|演示类型|type)\s*[:：=]?\s*(路演PPT|融资PPT|销售PPT|培训PPT|汇报PPT|方案PPT|pitch(?:\s+deck)?|sales(?:\s+deck)?|training(?:\s+deck)?|report(?:\s+deck)?|proposal(?:\s+deck)?)(?=$|[\s,，。；;:：])/i;
 const LEADING_DECK_TYPE_REGEX =
@@ -54,6 +55,9 @@ function normalizeTrigger(value: string): PresentationWorkbenchCommandTrigger {
   }
   if (normalized === "@演示") {
     return "@演示";
+  }
+  if (normalized === "@sales 1") {
+    return "@Sales 1";
   }
   return "@PPT";
 }
@@ -232,13 +236,14 @@ export function parsePresentationWorkbenchCommand(
     promptBody,
     explicitDeckType || leadingDeckType,
   );
+  const trigger = normalizeTrigger(matched[1] || "");
 
   return {
     rawText: text,
-    trigger: normalizeTrigger(matched[1] || ""),
+    trigger,
     body,
     prompt,
-    deckType,
+    deckType: deckType || (trigger === "@Sales 1" ? "sales_deck" : undefined),
     style: style || undefined,
     audience: audience || undefined,
     slideCount,

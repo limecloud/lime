@@ -25,7 +25,6 @@ import { TeamSuggestionBar } from "@/components/agent/chat/components/TeamSugges
 import { getTeamSuggestion } from "@/components/agent/chat/utils/teamSuggestion";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import type { MessageImage } from "../../../types";
-import type { Skill } from "@/lib/api/skills";
 import {
   resolveInputCapabilitySelectionFromRoute,
   type InputCapabilitySelection,
@@ -502,12 +501,6 @@ export function useInputbarController({
         onConfirm: handleConfirmCuratedTaskEdit,
       })
     : undefined;
-  const handleSelectSkill = (skill: Skill) => {
-    setActiveCapability({
-      kind: "installed_skill",
-      skill,
-    });
-  };
   const handleSelectServiceSkill = (skill: ServiceSkillHomeItem) => {
     setActiveCapability(null);
     onSelectServiceSkill?.(skill);
@@ -527,8 +520,7 @@ export function useInputbarController({
     serviceSkillGroups,
     activeSkill,
     isSkillsLoading,
-    onSelectSkill: handleSelectSkill,
-    onSelectServiceSkill: handleSelectServiceSkill,
+    onSelectInputCapability: handleSelectInputCapability,
     onClearSkill: () => setActiveCapability(null),
     onNavigateToSettings,
     onImportSkill,

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
 import { getDefaultProvider } from "@/lib/api/appConfig";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import {
   defaultAgentRuntimeAdapter,
   type AgentRuntimeAdapter,
@@ -255,13 +256,13 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
   useAgentTopicSnapshot({
     sessionId: session.sessionId,
     hasActiveTopic,
+    suppressInactiveTopicWarning: session.isDetachedActiveSession === true,
     messages: session.messages,
     isSending: stream.isSending,
     pendingActionCount: tools.pendingActions.length,
     queuedTurnCount: session.queuedTurns.length,
     threadStatus:
-      session.threadRead?.status ??
-      (session.currentTurnId ? "running" : null),
+      session.threadRead?.status ?? (session.currentTurnId ? "running" : null),
     workspaceId,
     workspacePathMissing: Boolean(context.workspacePathMissing),
     topicsCount: session.topics.length,
@@ -279,7 +280,12 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
       return;
     }
 
-    const activeTopic = sessionTopics.find((topic) => topic.id === activeSessionId);
+    const activeTopic = sessionTopics.find(
+      (topic) => topic.id === activeSessionId,
+    );
+    if (!activeTopic) {
+      return;
+    }
     const activeTitle = activeTopic?.title?.trim() || "";
     const shouldAutoGenerateTitle =
       activeTitle === "" ||
@@ -313,7 +319,9 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
 
     void (async () => {
       try {
-        const generatedTitle = (await runtime.generateSessionTitle?.(activeSessionId))?.trim();
+        const generatedTitle = (
+          await runtime.generateSessionTitle?.(activeSessionId)
+        )?.trim();
         if (
           cancelled ||
           !generatedTitle ||
@@ -412,13 +420,12 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
         const fallbackProviderType = isUsingFrontendDefaultModel
           ? defaultProvider
           : currentProviderType;
-        const resolvedSelection =
-          await resolveClawWorkspaceProviderSelection({
-            currentProviderType:
-              fallbackProviderType || defaultProvider || undefined,
-            currentModel: isUsingFrontendDefaultModel ? null : currentModel,
-            theme: "general",
-          });
+        const resolvedSelection = await resolveClawWorkspaceProviderSelection({
+          currentProviderType:
+            fallbackProviderType || defaultProvider || undefined,
+          currentModel: isUsingFrontendDefaultModel ? null : currentModel,
+          theme: "general",
+        });
 
         if (!resolvedSelection) {
           return;
@@ -432,11 +439,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
         console.warn("[AsterChat] 预热阶段解析工作区模型失败:", error);
       }
     },
-    [
-      applyWorkspaceModelPreference,
-      context.modelRef,
-      context.providerTypeRef,
-    ],
+    [applyWorkspaceModelPreference, context.modelRef, context.providerTypeRef],
   );
 
   const warmupRuntime = useCallback(async () => {
@@ -471,8 +474,24 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
       return;
     }
 
+    if (initialTopicsLoadMode === "deferred") {
+      return scheduleMinimumDelayIdleTask(
+        () => {
+          void warmupRuntime().catch(() => undefined);
+        },
+        {
+          minimumDelayMs: initialTopicsDeferredDelayMs ?? 0,
+        },
+      );
+    }
+
     void warmupRuntime().catch(() => undefined);
-  }, [warmupRuntime, workspaceId]);
+  }, [
+    initialTopicsDeferredDelayMs,
+    initialTopicsLoadMode,
+    warmupRuntime,
+    workspaceId,
+  ]);
 
   const handleStartProcess = async () => {
     try {

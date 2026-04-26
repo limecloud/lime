@@ -1,7 +1,11 @@
 export type ChannelPreviewWorkbenchCommandTrigger =
   | "@渠道预览"
   | "@预览"
-  | "@preview";
+  | "@preview"
+  | "@Instagram Preview"
+  | "@TikTok Preview"
+  | "@Twitter Preview"
+  | "@YouTube Preview";
 
 import {
   parseContentPostPlatform,
@@ -22,11 +26,23 @@ export interface ParsedChannelPreviewWorkbenchCommand {
 }
 
 const CHANNEL_PREVIEW_COMMAND_PREFIX_REGEX =
-  /^\s*(@渠道预览|@预览|@preview)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@渠道预览|@预览|@preview|@Instagram Preview|@TikTok Preview|@Twitter Preview|@YouTube Preview)(?:\s+|$)([\s\S]*)$/i;
 function normalizeTrigger(
   value: string,
 ): ChannelPreviewWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
+  if (normalized === "@instagram preview") {
+    return "@Instagram Preview";
+  }
+  if (normalized === "@tiktok preview") {
+    return "@TikTok Preview";
+  }
+  if (normalized === "@twitter preview") {
+    return "@Twitter Preview";
+  }
+  if (normalized === "@youtube preview") {
+    return "@YouTube Preview";
+  }
   if (normalized === "@preview") {
     return "@preview";
   }
@@ -34,6 +50,38 @@ function normalizeTrigger(
     return "@预览";
   }
   return "@渠道预览";
+}
+
+function resolveDefaultPlatformFromTrigger(
+  trigger: ChannelPreviewWorkbenchCommandTrigger,
+): {
+  platformType?: ContentPostPlatformType;
+  platformLabel?: string;
+} {
+  switch (trigger) {
+    case "@Instagram Preview":
+      return {
+        platformType: "instagram",
+        platformLabel: "Instagram",
+      };
+    case "@TikTok Preview":
+      return {
+        platformType: "tiktok",
+        platformLabel: "TikTok",
+      };
+    case "@Twitter Preview":
+      return {
+        platformType: "x",
+        platformLabel: "X / Twitter",
+      };
+    case "@YouTube Preview":
+      return {
+        platformType: "youtube",
+        platformLabel: "YouTube",
+      };
+    default:
+      return {};
+  }
 }
 
 function buildDispatchBody(input: {
@@ -63,16 +111,24 @@ export function parseChannelPreviewWorkbenchCommand(
   }
 
   const body = (matched[2] || "").trim();
-  const { platformType, platformLabel, explicitPlatformText, leadingPlatformText } =
-    parseContentPostPlatform(body);
+  const trigger = normalizeTrigger(matched[1] || "");
+  const {
+    platformType: parsedPlatformType,
+    platformLabel: parsedPlatformLabel,
+    explicitPlatformText,
+    leadingPlatformText,
+  } = parseContentPostPlatform(body);
+  const defaultPlatform = resolveDefaultPlatformFromTrigger(trigger);
   const prompt = stripContentPostPromptDecorations(
     body,
     explicitPlatformText || leadingPlatformText,
   );
+  const platformType = parsedPlatformType ?? defaultPlatform.platformType;
+  const platformLabel = parsedPlatformLabel ?? defaultPlatform.platformLabel;
 
   return {
     rawText: text,
-    trigger: normalizeTrigger(matched[1] || ""),
+    trigger,
     body,
     prompt: prompt || body,
     dispatchBody: buildDispatchBody({

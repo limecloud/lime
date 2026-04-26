@@ -122,6 +122,9 @@ export interface AsterSessionInfo {
 
 export interface AgentRuntimeListSessionsOptions {
   includeArchived?: boolean;
+  archivedOnly?: boolean;
+  workspaceId?: string;
+  limit?: number;
 }
 
 export interface AsterTodoItem {

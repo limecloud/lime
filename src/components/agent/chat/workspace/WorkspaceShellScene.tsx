@@ -24,6 +24,7 @@ interface WorkspaceShellSceneProps {
   onOpenSkillsPage?: ComponentProps<typeof ChatSidebar>["onOpenSkillsPage"];
   onOpenMemoryPage?: ComponentProps<typeof ChatSidebar>["onOpenMemoryPage"];
   onSwitchTopic: ComponentProps<typeof ChatSidebar>["onSwitchTopic"];
+  onOpenArchivedTopic?: ComponentProps<typeof ChatSidebar>["onOpenArchivedTopic"];
   onResumeTask: ComponentProps<typeof ChatSidebar>["onResumeTask"];
   onDeleteTopic: ComponentProps<typeof ChatSidebar>["onDeleteTopic"];
   onRenameTopic: ComponentProps<typeof ChatSidebar>["onRenameTopic"];
@@ -64,6 +65,7 @@ export function WorkspaceShellScene({
   onOpenSkillsPage,
   onOpenMemoryPage,
   onSwitchTopic,
+  onOpenArchivedTopic,
   onResumeTask,
   onDeleteTopic,
   onRenameTopic,
@@ -94,6 +96,7 @@ export function WorkspaceShellScene({
           topics,
           currentTopicId,
           onSwitchTopic,
+          onOpenArchivedTopic,
           onResumeTask,
           onDeleteTopic,
           onRenameTopic,

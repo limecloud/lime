@@ -47,6 +47,53 @@ describe("parseResourceSearchWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 Ribbi 风格的图片搜索命令，并默认按图片检索", () => {
+    const imageSearchResult = parseResourceSearchWorkbenchCommand(
+      "@Image Search coffee shop window light for social cover",
+    );
+    const fetchImageResult = parseResourceSearchWorkbenchCommand(
+      "@Fetch Image spring market poster references",
+    );
+
+    expect(imageSearchResult).toMatchObject({
+      trigger: "@Image Search",
+      resourceType: "image",
+      query: "coffee shop window light",
+      usage: "social cover",
+    });
+    expect(fetchImageResult).toMatchObject({
+      trigger: "@Fetch Image",
+      resourceType: "image",
+      query: "spring market poster references",
+    });
+  });
+
+  it("应兼容 @Pinterest Image Search，并继续收口到图片检索主链", () => {
+    const result = parseResourceSearchWorkbenchCommand(
+      "@Pinterest Image Search coffee packaging reference for hero banner",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Pinterest Image Search",
+      resourceType: "image",
+      query: "coffee packaging reference",
+      usage: "hero banner",
+    });
+  });
+
+  it("应兼容 @Video Search，并默认按视频素材检索", () => {
+    const result = parseResourceSearchWorkbenchCommand(
+      "@Video Search AI startup keynote clips for 9:16 ads",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Video Search",
+      resourceType: "video",
+      query: "AI startup keynote clips",
+      usage: "9:16 ads",
+    });
+  });
+
   it("非素材命令应返回空", () => {
     expect(
       parseResourceSearchWorkbenchCommand("@视频 做一条新品视频"),

@@ -1,7 +1,8 @@
 export type ReportWorkbenchCommandTrigger =
   | "@研报"
   | "@report"
-  | "@research_report";
+  | "@research_report"
+  | "@Report Search";
 
 export interface ParsedReportWorkbenchCommand {
   rawText: string;
@@ -16,7 +17,7 @@ export interface ParsedReportWorkbenchCommand {
 }
 
 const REPORT_COMMAND_PREFIX_REGEX =
-  /^\s*(@研报|@report|@research_report)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@研报|@Report Search|@report|@research_report)(?:\s+|$)([\s\S]*)$/i;
 const FIELD_LABEL_REGEX =
   /(?:(关键词|查询|主题|query)|(站点|来源|site|source)|(时间|时间范围|time(?:[_\s-]?range)?|range)|(重点|关注点|维度|focus)|(输出|格式|output|format))\s*[:：=]\s*/gi;
 const PROMPT_PREFIX_REGEX =
@@ -46,6 +47,9 @@ interface ExtractedReportFields {
 
 function normalizeTrigger(value: string): ReportWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
+  if (normalized === "@report search") {
+    return "@Report Search";
+  }
   if (normalized === "@report") {
     return "@report";
   }

@@ -633,6 +633,16 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
          ON agent_sessions(archived_at, updated_at DESC)",
         [],
     )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_sessions_working_dir_archived_updated_at
+         ON agent_sessions(working_dir, archived_at, updated_at DESC)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_sessions_session_type_updated_at
+         ON agent_sessions(session_type, updated_at DESC)",
+        [],
+    )?;
 
     // Agent 消息表
     // 存储每个会话的消息历史

@@ -3076,6 +3076,31 @@ mod tests {
             })
         );
 
+        // persist_session_recent_access_mode 写入的是全局 LimeSessionStore 的 DB，
+        // 但 get_runtime_session_detail 从测试的 DB 读取。
+        // 为保证测试自洽，直接在测试 DB 中写入 extension_data 和一条消息，
+        // 使 get_runtime_session_detail 能正常构建 execution_runtime。
+        {
+            let conn = db.lock().expect("数据库锁定失败");
+            let extension_data = serde_json::json!({
+                "lime_recent_access_mode.v0": "current"
+            });
+            conn.execute(
+                "UPDATE agent_sessions SET extension_data_json = ?1 WHERE id = ?2",
+                rusqlite::params![extension_data.to_string(), session_id],
+            )
+            .expect("写入 extension_data 失败");
+            conn.execute(
+                "INSERT INTO agent_messages (session_id, role, content_json, timestamp) \
+                 VALUES (?1, 'user', ?2, datetime('now'))",
+                rusqlite::params![
+                    session_id,
+                    serde_json::json!({"text": "test message"}).to_string()
+                ],
+            )
+            .expect("写入测试消息失败");
+        }
+
         let detail = AsterAgentWrapper::get_runtime_session_detail(&db, &session_id)
             .await
             .expect("读取 session detail 失败");

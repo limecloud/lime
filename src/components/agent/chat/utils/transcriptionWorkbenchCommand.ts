@@ -1,4 +1,7 @@
-export type TranscriptionWorkbenchCommandTrigger = "@转写" | "@transcribe";
+export type TranscriptionWorkbenchCommandTrigger =
+  | "@转写"
+  | "@transcribe"
+  | "@Audio Extractor";
 
 export interface ParsedTranscriptionWorkbenchCommand {
   rawText: string;
@@ -14,7 +17,7 @@ export interface ParsedTranscriptionWorkbenchCommand {
 }
 
 const TRANSCRIPTION_COMMAND_PREFIX_REGEX =
-  /^\s*(@转写|@transcribe)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@转写|@transcribe|@Audio Extractor)(?:\s+|$)([\s\S]*)$/i;
 const SOURCE_URL_REGEX = /https?:\/\/[^\s"'，。；;]+/i;
 const QUOTED_SOURCE_PATH_REGEX =
   /(["'])([^"'\n]+\.(?:wav|mp3|m4a|aac|flac|ogg|opus|mp4|mov|m4v|avi|mkv|webm))\1/i;
@@ -31,7 +34,7 @@ const LANGUAGE_REGEX =
 const OUTPUT_FORMAT_REGEX =
   /(?:输出格式|格式|format|output(?:[_\s-]?format)?)\s*[:：=]?\s*(txt|text|srt|vtt|markdown|md|json)/i;
 const EXPORT_OUTPUT_FORMAT_REGEX =
-  /(?:导出(?:为)?|输出(?:为)?|生成)\s*(txt|text|srt|vtt|markdown|md|json)(?:字幕|稿|文件)?/i;
+  /(?:导出(?:为)?|输出(?:为)?|生成|export|output)\s*(txt|text|srt|vtt|markdown|md|json)(?:字幕|稿|文件)?/i;
 const SPEAKER_LABELS_NEGATIVE_REGEX =
   /(?:不区分说话人|无需区分说话人|不要区分说话人|no\s+speaker\s+labels)/i;
 const SPEAKER_LABELS_REGEX =
@@ -40,7 +43,11 @@ const TIMESTAMPS_NEGATIVE_REGEX = /(?:不要时间戳|无需时间戳|no\s+times
 const TIMESTAMPS_REGEX = /(?:带?时间戳|timestamps?|字幕时间轴)/i;
 
 function normalizeTrigger(value: string): TranscriptionWorkbenchCommandTrigger {
-  return value.trim().toLowerCase() === "@transcribe" ? "@transcribe" : "@转写";
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "@audio extractor") {
+    return "@Audio Extractor";
+  }
+  return normalized === "@transcribe" ? "@transcribe" : "@转写";
 }
 
 function normalizeOutputFormat(

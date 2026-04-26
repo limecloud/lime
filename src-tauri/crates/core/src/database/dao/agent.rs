@@ -469,6 +469,32 @@ pub struct AgentSessionOverviewRow {
     pub session: AgentSession,
     pub messages_count: usize,
     pub archived_at: Option<String>,
+    pub workspace_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionArchiveFilter {
+    ActiveOnly,
+    ArchivedOnly,
+    All,
+}
+
+impl SessionArchiveFilter {
+    fn sql_mode(self) -> i64 {
+        match self {
+            Self::ActiveOnly => 0,
+            Self::ArchivedOnly => 1,
+            Self::All => 2,
+        }
+    }
+
+    pub fn as_log_label(self) -> &'static str {
+        match self {
+            Self::ActiveOnly => "active_only",
+            Self::ArchivedOnly => "archived_only",
+            Self::All => "all",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -515,6 +541,18 @@ fn map_agent_session_row(row: &rusqlite::Row) -> Result<AgentSession, rusqlite::
         updated_at: row.get(5)?,
         working_dir: row.get(6)?,
         execution_strategy: row.get(7)?,
+    })
+}
+
+fn map_agent_session_overview_row(
+    row: &rusqlite::Row,
+) -> Result<AgentSessionOverviewRow, rusqlite::Error> {
+    let messages_count: i64 = row.get(8)?;
+    Ok(AgentSessionOverviewRow {
+        session: map_agent_session_row(row)?,
+        messages_count: messages_count.max(0) as usize,
+        archived_at: row.get(9)?,
+        workspace_id: row.get(10)?,
     })
 }
 
@@ -588,28 +626,32 @@ impl AgentDao {
 
     pub fn list_session_overviews(
         conn: &Connection,
-        include_archived: bool,
+        archive_filter: SessionArchiveFilter,
+        workspace_id: Option<&str>,
+        limit: Option<usize>,
     ) -> Result<Vec<AgentSessionOverviewRow>, rusqlite::Error> {
+        let limit = limit.map(|value| value as i64);
         let mut stmt = conn.prepare(
             "SELECT s.id, s.model, s.system_prompt, s.title, s.created_at, s.updated_at,
-                    s.working_dir, s.execution_strategy, COUNT(m.id) AS messages_count,
-                    s.archived_at
+                    s.working_dir, s.execution_strategy,
+                    (SELECT COUNT(1) FROM agent_messages m WHERE m.session_id = s.id) AS messages_count,
+                    s.archived_at, w.id AS workspace_id
              FROM agent_sessions s
-             LEFT JOIN agent_messages m ON m.session_id = s.id
-             WHERE (?1 = 1 OR s.archived_at IS NULL)
-             GROUP BY s.id, s.model, s.system_prompt, s.title, s.created_at, s.updated_at,
-                      s.working_dir, s.execution_strategy, s.archived_at
-             ORDER BY s.updated_at DESC",
+             LEFT JOIN workspaces w ON w.root_path = s.working_dir
+             WHERE (
+                    (?1 = 0 AND s.archived_at IS NULL) OR
+                    (?1 = 1 AND s.archived_at IS NOT NULL) OR
+                    (?1 = 2)
+                  )
+               AND (?2 IS NULL OR w.id = ?2)
+             ORDER BY s.updated_at DESC
+             LIMIT COALESCE(?3, -1)",
         )?;
 
-        let rows = stmt.query_map([if include_archived { 1 } else { 0 }], |row| {
-            let messages_count: i64 = row.get(8)?;
-            Ok(AgentSessionOverviewRow {
-                session: map_agent_session_row(row)?,
-                messages_count: messages_count.max(0) as usize,
-                archived_at: row.get(9)?,
-            })
-        })?;
+        let rows = stmt.query_map(
+            params![archive_filter.sql_mode(), workspace_id, limit],
+            map_agent_session_overview_row,
+        )?;
 
         rows.collect()
     }
@@ -620,23 +662,17 @@ impl AgentDao {
     ) -> Result<Option<AgentSessionOverviewRow>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT s.id, s.model, s.system_prompt, s.title, s.created_at, s.updated_at,
-                    s.working_dir, s.execution_strategy, COUNT(m.id) AS messages_count,
-                    s.archived_at
+                    s.working_dir, s.execution_strategy,
+                    (SELECT COUNT(1) FROM agent_messages m WHERE m.session_id = s.id) AS messages_count,
+                    s.archived_at, w.id AS workspace_id
              FROM agent_sessions s
-             LEFT JOIN agent_messages m ON m.session_id = s.id
-             WHERE s.id = ?1
-             GROUP BY s.id, s.model, s.system_prompt, s.title, s.created_at, s.updated_at,
-                      s.working_dir, s.execution_strategy, s.archived_at",
+             LEFT JOIN workspaces w ON w.root_path = s.working_dir
+             WHERE s.id = ?1",
         )?;
         let mut rows = stmt.query([session_id])?;
 
         if let Some(row) = rows.next()? {
-            let messages_count: i64 = row.get(8)?;
-            Ok(Some(AgentSessionOverviewRow {
-                session: map_agent_session_row(row)?,
-                messages_count: messages_count.max(0) as usize,
-                archived_at: row.get(9)?,
-            }))
+            Ok(Some(map_agent_session_overview_row(row)?))
         } else {
             Ok(None)
         }
@@ -1558,7 +1594,9 @@ mod tests {
         )
         .unwrap();
 
-        let overviews = AgentDao::list_session_overviews(&conn, false).unwrap();
+        let overviews =
+            AgentDao::list_session_overviews(&conn, SessionArchiveFilter::ActiveOnly, None, None)
+                .unwrap();
         assert_eq!(overviews.len(), 2);
         assert_eq!(overviews[0].session.id, "session-b");
         assert_eq!(overviews[0].messages_count, 0);
@@ -1614,17 +1652,109 @@ mod tests {
         )
         .unwrap();
 
-        let active_only = AgentDao::list_session_overviews(&conn, false).unwrap();
+        let active_only =
+            AgentDao::list_session_overviews(&conn, SessionArchiveFilter::ActiveOnly, None, None)
+                .unwrap();
         assert_eq!(active_only.len(), 1);
         assert_eq!(active_only[0].session.id, "session-active");
 
-        let with_archived = AgentDao::list_session_overviews(&conn, true).unwrap();
+        let with_archived =
+            AgentDao::list_session_overviews(&conn, SessionArchiveFilter::All, None, None).unwrap();
         assert_eq!(with_archived.len(), 2);
         assert_eq!(with_archived[0].session.id, "session-active");
         assert_eq!(with_archived[1].session.id, "session-archived");
         assert_eq!(
             with_archived[1].archived_at.as_deref(),
             Some("2026-03-11T10:00:00+08:00"),
+        );
+    }
+
+    #[test]
+    fn list_session_overviews_should_support_workspace_filter_and_archived_only() {
+        let conn = setup_pattern_test_db();
+
+        conn.execute(
+            "INSERT INTO workspaces (id, name, workspace_type, root_path, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                "workspace-a",
+                "项目 A",
+                "general",
+                "/tmp/workspace-a",
+                "2026-03-10T10:00:00+08:00",
+                "2026-03-10T10:00:00+08:00",
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO workspaces (id, name, workspace_type, root_path, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                "workspace-b",
+                "项目 B",
+                "general",
+                "/tmp/workspace-b",
+                "2026-03-10T10:00:00+08:00",
+                "2026-03-10T10:00:00+08:00",
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, working_dir, archived_at)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                "session-active-a",
+                "gpt-4.1",
+                "活跃 A",
+                "2026-03-10T10:00:00+08:00",
+                "2026-03-12T10:00:00+08:00",
+                "/tmp/workspace-a",
+                Option::<String>::None,
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, working_dir, archived_at)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                "session-archived-a",
+                "gpt-4.1",
+                "归档 A",
+                "2026-03-09T10:00:00+08:00",
+                "2026-03-11T10:00:00+08:00",
+                "/tmp/workspace-a",
+                Some("2026-03-11T10:00:00+08:00".to_string()),
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, working_dir, archived_at)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                "session-archived-b",
+                "gpt-4.1",
+                "归档 B",
+                "2026-03-08T10:00:00+08:00",
+                "2026-03-10T10:00:00+08:00",
+                "/tmp/workspace-b",
+                Some("2026-03-10T10:00:00+08:00".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let archived_only = AgentDao::list_session_overviews(
+            &conn,
+            SessionArchiveFilter::ArchivedOnly,
+            Some("workspace-a"),
+            Some(5),
+        )
+        .unwrap();
+
+        assert_eq!(archived_only.len(), 1);
+        assert_eq!(archived_only[0].session.id, "session-archived-a");
+        assert_eq!(
+            archived_only[0].workspace_id.as_deref(),
+            Some("workspace-a")
         );
     }
 

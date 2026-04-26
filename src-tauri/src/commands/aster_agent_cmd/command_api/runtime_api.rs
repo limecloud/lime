@@ -24,6 +24,7 @@ use crate::services::runtime_review_decision_service::{
 use crate::services::thread_reliability_projection_service::sync_thread_reliability_projection;
 use aster::hooks::SessionSource;
 use std::path::PathBuf;
+use std::time::Instant;
 async fn resume_runtime_queue_with_warning(
     runtime: &RuntimeCommandContext,
     session_id: &str,
@@ -154,6 +155,16 @@ pub async fn agent_runtime_get_session(
     session_id: String,
     resume_session_start_hooks: Option<bool>,
 ) -> Result<AgentRuntimeSessionDetail, String> {
+    let started_at = Instant::now();
+    let resume_hooks = resume_session_start_hooks.unwrap_or(false);
+    let log_store = logs.inner().clone();
+    log_store.write().await.add(
+        "info",
+        &format!(
+            "[AgentDiag] agent_runtime_get_session.start session_id={} resume_hooks={}",
+            session_id, resume_hooks
+        ),
+    );
     let runtime = build_runtime_command_context(
         app,
         state,
@@ -165,37 +176,148 @@ pub async fn agent_runtime_get_session(
         automation_state,
     );
     tracing::info!("[AsterAgent] 获取运行时会话: {}", session_id);
-    resume_runtime_queue_with_warning(&runtime, &session_id, "获取会话后").await;
+    let result = async {
+        // 读取会话详情应保持只读，避免打开会话时顺带恢复排队执行。
+        let resume_queue_ms = 0;
 
-    let detail = AsterAgentWrapper::get_runtime_session_detail(runtime.db(), &session_id).await?;
-    if resume_session_start_hooks.unwrap_or(false) {
-        crate::commands::aster_agent_cmd::runtime_project_hooks::run_runtime_session_start_project_hooks_for_session_with_runtime(
-            runtime.db(),
-            runtime.state(),
-            runtime.mcp_manager(),
-            &session_id,
-            SessionSource::Resume,
-        )
-        .await;
-    }
-    let queued_turns = list_runtime_queue_snapshots_service(&session_id).await?;
-    let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
-    let interrupt_marker = runtime.state().get_interrupt_marker(&session_id).await;
-    let thread_read = AgentRuntimeThreadReadModel::from_parts(
-        &detail,
-        &queued_turns,
-        projection.pending_requests,
-        projection.last_outcome,
-        projection.incidents,
-        interrupt_marker.as_ref(),
-    );
-    Ok(
-        AgentRuntimeSessionDetail::from_session_detail_with_thread_read(
+        let detail_started_at = Instant::now();
+        let detail = AsterAgentWrapper::get_runtime_session_detail(runtime.db(), &session_id).await?;
+        let detail_ms = detail_started_at.elapsed().as_millis();
+        let skip_runtime_queue_snapshots = detail.is_persisted_empty();
+
+        let hooks_ms = if resume_hooks {
+            let hooks_started_at = Instant::now();
+            crate::commands::aster_agent_cmd::runtime_project_hooks::run_runtime_session_start_project_hooks_for_session_with_runtime(
+                runtime.db(),
+                runtime.state(),
+                runtime.mcp_manager(),
+                &session_id,
+                SessionSource::Resume,
+            )
+            .await;
+            hooks_started_at.elapsed().as_millis()
+        } else {
+            0
+        };
+
+        let queue_snapshots_started_at = Instant::now();
+        let queued_turns = if skip_runtime_queue_snapshots {
+            Vec::new()
+        } else {
+            list_runtime_queue_snapshots_service(&session_id).await?
+        };
+        let queue_snapshots_ms = queue_snapshots_started_at.elapsed().as_millis();
+
+        let projection_started_at = Instant::now();
+        let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
+        let projection_ms = projection_started_at.elapsed().as_millis();
+
+        let interrupt_marker_started_at = Instant::now();
+        let interrupt_marker = runtime.state().get_interrupt_marker(&session_id).await;
+        let interrupt_marker_ms = interrupt_marker_started_at.elapsed().as_millis();
+
+        let dto_started_at = Instant::now();
+        let thread_read = AgentRuntimeThreadReadModel::from_parts(
+            &detail,
+            &queued_turns,
+            projection.pending_requests,
+            projection.last_outcome,
+            projection.incidents,
+            interrupt_marker.as_ref(),
+        );
+        let response = AgentRuntimeSessionDetail::from_session_detail_with_thread_read(
             detail,
             queued_turns,
             thread_read,
-        ),
-    )
+        );
+        let dto_ms = dto_started_at.elapsed().as_millis();
+
+        Ok::<_, String>((
+            response,
+            resume_queue_ms,
+            detail_ms,
+            hooks_ms,
+            queue_snapshots_ms,
+            projection_ms,
+            interrupt_marker_ms,
+            dto_ms,
+        ))
+    }
+    .await;
+
+    match result {
+        Ok((
+            response,
+            resume_queue_ms,
+            detail_ms,
+            hooks_ms,
+            queue_snapshots_ms,
+            projection_ms,
+            interrupt_marker_ms,
+            dto_ms,
+        )) => {
+            let total_ms = started_at.elapsed().as_millis();
+            tracing::info!(
+                "[AsterAgent] 获取运行时会话完成: session_id={}, total_ms={}, resume_queue_ms={}, detail_ms={}, hooks_ms={}, queue_snapshots_ms={}, projection_ms={}, interrupt_marker_ms={}, dto_ms={}, messages={}, turns={}, items={}, queued_turns={}, resume_hooks={}",
+                session_id,
+                total_ms,
+                resume_queue_ms,
+                detail_ms,
+                hooks_ms,
+                queue_snapshots_ms,
+                projection_ms,
+                interrupt_marker_ms,
+                dto_ms,
+                response.messages.len(),
+                response.turns.len(),
+                response.items.len(),
+                response.queued_turns.len(),
+                resume_hooks,
+            );
+            log_store.write().await.add(
+                "info",
+                &format!(
+                    "[AgentDiag] agent_runtime_get_session.success session_id={} total_ms={} resume_queue_ms={} detail_ms={} hooks_ms={} queue_snapshots_ms={} projection_ms={} interrupt_marker_ms={} dto_ms={} messages={} turns={} items={} queued_turns={} resume_hooks={}",
+                    session_id,
+                    total_ms,
+                    resume_queue_ms,
+                    detail_ms,
+                    hooks_ms,
+                    queue_snapshots_ms,
+                    projection_ms,
+                    interrupt_marker_ms,
+                    dto_ms,
+                    response.messages.len(),
+                    response.turns.len(),
+                    response.items.len(),
+                    response.queued_turns.len(),
+                    resume_hooks,
+                ),
+            );
+            Ok(response)
+        }
+        Err(error) => {
+            let total_ms = started_at.elapsed().as_millis();
+            tracing::error!(
+                "[AsterAgent] 获取运行时会话失败: session_id={}, total_ms={}, resume_hooks={}, error={}",
+                session_id,
+                total_ms,
+                resume_hooks,
+                error
+            );
+            log_store.write().await.add(
+                "error",
+                &format!(
+                    "[AgentDiag] agent_runtime_get_session.error session_id={} total_ms={} resume_hooks={} error={}",
+                    session_id,
+                    total_ms,
+                    resume_hooks,
+                    crate::logger::sanitize_log_message(&error)
+                ),
+            );
+            Err(error)
+        }
+    }
 }
 
 /// 统一运行时：仅获取线程稳定读模型。
@@ -222,10 +344,13 @@ pub async fn agent_runtime_get_thread_read(
         automation_state,
     );
     tracing::info!("[AsterAgent] 获取运行时线程读模型: {}", session_id);
-    resume_runtime_queue_with_warning(&runtime, &session_id, "获取线程读模型后").await;
 
     let detail = AsterAgentWrapper::get_runtime_session_detail(runtime.db(), &session_id).await?;
-    let queued_turns = list_runtime_queue_snapshots_service(&session_id).await?;
+    let queued_turns = if detail.is_persisted_empty() {
+        Vec::new()
+    } else {
+        list_runtime_queue_snapshots_service(&session_id).await?
+    };
     let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
     let interrupt_marker = runtime.state().get_interrupt_marker(&session_id).await;
     Ok(AgentRuntimeThreadReadModel::from_parts(
@@ -351,7 +476,11 @@ async fn load_runtime_export_context(
     resume_runtime_queue_with_warning(runtime, session_id, action_label).await;
 
     let detail = AsterAgentWrapper::get_runtime_session_detail(runtime.db(), session_id).await?;
-    let queued_turns = list_runtime_queue_snapshots_service(session_id).await?;
+    let queued_turns = if detail.is_persisted_empty() {
+        Vec::new()
+    } else {
+        list_runtime_queue_snapshots_service(session_id).await?
+    };
     let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
     let interrupt_marker = runtime.state().get_interrupt_marker(session_id).await;
     let thread_read = AgentRuntimeThreadReadModel::from_parts(

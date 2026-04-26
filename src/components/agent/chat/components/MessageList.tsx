@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { Artifact } from "@/lib/artifact/types";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import {
   resolveConfiguredProviderPromptCacheSupportNotice,
   useConfiguredProviders,
@@ -176,6 +177,11 @@ interface MessageListProps {
   /** 当前会话的 provider 选择器 */
   providerType?: string;
 }
+
+const MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD = 72;
+const MESSAGE_LIST_INITIAL_RENDER_COUNT = 36;
+const MESSAGE_LIST_RENDER_BATCH_SIZE = 48;
+const MESSAGE_LIST_TIMELINE_ITEMS_FACTOR = 4;
 
 function normalizeRuntimeStatusMetaText(value?: string | null): string {
   return (value || "").trim().replace(/\s+/g, " ");
@@ -544,16 +550,154 @@ const MessageListInner: React.FC<MessageListProps> = ({
       }),
     [messages],
   );
+  const visibleMessageFirstId = visibleMessages[0]?.id ?? null;
+  const visibleMessageLastId =
+    visibleMessages[visibleMessages.length - 1]?.id ?? null;
+  const shouldUseProgressiveRender =
+    !isRestoringSession &&
+    !isSending &&
+    visibleMessages.length > MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD;
+  const visibleMessageWindowRef = useRef<{
+    firstId: string | null;
+    lastId: string | null;
+    length: number;
+  } | null>(null);
+  const [renderedMessageCount, setRenderedMessageCount] = useState(() =>
+    shouldUseProgressiveRender
+      ? Math.min(
+          visibleMessages.length,
+          MESSAGE_LIST_INITIAL_RENDER_COUNT,
+        )
+      : visibleMessages.length,
+  );
+
+  useEffect(() => {
+    const previousWindow = visibleMessageWindowRef.current;
+    visibleMessageWindowRef.current = {
+      firstId: visibleMessageFirstId,
+      lastId: visibleMessageLastId,
+      length: visibleMessages.length,
+    };
+
+    if (!shouldUseProgressiveRender) {
+      setRenderedMessageCount(visibleMessages.length);
+      return;
+    }
+
+    const isAppendOnlyUpdate =
+      previousWindow !== null &&
+      previousWindow.firstId === visibleMessageFirstId &&
+      previousWindow.length <= visibleMessages.length &&
+      previousWindow.lastId !== visibleMessageLastId;
+
+    if (!isAppendOnlyUpdate) {
+      setRenderedMessageCount(
+        Math.min(visibleMessages.length, MESSAGE_LIST_INITIAL_RENDER_COUNT),
+      );
+      return;
+    }
+
+    const appendedCount = visibleMessages.length - previousWindow.length;
+    if (appendedCount <= 0) {
+      return;
+    }
+
+    setRenderedMessageCount((current) =>
+      Math.min(
+        visibleMessages.length,
+        Math.max(
+          current + appendedCount,
+          MESSAGE_LIST_INITIAL_RENDER_COUNT,
+        ),
+      ),
+    );
+  }, [
+    shouldUseProgressiveRender,
+    visibleMessageFirstId,
+    visibleMessageLastId,
+    visibleMessages.length,
+  ]);
+
+  const hiddenHistoryCount = shouldUseProgressiveRender
+    ? Math.max(0, visibleMessages.length - renderedMessageCount)
+    : 0;
+
+  useEffect(() => {
+    if (
+      !shouldUseProgressiveRender ||
+      hiddenHistoryCount <= 0 ||
+      isUserScrolling
+    ) {
+      return;
+    }
+
+    return scheduleMinimumDelayIdleTask(
+      () => {
+        setRenderedMessageCount((current) =>
+          Math.min(
+            visibleMessages.length,
+            current + MESSAGE_LIST_RENDER_BATCH_SIZE,
+          ),
+        );
+      },
+      {
+        minimumDelayMs: 120,
+        idleTimeoutMs: 1_200,
+      },
+    );
+  }, [
+    hiddenHistoryCount,
+    isUserScrolling,
+    shouldUseProgressiveRender,
+    visibleMessages.length,
+  ]);
+
+  const renderedMessages = useMemo(
+    () =>
+      hiddenHistoryCount > 0
+        ? visibleMessages.slice(-renderedMessageCount)
+        : visibleMessages,
+    [hiddenHistoryCount, renderedMessageCount, visibleMessages],
+  );
+  const renderedTurns = useMemo(
+    () =>
+      hiddenHistoryCount > 0
+        ? turns.slice(
+            -Math.max(
+              renderedMessageCount,
+              MESSAGE_LIST_INITIAL_RENDER_COUNT,
+            ),
+          )
+        : turns,
+    [hiddenHistoryCount, renderedMessageCount, turns],
+  );
+  const renderedThreadItems = useMemo(
+    () =>
+      hiddenHistoryCount > 0
+        ? threadItems.slice(
+            -Math.max(
+              renderedMessageCount * MESSAGE_LIST_TIMELINE_ITEMS_FACTOR,
+              MESSAGE_LIST_INITIAL_RENDER_COUNT,
+            ),
+          )
+        : threadItems,
+    [hiddenHistoryCount, renderedMessageCount, threadItems],
+  );
   const timelineByMessageId = useMemo(
-    () => buildMessageTurnTimeline(visibleMessages, turns, threadItems),
-    [threadItems, turns, visibleMessages],
+    () =>
+      buildMessageTurnTimeline(
+        renderedMessages,
+        renderedTurns,
+        renderedThreadItems,
+      ),
+    [renderedMessages, renderedThreadItems, renderedTurns],
   );
   const lastAssistantMessageId = useMemo(
     () =>
-      [...visibleMessages]
+      [...renderedMessages]
         .reverse()
         .find((message) => message.role === "assistant")?.id ?? null,
-    [visibleMessages],
+    [renderedMessages],
   );
   const tailRuntimeStatusLine = useMemo(() => {
     if (!lastAssistantMessageId) {
@@ -561,9 +705,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
     }
 
     return buildInputbarRuntimeStatusLineModel({
-      messages: visibleMessages,
-      turns,
-      threadItems,
+      messages: renderedMessages,
+      turns: renderedTurns,
+      threadItems: renderedThreadItems,
       currentTurnId,
       threadRead,
       pendingActions,
@@ -578,17 +722,17 @@ const MessageListInner: React.FC<MessageListProps> = ({
     lastAssistantMessageId,
     pendingActions,
     queuedTurns,
-    threadItems,
+    renderedMessages,
+    renderedThreadItems,
+    renderedTurns,
     threadRead,
-    turns,
-    visibleMessages,
   ]);
   const currentTurnTimeline = useMemo(() => {
     if (!currentTurnId || !lastAssistantMessageId) {
       return null;
     }
 
-    const turn = turns.find((entry) => entry.id === currentTurnId);
+    const turn = renderedTurns.find((entry) => entry.id === currentTurnId);
     if (!turn) {
       return null;
     }
@@ -601,18 +745,18 @@ const MessageListInner: React.FC<MessageListProps> = ({
     return {
       messageId: mappedMessageId || lastAssistantMessageId,
       turn,
-      items: threadItems.filter((item) => item.turn_id === turn.id),
+      items: renderedThreadItems.filter((item) => item.turn_id === turn.id),
     };
   }, [
     currentTurnId,
     lastAssistantMessageId,
-    threadItems,
+    renderedThreadItems,
+    renderedTurns,
     timelineByMessageId,
-    turns,
   ]);
   const messageGroups = useMemo(
-    () => buildMessageTurnGroups(visibleMessages),
-    [visibleMessages],
+    () => buildMessageTurnGroups(renderedMessages),
+    [renderedMessages],
   );
   const renderGroups = useMemo(
     () =>
@@ -684,6 +828,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
     },
     [],
   );
+  const handleExpandAllHistory = useCallback(() => {
+    setRenderedMessageCount(visibleMessages.length);
+  }, [visibleMessages.length]);
 
   // 检测用户是否在手动滚动
   useEffect(() => {
@@ -719,7 +866,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   // 恢复历史会话时需要在首帧前把视口定位到底部，避免先闪顶部空白再平滑滚动。
   useLayoutEffect(() => {
     const previousVisibleMessageCount = previousVisibleMessageCountRef.current;
-    previousVisibleMessageCountRef.current = visibleMessages.length;
+    previousVisibleMessageCountRef.current = renderedMessages.length;
 
     if (!shouldAutoScroll || isUserScrolling || !scrollRef.current) {
       return;
@@ -729,13 +876,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
       !isRestoringSession &&
       previousVisibleMessageCount !== null &&
       previousVisibleMessageCount > 0 &&
-      visibleMessages.length <= previousVisibleMessageCount + 1;
+      renderedMessages.length <= previousVisibleMessageCount + 1;
 
     scrollRef.current.scrollIntoView({
       behavior: shouldAnimateScroll ? "smooth" : "auto",
       block: "end",
     });
-  }, [visibleMessages, shouldAutoScroll, isUserScrolling, isRestoringSession]);
+  }, [renderedMessages, shouldAutoScroll, isUserScrolling, isRestoringSession]);
 
   const handleCopy = async (content: string, id: string) => {
     try {
@@ -1372,6 +1519,25 @@ const MessageListInner: React.FC<MessageListProps> = ({
       >
         {leadingContent ? (
           <div data-testid="message-list-leading-content">{leadingContent}</div>
+        ) : null}
+        {hiddenHistoryCount > 0 ? (
+          <div
+            data-testid="message-list-history-window"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 text-sm text-slate-600"
+          >
+            <div className="min-w-0 flex-1">
+              为了更快打开对话，当前先展示最近 {renderedMessages.length} 条消息，
+              更早的 {hiddenHistoryCount} 条会在空闲时继续补齐。
+            </div>
+            <button
+              type="button"
+              data-testid="message-list-expand-history"
+              className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+              onClick={handleExpandAllHistory}
+            >
+              立即展开更早消息
+            </button>
+          </div>
         ) : null}
         {messageGroups.length === 0 &&
           (isRestoringSession ? (

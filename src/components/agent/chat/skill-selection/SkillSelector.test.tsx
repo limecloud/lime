@@ -6,6 +6,7 @@ import { SkillSelector } from "./SkillSelector";
 import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import { SKILL_SELECTION_DISPLAY_COPY } from "./skillSelectionDisplay";
+import type { InputCapabilitySelection } from "./inputCapabilitySelection";
 
 const mockToastInfo = vi.fn();
 const mockPopoverState = vi.hoisted(() => ({
@@ -194,7 +195,7 @@ function renderSkillSelector(
     skills: [],
     activeSkill: null,
     isLoading: false,
-    onSelectSkill: vi.fn(),
+    onSelectInputCapability: vi.fn(),
     onClearSkill: vi.fn(),
   };
 
@@ -227,12 +228,14 @@ async function openSkillSelector(container: HTMLElement) {
 }
 
 describe("SkillSelector", () => {
-  it("选择已安装技能时应回调 onSelectSkill", async () => {
-    const onSelectSkill = vi.fn<(skill: Skill) => void>();
+  it("选择已安装技能时应走统一 capability 回调", async () => {
+    const onSelectInputCapability = vi.fn<
+      (capability: InputCapabilitySelection) => void
+    >();
     const installedSkill = createSkill("写作助手", "writer", true);
     const container = renderSkillSelector({
       skills: [installedSkill],
-      onSelectSkill,
+      onSelectInputCapability,
     });
 
     await openSkillSelector(container);
@@ -246,7 +249,10 @@ describe("SkillSelector", () => {
       skillButton?.click();
     });
 
-    expect(onSelectSkill).toHaveBeenCalledWith(installedSkill);
+    expect(onSelectInputCapability).toHaveBeenCalledWith({
+      kind: "installed_skill",
+      skill: installedSkill,
+    });
   });
 
   it("存在已选技能时应支持清空", async () => {
@@ -352,15 +358,17 @@ describe("SkillSelector", () => {
     expect(onRefreshSkills).toHaveBeenCalledTimes(1);
   });
 
-  it("应复用同一面板渲染服务技能并回调 onSelectServiceSkill", async () => {
-    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+  it("应复用同一面板渲染服务技能并走统一 capability 回调", async () => {
+    const onSelectInputCapability = vi.fn<
+      (capability: InputCapabilitySelection) => void
+    >();
     const serviceSkill = createServiceSkill(
       "github-repo-radar",
       "GitHub 仓库线索检索",
     );
     const container = renderSkillSelector({
       serviceSkills: [serviceSkill],
-      onSelectServiceSkill,
+      onSelectInputCapability,
     });
 
     await openSkillSelector(container);
@@ -374,7 +382,10 @@ describe("SkillSelector", () => {
       skillButton?.click();
     });
 
-    expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkill);
+    expect(onSelectInputCapability).toHaveBeenCalledWith({
+      kind: "service_skill",
+      skill: serviceSkill,
+    });
   });
 
   it("加载中且无技能时应显示加载状态", async () => {

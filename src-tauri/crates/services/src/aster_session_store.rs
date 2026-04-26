@@ -44,6 +44,32 @@ struct PersistedConversationMessageRecord {
     agent_visible: bool,
 }
 
+struct SessionListingRow {
+    id: String,
+    model: String,
+    title: Option<String>,
+    created_at: String,
+    updated_at: String,
+    working_dir: Option<String>,
+    session_type: Option<String>,
+    user_set_name: bool,
+    extension_data_json: String,
+    total_tokens: Option<i32>,
+    input_tokens: Option<i32>,
+    output_tokens: Option<i32>,
+    cached_input_tokens: Option<i32>,
+    cache_creation_input_tokens: Option<i32>,
+    accumulated_total_tokens: Option<i32>,
+    accumulated_input_tokens: Option<i32>,
+    accumulated_output_tokens: Option<i32>,
+    schedule_id: Option<String>,
+    recipe_json: Option<String>,
+    user_recipe_values_json: Option<String>,
+    provider_name: Option<String>,
+    model_config_json: Option<String>,
+    message_count: usize,
+}
+
 fn persisted_visibility_default_true() -> bool {
     true
 }
@@ -274,6 +300,96 @@ impl LimeSessionStore {
             }
             _ => Self::resolve_session_working_dir(conn),
         }
+    }
+
+    fn map_session_listing_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionListingRow> {
+        Ok(SessionListingRow {
+            id: row.get(0)?,
+            model: row.get(1)?,
+            title: row.get(2)?,
+            created_at: row.get(3)?,
+            updated_at: row.get(4)?,
+            working_dir: row.get(5)?,
+            session_type: row.get(6)?,
+            user_set_name: row.get(7)?,
+            extension_data_json: row.get(8)?,
+            total_tokens: row.get(9)?,
+            input_tokens: row.get(10)?,
+            output_tokens: row.get(11)?,
+            cached_input_tokens: row.get(12)?,
+            cache_creation_input_tokens: row.get(13)?,
+            accumulated_total_tokens: row.get(14)?,
+            accumulated_input_tokens: row.get(15)?,
+            accumulated_output_tokens: row.get(16)?,
+            schedule_id: row.get(17)?,
+            recipe_json: row.get(18)?,
+            user_recipe_values_json: row.get(19)?,
+            provider_name: row.get(20)?,
+            model_config_json: row.get(21)?,
+            message_count: row.get::<_, i64>(22)? as usize,
+        })
+    }
+
+    fn build_session_from_listing_row(
+        conn: &rusqlite::Connection,
+        row: SessionListingRow,
+    ) -> Session {
+        let created_at = chrono::DateTime::parse_from_rfc3339(&row.created_at)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+        let updated_at = chrono::DateTime::parse_from_rfc3339(&row.updated_at)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+        let session_type = Self::resolve_session_type(row.session_type, &row.model);
+        let working_dir = Self::parse_session_working_dir(conn, row.working_dir);
+
+        Session {
+            id: row.id,
+            working_dir,
+            name: row.title.unwrap_or_else(|| "未命名会话".to_string()),
+            user_set_name: row.user_set_name,
+            session_type,
+            created_at,
+            updated_at,
+            extension_data: serde_json::from_str(&row.extension_data_json).unwrap_or_default(),
+            total_tokens: row.total_tokens,
+            input_tokens: row.input_tokens,
+            output_tokens: row.output_tokens,
+            cached_input_tokens: row.cached_input_tokens,
+            cache_creation_input_tokens: row.cache_creation_input_tokens,
+            accumulated_total_tokens: row.accumulated_total_tokens,
+            accumulated_input_tokens: row.accumulated_input_tokens,
+            accumulated_output_tokens: row.accumulated_output_tokens,
+            schedule_id: row.schedule_id,
+            recipe: Self::parse_optional_json(row.recipe_json),
+            user_recipe_values: Self::parse_optional_json(row.user_recipe_values_json),
+            conversation: None,
+            message_count: row.message_count,
+            provider_name: row.provider_name,
+            model_config: Self::parse_optional_json(row.model_config_json).or_else(|| {
+                match row.model.trim() {
+                    "" | "agent:default" => None,
+                    normalized => ModelConfig::new(normalized).ok(),
+                }
+            }),
+        }
+    }
+
+    fn load_listed_sessions<P>(
+        &self,
+        conn: &rusqlite::Connection,
+        sql: &str,
+        params: P,
+    ) -> Result<Vec<Session>>
+    where
+        P: rusqlite::Params,
+    {
+        let mut stmt = conn.prepare(sql)?;
+        let rows = stmt.query_map(params, Self::map_session_listing_row)?;
+        Ok(rows
+            .filter_map(|row| row.ok())
+            .map(|row| Self::build_session_from_listing_row(conn, row))
+            .collect())
     }
 }
 
@@ -590,147 +706,45 @@ impl SessionStore for LimeSessionStore {
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
         let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
-
-        let mut stmt = conn.prepare(
-            "SELECT id, model, system_prompt, title, created_at, updated_at, working_dir,
+        self.load_listed_sessions(
+            &conn,
+            "SELECT id, model, title, created_at, updated_at, working_dir,
                     session_type, user_set_name, extension_data_json,
                     total_tokens, input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens,
                     accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
                     schedule_id, recipe_json, user_recipe_values_json,
-                    provider_name, model_config_json
-             FROM agent_sessions ORDER BY updated_at DESC",
-        )?;
-
-        let sessions: Vec<Session> = stmt
-            .query_map([], |row| {
-                let id: String = row.get(0)?;
-                let model: String = row.get(1)?;
-                let title: Option<String> = row.get(3)?;
-                let created_at: String = row.get(4)?;
-                let updated_at: String = row.get(5)?;
-                let working_dir: Option<String> = row.get(6)?;
-                let session_type: Option<String> = row.get(7)?;
-                let user_set_name: bool = row.get(8)?;
-                let extension_data_json: String = row.get(9)?;
-                let total_tokens: Option<i32> = row.get(10)?;
-                let input_tokens: Option<i32> = row.get(11)?;
-                let output_tokens: Option<i32> = row.get(12)?;
-                let cached_input_tokens: Option<i32> = row.get(13)?;
-                let cache_creation_input_tokens: Option<i32> = row.get(14)?;
-                let accumulated_total_tokens: Option<i32> = row.get(15)?;
-                let accumulated_input_tokens: Option<i32> = row.get(16)?;
-                let accumulated_output_tokens: Option<i32> = row.get(17)?;
-                let schedule_id: Option<String> = row.get(18)?;
-                let recipe_json: Option<String> = row.get(19)?;
-                let user_recipe_values_json: Option<String> = row.get(20)?;
-                let provider_name: Option<String> = row.get(21)?;
-                let model_config_json: Option<String> = row.get(22)?;
-
-                Ok((
-                    id,
-                    model,
-                    title,
-                    created_at,
-                    updated_at,
-                    working_dir,
-                    session_type,
-                    user_set_name,
-                    extension_data_json,
-                    total_tokens,
-                    input_tokens,
-                    output_tokens,
-                    cached_input_tokens,
-                    cache_creation_input_tokens,
-                    accumulated_total_tokens,
-                    accumulated_input_tokens,
-                    accumulated_output_tokens,
-                    schedule_id,
-                    recipe_json,
-                    user_recipe_values_json,
-                    provider_name,
-                    model_config_json,
-                ))
-            })?
-            .filter_map(|r| r.ok())
-            .map(
-                |(
-                    id,
-                    model,
-                    title,
-                    created_at,
-                    updated_at,
-                    db_working_dir,
-                    session_type_raw,
-                    user_set_name,
-                    extension_data_json,
-                    total_tokens,
-                    input_tokens,
-                    output_tokens,
-                    cached_input_tokens,
-                    cache_creation_input_tokens,
-                    accumulated_total_tokens,
-                    accumulated_input_tokens,
-                    accumulated_output_tokens,
-                    schedule_id,
-                    recipe_json,
-                    user_recipe_values_json,
-                    provider_name,
-                    model_config_json,
-                )| {
-                    let created_at = chrono::DateTime::parse_from_rfc3339(&created_at)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now());
-                    let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now());
-                    let session_type = Self::resolve_session_type(session_type_raw, &model);
-                    let working_dir = Self::parse_session_working_dir(&conn, db_working_dir);
-                    let message_count = self.count_messages(&conn, &id).unwrap_or(0);
-
-                    Session {
-                        id,
-                        working_dir,
-                        name: title.unwrap_or_else(|| "未命名会话".to_string()),
-                        user_set_name,
-                        session_type,
-                        created_at,
-                        updated_at,
-                        extension_data: serde_json::from_str(&extension_data_json)
-                            .unwrap_or_default(),
-                        total_tokens,
-                        input_tokens,
-                        output_tokens,
-                        cached_input_tokens,
-                        cache_creation_input_tokens,
-                        accumulated_total_tokens,
-                        accumulated_input_tokens,
-                        accumulated_output_tokens,
-                        schedule_id,
-                        recipe: Self::parse_optional_json(recipe_json),
-                        user_recipe_values: Self::parse_optional_json(user_recipe_values_json),
-                        conversation: None,
-                        message_count,
-                        provider_name,
-                        model_config: Self::parse_optional_json(model_config_json).or_else(|| {
-                            match model.trim() {
-                                "" | "agent:default" => None,
-                                normalized => ModelConfig::new(normalized).ok(),
-                            }
-                        }),
-                    }
-                },
-            )
-            .collect();
-
-        Ok(sessions)
+                    provider_name, model_config_json,
+                    (SELECT COUNT(1) FROM agent_messages m WHERE m.session_id = agent_sessions.id) AS message_count
+             FROM agent_sessions
+             ORDER BY updated_at DESC",
+            [],
+        )
     }
 
     async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
-        let all_sessions = self.list_sessions().await?;
-        Ok(all_sessions
-            .into_iter()
-            .filter(|s| types.contains(&s.session_type))
-            .collect())
+        if types.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
+        let type_names = types.iter().map(ToString::to_string).collect::<Vec<_>>();
+        let placeholders = std::iter::repeat("?")
+            .take(type_names.len())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "SELECT id, model, title, created_at, updated_at, working_dir,
+                    session_type, user_set_name, extension_data_json,
+                    total_tokens, input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens,
+                    accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+                    schedule_id, recipe_json, user_recipe_values_json,
+                    provider_name, model_config_json,
+                    (SELECT COUNT(1) FROM agent_messages m WHERE m.session_id = agent_sessions.id) AS message_count
+             FROM agent_sessions
+             WHERE session_type IN ({placeholders})
+             ORDER BY updated_at DESC"
+        );
+        self.load_listed_sessions(&conn, &sql, rusqlite::params_from_iter(type_names.iter()))
     }
 
     async fn delete_session(&self, id: &str) -> Result<()> {
@@ -1617,6 +1631,49 @@ mod tests {
             .await
             .expect("读取缓存会话失败");
         assert_eq!(refreshed.message_count, 1);
+    }
+
+    #[tokio::test]
+    async fn list_sessions_by_types_should_query_only_requested_types() {
+        let store = setup_test_store();
+        let user_session = store
+            .create_session(
+                PathBuf::from("."),
+                "用户会话".to_string(),
+                SessionType::User,
+            )
+            .await
+            .expect("创建用户会话失败");
+        let subagent_session = store
+            .create_session(
+                PathBuf::from("."),
+                "子代理会话".to_string(),
+                SessionType::SubAgent,
+            )
+            .await
+            .expect("创建子代理会话失败");
+
+        store
+            .add_message(&user_session.id, &Message::user().with_text("user only"))
+            .await
+            .expect("追加用户消息失败");
+        store
+            .add_message(
+                &subagent_session.id,
+                &Message::assistant().with_text("subagent only"),
+            )
+            .await
+            .expect("追加子代理消息失败");
+
+        let sessions = store
+            .list_sessions_by_types(&[SessionType::SubAgent])
+            .await
+            .expect("按类型列出会话失败");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].id, subagent_session.id);
+        assert_eq!(sessions[0].session_type, SessionType::SubAgent);
+        assert_eq!(sessions[0].message_count, 1);
     }
 
     #[tokio::test]

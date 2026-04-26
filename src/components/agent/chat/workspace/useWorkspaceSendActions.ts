@@ -28,8 +28,11 @@ import {
 import { parseCompetitorWorkbenchCommand } from "../utils/competitorWorkbenchCommand";
 import { parseCoverWorkbenchCommand } from "../utils/coverWorkbenchCommand";
 import { parseDeepSearchWorkbenchCommand } from "../utils/deepSearchWorkbenchCommand";
+import { parseFileReadWorkbenchCommand } from "../utils/fileReadWorkbenchCommand";
 import { parseFormWorkbenchCommand } from "../utils/formWorkbenchCommand";
+import { parseGrowthWorkbenchCommand } from "../utils/growthWorkbenchCommand";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
+import { parseLogoDecompositionWorkbenchCommand } from "../utils/logoDecompositionWorkbenchCommand";
 import { parsePdfWorkbenchCommand } from "../utils/pdfWorkbenchCommand";
 import { parsePosterWorkbenchCommand } from "../utils/posterWorkbenchCommand";
 import { parsePresentationWorkbenchCommand } from "../utils/presentationWorkbenchCommand";
@@ -55,6 +58,7 @@ import {
 } from "../utils/urlParseWorkbenchCommand";
 import { parseVideoWorkbenchCommand } from "../utils/videoWorkbenchCommand";
 import { parseVoiceWorkbenchCommand } from "../utils/voiceWorkbenchCommand";
+import { parseWritingWorkbenchCommand } from "../utils/writingWorkbenchCommand";
 import { parseWebpageWorkbenchCommand } from "../utils/webpageWorkbenchCommand";
 import { detectBrowserTaskRequirement } from "../utils/browserTaskRequirement";
 import { isTeamRuntimeRecommendation } from "../utils/contextualRecommendations";
@@ -162,6 +166,9 @@ type ParsedChannelPreviewWorkbenchCommand = NonNullable<
 type ParsedFormWorkbenchCommand = NonNullable<
   ReturnType<typeof parseFormWorkbenchCommand>
 >;
+type ParsedGrowthWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseGrowthWorkbenchCommand>
+>;
 type ParsedPublishWorkbenchCommand = NonNullable<
   ReturnType<typeof parsePublishWorkbenchCommand>
 >;
@@ -176,6 +183,9 @@ type ParsedSiteSearchWorkbenchCommand = NonNullable<
 >;
 type ParsedSummaryWorkbenchCommand = NonNullable<
   ReturnType<typeof parseSummaryWorkbenchCommand>
+>;
+type ParsedFileReadWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseFileReadWorkbenchCommand>
 >;
 type ParsedTranslationWorkbenchCommand = NonNullable<
   ReturnType<typeof parseTranslationWorkbenchCommand>
@@ -197,6 +207,9 @@ type ParsedUploadWorkbenchCommand = NonNullable<
 >;
 type ParsedVoiceWorkbenchCommand = NonNullable<
   ReturnType<typeof parseVoiceWorkbenchCommand>
+>;
+type ParsedWritingWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseWritingWorkbenchCommand>
 >;
 type ParsedWebpageWorkbenchCommand = NonNullable<
   ReturnType<typeof parseWebpageWorkbenchCommand>
@@ -396,6 +409,7 @@ const MENTION_USAGE_REQUEST_FIELDS: Readonly<Record<string, readonly string[]>> 
     ],
     summary_request: [
       "prompt",
+      "source_path",
       "content",
       "focus",
       "length",
@@ -442,7 +456,15 @@ const MENTION_USAGE_REQUEST_FIELDS: Readonly<Record<string, readonly string[]>> 
       "style",
       "tech_stack",
     ],
-    service_scene: ["user_input", "target_language", "voice_style"],
+    service_scene: [
+      "user_input",
+      "target_language",
+      "voice_style",
+      "platform",
+      "account_list",
+      "report_cadence",
+      "alert_threshold",
+    ],
     publish_command: [
       "prompt",
       "content",
@@ -663,7 +685,7 @@ function resolveImageMentionCommandKey(
   if (trigger === "@重绘") {
     return "image_variation";
   }
-  if (trigger === "@配图" || trigger === "@image") {
+  if (trigger === "@配图" || trigger === "@Vision 1" || trigger === "@image") {
     return "image_generate";
   }
   return null;
@@ -697,28 +719,23 @@ function resolveBareMentionCommandPrefillSourceText(
   rawText: string,
   mentionCommandPrefixKeyMap: Map<string, string>,
 ): string | undefined {
-  const matched = rawText.match(/^\s*(@[^\s]+)\s*$/u);
-  if (!matched) {
-    return undefined;
-  }
-
-  const commandPrefix = matched[1];
-  const commandKey = mentionCommandPrefixKeyMap.get(
-    commandPrefix.trim().toLowerCase(),
+  const matched = resolveMentionCommandPrefixMatch(
+    rawText,
+    mentionCommandPrefixKeyMap,
   );
-  if (!commandKey) {
+  if (!matched || matched.hasBody) {
     return undefined;
   }
 
   const recentRecord = getMentionEntryUsageMap().get(
-    getMentionEntryUsageRecordKey("builtin_command", commandKey),
+    getMentionEntryUsageRecordKey("builtin_command", matched.commandKey),
   );
   if (!recentRecord) {
     return undefined;
   }
 
   const replayText = resolveMentionCommandPrefillReplayText({
-    commandKey,
+    commandKey: matched.commandKey,
     replayText: recentRecord.replayText,
     slotValues: recentRecord.slotValues,
   });
@@ -726,7 +743,47 @@ function resolveBareMentionCommandPrefillSourceText(
     return undefined;
   }
 
-  return `${commandPrefix} ${replayText}`;
+  return `${matched.commandPrefix} ${replayText}`;
+}
+
+function resolveMentionCommandPrefixMatch(
+  rawText: string,
+  mentionCommandPrefixKeyMap: Map<string, string>,
+): { commandPrefix: string; commandKey: string; hasBody: boolean } | null {
+  const trimmedStart = rawText.trimStart();
+  if (!trimmedStart.startsWith("@")) {
+    return null;
+  }
+
+  const normalized = trimmedStart.toLowerCase();
+  let matchedPrefix: string | null = null;
+  let matchedCommandKey: string | null = null;
+
+  for (const [prefix, commandKey] of mentionCommandPrefixKeyMap.entries()) {
+    if (
+      normalized === prefix ||
+      normalized.startsWith(`${prefix} `) ||
+      normalized.startsWith(`${prefix}\n`)
+    ) {
+      if (!matchedPrefix || prefix.length > matchedPrefix.length) {
+        matchedPrefix = prefix;
+        matchedCommandKey = commandKey;
+      }
+    }
+  }
+
+  if (!matchedPrefix || !matchedCommandKey) {
+    return null;
+  }
+
+  const commandPrefix = trimmedStart.slice(0, matchedPrefix.length);
+  const hasBody = trimmedStart.slice(matchedPrefix.length).trim().length > 0;
+
+  return {
+    commandPrefix,
+    commandKey: matchedCommandKey,
+    hasBody,
+  };
 }
 
 function resolvePreferredRecentCommandText(
@@ -804,10 +861,12 @@ function mergeTranslationCommandRecentDefaults(params: {
   };
 }
 
-function mergeAnalysisCommandRecentDefaults(params: {
-  parsedCommand: ParsedAnalysisWorkbenchCommand;
+function mergeAnalysisCommandRecentDefaults<
+  T extends ParsedAnalysisWorkbenchCommand,
+>(params: {
+  parsedCommand: T;
   slotValues?: ServiceSkillSlotValues;
-}): ParsedAnalysisWorkbenchCommand {
+}): T {
   const slotValues = params.slotValues;
   if (!slotValues) {
     return params.parsedCommand;
@@ -827,7 +886,7 @@ function mergeAnalysisCommandRecentDefaults(params: {
       params.parsedCommand.outputFormat,
       slotValues.output_format,
     ),
-  };
+  } as T;
 }
 
 function resolvePreferredComplianceCommandText(params: {
@@ -1054,7 +1113,8 @@ function mergeWebpageCommandRecentDefaults(params: {
 type ParsedPublishLikeWorkbenchCommand =
   | ParsedChannelPreviewWorkbenchCommand
   | ParsedUploadWorkbenchCommand
-  | ParsedPublishWorkbenchCommand;
+  | ParsedPublishWorkbenchCommand
+  | ParsedWritingWorkbenchCommand;
 
 function normalizeRecentPublishPlatform(params: {
   platformType?: string | null;
@@ -1111,6 +1171,11 @@ function normalizeRecentPublishPlatform(params: {
       return {
         platformType: "tiktok",
         platformLabel: "TikTok",
+      };
+    case "x":
+      return {
+        platformType: "x",
+        platformLabel: "X / Twitter",
       };
     default:
       return {};
@@ -1193,6 +1258,36 @@ function buildUploadDispatchBody(params: {
   return [
     normalizedPlatformLabel ? `平台:${normalizedPlatformLabel}` : undefined,
     uploadInstruction,
+    normalizedPrompt,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function buildWritingDispatchBody(params: {
+  prompt?: string | null;
+  platformLabel?: string | null;
+  draftKind?: ParsedWritingWorkbenchCommand["draftKind"] | null;
+}): string {
+  const normalizedPlatformLabel = normalizeOptionalText(params.platformLabel);
+  const normalizedPrompt = normalizeOptionalText(params.prompt);
+  const writingInstruction =
+    params.draftKind === "newsletter"
+      ? normalizedPlatformLabel
+        ? `请基于当前内容生成一版适用于${normalizedPlatformLabel}的 Newsletter / 简报主稿，优先输出标题、开场摘要、分节要点和结尾行动建议`
+        : "请基于当前内容生成一版 Newsletter / 简报主稿，优先输出标题、开场摘要、分节要点和结尾行动建议"
+      : params.draftKind === "blog"
+        ? normalizedPlatformLabel
+          ? `请基于当前内容生成一篇适用于${normalizedPlatformLabel}发布的 Blog 文章主稿，优先输出标题、导语、小标题结构、正文和结尾行动建议`
+          : "请基于当前内容生成一篇 Blog 文章主稿，优先输出标题、导语、小标题结构、正文和结尾行动建议"
+        : normalizedPlatformLabel
+          ? `请基于当前内容生成一版适用于${normalizedPlatformLabel}的写作主稿，优先输出标题、结构、正文和结尾行动建议`
+          : "请基于当前内容生成一版可继续修改的写作主稿，优先输出标题、结构、正文和结尾行动建议";
+
+  return [
+    normalizedPlatformLabel ? `平台:${normalizedPlatformLabel}` : undefined,
+    writingInstruction,
     normalizedPrompt,
   ]
     .filter(Boolean)
@@ -1621,6 +1716,40 @@ function buildSummarySkillLaunchRequestMetadata(
     defaultKind: "summary_request",
     skillName: "summary",
   });
+}
+
+function buildFileReadSkillLaunchRequestContext(params: {
+  rawText: string;
+  parsedCommand: ParsedFileReadWorkbenchCommand;
+  projectId?: string | null;
+  contentId?: string | null;
+}): Record<string, unknown> | null {
+  const sourcePath = params.parsedCommand.sourcePath?.trim();
+  if (!sourcePath) {
+    toast.error("请先提供文件路径后再读取");
+    return null;
+  }
+
+  const prompt =
+    params.parsedCommand.prompt.trim() ||
+    params.parsedCommand.focus?.trim() ||
+    "请阅读这个文件并提炼关键信息";
+
+  return {
+    kind: "summary_request",
+    summary_request: {
+      raw_text: params.rawText,
+      prompt,
+      source_path: sourcePath,
+      focus: params.parsedCommand.focus,
+      length: params.parsedCommand.length,
+      style: params.parsedCommand.style,
+      output_format: params.parsedCommand.outputFormat,
+      project_id: params.projectId || undefined,
+      content_id: params.contentId || undefined,
+      entry_source: "at_file_read_command",
+    },
+  };
 }
 
 function buildTranslationSkillLaunchRequestMetadata(
@@ -2131,7 +2260,9 @@ function buildAnalysisSkillLaunchRequestContext(params: {
   parsedCommand: Pick<
     ParsedAnalysisWorkbenchCommand,
     "prompt" | "content" | "focus" | "style" | "outputFormat"
-  >;
+  > & {
+    analysisMode?: string;
+  };
   projectId?: string | null;
   contentId?: string | null;
   entrySource?: string;
@@ -2148,6 +2279,7 @@ function buildAnalysisSkillLaunchRequestContext(params: {
       focus: params.parsedCommand.focus,
       style: params.parsedCommand.style,
       output_format: params.parsedCommand.outputFormat,
+      analysis_mode: params.parsedCommand.analysisMode,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
       entry_source: params.entrySource || "at_analysis_command",
@@ -2299,6 +2431,43 @@ function matchesVoiceCommandSkill(skill: ServiceSkillHomeItem): boolean {
   return /配音|dubbing|voice/.test(searchable);
 }
 
+function matchesGrowthCommandSkill(skill: ServiceSkillHomeItem): boolean {
+  const searchable = [
+    skill.id,
+    skill.skillKey,
+    skill.title,
+    skill.summary,
+    ...(skill.aliases ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return /增长|growth|account-performance|涨粉/.test(searchable);
+}
+
+function resolveGrowthCommandServiceSkill(
+  serviceSkills: ServiceSkillHomeItem[],
+): ServiceSkillHomeItem | null {
+  return (
+    serviceSkills.find(
+      (skill) =>
+        (skill.id === "account-performance-tracking" ||
+          skill.skillKey === "account-performance-tracking") &&
+        skill.defaultExecutorBinding !== "browser_assist",
+    ) ||
+    serviceSkills.find(
+      (skill) =>
+        matchesGrowthCommandSkill(skill) &&
+        skill.defaultExecutorBinding !== "browser_assist" &&
+        skill.slotSchema.some((slot) => slot.key === "platform") &&
+        skill.slotSchema.some((slot) => slot.key === "account_list"),
+    ) ||
+    serviceSkills.find((skill) => matchesGrowthCommandSkill(skill)) ||
+    null
+  );
+}
+
 function resolveVoiceCommandServiceSkill(
   serviceSkills: ServiceSkillHomeItem[],
 ): ServiceSkillHomeItem | null {
@@ -2335,6 +2504,101 @@ function normalizeLocalServiceSkillExecutionKind(
 interface VoiceSkillLaunchRequest {
   dispatchText: string;
   requestContext: Record<string, unknown>;
+}
+
+async function resolveGrowthSkillLaunchRequestContext(params: {
+  rawText: string;
+  parsedCommand: ParsedGrowthWorkbenchCommand;
+  serviceSkills: ServiceSkillHomeItem[];
+  projectId?: string | null;
+  contentId?: string | null;
+}): Promise<VoiceSkillLaunchRequest | null> {
+  const skill = resolveGrowthCommandServiceSkill(params.serviceSkills);
+  if (!skill) {
+    toast.error("当前未安装可用的增长跟踪技能，请先同步技能目录后再试");
+    return null;
+  }
+
+  const prompt = params.parsedCommand.prompt.trim();
+  const slotValues: ServiceSkillSlotValues = {
+    ...(params.parsedCommand.platformType
+      ? {
+          platform: params.parsedCommand.platformType,
+        }
+      : {}),
+    ...(params.parsedCommand.accountList
+      ? {
+          account_list: params.parsedCommand.accountList,
+        }
+      : {}),
+    ...(params.parsedCommand.reportCadence
+      ? {
+          report_cadence: params.parsedCommand.reportCadence,
+        }
+      : {}),
+    ...(params.parsedCommand.alertThreshold
+      ? {
+          alert_threshold: params.parsedCommand.alertThreshold,
+        }
+      : {}),
+  };
+
+  if (!slotValues.account_list && !prompt) {
+    toast.error("请至少补充目标账号或增长目标后再提交");
+    return null;
+  }
+
+  let resolvedProjectId = normalizeOptionalText(params.projectId);
+  if (!resolvedProjectId && skill.readinessRequirements?.requiresProject) {
+    try {
+      const defaultProject = await getOrCreateDefaultProject();
+      resolvedProjectId = normalizeOptionalText(defaultProject?.id);
+    } catch {
+      resolvedProjectId = undefined;
+    }
+  }
+
+  if (!resolvedProjectId && skill.readinessRequirements?.requiresProject) {
+    toast.error("请先选择项目后再开始增长跟踪");
+    return null;
+  }
+
+  return {
+    dispatchText: composeServiceSkillPrompt({
+      skill,
+      slotValues,
+      userInput: prompt || undefined,
+    }),
+    requestContext: {
+      kind: "local_service_skill",
+      service_scene_run: {
+        raw_text: params.rawText,
+        user_input: prompt || undefined,
+        entry_id: "command:growth_runtime",
+        scene_key: "growth_runtime",
+        command_prefix: params.parsedCommand.trigger,
+        linked_skill_id: skill.id,
+        skill_id: skill.id,
+        skill_key: skill.skillKey || undefined,
+        skill_title: skill.title,
+        skill_summary: skill.summary,
+        runner_type: skill.runnerType,
+        execution_kind: normalizeLocalServiceSkillExecutionKind(
+          skill.defaultExecutorBinding,
+        ),
+        execution_location: "client_default",
+        project_id: resolvedProjectId,
+        content_id: normalizeOptionalText(params.contentId),
+        entry_source: "at_growth_command",
+        platform: params.parsedCommand.platformType,
+        platform_label: params.parsedCommand.platformLabel,
+        account_list: params.parsedCommand.accountList,
+        report_cadence: params.parsedCommand.reportCadence,
+        alert_threshold: params.parsedCommand.alertThreshold,
+        slot_values: Object.keys(slotValues).length > 0 ? slotValues : undefined,
+      },
+    },
+  };
 }
 
 async function resolveVoiceSkillLaunchRequestContext(params: {
@@ -2732,15 +2996,18 @@ export function useWorkspaceSendActions({
           };
         }
 
-        const commandPrefix = params.rawText.match(/^\s*(@[^\s]+)(?:\s+|$)/u)?.[1];
-        if (!commandPrefix) {
+        const commandPrefixMatch = resolveMentionCommandPrefixMatch(
+          params.rawText,
+          mentionCommandPrefixKeyMap,
+        );
+        if (!commandPrefixMatch) {
           return {
             rawText: params.rawText,
             parsedCommand: params.parsedCommand,
           };
         }
 
-        const nextRawText = `${commandPrefix} ${nextReplayText}`;
+        const nextRawText = `${commandPrefixMatch.commandPrefix} ${nextReplayText}`;
         const reparsed = params.reparse(nextRawText);
         if (!reparsed) {
           return {
@@ -3482,7 +3749,7 @@ export function useWorkspaceSendActions({
         hasBoundSkillLaunch = true;
       }
 
-      const parsedSummaryWorkbenchCommand =
+      const parsedFileReadWorkbenchCommand =
         !sendOptions?.purpose &&
         sourceText.trim() &&
         !parsedImageWorkbenchCommand &&
@@ -3496,6 +3763,58 @@ export function useWorkspaceSendActions({
         !parsedDeepSearchWorkbenchCommand &&
         !parsedSiteSearchWorkbenchCommand &&
         !parsedPdfWorkbenchCommand
+          ? parseFileReadWorkbenchCommand(sourceText)
+          : null;
+      if (parsedFileReadWorkbenchCommand) {
+        const prefilledFileReadCommand = maybeApplyMentionCommandRecentDefaults({
+          rawText: sourceText,
+          commandKey: "file_read_runtime",
+          parsedCommand: parsedFileReadWorkbenchCommand,
+          reparse: parseFileReadWorkbenchCommand,
+        });
+        sourceText = prefilledFileReadCommand.rawText;
+        dispatchText = sourceText;
+        const requestContext = buildFileReadSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: prefilledFileReadCommand.parsedCommand,
+          projectId,
+          contentId,
+        });
+        if (!requestContext) {
+          return { kind: "done", result: false };
+        }
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildSummarySkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            requestContext,
+          ),
+        };
+        markCompletedMentionCommand(
+          "file_read_runtime",
+          resolveMentionCommandReplayText(
+            prefilledFileReadCommand.parsedCommand,
+            "file_read_runtime",
+          ),
+        );
+        hasBoundSkillLaunch = true;
+      }
+
+      const parsedSummaryWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand &&
+        !parsedVideoWorkbenchCommand &&
+        !parsedBroadcastWorkbenchCommand &&
+        !parsedResourceSearchWorkbenchCommand &&
+        !parsedTranscriptionWorkbenchCommand &&
+        !parsedSearchWorkbenchCommand &&
+        !parsedReportWorkbenchCommand &&
+        !parsedDeepSearchWorkbenchCommand &&
+        !parsedSiteSearchWorkbenchCommand &&
+        !parsedPdfWorkbenchCommand &&
+        !parsedFileReadWorkbenchCommand
           ? parseSummaryWorkbenchCommand(sourceText)
           : null;
       if (parsedSummaryWorkbenchCommand) {
@@ -3627,7 +3946,7 @@ export function useWorkspaceSendActions({
         hasBoundSkillLaunch = true;
       }
 
-      const parsedAnalysisWorkbenchCommand =
+      const parsedLogoDecompositionWorkbenchCommand =
         !sendOptions?.purpose &&
         sourceText.trim() &&
         !parsedImageWorkbenchCommand &&
@@ -3644,6 +3963,62 @@ export function useWorkspaceSendActions({
         !parsedSummaryWorkbenchCommand &&
         !parsedTranslationWorkbenchCommand &&
         !parsedComplianceWorkbenchCommand
+          ? parseLogoDecompositionWorkbenchCommand(sourceText)
+          : null;
+      if (parsedLogoDecompositionWorkbenchCommand) {
+        const mergedLogoDecompositionCommand = mergeAnalysisCommandRecentDefaults(
+          {
+            parsedCommand: parsedLogoDecompositionWorkbenchCommand,
+            slotValues: mentionUsageMap.get(
+              getMentionEntryUsageRecordKey(
+                "builtin_command",
+                "logo_decomposition",
+              ),
+            )?.slotValues,
+          },
+        );
+        const requestContext = buildAnalysisSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: mergedLogoDecompositionCommand,
+          projectId,
+          contentId,
+          entrySource: "at_logo_decomposition_command",
+        });
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildAnalysisSkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            requestContext,
+          ),
+        };
+        markCompletedMentionCommand(
+          "logo_decomposition",
+          resolveMentionCommandReplayText(
+            mergedLogoDecompositionCommand,
+            "logo_decomposition",
+          ),
+        );
+        hasBoundSkillLaunch = true;
+      }
+
+      const parsedAnalysisWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand &&
+        !parsedVideoWorkbenchCommand &&
+        !parsedBroadcastWorkbenchCommand &&
+        !parsedResourceSearchWorkbenchCommand &&
+        !parsedTranscriptionWorkbenchCommand &&
+        !parsedSearchWorkbenchCommand &&
+        !parsedReportWorkbenchCommand &&
+        !parsedDeepSearchWorkbenchCommand &&
+        !parsedSiteSearchWorkbenchCommand &&
+        !parsedPdfWorkbenchCommand &&
+        !parsedSummaryWorkbenchCommand &&
+        !parsedTranslationWorkbenchCommand &&
+        !parsedComplianceWorkbenchCommand &&
+        !parsedLogoDecompositionWorkbenchCommand
           ? parseAnalysisWorkbenchCommand(sourceText)
           : null;
       if (parsedAnalysisWorkbenchCommand) {
@@ -4014,7 +4389,7 @@ export function useWorkspaceSendActions({
         );
       }
 
-      const parsedChannelPreviewWorkbenchCommand =
+      const parsedWritingWorkbenchCommand =
         !sendOptions?.purpose &&
         sourceText.trim() &&
         !parsedImageWorkbenchCommand &&
@@ -4036,6 +4411,75 @@ export function useWorkspaceSendActions({
         !parsedFormWorkbenchCommand &&
         !parsedWebpageWorkbenchCommand &&
         !parsedCodeWorkbenchCommand
+          ? parseWritingWorkbenchCommand(sourceText)
+          : null;
+      if (parsedWritingWorkbenchCommand) {
+        const mergedWritingCommand = mergePublishLikeCommandRecentDefaults({
+          parsedCommand: parsedWritingWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey("builtin_command", "writing_runtime"),
+          )?.slotValues,
+        });
+        const existingHarnessMetadata =
+          asRecord(sendOptions?.requestMetadata?.harness) || {};
+        const dispatchBody = buildWritingDispatchBody({
+          prompt: mergedWritingCommand.prompt || mergedWritingCommand.body,
+          platformLabel: mergedWritingCommand.platformLabel,
+          draftKind: mergedWritingCommand.draftKind,
+        });
+        dispatchText = `/${CONTENT_POST_SKILL_KEY}${
+          dispatchBody ? ` ${dispatchBody}` : ""
+        }`;
+        ensureSubmissionPreview();
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: {
+            ...(sendOptions?.requestMetadata || {}),
+            harness: {
+              ...existingHarnessMetadata,
+              publish_command: {
+                prompt:
+                  mergedWritingCommand.prompt || mergedWritingCommand.body,
+                content: mergedWritingCommand.body,
+                platform_type: mergedWritingCommand.platformType || undefined,
+                platform_label: mergedWritingCommand.platformLabel || undefined,
+                entry_source: "at_writing_command",
+              },
+            },
+          },
+        };
+        markCompletedMentionCommand(
+          "writing_runtime",
+          resolveMentionCommandReplayText(
+            mergedWritingCommand,
+            "writing_runtime",
+          ),
+        );
+      }
+
+      const parsedChannelPreviewWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand &&
+        !parsedVideoWorkbenchCommand &&
+        !parsedBroadcastWorkbenchCommand &&
+        !parsedResourceSearchWorkbenchCommand &&
+        !parsedTranscriptionWorkbenchCommand &&
+        !parsedSearchWorkbenchCommand &&
+        !parsedReportWorkbenchCommand &&
+        !parsedDeepSearchWorkbenchCommand &&
+        !parsedSiteSearchWorkbenchCommand &&
+        !parsedPdfWorkbenchCommand &&
+        !parsedSummaryWorkbenchCommand &&
+        !parsedTranslationWorkbenchCommand &&
+        !parsedUrlParseWorkbenchCommand &&
+        !parsedTypesettingWorkbenchCommand &&
+        !parsedPresentationWorkbenchCommand &&
+        !parsedFormWorkbenchCommand &&
+        !parsedWebpageWorkbenchCommand &&
+        !parsedCodeWorkbenchCommand &&
+        !parsedWritingWorkbenchCommand
           ? parseChannelPreviewWorkbenchCommand(sourceText)
           : null;
       if (parsedChannelPreviewWorkbenchCommand) {
@@ -4113,6 +4557,7 @@ export function useWorkspaceSendActions({
         !parsedFormWorkbenchCommand &&
         !parsedWebpageWorkbenchCommand &&
         !parsedCodeWorkbenchCommand &&
+        !parsedWritingWorkbenchCommand &&
         !parsedChannelPreviewWorkbenchCommand
           ? parseUploadWorkbenchCommand(sourceText)
           : null;
@@ -4195,6 +4640,7 @@ export function useWorkspaceSendActions({
         !parsedFormWorkbenchCommand &&
         !parsedWebpageWorkbenchCommand &&
         !parsedCodeWorkbenchCommand &&
+        !parsedWritingWorkbenchCommand &&
         !parsedChannelPreviewWorkbenchCommand &&
         !parsedUploadWorkbenchCommand
           ? parsePublishWorkbenchCommand(sourceText)
@@ -4285,6 +4731,42 @@ export function useWorkspaceSendActions({
           resolveMentionCommandReplayText(
             parsedVoiceWorkbenchCommand,
             "voice_runtime",
+          ),
+        );
+        hasBoundSkillLaunch = true;
+      }
+
+      const parsedGrowthWorkbenchCommand =
+        !sendOptions?.purpose && sourceText.trim()
+          ? parseGrowthWorkbenchCommand(sourceText)
+          : null;
+      if (parsedGrowthWorkbenchCommand) {
+        const growthSkillLaunch = await resolveGrowthSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: parsedGrowthWorkbenchCommand,
+          serviceSkills,
+          projectId,
+          contentId,
+        });
+        if (!growthSkillLaunch) {
+          clearSubmissionPreview();
+          return { kind: "done", result: false };
+        }
+
+        ensureSubmissionPreview();
+        dispatchText = growthSkillLaunch.dispatchText;
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildServiceSceneLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            growthSkillLaunch.requestContext,
+          ),
+        };
+        markCompletedMentionCommand(
+          "growth_runtime",
+          resolveMentionCommandReplayText(
+            parsedGrowthWorkbenchCommand,
+            "growth_runtime",
           ),
         );
         hasBoundSkillLaunch = true;

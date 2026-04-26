@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpLeft,
   BrainCircuit,
@@ -128,6 +128,7 @@ interface ChatSidebarProps {
   topics: Topic[];
   currentTopicId: string | null;
   onSwitchTopic: (topicId: string) => void | Promise<void>;
+  onOpenArchivedTopic?: (topicId: string) => void | Promise<void>;
   onResumeTask?: (
     topicId: string,
     statusReason?: TaskStatusReason,
@@ -517,6 +518,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   topics,
   currentTopicId,
   onSwitchTopic,
+  onOpenArchivedTopic,
   onResumeTask,
   onDeleteTopic,
   onRenameTopic,
@@ -863,6 +865,22 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
     void onSwitchTopic(item.id);
   };
+
+  const handleOpenTaskItem = useCallback(
+    (item: TaskCardViewModel, sectionKey: TaskSectionKey) => {
+      if (
+        contextVariant === "task-center" &&
+        sectionKey === "older" &&
+        onOpenArchivedTopic
+      ) {
+        void onOpenArchivedTopic(item.id);
+        return;
+      }
+
+      void onSwitchTopic(item.id);
+    },
+    [contextVariant, onOpenArchivedTopic, onSwitchTopic],
+  );
 
   const handleJumpToTaskSection = () => {
     setTeamSectionCollapsedOverride(true);
@@ -1442,7 +1460,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                                 tabIndex={0}
                                 onClick={() => {
                                   if (editingTopicId !== item.id) {
-                                    onSwitchTopic(item.id);
+                                    handleOpenTaskItem(item, section.key);
                                   }
                                 }}
                                 onDoubleClick={() =>
@@ -1455,7 +1473,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                                   ) {
                                     event.preventDefault();
                                     if (editingTopicId !== item.id) {
-                                      onSwitchTopic(item.id);
+                                      handleOpenTaskItem(item, section.key);
                                     }
                                   }
                                 }}

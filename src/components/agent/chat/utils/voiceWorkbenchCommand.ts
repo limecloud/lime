@@ -2,7 +2,8 @@ export type VoiceWorkbenchCommandTrigger =
   | "@配音"
   | "@voice"
   | "@dubbing"
-  | "@dub";
+  | "@dub"
+  | "@Website Voiceover";
 
 export interface ParsedVoiceWorkbenchCommand {
   rawText: string;
@@ -14,7 +15,7 @@ export interface ParsedVoiceWorkbenchCommand {
 }
 
 const VOICE_COMMAND_PREFIX_REGEX =
-  /^\s*(@配音|@voice|@dubbing|@dub)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@配音|@voice|@dubbing|@dub|@Website Voiceover)(?:\s+|$)([\s\S]*)$/i;
 const PROMPT_PREFIX_REGEX =
   /^\s*(帮我|给我|请|生成|制作|整理|输出|做一版|做个|做一个|create|generate|draft)(?:\s|$|[:：])*/i;
 const FIELD_BOUNDARY_REGEX =
@@ -30,6 +31,9 @@ function trimLeadingDecorations(value: string): string {
 
 function normalizeTrigger(value: string): VoiceWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
+  if (normalized === "@website voiceover") {
+    return "@Website Voiceover";
+  }
   if (normalized === "@voice") {
     return "@voice";
   }

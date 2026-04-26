@@ -109,6 +109,21 @@ describe("parseImageWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 @Vision 1，并继续走视觉生成主链", () => {
+    const result = parseImageWorkbenchCommand(
+      "@Vision 1 春日咖啡品牌主视觉海报，4:5",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Vision 1",
+      mode: "generate",
+      count: 1,
+      aspectRatio: "4:5",
+      size: "864x1152",
+      prompt: "春日咖啡品牌主视觉海报",
+    });
+  });
+
   it("未显式声明动作但带目标图时应默认为变体", () => {
     const result = parseImageWorkbenchCommand("/image #img-7 更偏插画风，4:5");
 

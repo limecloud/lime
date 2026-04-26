@@ -4,7 +4,7 @@
 //! 避免上层 crate 继续散落 direct AgentDao 调用或手写 workspace SQL。
 
 use crate::agent::types::AgentSession;
-use crate::database::dao::agent::{AgentDao, AgentSessionOverviewRow};
+use crate::database::dao::agent::{AgentDao, AgentSessionOverviewRow, SessionArchiveFilter};
 use rusqlite::{Connection, OptionalExtension};
 
 #[derive(Debug, Clone)]
@@ -70,25 +70,37 @@ fn resolve_workspace_id_by_working_dir(
     }
 }
 
-fn map_session_overview(
-    conn: &Connection,
-    overview: AgentSessionOverviewRow,
-) -> SessionRecordOverview {
-    let working_dir = overview.session.working_dir;
-    let workspace_id = resolve_workspace_id_by_working_dir(conn, working_dir.as_deref());
+fn map_session_overview(overview: AgentSessionOverviewRow) -> SessionRecordOverview {
+    let AgentSessionOverviewRow {
+        session,
+        messages_count,
+        archived_at,
+        workspace_id,
+    } = overview;
+    let AgentSession {
+        id,
+        model,
+        system_prompt,
+        title,
+        created_at,
+        updated_at,
+        working_dir,
+        execution_strategy,
+        ..
+    } = session;
 
     SessionRecordOverview {
-        id: overview.session.id,
-        model: overview.session.model,
-        system_prompt: overview.session.system_prompt,
-        title: overview.session.title,
-        created_at: overview.session.created_at,
-        updated_at: overview.session.updated_at,
-        archived_at: overview.archived_at,
+        id,
+        model,
+        system_prompt,
+        title,
+        created_at,
+        updated_at,
+        archived_at,
         working_dir,
         workspace_id,
-        execution_strategy: overview.session.execution_strategy,
-        messages_count: overview.messages_count,
+        execution_strategy,
+        messages_count,
     }
 }
 
@@ -98,14 +110,12 @@ pub fn create_session(conn: &Connection, session: &AgentSession) -> Result<(), S
 
 pub fn list_session_overviews(
     conn: &Connection,
-    include_archived: bool,
+    archive_filter: SessionArchiveFilter,
+    workspace_id: Option<&str>,
+    limit: Option<usize>,
 ) -> Result<Vec<SessionRecordOverview>, String> {
-    AgentDao::list_session_overviews(conn, include_archived)
-        .map(|rows| {
-            rows.into_iter()
-                .map(|row| map_session_overview(conn, row))
-                .collect()
-        })
+    AgentDao::list_session_overviews(conn, archive_filter, workspace_id, limit)
+        .map(|rows| rows.into_iter().map(map_session_overview).collect())
         .map_err(|error| format!("获取会话列表失败: {error}"))
 }
 
@@ -114,7 +124,7 @@ pub fn get_session_overview(
     session_id: &str,
 ) -> Result<Option<SessionRecordOverview>, String> {
     AgentDao::get_session_overview(conn, session_id)
-        .map(|row| row.map(|row| map_session_overview(conn, row)))
+        .map(|row| row.map(map_session_overview))
         .map_err(|error| format!("获取会话失败: {error}"))
 }
 

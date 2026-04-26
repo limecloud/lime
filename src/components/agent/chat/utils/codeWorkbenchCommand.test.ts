@@ -39,6 +39,19 @@ describe("parseCodeWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 Ribbi 风格的 @Code Agent 命令", () => {
+    const result = parseCodeWorkbenchCommand(
+      "@Code Agent refactor the runtime mention registry and remove duplicate branches",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Code Agent",
+      taskType: "refactor",
+      prompt:
+        "the runtime mention registry and remove duplicate branches",
+    });
+  });
+
   it("非代码命令应返回空", () => {
     expect(parseCodeWorkbenchCommand("@表单 帮我做一个报名表")).toBeNull();
   });

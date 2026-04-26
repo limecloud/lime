@@ -41,6 +41,20 @@ describe("parsePresentationWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 @Sales 1，并默认收口为 sales_deck", () => {
+    const result = parsePresentationWorkbenchCommand(
+      "@Sales 1 风格: 极简商业 受众: 销售团队 帮我做一个企业服务产品销售演示稿",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Sales 1",
+      deckType: "sales_deck",
+      style: "极简商业",
+      audience: "销售团队",
+      prompt: "帮我做一个企业服务产品销售演示稿",
+    });
+  });
+
   it("非演示命令应返回空", () => {
     expect(parsePresentationWorkbenchCommand("@网页 帮我做个官网")).toBeNull();
   });

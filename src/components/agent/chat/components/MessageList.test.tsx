@@ -231,6 +231,17 @@ function render(
   return container;
 }
 
+function createConversationMessages(count: number): Message[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `message-${index + 1}`,
+    role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
+    content: `消息 ${index + 1}`,
+    timestamp: new Date(
+      `2026-04-25T10:${String(index % 60).padStart(2, "0")}:00.000Z`,
+    ),
+  }));
+}
+
 describe("MessageList", () => {
   it("应在同一滚动区域顶部渲染 leadingContent", () => {
     const container = render(
@@ -331,6 +342,33 @@ describe("MessageList", () => {
       container.querySelectorAll('[data-testid="streaming-renderer"]'),
     ).map((node) => node.textContent);
     expect(streamingTexts).toEqual(["好的，我继续处理。"]);
+  });
+
+  it("大历史会话应先展示最近消息，并允许用户立即展开更早内容", () => {
+    const messages = createConversationMessages(90);
+    const container = render(messages);
+
+    const historyWindow = container.querySelector(
+      '[data-testid="message-list-history-window"]',
+    );
+    const expandButton = container.querySelector(
+      '[data-testid="message-list-expand-history"]',
+    ) as HTMLButtonElement | null;
+
+    expect(historyWindow).not.toBeNull();
+    expect(container.textContent).toContain("为了更快打开对话");
+    expect(container.textContent).toContain("消息 90");
+    expect(container.textContent).not.toContain("消息 1");
+    expect(expandButton).not.toBeNull();
+
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector('[data-testid="message-list-history-window"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("消息 1");
   });
 
   it("user peer 包络正文应直接渲染为专门协作卡片", () => {

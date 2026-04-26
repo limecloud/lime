@@ -2,7 +2,8 @@ export type CodeWorkbenchCommandTrigger =
   | "@代码"
   | "@code"
   | "@coding"
-  | "@开发";
+  | "@开发"
+  | "@Code Agent";
 
 export type CodeWorkbenchTaskType =
   | "code_review"
@@ -20,7 +21,7 @@ export interface ParsedCodeWorkbenchCommand {
 }
 
 const CODE_COMMAND_PREFIX_REGEX =
-  /^\s*(@代码|@code|@coding|@开发)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@Code Agent|@代码|@code|@coding|@开发)(?:\s+|$)([\s\S]*)$/i;
 const EXPLICIT_TASK_TYPE_REGEX =
   /(?:类型|任务|任务类型|type|task|kind|模式|mode)\s*[:：=]?\s*(代码评审|代码审查|code(?:\s+review)?|review|修复|修\s*bug|bug(?:\s+fix)?|fix(?:\s+bug)?|debug|实现|开发|implementation|implement|build|重构|refactor|解释|讲解|说明|分析代码|explain)(?=$|[\s,，。；;:：])/i;
 const LEADING_TASK_TYPE_REGEX =
@@ -32,6 +33,9 @@ function trimDecorations(value: string): string {
 
 function normalizeTrigger(value: string): CodeWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
+  if (normalized === "@code agent") {
+    return "@Code Agent";
+  }
   if (normalized === "@code") {
     return "@code";
   }

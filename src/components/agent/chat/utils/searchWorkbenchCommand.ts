@@ -1,8 +1,13 @@
 export type SearchWorkbenchCommandTrigger =
   | "@搜索"
+  | "@Search"
   | "@search"
   | "@research"
-  | "@调研";
+  | "@调研"
+  | "@Google Search"
+  | "@Daily Search"
+  | "@Search Agent"
+  | "@Instagram Research";
 
 export type SearchDepth = "quick" | "standard" | "deep";
 
@@ -20,7 +25,7 @@ export interface ParsedSearchWorkbenchCommand {
 }
 
 const SEARCH_COMMAND_PREFIX_REGEX =
-  /^\s*(@搜索|@search|@research|@调研)(?:\s+|$)([\s\S]*)$/i;
+  /^\s*(@Instagram Research|@Search Agent|@Google Search|@Daily Search|@搜索|@Search|@search|@research|@调研)(?:\s+|$)([\s\S]*)$/i;
 const FIELD_LABEL_REGEX =
   /(?:(关键词|查询|query)|(站点|来源|site|source)|(时间|时间范围|time(?:[_\s-]?range)?|range)|(深度|depth)|(关注点|重点|维度|focus)|(输出|格式|output|format))\s*[:：=]\s*/gi;
 const PROMPT_PREFIX_REGEX =
@@ -28,7 +33,7 @@ const PROMPT_PREFIX_REGEX =
 const INLINE_TIME_RANGE_REGEX =
   /(近\d{1,3}天|近\d{1,2}周|近\d{1,2}个月|最近(?:一周|一月|一个月|半年|一年)|过去\d{1,3}天|过去\d{1,2}周|过去\d{1,2}个月|本周|本月|今年|去年|20\d{2})/i;
 const LEADING_SITE_REGEX =
-  /^(GitHub|知乎|B站|b站|Bilibili|36Kr|linux\.do|什么值得买|SMZDM|Yahoo Finance|微博|小红书|抖音)(?=$|[\s,，。；;:：])/i;
+  /^(GitHub|知乎|B站|b站|Bilibili|36Kr|linux\.do|什么值得买|SMZDM|Yahoo Finance|微博|小红书|抖音|Instagram)(?=$|[\s,，。；;:：])/i;
 
 type SearchFieldKey =
   | "query"
@@ -57,8 +62,20 @@ interface ExtractedSearchFields {
 
 function normalizeTrigger(value: string): SearchWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
+  if (normalized === "@search agent") {
+    return "@Search Agent";
+  }
+  if (normalized === "@instagram research") {
+    return "@Instagram Research";
+  }
+  if (normalized === "@google search") {
+    return "@Google Search";
+  }
+  if (normalized === "@daily search") {
+    return "@Daily Search";
+  }
   if (normalized === "@search") {
-    return "@search";
+    return value.trim() === "@Search" ? "@Search" : "@search";
   }
   if (normalized === "@research") {
     return "@research";
@@ -67,6 +84,36 @@ function normalizeTrigger(value: string): SearchWorkbenchCommandTrigger {
     return "@调研";
   }
   return "@搜索";
+}
+
+function resolveDefaultTimeRange(
+  trigger: SearchWorkbenchCommandTrigger,
+  timeRange?: string,
+): string | undefined {
+  if (timeRange) {
+    return timeRange;
+  }
+
+  if (trigger === "@Daily Search") {
+    return "最近一天";
+  }
+
+  return undefined;
+}
+
+function resolveDefaultSite(
+  trigger: SearchWorkbenchCommandTrigger,
+  site?: string,
+): string | undefined {
+  if (site) {
+    return site;
+  }
+
+  if (trigger === "@Instagram Research") {
+    return "Instagram";
+  }
+
+  return undefined;
 }
 
 function trimDecorations(value: string): string {
@@ -95,6 +142,7 @@ function normalizeSite(value: string | undefined): string | undefined {
     微博: "微博",
     小红书: "小红书",
     抖音: "抖音",
+    instagram: "Instagram",
   };
 
   return aliasMap[normalized] || value?.trim();
@@ -264,6 +312,7 @@ export function parseSearchWorkbenchCommand(
   }
 
   const body = (matched[2] || "").trim();
+  const trigger = normalizeTrigger(matched[1] || "");
   const extracted = extractSearchFields(body);
 
   let site = extracted.site;
@@ -303,12 +352,12 @@ export function parseSearchWorkbenchCommand(
 
   return {
     rawText: text,
-    trigger: normalizeTrigger(matched[1] || ""),
+    trigger,
     body,
     prompt: prompt || fallbackPrompt,
     query: query || undefined,
-    site,
-    timeRange,
+    site: resolveDefaultSite(trigger, site),
+    timeRange: resolveDefaultTimeRange(trigger, timeRange),
     depth: extracted.depth,
     focus: extracted.focus,
     outputFormat: extracted.outputFormat,

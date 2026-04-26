@@ -32,6 +32,21 @@ describe("parsePosterWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 @Flyer 3，并继续走海报主链", () => {
+    const result = parsePosterWorkbenchCommand(
+      "@Flyer 3 小红书 风格: 清新拼贴 春日咖啡市集活动海报",
+    );
+
+    expect(result).toMatchObject({
+      trigger: "@Flyer 3",
+      platform: "小红书",
+      style: "清新拼贴",
+      size: "864x1152",
+      aspectRatio: "4:5",
+      prompt: "适用于小红书，清新拼贴风格，海报设计，春日咖啡市集活动海报",
+    });
+  });
+
   it("非海报命令应返回空", () => {
     expect(parsePosterWorkbenchCommand("@配图 一张海边插画")).toBeNull();
   });

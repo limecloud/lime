@@ -14,6 +14,7 @@ use lime_core::database::agent_session_repository::{
     self, SessionRecordDetail, SessionRecordMetadata, SessionRecordOverview,
     SessionRecordPreviewMessage,
 };
+use lime_core::database::dao::agent::SessionArchiveFilter;
 use lime_core::database::dao::agent_timeline::{
     AgentThreadItem, AgentThreadTurn, AgentTimelineDao,
 };
@@ -22,6 +23,7 @@ use lime_core::workspace::WorkspaceManager;
 use lime_services::aster_session_store::LimeSessionStore;
 use std::collections::HashMap;
 use std::path::Path;
+use std::time::Instant;
 use uuid::Uuid;
 
 use crate::aster_runtime_support::load_aster_runtime_snapshot;
@@ -83,6 +85,17 @@ pub struct SessionDetail {
     pub child_subagent_sessions: Vec<ChildSubagentSession>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subagent_parent_context: Option<SubagentParentContext>,
+}
+
+impl SessionDetail {
+    pub fn is_persisted_empty(&self) -> bool {
+        self.messages.is_empty()
+            && self.turns.is_empty()
+            && self.items.is_empty()
+            && self.todo_items.is_empty()
+            && self.child_subagent_sessions.is_empty()
+            && self.subagent_parent_context.is_none()
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -258,6 +271,17 @@ fn is_zero_usize(value: &usize) -> bool {
 
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedMessageVisibility {
+    #[serde(default = "default_true")]
+    user_visible: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -663,9 +687,18 @@ async fn load_child_subagent_sessions(
 async fn load_subagent_parent_context(
     db: &DbConnection,
     session_id: &str,
+    current_session: Option<&AsterSession>,
 ) -> Result<Option<SubagentParentContext>, String> {
-    let current_session = read_session(session_id, false, "读取当前 subagent session 失败").await?;
-    let Some(projection) = SubagentPresentationProjection::from_session(&current_session) else {
+    let current_session_owned;
+    let current_session = match current_session {
+        Some(session) => session,
+        None => {
+            current_session_owned =
+                read_session(session_id, false, "读取当前 subagent session 失败").await?;
+            &current_session_owned
+        }
+    };
+    let Some(projection) = SubagentPresentationProjection::from_session(current_session) else {
         return Ok(None);
     };
     let parent_session_id = projection.parent_session_id.clone();
@@ -908,10 +941,17 @@ pub fn create_session_sync(
 /// 列出所有会话
 pub fn list_sessions_sync(
     db: &DbConnection,
-    include_archived: bool,
+    archive_filter: SessionArchiveFilter,
+    workspace_id: Option<&str>,
+    limit: Option<usize>,
 ) -> Result<Vec<SessionInfo>, String> {
     let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-    let sessions = agent_session_repository::list_session_overviews(&conn, include_archived)?;
+    let sessions = agent_session_repository::list_session_overviews(
+        &conn,
+        archive_filter,
+        workspace_id,
+        limit,
+    )?;
 
     Ok(sessions
         .into_iter()
@@ -945,86 +985,99 @@ pub fn list_title_preview_messages_sync(
         return Ok(Vec::new());
     }
 
-    match LimeSessionStore::load_conversation_from_conn(&conn, session_id) {
-        Ok(conversation) => Ok(conversation
-            .messages()
-            .iter()
-            .filter(|message| message.is_user_visible())
-            .filter_map(|message| {
-                let content = message.as_concat_text().trim().to_string();
-                if content.is_empty() {
-                    return None;
-                }
-
-                let role = if message.role == rmcp::model::Role::Assistant {
-                    "assistant".to_string()
-                } else {
-                    "user".to_string()
-                };
-
-                Some(SessionTitlePreviewMessage { role, content })
-            })
-            .take(limit)
-            .collect()),
-        Err(error) => {
-            tracing::warn!(
-                "[SessionStore] 标题预览读取可见性对话失败，已回退仓储消息: session_id={}, error={}",
-                session_id,
-                error
-            );
-            let messages =
-                agent_session_repository::list_title_preview_messages(&conn, session_id, limit)?;
-
-            Ok(messages
-                .into_iter()
-                .map(
-                    |msg: SessionRecordPreviewMessage| SessionTitlePreviewMessage {
-                        role: msg.role,
-                        content: msg.content,
-                    },
-                )
-                .collect())
-        }
+    let messages =
+        agent_session_repository::list_title_preview_messages(&conn, session_id, usize::MAX)?;
+    let user_visible_flags = load_chat_user_visible_message_flags_from_conn(&conn, session_id)?;
+    if messages.len() != user_visible_flags.len() {
+        tracing::warn!(
+            "[SessionStore] 标题预览 user_visible 过滤失败，消息条数不一致: session_id={}, messages={}, flags={}",
+            session_id,
+            messages.len(),
+            user_visible_flags.len(),
+        );
     }
+
+    Ok(messages
+        .into_iter()
+        .zip(
+            user_visible_flags
+                .into_iter()
+                .chain(std::iter::repeat(true)),
+        )
+        .filter_map(|(msg, user_visible): (SessionRecordPreviewMessage, bool)| {
+            if !user_visible {
+                return None;
+            }
+
+            Some(SessionTitlePreviewMessage {
+                role: msg.role,
+                content: msg.content,
+            })
+        })
+        .take(limit)
+        .collect())
 }
 
 /// 获取会话详情
 pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDetail, String> {
+    let started_at = Instant::now();
     let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
 
+    let session_started_at = Instant::now();
     let SessionRecordDetail {
         session,
         workspace_id,
     } = agent_session_repository::get_session_with_messages(&conn, session_id)?
         .ok_or_else(|| format!("会话不存在: {session_id}"))?;
+    let session_ms = session_started_at.elapsed().as_millis();
 
+    let turns_started_at = Instant::now();
     let turns = AgentTimelineDao::list_turns_by_thread(&conn, session_id)
         .map_err(|e| format!("获取 turn 历史失败: {e}"))?;
+    let turns_ms = turns_started_at.elapsed().as_millis();
+
+    let items_started_at = Instant::now();
     let items = AgentTimelineDao::list_items_by_thread(&conn, session_id)
         .map_err(|e| format!("获取 item 历史失败: {e}"))?;
-    let working_dir = session.working_dir.clone();
-    let todo_items = load_session_todo_items_from_conn(&conn, session_id);
+    let items_ms = items_started_at.elapsed().as_millis();
 
-    let tauri_messages = match LimeSessionStore::load_conversation_from_conn(&conn, session_id) {
-        Ok(conversation) => convert_user_visible_agent_messages(
+    let working_dir = session.working_dir.clone();
+    let todo_started_at = Instant::now();
+    let todo_items = load_session_todo_items_from_conn(&conn, session_id);
+    let todo_ms = todo_started_at.elapsed().as_millis();
+
+    let messages_started_at = Instant::now();
+    let tauri_messages = match load_user_visible_message_flags_from_conn(&conn, session_id) {
+        Ok(user_visible_flags) => convert_user_visible_agent_messages_with_flags(
             &session.messages,
-            conversation.messages(),
+            &user_visible_flags,
             Some(session.model.as_str()),
         ),
         Err(error) => {
             tracing::warn!(
-                "[SessionStore] 读取可见性对话失败，已回退旧消息转换: session_id={}, error={}",
+                "[SessionStore] 读取消息可见性失败，已回退旧消息转换: session_id={}, error={}",
                 session_id,
                 error
             );
             convert_agent_messages(&session.messages, Some(session.model.as_str()))
         }
     };
+    let messages_ms = messages_started_at.elapsed().as_millis();
+    let total_ms = started_at.elapsed().as_millis();
 
-    tracing::debug!(
-        "[SessionStore] 会话消息转换完成: session_id={}, messages_count={}",
+    tracing::info!(
+        "[SessionStore] get_session_sync 完成: session_id={}, total_ms={}, session_ms={}, turns_ms={}, items_ms={}, todo_ms={}, messages_ms={}, messages_count={}, turns_count={}, items_count={}, todo_count={}",
         session_id,
-        tauri_messages.len()
+        total_ms,
+        session_ms,
+        turns_ms,
+        items_ms,
+        todo_ms,
+        messages_ms,
+        tauri_messages.len(),
+        turns.len(),
+        items.len(),
+        todo_items.len(),
     );
 
     Ok(SessionDetail {
@@ -1049,6 +1102,70 @@ pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDe
         child_subagent_sessions: Vec::new(),
         subagent_parent_context: None,
     })
+}
+
+fn load_user_visible_message_flags_from_conn(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> Result<Vec<bool>, String> {
+    let mut stmt = conn
+        .prepare("SELECT content_json FROM agent_messages WHERE session_id = ? ORDER BY id ASC")
+        .map_err(|e| format!("准备消息可见性查询失败: {e}"))?;
+
+    let rows = stmt
+        .query_map([session_id], |row| {
+            let content_json: String = row.get(0)?;
+            let user_visible = serde_json::from_str::<PersistedMessageVisibility>(&content_json)
+                .map(|record| record.user_visible)
+                .unwrap_or(true);
+            Ok(user_visible)
+        })
+        .map_err(|e| format!("查询消息可见性失败: {e}"))?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("读取消息可见性失败: {e}"))
+}
+
+fn load_chat_user_visible_message_flags_from_conn(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> Result<Vec<bool>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT content_json FROM agent_messages
+             WHERE session_id = ? AND role IN ('user', 'assistant')
+             ORDER BY id ASC",
+        )
+        .map_err(|e| format!("准备聊天消息可见性查询失败: {e}"))?;
+
+    let rows = stmt
+        .query_map([session_id], |row| {
+            let content_json: String = row.get(0)?;
+            let user_visible = serde_json::from_str::<PersistedMessageVisibility>(&content_json)
+                .map(|record| record.user_visible)
+                .unwrap_or(true);
+            Ok(user_visible)
+        })
+        .map_err(|e| format!("查询聊天消息可见性失败: {e}"))?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("读取聊天消息可见性失败: {e}"))
+}
+
+fn is_session_archived_sync(db: &DbConnection, session_id: &str) -> Result<bool, String> {
+    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
+    let archived_at: Option<String> = conn
+        .query_row(
+            "SELECT archived_at FROM agent_sessions WHERE id = ?1",
+            [session_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("读取会话归档状态失败: {e}"))?;
+
+    Ok(archived_at
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty()))
 }
 
 fn resolve_runtime_usage_from_aster_session(
@@ -1095,7 +1212,42 @@ pub async fn get_runtime_session_detail(
     db: &DbConnection,
     session_id: &str,
 ) -> Result<SessionDetail, String> {
+    let started_at = Instant::now();
+    let detail_started_at = Instant::now();
     let mut detail = get_session_sync(db, session_id)?;
+    let detail_ms = detail_started_at.elapsed().as_millis();
+
+    let archive_check_started_at = Instant::now();
+    let is_archived = is_session_archived_sync(db, session_id)?;
+    let archive_check_ms = archive_check_started_at.elapsed().as_millis();
+    if is_archived {
+        let total_ms = started_at.elapsed().as_millis();
+        tracing::info!(
+            "[SessionStore] get_runtime_session_detail 归档快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}, messages_count={}, turns_count={}, items_count={}",
+            session_id,
+            total_ms,
+            detail_ms,
+            archive_check_ms,
+            detail.messages.len(),
+            detail.turns.len(),
+            detail.items.len(),
+        );
+        return Ok(detail);
+    }
+
+    if detail.is_persisted_empty() {
+        let total_ms = started_at.elapsed().as_millis();
+        tracing::info!(
+            "[SessionStore] get_runtime_session_detail 空会话快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}",
+            session_id,
+            total_ms,
+            detail_ms,
+            archive_check_ms,
+        );
+        return Ok(detail);
+    }
+
+    let session_started_at = Instant::now();
     let session = match read_session(session_id, false, "读取运行态 session 失败").await {
         Ok(session) => Some(session),
         Err(error) => {
@@ -1107,6 +1259,9 @@ pub async fn get_runtime_session_detail(
             None
         }
     };
+    let session_ms = session_started_at.elapsed().as_millis();
+
+    let runtime_snapshot_started_at = Instant::now();
     let runtime_snapshot = match load_aster_runtime_snapshot(session_id).await {
         Ok(snapshot) => Some(snapshot),
         Err(error) => {
@@ -1118,7 +1273,9 @@ pub async fn get_runtime_session_detail(
             None
         }
     };
+    let runtime_snapshot_ms = runtime_snapshot_started_at.elapsed().as_millis();
 
+    let usage_fallback_started_at = Instant::now();
     if let Some(session) = session.as_ref() {
         if let Some(usage) =
             apply_runtime_usage_fallback_to_latest_assistant_message(&mut detail.messages, session)
@@ -1152,7 +1309,9 @@ pub async fn get_runtime_session_detail(
             }
         }
     }
+    let usage_fallback_ms = usage_fallback_started_at.elapsed().as_millis();
 
+    let execution_runtime_started_at = Instant::now();
     detail.execution_runtime = build_session_execution_runtime(
         session_id,
         session.as_ref(),
@@ -1160,7 +1319,9 @@ pub async fn get_runtime_session_detail(
         runtime_snapshot.as_ref(),
         session.as_ref().and_then(resolve_session_provider_selector),
     );
+    let execution_runtime_ms = execution_runtime_started_at.elapsed().as_millis();
 
+    let apply_snapshot_started_at = Instant::now();
     if let Some(snapshot) = runtime_snapshot.as_ref() {
         apply_aster_runtime_snapshot(&mut detail, snapshot);
     }
@@ -1171,7 +1332,9 @@ pub async fn get_runtime_session_detail(
             detail.model.as_deref(),
         );
     }
+    let apply_snapshot_ms = apply_snapshot_started_at.elapsed().as_millis();
 
+    let child_subagents_started_at = Instant::now();
     match load_child_subagent_sessions(db, session_id).await {
         Ok(child_subagent_sessions) => {
             detail.child_subagent_sessions = child_subagent_sessions;
@@ -1184,8 +1347,10 @@ pub async fn get_runtime_session_detail(
             );
         }
     }
+    let child_subagents_ms = child_subagents_started_at.elapsed().as_millis();
 
-    match load_subagent_parent_context(db, session_id).await {
+    let parent_context_started_at = Instant::now();
+    match load_subagent_parent_context(db, session_id, session.as_ref()).await {
         Ok(subagent_parent_context) => {
             detail.subagent_parent_context = subagent_parent_context;
         }
@@ -1197,6 +1362,27 @@ pub async fn get_runtime_session_detail(
             );
         }
     }
+    let parent_context_ms = parent_context_started_at.elapsed().as_millis();
+    let total_ms = started_at.elapsed().as_millis();
+
+    tracing::info!(
+        "[SessionStore] get_runtime_session_detail 完成: session_id={}, total_ms={}, detail_ms={}, read_runtime_session_ms={}, runtime_snapshot_ms={}, usage_fallback_ms={}, execution_runtime_ms={}, apply_snapshot_ms={}, child_subagents_ms={}, parent_context_ms={}, messages_count={}, turns_count={}, items_count={}, child_subagents_count={}, has_parent_context={}",
+        session_id,
+        total_ms,
+        detail_ms,
+        session_ms,
+        runtime_snapshot_ms,
+        usage_fallback_ms,
+        execution_runtime_ms,
+        apply_snapshot_ms,
+        child_subagents_ms,
+        parent_context_ms,
+        detail.messages.len(),
+        detail.turns.len(),
+        detail.items.len(),
+        detail.child_subagent_sessions.len(),
+        detail.subagent_parent_context.is_some(),
+    );
 
     Ok(detail)
 }
@@ -1369,6 +1555,30 @@ fn convert_agent_messages(
         .collect()
 }
 
+fn convert_user_visible_agent_messages_with_flags(
+    messages: &[AgentMessage],
+    user_visible_flags: &[bool],
+    model_name: Option<&str>,
+) -> Vec<RuntimeAgentMessage> {
+    if messages.len() != user_visible_flags.len() {
+        tracing::warn!(
+            "[SessionStore] user_visible 过滤失败，消息条数不一致: messages={}, flags={}",
+            messages.len(),
+            user_visible_flags.len()
+        );
+        return convert_agent_messages(messages, model_name);
+    }
+
+    let filtered = messages
+        .iter()
+        .zip(user_visible_flags.iter())
+        .filter_map(|(message, user_visible)| (*user_visible).then_some(message.clone()))
+        .collect::<Vec<_>>();
+
+    convert_agent_messages(&filtered, model_name)
+}
+
+#[cfg(test)]
 fn convert_user_visible_agent_messages(
     messages: &[AgentMessage],
     persisted_messages: &[aster::conversation::message::Message],
@@ -2089,6 +2299,70 @@ mod tests {
     }
 
     #[test]
+    fn convert_user_visible_agent_messages_with_flags_should_skip_agent_only_history() {
+        let messages = vec![
+            AgentMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("用户消息".to_string()),
+                timestamp: "2026-02-19T13:00:00Z".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+                reasoning_content: None,
+                usage: None,
+            },
+            AgentMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("内部续跑提示".to_string()),
+                timestamp: "2026-02-19T13:00:01Z".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+                reasoning_content: None,
+                usage: None,
+            },
+        ];
+
+        let converted = convert_user_visible_agent_messages_with_flags(
+            &messages,
+            &[true, false],
+            Some("gpt-4.1"),
+        );
+
+        assert_eq!(converted.len(), 1);
+        assert_eq!(converted[0].role, "user");
+        assert!(matches!(
+            converted[0].content.as_slice(),
+            [RuntimeAgentMessageContent::Text { text }] if text == "用户消息"
+        ));
+    }
+
+    #[test]
+    fn load_user_visible_message_flags_should_default_legacy_messages_to_visible() {
+        let db = create_test_db();
+        insert_test_session_with_message(
+            &db,
+            "session-visibility-flags",
+            "/tmp/lime-workspace-visibility-flags",
+            "用户消息",
+        );
+
+        let conn = db.lock().expect("lock db");
+        conn.execute(
+            "INSERT INTO agent_messages (session_id, role, content_json, timestamp)
+             VALUES (?1, 'user', ?2, '2026-03-18T08:00:01Z')",
+            rusqlite::params![
+                "session-visibility-flags",
+                r#"{"content":[{"type":"text","text":"内部续跑提示"}],"userVisible":false,"agentVisible":true}"#,
+            ],
+        )
+        .expect("insert hidden message");
+
+        let flags = load_user_visible_message_flags_from_conn(&conn, "session-visibility-flags")
+            .expect("load visibility flags");
+
+        assert_eq!(flags, vec![true, false]);
+    }
+
+    #[test]
     fn apply_runtime_usage_fallback_should_fill_latest_assistant_message() {
         let mut messages = vec![
             RuntimeAgentMessage {
@@ -2330,7 +2604,8 @@ mod tests {
         insert_test_workspace(&db, "workspace-1", "/tmp/lime-workspace-1");
         insert_test_session_with_message(&db, "session-1", "/tmp/lime-workspace-1", "你好，世界");
 
-        let sessions = list_sessions_sync(&db, false).expect("list sessions");
+        let sessions = list_sessions_sync(&db, SessionArchiveFilter::ActiveOnly, None, None)
+            .expect("list sessions");
         let session = sessions
             .iter()
             .find(|item| item.id == "session-1")
@@ -2352,16 +2627,39 @@ mod tests {
 
         update_session_archived_state_sync(&db, "session-archived", true).expect("archive session");
 
-        let active_only = list_sessions_sync(&db, false).expect("list active sessions");
+        let active_only = list_sessions_sync(&db, SessionArchiveFilter::ActiveOnly, None, None)
+            .expect("list active sessions");
         assert_eq!(active_only.len(), 1);
         assert_eq!(active_only[0].id, "session-active");
 
-        let with_archived = list_sessions_sync(&db, true).expect("list all sessions");
+        let with_archived = list_sessions_sync(&db, SessionArchiveFilter::All, None, None)
+            .expect("list all sessions");
         let archived_session = with_archived
             .iter()
             .find(|item| item.id == "session-archived")
             .expect("archived session exists");
         assert!(archived_session.archived_at.is_some());
+    }
+
+    #[test]
+    fn list_sessions_sync_should_support_workspace_filter_and_limit() {
+        let db = create_test_db();
+        insert_test_workspace(&db, "workspace-8", "/tmp/lime-workspace-8");
+        insert_test_workspace(&db, "workspace-9", "/tmp/lime-workspace-9");
+        insert_test_session_with_message(&db, "session-a", "/tmp/lime-workspace-8", "A");
+        insert_test_session_with_message(&db, "session-b", "/tmp/lime-workspace-8", "B");
+        insert_test_session_with_message(&db, "session-c", "/tmp/lime-workspace-9", "C");
+
+        let filtered = list_sessions_sync(
+            &db,
+            SessionArchiveFilter::ActiveOnly,
+            Some("workspace-8"),
+            Some(1),
+        )
+        .expect("list filtered sessions");
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].workspace_id.as_deref(), Some("workspace-8"));
     }
 
     #[test]
@@ -2375,6 +2673,54 @@ mod tests {
         assert_eq!(detail.workspace_id.as_deref(), Some("workspace-2"));
         assert_eq!(detail.working_dir.as_deref(), Some("/tmp/lime-workspace-2"));
         assert_eq!(detail.messages.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn get_runtime_session_detail_should_use_archived_fast_path() {
+        let db = create_test_db();
+        insert_test_session_with_message(
+            &db,
+            "session-archived-fast-path",
+            "/tmp/lime-workspace-archived-fast-path",
+            "查看归档",
+        );
+        update_session_archived_state_sync(&db, "session-archived-fast-path", true)
+            .expect("archive session");
+
+        let detail = get_runtime_session_detail(&db, "session-archived-fast-path")
+            .await
+            .expect("get archived session detail");
+
+        assert_eq!(detail.messages.len(), 1);
+        assert!(detail.execution_runtime.is_none());
+        assert!(detail.child_subagent_sessions.is_empty());
+        assert!(detail.subagent_parent_context.is_none());
+    }
+
+    #[tokio::test]
+    async fn get_runtime_session_detail_should_use_empty_persisted_fast_path() {
+        let db = create_test_db();
+        create_session_record_sync(
+            &db,
+            CreateSessionRecordInput {
+                session_id: Some("session-empty-fast-path".to_string()),
+                title: Some("空会话".to_string()),
+                model: Some("agent:test".to_string()),
+                working_dir: Some("/tmp/lime-workspace-empty-fast-path".to_string()),
+                execution_strategy: Some("react".to_string()),
+                ..CreateSessionRecordInput::default()
+            },
+        )
+        .expect("create empty session");
+
+        let detail = get_runtime_session_detail(&db, "session-empty-fast-path")
+            .await
+            .expect("get empty session detail");
+
+        assert!(detail.is_persisted_empty());
+        assert!(detail.execution_runtime.is_none());
+        assert!(detail.child_subagent_sessions.is_empty());
+        assert!(detail.subagent_parent_context.is_none());
     }
 
     #[test]

@@ -30,6 +30,14 @@ describe("parseVideoWorkbenchCommand", () => {
     });
   });
 
+  it("应为后续多词 Ribbi 别名让路，不误吞 @Video Search", () => {
+    expect(
+      parseVideoWorkbenchCommand(
+        "@Video Search AI startup keynote clips for 9:16 ads",
+      ),
+    ).toBeNull();
+  });
+
   it("非视频命令应返回空", () => {
     expect(parseVideoWorkbenchCommand("@配图 春日海报")).toBeNull();
   });

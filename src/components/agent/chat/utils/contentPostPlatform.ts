@@ -6,7 +6,8 @@ export type ContentPostPlatformType =
   | "bilibili"
   | "instagram"
   | "youtube"
-  | "tiktok";
+  | "tiktok"
+  | "x";
 
 export interface ParsedContentPostPlatform {
   platformType?: ContentPostPlatformType;
@@ -16,9 +17,9 @@ export interface ParsedContentPostPlatform {
 }
 
 export const CONTENT_POST_EXPLICIT_PLATFORM_REGEX =
-  /(?:平台|渠道|platform|channel)\s*[:：=]?\s*(微信公众号后台|微信公众平台|公众号后台|公众号|小红书|知乎|抖音|B站|b站|bilibili|Instagram|YouTube|TikTok|wechat|wechat official account|xiaohongshu|zhihu|douyin)(?=$|[\s,，。；;:：])/i;
+  /(?:平台|渠道|platform|channel)\s*[:：=]?\s*(微信公众号后台|微信公众平台|公众号后台|公众号|小红书|知乎|抖音|B站|b站|bilibili|Instagram|YouTube|TikTok|Twitter|X|wechat|wechat official account|xiaohongshu|zhihu|douyin)(?=$|[\s,，。；;:：])/i;
 export const CONTENT_POST_LEADING_PLATFORM_REGEX =
-  /^(微信公众号后台|微信公众平台|公众号后台|公众号|小红书|知乎|抖音|B站|b站|bilibili|Instagram|YouTube|TikTok|wechat|wechat official account|xiaohongshu|zhihu|douyin)(?=$|[\s,，。；;:：])/i;
+  /^(微信公众号后台|微信公众平台|公众号后台|公众号|小红书|知乎|抖音|B站|b站|bilibili|Instagram|YouTube|TikTok|Twitter|X|wechat|wechat official account|xiaohongshu|zhihu|douyin)(?=$|[\s,，。；;:：])/i;
 
 export function trimCommandDecorations(value: string): string {
   return value.replace(/^[,\s，。；;:：]+|[,\s，。；;:：]+$/g, "").trim();
@@ -86,6 +87,17 @@ export function normalizeContentPostPlatform(value?: string): {
     return {
       platformType: "tiktok",
       platformLabel: "TikTok",
+    };
+  }
+  if (
+    normalized === "twitter" ||
+    normalized === "x" ||
+    normalized === "x / twitter" ||
+    normalized === "twitter / x"
+  ) {
+    return {
+      platformType: "x",
+      platformLabel: "X / Twitter",
     };
   }
   return {};

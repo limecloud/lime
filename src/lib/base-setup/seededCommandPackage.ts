@@ -74,6 +74,7 @@ interface SeededCommandProjectionSpec {
   summary: string;
   aliases: string[];
   trigger: string;
+  triggerHints?: string[];
   category: string;
   outputHint: string;
   commandBinding?: BaseSetupCommandBinding;
@@ -85,8 +86,9 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandKey: "image_generate",
     title: "配图",
     summary: "根据文字描述生成新的图片结果。",
-    aliases: ["image", "img", "图片", "生图"],
+    aliases: ["image", "img", "vision 1", "图片", "生图"],
     trigger: "@配图",
+    triggerHints: ["@Vision 1"],
     category: "图像生成",
     outputHint: "图片结果集",
     commandBinding: {
@@ -134,8 +136,16 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandKey: "poster_generate",
     title: "海报",
     summary: "围绕活动、产品或主题生成可直接使用的海报视觉。",
-    aliases: ["poster", "haibao", "海报", "活动海报", "宣传海报"],
+    aliases: [
+      "poster",
+      "haibao",
+      "flyer 3",
+      "海报",
+      "活动海报",
+      "宣传海报",
+    ],
     trigger: "@海报",
+    triggerHints: ["@Flyer 3"],
     category: "图像生成",
     outputHint: "海报图结果集",
     commandBinding: {
@@ -194,6 +204,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "voice",
       "dubbing",
       "dub",
+      "website voiceover",
       "peiyin",
       "配音",
       "旁白",
@@ -201,10 +212,36 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "语音配音",
     ],
     trigger: "@配音",
+    triggerHints: ["@Website Voiceover"],
     category: "视频创作",
     outputHint: "配音稿与工作区执行结果",
     commandBinding: {
       skillId: "cloud-video-dubbing",
+      executionKind: "agent_turn",
+    },
+    commandRenderContract: COMMAND_TIMELINE_SCENE_CONTRACT,
+  },
+  {
+    commandKey: "growth_runtime",
+    title: "增长跟踪",
+    summary:
+      "围绕目标账号先产出首版增长策略，再把后续节奏、指标和告警条件挂回持续跟踪主链。",
+    aliases: [
+      "growth",
+      "growth expert",
+      "zhangzhang",
+      "增长",
+      "增长跟踪",
+      "账号增长",
+      "涨粉",
+      "账号表现",
+    ],
+    trigger: "@增长",
+    triggerHints: ["@Growth Expert"],
+    category: "内容运营",
+    outputHint: "增长策略 + 跟踪指标",
+    commandBinding: {
+      skillId: "account-performance-tracking",
       executionKind: "agent_turn",
     },
     commandRenderContract: COMMAND_TIMELINE_SCENE_CONTRACT,
@@ -216,6 +253,10 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     aliases: [
       "browser",
       "browse",
+      "browser agent",
+      "mini tester",
+      "web scheduler",
+      "web manage",
       "liulanqi",
       "浏览器",
       "网页操作",
@@ -223,6 +264,12 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "网页任务",
     ],
     trigger: "@浏览器",
+    triggerHints: [
+      "@Browser Agent",
+      "@Mini Tester",
+      "@Web Scheduler",
+      "@Web Manage",
+    ],
     category: "浏览器执行",
     outputHint: "浏览器操作 timeline",
     commandBinding: {
@@ -239,12 +286,14 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "presentation",
       "slides",
       "deck",
+      "sales 1",
       "yanjiang",
       "演示",
       "演示稿",
       "路演",
     ],
     trigger: "@PPT",
+    triggerHints: ["@Sales 1"],
     category: "创作输出",
     outputHint: "演示稿 artifact",
     commandBinding: {
@@ -278,15 +327,56 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "网页",
       "落地页",
       "landing",
+      "web composer",
+      "web style",
+      "html preview",
       "官网",
       "活动页",
     ],
     trigger: "@网页",
+    triggerHints: ["@Web Composer", "@HTML Preview", "@Web Style"],
     category: "创作输出",
     outputHint: "网页 artifact",
     commandBinding: {
       skillId: "webpage_generate",
       executionKind: "agent_turn",
+    },
+    commandRenderContract: COMMAND_ARTIFACT_CONTRACT,
+  },
+  {
+    commandKey: "writing_runtime",
+    title: "写作",
+    summary: "把当前输入整理成可继续修改的写作主稿，统一复用现有内容成稿主链。",
+    aliases: [
+      "writing",
+      "write",
+      "writing partner",
+      "writers 1",
+      "blog 1",
+      "newsletters pro",
+      "web copy",
+      "xiezuo",
+      "wenan",
+      "写作",
+      "文案",
+      "写稿",
+      "起草",
+      "blog",
+      "newsletter",
+    ],
+    trigger: "@写作",
+    triggerHints: [
+      "@Writing Partner",
+      "@Writers 1",
+      "@Blog 1",
+      "@Newsletters Pro",
+      "@Web Copy",
+    ],
+    category: "创作输出",
+    outputHint: "写作 artifact",
+    commandBinding: {
+      skillId: "content_post_with_cover",
+      executionKind: "native_skill",
     },
     commandRenderContract: COMMAND_ARTIFACT_CONTRACT,
   },
@@ -297,6 +387,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     aliases: [
       "code",
       "coding",
+      "code agent",
       "kaifa",
       "daima",
       "代码",
@@ -306,6 +397,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "重构",
     ],
     trigger: "@代码",
+    triggerHints: ["@Code Agent"],
     category: "代码执行",
     outputHint: "代码执行 timeline",
     commandBinding: {
@@ -326,6 +418,12 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "首屏预览",
     ],
     trigger: "@渠道预览",
+    triggerHints: [
+      "@Instagram Preview",
+      "@TikTok Preview",
+      "@Twitter Preview",
+      "@YouTube Preview",
+    ],
     category: "内容发布",
     outputHint: "渠道预览 artifact",
     commandBinding: {
@@ -370,6 +468,11 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "发布前检查",
     ],
     trigger: "@发布",
+    triggerHints: [
+      "@TikTok Publish",
+      "@Twitter Publish",
+      "@YouTube Publish",
+    ],
     category: "内容发布",
     outputHint: "发布包 artifact",
     commandBinding: {
@@ -382,8 +485,17 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandKey: "broadcast_generate",
     title: "播报",
     summary: "把现有文稿整理成适合口播或播客转换的文本任务。",
-    aliases: ["broadcast", "bobao", "播报", "播客", "口播", "podcast"],
+    aliases: [
+      "broadcast",
+      "bobao",
+      "speaker 1",
+      "播报",
+      "播客",
+      "口播",
+      "podcast",
+    ],
     trigger: "@播报",
+    triggerHints: ["@Speaker 1"],
     category: "音频创作",
     outputHint: "播报任务 timeline",
     commandBinding: {
@@ -396,8 +508,25 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandKey: "modal_resource_search",
     title: "素材",
     summary: "为当前内容提交图片、BGM、音效等资源检索任务。",
-    aliases: ["resource", "sucai", "素材", "资源", "素材检索", "资源检索"],
+    aliases: [
+      "resource",
+      "sucai",
+      "image search",
+      "video search",
+      "pinterest image search",
+      "fetch image",
+      "素材",
+      "资源",
+      "素材检索",
+      "资源检索",
+    ],
     trigger: "@素材",
+    triggerHints: [
+      "@Image Search",
+      "@Fetch Image",
+      "@Pinterest Image Search",
+      "@Video Search",
+    ],
     category: "素材检索",
     outputHint: "素材检索任务 timeline",
     commandBinding: {
@@ -413,6 +542,10 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     aliases: [
       "search",
       "research",
+      "search agent",
+      "instagram research",
+      "google search",
+      "daily search",
       "sousuo",
       "搜索",
       "检索",
@@ -421,6 +554,13 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "最新信息",
     ],
     trigger: "@搜索",
+    triggerHints: [
+      "@Search",
+      "@Google Search",
+      "@Daily Search",
+      "@Search Agent",
+      "@Instagram Research",
+    ],
     category: "研究分析",
     outputHint: "搜索 timeline",
     commandBinding: {
@@ -436,6 +576,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     aliases: [
       "deep",
       "deepsearch",
+      "researchers pro",
       "shensou",
       "深搜",
       "深度搜索",
@@ -443,6 +584,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "多轮搜索",
     ],
     trigger: "@深搜",
+    triggerHints: ["@Researchers Pro"],
     category: "研究分析",
     outputHint: "深搜 timeline",
     commandBinding: {
@@ -457,6 +599,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     summary: "围绕主题执行多轮调研并输出结构化研究报告。",
     aliases: [
       "report",
+      "report search",
       "research_report",
       "yanbao",
       "研报",
@@ -465,6 +608,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "竞品报告",
     ],
     trigger: "@研报",
+    triggerHints: ["@Report Search"],
     category: "研究分析",
     outputHint: "研报 artifact",
     commandBinding: {
@@ -480,6 +624,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     aliases: [
       "competitor",
       "competitive",
+      "product search",
       "jingpin",
       "竞品",
       "竞品分析",
@@ -488,6 +633,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "竞对",
     ],
     trigger: "@竞品",
+    triggerHints: ["@Product Search"],
     category: "研究分析",
     outputHint: "竞品分析 artifact",
     commandBinding: {
@@ -542,6 +688,27 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandRenderContract: COMMAND_TIMELINE_JSON_CONTRACT,
   },
   {
+    commandKey: "file_read_runtime",
+    title: "读文件",
+    summary: "读取本地或工作区文件，并继续挂回 summary 当前主链输出结构化解读。",
+    aliases: [
+      "read_file",
+      "duwenjian",
+      "读文件",
+      "文件读取",
+      "read file content",
+    ],
+    trigger: "@读文件",
+    triggerHints: ["@Read File Content"],
+    category: "研究分析",
+    outputHint: "文件解读 timeline",
+    commandBinding: {
+      skillId: "summary",
+      executionKind: "agent_turn",
+    },
+    commandRenderContract: COMMAND_TIMELINE_JSON_CONTRACT,
+  },
+  {
     commandKey: "summary",
     title: "总结",
     summary: "提炼当前文本、对话或上下文中的关键结论与重点。",
@@ -562,6 +729,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     aliases: [
       "translate",
       "translation",
+      "write translate",
       "fanyi",
       "翻译",
       "中译英",
@@ -569,6 +737,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "多语言翻译",
     ],
     trigger: "@翻译",
+    triggerHints: ["@Write Translate"],
     category: "研究分析",
     outputHint: "翻译 timeline",
     commandBinding: {
@@ -585,6 +754,28 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     trigger: "@分析",
     category: "研究分析",
     outputHint: "分析 timeline",
+    commandBinding: {
+      skillId: "analysis",
+      executionKind: "agent_turn",
+    },
+    commandRenderContract: COMMAND_TIMELINE_JSON_CONTRACT,
+  },
+  {
+    commandKey: "logo_decomposition",
+    title: "Logo拆解",
+    summary: "拆解图片或 Logo 的构图、元素、配色与可复用视觉结构。",
+    aliases: [
+      "logo decomposition",
+      "image logo decomposition",
+      "logo analyze",
+      "logo拆解",
+      "图形拆解",
+      "logo分析",
+    ],
+    trigger: "@Logo拆解",
+    triggerHints: ["@Image Logo Decomposition"],
+    category: "研究分析",
+    outputHint: "视觉拆解 timeline",
     commandBinding: {
       skillId: "analysis",
       executionKind: "agent_turn",
@@ -616,8 +807,17 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandKey: "transcription_generate",
     title: "转写",
     summary: "把音频或视频来源提交为转写任务。",
-    aliases: ["transcribe", "zhuanxie", "转写", "逐字稿", "字幕", "语音转文字"],
+    aliases: [
+      "transcribe",
+      "audio extractor",
+      "zhuanxie",
+      "转写",
+      "逐字稿",
+      "字幕",
+      "语音转文字",
+    ],
     trigger: "@转写",
+    triggerHints: ["@Audio Extractor"],
     category: "音频创作",
     outputHint: "转写 artifact",
     commandBinding: {
@@ -633,6 +833,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     aliases: [
       "scrape",
       "web_scrape",
+      "fetch",
       "zhuaqu",
       "抓取",
       "网页抓取",
@@ -640,6 +841,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "Web Scrape",
     ],
     trigger: "@抓取",
+    triggerHints: ["@Fetch"],
     category: "网页处理",
     outputHint: "网页抓取 artifact",
     commandBinding: {
@@ -655,6 +857,9 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     aliases: [
       "web_read",
       "page_read",
+      "url summarize",
+      "read webpage",
+      "get homepage",
       "wangyeduqu",
       "网页读取",
       "读取网页",
@@ -662,6 +867,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "网页总结",
     ],
     trigger: "@网页读取",
+    triggerHints: ["@Read Webpage", "@Get Homepage", "@URL Summarize"],
     category: "网页处理",
     outputHint: "网页读取 artifact",
     commandBinding: {
@@ -751,7 +957,7 @@ function buildSeededCommandProjection(
     scorecardProfileRef: SEEDED_COMMAND_SCORECARD_PROFILE_ID,
     policyProfileRef: SEEDED_COMMAND_POLICY_PROFILE_ID,
     aliases: [...spec.aliases],
-    triggerHints: [spec.trigger],
+    triggerHints: [spec.trigger, ...(spec.triggerHints ?? [])],
     commandBinding: spec.commandBinding
       ? { ...spec.commandBinding }
       : undefined,

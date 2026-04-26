@@ -28,6 +28,33 @@ describe("parseWebpageWorkbenchCommand", () => {
     });
   });
 
+  it("应兼容 Ribbi 风格的网页编排命令", () => {
+    const composerResult = parseWebpageWorkbenchCommand(
+      "@Web Composer campaign page for spring coffee launch",
+    );
+    const previewResult = parseWebpageWorkbenchCommand(
+      "@HTML Preview docs page for agent runtime setup",
+    );
+    const styleResult = parseWebpageWorkbenchCommand(
+      "@Web Style 类型:官网 风格:glassmorphism 帮我做一个 AI workspace 官网",
+    );
+
+    expect(composerResult).toMatchObject({
+      trigger: "@Web Composer",
+      pageType: "campaign_page",
+    });
+    expect(previewResult).toMatchObject({
+      trigger: "@HTML Preview",
+      pageType: "docs_page",
+    });
+    expect(styleResult).toMatchObject({
+      trigger: "@Web Style",
+      pageType: "homepage",
+      style: "glassmorphism",
+      prompt: "帮我做一个 AI workspace 官网",
+    });
+  });
+
   it("没有显式字段时也应保留网页生成意图", () => {
     const result = parseWebpageWorkbenchCommand(
       "@网页 帮我生成一个新品发布活动页，突出预约按钮和核心卖点",
