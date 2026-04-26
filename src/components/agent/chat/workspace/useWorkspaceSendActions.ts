@@ -861,8 +861,13 @@ function mergeTranslationCommandRecentDefaults(params: {
   };
 }
 
+type AnalysisCommandRecentDefaultsTarget = Pick<
+  ParsedAnalysisWorkbenchCommand,
+  "focus" | "style" | "outputFormat"
+>;
+
 function mergeAnalysisCommandRecentDefaults<
-  T extends ParsedAnalysisWorkbenchCommand,
+  T extends AnalysisCommandRecentDefaultsTarget,
 >(params: {
   parsedCommand: T;
   slotValues?: ServiceSkillSlotValues;

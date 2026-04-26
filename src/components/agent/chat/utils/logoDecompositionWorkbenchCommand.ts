@@ -8,7 +8,7 @@ export type LogoDecompositionWorkbenchCommandTrigger =
   | "@Image Logo Decomposition";
 
 export interface ParsedLogoDecompositionWorkbenchCommand
-  extends ParsedAnalysisWorkbenchCommand {
+  extends Omit<ParsedAnalysisWorkbenchCommand, "trigger"> {
   trigger: LogoDecompositionWorkbenchCommandTrigger;
   analysisMode: "image_logo_decomposition";
 }
