@@ -26,6 +26,7 @@ export interface StreamRequestState {
   hasMeaningfulCompletionSignal?: boolean;
   requestLogId: string | null;
   requestStartedAt: number;
+  submissionDispatchedAt?: number | null;
   requestFinished: boolean;
   queuedTurnId: string | null;
   queuedDraftCleanupTimerId?: ReturnType<typeof setTimeout> | null;
@@ -81,6 +82,7 @@ export function createAgentStreamSubmissionLifecycle(
     hasMeaningfulCompletionSignal: false,
     requestLogId: null,
     requestStartedAt: 0,
+    submissionDispatchedAt: null,
     requestFinished: false,
     queuedTurnId: null,
     queuedDraftCleanupTimerId: null,

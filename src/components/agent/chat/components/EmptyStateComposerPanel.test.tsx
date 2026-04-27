@@ -149,7 +149,6 @@ function renderPanel(
 
   const defaultProps: React.ComponentProps<typeof EmptyStateComposerPanel> = {
     input: "",
-    setInput: vi.fn(),
     placeholder: "输入内容",
     onSend: vi.fn(),
     activeTheme: "general",
@@ -206,7 +205,6 @@ function renderStatefulPanel(
     return (
       <EmptyStateComposerPanel
         input=""
-        setInput={vi.fn()}
         placeholder="输入内容"
         onSend={vi.fn()}
         activeTheme="general"
@@ -258,6 +256,23 @@ function expandAdvancedControls(container: HTMLDivElement) {
   });
 
   return toggleButton;
+}
+
+function updateTextareaValue(
+  textarea: HTMLTextAreaElement | null,
+  value: string,
+) {
+  expect(textarea).toBeTruthy();
+
+  const valueSetter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+
+  act(() => {
+    valueSetter?.call(textarea, value);
+    textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+  });
 }
 
 describe("EmptyStateComposerPanel", () => {
@@ -466,6 +481,26 @@ describe("EmptyStateComposerPanel", () => {
     });
 
     expect(onPaste).toHaveBeenCalledTimes(1);
+  });
+
+  it("发送时应把本地草稿显式传给首页发送链", () => {
+    const onSend = vi.fn();
+    const container = renderPanel({ onSend });
+    const textarea = container.querySelector("textarea");
+
+    updateTextareaValue(textarea, "帮我快速开一个新对话");
+
+    const sendButton = container.querySelector(
+      'button[title="发送"]',
+    ) as HTMLButtonElement | null;
+
+    expect(sendButton?.disabled).toBe(false);
+
+    act(() => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onSend).toHaveBeenCalledWith("帮我快速开一个新对话");
   });
 
   it("发送准备中应禁用首页发送入口并展示忙碌态", () => {

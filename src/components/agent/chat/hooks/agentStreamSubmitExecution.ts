@@ -230,6 +230,8 @@ export async function executeAgentStreamSubmit(
 
   callbacks.registerListener(unlisten);
 
+  requestState.submissionDispatchedAt = Date.now();
+
   await runtime.submitOp(
     buildUserInputSubmitOp({
       content,

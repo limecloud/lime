@@ -461,12 +461,9 @@ describe("EmptyState", () => {
 
     expect(container.textContent).toContain("创作");
     expect(container.textContent).toContain("青柠一下，灵感即来");
-    expect(container.textContent).toContain("说一句目标，剩下的交给 Lime。");
+    expect(container.textContent).toContain("说一句目标，Lime 就接着帮你做。");
     expect(container.textContent).toContain(
-      "文案、图片、视频、搜索和网页任务，会围绕同一个目标持续推进。",
-    );
-    expect(container.textContent).toContain(
-      "跑通过的方法会沉淀成常用做法、偏好和项目上下文，下次不用重新开始。",
+      "文案、图片、视频、搜索和网页任务围绕同一目标持续推进，并沉淀上下文、偏好和做法。",
     );
     expect(container.textContent).not.toContain("通用对话");
     expect(container.textContent).not.toContain("新建任务");
@@ -1534,10 +1531,12 @@ describe("EmptyState", () => {
       },
     ];
     const setInput = vi.fn<(value: string) => void>();
+    const onSend = vi.fn();
 
     const container = renderEmptyState({
       input: "@",
       setInput,
+      onSend,
       characters,
       skills,
     });
@@ -1560,7 +1559,19 @@ describe("EmptyState", () => {
     act(() => {
       latestCall.onChange("@技能A");
     });
-    expect(setInput).toHaveBeenCalledWith("@技能A");
+
+    expect(setInput).not.toHaveBeenCalled();
+
+    const sendButton = container.querySelector(
+      'button[title="发送"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton?.disabled).toBe(false);
+
+    act(() => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onSend).toHaveBeenCalledWith("@技能A", "react", undefined);
   });
 
   it("应把服务型技能与选择回调透传给 CharacterMention", async () => {
@@ -2801,7 +2812,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("也可以直接继续这轮。");
+    expect(container.textContent).toContain("也可以直接续上这一轮。");
     expect(container.textContent).toContain("短视频编排");
     expect(
       container.querySelector('[data-testid="sceneapps-home-directory"]'),

@@ -9,6 +9,10 @@ import {
 } from "lucide-react";
 import type { TaskStatus } from "../hooks/agentChatShared";
 import { cn } from "@/lib/utils";
+import {
+  TASK_CENTER_CHROME_ACTIVE_TAB,
+  TASK_CENTER_CHROME_SURFACE,
+} from "../workspace/taskCenterChromeTokens";
 
 const TASK_CENTER_TAB_STATUS_META: Record<
   TaskStatus,
@@ -67,22 +71,22 @@ function formatTaskTabTitle(item: TaskCenterTabItem): string {
 }
 
 const conversationTabShellClassName =
-  "group flex h-8 items-center gap-0.5 rounded-[14px] border px-0.5 transition-[border-color,background-color,box-shadow,color]";
+  "group flex h-[26px] items-center gap-0 rounded-[13px] border border-transparent px-1 transition-[background-color,border-color,box-shadow,color] duration-150 ease-out";
 
 const activeConversationTabClassName =
-  "border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] shadow-[0_8px_20px_-24px_rgba(15,23,42,0.18)]";
+  "border-slate-200/80 text-slate-950 shadow-[0_4px_12px_-9px_rgba(15,23,42,0.32),inset_0_1px_0_rgba(255,255,255,0.9)] dark:bg-slate-700 dark:text-slate-100";
 
 const inactiveConversationTabClassName =
-  "border-transparent bg-transparent hover:bg-slate-50/90";
+  "bg-transparent text-slate-500 hover:bg-white/58 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200";
 
 const conversationTabButtonClassName =
-  "flex min-w-0 items-center gap-1.5 rounded-[10px] px-2.5 py-1 text-left";
+  "flex h-full min-w-0 items-center gap-1 rounded-[12px] px-1.5 text-left";
 
 const tabUtilityButtonClassName =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-transparent bg-transparent text-slate-500 shadow-none transition-[background-color,color] hover:bg-slate-100 hover:text-slate-900";
+  "inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[13px] bg-transparent text-slate-500 transition-colors hover:bg-white/60 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-200";
 
 const tabWorkbenchButtonClassName =
-  "inline-flex h-7 shrink-0 items-center gap-1 rounded-[10px] border border-transparent bg-transparent px-2.5 text-[11px] font-medium text-slate-700 shadow-none transition-[background-color,color] hover:bg-slate-100 hover:text-slate-900";
+  "inline-flex h-[26px] shrink-0 items-center gap-1 rounded-[13px] border border-transparent px-2 text-[11px] font-medium text-slate-600 transition-[background-color,border-color,box-shadow,color] hover:bg-white/60 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100";
 
 export function TaskCenterTabStrip({
   items,
@@ -99,12 +103,13 @@ export function TaskCenterTabStrip({
 
   return (
     <section
-      className="mx-2 mb-0.5 shrink-0"
+      className="relative z-10 -mt-px min-h-[34px] shrink-0 border-b border-slate-200/60 px-5 pb-1.5 pt-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.74)]"
       data-testid="task-center-tab-strip"
+      style={{ backgroundColor: TASK_CENTER_CHROME_SURFACE }}
     >
-      <div className="flex items-center gap-1.5 rounded-b-[18px] border border-t-0 border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_66%,rgba(240,249,255,0.86)_100%)] px-2 pb-1 pt-1">
+      <div className="flex items-center gap-1">
         <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
-          <div className="flex min-w-max items-center gap-0.5 pr-1.5">
+          <div className="flex min-w-max items-center gap-1">
             {items.map((item) => {
               const statusMeta =
                 TASK_CENTER_TAB_STATUS_META[item.status] ??
@@ -121,6 +126,11 @@ export function TaskCenterTabStrip({
                   )}
                   data-testid={`task-center-tab-${item.id}`}
                   data-active={item.isActive ? "true" : "false"}
+                  style={
+                    item.isActive
+                      ? { backgroundColor: TASK_CENTER_CHROME_ACTIVE_TAB }
+                      : undefined
+                  }
                 >
                   <button
                     type="button"
@@ -135,7 +145,7 @@ export function TaskCenterTabStrip({
                       className={cn("h-3.5 w-3.5 shrink-0", statusMeta.iconClassName)}
                       aria-hidden="true"
                     />
-                    <span className="truncate text-[11px] font-medium text-slate-800">
+                    <span className="truncate text-[11px] font-semibold">
                       {item.title}
                     </span>
                     {item.hasUnread ? (
@@ -155,7 +165,7 @@ export function TaskCenterTabStrip({
                   <button
                     type="button"
                     className={cn(
-                      "mr-0.5 rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:text-slate-700",
+                      "mr-1 rounded-full p-1 text-slate-400 transition hover:bg-black/5 hover:text-slate-800 focus-visible:text-slate-800 dark:hover:bg-white/10 dark:hover:text-slate-200",
                       item.isActive
                         ? "opacity-100"
                         : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
@@ -167,7 +177,7 @@ export function TaskCenterTabStrip({
                       void onCloseTask(item.id);
                     }}
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-2.5 w-2.5" />
                   </button>
                 </div>
               );
@@ -181,14 +191,14 @@ export function TaskCenterTabStrip({
               title="新建对话"
               onClick={onCreateTask}
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
 
         {showToolbarActions ? (
           <div
-            className="flex shrink-0 items-center gap-0.5 border-l border-slate-200/80 pl-1"
+            className="flex shrink-0 items-center gap-1 border-l border-slate-200/80 pl-1.5 dark:border-slate-700/80"
             data-testid="task-center-tab-toolbar"
           >
             {showHistoryToggle ? (
@@ -200,7 +210,7 @@ export function TaskCenterTabStrip({
                 title="切换历史"
                 onClick={onToggleHistory}
               >
-                <Box className="h-4 w-4" />
+                <Box className="h-3.5 w-3.5" />
               </button>
             ) : null}
             {showCanvasToggle ? (
@@ -208,7 +218,8 @@ export function TaskCenterTabStrip({
                 type="button"
                 className={cn(
                   tabWorkbenchButtonClassName,
-                  isCanvasOpen && "bg-white text-slate-900",
+                  isCanvasOpen &&
+                  "border-slate-200/70 bg-white text-slate-900 shadow-[0_2px_8px_-6px_rgba(15,23,42,0.26),inset_0_1px_0_rgba(255,255,255,0.94)] dark:bg-slate-700 dark:text-slate-100",
                 )}
                 data-testid="task-center-tab-workbench"
                 aria-label={isCanvasOpen ? "收起工作台" : "展开工作台"}
@@ -216,9 +227,9 @@ export function TaskCenterTabStrip({
                 onClick={onToggleCanvas}
               >
                 {isCanvasOpen ? (
-                  <PanelRightClose className="h-4 w-4" />
+                  <PanelRightClose className="h-3.5 w-3.5" />
                 ) : (
-                  <PanelRightOpen className="h-4 w-4" />
+                  <PanelRightOpen className="h-3.5 w-3.5" />
                 )}
                 <span>工作台</span>
               </button>

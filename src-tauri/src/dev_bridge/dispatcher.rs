@@ -801,6 +801,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn get_provider_alias_config_is_bridged() {
+        let state = make_test_state();
+
+        let error = handle_command(
+            &state,
+            "get_provider_alias_config",
+            Some(serde_json::json!({
+                "provider": "deepseek"
+            })),
+        )
+        .await
+        .expect_err("missing model registry should fail after bridge routing");
+
+        assert!(error.to_string().contains("模型注册服务未初始化"));
+    }
+
+    #[tokio::test]
+    async fn provider_pool_model_commands_are_bridged() {
+        let state = make_test_state();
+
+        let models_by_provider = handle_command(&state, "get_all_models_by_provider", None)
+            .await
+            .expect("models by provider should route through dev bridge");
+        assert!(models_by_provider.is_object());
+
+        let available_models = handle_command(&state, "get_all_available_models", None)
+            .await
+            .expect("available models should route through dev bridge");
+        assert!(available_models.is_array());
+
+        let default_models = handle_command(
+            &state,
+            "get_default_models_for_provider",
+            Some(serde_json::json!({
+                "providerType": "openai"
+            })),
+        )
+        .await
+        .expect("default models should route through dev bridge");
+        assert!(default_models.is_array());
+    }
+
+    #[tokio::test]
     async fn test_api_key_provider_connection_is_bridged() {
         let state = make_test_state();
 

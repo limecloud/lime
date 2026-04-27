@@ -29,6 +29,48 @@ const cardReveal = keyframes`
   }
 `;
 
+const sloganSweep = keyframes`
+  0% {
+    transform: translateX(-155%) skewX(-18deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.55;
+  }
+  28% {
+    opacity: 1;
+  }
+  62% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateX(155%) skewX(-18deg);
+    opacity: 0;
+  }
+`;
+
+const sloganPulse = keyframes`
+  0%, 100% {
+    opacity: 0.88;
+    transform: scale(0.998);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.006);
+  }
+`;
+
+const sloganHaloPulse = keyframes`
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+`;
+
 const HeroSection = styled.section`
   position: relative;
   display: flex;
@@ -69,8 +111,8 @@ const LeadColumn = styled.div`
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.875rem;
-  max-width: min(1320px, 100%);
+  gap: 0.56rem;
+  max-width: min(1100px, 100%);
 `;
 
 const LeadBlock = styled.div`
@@ -104,42 +146,86 @@ const LeadBody = styled.div`
   display: flex;
   min-height: 0;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 0.55rem;
 `;
 
 const LeadTextGroup = styled.div`
   display: flex;
   width: 100%;
   flex-direction: column;
-  gap: 0.78rem;
-  max-width: 70rem;
+  gap: 0.34rem;
+  max-width: 56rem;
+`;
+
+const SloganWrap = styled.div`
+  position: relative;
+  width: fit-content;
+  isolation: isolate;
+  margin-bottom: 0.02rem;
+`;
+
+const SloganGlow = styled.div`
+  position: absolute;
+  inset: 52% -6% -4% -6%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(132, 204, 22, 0.18) 0%, rgba(34, 197, 94, 0.1) 22%, transparent 58%),
+    linear-gradient(90deg, rgba(16, 185, 129, 0) 0%, rgba(16, 185, 129, 0.12) 50%, rgba(16, 185, 129, 0) 100%);
+  filter: blur(14px);
+  opacity: 0.82;
+  animation: ${sloganHaloPulse} 3.8s ease-in-out infinite;
+  pointer-events: none;
+`;
+
+const SloganBeam = styled.div`
+  position: absolute;
+  inset: 8% 0 2%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0) 0%,
+    rgba(16, 185, 129, 0.05) 40%,
+    rgba(255, 255, 255, 0.42) 50%,
+    rgba(16, 185, 129, 0.05) 60%,
+    rgba(16, 185, 129, 0) 100%
+  );
+  mix-blend-mode: screen;
+  filter: blur(2px);
+  animation: ${sloganSweep} 2.9s linear infinite;
+  pointer-events: none;
 `;
 
 const SloganLine = styled.p`
+  position: relative;
   margin: 0;
   display: inline-flex;
   width: fit-content;
   align-items: center;
-  gap: 1.6rem;
+  gap: 1.05rem;
+  isolation: isolate;
 
   background: linear-gradient(
     90deg,
-    #10b981 0%,
-    #65a30d 25%,
-    #bef264 50%,
-    #65a30d 75%,
-    #10b981 100%
+    hsl(160 96% 28%) 0%,
+    hsl(142 68% 27%) 22%,
+    hsl(86 58% 58%) 50%,
+    hsl(142 68% 27%) 78%,
+    hsl(160 96% 28%) 100%
   );
-  background-size: 200% auto;
+  background-size: 220% auto;
   color: transparent;
   -webkit-background-clip: text;
   background-clip: text;
+  animation: ${sloganPulse} 3.8s ease-in-out infinite;
 
   font-size: clamp(54px, 6vw, 92px);
-  line-height: 0.94;
+  line-height: 0.92;
   font-weight: 800;
   letter-spacing: -0.05em;
-  text-shadow: 0 14px 28px rgba(101, 163, 13, 0.12);
+  text-shadow:
+    0 0 8px rgba(132, 204, 22, 0.16),
+    0 12px 26px rgba(101, 163, 13, 0.12),
+    0 0 24px rgba(250, 204, 21, 0.08);
 
   &::before {
     content: "";
@@ -149,31 +235,52 @@ const SloganLine = styled.p`
     border-radius: 9999px;
     background: linear-gradient(
       135deg,
-      rgba(132, 204, 22, 0.9),
-      rgba(16, 185, 129, 0.75)
+      rgba(132, 204, 22, 0.94),
+      rgba(16, 185, 129, 0.8)
     );
-    box-shadow: 0 0 0 14px rgba(132, 204, 22, 0.12);
+    box-shadow:
+      0 0 0 12px rgba(132, 204, 22, 0.1),
+      0 0 20px rgba(132, 204, 22, 0.26);
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: auto 10% -10% 10%;
+    height: 12px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      rgba(132, 204, 22, 0) 0%,
+      rgba(132, 204, 22, 0.12) 22%,
+      rgba(255, 255, 255, 0.34) 50%,
+      rgba(250, 204, 21, 0.16) 78%,
+      rgba(132, 204, 22, 0) 100%
+    );
+    filter: blur(8px);
+    opacity: 0.62;
+    z-index: -1;
   }
 `;
 
 const LeadDescriptionText = styled.p`
   margin: 0;
-  max-width: 46rem;
-  font-size: 17px;
+  max-width: 44rem;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 1.78;
+  line-height: 1.72;
   color: rgb(51 65 85);
 
   @media (min-width: 768px) {
-    font-size: 18px;
+    font-size: 17px;
   }
 `;
 
 const LeadSupportingText = styled.p`
   margin: 0;
-  max-width: 58rem;
-  font-size: 14px;
-  line-height: 1.76;
+  max-width: 48rem;
+  font-size: 13px;
+  line-height: 1.7;
   color: rgb(100 116 139);
 `;
 
@@ -348,17 +455,21 @@ export function EmptyStateHero({
 
               <LeadBody>
                 <LeadTextGroup>
-                  {slogan ? <SloganLine>{slogan}</SloganLine> : null}
+                  {slogan ? (
+                    <SloganWrap>
+                      <SloganGlow />
+                      <SloganBeam />
+                      <SloganLine>{slogan}</SloganLine>
+                    </SloganWrap>
+                  ) : null}
                   {title ? (
-                    <h1 className="max-w-[18ch] text-[28px] font-semibold leading-[1.04] tracking-tight text-slate-900 md:text-[38px]">
+                    <h1 className="max-w-[18ch] text-[28px] font-semibold leading-[1.04] tracking-tight text-slate-900 drop-shadow-[0_1px_0_rgba(255,255,255,0.9),0_12px_26px_rgba(132,204,22,0.16)] md:text-[38px]">
                       {title}
                     </h1>
                   ) : null}
                   <LeadDescriptionText>{description}</LeadDescriptionText>
                   {supportingDescription ? (
-                    <LeadSupportingText>
-                      {supportingDescription}
-                    </LeadSupportingText>
+                    <LeadSupportingText>{supportingDescription}</LeadSupportingText>
                   ) : null}
                 </LeadTextGroup>
               </LeadBody>

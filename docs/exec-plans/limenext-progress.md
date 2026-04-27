@@ -8,6 +8,29 @@
 >
 > 补充说明（2026-04-22）：`sceneapp` 对象级 `SceneAppCurrent*` 过渡类型已全部删除。历史日志若继续出现 `SceneAppCurrentDescriptor / SceneAppCurrentPlanResult / SceneAppCurrentCatalog` 等表述，默认按当时过渡阶段理解；current 事实源已切回 base `SceneAppDescriptor / SceneAppCatalog / SceneAppPlanResult`，current 标量只保留 `SceneAppExecutorBindingFamily / SceneAppExecutionRuntimeAction / SceneAppType / SceneAppLaunchRequirementCoreKind`。
 
+## 2026-04-27
+
+### 已完成
+
+- 修正任务中心在同一 `claw` 页面内通过左侧导航切换会话时，顶部 open tabs 把“旧会话 + 新会话”一起保留下来的回灌问题，并顺手把这条切换链路的前台预览态收口到“只显示目标会话”：
+  - 已更新：
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/index.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 之前从左侧“最近对话 / 归档”进入另一条会话时，`initialSessionId` 虽然已经换成目标会话，但任务中心在 `switchTopic` 真正完成前，`reconcileTaskCenterTabIds(...)` 又把旧 `sessionId` 当成当前会话塞回 open tabs，导致用户看到“明明只打开一个，却又冒出多个任务 tab”
+    - 当前已把这段“路由切换中”状态单独收口：只要 `initialSessionId !== sessionId`，任务中心会先把顶部预览态锁到目标会话，并在 reconcile 阶段禁止把旧 session 回灌回来
+    - 这样处理后，左侧导航打开普通会话时，顶部只保留目标会话；打开归档会话时，也不会继续显示旧的普通任务 tab
+    - 这次顺手也验证了“打开慢”主观感受里有一部分来自错误的前台过渡：之前用户点击后先看到旧 tab，再晚一点跳到新 tab，看起来像卡住；现在至少顶部导航会立即对齐目标会话，不再制造额外错觉
+  - 当前定向验证：
+    - `npm run test -- "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签|已在任务中心内切到另一条导航会话时，不应把旧标签回灌回来|已在任务中心内切到归档导航会话时，不应继续显示旧的普通任务标签"`
+    - `npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/index.test.tsx"`
+    - `npm run verify:gui-smoke`
+  - 结果：
+    - 任务中心相关定向 `vitest` 通过：新增的“会话内再切普通会话 / 会话内再切归档会话”两条回归都已通过
+    - 定向 `eslint` 通过
+    - `verify:gui-smoke` 通过：`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page` 当前都已跑通，说明这次任务中心状态修正没有把 GUI 主路径打断
+
 ## 2026-04-25
 
 ### 已完成
@@ -6546,3 +6569,30 @@
     - `npm run verify:gui-smoke` 通过
   - 剩余风险：
     - 归档详情 `f24b2d03-b4a9-4ab4-a3ab-ec2a55e90d4d` 本次后端 `agent_runtime_get_session` 仍约 `3.2s`，主要耗时落在 `detail_ms≈3.0s`；这已经不是顶部多 Tab/12 秒 topics defer 问题，后续应单独排查归档会话详情读取路径
+
+- 任务中心慢加载继续用 E2E 收口了一刀，确认本轮实际慢点已从 Tab 状态转到模型初始化桥接噪音：
+  - Playwright 本地 E2E 首轮复测时，普通最近对话已经能在 `~2.0s` 内显示单个 active Tab，但控制台仍出现 `get_provider_alias_config` / `get_all_models_by_provider` 的 DevBridge unknown command
+  - 当前已补齐 `src-tauri/src/dev_bridge/dispatcher/models.rs` 的模型命令桥接：
+    - `get_provider_alias_config`
+    - `get_all_models_by_provider`
+    - `get_all_available_models`
+    - `get_default_models_for_provider`
+  - 这些命令本来已经存在于正式 Tauri 注册和前端网关，本轮只是补齐浏览器 DevBridge 分发，不新增 compat 协议，也不让模型初始化继续掉 mock / unknown fallback
+  - DevBridge HTTP 探针已确认运行中桥接返回 `200`：
+    - `get_provider_alias_config` -> `{"result":null,"error":null}`
+    - `get_all_models_by_provider` -> provider map
+    - `get_all_available_models` -> `[]`
+  - Playwright 本地 E2E 复测结果：
+    - 首页可用：`~1.6s`
+    - 人为写入 6 个旧 Tab 后点击最近对话：`914ms` 出现单个 active Tab，`hasWorkbenchButton=true`
+    - 点击归档会话 `f24b2d03-b4a9-4ab4-a3ab-ec2a55e90d4d`：`908ms` 进入详情，顶部普通任务 Tab 为 `[]`，storage 覆盖为该归档 id
+    - 普通与归档两条路径 console error 均为 `0`
+  - 本轮新增验证：
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" bridged` 通过：`22 tests`
+    - `npm run typecheck` 通过
+    - `npm run test -- "src/components/agent/chat/utils/taskCenterTabs.test.ts"` 通过：`19 tests`
+    - `npm run test -- "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签|归档会话|导航会话"` 通过：`5 tests`
+    - `npm run test:contracts` 通过
+    - `npm run verify:gui-smoke` 通过
+  - 剩余风险：
+    - 本轮证明“打开一个出现多个任务”和模型桥接 unknown 已收口；若用户仍感知慢，下一刀应继续看 `agent_runtime_get_session` 详情读取内部的 `detail_ms` 组成，而不是再改顶部 Tab 状态

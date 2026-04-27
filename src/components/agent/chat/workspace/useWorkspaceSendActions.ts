@@ -234,6 +234,20 @@ const PROMPT_REWRITE_PURPOSES = new Set<RewritePurpose>([
   "style_audit",
 ]);
 
+function waitForNextPaint(): Promise<void> {
+  if (
+    typeof window === "undefined" ||
+    import.meta.env?.MODE === "test" ||
+    typeof window.requestAnimationFrame !== "function"
+  ) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
@@ -3140,6 +3154,11 @@ export function useWorkspaceSendActions({
           mentionCommandSkillIdMap,
         });
       };
+
+      if (messagesCount === 0) {
+        ensureSubmissionPreview();
+        await waitForNextPaint();
+      }
 
       const parsedImageWorkbenchCommand =
         !sendOptions?.purpose && !hasBoundSkillLaunch && sourceText.trim()

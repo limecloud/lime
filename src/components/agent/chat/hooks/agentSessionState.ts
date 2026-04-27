@@ -92,7 +92,6 @@ export function shouldDeferSessionDetailHydration(options: {
     forceRefresh ||
     resumeSessionStartHooks ||
     !cachedSnapshot ||
-    !currentSessionId ||
     currentSessionId === topicId
   ) {
     return false;

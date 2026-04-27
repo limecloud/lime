@@ -1,5 +1,47 @@
 import type { AgentThreadItem, AgentThreadTurn } from "../types";
 
+function areJsonLikeValuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (
+    !left ||
+    !right ||
+    typeof left !== "object" ||
+    typeof right !== "object"
+  ) {
+    return false;
+  }
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right)) {
+      return false;
+    }
+    if (left.length !== right.length) {
+      return false;
+    }
+    return left.every((item, index) =>
+      areJsonLikeValuesEqual(item, right[index]),
+    );
+  }
+
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord);
+  const rightKeys = Object.keys(rightRecord);
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  return leftKeys.every((key) =>
+    Object.prototype.hasOwnProperty.call(rightRecord, key)
+      ? areJsonLikeValuesEqual(leftRecord[key], rightRecord[key])
+      : false,
+  );
+}
+
 function compareItemOrder(
   left: AgentThreadItem,
   right: AgentThreadItem,
@@ -24,6 +66,11 @@ export function upsertThreadTurnState(
     );
   }
 
+  const existingTurn = turns[existingIndex];
+  if (areJsonLikeValuesEqual(existingTurn, nextTurn)) {
+    return turns;
+  }
+
   return turns.map((turn) => (turn.id === nextTurn.id ? nextTurn : turn));
 }
 
@@ -34,6 +81,11 @@ export function upsertThreadItemState(
   const existingIndex = items.findIndex((item) => item.id === nextItem.id);
   if (existingIndex < 0) {
     return [...items, nextItem].sort(compareItemOrder);
+  }
+
+  const existingItem = items[existingIndex];
+  if (areJsonLikeValuesEqual(existingItem, nextItem)) {
+    return items;
   }
 
   const nextItems = items.map((item) =>
@@ -47,6 +99,9 @@ export function removeThreadTurnState(
   turns: AgentThreadTurn[],
   turnId: string,
 ): AgentThreadTurn[] {
+  if (!turns.some((turn) => turn.id === turnId)) {
+    return turns;
+  }
   return turns.filter((turn) => turn.id !== turnId);
 }
 
@@ -54,6 +109,9 @@ export function removeThreadItemState(
   items: AgentThreadItem[],
   itemId: string,
 ): AgentThreadItem[] {
+  if (!items.some((item) => item.id === itemId)) {
+    return items;
+  }
   return items.filter((item) => item.id !== itemId);
 }
 

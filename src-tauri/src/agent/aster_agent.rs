@@ -90,6 +90,15 @@ impl AsterAgentWrapper {
         lime_agent::get_runtime_session_detail(db, session_id).await
     }
 
+    pub async fn get_runtime_session_detail_with_history_limit(
+        db: &DbConnection,
+        session_id: &str,
+        history_limit: Option<usize>,
+    ) -> Result<SessionDetail, String> {
+        lime_agent::get_runtime_session_detail_with_history_limit(db, session_id, history_limit)
+            .await
+    }
+
     pub async fn get_runtime_session_execution_runtime(
         db: &DbConnection,
         session_id: &str,

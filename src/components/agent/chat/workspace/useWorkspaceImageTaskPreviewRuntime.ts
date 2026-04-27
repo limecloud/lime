@@ -1,4 +1,10 @@
-import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { listDirectory, readFilePreview } from "@/lib/api/fileBrowser";
 import {
   getMediaTaskArtifact,
@@ -40,9 +46,11 @@ import {
 const IMAGE_TASK_EVENT_NAME = "lime://creation_task_submitted";
 const IMAGE_TASK_FILE_PREVIEW_MAX_SIZE = 256 * 1024;
 const IMAGE_TASK_POLL_INTERVAL_MS = 1500;
+const IMAGE_TASK_ACTIVE_WINDOW_MS = 30 * 60 * 1000;
 const IMAGE_TASK_RESTORE_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const IMAGE_TASK_RESTORE_LIMIT = 8;
 const IMAGE_TASKS_RESTORE_SCAN_DEPTH = 2;
+const EMPTY_MESSAGES: Message[] = [];
 
 interface CreationTaskSubmittedPayload {
   task_id?: string;
@@ -341,9 +349,7 @@ function readStringArray(
   return values;
 }
 
-function sanitizeStoryboardSlotText(
-  value?: string | null,
-): string | null {
+function sanitizeStoryboardSlotText(value?: string | null): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
 }
@@ -394,12 +400,10 @@ function readStoryboardSlotsFromUnknown(value: unknown): ImageStoryboardSlot[] {
         slotIndex,
         slotId: readString([record], ["slot_id", "slotId"]),
         label: readString([record], ["label", "slot_label", "slotLabel"]),
-        prompt: readString([record], [
-          "prompt",
-          "slot_prompt",
-          "slotPrompt",
-          "revised_prompt",
-        ]),
+        prompt: readString(
+          [record],
+          ["prompt", "slot_prompt", "slotPrompt", "revised_prompt"],
+        ),
         shotType: readString([record], ["shot_type", "shotType"]),
         status: readString([record], ["status"]),
       });
@@ -617,6 +621,34 @@ function resolveTaskRecordTimestamp(
   return Number.isFinite(timestamp) ? timestamp : Date.now();
 }
 
+function isNonTerminalTaskStatus(status: string): boolean {
+  return (
+    status === "pending" ||
+    status === "queued" ||
+    status === "running" ||
+    status === "partial"
+  );
+}
+
+function isRecentlyActiveTaskRecord(
+  taskRecord: Record<string, unknown>,
+): boolean {
+  return (
+    Date.now() - resolveTaskRecordTimestamp(taskRecord) <=
+    IMAGE_TASK_ACTIVE_WINDOW_MS
+  );
+}
+
+function shouldRestoreLoadedImageTaskSnapshot(
+  snapshot: LoadedImageTaskSnapshot,
+): boolean {
+  if (snapshot.snapshot.terminal) {
+    return true;
+  }
+
+  return isRecentlyActiveTaskRecord(snapshot.taskRecord);
+}
+
 function resolveTaskContextMetadata(
   taskRecord: Record<string, unknown>,
 ): TaskContextMetadata {
@@ -685,6 +717,16 @@ function shouldRestoreImageTaskRecord(params: {
     matchedScopedContext = true;
   }
 
+  const normalizedStatus = normalizeTaskStatus(
+    readString([params.taskRecord], ["normalized_status", "status"]),
+  );
+  if (
+    isNonTerminalTaskStatus(normalizedStatus) &&
+    !isRecentlyActiveTaskRecord(params.taskRecord)
+  ) {
+    return false;
+  }
+
   if (normalizedSessionId || normalizedContentId) {
     return matchedScopedContext;
   }
@@ -692,15 +734,7 @@ function shouldRestoreImageTaskRecord(params: {
     return true;
   }
 
-  const normalizedStatus = normalizeTaskStatus(
-    readString([params.taskRecord], ["normalized_status", "status"]),
-  );
-  if (
-    normalizedStatus === "pending" ||
-    normalizedStatus === "queued" ||
-    normalizedStatus === "running" ||
-    normalizedStatus === "partial"
-  ) {
+  if (isNonTerminalTaskStatus(normalizedStatus)) {
     return true;
   }
 
@@ -750,7 +784,8 @@ function resolvePendingImageCommandRecoverySignature(
     if (
       trailingMessages.some(
         (candidate) =>
-          candidate.role === "assistant" && Boolean(candidate.imageWorkbenchPreview),
+          candidate.role === "assistant" &&
+          Boolean(candidate.imageWorkbenchPreview),
       )
     ) {
       return null;
@@ -1239,10 +1274,7 @@ function appendImageOutputSeed(
   const size = readString([record], ["size", "resolution"]);
   const slotId = readString([record], ["slot_id", "slotId"]);
   const slotIndex = readPositiveNumber([record], ["slot_index", "slotIndex"]);
-  const slotLabel = readString(
-    [record],
-    ["slot_label", "slotLabel", "label"],
-  );
+  const slotLabel = readString([record], ["slot_label", "slotLabel", "label"]);
   const slotPrompt = readString([record], ["slot_prompt", "slotPrompt"]);
   const shotType = readString([record], ["shot_type", "shotType"]);
 
@@ -1371,10 +1403,10 @@ function buildParsedImageTaskSnapshot(params: {
     progressStoryboardSlots.length,
   );
   const layoutHint =
-    readString([payload, uiHintsRecord, params.taskRecord], [
-      "layout_hint",
-      "layoutHint",
-    ]) || null;
+    readString(
+      [payload, uiHintsRecord, params.taskRecord],
+      ["layout_hint", "layoutHint"],
+    ) || null;
   const taskMode = resolveTaskMode(params.taskType, params.taskRecord);
   const taskLabel = resolveTaskLabel(params.taskType, taskMode);
   const lastError =
@@ -1577,8 +1609,7 @@ function buildParsedImageTaskSnapshot(params: {
       rawText: prompt || `${taskLabel}进行中`,
       expectedCount,
       layoutHint,
-      storyboardSlots:
-        storyboardSlots.length > 0 ? storyboardSlots : undefined,
+      storyboardSlots: storyboardSlots.length > 0 ? storyboardSlots : undefined,
       outputIds: outputs.map((output) => output.id),
       targetOutputId: targetOutputId ?? null,
       targetOutputRefId: targetOutputRefId ?? null,
@@ -1765,10 +1796,7 @@ function normalizeImageWorkbenchStatusMessageText(
 function normalizeImageWorkbenchPreviewIdentityText(
   value?: string | null,
 ): string {
-  return (value || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+  return (value || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function buildRunningImageWorkbenchPreviewFallbackKey(
@@ -1929,7 +1957,8 @@ function shouldReplaceImageWorkbenchMessageBody(params: {
 
   return (
     shouldPromoteTerminalSnapshot ||
-    params.existingMessage.id === resolveImageWorkbenchAssistantMessageId(nextPreview.taskId) ||
+    params.existingMessage.id ===
+      resolveImageWorkbenchAssistantMessageId(nextPreview.taskId) ||
     isImageWorkbenchStatusOnlyMessage(params.existingMessage)
   );
 }
@@ -1981,11 +2010,11 @@ function mergeImageWorkbenchPreviewMessage(params: {
         ? params.nextMessage.content
         : params.existingMessage.content,
     contentParts:
-      replaceBody || !(params.existingMessage.contentParts?.length)
+      replaceBody || !params.existingMessage.contentParts?.length
         ? params.nextMessage.contentParts
         : params.existingMessage.contentParts,
     toolCalls:
-      replaceBody || !(params.existingMessage.toolCalls?.length)
+      replaceBody || !params.existingMessage.toolCalls?.length
         ? params.nextMessage.toolCalls
         : params.existingMessage.toolCalls,
     timestamp: replaceBody
@@ -2019,8 +2048,7 @@ function dedupeImageWorkbenchPreviewMessages(messages: Message[]): Message[] {
     }
 
     const existingIndex = previewKeys.reduce<number | undefined>(
-      (matchedIndex, key) =>
-        matchedIndex ?? previewMessageIndex.get(key),
+      (matchedIndex, key) => matchedIndex ?? previewMessageIndex.get(key),
       undefined,
     );
     if (existingIndex === undefined) {
@@ -2053,7 +2081,9 @@ function finalizePreviewMessages(
   const dedupedMessages = dedupeImageWorkbenchPreviewMessages(nextMessages);
   if (
     dedupedMessages.length === previousMessages.length &&
-    dedupedMessages.every((message, index) => message === previousMessages[index])
+    dedupedMessages.every(
+      (message, index) => message === previousMessages[index],
+    )
   ) {
     return previousMessages;
   }
@@ -2067,13 +2097,19 @@ function buildImageWorkbenchMessagePatchFromTask(params: {
   preview: MessageImageWorkbenchPreview;
 }): Pick<
   Message,
-  "content" | "timestamp" | "isThinking" | "toolCalls" | "contentParts" | "runtimeStatus"
+  | "content"
+  | "timestamp"
+  | "isThinking"
+  | "toolCalls"
+  | "contentParts"
+  | "runtimeStatus"
 > {
   const normalizedStatus = resolveNormalizedStatusFromWorkbenchTaskStatus(
     params.task.status,
   );
   const taskLabel = resolveTaskLabelFromMode(params.task.mode);
-  const prompt = params.preview.prompt || params.task.prompt || `${taskLabel}进行中`;
+  const prompt =
+    params.preview.prompt || params.task.prompt || `${taskLabel}进行中`;
   const startedAt = new Date(params.task.createdAt || Date.now());
   const processDescriptor = buildImageWorkbenchProcessDescriptor({
     taskId: params.task.id,
@@ -2111,7 +2147,9 @@ function buildImageWorkbenchMessagePatchFromTask(params: {
             title: `${taskLabel}进行中`,
             detail:
               params.preview.statusMessage?.trim() ||
-              (prompt ? `正在处理：${prompt}` : "任务已提交，生成完成后会自动展示结果。"),
+              (prompt
+                ? `正在处理：${prompt}`
+                : "任务已提交，生成完成后会自动展示结果。"),
             checkpoints: ["创建任务文件", "轮询任务状态", "回填图片结果"],
           }
         : params.preview.status === "cancelled"
@@ -2119,7 +2157,8 @@ function buildImageWorkbenchMessagePatchFromTask(params: {
               phase: "cancelled" as const,
               title: `${taskLabel}已取消`,
               detail:
-                params.task.failureMessage || "任务已停止，不会继续生成新的图片结果。",
+                params.task.failureMessage ||
+                "任务已停止，不会继续生成新的图片结果。",
               checkpoints: [
                 "已保留当前任务记录",
                 "可在图片画布重新生成",
@@ -2139,6 +2178,93 @@ function buildImageWorkbenchMessagePatchFromTask(params: {
               }
             : undefined,
   };
+}
+
+function buildImageWorkbenchPreviewMessageFromTask(params: {
+  task: ImageWorkbenchTask;
+  outputs: ImageWorkbenchOutput[];
+  projectId?: string | null;
+  contentId?: string | null;
+}): Message {
+  const outputs = orderTaskOutputs(params.task, params.outputs);
+  const preferredOutput = outputs[0];
+  const previewStatus = resolvePreviewStatusFromWorkbenchTask(
+    params.task.status,
+  );
+  const preview: MessageImageWorkbenchPreview = {
+    taskId: params.task.id,
+    prompt: params.task.prompt || "图片任务",
+    mode: params.task.mode,
+    status: previewStatus,
+    projectId: params.projectId ?? null,
+    contentId: params.contentId ?? null,
+    taskFilePath: params.task.taskFilePath ?? null,
+    artifactPath: params.task.artifactPath ?? null,
+    imageUrl: preferredOutput?.url || null,
+    previewImages: buildPreviewImageUrls(outputs),
+    imageCount:
+      outputs.length > 0
+        ? outputs.length
+        : previewStatus === "running"
+          ? params.task.expectedCount
+          : undefined,
+    expectedImageCount: params.task.expectedCount,
+    layoutHint: params.task.layoutHint ?? null,
+    storyboardSlots: params.task.storyboardSlots,
+    sourceImageUrl: params.task.sourceImageUrl ?? null,
+    sourceImagePrompt: params.task.sourceImagePrompt ?? null,
+    sourceImageRef: params.task.sourceImageRef ?? null,
+    sourceImageCount: params.task.sourceImageCount,
+    size: preferredOutput?.size,
+    phase: resolvePreviewPhaseFromWorkbenchTaskStatus(params.task.status),
+    statusMessage:
+      previewStatus === "running"
+        ? null
+        : params.task.status === "error" || params.task.status === "cancelled"
+          ? params.task.failureMessage || null
+          : null,
+  };
+
+  return {
+    id: resolveImageWorkbenchAssistantMessageId(params.task.id),
+    role: "assistant",
+    ...buildImageWorkbenchMessagePatchFromTask({
+      task: params.task,
+      outputs,
+      preview,
+    }),
+    imageWorkbenchPreview: preview,
+  };
+}
+
+function buildImageWorkbenchPreviewMessagesFromState(params: {
+  imageWorkbenchState?: SessionImageWorkbenchState;
+  projectId?: string | null;
+  contentId?: string | null;
+}): Message[] {
+  const imageWorkbenchState = params.imageWorkbenchState;
+  if (!imageWorkbenchState || imageWorkbenchState.tasks.length === 0) {
+    return [];
+  }
+
+  const outputsByTaskId = new Map<string, ImageWorkbenchOutput[]>();
+  imageWorkbenchState.outputs.forEach((output) => {
+    const current = outputsByTaskId.get(output.taskId) || [];
+    current.push(output);
+    outputsByTaskId.set(output.taskId, current);
+  });
+
+  return imageWorkbenchState.tasks
+    .slice()
+    .sort((left, right) => left.createdAt - right.createdAt)
+    .map((task) =>
+      buildImageWorkbenchPreviewMessageFromTask({
+        task,
+        outputs: outputsByTaskId.get(task.id) || [],
+        projectId: params.projectId,
+        contentId: params.contentId,
+      }),
+    );
 }
 
 function upsertPreviewMessage(
@@ -2342,7 +2468,9 @@ function patchMessagesWithImageWorkbenchState(params: {
 
     const outputs = orderTaskOutputs(task, outputsByTaskId.get(task.id) || []);
     const preferredOutput = outputs[0];
-    const nextPreviewStatus = resolvePreviewStatusFromWorkbenchTask(task.status);
+    const nextPreviewStatus = resolvePreviewStatusFromWorkbenchTask(
+      task.status,
+    );
     const nextPreview: MessageImageWorkbenchPreview = {
       ...preview,
       prompt: preview.prompt || task.prompt,
@@ -2368,7 +2496,7 @@ function patchMessagesWithImageWorkbenchState(params: {
       phase: resolvePreviewPhaseFromWorkbenchTaskStatus(task.status),
       statusMessage:
         nextPreviewStatus === "running"
-          ? preview.statusMessage ?? null
+          ? (preview.statusMessage ?? null)
           : task.status === "error" || task.status === "cancelled"
             ? task.failureMessage || preview.statusMessage || null
             : null,
@@ -2406,6 +2534,42 @@ function patchMessagesWithImageWorkbenchState(params: {
   );
 }
 
+function syncMessagesWithImageWorkbenchState(params: {
+  messages: Message[];
+  imageWorkbenchState?: SessionImageWorkbenchState;
+  projectId?: string | null;
+  contentId?: string | null;
+}): Message[] {
+  const patchedMessages = patchMessagesWithImageWorkbenchState({
+    messages: params.messages,
+    imageWorkbenchState: params.imageWorkbenchState,
+  });
+  const cachedPreviewMessages = buildImageWorkbenchPreviewMessagesFromState({
+    imageWorkbenchState: params.imageWorkbenchState,
+    projectId: params.projectId,
+    contentId: params.contentId,
+  }).filter(
+    (candidateMessage) =>
+      !patchedMessages.some(
+        (message) =>
+          message.role === "assistant" &&
+          previewsReferToSameImageWorkbenchTask(
+            message.imageWorkbenchPreview,
+            candidateMessage.imageWorkbenchPreview,
+          ),
+      ),
+  );
+  if (cachedPreviewMessages.length === 0) {
+    return patchedMessages;
+  }
+
+  const nextMessages = cachedPreviewMessages.reduce(
+    (next, message) => upsertPreviewMessage(next, message),
+    patchedMessages,
+  );
+  return finalizePreviewMessages(patchedMessages, nextMessages);
+}
+
 export function useWorkspaceImageTaskPreviewRuntime({
   sessionId,
   projectId,
@@ -2419,6 +2583,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
   setChatMessages,
   updateCurrentImageWorkbenchState,
 }: UseWorkspaceImageTaskPreviewRuntimeParams) {
+  const effectiveMessages = messages ?? EMPTY_MESSAGES;
   const trackedTasksRef = useRef<Map<string, TrackedImageTask>>(new Map());
   const restoreSeedMessagesRef = useRef<
     ((seedMessages?: Message[]) => void) | null
@@ -2428,7 +2593,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
     projectId,
     contentId,
     projectRootPath,
-    messages,
+    messages: effectiveMessages,
     currentImageWorkbenchState,
     canvasState,
   });
@@ -2438,23 +2603,49 @@ export function useWorkspaceImageTaskPreviewRuntime({
     projectId,
     contentId,
     projectRootPath,
-    messages,
+    messages: effectiveMessages,
     currentImageWorkbenchState,
     canvasState,
   };
 
   useEffect(() => {
-    setChatMessages((previous) => finalizePreviewMessages(previous, previous));
-  }, [messages, setChatMessages]);
+    const finalizedMessages = finalizePreviewMessages(
+      effectiveMessages,
+      effectiveMessages,
+    );
+    if (finalizedMessages === effectiveMessages) {
+      return;
+    }
 
-  useEffect(() => {
-    setChatMessages((previous) =>
-      patchMessagesWithImageWorkbenchState({
+    setChatMessages((previous) => finalizePreviewMessages(previous, previous));
+  }, [effectiveMessages, setChatMessages]);
+
+  useLayoutEffect(() => {
+    const nextMessages = syncMessagesWithImageWorkbenchState({
+      messages: effectiveMessages,
+      imageWorkbenchState: currentImageWorkbenchState,
+      projectId,
+      contentId,
+    });
+    if (nextMessages === effectiveMessages) {
+      return;
+    }
+
+    setChatMessages((previous) => {
+      return syncMessagesWithImageWorkbenchState({
         messages: previous,
         imageWorkbenchState: currentImageWorkbenchState,
-      }),
-    );
-  }, [currentImageWorkbenchState, messages, setChatMessages]);
+        projectId,
+        contentId,
+      });
+    });
+  }, [
+    contentId,
+    currentImageWorkbenchState,
+    effectiveMessages,
+    projectId,
+    setChatMessages,
+  ]);
 
   useEffect(() => {
     restoreSeedMessagesRef.current?.(messages);
@@ -2555,9 +2746,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
         artifactPath: params.artifactPath || existing?.artifactPath || "",
         absolutePath: params.absolutePath || existing?.absolutePath || "",
         lookupTaskRef:
-          params.absolutePath ||
-          existing?.lookupTaskRef ||
-          params.taskId,
+          params.absolutePath || existing?.lookupTaskRef || params.taskId,
         timerId: null,
         polling: false,
       });
@@ -2655,11 +2844,9 @@ export function useWorkspaceImageTaskPreviewRuntime({
           trackedTask.absolutePath ||
           trackedTask.lookupTaskRef;
         trackedTask.absolutePath =
-          loadedSnapshot.snapshot.task.taskFilePath ||
-          trackedTask.absolutePath;
+          loadedSnapshot.snapshot.task.taskFilePath || trackedTask.absolutePath;
         trackedTask.artifactPath =
-          loadedSnapshot.snapshot.task.artifactPath ||
-          trackedTask.artifactPath;
+          loadedSnapshot.snapshot.task.artifactPath || trackedTask.artifactPath;
         applyLoadedTaskSnapshot(loadedSnapshot);
 
         if (loadedSnapshot.snapshot.terminal) {
@@ -2924,7 +3111,11 @@ export function useWorkspaceImageTaskPreviewRuntime({
         ): item is {
           task: SeedImageTaskRecord;
           loaded: LoadedImageTaskSnapshot;
-        } => Boolean(item.loaded),
+        } =>
+          Boolean(item.loaded) &&
+          shouldRestoreLoadedImageTaskSnapshot(
+            item.loaded as LoadedImageTaskSnapshot,
+          ),
       );
       if (resolvedSnapshots.length === 0) {
         return false;
@@ -2947,145 +3138,149 @@ export function useWorkspaceImageTaskPreviewRuntime({
       return resolvedSnapshots.length === unresolvedTaskSeeds.length;
     };
 
-    const restorePendingImageTasksFromCurrentSession = async (): Promise<boolean> => {
-      const recoverySignature = resolvePendingImageCommandRecoverySignature(
-        runtimeContextRef.current.messages,
-      );
-      if (!recoverySignature || cancelled) {
-        return false;
-      }
-      if (recoverySignature === lastPendingImageCommandRecoverySignature) {
-        return false;
-      }
+    const restorePendingImageTasksFromCurrentSession =
+      async (): Promise<boolean> => {
+        const recoverySignature = resolvePendingImageCommandRecoverySignature(
+          runtimeContextRef.current.messages,
+        );
+        if (!recoverySignature || cancelled) {
+          return false;
+        }
+        if (recoverySignature === lastPendingImageCommandRecoverySignature) {
+          return false;
+        }
 
-      const currentProjectRootPath =
-        runtimeContextRef.current.projectRootPath?.trim();
-      if (!currentProjectRootPath) {
-        return false;
-      }
+        const currentProjectRootPath =
+          runtimeContextRef.current.projectRootPath?.trim();
+        if (!currentProjectRootPath) {
+          return false;
+        }
 
-      lastPendingImageCommandRecoverySignature = recoverySignature;
+        lastPendingImageCommandRecoverySignature = recoverySignature;
 
-      let artifactList: Awaited<ReturnType<typeof listMediaTaskArtifacts>> | null =
-        null;
-      try {
-        artifactList = await listMediaTaskArtifacts({
-          projectRootPath: currentProjectRootPath,
-          taskFamily: "image",
-          limit: IMAGE_TASK_RESTORE_LIMIT,
-        });
-      } catch {
-        return false;
-      }
+        let artifactList: Awaited<
+          ReturnType<typeof listMediaTaskArtifacts>
+        > | null = null;
+        try {
+          artifactList = await listMediaTaskArtifacts({
+            projectRootPath: currentProjectRootPath,
+            taskFamily: "image",
+            limit: IMAGE_TASK_RESTORE_LIMIT,
+          });
+        } catch {
+          return false;
+        }
 
-      if (cancelled || !artifactList) {
-        return false;
-      }
+        if (cancelled || !artifactList) {
+          return false;
+        }
 
-      const selectedSnapshots = artifactList.tasks
-        .reduce<RestoredImageTaskSnapshot[]>((items, artifact) => {
-          const taskRecord = asRecord(artifact.record);
-          if (!taskRecord) {
-            return items;
-          }
-          if (
-            !shouldRestoreImageTaskRecord({
-              taskRecord,
-              sessionId: runtimeContextRef.current.sessionId,
+        const selectedSnapshots = artifactList.tasks
+          .reduce<RestoredImageTaskSnapshot[]>((items, artifact) => {
+            const taskRecord = asRecord(artifact.record);
+            if (!taskRecord) {
+              return items;
+            }
+            if (
+              !shouldRestoreImageTaskRecord({
+                taskRecord,
+                sessionId: runtimeContextRef.current.sessionId,
+                projectId: runtimeContextRef.current.projectId,
+                contentId: runtimeContextRef.current.contentId,
+              })
+            ) {
+              return items;
+            }
+
+            const taskFamily = normalizeTaskFamily(
+              artifact.task_type,
+              artifact.task_family,
+            );
+            if (taskFamily !== "image") {
+              return items;
+            }
+
+            const snapshot = buildImageTaskSnapshotFromArtifactOutput({
+              artifact,
               projectId: runtimeContextRef.current.projectId,
               contentId: runtimeContextRef.current.contentId,
-            })
-          ) {
+              canvasState: runtimeContextRef.current.canvasState,
+            });
+            if (!snapshot) {
+              return items;
+            }
+
+            items.push({
+              snapshot,
+              taskRecord,
+              absolutePath: artifact.absolute_path,
+              taskType: artifact.task_type,
+              taskFamily,
+            });
             return items;
-          }
+          }, [])
+          .filter(
+            (item) =>
+              !isImageWorkbenchTaskSatisfiedByCache({
+                imageWorkbenchState:
+                  runtimeContextRef.current.currentImageWorkbenchState,
+                taskId: item.snapshot.taskId,
+              }),
+          )
+          .sort(
+            (left, right) => right.snapshot.updatedAt - left.snapshot.updatedAt,
+          )
+          .slice(0, IMAGE_TASK_RESTORE_LIMIT)
+          .reverse();
 
-          const taskFamily = normalizeTaskFamily(
-            artifact.task_type,
-            artifact.task_family,
-          );
-          if (taskFamily !== "image") {
-            return items;
-          }
-
-          const snapshot = buildImageTaskSnapshotFromArtifactOutput({
-            artifact,
-            projectId: runtimeContextRef.current.projectId,
-            contentId: runtimeContextRef.current.contentId,
-            canvasState: runtimeContextRef.current.canvasState,
-          });
-          if (!snapshot) {
-            return items;
-          }
-
-          items.push({
-            snapshot,
-            taskRecord,
-            absolutePath: artifact.absolute_path,
-            taskType: artifact.task_type,
-            taskFamily,
-          });
-          return items;
-        }, [])
-        .filter(
-          (item) =>
-            !isImageWorkbenchTaskSatisfiedByCache({
-              imageWorkbenchState:
-                runtimeContextRef.current.currentImageWorkbenchState,
-              taskId: item.snapshot.taskId,
-            }),
-        )
-        .sort((left, right) => right.snapshot.updatedAt - left.snapshot.updatedAt)
-        .slice(0, IMAGE_TASK_RESTORE_LIMIT)
-        .reverse();
-
-      if (selectedSnapshots.length === 0) {
-        return false;
-      }
-
-      setChatMessages((previous) =>
-        selectedSnapshots.reduce(
-          (messages, item) =>
-            upsertPreviewMessage(messages, item.snapshot.message),
-          previous,
-        ),
-      );
-      updateCurrentImageWorkbenchState((current) =>
-        selectedSnapshots.reduce(
-          (state, item) => mergeImageTaskSnapshot(state, item.snapshot),
-          current,
-        ),
-      );
-      selectedSnapshots.forEach((item) => {
-        syncDocumentInlineImageTask({
-          taskRecord: item.taskRecord,
-          taskId: item.snapshot.taskId,
-          outputs: item.snapshot.outputs,
-          setCanvasState,
-        });
-      });
-
-      for (const item of selectedSnapshots) {
-        if (item.snapshot.terminal) {
-          continue;
+        if (selectedSnapshots.length === 0) {
+          return false;
         }
-        trackedTasks.set(item.snapshot.taskId, {
-          taskId: item.snapshot.taskId,
-          taskType: item.taskType,
-          taskFamily: item.taskFamily,
-          artifactPath: item.snapshot.task.artifactPath || "",
-          absolutePath: item.snapshot.task.taskFilePath || item.absolutePath,
-          lookupTaskRef:
-            item.snapshot.task.taskFilePath ||
-            item.absolutePath ||
-            item.snapshot.taskId,
-          timerId: null,
-          polling: false,
-        });
-        scheduleNextPoll(item.snapshot.taskId);
-      }
 
-      return true;
-    };
+        setChatMessages((previous) =>
+          selectedSnapshots.reduce(
+            (messages, item) =>
+              upsertPreviewMessage(messages, item.snapshot.message),
+            previous,
+          ),
+        );
+        updateCurrentImageWorkbenchState((current) =>
+          selectedSnapshots.reduce(
+            (state, item) => mergeImageTaskSnapshot(state, item.snapshot),
+            current,
+          ),
+        );
+        selectedSnapshots.forEach((item) => {
+          syncDocumentInlineImageTask({
+            taskRecord: item.taskRecord,
+            taskId: item.snapshot.taskId,
+            outputs: item.snapshot.outputs,
+            setCanvasState,
+          });
+        });
+
+        for (const item of selectedSnapshots) {
+          if (item.snapshot.terminal) {
+            continue;
+          }
+          trackedTasks.set(item.snapshot.taskId, {
+            taskId: item.snapshot.taskId,
+            taskType: item.taskType,
+            taskFamily: item.taskFamily,
+            artifactPath: item.snapshot.task.artifactPath || "",
+            absolutePath: item.snapshot.task.taskFilePath || item.absolutePath,
+            lookupTaskRef:
+              item.snapshot.task.taskFilePath ||
+              item.absolutePath ||
+              item.snapshot.taskId,
+            timerId: null,
+            polling: false,
+          });
+          scheduleNextPoll(item.snapshot.taskId);
+        }
+
+        return true;
+      };
 
     restoreSeedMessagesRef.current = (seedMessages) => {
       if (!restoreFromWorkspace || cancelled) {

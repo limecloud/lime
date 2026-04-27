@@ -723,9 +723,9 @@ const THEME_WORKBENCH_COPY: Record<
 > = {
   general: {
     title: "",
-    description: "说一句目标，剩下的交给 Lime。",
+    description: "说一句目标，Lime 就接着帮你做。",
     supportingDescription:
-      "文案、图片、视频、搜索和网页任务，会围绕同一个目标持续推进。跑通过的方法会沉淀成常用做法、偏好和项目上下文，下次不用重新开始。",
+      "文案、图片、视频、搜索和网页任务围绕同一目标持续推进，并沉淀上下文、偏好和做法。",
   },
 };
 
@@ -779,7 +779,7 @@ function resolveLeadRecommendationEyebrow(
 
   return creationReplaySurface.kind === "skill_scaffold"
     ? "先沿着当前做法开工"
-    : "先沿着当前参考开工";
+    : "先沿着当前参考继续";
 }
 
 function resolveLaunchDeckTabCaption(tab: LaunchDeckTab): string {
@@ -1149,14 +1149,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     );
   };
 
-  const handleSend = () => {
-    if (isComposerBusy || (!input.trim() && pendingImages.length === 0)) {
+  const handleSend = (inputOverride = input) => {
+    if (
+      isComposerBusy ||
+      (!inputOverride.trim() && pendingImages.length === 0)
+    ) {
       return;
     }
     const imagesToSend = pendingImages.length > 0 ? pendingImages : undefined;
     const capabilityDispatch = resolveInputCapabilityDispatch(
       activeCapability,
-      input,
+      inputOverride,
     );
     const sendOptions =
       capabilityDispatch.capabilityRoute ||
@@ -1170,9 +1173,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         : undefined;
 
     if (sendOptions) {
-      onSend(input, executionStrategy, imagesToSend, sendOptions);
+      onSend(inputOverride, executionStrategy, imagesToSend, sendOptions);
     } else {
-      onSend(input, executionStrategy, imagesToSend);
+      onSend(inputOverride, executionStrategy, imagesToSend);
     }
     setPendingImages([]);
     clearSelectedSkill?.();
@@ -1817,7 +1820,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const composerPanel = (
     <EmptyStateComposerPanel
       input={input}
-      setInput={setInput}
       placeholder={getPlaceholder()}
       onSend={handleSend}
       activeTheme={activeTheme}
@@ -1977,7 +1979,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               $active={launchDeckTab === "recommended"}
               onClick={() => setLaunchDeckTab("recommended")}
             >
-              推荐起手
+              先开始这一轮
               <RecommendationTabCount $active={launchDeckTab === "recommended"}>
                 {recommendationSolutionItems.length}
               </RecommendationTabCount>
@@ -1993,7 +1995,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               $active={launchDeckTab === "continuation"}
               onClick={() => setLaunchDeckTab("continuation")}
             >
-              继续上次
+              继续这轮
               <RecommendationTabCount $active={launchDeckTab === "continuation"}>
                 {continuationShelfItems.length}
               </RecommendationTabCount>
@@ -2009,7 +2011,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               $active={launchDeckTab === "methods"}
               onClick={() => setLaunchDeckTab("methods")}
             >
-              做法入口
+              直接开工
               <RecommendationTabCount $active={launchDeckTab === "methods"}>
                 {directMethodItems.length}
               </RecommendationTabCount>
@@ -2062,7 +2064,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             </RecommendationLeadCard>
           ) : (
             <RecommendationShelfEmptyState>
-              当前还没有可直接推荐的起手结果，你可以直接描述目标，Lime 会先帮你组织这一轮。
+              先描述目标，Lime 会帮你把这一轮组织起来。
             </RecommendationShelfEmptyState>
           )}
 
@@ -2135,7 +2137,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               </RecommendationAssistList>
             ) : (
               <RecommendationShelfEmptyState>
-                最近跑通过的结果模板和方法，会留在这里。
+                最近跑通过的结果模板和方法会留在这里。
               </RecommendationShelfEmptyState>
             )}
           </RecommendationAssistGroup>
@@ -2221,7 +2223,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     <RecommendationSupplementalPanel data-testid="entry-supplemental-panel">
       <RecommendationSupplementalLabel>
         {shouldShowContinuationSupplemental
-          ? "也可以直接继续这轮。"
+          ? "也可以直接续上这一轮。"
           : "需要网页登录时，也可以先把浏览器接上。"}
       </RecommendationSupplementalLabel>
       <RecommendationSupplementalRow>

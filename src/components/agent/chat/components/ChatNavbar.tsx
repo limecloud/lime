@@ -7,13 +7,14 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Plus,
-  Settings2,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectSelector } from "@/components/projects/ProjectSelector";
 import { cn } from "@/lib/utils";
 import { Navbar } from "../styles";
+import { TASK_CENTER_CHROME_SURFACE } from "../workspace/taskCenterChromeTokens";
 
 interface ChatNavbarProps {
   isRunning: boolean;
@@ -60,14 +61,20 @@ const toolbarGhostIconButtonClassName =
 const toolbarTextButtonClassName =
   "gap-1.5 text-slate-700 hover:bg-white hover:text-slate-900";
 
-const taskCenterChromeShellClassName =
-  "flex w-full items-center justify-between gap-1.5 rounded-t-[18px] border border-b-0 border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_64%,rgba(240,249,255,0.88)_100%)] px-2 pt-1";
+const taskCenterTopRailClassName =
+  "relative flex h-7 w-full items-start overflow-visible bg-transparent pl-5 pr-3 pt-[3px]";
+
+const taskCenterWorkspaceTabClassName =
+  "relative z-20 flex h-6 min-w-[132px] max-w-[196px] items-start rounded-t-[10px] border border-b-0 border-slate-200/70 px-2 pt-px text-sm font-medium text-slate-700 shadow-[0_-1px_0_rgba(255,255,255,0.86)] dark:border-white/10 dark:bg-slate-900 dark:text-slate-300";
+
+const taskCenterWorkspaceTabCurveClassName =
+  "pointer-events-none absolute bottom-0 h-3.5 w-3.5 bg-transparent";
 
 const taskCenterIconButtonClassName =
-  "h-7 w-7 rounded-[10px] border border-transparent bg-transparent text-slate-500 shadow-none transition-[background-color,color] hover:bg-slate-100 hover:text-slate-900";
+  "h-7 w-7 rounded-[10px] border border-transparent bg-transparent text-slate-500 shadow-none transition-[background-color,color] hover:bg-white/70 hover:text-slate-900";
 
 const taskCenterPillButtonClassName =
-  "h-7 rounded-[10px] border border-transparent bg-transparent px-2 text-[11px] font-medium text-slate-700 shadow-none transition-[background-color,color] hover:bg-slate-100 hover:text-slate-900";
+  "h-7 rounded-[10px] border border-transparent bg-transparent px-2 text-[11px] font-medium text-slate-700 shadow-none transition-[background-color,color] hover:bg-white/70 hover:text-slate-900";
 
 export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   isRunning: _isRunning,
@@ -146,30 +153,65 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
         $collapsed={false}
         $taskCenter
         data-testid="task-center-workspace-bar"
+        style={{
+          padding: 0,
+          gap: 0,
+          alignItems: "stretch",
+          overflow: "visible",
+          zIndex: 8,
+        }}
       >
-        <div className={taskCenterChromeShellClassName}>
-          <div className="flex min-w-0 flex-1 items-center">
-            <ProjectSelector
-              value={projectId}
-              onChange={(nextProjectId) => onProjectChange?.(nextProjectId)}
-              open={workspaceSelectorOpen}
-              onOpenChange={setWorkspaceSelectorOpen}
-              passiveTrigger
-              workspaceType={workspaceType}
-              placeholder="选择工作区"
-              dropdownSide="bottom"
-              dropdownAlign="start"
-              enableManagement={workspaceType === "general"}
-              density="compact"
-              chrome="workspace-tab"
-              className="w-auto max-w-[280px]"
-            />
-            <div className="ml-1 flex h-7 items-center border-l border-slate-200/80 pl-1">
+        <div className={taskCenterTopRailClassName}>
+          <div className="flex items-center">
+            <div
+              className={taskCenterWorkspaceTabClassName}
+              data-testid="task-center-workspace-shell"
+              style={{ backgroundColor: TASK_CENTER_CHROME_SURFACE }}
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  taskCenterWorkspaceTabCurveClassName,
+                  "-left-3.5",
+                )}
+                style={{
+                  borderBottomRightRadius: 14,
+                  boxShadow: `5px 5px 0 5px ${TASK_CENTER_CHROME_SURFACE}`,
+                }}
+              />
+              <span
+                aria-hidden="true"
+                className={cn(
+                  taskCenterWorkspaceTabCurveClassName,
+                  "-right-3.5",
+                )}
+                style={{
+                  borderBottomLeftRadius: 14,
+                  boxShadow: `-5px 5px 0 5px ${TASK_CENTER_CHROME_SURFACE}`,
+                }}
+              />
+              <ProjectSelector
+                value={projectId}
+                onChange={(nextProjectId) => onProjectChange?.(nextProjectId)}
+                open={workspaceSelectorOpen}
+                onOpenChange={setWorkspaceSelectorOpen}
+                passiveTrigger
+                workspaceType={workspaceType}
+                placeholder="选择工作区"
+                dropdownSide="bottom"
+                dropdownAlign="start"
+                enableManagement={workspaceType === "general"}
+                density="compact"
+                chrome="workspace-tab"
+                className="w-auto max-w-[196px]"
+              />
+            </div>
+            <div className="ml-3 mt-[1px] flex items-center">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className={taskCenterIconButtonClassName}
+                className="h-6 w-6 rounded-none bg-transparent text-slate-500 shadow-none hover:bg-transparent hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                 onClick={() => {
                   setWorkspaceSelectorOpen((current) => !current);
                 }}
@@ -178,12 +220,12 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 title={workspaceSelectorOpen ? "收起工作区菜单" : "展开工作区菜单"}
                 data-testid="task-center-workspace-menu-trigger"
               >
-                <Plus size={15} />
+                <Plus size={17} strokeWidth={1.7} />
               </Button>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-0">
+          <div className="ml-auto mt-[2px] flex shrink-0 items-center gap-1">
             {showContextCompactionAction ? (
               <Button
                 type="button"
@@ -217,15 +259,11 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 onClick={onToggleHarnessPanel}
                 aria-label={
                   harnessPanelVisible
-                    ? `收起${harnessToggleLabel}`
-                    : `展开${harnessToggleLabel}`
+                    ? `关闭${harnessToggleLabel}`
+                    : `打开${harnessToggleLabel}`
                 }
                 aria-expanded={harnessPanelVisible}
-                title={
-                  harnessPanelVisible
-                    ? `收起${harnessToggleLabel}`
-                    : `展开${harnessToggleLabel}`
-                }
+                title={harnessToggleLabel}
               >
                 <Sparkles size={12} />
                 <span>{harnessToggleLabel}</span>
@@ -252,7 +290,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 aria-label="打开设置"
                 title="打开设置"
               >
-                <Settings2 size={16} />
+                <Settings size={16} />
               </Button>
             ) : null}
           </div>
@@ -399,7 +437,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                   aria-label="打开设置"
                   title="打开设置"
                 >
-                  <Settings2 size={18} />
+                  <Settings size={18} />
                 </Button>
               </>
             ) : null}
@@ -416,7 +454,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
               aria-label="打开设置"
               title="打开设置"
             >
-              <Settings2 size={18} />
+              <Settings size={18} />
             </Button>
           </div>
         ) : null}
@@ -464,15 +502,11 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 onClick={onToggleHarnessPanel}
                 aria-label={
                   harnessPanelVisible
-                    ? `收起${harnessToggleLabel}`
-                    : `展开${harnessToggleLabel}`
+                    ? `关闭${harnessToggleLabel}`
+                    : `打开${harnessToggleLabel}`
                 }
                 aria-expanded={harnessPanelVisible}
-                title={
-                  harnessPanelVisible
-                    ? `收起${harnessToggleLabel}`
-                    : `展开${harnessToggleLabel}`
-                }
+                title={harnessToggleLabel}
               >
                 <Sparkles size={14} />
                 <span>{harnessToggleLabel}</span>

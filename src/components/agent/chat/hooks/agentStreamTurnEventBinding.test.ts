@@ -297,6 +297,106 @@ describe("agentStreamTurnEventBinding", () => {
     expect(setIsSending).toHaveBeenCalledWith(false);
   });
 
+  it("首个运行时事件静默但提交已派发时，应继续等待后续进度", async () => {
+    vi.useFakeTimers();
+
+    let messages: Message[] = [
+      {
+        id: "assistant-dispatched",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-14T10:00:00.000Z"),
+        isThinking: true,
+      },
+    ];
+    let streamActivated = false;
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+    const clearActiveStreamIfMatch = vi.fn(() => true);
+    const disposeListener = vi.fn();
+    const runtime = {
+      listenToTurnEvents: vi.fn(async () => vi.fn()),
+    } as unknown as AgentRuntimeAdapter;
+    const requestState: StreamRequestState = {
+      accumulatedContent: "",
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+      queuedTurnId: null,
+    };
+
+    await registerAgentStreamTurnEventBinding({
+      runtime,
+      eventName: "event-dispatched",
+      requestState,
+      skipUserMessage: false,
+      effectiveProviderType: "anthropic",
+      effectiveModel: "glm-5.1",
+      effectiveExecutionStrategy: "react",
+      content: "继续分析当前仓库",
+      expectingQueue: false,
+      activeSessionId: "session-dispatched",
+      resolvedWorkspaceId: "workspace-dispatched",
+      assistantMsgId: "assistant-dispatched",
+      pendingTurnKey: "pending-turn-dispatched",
+      pendingItemKey: "pending-item-dispatched",
+      effectiveWaitingRuntimeStatus: {
+        phase: "preparing",
+        title: "处理中",
+        detail: "正在准备执行上下文",
+      },
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      callbacks: {
+        activateStream: () => {
+          streamActivated = true;
+        },
+        isStreamActivated: () => streamActivated,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener,
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch,
+        upsertQueuedTurn: (_queuedTurn: QueuedTurnSnapshot) => {},
+        removeQueuedTurnState: () => {},
+      },
+      sounds: {
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+      },
+      appendThinkingToParts: (parts) => parts,
+      setMessages: setMessages as never,
+      setPendingActions: noopDispatch<ActionRequired[]>(),
+      setThreadItems: noopDispatch<AgentThreadItem[]>(),
+      setThreadTurns: noopDispatch<AgentThreadTurn[]>(),
+      setCurrentTurnId: noopDispatch<string | null>(),
+      setExecutionRuntime: noopDispatch<AsterSessionExecutionRuntime | null>(),
+      setIsSending: noopDispatch<boolean>(),
+    });
+
+    requestState.submissionDispatchedAt = Date.now();
+
+    await vi.advanceTimersByTimeAsync(12_100);
+
+    expect(messages[0]?.content).toBe("");
+    expect(streamActivated).toBe(true);
+    expect(clearActiveStreamIfMatch).not.toHaveBeenCalled();
+    expect(disposeListener).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(45_100);
+
+    expect(messages[0]?.content).toContain("执行失败：执行已中断");
+    expect(messages[0]?.content).toContain("长时间没有返回新进度");
+    expect(clearActiveStreamIfMatch).toHaveBeenCalledWith("event-dispatched");
+    expect(disposeListener).toHaveBeenCalled();
+  });
+
   it("收到未知但结构合法的运行时事件时，应保留流活跃态并继续等待后续进度", async () => {
     vi.useFakeTimers();
 

@@ -143,6 +143,12 @@ export function createSessionClient({
     const startedAt = Date.now();
     let settled = false;
     const resumeSessionStartHooks = options?.resumeSessionStartHooks === true;
+    const historyLimit =
+      typeof options?.historyLimit === "number" &&
+      Number.isFinite(options.historyLimit) &&
+      options.historyLimit >= 0
+        ? Math.trunc(options.historyLimit)
+        : undefined;
     const slowTimer: number | null =
       typeof window !== "undefined"
         ? window.setTimeout(() => {
@@ -155,6 +161,7 @@ export function createSessionClient({
               "runtimeGetSession.slow",
               {
                 elapsedMs: Date.now() - startedAt,
+                historyLimit: historyLimit ?? null,
                 resumeSessionStartHooks,
                 sessionId,
               },
@@ -168,6 +175,7 @@ export function createSessionClient({
         : null;
 
     logAgentDebug("AgentApi", "runtimeGetSession.start", {
+      historyLimit: historyLimit ?? null,
       resumeSessionStartHooks,
       sessionId,
     });
@@ -178,6 +186,7 @@ export function createSessionClient({
         {
           sessionId,
           ...(resumeSessionStartHooks ? { resumeSessionStartHooks: true } : {}),
+          ...(typeof historyLimit === "number" ? { historyLimit } : {}),
         },
       );
       const normalizedDetail = detail as AsterSessionDetail | null | undefined;
@@ -206,6 +215,7 @@ export function createSessionClient({
         childSubagentSessionsCount:
           normalizedSessionDetail.child_subagent_sessions?.length ?? 0,
         durationMs: Date.now() - startedAt,
+        historyLimit: historyLimit ?? null,
         itemsCount: normalizedSessionDetail.items?.length ?? 0,
         messagesCount: normalizedSessionDetail.messages?.length ?? 0,
         queuedTurnsCount: normalizedSessionDetail.queued_turns?.length ?? 0,
@@ -222,6 +232,7 @@ export function createSessionClient({
         {
           durationMs: Date.now() - startedAt,
           error,
+          historyLimit: historyLimit ?? null,
           resumeSessionStartHooks,
           sessionId,
         },

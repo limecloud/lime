@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Globe, Settings2 } from "lucide-react";
 import {
   Select,
@@ -52,9 +52,8 @@ import { getProviderLabel } from "@/lib/constants/providerMappings";
 
 interface EmptyStateComposerPanelProps {
   input: string;
-  setInput: (value: string) => void;
   placeholder: string;
-  onSend: () => void;
+  onSend: (inputOverride?: string) => void;
   isLoading?: boolean;
   disabled?: boolean;
   activeTheme: string;
@@ -106,7 +105,6 @@ interface EmptyStateComposerPanelProps {
 
 export function EmptyStateComposerPanel({
   input,
-  setInput,
   placeholder,
   onSend,
   isLoading = false,
@@ -153,6 +151,7 @@ export function EmptyStateComposerPanel({
   onPaste,
   onRemoveImage,
 }: EmptyStateComposerPanelProps) {
+  const [draftInput, setDraftInput] = useState(input);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [dismissedSuggestionKey, setDismissedSuggestionKey] = useState<
@@ -183,15 +182,19 @@ export function EmptyStateComposerPanel({
   const clearActiveSkill = skillSelection.onClearSkill;
   const { mentionProps: mentionSkillProps, selectorProps: skillSelectorProps } =
     buildSkillSelectionBindings(skillSelection);
-  const suggestionKey = `${activeTheme}:${input.trim().toLowerCase()}`;
+  useEffect(() => {
+    setDraftInput(input);
+  }, [input]);
+
+  const suggestionKey = `${activeTheme}:${draftInput.trim().toLowerCase()}`;
   const teamSuggestion = useMemo(
     () =>
       getTeamSuggestion({
-        input,
+        input: draftInput,
         activeTheme,
         subagentEnabled,
       }),
-    [activeTheme, input, subagentEnabled],
+    [activeTheme, draftInput, subagentEnabled],
   );
   const shouldShowTeamSuggestion =
     isGeneralTheme &&
@@ -371,7 +374,7 @@ export function EmptyStateComposerPanel({
           {shouldShowTeamSelector ? (
             <TeamSelector
               activeTheme={activeTheme}
-              input={input}
+              input={draftInput}
               autoOpenToken={teamSelectorAutoOpenToken}
               selectedTeam={selectedTeam}
               workspaceSettings={teamWorkspaceSettings}
@@ -455,8 +458,8 @@ export function EmptyStateComposerPanel({
         {...mentionSkillProps}
         characters={characters}
         inputRef={textareaRef}
-        value={input}
-        onChange={setInput}
+        value={draftInput}
+        onChange={setDraftInput}
         onSelectInputCapability={onSelectInputCapability}
         projectId={projectId}
         defaultCuratedTaskReferenceMemoryIds={
@@ -484,9 +487,9 @@ export function EmptyStateComposerPanel({
 
       <InputbarCore
         textareaRef={textareaRef}
-        text={input}
-        setText={setInput}
-        onSend={onSend}
+        text={draftInput}
+        setText={setDraftInput}
+        onSend={() => onSend(draftInput)}
         isLoading={isLoading}
         disabled={disabled}
         onToolClick={handleToolAction}

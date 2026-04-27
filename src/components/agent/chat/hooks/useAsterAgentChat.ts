@@ -549,11 +549,13 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     triggerAIGuide: context.triggerAIGuide,
 
     topics: session.topics,
+    sessionHistoryWindow: session.sessionHistoryWindow,
     isAutoRestoringSession: session.isAutoRestoringSession,
     sessionId: session.sessionId,
     createFreshSession: session.createFreshSession,
     ensureSession: session.ensureSession,
     switchTopic: session.switchTopic,
+    loadFullSessionHistory: session.loadFullSessionHistory,
     deleteTopic: session.deleteTopic,
     renameTopic: session.renameTopic,
     loadTopics: session.loadTopics,

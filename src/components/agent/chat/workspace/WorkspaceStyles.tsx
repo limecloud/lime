@@ -3,6 +3,7 @@ import styled from "styled-components";
 import { LayoutTransition } from "@/lib/workspace/workbenchUi";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import type { SyncStatus } from "../hooks/useContentSync";
+import { TASK_CENTER_CHROME_SURFACE } from "./taskCenterChromeTokens";
 
 export const PageContainer = styled.div<{ $compact?: boolean }>`
   display: flex;
@@ -15,18 +16,7 @@ export const PageContainer = styled.div<{ $compact?: boolean }>`
   box-sizing: border-box;
   overflow: hidden;
   isolation: isolate;
-  background:
-    radial-gradient(
-      circle at 14% 18%,
-      rgba(56, 189, 248, 0.08),
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 86% 14%,
-      rgba(16, 185, 129, 0.04),
-      transparent 28%
-    ),
-    linear-gradient(180deg, #f8fcf9 0%, #f8fcf9 44%, #f3f8f5 100%);
+  background: ${TASK_CENTER_CHROME_SURFACE};
 
   > * {
     position: relative;
@@ -34,7 +24,10 @@ export const PageContainer = styled.div<{ $compact?: boolean }>`
   }
 `;
 
-export const MainArea = styled.div<{ $compact?: boolean }>`
+export const MainArea = styled.div<{
+  $compact?: boolean;
+  $taskCenterSurface?: boolean;
+}>`
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -42,7 +35,8 @@ export const MainArea = styled.div<{ $compact?: boolean }>`
   min-height: 0;
   overflow: hidden;
   position: relative;
-  background: transparent;
+  background: ${({ $taskCenterSurface }) =>
+    $taskCenterSurface ? TASK_CENTER_CHROME_SURFACE : "transparent"};
   border: none;
   box-shadow: none;
 `;
@@ -196,19 +190,15 @@ export const ChatContainer = styled.div`
   height: 100%;
 `;
 
-export const ChatContainerInner = styled.div`
+export const ChatContainerInner = styled.div<{ $taskCenterSurface?: boolean }>`
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  background: linear-gradient(
-    180deg,
-    rgba(248, 250, 252, 0.76) 0%,
-    rgba(248, 250, 252, 0.2) 16%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  background: ${({ $taskCenterSurface }) =>
+    $taskCenterSurface ? TASK_CENTER_CHROME_SURFACE : "var(--background, white)"};
 `;
 
 export const EntryBanner = styled.div`
@@ -280,12 +270,17 @@ export const GeneralWorkbenchInputOverlay = styled.div`
   }
 `;
 
-export const GeneralWorkbenchLayoutShell = styled.div<{ $bottomInset: string }>`
+export const GeneralWorkbenchLayoutShell = styled.div<{
+  $bottomInset: string;
+  $taskCenterSurface?: boolean;
+}>`
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
+  background: ${({ $taskCenterSurface }) =>
+    $taskCenterSurface ? TASK_CENTER_CHROME_SURFACE : "transparent"};
   padding-bottom: ${({ $bottomInset }) => $bottomInset};
   transition: padding-bottom 0.2s ease;
 `;

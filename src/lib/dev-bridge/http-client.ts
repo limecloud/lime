@@ -17,9 +17,9 @@ const BRIDGE_EVENTS_URL = "http://127.0.0.1:3030/events";
 const DEV_BRIDGE_EVENT_CONNECT_TIMEOUT_MS = 1500;
 const DEV_BRIDGE_REQUEST_TIMEOUT_MS = 1800;
 const DEV_BRIDGE_TRUTH_COMMAND_TIMEOUT_MS = 5000;
-const DEV_BRIDGE_AGENT_RUNTIME_TIMEOUT_MS = 10000;
+const DEV_BRIDGE_AGENT_RUNTIME_TIMEOUT_MS = 60000;
 const DEV_BRIDGE_PROVIDER_PROBE_TIMEOUT_MS = 30000;
-const DEV_BRIDGE_HEALTH_TIMEOUT_MS = 800;
+const DEV_BRIDGE_HEALTH_TIMEOUT_MS = 3000;
 const DEV_BRIDGE_HEALTH_CACHE_MS = 10000;
 const DEV_BRIDGE_FAILURE_COOLDOWN_MS = 3000;
 
@@ -121,6 +121,9 @@ function isBridgeTimeoutError(message: string): boolean {
 }
 
 function isBridgeHardConnectionError(message: string): boolean {
+  if (message.includes("bridge health check failed")) {
+    return false;
+  }
   if (isBridgeTimeoutError(message)) {
     return false;
   }

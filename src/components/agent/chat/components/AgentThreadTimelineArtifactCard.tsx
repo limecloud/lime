@@ -34,6 +34,38 @@ function normalizeText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function readMetadataText(
+  metadata: Record<string, unknown> | undefined,
+  keys: string[],
+): string | undefined {
+  for (const key of keys) {
+    const direct = normalizeText(metadata?.[key]);
+    if (direct) {
+      return direct;
+    }
+  }
+  return undefined;
+}
+
+function readMetadataNumber(
+  metadata: Record<string, unknown> | undefined,
+  keys: string[],
+): number | undefined {
+  for (const key of keys) {
+    const value = metadata?.[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value.trim());
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return undefined;
+}
+
 function resolveFileName(path: string): string {
   const normalized = path.replace(/\\/g, "/").trim();
   const parts = normalized.split("/");
@@ -60,7 +92,7 @@ function truncateInlineText(value: string, maxLength = 160): string {
 }
 
 function resolveArtifactDocumentKindLabel(
-  kind?: ArtifactDocumentKind,
+  kind?: ArtifactDocumentKind | string,
 ): string | null {
   switch (kind) {
     case "report":
@@ -85,7 +117,7 @@ function resolveArtifactDocumentKindLabel(
 }
 
 function resolveArtifactDocumentStatusLabel(
-  status?: ArtifactDocumentStatus,
+  status?: ArtifactDocumentStatus | string,
 ): string | null {
   switch (status) {
     case "draft":
@@ -194,21 +226,56 @@ export function AgentThreadTimelineArtifactCard({
     content: item.content,
     metadata,
   });
+  const metadataVersion = asRecord(metadata?.artifactVersion);
   const currentVersion = document
     ? resolveArtifactDocumentCurrentVersion(document)
     : null;
+  const metadataTitle = readMetadataText(metadata, [
+    "artifactTitle",
+    "artifact_title",
+    "title",
+  ]);
+  const metadataKind = readMetadataText(metadata, [
+    "artifactKind",
+    "artifact_kind",
+    "kind",
+  ]);
+  const metadataStatus =
+    readMetadataText(metadata, [
+      "artifactStatus",
+      "artifact_status",
+      "status",
+    ]) || normalizeText(metadataVersion?.status);
+  const metadataVersionNo =
+    readMetadataNumber(metadata, [
+      "artifactVersionNo",
+      "artifact_version_no",
+    ]) || readMetadataNumber(metadataVersion, ["versionNo", "version_no"]);
+  const metadataPreview = readMetadataText(metadata, [
+    "previewText",
+    "preview_text",
+    "artifactSummary",
+    "artifact_summary",
+    "summary",
+  ]);
   const displayTitle =
-    normalizeText(document?.title) || resolveFileName(item.path);
+    normalizeText(document?.title) ||
+    metadataTitle ||
+    resolveFileName(item.path);
   const displayPath = truncateMiddle(item.path, 84);
   const previewText =
     resolveDocumentPreview(document, displayTitle) ||
+    (metadataPreview ? truncateInlineText(metadataPreview) : null) ||
     resolveFallbackPreview(item.content) ||
     "点击在画布中打开完整内容。";
   const sourceLabel = resolveArtifactSourceLabel(item.source);
-  const kindLabel = resolveArtifactDocumentKindLabel(document?.kind);
-  const statusLabel = resolveArtifactDocumentStatusLabel(
-    currentVersion?.status || document?.status,
+  const kindLabel = resolveArtifactDocumentKindLabel(
+    document?.kind || metadataKind,
   );
+  const statusLabel = resolveArtifactDocumentStatusLabel(
+    currentVersion?.status || document?.status || metadataStatus,
+  );
+  const versionNo = currentVersion?.versionNo || metadataVersionNo;
   const blockCount = document?.blocks.length || 0;
   const sourceCount = document?.sources.length || 0;
 
@@ -286,9 +353,9 @@ export function AgentThreadTimelineArtifactCard({
               >
                 <span className="truncate">{displayPath}</span>
               </span>
-              {currentVersion?.versionNo ? (
+              {versionNo ? (
                 <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-500">
-                  V{currentVersion.versionNo}
+                  V{versionNo}
                 </span>
               ) : null}
               {blockCount > 0 ? (

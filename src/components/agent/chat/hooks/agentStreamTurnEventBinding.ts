@@ -180,6 +180,22 @@ export async function registerAgentStreamTurnEventBinding(
       inactivityWatchdogId = null;
     }
   };
+  function deferFirstEventTimeoutAfterSubmission() {
+    if (
+      firstEventReceived ||
+      requestState.requestFinished ||
+      !requestState.submissionDispatchedAt
+    ) {
+      return false;
+    }
+
+    firstEventReceived = true;
+    lastEventReceivedAt = Date.now();
+    callbacks.activateStream(activeSessionId, effectiveWaitingRuntimeStatus);
+    scheduleInactivityWatchdog();
+    return true;
+  }
+
   let firstEventWatchdogId: ReturnType<typeof setTimeout> | null =
     globalThis.setTimeout(() => {
       firstEventWatchdogId = null;
@@ -196,6 +212,12 @@ export async function registerAgentStreamTurnEventBinding(
             `[AsterChat] 首个运行时事件静默，已降级切换为会话快照同步: ${eventName}`,
           );
           finalizeSilentTurnRecovery();
+          return;
+        }
+        if (deferFirstEventTimeoutAfterSubmission()) {
+          console.warn(
+            `[AsterChat] 首个运行时事件暂未到达，已基于提交派发继续等待后续进度: ${eventName}`,
+          );
           return;
         }
         firstEventReceived = true;

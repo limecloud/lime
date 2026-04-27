@@ -1,8 +1,0 @@
-- generic [ref=e2]:
-  - generic [ref=e44]:
-    - img [ref=e46]
-    - heading "设置完成！" [level=2] [ref=e52]
-    - paragraph [ref=e53]: Lime 已准备就绪，您可以开始使用了。
-    - paragraph [ref=e54]: 提示：后续可在设置中继续调整语音输入和快捷键。
-    - button "开始使用" [ref=e55] [cursor=pointer]
-  - region "Notifications alt+T"

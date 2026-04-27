@@ -576,6 +576,46 @@ describe("agentProtocol", () => {
     });
   });
 
+  it("应解析后端完整 message 快照事件，避免被当作未知事件", () => {
+    expect(
+      parseAgentEvent({
+        type: "message",
+        message: {
+          id: "msg-1",
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "验收矩阵已生成。",
+            },
+          ],
+          timestamp: 1777284240,
+          usage: {
+            input_tokens: 120,
+            output_tokens: 80,
+          },
+        },
+      }),
+    ).toEqual({
+      type: "message",
+      message: {
+        id: "msg-1",
+        role: "assistant",
+        content: [
+          {
+            type: "text",
+            text: "验收矩阵已生成。",
+          },
+        ],
+        timestamp: 1777284240,
+        usage: {
+          input_tokens: 120,
+          output_tokens: 80,
+        },
+      },
+    });
+  });
+
   it("应解析队列事件", () => {
     expect(
       parseAgentEvent({

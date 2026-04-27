@@ -22,7 +22,9 @@
         "fullscreen": false,
         "maximized": false,
         "visible": false,
-        "center": true
+        "center": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       },
       {
         "label": "smart-input",

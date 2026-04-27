@@ -10,6 +10,7 @@ import {
   vi,
 } from "vitest";
 import * as fileBrowserModule from "@/lib/api/fileBrowser";
+import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import * as webviewApiModule from "@/lib/webview-api";
 import {
   resolveBrowserAssistSessionScopeKey,
@@ -106,13 +107,9 @@ const {
       </div>
     ),
   ),
-  mockMessageList: vi.fn(
-    (props?: { leadingContent?: ReactNode | null }) => (
-      <div data-testid="message-list">
-        {props?.leadingContent}
-      </div>
-    ),
-  ),
+  mockMessageList: vi.fn((props?: { leadingContent?: ReactNode | null }) => (
+    <div data-testid="message-list">{props?.leadingContent}</div>
+  )),
   mockWorkspacePendingA2UIPanel: vi.fn((_props?: Record<string, unknown>) => (
     <div data-testid="workspace-pending-a2ui-panel" />
   )),
@@ -1314,6 +1311,77 @@ afterEach(() => {
 });
 
 describe("AgentChatPage 任务中心初始会话标签", () => {
+  it("点击顶部加号应在任务中心新标签内嵌首页起手页", async () => {
+    const onNavigate = vi.fn();
+    vi.mocked(buildHomeAgentParams).mockClear();
+    const newTopic = {
+      id: "new-topic",
+      title: "新任务",
+      updatedAt: new Date(FIXED_TOPIC_UPDATED_AT + 1_000),
+      status: "draft",
+    };
+    const state: Record<string, unknown> = createMockAgentChatUnifiedState({
+      sessionId: "topic-current",
+      topics: [
+        {
+          id: "topic-current",
+          title: "当前会话",
+          updatedAt: new Date(FIXED_TOPIC_UPDATED_AT),
+        },
+      ],
+    });
+    const createFreshSession = vi.fn(async () => {
+      const topics = Array.isArray(state.topics)
+        ? (state.topics as Array<Record<string, unknown>>)
+        : [];
+      state.sessionId = "new-topic";
+      state.messages = [];
+      state.topics = [
+        newTopic,
+        ...topics.filter((topic) => topic.id !== "new-topic"),
+      ];
+      return "new-topic";
+    });
+    state.createFreshSession = createFreshSession;
+    installMockAgentChatUnifiedState(state);
+
+    const mounted = mountPage({
+      agentEntry: "claw",
+      initialSessionId: "topic-current",
+      projectId: "workspace-test",
+      onNavigate,
+    });
+    const { container } = mounted;
+    await flushEffects();
+
+    clickButton(container, "task-center-tab-create-button");
+    await flushEffects();
+    mounted.rerender();
+    await flushEffects();
+
+    expect(createFreshSession).toHaveBeenCalledTimes(1);
+    expect(buildHomeAgentParams).not.toHaveBeenCalled();
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(
+      container.querySelector('[data-testid="task-center-chrome-shell"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="task-center-tab-strip"]'),
+    ).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="task-center-tab-new-topic"]')
+        ?.getAttribute("data-active"),
+    ).toBe("true");
+    expect(
+      container.querySelector('[data-testid="chat-navbar"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="empty-state"]'),
+    ).not.toBeNull();
+    expect(container.querySelector('[data-testid="message-list"]')).toBeNull();
+  });
+
   it("从导航栏直达普通会话时应覆盖旧多任务标签", async () => {
     localStorage.setItem(
       TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY,
@@ -1412,7 +1480,7 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
     ).toEqual(["topic-archived"]);
   });
 
-  it("从导航栏直达会话时应立即加载 topics，避免顶部标签等待 12 秒", async () => {
+  it("从导航栏直达会话时应延后加载 topics，优先恢复目标会话详情", async () => {
     installMockAgentChatUnifiedState(
       createMockAgentChatUnifiedState({
         sessionId: "topic-selected",
@@ -1434,9 +1502,120 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
     await flushEffects(1);
 
     const workspaceCall = mockUseAgentChatUnified.mock.calls
-      .map((call) => call[0] as { workspaceId?: string; initialTopicsLoadMode?: string })
+      .map(
+        (call) =>
+          call[0] as { workspaceId?: string; initialTopicsLoadMode?: string },
+      )
       .find((options) => options.workspaceId === "workspace-test");
-    expect(workspaceCall?.initialTopicsLoadMode).toBe("immediate");
+    expect(workspaceCall?.initialTopicsLoadMode).toBe("deferred");
+  });
+
+  it("已在任务中心内切到另一条导航会话时，不应把旧标签回灌回来", async () => {
+    localStorage.setItem(
+      TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY,
+      JSON.stringify({
+        "workspace-test": ["topic-current"],
+      }),
+    );
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        sessionId: "topic-current",
+        topics: [
+          {
+            id: "topic-current",
+            title: "当前会话",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT - 1_000),
+          },
+          {
+            id: "topic-next",
+            title: "目标会话",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT),
+          },
+        ],
+      }),
+    );
+
+    const mounted = mountPage({
+      agentEntry: "claw",
+      initialSessionId: "topic-current",
+      projectId: "workspace-test",
+    });
+    await flushEffects();
+
+    mounted.rerender({
+      initialSessionId: "topic-next",
+    });
+    await flushEffects();
+
+    expect(
+      mounted.container.querySelector(
+        '[data-testid="task-center-tab-topic-next"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      mounted.container.querySelector(
+        '[data-testid="task-center-tab-topic-current"]',
+      ),
+    ).toBeNull();
+    expect(
+      JSON.parse(
+        localStorage.getItem(TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY) ?? "{}",
+      )["workspace-test"],
+    ).toEqual(["topic-next"]);
+  });
+
+  it("已在任务中心内切到归档导航会话时，不应继续显示旧的普通任务标签", async () => {
+    localStorage.setItem(
+      TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY,
+      JSON.stringify({
+        "workspace-test": ["topic-current", "topic-open-b"],
+      }),
+    );
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        sessionId: "topic-current",
+        topics: [
+          {
+            id: "topic-current",
+            title: "当前会话",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT),
+          },
+          {
+            id: "topic-open-b",
+            title: "普通任务 B",
+            updatedAt: new Date(FIXED_TOPIC_UPDATED_AT - 1_000),
+          },
+        ],
+      }),
+    );
+
+    const mounted = mountPage({
+      agentEntry: "claw",
+      initialSessionId: "topic-current",
+      projectId: "workspace-test",
+    });
+    await flushEffects();
+
+    mounted.rerender({
+      initialSessionId: "topic-archived",
+    });
+    await flushEffects();
+
+    expect(
+      mounted.container.querySelector(
+        '[data-testid="task-center-tab-topic-current"]',
+      ),
+    ).toBeNull();
+    expect(
+      mounted.container.querySelector(
+        '[data-testid="task-center-tab-topic-open-b"]',
+      ),
+    ).toBeNull();
+    expect(
+      JSON.parse(
+        localStorage.getItem(TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY) ?? "{}",
+      )["workspace-test"],
+    ).toEqual(["topic-archived"]);
   });
 });
 
@@ -2015,7 +2194,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     ).not.toBeNull();
   });
 
-  it("通用模式空闲时不应通过顶部按钮常驻显示工作台入口", async () => {
+  it("通用模式空闲时应保留顶部 Harness 入口", async () => {
     const container = renderPage({
       theme: "general",
       lockTheme: true,
@@ -2025,15 +2204,19 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     const navbar = container.querySelector(
       '[data-testid="chat-navbar"]',
     ) as HTMLDivElement | null;
-    expect(navbar?.dataset.showHarnessToggle).toBe("false");
-    expect(
-      container.querySelector('[data-testid="toggle-harness"]'),
-    ).toBeNull();
+    expect(navbar?.dataset.showHarnessToggle).toBe("true");
+    expect(navbar?.dataset.harnessToggleLabel).toBe("Harness");
     expect(document.body.textContent).not.toContain("处理工作台");
     expect(document.body.textContent).not.toContain("通用助手");
+
+    clickButton(container, "toggle-harness");
+    await flushEffects();
+
+    expect(document.body.textContent).toContain("处理工作台");
+    expect(document.body.textContent).toContain("通用助手");
   });
 
-  it("通用模式有处理活动时应通过顶部按钮打开工作台弹窗，而不是常驻右侧占位", async () => {
+  it("通用模式有处理活动时应通过顶部 Harness 按钮打开弹窗，而不是常驻右侧占位", async () => {
     installMockAgentChatUnifiedState(
       createMockAgentChatUnifiedState({
         isSending: true,
@@ -2050,7 +2233,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
       '[data-testid="chat-navbar"]',
     ) as HTMLDivElement | null;
     expect(navbar?.dataset.showHarnessToggle).toBe("true");
-    expect(navbar?.dataset.harnessToggleLabel).toBe("工作台");
+    expect(navbar?.dataset.harnessToggleLabel).toBe("Harness");
     expect(document.body.textContent).not.toContain("处理工作台");
     expect(document.body.textContent).not.toContain("通用助手");
 
@@ -2064,7 +2247,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     );
   });
 
-  it("处理工作台开关关闭时不应显示入口，也不应触发工具库存读取", async () => {
+  it("处理工作台调试信息开关关闭时仍应保留入口，但不触发工具库存读取", async () => {
     mockUseDeveloperFeatureFlags.mockReturnValue({
       workspaceHarnessEnabled: false,
     });
@@ -2078,11 +2261,15 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     const navbar = container.querySelector(
       '[data-testid="chat-navbar"]',
     ) as HTMLDivElement | null;
-    expect(navbar?.dataset.showHarnessToggle).toBe("false");
-    expect(
-      container.querySelector('[data-testid="toggle-harness"]'),
-    ).toBeNull();
+    expect(navbar?.dataset.showHarnessToggle).toBe("true");
+    expect(navbar?.dataset.harnessToggleLabel).toBe("Harness");
     expect(document.body.textContent).not.toContain("处理工作台");
+    expect(mockGetAgentRuntimeToolInventory).not.toHaveBeenCalled();
+
+    clickButton(container, "toggle-harness");
+    await flushEffects();
+
+    expect(document.body.textContent).toContain("处理工作台");
     expect(mockGetAgentRuntimeToolInventory).not.toHaveBeenCalled();
   });
 
@@ -2798,8 +2985,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
   it("历史任务携带 initialProjectFileOpenTarget 时应直接恢复真实 Markdown 文件预览", async () => {
     mockCanvasWorkbenchLayoutState.renderPreview = true;
     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
-      path:
-        "/tmp/project-history-export/exports/x-article-export/history/index.md",
+      path: "/tmp/project-history-export/exports/x-article-export/history/index.md",
       content: "# 历史导出\n\n![插图](images/history-cover.png)",
       isBinary: false,
       size: 52,
@@ -2851,8 +3037,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
   it("同项目内打开 saved site content 时应直接恢复真实 Markdown 文件预览", async () => {
     mockCanvasWorkbenchLayoutState.renderPreview = true;
     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
-      path:
-        "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+      path: "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
       content: "# 当前导出\n\n![封面](images/cover.png)",
       isBinary: false,
       size: 43,
@@ -2929,10 +3114,8 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
       profile_key: "attached-x",
       session_id: "session-browser-1",
       target_id: "target-1",
-      entry_url:
-        "https://x.com/GoogleCloudTech/article/2033953579824758855",
-      source_url:
-        "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      entry_url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      source_url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
       saved_content: {
         content_id: "content-inline-export",
         project_id: "project-inline-export",
@@ -2942,8 +3125,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
       saved_by: "context_content",
     });
     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
-      path:
-        "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+      path: "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
       content: "# 当前导出\n\n![封面](images/cover.png)",
       isBinary: false,
       size: 43,
@@ -2958,8 +3140,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
       initialSiteSkillLaunch: {
         adapterName: "x/article-export",
         args: {
-          postUrl:
-            "https://x.com/GoogleCloudTech/article/2033953579824758855",
+          postUrl: "https://x.com/GoogleCloudTech/article/2033953579824758855",
         },
         autoRun: true,
         profileKey: "attached-x",
@@ -3028,10 +3209,8 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
       profile_key: "attached-x",
       session_id: "session-browser-1",
       target_id: "target-1",
-      entry_url:
-        "https://x.com/GoogleCloudTech/article/2033953579824758855",
-      source_url:
-        "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      entry_url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      source_url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
       saved_content: {
         content_id: "content-inline-export",
         project_id: "project-inline-export",
@@ -3041,8 +3220,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
       saved_by: "context_content",
     });
     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
-      path:
-        "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+      path: "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
       content: null,
       isBinary: false,
       size: 0,
@@ -3057,8 +3235,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
       initialSiteSkillLaunch: {
         adapterName: "x/article-export",
         args: {
-          postUrl:
-            "https://x.com/GoogleCloudTech/article/2033953579824758855",
+          postUrl: "https://x.com/GoogleCloudTech/article/2033953579824758855",
         },
         autoRun: true,
         profileKey: "attached-x",
@@ -6051,15 +6228,16 @@ describe("AgentChatPage 服务技能 A2UI", () => {
         ?.getAttribute("data-mode"),
     ).toBe("chat");
 
-    const latestPendingPanelProps =
-      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
-        | {
-            pendingA2UIForm?: {
-              id?: string;
-              components?: Array<Record<string, unknown>>;
-            } | null;
-          }
-        | undefined;
+    const latestPendingPanelProps = mockWorkspacePendingA2UIPanel.mock.calls.at(
+      -1,
+    )?.[0] as
+      | {
+          pendingA2UIForm?: {
+            id?: string;
+            components?: Array<Record<string, unknown>>;
+          } | null;
+        }
+      | undefined;
 
     expect(latestPendingPanelProps?.pendingA2UIForm?.id).toBe(
       "service-skill-launch:daily-trend-briefing:daily-trend-briefing:20260409",
@@ -6138,18 +6316,19 @@ describe("AgentChatPage 当前 A2UI 事实源", () => {
       "这次内容主要面向谁？",
     );
 
-    const latestPendingPanelProps =
-      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
-        | {
-            pendingA2UIForm?: {
-              id?: string;
-            } | null;
-            a2uiSubmissionNotice?: {
-              title?: string;
-              summary?: string;
-            } | null;
-          }
-        | undefined;
+    const latestPendingPanelProps = mockWorkspacePendingA2UIPanel.mock.calls.at(
+      -1,
+    )?.[0] as
+      | {
+          pendingA2UIForm?: {
+            id?: string;
+          } | null;
+          a2uiSubmissionNotice?: {
+            title?: string;
+            summary?: string;
+          } | null;
+        }
+      | undefined;
     expect(latestPendingPanelProps?.pendingA2UIForm ?? null).toBeNull();
     expect(latestPendingPanelProps?.a2uiSubmissionNotice ?? null).toBeNull();
   });
@@ -6207,14 +6386,15 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       "</tool_calls>",
     );
 
-    const latestPendingPanelProps =
-      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
-        | {
-            pendingA2UIForm?: {
-              id?: string;
-            } | null;
-          }
-        | undefined;
+    const latestPendingPanelProps = mockWorkspacePendingA2UIPanel.mock.calls.at(
+      -1,
+    )?.[0] as
+      | {
+          pendingA2UIForm?: {
+            id?: string;
+          } | null;
+        }
+      | undefined;
     expect(latestPendingPanelProps?.pendingA2UIForm ?? null).toBeNull();
   });
 
@@ -6273,18 +6453,19 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       "补充信息表单已提交。",
     );
 
-    const latestPendingPanelProps =
-      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
-        | {
-            pendingA2UIForm?: {
-              id?: string;
-            } | null;
-            a2uiSubmissionNotice?: {
-              title?: string;
-              summary?: string;
-            } | null;
-          }
-        | undefined;
+    const latestPendingPanelProps = mockWorkspacePendingA2UIPanel.mock.calls.at(
+      -1,
+    )?.[0] as
+      | {
+          pendingA2UIForm?: {
+            id?: string;
+          } | null;
+          a2uiSubmissionNotice?: {
+            title?: string;
+            summary?: string;
+          } | null;
+        }
+      | undefined;
     expect(latestPendingPanelProps?.pendingA2UIForm ?? null).toBeNull();
     expect(latestPendingPanelProps?.a2uiSubmissionNotice ?? null).toBeNull();
   });
@@ -6381,14 +6562,15 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       "为了继续推进，我需要你先补充以下信息",
     );
 
-    const latestPendingPanelProps =
-      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
-        | {
-            pendingA2UIForm?: {
-              id?: string;
-            } | null;
-          }
-        | undefined;
+    const latestPendingPanelProps = mockWorkspacePendingA2UIPanel.mock.calls.at(
+      -1,
+    )?.[0] as
+      | {
+          pendingA2UIForm?: {
+            id?: string;
+          } | null;
+        }
+      | undefined;
     expect(latestPendingPanelProps?.pendingA2UIForm?.id).toBe(
       "action-request-req-action-required",
     );
@@ -6465,18 +6647,19 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
     });
     await flushEffects(10);
 
-    const latestPendingPanelProps =
-      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
-        | {
-            pendingA2UIForm?: {
-              id?: string;
-            } | null;
-            a2uiSubmissionNotice?: {
-              title?: string;
-              summary?: string;
-            } | null;
-          }
-        | undefined;
+    const latestPendingPanelProps = mockWorkspacePendingA2UIPanel.mock.calls.at(
+      -1,
+    )?.[0] as
+      | {
+          pendingA2UIForm?: {
+            id?: string;
+          } | null;
+          a2uiSubmissionNotice?: {
+            title?: string;
+            summary?: string;
+          } | null;
+        }
+      | undefined;
 
     expect(latestPendingPanelProps?.pendingA2UIForm ?? null).toBeNull();
     expect(latestPendingPanelProps?.a2uiSubmissionNotice ?? null).toBeNull();

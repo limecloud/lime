@@ -131,6 +131,30 @@ describe("WorkspaceMainArea", () => {
     ).toBe("chat");
   });
 
+  it("任务中心顶栏和会话标签应合并到统一 Chrome 背景中", () => {
+    const { container } = mountHarness(
+      WorkspaceMainAreaHarness,
+      {
+        navbarNode: <div data-testid="workspace-navbar">navbar</div>,
+        taskCenterTabsNode: <div data-testid="task-center-tabs">tabs</div>,
+      },
+      mountedRoots,
+    );
+
+    const shell = container.querySelector<HTMLElement>(
+      '[data-testid="task-center-chrome-shell"]',
+    );
+
+    expect(shell).not.toBeNull();
+    expect(shell?.style.backgroundColor).toBe("rgb(242, 247, 243)");
+    expect(
+      shell?.querySelector('[data-testid="workspace-navbar"]'),
+    ).not.toBeNull();
+    expect(
+      shell?.querySelector('[data-testid="task-center-tabs"]'),
+    ).not.toBeNull();
+  });
+
   it("任务中心自动隐藏顶栏时应通过小图标展开完整顶部工具", () => {
     const { container } = mountHarness(
       WorkspaceMainAreaHarness,

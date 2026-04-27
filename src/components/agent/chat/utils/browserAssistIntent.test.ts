@@ -43,6 +43,17 @@ describe("browserAssistIntent", () => {
     expect(hasBrowserAssistIntent("打开 https://example.com")).toBe(true);
   });
 
+  it("普通页面跳转描述不应误触发浏览器协助", () => {
+    expect(
+      hasBrowserAssistIntent("首页输入后进入对话页很慢，请给出修复方案"),
+    ).toBe(false);
+    expect(
+      shouldAutoOpenBrowserAssistForPrompt(
+        "首页输入后进入对话页很慢，请给出修复方案",
+      ),
+    ).toBe(false);
+  });
+
   it("只有链接总结诉求但没有浏览器意图时不应自动占用浏览器画布", () => {
     expect(
       shouldAutoOpenBrowserAssistForPrompt(

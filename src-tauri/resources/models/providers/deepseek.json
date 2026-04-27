@@ -11,7 +11,7 @@
       "family": "deepseek",
       "tier": "pro",
       "capabilities": {
-        "vision": true,
+        "vision": false,
         "tools": true,
         "streaming": true,
         "json_mode": true,
@@ -40,7 +40,7 @@
       "family": "deepseek-chat",
       "tier": "pro",
       "capabilities": {
-        "vision": true,
+        "vision": false,
         "tools": true,
         "streaming": true,
         "json_mode": true,

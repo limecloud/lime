@@ -43,6 +43,8 @@ describe("generalAgentPrompt", () => {
     expect(prompt).toContain("合理假设补齐");
     expect(prompt).toContain("每轮最多只保留 1 个最关键问题");
     expect(prompt).not.toContain("多代理");
+    expect(prompt).toContain("没有显式路径或保存要求时");
+    expect(prompt).toContain("写计划 / 写方案 / 写报告");
   });
 
   it("通用主题 Prompt 应回落到统一的主题说明", () => {

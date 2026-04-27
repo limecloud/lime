@@ -67,6 +67,7 @@ interface WorkspaceChatContentParams {
   stepProgressProps?: StepProgressProps | null;
   showChatLayout: boolean;
   compactChrome: boolean;
+  taskCenterSurface: boolean;
   contextWorkspaceEnabled: boolean;
   generalWorkbenchMessageViewportBottomPadding?: string;
   messageListProps: MessageListProps;
@@ -118,6 +119,7 @@ function renderWorkspaceChatContent({
   stepProgressProps,
   showChatLayout,
   compactChrome,
+  taskCenterSurface,
   contextWorkspaceEnabled,
   generalWorkbenchMessageViewportBottomPadding,
   messageListProps,
@@ -153,7 +155,7 @@ function renderWorkspaceChatContent({
 
   return (
     <ChatContainer>
-      <ChatContainerInner>
+      <ChatContainerInner $taskCenterSurface={taskCenterSurface}>
         {entryBannerVisible && entryBannerMessage ? (
           <EntryBanner>
             <Info className="h-4 w-4 shrink-0" />
@@ -605,6 +607,7 @@ export function WorkspaceConversationScene({
     stepProgressProps,
     showChatLayout,
     compactChrome,
+    taskCenterSurface: navbarContextVariant === "task-center",
     contextWorkspaceEnabled,
     generalWorkbenchMessageViewportBottomPadding,
     messageListProps,

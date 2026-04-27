@@ -17,6 +17,7 @@ pub mod scheduler_service;
 mod state;
 mod types;
 mod utils;
+mod window_chrome;
 
 pub use runner::run;
 pub use scheduler_service::{SchedulerService, SchedulerServiceConfig};

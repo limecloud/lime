@@ -56,7 +56,7 @@ function printHelp() {
 Lime Runtime Tool Surface Page Smoke
 
 用途:
-  通过真实 Lime 页面验证 runtime inventory -> 工作台 Harness -> Runtime 能力摘要的主链，
+  通过真实 Lime 页面验证 runtime inventory -> Harness -> Runtime 能力摘要的主链，
   同时确认首页空态不再弹出 runtime tool surface 黄提示。
 
 用法:
@@ -289,6 +289,40 @@ function buildPageStorageReadyScript(appUrl) {
   })()`;
 }
 
+function buildComposerReadyScript() {
+  return `(() => {
+    const collectButtons = () =>
+      Array.from(document.querySelectorAll("button")).map((button) => ({
+        text: (button.textContent || "").trim(),
+        aria: button.getAttribute("aria-label"),
+        title: button.getAttribute("title"),
+        disabled: Boolean(button.disabled),
+      }));
+    const textarea = Array.from(
+      document.querySelectorAll(
+        '[data-testid="inputbar-core-container"] textarea, textarea',
+      ),
+    ).find(
+      (candidate) =>
+        candidate instanceof HTMLTextAreaElement && !candidate.disabled,
+    );
+    const send = document.querySelector(
+      'button[aria-label="发送"], button[title="发送"]',
+    );
+    return {
+      ok: Boolean(textarea) && Boolean(send),
+      buttons: collectButtons(),
+      textareas: Array.from(document.querySelectorAll("textarea")).map(
+        (candidate) => ({
+          disabled: Boolean(candidate.disabled),
+          placeholder: candidate.getAttribute("placeholder"),
+          value: candidate.value,
+        }),
+      ),
+    };
+  })()`;
+}
+
 function buildFillPromptScript(prompt) {
   return `(() => {
     const collectButtons = () =>
@@ -311,7 +345,9 @@ function buildFillPromptScript(prompt) {
       );
     };
     const textarea = resolveTextarea();
-    const initialSend = document.querySelector('button[aria-label="发送"]');
+    const initialSend = document.querySelector(
+      'button[aria-label="发送"], button[title="发送"]',
+    );
     if (!textarea || !initialSend) {
       return {
         ok: false,
@@ -334,7 +370,9 @@ function buildFillPromptScript(prompt) {
     textarea.dispatchEvent(new Event("change", { bubbles: true }));
 
     const currentTextarea = resolveTextarea() || textarea;
-    const currentSend = document.querySelector('button[aria-label="发送"]');
+    const currentSend = document.querySelector(
+      'button[aria-label="发送"], button[title="发送"]',
+    );
     return {
       ok: true,
       value: currentTextarea?.value ?? "",
@@ -355,7 +393,9 @@ function buildSendReadyScript() {
         (candidate) =>
           candidate instanceof HTMLTextAreaElement && !candidate.disabled,
       ) || null;
-    const send = document.querySelector('button[aria-label="发送"]');
+    const send = document.querySelector(
+      'button[aria-label="发送"], button[title="发送"]',
+    );
     return {
       ok:
         Boolean(textarea) &&
@@ -371,7 +411,9 @@ function buildSendReadyScript() {
 
 function buildClickSendScript() {
   return `(() => {
-    const send = document.querySelector('button[aria-label="发送"]');
+    const send = document.querySelector(
+      'button[aria-label="发送"], button[title="发送"]',
+    );
     if (!send) {
       return {
         ok: false,
@@ -412,9 +454,9 @@ function buildOpenWorkbenchScript() {
   return `(() => {
     const target = Array.from(document.querySelectorAll("button")).find(
       (button) =>
-        ((button.textContent || "").trim() === "工作台" ||
-          (button.getAttribute("aria-label") || "").includes("工作台") ||
-          (button.getAttribute("title") || "").includes("工作台")) &&
+        ((button.textContent || "").trim() === "Harness" ||
+          (button.getAttribute("aria-label") || "").includes("Harness") ||
+          (button.getAttribute("title") || "").includes("Harness")) &&
         button instanceof HTMLButtonElement,
     );
     if (!target) {
@@ -433,8 +475,7 @@ function buildOpenWorkbenchScript() {
     const alreadyOpen =
       dialogOpen ||
       target.getAttribute("aria-expanded") === "true" ||
-      (target.getAttribute("aria-label") || "").includes("收起工作台") ||
-      (target.getAttribute("title") || "").includes("收起工作台");
+      (target.getAttribute("aria-label") || "").includes("关闭Harness");
 
     if (alreadyOpen) {
       return {
@@ -463,9 +504,9 @@ function buildWorkbenchButtonCheckScript() {
   return `(() => {
     const button = Array.from(document.querySelectorAll("button")).find(
       (candidate) =>
-        ((candidate.textContent || "").trim() === "工作台" ||
-          (candidate.getAttribute("aria-label") || "").includes("工作台") ||
-          (candidate.getAttribute("title") || "").includes("工作台")) &&
+        ((candidate.textContent || "").trim() === "Harness" ||
+          (candidate.getAttribute("aria-label") || "").includes("Harness") ||
+          (candidate.getAttribute("title") || "").includes("Harness")) &&
         candidate instanceof HTMLButtonElement,
     );
 
@@ -672,11 +713,34 @@ async function main() {
     });
 
     logStage("fill-prompt");
-    const filled = await runJavascript(
+    await waitForCheck(options, "首页输入框出现", async () => {
+      const value = await runJavascript(
+        options,
+        profileKey,
+        buildComposerReadyScript(),
+        "wait-composer-ready",
+      );
+      return {
+        ok: value?.ok === true,
+        value,
+      };
+    });
+
+    const filled = await waitForCheck(
       options,
-      profileKey,
-      buildFillPromptScript(PROMPT_TEXT),
-      "fill-prompt",
+      "首页输入框可写入",
+      async () => {
+        const value = await runJavascript(
+          options,
+          profileKey,
+          buildFillPromptScript(PROMPT_TEXT),
+          "fill-prompt",
+        );
+        return {
+          ok: value?.ok === true,
+          value,
+        };
+      },
     );
     assert(
       filled?.ok === true,
@@ -713,13 +777,13 @@ async function main() {
       `提交输入失败: ${JSON.stringify(submitted ?? null)}`,
     );
 
-    logStage("wait-workbench-button");
-    await waitForCheck(options, "运行态工作台按钮出现", async () => {
+    logStage("wait-harness-button");
+    await waitForCheck(options, "Harness 按钮出现", async () => {
       const value = await runJavascript(
         options,
         profileKey,
         buildWorkbenchButtonCheckScript(),
-        "wait-workbench-button",
+        "wait-harness-button",
       );
       return {
         ok: value?.hasButton === true,
@@ -727,16 +791,16 @@ async function main() {
       };
     });
 
-    logStage("open-workbench");
+    logStage("open-harness");
     const openWorkbench = await runJavascript(
       options,
       profileKey,
       buildOpenWorkbenchScript(),
-      "open-workbench",
+      "open-harness",
     );
     assert(
       openWorkbench?.ok === true,
-      `打开工作台失败: ${JSON.stringify(openWorkbench ?? null)}`,
+      `打开 Harness 失败: ${JSON.stringify(openWorkbench ?? null)}`,
     );
 
     logStage("wait-runtime-summary");

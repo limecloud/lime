@@ -34,6 +34,7 @@ export function useWorkspaceContextHarnessRuntime({
   messages,
   providerType,
   model,
+  mappedTheme,
   isSending,
   projectMemory,
   harnessState,
@@ -69,8 +70,10 @@ export function useWorkspaceContextHarnessRuntime({
   const harnessPendingCount = workbenchEnabled
     ? harnessState.pendingApprovals.length
     : 0;
+  const isGeneralWorkbenchEntry = mappedTheme === "general";
   const shouldAlwaysShowHarnessToggle =
-    workbenchEnabled && generalWorkbenchContextEnabled;
+    workbenchEnabled &&
+    (isGeneralWorkbenchEntry || generalWorkbenchContextEnabled);
   const hasHarnessActivity =
     workbenchEnabled &&
     (harnessPanelVisible ||
@@ -85,7 +88,7 @@ export function useWorkspaceContextHarnessRuntime({
         ? "active"
         : "idle";
   const navbarHarnessPanelVisible = workbenchEnabled && harnessPanelVisible;
-  const harnessToggleLabel = workbenchEnabled ? "工作台" : undefined;
+  const harnessToggleLabel = workbenchEnabled ? "Harness" : undefined;
   const visibleContextItems = useMemo(() => {
     if (!workbenchEnabled) {
       return [];

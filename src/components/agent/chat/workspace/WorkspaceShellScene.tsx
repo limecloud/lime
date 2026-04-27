@@ -81,10 +81,7 @@ export function WorkspaceShellScene({
   onReturnToParentSession,
 }: WorkspaceShellSceneProps) {
   const shouldRenderChatSidebar =
-    !isThemeWorkbench &&
-    showChatPanel &&
-    showSidebar &&
-    sidebarContextVariant !== "task-center";
+    !isThemeWorkbench && showChatPanel && showSidebar;
   const chatSidebarProps =
     shouldRenderChatSidebar
       ? buildWorkspaceChatSidebarProps({

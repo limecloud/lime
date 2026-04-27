@@ -324,6 +324,8 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   submittedActionsInFlight: ConversationScenePresentationParams["messageList"]["submittedActionsInFlight"];
   queuedTurns: ConversationScenePresentationParams["messageList"]["queuedTurns"];
   childSubagentSessions?: ConversationScenePresentationParams["messageList"]["childSubagentSessions"];
+  sessionHistoryWindow?: ConversationScenePresentationParams["messageList"]["sessionHistoryWindow"];
+  loadFullSessionHistory?: ConversationScenePresentationParams["messageList"]["onLoadFullHistory"];
   isPreparingSend: boolean;
   isSending: ConversationScenePresentationParams["messageList"]["isSending"];
   stopSending: ConversationScenePresentationParams["messageList"]["onInterruptCurrentTurn"];
@@ -470,6 +472,8 @@ export function useWorkspaceConversationSceneRuntime({
   submittedActionsInFlight,
   queuedTurns = [],
   childSubagentSessions = [],
+  sessionHistoryWindow = null,
+  loadFullSessionHistory,
   isPreparingSend,
   isSending,
   stopSending,
@@ -923,6 +927,8 @@ export function useWorkspaceConversationSceneRuntime({
       submittedActionsInFlight,
       queuedTurns,
       childSubagentSessions,
+      sessionHistoryWindow,
+      onLoadFullHistory: loadFullSessionHistory,
       isRestoringSession: isAutoRestoringSession,
       isSending,
       onInterruptCurrentTurn: stopSending,

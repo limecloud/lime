@@ -11,6 +11,9 @@ import {
   GeneralWorkbenchInputOverlay,
   GeneralWorkbenchLayoutShell,
 } from "./WorkspaceStyles";
+import {
+  TASK_CENTER_CHROME_RAIL,
+} from "./taskCenterChromeTokens";
 
 interface WorkspaceMainAreaProps {
   compactChrome: boolean;
@@ -62,9 +65,20 @@ export function WorkspaceMainArea({
   const isAutoHideNavbarVisible = shouldAutoHideNavbar && navbarOpen;
   const shouldRenderRevealHandle =
     shouldAutoHideNavbar && !isAutoHideNavbarVisible;
+  const taskCenterChromeNode =
+    !shouldAutoHideNavbar && taskCenterTabsNode ? (
+      <div
+        className="relative z-20 shrink-0 overflow-visible dark:bg-slate-900"
+        data-testid="task-center-chrome-shell"
+        style={{ backgroundColor: TASK_CENTER_CHROME_RAIL }}
+      >
+        {navbarNode}
+        {taskCenterTabsNode}
+      </div>
+    ) : null;
 
   return (
-    <MainArea $compact={compactChrome}>
+    <MainArea $compact={compactChrome} $taskCenterSurface={Boolean(taskCenterChromeNode)}>
       {shouldAutoHideNavbar ? (
         <AutoHideNavbarBackdrop
           type="button"
@@ -104,12 +118,17 @@ export function WorkspaceMainArea({
             {navbarNode}
           </AutoHideNavbarPanel>
         </AutoHideNavbarHost>
+      ) : taskCenterChromeNode ? (
+        taskCenterChromeNode
       ) : (
         navbarNode
       )}
-      {taskCenterTabsNode}
+      {shouldAutoHideNavbar ? taskCenterTabsNode : null}
       {contentSyncNoticeNode}
-      <GeneralWorkbenchLayoutShell $bottomInset={shellBottomInset}>
+      <GeneralWorkbenchLayoutShell
+        $bottomInset={shellBottomInset}
+        $taskCenterSurface={Boolean(taskCenterChromeNode)}
+      >
         <LayoutTransitionRenderGate
           mode={effectiveLayoutMode}
           chatContent={chatContent}

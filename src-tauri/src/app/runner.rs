@@ -324,6 +324,8 @@ pub fn run() {
 
             // 启动时先最大化再显示，避免用户看到“先小窗后展开”的过程。
             if let Some(main_window) = app.get_webview_window("main") {
+                super::window_chrome::apply_main_window_chrome(&main_window);
+
                 if should_reveal_main_window_on_startup() {
                     reveal_main_window(&main_window);
                 } else {

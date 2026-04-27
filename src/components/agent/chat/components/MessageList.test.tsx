@@ -284,6 +284,37 @@ describe("MessageList", () => {
     expect(container.textContent).not.toContain("开始一段新的对话吧");
   });
 
+  it("旧会话首屏只加载尾部历史时应提供完整历史入口", () => {
+    const onLoadFullHistory = vi.fn();
+    const container = render(createConversationMessages(2), {
+      sessionHistoryWindow: {
+        loadedMessages: 2,
+        totalMessages: 320,
+        isLoadingFull: false,
+        error: null,
+      },
+      onLoadFullHistory,
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="message-list-persisted-history-window"]',
+      ),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("最近 2 / 320 条消息");
+
+    const button = container.querySelector(
+      '[data-testid="message-list-load-full-history"]',
+    ) as HTMLButtonElement | null;
+    expect(button).not.toBeNull();
+
+    act(() => {
+      button?.click();
+    });
+
+    expect(onLoadFullHistory).toHaveBeenCalledTimes(1);
+  });
+
   it("任务中心空列表时应展示最近对话空态而不是普通新对话文案", () => {
     const container = render([], {
       emptyStateVariant: "task-center",

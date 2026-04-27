@@ -76,9 +76,15 @@ describe("TaskCenterTabStrip", () => {
   it("应渲染第二层会话 tabs 和加号入口", () => {
     const { container } = renderTabStrip();
 
-    expect(
-      container.querySelector('[data-testid="task-center-tab-strip"]'),
-    ).toBeTruthy();
+    const strip = container.querySelector(
+      '[data-testid="task-center-tab-strip"]',
+    ) as HTMLElement | null;
+    expect(strip).toBeTruthy();
+    expect(strip?.className).toContain("z-10");
+    expect(strip?.className).toContain("min-h-[34px]");
+    expect(strip?.style.backgroundColor).toBe("rgb(248, 252, 249)");
+    expect(strip?.className).not.toContain("bg-[#fbfdfb]");
+    expect(strip?.className).not.toContain("ml-[");
     expect(container.textContent).toContain("任务 A");
     expect(container.textContent).toContain("任务 B");
     expect(
@@ -89,6 +95,8 @@ describe("TaskCenterTabStrip", () => {
       '[data-testid="task-center-tab-topic-a"]',
     ) as HTMLElement | null;
     expect(activeTab?.getAttribute("data-active")).toBe("true");
+    expect(activeTab?.style.backgroundColor).toBe("rgb(238, 243, 239)");
+    expect(activeTab?.className).toContain("border-slate-200/80");
     expect(
       container.querySelector('[data-testid="task-center-tab-unread-topic-a"]'),
     ).toBeTruthy();

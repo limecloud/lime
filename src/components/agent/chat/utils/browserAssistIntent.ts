@@ -36,8 +36,12 @@ export function hasBrowserAssistIntent(input: string): boolean {
     return false;
   }
 
+  if (BROWSER_ASSIST_INTENT_PATTERN.test(normalized)) {
+    return true;
+  }
+
   return (
-    BROWSER_ASSIST_INTENT_PATTERN.test(normalized) ||
+    Boolean(extractExplicitUrlFromText(normalized)) &&
     BROWSER_NAVIGATION_PATTERN.test(normalized)
   );
 }

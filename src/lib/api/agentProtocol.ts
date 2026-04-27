@@ -557,6 +557,11 @@ export interface AgentEventFinalDone {
   usage?: AgentTokenUsage;
 }
 
+export interface AgentEventMessage {
+  type: "message";
+  message: AgentMessage;
+}
+
 export interface AgentEventWarning {
   type: "warning";
   code?: string;
@@ -606,6 +611,7 @@ export type AgentEvent =
   | AgentEventSubagentStatusChanged
   | AgentEventDone
   | AgentEventFinalDone
+  | AgentEventMessage
   | AgentEventWarning
   | AgentEventError;
 
@@ -1088,6 +1094,11 @@ export function parseAgentEvent(data: unknown): AgentEvent | null {
       return {
         type: "final_done",
         usage: event.usage as AgentTokenUsage | undefined,
+      };
+    case "message":
+      return {
+        type: "message",
+        message: event.message as AgentMessage,
       };
     case "error":
       return {

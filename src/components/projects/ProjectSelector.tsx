@@ -547,9 +547,9 @@ export function ProjectSelector({
             size="sm"
             className={cn(
               workspaceTab
-                ? "-mb-px h-[36px] min-w-[164px] max-w-[280px] justify-start gap-2 rounded-t-[16px] rounded-b-[8px] border border-b-transparent border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_64%,rgba(240,249,255,0.88)_100%)] px-3 pb-1.5 pt-1 text-left shadow-none transition-[background-color,border-color] focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0"
+                ? "h-5 min-w-[128px] max-w-[196px] justify-start gap-1.5 rounded-none border-transparent bg-transparent px-0 py-0 text-left shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 dark:hover:bg-transparent"
                 : embedded
-                ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-transparent bg-transparent px-1.5 py-0 text-left shadow-none hover:bg-slate-50/80 focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0"
+                  ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-transparent bg-transparent px-1.5 py-0 text-left shadow-none hover:bg-slate-50/80 focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0"
                 : compact
                   ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-slate-200/80 bg-white/94 px-2.5 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white"
                   : "h-11 min-w-[220px] max-w-[320px] justify-between gap-3 rounded-2xl border-slate-200/80 bg-white/92 px-3 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white hover:shadow-md hover:shadow-slate-950/8",
@@ -573,9 +573,9 @@ export function ProjectSelector({
             >
               {workspaceTab ? (
                 <>
-                  <FolderIcon className="h-3.5 w-3.5 shrink-0 text-slate-700" />
-                  <span className="min-w-0 flex flex-1 items-center gap-2">
-                    <span className="truncate text-[13px] font-semibold leading-none text-slate-900">
+                  <FolderIcon className="h-3.5 w-3.5 shrink-0 text-slate-900 dark:text-slate-100" />
+                  <span className="min-w-0 flex flex-1 items-center gap-1.5">
+                    <span className="truncate text-[12px] font-semibold leading-none text-slate-950 dark:text-slate-100">
                       {selectedProject?.name || placeholder}
                     </span>
                   </span>

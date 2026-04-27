@@ -8,7 +8,7 @@ use aster::session::{
     resolve_subagent_session_metadata, resolve_task_board_state, ExtensionState,
     Session as AsterSession, SessionRuntimeSnapshot, TaskBoardItem, TaskBoardItemStatus,
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use lime_core::agent::types::{AgentMessage, AgentSession, ContentPart, MessageContent};
 use lime_core::database::agent_session_repository::{
     self, SessionRecordDetail, SessionRecordMetadata, SessionRecordOverview,
@@ -16,7 +16,8 @@ use lime_core::database::agent_session_repository::{
 };
 use lime_core::database::dao::agent::SessionArchiveFilter;
 use lime_core::database::dao::agent_timeline::{
-    AgentThreadItem, AgentThreadTurn, AgentTimelineDao,
+    AgentThreadItem, AgentThreadItemStatus, AgentThreadTurn, AgentThreadTurnStatus,
+    AgentTimelineDao,
 };
 use lime_core::database::DbConnection;
 use lime_core::workspace::WorkspaceManager;
@@ -45,6 +46,10 @@ use crate::tool_io_offload::{
 };
 #[cfg(test)]
 use lime_core::database::dao::agent::AgentDao;
+
+const RUNTIME_OVERLAY_ACTIVE_WINDOW_SECS: i64 = 30 * 60;
+const HISTORY_VISIBILITY_JSON_EXTRACT_BYTES_LIMIT: usize = 64 * 1024;
+const HISTORY_VISIBILITY_SCAN_BYTES_LIMIT: usize = 512 * 1024;
 
 /// 会话信息（简化版）
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -96,6 +101,45 @@ impl SessionDetail {
             && self.child_subagent_sessions.is_empty()
             && self.subagent_parent_context.is_none()
     }
+}
+
+fn is_recent_runtime_timestamp(value: &str, now: DateTime<Utc>) -> bool {
+    let Ok(timestamp) = DateTime::parse_from_rfc3339(value) else {
+        return false;
+    };
+    let age_secs = now
+        .signed_duration_since(timestamp.with_timezone(&Utc))
+        .num_seconds();
+    age_secs <= RUNTIME_OVERLAY_ACTIVE_WINDOW_SECS
+}
+
+fn should_load_runtime_overlay_at(
+    detail: &SessionDetail,
+    history_limit: Option<usize>,
+    now: DateTime<Utc>,
+) -> bool {
+    if history_limit.is_none() {
+        return true;
+    }
+
+    detail.turns.iter().any(|turn| {
+        matches!(turn.status, AgentThreadTurnStatus::Running)
+            && is_recent_runtime_timestamp(&turn.updated_at, now)
+    }) || detail.items.iter().any(|item| {
+        matches!(item.status, AgentThreadItemStatus::InProgress)
+            && is_recent_runtime_timestamp(&item.updated_at, now)
+    })
+}
+
+fn should_load_runtime_overlay(detail: &SessionDetail, history_limit: Option<usize>) -> bool {
+    should_load_runtime_overlay_at(detail, history_limit, Utc::now())
+}
+
+fn should_load_subagent_runtime_context(
+    detail: &SessionDetail,
+    history_limit: Option<usize>,
+) -> bool {
+    should_load_runtime_overlay(detail, history_limit)
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -271,17 +315,6 @@ fn is_zero_usize(value: &usize) -> bool {
 
 fn is_false(value: &bool) -> bool {
     !*value
-}
-
-fn default_true() -> bool {
-    true
-}
-
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PersistedMessageVisibility {
-    #[serde(default = "default_true")]
-    user_visible: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -1020,38 +1053,96 @@ pub fn list_title_preview_messages_sync(
 
 /// 获取会话详情
 pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDetail, String> {
-    let started_at = Instant::now();
+    get_session_sync_with_history_limit(db, session_id, None)
+}
+
+pub fn count_session_messages_sync(db: &DbConnection, session_id: &str) -> Result<usize, String> {
     let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
+    lime_core::database::dao::agent::AgentDao::get_message_count(&conn, session_id)
+        .map_err(|e| format!("获取会话消息数量失败: {e}"))
+}
+
+/// 获取会话详情；传入 history_limit 时只读取末尾历史，用于旧会话首屏恢复。
+pub fn get_session_sync_with_history_limit(
+    db: &DbConnection,
+    session_id: &str,
+    history_limit: Option<usize>,
+) -> Result<SessionDetail, String> {
+    let started_at = Instant::now();
 
     let session_started_at = Instant::now();
+    let (
+        session_detail,
+        turns,
+        items,
+        todo_items,
+        user_visible_flags_result,
+        session_ms,
+        turns_ms,
+        items_ms,
+        todo_ms,
+    ) = {
+        let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
+
+        let session_detail = match history_limit {
+            Some(limit) => {
+                agent_session_repository::get_session_with_messages_tail(&conn, session_id, limit)
+            }
+            None => agent_session_repository::get_session_with_messages(&conn, session_id),
+        }
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("会话不存在: {session_id}"))?;
+        let session_ms = session_started_at.elapsed().as_millis();
+
+        let turns_started_at = Instant::now();
+        let turns = match history_limit {
+            Some(limit) => AgentTimelineDao::list_turns_by_thread_tail(&conn, session_id, limit),
+            None => AgentTimelineDao::list_turns_by_thread(&conn, session_id),
+        }
+        .map_err(|e| format!("获取 turn 历史失败: {e}"))?;
+        let turns_ms = turns_started_at.elapsed().as_millis();
+
+        let items_started_at = Instant::now();
+        let items = match history_limit {
+            Some(limit) => AgentTimelineDao::list_items_by_thread_tail(&conn, session_id, limit),
+            None => AgentTimelineDao::list_items_by_thread(&conn, session_id),
+        }
+        .map_err(|e| format!("获取 item 历史失败: {e}"))?;
+        let items_ms = items_started_at.elapsed().as_millis();
+
+        let todo_started_at = Instant::now();
+        let todo_items = load_session_todo_items_from_conn(&conn, session_id);
+        let todo_ms = todo_started_at.elapsed().as_millis();
+
+        let user_visible_flags_result =
+            load_user_visible_message_flags_from_conn(&conn, session_id, history_limit);
+
+        (
+            session_detail,
+            turns,
+            items,
+            todo_items,
+            user_visible_flags_result,
+            session_ms,
+            turns_ms,
+            items_ms,
+            todo_ms,
+        )
+    };
+
     let SessionRecordDetail {
         session,
         workspace_id,
-    } = agent_session_repository::get_session_with_messages(&conn, session_id)?
-        .ok_or_else(|| format!("会话不存在: {session_id}"))?;
-    let session_ms = session_started_at.elapsed().as_millis();
-
-    let turns_started_at = Instant::now();
-    let turns = AgentTimelineDao::list_turns_by_thread(&conn, session_id)
-        .map_err(|e| format!("获取 turn 历史失败: {e}"))?;
-    let turns_ms = turns_started_at.elapsed().as_millis();
-
-    let items_started_at = Instant::now();
-    let items = AgentTimelineDao::list_items_by_thread(&conn, session_id)
-        .map_err(|e| format!("获取 item 历史失败: {e}"))?;
-    let items_ms = items_started_at.elapsed().as_millis();
-
+    } = session_detail;
     let working_dir = session.working_dir.clone();
-    let todo_started_at = Instant::now();
-    let todo_items = load_session_todo_items_from_conn(&conn, session_id);
-    let todo_ms = todo_started_at.elapsed().as_millis();
-
     let messages_started_at = Instant::now();
-    let tauri_messages = match load_user_visible_message_flags_from_conn(&conn, session_id) {
+    let use_history_eviction_plan = history_limit.is_none();
+    let tauri_messages = match user_visible_flags_result {
         Ok(user_visible_flags) => convert_user_visible_agent_messages_with_flags(
             &session.messages,
             &user_visible_flags,
             Some(session.model.as_str()),
+            use_history_eviction_plan,
         ),
         Err(error) => {
             tracing::warn!(
@@ -1059,14 +1150,18 @@ pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDe
                 session_id,
                 error
             );
-            convert_agent_messages(&session.messages, Some(session.model.as_str()))
+            convert_agent_messages_with_history_eviction(
+                &session.messages,
+                Some(session.model.as_str()),
+                use_history_eviction_plan,
+            )
         }
     };
     let messages_ms = messages_started_at.elapsed().as_millis();
     let total_ms = started_at.elapsed().as_millis();
 
     tracing::info!(
-        "[SessionStore] get_session_sync 完成: session_id={}, total_ms={}, session_ms={}, turns_ms={}, items_ms={}, todo_ms={}, messages_ms={}, messages_count={}, turns_count={}, items_count={}, todo_count={}",
+        "[SessionStore] get_session_sync 完成: session_id={}, total_ms={}, session_ms={}, turns_ms={}, items_ms={}, todo_ms={}, messages_ms={}, history_limit={:?}, messages_count={}, turns_count={}, items_count={}, todo_count={}",
         session_id,
         total_ms,
         session_ms,
@@ -1074,6 +1169,7 @@ pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDe
         items_ms,
         todo_ms,
         messages_ms,
+        history_limit,
         tauri_messages.len(),
         turns.len(),
         items.len(),
@@ -1104,23 +1200,71 @@ pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDe
     })
 }
 
+fn user_visible_projection_sql() -> String {
+    format!(
+        "CASE
+        WHEN length(content_json) > {scan_limit}
+            THEN 1
+        WHEN length(content_json) <= {json_extract_limit} AND json_valid(content_json)
+            THEN COALESCE(json_extract(content_json, '$.userVisible'), 1)
+        WHEN instr(content_json, '\"userVisible\":false') > 0
+            OR instr(content_json, '\"userVisible\": false') > 0
+            THEN 0
+        ELSE 1
+    END",
+        scan_limit = HISTORY_VISIBILITY_SCAN_BYTES_LIMIT,
+        json_extract_limit = HISTORY_VISIBILITY_JSON_EXTRACT_BYTES_LIMIT,
+    )
+}
+
+fn map_user_visible_flag_row(row: &rusqlite::Row<'_>) -> Result<bool, rusqlite::Error> {
+    let user_visible: i64 = row.get(0)?;
+    Ok(user_visible != 0)
+}
+
 fn load_user_visible_message_flags_from_conn(
     conn: &rusqlite::Connection,
     session_id: &str,
+    history_limit: Option<usize>,
 ) -> Result<Vec<bool>, String> {
+    let visibility_projection = user_visible_projection_sql();
+    let sql = match history_limit {
+        Some(limit) => {
+            if limit == 0 {
+                return Ok(Vec::new());
+            }
+            format!(
+                "SELECT user_visible
+                 FROM (
+                     SELECT id, {visibility_projection} AS user_visible
+                     FROM agent_messages
+                     WHERE session_id = ?1
+                     ORDER BY id DESC
+                     LIMIT ?2
+                 )
+                 ORDER BY id ASC"
+            )
+        }
+        None => format!(
+            "SELECT {visibility_projection} AS user_visible
+             FROM agent_messages
+             WHERE session_id = ?1
+             ORDER BY id ASC"
+        ),
+    };
+
     let mut stmt = conn
-        .prepare("SELECT content_json FROM agent_messages WHERE session_id = ? ORDER BY id ASC")
+        .prepare(&sql)
         .map_err(|e| format!("准备消息可见性查询失败: {e}"))?;
 
-    let rows = stmt
-        .query_map([session_id], |row| {
-            let content_json: String = row.get(0)?;
-            let user_visible = serde_json::from_str::<PersistedMessageVisibility>(&content_json)
-                .map(|record| record.user_visible)
-                .unwrap_or(true);
-            Ok(user_visible)
-        })
-        .map_err(|e| format!("查询消息可见性失败: {e}"))?;
+    let rows = match history_limit {
+        Some(limit) => stmt.query_map(
+            rusqlite::params![session_id, limit as i64],
+            map_user_visible_flag_row,
+        ),
+        None => stmt.query_map(rusqlite::params![session_id], map_user_visible_flag_row),
+    }
+    .map_err(|e| format!("查询消息可见性失败: {e}"))?;
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| format!("读取消息可见性失败: {e}"))
@@ -1130,22 +1274,19 @@ fn load_chat_user_visible_message_flags_from_conn(
     conn: &rusqlite::Connection,
     session_id: &str,
 ) -> Result<Vec<bool>, String> {
+    let visibility_projection = user_visible_projection_sql();
+    let sql = format!(
+        "SELECT {visibility_projection} AS user_visible
+         FROM agent_messages
+         WHERE session_id = ?1 AND role IN ('user', 'assistant')
+         ORDER BY id ASC"
+    );
     let mut stmt = conn
-        .prepare(
-            "SELECT content_json FROM agent_messages
-             WHERE session_id = ? AND role IN ('user', 'assistant')
-             ORDER BY id ASC",
-        )
+        .prepare(&sql)
         .map_err(|e| format!("准备聊天消息可见性查询失败: {e}"))?;
 
     let rows = stmt
-        .query_map([session_id], |row| {
-            let content_json: String = row.get(0)?;
-            let user_visible = serde_json::from_str::<PersistedMessageVisibility>(&content_json)
-                .map(|record| record.user_visible)
-                .unwrap_or(true);
-            Ok(user_visible)
-        })
+        .query_map(rusqlite::params![session_id], map_user_visible_flag_row)
         .map_err(|e| format!("查询聊天消息可见性失败: {e}"))?;
 
     rows.collect::<Result<Vec<_>, _>>()
@@ -1212,9 +1353,17 @@ pub async fn get_runtime_session_detail(
     db: &DbConnection,
     session_id: &str,
 ) -> Result<SessionDetail, String> {
+    get_runtime_session_detail_with_history_limit(db, session_id, None).await
+}
+
+pub async fn get_runtime_session_detail_with_history_limit(
+    db: &DbConnection,
+    session_id: &str,
+    history_limit: Option<usize>,
+) -> Result<SessionDetail, String> {
     let started_at = Instant::now();
     let detail_started_at = Instant::now();
-    let mut detail = get_session_sync(db, session_id)?;
+    let mut detail = get_session_sync_with_history_limit(db, session_id, history_limit)?;
     let detail_ms = detail_started_at.elapsed().as_millis();
 
     let archive_check_started_at = Instant::now();
@@ -1223,11 +1372,12 @@ pub async fn get_runtime_session_detail(
     if is_archived {
         let total_ms = started_at.elapsed().as_millis();
         tracing::info!(
-            "[SessionStore] get_runtime_session_detail 归档快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}, messages_count={}, turns_count={}, items_count={}",
+            "[SessionStore] get_runtime_session_detail 归档快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}, history_limit={:?}, messages_count={}, turns_count={}, items_count={}",
             session_id,
             total_ms,
             detail_ms,
             archive_check_ms,
+            history_limit,
             detail.messages.len(),
             detail.turns.len(),
             detail.items.len(),
@@ -1238,40 +1388,51 @@ pub async fn get_runtime_session_detail(
     if detail.is_persisted_empty() {
         let total_ms = started_at.elapsed().as_millis();
         tracing::info!(
-            "[SessionStore] get_runtime_session_detail 空会话快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}",
+            "[SessionStore] get_runtime_session_detail 空会话快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}, history_limit={:?}",
             session_id,
             total_ms,
             detail_ms,
             archive_check_ms,
+            history_limit,
         );
         return Ok(detail);
     }
 
+    let load_runtime_overlay = should_load_runtime_overlay(&detail, history_limit);
+
     let session_started_at = Instant::now();
-    let session = match read_session(session_id, false, "读取运行态 session 失败").await {
-        Ok(session) => Some(session),
-        Err(error) => {
-            tracing::warn!(
-                "[SessionStore] 读取运行态 session 失败，execution runtime 已降级忽略: session_id={}, error={}",
-                session_id,
-                error
-            );
-            None
+    let session = if load_runtime_overlay {
+        match read_session(session_id, false, "读取运行态 session 失败").await {
+            Ok(session) => Some(session),
+            Err(error) => {
+                tracing::warn!(
+                    "[SessionStore] 读取运行态 session 失败，execution runtime 已降级忽略: session_id={}, error={}",
+                    session_id,
+                    error
+                );
+                None
+            }
         }
+    } else {
+        None
     };
     let session_ms = session_started_at.elapsed().as_millis();
 
     let runtime_snapshot_started_at = Instant::now();
-    let runtime_snapshot = match load_aster_runtime_snapshot(session_id).await {
-        Ok(snapshot) => Some(snapshot),
-        Err(error) => {
-            tracing::warn!(
-                "[SessionStore] 读取 Aster runtime snapshot 失败: session_id={}, error={}",
-                session_id,
-                error
-            );
-            None
+    let runtime_snapshot = if load_runtime_overlay {
+        match load_aster_runtime_snapshot(session_id).await {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                tracing::warn!(
+                    "[SessionStore] 读取 Aster runtime snapshot 失败: session_id={}, error={}",
+                    session_id,
+                    error
+                );
+                None
+            }
         }
+    } else {
+        None
     };
     let runtime_snapshot_ms = runtime_snapshot_started_at.elapsed().as_millis();
 
@@ -1334,39 +1495,46 @@ pub async fn get_runtime_session_detail(
     }
     let apply_snapshot_ms = apply_snapshot_started_at.elapsed().as_millis();
 
+    let load_subagent_runtime_context =
+        should_load_subagent_runtime_context(&detail, history_limit);
+
     let child_subagents_started_at = Instant::now();
-    match load_child_subagent_sessions(db, session_id).await {
-        Ok(child_subagent_sessions) => {
-            detail.child_subagent_sessions = child_subagent_sessions;
-        }
-        Err(error) => {
-            tracing::warn!(
-                "[SessionStore] 读取 child subagent sessions 失败: session_id={}, error={}",
-                session_id,
-                error
-            );
+    if load_subagent_runtime_context {
+        match load_child_subagent_sessions(db, session_id).await {
+            Ok(child_subagent_sessions) => {
+                detail.child_subagent_sessions = child_subagent_sessions;
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "[SessionStore] 读取 child subagent sessions 失败: session_id={}, error={}",
+                    session_id,
+                    error
+                );
+            }
         }
     }
     let child_subagents_ms = child_subagents_started_at.elapsed().as_millis();
 
     let parent_context_started_at = Instant::now();
-    match load_subagent_parent_context(db, session_id, session.as_ref()).await {
-        Ok(subagent_parent_context) => {
-            detail.subagent_parent_context = subagent_parent_context;
-        }
-        Err(error) => {
-            tracing::warn!(
-                "[SessionStore] 读取 subagent parent context 失败: session_id={}, error={}",
-                session_id,
-                error
-            );
+    if load_subagent_runtime_context {
+        match load_subagent_parent_context(db, session_id, session.as_ref()).await {
+            Ok(subagent_parent_context) => {
+                detail.subagent_parent_context = subagent_parent_context;
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "[SessionStore] 读取 subagent parent context 失败: session_id={}, error={}",
+                    session_id,
+                    error
+                );
+            }
         }
     }
     let parent_context_ms = parent_context_started_at.elapsed().as_millis();
     let total_ms = started_at.elapsed().as_millis();
 
     tracing::info!(
-        "[SessionStore] get_runtime_session_detail 完成: session_id={}, total_ms={}, detail_ms={}, read_runtime_session_ms={}, runtime_snapshot_ms={}, usage_fallback_ms={}, execution_runtime_ms={}, apply_snapshot_ms={}, child_subagents_ms={}, parent_context_ms={}, messages_count={}, turns_count={}, items_count={}, child_subagents_count={}, has_parent_context={}",
+        "[SessionStore] get_runtime_session_detail 完成: session_id={}, total_ms={}, detail_ms={}, read_runtime_session_ms={}, runtime_snapshot_ms={}, usage_fallback_ms={}, execution_runtime_ms={}, apply_snapshot_ms={}, child_subagents_ms={}, parent_context_ms={}, history_limit={:?}, runtime_overlay_loaded={}, subagent_runtime_context_loaded={}, messages_count={}, turns_count={}, items_count={}, child_subagents_count={}, has_parent_context={}",
         session_id,
         total_ms,
         detail_ms,
@@ -1377,6 +1545,9 @@ pub async fn get_runtime_session_detail(
         apply_snapshot_ms,
         child_subagents_ms,
         parent_context_ms,
+        history_limit,
+        load_runtime_overlay,
+        load_subagent_runtime_context,
         detail.messages.len(),
         detail.turns.len(),
         detail.items.len(),
@@ -1544,14 +1715,29 @@ fn convert_image_part(image_url: &str) -> Option<RuntimeAgentMessageContent> {
 }
 
 /// 将 AgentMessage 转换为运行时协议消息
+#[cfg(test)]
 fn convert_agent_messages(
     messages: &[AgentMessage],
     model_name: Option<&str>,
 ) -> Vec<RuntimeAgentMessage> {
-    let eviction_plan = build_history_tool_io_eviction_plan_for_model(messages, model_name);
+    convert_agent_messages_with_history_eviction(messages, model_name, true)
+}
+
+fn convert_agent_messages_with_history_eviction(
+    messages: &[AgentMessage],
+    model_name: Option<&str>,
+    use_history_eviction_plan: bool,
+) -> Vec<RuntimeAgentMessage> {
+    let eviction_plan = if use_history_eviction_plan {
+        build_history_tool_io_eviction_plan_for_model(messages, model_name)
+    } else {
+        crate::tool_io_offload::HistoryToolIoEvictionPlan::default()
+    };
     messages
         .iter()
-        .map(|message| convert_agent_message(message, &eviction_plan))
+        .map(|message| {
+            convert_agent_message_with_options(message, &eviction_plan, use_history_eviction_plan)
+        })
         .collect()
 }
 
@@ -1559,6 +1745,7 @@ fn convert_user_visible_agent_messages_with_flags(
     messages: &[AgentMessage],
     user_visible_flags: &[bool],
     model_name: Option<&str>,
+    use_history_eviction_plan: bool,
 ) -> Vec<RuntimeAgentMessage> {
     if messages.len() != user_visible_flags.len() {
         tracing::warn!(
@@ -1566,7 +1753,11 @@ fn convert_user_visible_agent_messages_with_flags(
             messages.len(),
             user_visible_flags.len()
         );
-        return convert_agent_messages(messages, model_name);
+        return convert_agent_messages_with_history_eviction(
+            messages,
+            model_name,
+            use_history_eviction_plan,
+        );
     }
 
     let filtered = messages
@@ -1575,7 +1766,7 @@ fn convert_user_visible_agent_messages_with_flags(
         .filter_map(|(message, user_visible)| (*user_visible).then_some(message.clone()))
         .collect::<Vec<_>>();
 
-    convert_agent_messages(&filtered, model_name)
+    convert_agent_messages_with_history_eviction(&filtered, model_name, use_history_eviction_plan)
 }
 
 #[cfg(test)]
@@ -1602,9 +1793,18 @@ fn convert_user_visible_agent_messages(
     convert_agent_messages(&filtered, model_name)
 }
 
+#[cfg(test)]
 fn convert_agent_message(
     message: &AgentMessage,
     eviction_plan: &crate::tool_io_offload::HistoryToolIoEvictionPlan,
+) -> RuntimeAgentMessage {
+    convert_agent_message_with_options(message, eviction_plan, true)
+}
+
+fn convert_agent_message_with_options(
+    message: &AgentMessage,
+    eviction_plan: &crate::tool_io_offload::HistoryToolIoEvictionPlan,
+    use_dynamic_tool_io_offload: bool,
 ) -> RuntimeAgentMessage {
     let mut content = match &message.content {
         MessageContent::Text(text) => {
@@ -1644,8 +1844,10 @@ fn convert_agent_message(
             let parsed_arguments = parse_tool_call_arguments(&call.function.arguments);
             let arguments = if eviction_plan.request_ids.contains(&call.id) {
                 force_offload_tool_arguments_for_history(&call.id, &parsed_arguments)
-            } else {
+            } else if use_dynamic_tool_io_offload {
                 maybe_offload_tool_arguments(&call.id, &parsed_arguments)
+            } else {
+                parsed_arguments
             };
             content.push(RuntimeAgentMessageContent::ToolRequest {
                 id: call.id.clone(),
@@ -1659,8 +1861,13 @@ fn convert_agent_message(
         let tool_output = message.content.as_text();
         let offloaded = if eviction_plan.response_ids.contains(tool_call_id) {
             force_offload_plain_tool_output_for_history(tool_call_id, &tool_output, None)
-        } else {
+        } else if use_dynamic_tool_io_offload {
             maybe_offload_plain_tool_output(tool_call_id, &tool_output, None)
+        } else {
+            crate::tool_io_offload::ToolOutputOffload {
+                output: tool_output,
+                metadata: std::collections::HashMap::new(),
+            }
         };
 
         // tool/user 的工具结果协议消息都不应作为普通文本重复渲染。
@@ -1773,6 +1980,45 @@ mod tests {
         .expect("insert workspace");
     }
 
+    fn build_detail_with_turn_status(status: AgentThreadTurnStatus) -> SessionDetail {
+        build_detail_with_turn_status_updated_at(status, Utc::now())
+    }
+
+    fn build_detail_with_turn_status_updated_at(
+        status: AgentThreadTurnStatus,
+        updated_at: DateTime<Utc>,
+    ) -> SessionDetail {
+        let timestamp = updated_at.to_rfc3339();
+        SessionDetail {
+            id: "session-runtime-overlay".to_string(),
+            name: "运行态叠加判定".to_string(),
+            created_at: 0,
+            updated_at: 0,
+            thread_id: "session-runtime-overlay".to_string(),
+            model: Some("agent:test".to_string()),
+            working_dir: None,
+            workspace_id: None,
+            messages: Vec::new(),
+            execution_strategy: Some("react".to_string()),
+            execution_runtime: None,
+            turns: vec![AgentThreadTurn {
+                id: "turn-runtime-overlay".to_string(),
+                thread_id: "session-runtime-overlay".to_string(),
+                prompt_text: "测试".to_string(),
+                status,
+                started_at: timestamp.clone(),
+                completed_at: None,
+                error_message: None,
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+            }],
+            items: Vec::new(),
+            todo_items: Vec::new(),
+            child_subagent_sessions: Vec::new(),
+            subagent_parent_context: None,
+        }
+    }
+
     fn insert_test_session_with_message(
         db: &DbConnection,
         session_id: &str,
@@ -1807,6 +2053,59 @@ mod tests {
             },
         )
         .expect("add message");
+    }
+
+    #[test]
+    fn should_load_runtime_overlay_for_full_history() {
+        let detail = build_detail_with_turn_status(AgentThreadTurnStatus::Completed);
+
+        assert!(should_load_runtime_overlay(&detail, None));
+    }
+
+    #[test]
+    fn should_skip_runtime_overlay_for_completed_limited_history() {
+        let detail = build_detail_with_turn_status(AgentThreadTurnStatus::Completed);
+
+        assert!(!should_load_runtime_overlay(&detail, Some(80)));
+    }
+
+    #[test]
+    fn should_load_runtime_overlay_for_running_limited_history() {
+        let detail = build_detail_with_turn_status(AgentThreadTurnStatus::Running);
+
+        assert!(should_load_runtime_overlay(&detail, Some(80)));
+    }
+
+    #[test]
+    fn should_skip_runtime_overlay_for_stale_running_limited_history() {
+        let now = Utc::now();
+        let detail = build_detail_with_turn_status_updated_at(
+            AgentThreadTurnStatus::Running,
+            now - Duration::hours(2),
+        );
+
+        assert!(!should_load_runtime_overlay_at(&detail, Some(80), now));
+    }
+
+    #[test]
+    fn should_load_subagent_runtime_context_for_full_history() {
+        let detail = build_detail_with_turn_status(AgentThreadTurnStatus::Completed);
+
+        assert!(should_load_subagent_runtime_context(&detail, None));
+    }
+
+    #[test]
+    fn should_skip_subagent_runtime_context_for_completed_limited_history() {
+        let detail = build_detail_with_turn_status(AgentThreadTurnStatus::Completed);
+
+        assert!(!should_load_subagent_runtime_context(&detail, Some(80)));
+    }
+
+    #[test]
+    fn should_load_subagent_runtime_context_for_running_limited_history() {
+        let detail = build_detail_with_turn_status(AgentThreadTurnStatus::Running);
+
+        assert!(should_load_subagent_runtime_context(&detail, Some(80)));
     }
 
     fn build_test_subagent_session(
@@ -2325,6 +2624,7 @@ mod tests {
             &messages,
             &[true, false],
             Some("gpt-4.1"),
+            true,
         );
 
         assert_eq!(converted.len(), 1);
@@ -2356,10 +2656,84 @@ mod tests {
         )
         .expect("insert hidden message");
 
-        let flags = load_user_visible_message_flags_from_conn(&conn, "session-visibility-flags")
-            .expect("load visibility flags");
+        let flags =
+            load_user_visible_message_flags_from_conn(&conn, "session-visibility-flags", None)
+                .expect("load visibility flags");
 
         assert_eq!(flags, vec![true, false]);
+    }
+
+    #[test]
+    fn load_user_visible_message_flags_should_follow_history_tail_limit() {
+        let db = create_test_db();
+        insert_test_session_with_message(
+            &db,
+            "session-visibility-tail",
+            "/tmp/lime-workspace-visibility-tail",
+            "第一条",
+        );
+
+        let conn = db.lock().expect("lock db");
+        conn.execute(
+            "INSERT INTO agent_messages (session_id, role, content_json, timestamp)
+             VALUES (?1, 'user', ?2, '2026-03-18T08:00:01Z')",
+            rusqlite::params![
+                "session-visibility-tail",
+                r#"{"content":[{"type":"text","text":"第二条"}],"userVisible":false,"agentVisible":true}"#,
+            ],
+        )
+        .expect("insert hidden message");
+        conn.execute(
+            "INSERT INTO agent_messages (session_id, role, content_json, timestamp)
+             VALUES (?1, 'assistant', ?2, '2026-03-18T08:00:02Z')",
+            rusqlite::params![
+                "session-visibility-tail",
+                r#"{"content":[{"type":"text","text":"第三条"}],"userVisible":true,"agentVisible":true}"#,
+            ],
+        )
+        .expect("insert visible message");
+
+        let flags =
+            load_user_visible_message_flags_from_conn(&conn, "session-visibility-tail", Some(2))
+                .expect("load visibility flags");
+
+        assert_eq!(flags, vec![false, true]);
+    }
+
+    #[test]
+    fn load_user_visible_message_flags_should_not_scan_huge_history_payloads() {
+        let db = create_test_db();
+        insert_test_session_with_message(
+            &db,
+            "session-visibility-huge",
+            "/tmp/lime-workspace-visibility-huge",
+            "第一条",
+        );
+
+        let conn = db.lock().expect("lock db");
+        let huge_content = serde_json::json!({
+            "content": [
+                {
+                    "type": "text",
+                    "text": format!("超大内容{}", "a".repeat(600_000))
+                }
+            ],
+            "userVisible": true,
+            "agentVisible": true
+        })
+        .to_string();
+        conn.execute(
+            "INSERT INTO agent_messages (session_id, role, content_json, timestamp)
+             VALUES (?1, 'assistant', ?2, '2026-03-18T08:00:01Z')",
+            rusqlite::params!["session-visibility-huge", huge_content],
+        )
+        .expect("insert huge message");
+
+        let flags =
+            load_user_visible_message_flags_from_conn(&conn, "session-visibility-huge", Some(1))
+                .expect("load visibility flags");
+
+        assert_eq!(flags, vec![true]);
     }
 
     #[test]
@@ -2599,6 +2973,88 @@ mod tests {
     }
 
     #[test]
+    fn convert_agent_messages_should_skip_context_eviction_for_limited_history_window() {
+        let _lock = env_lock().lock().expect("lock env");
+        let _env = EnvGuard::set(&[
+            (
+                crate::tool_io_offload::TOOL_TOKEN_LIMIT_BEFORE_EVICT_ENV_KEYS[0],
+                OsString::from("50"),
+            ),
+            (
+                crate::tool_io_offload::CONTEXT_MAX_INPUT_TOKENS_ENV_KEYS[0],
+                OsString::from("600"),
+            ),
+            (
+                crate::tool_io_offload::CONTEXT_WINDOW_TRIGGER_RATIO_ENV_KEYS[0],
+                OsString::from("0.5"),
+            ),
+            (
+                crate::tool_io_offload::CONTEXT_KEEP_RECENT_MESSAGES_ENV_KEYS[0],
+                OsString::from("1"),
+            ),
+        ]);
+
+        let messages = vec![
+            AgentMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text(String::new()),
+                timestamp: "2026-03-11T00:00:00Z".to_string(),
+                tool_calls: Some(vec![ToolCall {
+                    id: "call-history-window".to_string(),
+                    call_type: "function".to_string(),
+                    function: FunctionCall {
+                        name: "Write".to_string(),
+                        arguments: serde_json::json!({
+                            "path": "docs/huge.md",
+                            "content": "token ".repeat(220),
+                        })
+                        .to_string(),
+                    },
+                }]),
+                tool_call_id: None,
+                reasoning_content: None,
+                usage: None,
+            },
+            AgentMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("token ".repeat(320)),
+                timestamp: "2026-03-11T00:00:01Z".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+                reasoning_content: None,
+                usage: None,
+            },
+            AgentMessage {
+                role: "assistant".to_string(),
+                content: MessageContent::Text("最近一条消息".to_string()),
+                timestamp: "2026-03-11T00:00:02Z".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+                reasoning_content: None,
+                usage: None,
+            },
+        ];
+
+        let converted =
+            convert_agent_messages_with_history_eviction(&messages, Some("gpt-4"), false);
+        let first = converted.first().expect("first message");
+        let request = first
+            .content
+            .iter()
+            .find_map(|part| match part {
+                RuntimeAgentMessageContent::ToolRequest { arguments, .. } => Some(arguments),
+                _ => None,
+            })
+            .expect("tool request");
+
+        let record = request
+            .as_object()
+            .expect("display request should remain an object");
+        assert!(!record.contains_key(crate::tool_io_offload::LIME_TOOL_ARGUMENTS_OFFLOAD_KEY));
+        assert!(record.contains_key("content"));
+    }
+
+    #[test]
     fn list_sessions_sync_should_resolve_workspace_id_from_working_dir() {
         let db = create_test_db();
         insert_test_workspace(&db, "workspace-1", "/tmp/lime-workspace-1");
@@ -2673,6 +3129,59 @@ mod tests {
         assert_eq!(detail.workspace_id.as_deref(), Some("workspace-2"));
         assert_eq!(detail.working_dir.as_deref(), Some("/tmp/lime-workspace-2"));
         assert_eq!(detail.messages.len(), 1);
+    }
+
+    #[test]
+    fn get_session_sync_with_history_limit_should_tail_persisted_history() {
+        let db = create_test_db();
+        insert_test_session_with_message(&db, "session-tail", "/tmp/lime-workspace-tail", "消息 1");
+
+        {
+            let conn = db.lock().expect("lock db");
+            for index in 2..=4 {
+                AgentDao::add_message(
+                    &conn,
+                    "session-tail",
+                    &AgentMessage {
+                        role: if index % 2 == 0 {
+                            "assistant".to_string()
+                        } else {
+                            "user".to_string()
+                        },
+                        content: MessageContent::Text(format!("消息 {index}")),
+                        timestamp: format!("2026-03-18T08:00:0{index}Z"),
+                        tool_calls: None,
+                        tool_call_id: None,
+                        reasoning_content: None,
+                        usage: None,
+                    },
+                )
+                .expect("add message");
+            }
+        }
+
+        let detail = get_session_sync_with_history_limit(&db, "session-tail", Some(2))
+            .expect("get tail session");
+
+        assert_eq!(detail.messages.len(), 2);
+        assert!(detail
+            .messages
+            .first()
+            .expect("first message")
+            .content
+            .iter()
+            .any(
+                |part| matches!(part, RuntimeAgentMessageContent::Text { text } if text == "消息 3")
+            ));
+        assert!(detail
+            .messages
+            .last()
+            .expect("last message")
+            .content
+            .iter()
+            .any(
+                |part| matches!(part, RuntimeAgentMessageContent::Text { text } if text == "消息 4")
+            ));
     }
 
     #[tokio::test]

@@ -2426,7 +2426,7 @@ describe("SceneAppsPage", () => {
     const entryActionButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-entry-action"]',
     ) as HTMLButtonElement | null;
-    expect(entryActionButton?.textContent).toContain("打开自动化任务");
+    expect(entryActionButton?.textContent).toContain("打开持续流程");
 
     act(() => {
       entryActionButton?.click();

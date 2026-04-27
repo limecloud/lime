@@ -362,8 +362,8 @@ export function DeveloperSettings() {
         setMessage({
           type: "success",
           text: nextEnabled
-            ? "已开启处理工作台，通用对话中的工作台入口和信息收集链路已恢复"
-            : "已关闭处理工作台，入口与信息收集链路已全部停用",
+            ? "已开启处理工作台调试信息收集，工具库存与环境摘要会随 Harness 打开加载"
+            : "已关闭处理工作台调试信息收集，Harness 入口仍会保留",
         });
         setTimeout(() => setMessage(null), 2500);
       } catch (error) {
@@ -420,8 +420,8 @@ export function DeveloperSettings() {
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
               <StatusPill
                 active={workspaceHarnessEnabled}
-                activeLabel="处理工作台已启用"
-                inactiveLabel="处理工作台已关闭"
+                activeLabel="工作台调试信息已启用"
+                inactiveLabel="工作台调试信息已关闭"
               />
               <StatusPill
                 active={enabled}
@@ -457,8 +457,8 @@ export function DeveloperSettings() {
         <div className="space-y-6">
           <SurfacePanel
             icon={Sparkles}
-            title="处理工作台与信息收集"
-            description="控制通用对话里的“处理工作台”入口，以及运行态摘要、工具库存、环境摘要等开发调试信息收集链路。默认关闭。"
+            title="处理工作台调试信息"
+            description="控制通用对话里运行态摘要、工具库存、环境摘要等开发调试信息收集链路。Harness 入口会常驻保留。"
             aside={
               <StatusPill
                 active={workspaceHarnessEnabled}
@@ -473,17 +473,17 @@ export function DeveloperSettings() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-slate-900">
-                        允许处理工作台进入通用对话
+                        允许收集处理工作台调试信息
                       </p>
                       <WorkbenchInfoTip
-                        ariaLabel="允许处理工作台进入通用对话说明"
-                        content="关闭时不会显示顶部“工作台”入口，也不会继续读取工具库存、整理环境摘要或保留已展开的处理工作台弹层。"
+                        ariaLabel="处理工作台调试信息说明"
+                        content="关闭时仍保留 Harness 入口，但不会继续读取工具库存或整理额外环境摘要。"
                         tone="slate"
                       />
                     </div>
                   </div>
                   <Switch
-                    aria-label="切换处理工作台"
+                    aria-label="切换处理工作台调试信息"
                     checked={workspaceHarnessEnabled}
                     disabled={workspaceHarnessSaving}
                     onCheckedChange={(checked) => {
@@ -502,7 +502,7 @@ export function DeveloperSettings() {
                       关闭时
                     </p>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
-                      通用对话不再显示处理工作台入口，相关弹窗不会打开，信息收集链路直接短路。
+                      通用对话仍保留 Harness 入口，额外工具库存读取与调试信息收集会短路。
                     </p>
                   </div>
                   <div className="rounded-[18px] border border-slate-200/80 bg-slate-50/60 p-4">
@@ -516,8 +516,8 @@ export function DeveloperSettings() {
                 </div>
                 <p className="mt-3 text-xs leading-6 text-slate-500">
                   {workspaceHarnessSaving
-                    ? "正在保存处理工作台开关..."
-                    : "建议默认保持关闭，排查完成后再关回去，避免给普通使用路径增加视觉和运行时噪音。"}
+                    ? "正在保存处理工作台调试信息开关..."
+                    : "建议默认保持关闭，排查完成后再关回去，避免给普通使用路径增加运行时噪音。"}
                 </p>
               </div>
             </div>

@@ -9,7 +9,6 @@ describe("sidebarNav", () => {
   it("应把主导航与底部系统入口收口为一级列表", () => {
     expect(MAIN_SIDEBAR_NAV_ITEMS.map((item) => item.label)).toEqual([
       "新建任务",
-      "工作台",
       "我的方法",
       "灵感库",
     ]);

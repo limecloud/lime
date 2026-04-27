@@ -1,5 +1,6 @@
 interface ResolveChatLayoutVisibilityParams {
   agentEntry: string;
+  preferEmptyStateForFreshTaskCenterTab?: boolean;
   hasDisplayMessages: boolean;
   hasPendingA2UIForm: boolean;
   isThemeWorkbench: boolean;
@@ -11,6 +12,7 @@ interface ResolveChatLayoutVisibilityParams {
 
 export function shouldShowChatLayout({
   agentEntry,
+  preferEmptyStateForFreshTaskCenterTab = false,
   hasDisplayMessages,
   hasPendingA2UIForm,
   isThemeWorkbench,
@@ -20,7 +22,7 @@ export function shouldShowChatLayout({
   queuedTurnCount,
 }: ResolveChatLayoutVisibilityParams): boolean {
   return (
-    agentEntry === "claw" ||
+    (agentEntry === "claw" && !preferEmptyStateForFreshTaskCenterTab) ||
     hasDisplayMessages ||
     hasPendingA2UIForm ||
     isThemeWorkbench ||

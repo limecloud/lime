@@ -691,6 +691,11 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         "CREATE INDEX IF NOT EXISTS idx_agent_messages_session ON agent_messages(session_id)",
         [],
     )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_messages_session_id_desc
+         ON agent_messages(session_id, id DESC)",
+        [],
+    )?;
 
     // Agent turn 表
     // 存储每一轮用户输入驱动的执行周期
@@ -713,6 +718,11 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_agent_thread_turns_session
          ON agent_thread_turns(session_id, started_at)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_thread_turns_session_started_desc
+         ON agent_thread_turns(session_id, started_at DESC, id DESC)",
         [],
     )?;
 

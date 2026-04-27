@@ -295,6 +295,11 @@ pub struct AgentRuntimeSessionDetail {
     pub created_at: i64,
     pub updated_at: i64,
     pub thread_id: String,
+    pub messages_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history_limit: Option<usize>,
+    #[serde(default)]
+    pub history_truncated: bool,
     pub messages: Vec<lime_agent::AgentMessage>,
     pub execution_strategy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -808,6 +813,9 @@ impl AgentRuntimeSessionDetail {
             created_at: detail.created_at,
             updated_at: detail.updated_at,
             thread_id: detail.thread_id,
+            messages_count: detail.messages.len(),
+            history_limit: None,
+            history_truncated: false,
             messages: detail.messages,
             execution_strategy: detail.execution_strategy,
             execution_runtime: detail.execution_runtime,

@@ -269,14 +269,14 @@ describe("useWorkspaceConversationSceneRuntime", () => {
     expect(sceneProps.navbarContextVariant).toBe("task-center");
   });
 
-  it("存在处理工作台入口时应透传顶栏按钮文案", () => {
+  it("存在 Harness 入口时应透传顶栏按钮文案", () => {
     const params = createBaseParams({
       showHarnessToggle: true,
-      harnessToggleLabel: "工作台",
+      harnessToggleLabel: "Harness",
     });
 
     const sceneProps = getRenderedSceneProps(params);
-    expect(sceneProps.harnessToggleLabel).toBe("工作台");
+    expect(sceneProps.harnessToggleLabel).toBe("Harness");
   });
 
   it("首页空态应继续透传 service skills 与选择回调", () => {

@@ -163,4 +163,32 @@ describe("AgentThreadTimelineArtifactCard", () => {
     expect(container.textContent).not.toContain('"queue"');
     expect(container.textContent).not.toContain('"retryable"');
   });
+
+  it("首屏省略 artifact 正文时应使用 metadata 渲染卡片摘要", () => {
+    const container = renderCard(
+      createFileArtifactItem({
+        content: undefined,
+        metadata: {
+          artifact_id: "artifact-document:demo",
+          artifactTitle: "季度复盘",
+          artifactKind: "analysis",
+          artifactStatus: "ready",
+          artifactVersionNo: 2,
+          previewText: "本轮重点是补齐来源线索与交付节奏。",
+        },
+      }),
+      {
+        onOpenArtifactFromTimeline: vi.fn(),
+      },
+    );
+
+    expect(container.textContent).toContain("季度复盘");
+    expect(container.textContent).toContain("分析");
+    expect(container.textContent).toContain("可阅读");
+    expect(container.textContent).toContain("V2");
+    expect(container.textContent).toContain(
+      "本轮重点是补齐来源线索与交付节奏。",
+    );
+    expect(container.textContent).not.toContain("schemaVersion");
+  });
 });

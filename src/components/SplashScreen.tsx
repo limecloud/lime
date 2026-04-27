@@ -119,11 +119,12 @@ const LogoGlow = styled.div`
   border-radius: 999px;
   background: radial-gradient(
     circle,
-    rgba(163, 230, 53, 0.34) 0%,
-    rgba(163, 230, 53, 0.12) 44%,
-    transparent 72%
+    rgba(163, 230, 53, 0.4) 0%,
+    rgba(163, 230, 53, 0.16) 38%,
+    rgba(250, 204, 21, 0.1) 60%,
+    transparent 78%
   );
-  filter: blur(24px);
+  filter: blur(26px);
   animation: ${glowPulse} 2.8s ease-in-out infinite;
 `;
 
@@ -142,6 +143,7 @@ const Logo = styled.img`
 `;
 
 const CopyBlock = styled.div`
+  position: relative;
   margin-top: 12px;
   display: flex;
   flex-direction: column;
@@ -149,7 +151,24 @@ const CopyBlock = styled.div`
   gap: 12px;
 `;
 
+const CopyGlow = styled.div`
+  position: absolute;
+  inset: 0 auto auto;
+  width: min(420px, 92vw);
+  height: 112px;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    rgba(163, 230, 53, 0.24) 0%,
+    rgba(250, 204, 21, 0.18) 36%,
+    transparent 74%
+  );
+  filter: blur(26px);
+  pointer-events: none;
+`;
+
 const Slogan = styled.h1`
+  position: relative;
   margin: 22px 0 0;
   max-width: 18em;
   font-size: clamp(28px, 4vw, 38px);
@@ -158,7 +177,46 @@ const Slogan = styled.h1`
   letter-spacing: -0.04em;
   color: hsl(var(--foreground));
   text-wrap: balance;
-  text-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  text-shadow:
+    0 0 18px rgba(163, 230, 53, 0.26),
+    0 10px 30px rgba(15, 23, 42, 0.1),
+    0 0 42px rgba(250, 204, 21, 0.14);
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 12% -10% -18%;
+    z-index: -1;
+    border-radius: 999px;
+    background: radial-gradient(
+      circle,
+      rgba(163, 230, 53, 0.36) 0%,
+      rgba(250, 204, 21, 0.2) 34%,
+      rgba(255, 255, 255, 0.12) 52%,
+      transparent 76%
+    );
+    filter: blur(30px);
+    transform: scale(1.02);
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: auto 12% -6% 12%;
+    z-index: -1;
+    height: 18px;
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      rgba(132, 204, 22, 0) 0%,
+      rgba(132, 204, 22, 0.42) 18%,
+      rgba(250, 204, 21, 0.45) 50%,
+      rgba(132, 204, 22, 0.42) 82%,
+      rgba(132, 204, 22, 0) 100%
+    );
+    filter: blur(16px);
+    opacity: 0.95;
+  }
 
   @media (max-width: 640px) {
     margin-top: 16px;
@@ -174,6 +232,7 @@ const Subtitle = styled.p`
   letter-spacing: -0.02em;
   color: hsl(var(--muted-foreground));
   text-wrap: balance;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
 `;
 
 const ProgressTrack = styled.div`
@@ -215,8 +274,8 @@ interface SplashScreenProps {
 
 export function SplashScreen({
   onComplete,
-  duration = 220,
-  exitDuration = 180,
+  duration = 1200,
+  exitDuration = 320,
 }: SplashScreenProps) {
   const [isExiting, setIsExiting] = useState(false);
 
@@ -264,6 +323,7 @@ export function SplashScreen({
           <Logo src={LIME_BRAND_LOGO_SRC} alt={LIME_BRAND_NAME} />
         </LogoStack>
         <CopyBlock>
+          <CopyGlow />
           <Slogan>青柠一下，灵感即来</Slogan>
           <Subtitle>从一句想法，到成稿、成图、成片、成事</Subtitle>
         </CopyBlock>

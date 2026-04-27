@@ -351,6 +351,7 @@ export function ChromeRelaySettings() {
   } | null>(null);
   const backendPolicyRef = useRef<BrowserBackendPolicy | null>(null);
   const draftBackendPolicyRef = useRef<BrowserBackendPolicy | null>(null);
+  const messageTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     backendPolicyRef.current = backendPolicy;
@@ -365,13 +366,29 @@ export function ChromeRelaySettings() {
       nextMessage: { type: "success" | "error"; text: string },
       timeout = 2500,
     ) => {
+      if (messageTimeoutRef.current !== null) {
+        window.clearTimeout(messageTimeoutRef.current);
+        messageTimeoutRef.current = null;
+      }
       setMessage(nextMessage);
       if (timeout > 0) {
-        window.setTimeout(() => setMessage(null), timeout);
+        messageTimeoutRef.current = window.setTimeout(() => {
+          messageTimeoutRef.current = null;
+          setMessage(null);
+        }, timeout);
       }
     },
     [],
   );
+
+  useEffect(() => {
+    return () => {
+      if (messageTimeoutRef.current !== null) {
+        window.clearTimeout(messageTimeoutRef.current);
+        messageTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const refreshConnectorSettings = useCallback(
     async (silent: boolean) => {

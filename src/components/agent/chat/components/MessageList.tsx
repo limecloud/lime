@@ -99,6 +99,13 @@ interface MessageListProps {
   submittedActionsInFlight?: ActionRequired[];
   queuedTurns?: QueuedTurnSnapshot[];
   childSubagentSessions?: AsterSubagentSessionInfo[];
+  sessionHistoryWindow?: {
+    loadedMessages: number;
+    totalMessages: number;
+    isLoadingFull: boolean;
+    error?: string | null;
+  } | null;
+  onLoadFullHistory?: () => void | Promise<void>;
   isSending?: boolean;
   assistantLabel?: string;
   onDeleteMessage?: (id: string) => void;
@@ -476,6 +483,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
   pendingActions = [],
   queuedTurns = [],
   childSubagentSessions = [],
+  sessionHistoryWindow = null,
+  onLoadFullHistory,
   isSending = false,
   assistantLabel = "Lime",
   onQuoteMessage,
@@ -621,6 +630,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const hiddenHistoryCount = shouldUseProgressiveRender
     ? Math.max(0, visibleMessages.length - renderedMessageCount)
     : 0;
+  const persistedHiddenHistoryCount =
+    sessionHistoryWindow &&
+    sessionHistoryWindow.totalMessages > sessionHistoryWindow.loadedMessages
+      ? sessionHistoryWindow.totalMessages - sessionHistoryWindow.loadedMessages
+      : 0;
 
   useEffect(() => {
     if (
@@ -1508,7 +1522,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
   };
 
   return (
-    <MessageListContainer ref={containerRef}>
+    <MessageListContainer
+      ref={containerRef}
+      $taskCenterSurface={isTaskCenterEmptyState}
+    >
       <div
         data-testid="message-list-column"
         className={
@@ -1519,6 +1536,40 @@ const MessageListInner: React.FC<MessageListProps> = ({
       >
         {leadingContent ? (
           <div data-testid="message-list-leading-content">{leadingContent}</div>
+        ) : null}
+        {persistedHiddenHistoryCount > 0 ? (
+          <div
+            data-testid="message-list-persisted-history-window"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 text-sm text-slate-600"
+          >
+            <div className="min-w-0 flex-1">
+              为了更快打开旧对话，当前先展示最近{" "}
+              {sessionHistoryWindow?.loadedMessages ?? renderedMessages.length} /{" "}
+              {sessionHistoryWindow?.totalMessages ?? renderedMessages.length}{" "}
+              条消息。
+              {sessionHistoryWindow?.error ? (
+                <span className="ml-2 text-red-600">
+                  {sessionHistoryWindow.error}
+                </span>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              data-testid="message-list-load-full-history"
+              className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={
+                sessionHistoryWindow?.isLoadingFull === true ||
+                !onLoadFullHistory
+              }
+              onClick={() => {
+                void onLoadFullHistory?.();
+              }}
+            >
+              {sessionHistoryWindow?.isLoadingFull
+                ? "正在加载完整历史"
+                : "加载完整历史"}
+            </button>
+          </div>
         ) : null}
         {hiddenHistoryCount > 0 ? (
           <div

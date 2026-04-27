@@ -10,6 +10,41 @@ use chrono::{Local, TimeZone};
 use rusqlite::{params, Connection};
 
 const JSON_RECURSION_LIMIT: usize = 50;
+const HISTORY_TOOL_RESPONSE_INLINE_BYTES_LIMIT: usize = 64 * 1024;
+const HISTORY_TOOL_RESPONSE_JSON_PARSE_BYTES_LIMIT: usize = 512 * 1024;
+const HISTORY_TOOL_RESPONSE_OMITTED_TEXT: &str =
+    "历史消息内容过大，首屏已省略完整内容；需要时可加载完整历史查看。";
+
+fn history_content_json_projection_sql() -> String {
+    let omitted_payload = serde_json::json!([
+        {
+            "type": "text",
+            "text": HISTORY_TOOL_RESPONSE_OMITTED_TEXT
+        }
+    ])
+    .to_string()
+    .replace('\'', "''");
+
+    format!(
+        "CASE
+             WHEN length(content_json) > {parse_limit}
+             THEN '{omitted_payload}'
+             WHEN length(content_json) > {limit} AND json_valid(content_json)
+             THEN json_remove(
+                 content_json,
+                 '$.content[0].toolResult.value.structuredContent',
+                 '$.content[0].tool_result.value.structured_content',
+                 '$.content[0].ToolResponse.toolResult.value.structuredContent',
+                 '$.content[0].toolResponse.toolResult.value.structuredContent',
+                 '$.content[0].tool_response.tool_result.value.structured_content'
+             )
+             ELSE content_json
+         END",
+        limit = HISTORY_TOOL_RESPONSE_INLINE_BYTES_LIMIT,
+        parse_limit = HISTORY_TOOL_RESPONSE_JSON_PARSE_BYTES_LIMIT,
+        omitted_payload = omitted_payload,
+    )
+}
 
 /// 解析消息内容 JSON，支持多种格式
 ///
@@ -480,14 +515,6 @@ pub enum SessionArchiveFilter {
 }
 
 impl SessionArchiveFilter {
-    fn sql_mode(self) -> i64 {
-        match self {
-            Self::ActiveOnly => 0,
-            Self::ArchivedOnly => 1,
-            Self::All => 2,
-        }
-    }
-
     pub fn as_log_label(self) -> &'static str {
         match self {
             Self::ActiveOnly => "active_only",
@@ -612,6 +639,21 @@ impl AgentDao {
         Ok(Some(session))
     }
 
+    /// 获取会话（仅包含末尾消息）
+    pub fn get_session_with_messages_tail(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+    ) -> Result<Option<AgentSession>, rusqlite::Error> {
+        let mut session = match Self::get_session(conn, session_id)? {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        session.messages = Self::get_messages_tail(conn, session_id, limit)?;
+        Ok(Some(session))
+    }
+
     /// 获取所有会话（不包含消息）
     pub fn list_sessions(conn: &Connection) -> Result<Vec<AgentSession>, rusqlite::Error> {
         let mut stmt = conn.prepare(
@@ -631,27 +673,30 @@ impl AgentDao {
         limit: Option<usize>,
     ) -> Result<Vec<AgentSessionOverviewRow>, rusqlite::Error> {
         let limit = limit.map(|value| value as i64);
-        let mut stmt = conn.prepare(
+        let archive_condition = match archive_filter {
+            SessionArchiveFilter::ActiveOnly => "s.archived_at IS NULL",
+            SessionArchiveFilter::ArchivedOnly => "s.archived_at IS NOT NULL",
+            SessionArchiveFilter::All => "1 = 1",
+        };
+        let sql = format!(
             "SELECT s.id, s.model, s.system_prompt, s.title, s.created_at, s.updated_at,
                     s.working_dir, s.execution_strategy,
                     (SELECT COUNT(1) FROM agent_messages m WHERE m.session_id = s.id) AS messages_count,
                     s.archived_at, w.id AS workspace_id
              FROM agent_sessions s
              LEFT JOIN workspaces w ON w.root_path = s.working_dir
-             WHERE (
-                    (?1 = 0 AND s.archived_at IS NULL) OR
-                    (?1 = 1 AND s.archived_at IS NOT NULL) OR
-                    (?1 = 2)
-                  )
-               AND (?2 IS NULL OR w.id = ?2)
+             WHERE {archive_condition}
+               AND instr(s.id, 'title-gen-') != 1
+               AND instr(s.id, 'persona-gen-') != 1
+               AND instr(s.id, '__lime_theme_context_search__-') != 1
+               AND instr(s.id, 'persisted-usage-') != 1
+               AND (?1 IS NULL OR w.id = ?1)
              ORDER BY s.updated_at DESC
-             LIMIT COALESCE(?3, -1)",
-        )?;
+             LIMIT COALESCE(?2, -1)",
+        );
+        let mut stmt = conn.prepare(&sql)?;
 
-        let rows = stmt.query_map(
-            params![archive_filter.sql_mode(), workspace_id, limit],
-            map_agent_session_overview_row,
-        )?;
+        let rows = stmt.query_map(params![workspace_id, limit], map_agent_session_overview_row)?;
 
         rows.collect()
     }
@@ -1056,45 +1101,75 @@ impl AgentDao {
              FROM agent_messages WHERE session_id = ? ORDER BY id ASC",
         )?;
 
-        let messages = stmt.query_map([session_id], |row| {
-            let role: String = row.get(0)?;
-            let content_json: String = row.get(1)?;
-            let timestamp: String = row.get(2)?;
-            let tool_calls_json: Option<String> = row.get(3)?;
-            let tool_call_id: Option<String> = row.get(4)?;
-            let reasoning_content: Option<String> = row.get(5)?;
-            let input_tokens: Option<u32> = row.get(6)?;
-            let output_tokens: Option<u32> = row.get(7)?;
-            let cached_input_tokens: Option<u32> = row.get(8)?;
-            let cache_creation_input_tokens: Option<u32> = row.get(9)?;
-
-            // 解析 JSON - 支持多种格式
-            // 1. Aster 格式: [{"Text":"..."}, {"Text":"..."}]
-            // 2. Lime 格式: "string" 或 [{"type":"text","text":"..."}]
-            let content = parse_message_content(&content_json);
-
-            // 兼容历史数据：tool_calls 中缺失 type 字段时自动降级解析
-            let tool_calls: Option<Vec<ToolCall>> = parse_tool_calls(tool_calls_json.as_deref());
-
-            Ok(AgentMessage {
-                role,
-                content,
-                timestamp,
-                tool_calls,
-                tool_call_id,
-                reasoning_content,
-                usage: match (input_tokens, output_tokens) {
-                    (Some(input_tokens), Some(output_tokens)) => Some(
-                        crate::agent::types::TokenUsage::new(input_tokens, output_tokens)
-                            .with_cached_input_tokens(cached_input_tokens)
-                            .with_cache_creation_input_tokens(cache_creation_input_tokens),
-                    ),
-                    _ => None,
-                },
-            })
-        })?;
+        let messages = stmt.query_map([session_id], Self::map_message_row)?;
 
         messages.collect()
+    }
+
+    /// 获取会话末尾消息，并保持返回顺序为正序。
+    pub fn get_messages_tail(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+    ) -> Result<Vec<AgentMessage>, rusqlite::Error> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let content_json_projection = history_content_json_projection_sql();
+        let sql = format!(
+            "SELECT role, content_json, timestamp, tool_calls_json, tool_call_id, reasoning_content,
+                    input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens
+             FROM (
+                 SELECT id, role, {content_json_projection} AS content_json, timestamp, tool_calls_json,
+                        tool_call_id, reasoning_content, input_tokens, output_tokens,
+                        cached_input_tokens, cache_creation_input_tokens
+                 FROM agent_messages
+                 WHERE session_id = ?1
+                 ORDER BY id DESC
+                 LIMIT ?2
+             )
+             ORDER BY id ASC",
+        );
+        let mut stmt = conn.prepare(&sql)?;
+
+        let messages = stmt.query_map(params![session_id, limit as i64], Self::map_message_row)?;
+
+        messages.collect()
+    }
+
+    fn map_message_row(row: &rusqlite::Row<'_>) -> Result<AgentMessage, rusqlite::Error> {
+        let role: String = row.get(0)?;
+        let content_json: String = row.get(1)?;
+        let timestamp: String = row.get(2)?;
+        let tool_calls_json: Option<String> = row.get(3)?;
+        let tool_call_id: Option<String> = row.get(4)?;
+        let reasoning_content: Option<String> = row.get(5)?;
+        let input_tokens: Option<u32> = row.get(6)?;
+        let output_tokens: Option<u32> = row.get(7)?;
+        let cached_input_tokens: Option<u32> = row.get(8)?;
+        let cache_creation_input_tokens: Option<u32> = row.get(9)?;
+
+        // 解析 JSON - 支持 Aster 与 Lime 两类历史格式。
+        let content = parse_message_content(&content_json);
+        let tool_calls: Option<Vec<ToolCall>> = parse_tool_calls(tool_calls_json.as_deref());
+
+        Ok(AgentMessage {
+            role,
+            content,
+            timestamp,
+            tool_calls,
+            tool_call_id,
+            reasoning_content,
+            usage: match (input_tokens, output_tokens) {
+                (Some(input_tokens), Some(output_tokens)) => Some(
+                    crate::agent::types::TokenUsage::new(input_tokens, output_tokens)
+                        .with_cached_input_tokens(cached_input_tokens)
+                        .with_cache_creation_input_tokens(cache_creation_input_tokens),
+                ),
+                _ => None,
+            },
+        })
     }
 
     pub fn update_latest_assistant_message_usage(
@@ -1260,7 +1335,7 @@ mod tests {
 
     use super::{
         parse_message_content, parse_tool_calls, AgentDao, AgentModelPatternMatch,
-        JSON_RECURSION_LIMIT,
+        SessionArchiveFilter, JSON_RECURSION_LIMIT,
     };
 
     fn setup_pattern_test_db() -> Connection {
@@ -1291,6 +1366,14 @@ mod tests {
                 output_tokens INTEGER,
                 cached_input_tokens INTEGER,
                 cache_creation_input_tokens INTEGER
+            );
+            CREATE TABLE workspaces (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                workspace_type TEXT NOT NULL,
+                root_path TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             );
             ",
         )
@@ -1670,6 +1753,49 @@ mod tests {
     }
 
     #[test]
+    fn list_session_overviews_should_skip_auxiliary_sessions_before_limit() {
+        let conn = setup_pattern_test_db();
+
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, archived_at)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6)",
+            params![
+                "title-gen-newest",
+                "gpt-4.1",
+                "内部标题生成",
+                "2026-03-13T10:00:00+08:00",
+                "2026-03-13T10:00:00+08:00",
+                Option::<String>::None,
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, archived_at)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6)",
+            params![
+                "session-visible",
+                "gpt-4.1",
+                "可见会话",
+                "2026-03-12T10:00:00+08:00",
+                "2026-03-12T10:00:00+08:00",
+                Option::<String>::None,
+            ],
+        )
+        .unwrap();
+
+        let sessions = AgentDao::list_session_overviews(
+            &conn,
+            SessionArchiveFilter::ActiveOnly,
+            None,
+            Some(1),
+        )
+        .unwrap();
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].session.id, "session-visible");
+    }
+
+    #[test]
     fn list_session_overviews_should_support_workspace_filter_and_archived_only() {
         let conn = setup_pattern_test_db();
 
@@ -1809,6 +1935,185 @@ mod tests {
                     .with_cache_creation_input_tokens(Some(300)),
             )
         );
+    }
+
+    #[test]
+    fn get_messages_tail_should_keep_recent_messages_in_ascending_order() {
+        let conn = setup_pattern_test_db();
+
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, working_dir, execution_strategy)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, NULL, ?6)",
+            params![
+                "session-tail",
+                "gpt-4.1",
+                "tail 会话",
+                "2026-03-19T10:00:00+08:00",
+                "2026-03-19T10:00:00+08:00",
+                "react"
+            ],
+        )
+        .unwrap();
+
+        for index in 1..=5 {
+            conn.execute(
+                "INSERT INTO agent_messages (session_id, role, content_json, timestamp) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    "session-tail",
+                    if index % 2 == 0 { "assistant" } else { "user" },
+                    format!(r#"[{{"type":"text","text":"消息 {index}"}}]"#),
+                    format!("2026-03-19T10:00:0{index}+08:00"),
+                ],
+            )
+            .unwrap();
+        }
+
+        let messages = AgentDao::get_messages_tail(&conn, "session-tail", 3).unwrap();
+
+        assert_eq!(messages.len(), 3);
+        assert_eq!(messages[0].content.as_text(), "消息 3");
+        assert_eq!(messages[1].content.as_text(), "消息 4");
+        assert_eq!(messages[2].content.as_text(), "消息 5");
+    }
+
+    #[test]
+    fn get_messages_tail_should_strip_large_tool_response_structured_content() {
+        let conn = setup_pattern_test_db();
+
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, working_dir, execution_strategy)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, NULL, ?6)",
+            params![
+                "session-large-tool-response",
+                "gpt-4.1",
+                "大工具结果会话",
+                "2026-03-19T10:00:00+08:00",
+                "2026-03-19T10:00:00+08:00",
+                "react"
+            ],
+        )
+        .unwrap();
+
+        let large_data_url = format!("data:image/png;base64,{}", "a".repeat(70_000));
+        let content_json = serde_json::json!({
+            "content": [
+                {
+                    "type": "toolResponse",
+                    "id": "call_image",
+                    "toolResult": {
+                        "status": "success",
+                        "value": {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "图片结果已写入任务文件"
+                                }
+                            ],
+                            "structuredContent": {
+                                "result": {
+                                    "image_url": large_data_url,
+                                    "size": "1024x1024"
+                                }
+                            }
+                        }
+                    }
+                }
+            ],
+            "userVisible": true,
+            "agentVisible": true
+        })
+        .to_string();
+
+        conn.execute(
+            "INSERT INTO agent_messages (session_id, role, content_json, timestamp, tool_call_id)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                "session-large-tool-response",
+                "user",
+                content_json,
+                "2026-03-19T10:00:01+08:00",
+                "call_image",
+            ],
+        )
+        .unwrap();
+
+        let messages =
+            AgentDao::get_messages_tail(&conn, "session-large-tool-response", 1).unwrap();
+
+        assert_eq!(messages.len(), 1);
+        let text = messages[0].content.as_text();
+        assert!(text.contains("图片结果已写入任务文件"));
+        assert!(!text.contains("data:image/png;base64"));
+    }
+
+    #[test]
+    fn get_messages_tail_should_omit_huge_tool_response_without_json_projection() {
+        let conn = setup_pattern_test_db();
+
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, working_dir, execution_strategy)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, NULL, ?6)",
+            params![
+                "session-huge-tool-response",
+                "gpt-4.1",
+                "超大工具结果会话",
+                "2026-03-19T10:00:00+08:00",
+                "2026-03-19T10:00:00+08:00",
+                "react"
+            ],
+        )
+        .unwrap();
+
+        let large_data_url = format!("data:image/png;base64,{}", "a".repeat(600_000));
+        let content_json = serde_json::json!({
+            "content": [
+                {
+                    "type": "toolResponse",
+                    "id": "call_image",
+                    "toolResult": {
+                        "status": "success",
+                        "value": {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "图片结果已写入任务文件"
+                                }
+                            ],
+                            "structuredContent": {
+                                "result": {
+                                    "image_url": large_data_url,
+                                    "size": "1024x1024"
+                                }
+                            }
+                        }
+                    }
+                }
+            ],
+            "userVisible": true,
+            "agentVisible": true
+        })
+        .to_string();
+
+        conn.execute(
+            "INSERT INTO agent_messages (session_id, role, content_json, timestamp, tool_call_id)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                "session-huge-tool-response",
+                "user",
+                content_json,
+                "2026-03-19T10:00:01+08:00",
+                "call_image",
+            ],
+        )
+        .unwrap();
+
+        let messages = AgentDao::get_messages_tail(&conn, "session-huge-tool-response", 1).unwrap();
+
+        assert_eq!(messages.len(), 1);
+        let text = messages[0].content.as_text();
+        assert!(text.contains("历史消息内容过大"));
+        assert!(!text.contains("data:image/png;base64"));
+        assert!(text.len() < 128);
     }
 
     #[test]

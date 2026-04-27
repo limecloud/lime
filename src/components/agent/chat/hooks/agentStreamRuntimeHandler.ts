@@ -155,6 +155,15 @@ function finishRequestLog(
   });
 }
 
+function shouldDeferHighFrequencyThreadItemUpdate(
+  item: AgentThreadItem,
+): boolean {
+  return (
+    item.status === "in_progress" &&
+    (item.type === "reasoning" || item.type === "agent_message")
+  );
+}
+
 function hasMeaningfulCompletionSignalFromToolResult(params: {
   toolId: string;
   toolName: string;
@@ -376,6 +385,11 @@ export function handleTurnStreamEvent({
   };
 
   switch (data.type) {
+    case "message":
+      // 后端会先发送完整 message 快照，再发送细粒度 delta；这里仅确认流已进入已知事件路径，避免误报未知事件。
+      activateStream();
+      break;
+
     case "thread_started":
       break;
 
@@ -440,9 +454,21 @@ export function handleTurnStreamEvent({
       break;
 
     case "item_started":
-    case "item_updated":
     case "item_completed":
       activateStream();
+      setThreadItems((prev) =>
+        upsertThreadItemState(
+          removeThreadItemState(prev, pendingItemKey),
+          data.item,
+        ),
+      );
+      break;
+
+    case "item_updated":
+      activateStream();
+      if (shouldDeferHighFrequencyThreadItemUpdate(data.item)) {
+        break;
+      }
       setThreadItems((prev) =>
         upsertThreadItemState(
           removeThreadItemState(prev, pendingItemKey),

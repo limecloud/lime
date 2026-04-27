@@ -23,8 +23,43 @@ use crate::services::runtime_review_decision_service::{
 };
 use crate::services::thread_reliability_projection_service::sync_thread_reliability_projection;
 use aster::hooks::SessionSource;
+use lime_core::database::dao::agent_timeline::{AgentThreadItemStatus, AgentThreadTurnStatus};
 use std::path::PathBuf;
 use std::time::Instant;
+
+const RUNTIME_SESSION_OPEN_HISTORY_LIMIT: usize = 40;
+const RUNTIME_SESSION_MAX_HISTORY_LIMIT: usize = 2_000;
+
+fn normalize_runtime_session_history_limit(history_limit: Option<usize>) -> Option<usize> {
+    match history_limit {
+        // 兼容需要完整详情的调用者：显式传 0 表示不裁剪。
+        Some(0) => None,
+        Some(limit) => Some(limit.min(RUNTIME_SESSION_MAX_HISTORY_LIMIT)),
+        None => Some(RUNTIME_SESSION_OPEN_HISTORY_LIMIT),
+    }
+}
+
+fn should_list_runtime_queue_snapshots(
+    detail: &lime_agent::SessionDetail,
+    history_limit: Option<usize>,
+) -> bool {
+    if detail.is_persisted_empty() {
+        return false;
+    }
+    if history_limit.is_none() {
+        return true;
+    }
+
+    detail
+        .turns
+        .iter()
+        .any(|turn| matches!(turn.status, AgentThreadTurnStatus::Running))
+        || detail
+            .items
+            .iter()
+            .any(|item| matches!(item.status, AgentThreadItemStatus::InProgress))
+}
+
 async fn resume_runtime_queue_with_warning(
     runtime: &RuntimeCommandContext,
     session_id: &str,
@@ -154,17 +189,11 @@ pub async fn agent_runtime_get_session(
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
     resume_session_start_hooks: Option<bool>,
+    history_limit: Option<usize>,
 ) -> Result<AgentRuntimeSessionDetail, String> {
     let started_at = Instant::now();
     let resume_hooks = resume_session_start_hooks.unwrap_or(false);
-    let log_store = logs.inner().clone();
-    log_store.write().await.add(
-        "info",
-        &format!(
-            "[AgentDiag] agent_runtime_get_session.start session_id={} resume_hooks={}",
-            session_id, resume_hooks
-        ),
-    );
+    let normalized_history_limit = normalize_runtime_session_history_limit(history_limit);
     let runtime = build_runtime_command_context(
         app,
         state,
@@ -181,9 +210,13 @@ pub async fn agent_runtime_get_session(
         let resume_queue_ms = 0;
 
         let detail_started_at = Instant::now();
-        let detail = AsterAgentWrapper::get_runtime_session_detail(runtime.db(), &session_id).await?;
+        let detail = AsterAgentWrapper::get_runtime_session_detail_with_history_limit(
+            runtime.db(),
+            &session_id,
+            normalized_history_limit,
+        )
+        .await?;
         let detail_ms = detail_started_at.elapsed().as_millis();
-        let skip_runtime_queue_snapshots = detail.is_persisted_empty();
 
         let hooks_ms = if resume_hooks {
             let hooks_started_at = Instant::now();
@@ -201,35 +234,62 @@ pub async fn agent_runtime_get_session(
         };
 
         let queue_snapshots_started_at = Instant::now();
-        let queued_turns = if skip_runtime_queue_snapshots {
+        let list_runtime_queue_snapshots =
+            should_list_runtime_queue_snapshots(&detail, normalized_history_limit);
+        let queued_turns = if !list_runtime_queue_snapshots {
             Vec::new()
         } else {
             list_runtime_queue_snapshots_service(&session_id).await?
         };
         let queue_snapshots_ms = queue_snapshots_started_at.elapsed().as_millis();
 
-        let projection_started_at = Instant::now();
-        let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
-        let projection_ms = projection_started_at.elapsed().as_millis();
-
         let interrupt_marker_started_at = Instant::now();
         let interrupt_marker = runtime.state().get_interrupt_marker(&session_id).await;
         let interrupt_marker_ms = interrupt_marker_started_at.elapsed().as_millis();
 
+        let projection_started_at = Instant::now();
+        let thread_read = if normalized_history_limit.is_some() {
+            let pending_requests =
+                crate::commands::aster_agent_cmd::build_pending_requests(&detail);
+            let last_outcome = crate::commands::aster_agent_cmd::build_last_outcome(&detail);
+            let incidents =
+                crate::commands::aster_agent_cmd::build_incidents(&detail, &pending_requests);
+            AgentRuntimeThreadReadModel::from_parts(
+                &detail,
+                &queued_turns,
+                pending_requests,
+                last_outcome,
+                incidents,
+                interrupt_marker.as_ref(),
+            )
+        } else {
+            let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
+            AgentRuntimeThreadReadModel::from_parts(
+                &detail,
+                &queued_turns,
+                projection.pending_requests,
+                projection.last_outcome,
+                projection.incidents,
+                interrupt_marker.as_ref(),
+            )
+        };
+        let projection_ms = projection_started_at.elapsed().as_millis();
+
         let dto_started_at = Instant::now();
-        let thread_read = AgentRuntimeThreadReadModel::from_parts(
-            &detail,
-            &queued_turns,
-            projection.pending_requests,
-            projection.last_outcome,
-            projection.incidents,
-            interrupt_marker.as_ref(),
-        );
-        let response = AgentRuntimeSessionDetail::from_session_detail_with_thread_read(
+        let loaded_messages_count = detail.messages.len();
+        let messages_count =
+            lime_agent::count_session_messages_sync(runtime.db(), &session_id)
+                .unwrap_or(loaded_messages_count);
+        let mut response = AgentRuntimeSessionDetail::from_session_detail_with_thread_read(
             detail,
             queued_turns,
             thread_read,
         );
+        response.messages_count = messages_count;
+        response.history_limit = normalized_history_limit;
+        response.history_truncated = normalized_history_limit
+            .map(|limit| messages_count > limit)
+            .unwrap_or(false);
         let dto_ms = dto_started_at.elapsed().as_millis();
 
         Ok::<_, String>((
@@ -258,7 +318,7 @@ pub async fn agent_runtime_get_session(
         )) => {
             let total_ms = started_at.elapsed().as_millis();
             tracing::info!(
-                "[AsterAgent] 获取运行时会话完成: session_id={}, total_ms={}, resume_queue_ms={}, detail_ms={}, hooks_ms={}, queue_snapshots_ms={}, projection_ms={}, interrupt_marker_ms={}, dto_ms={}, messages={}, turns={}, items={}, queued_turns={}, resume_hooks={}",
+                "[AsterAgent] 获取运行时会话完成: session_id={}, total_ms={}, resume_queue_ms={}, detail_ms={}, hooks_ms={}, queue_snapshots_ms={}, projection_ms={}, interrupt_marker_ms={}, dto_ms={}, history_limit={:?}, messages={}, turns={}, items={}, queued_turns={}, resume_hooks={}",
                 session_id,
                 total_ms,
                 resume_queue_ms,
@@ -268,52 +328,24 @@ pub async fn agent_runtime_get_session(
                 projection_ms,
                 interrupt_marker_ms,
                 dto_ms,
+                normalized_history_limit,
                 response.messages.len(),
                 response.turns.len(),
                 response.items.len(),
                 response.queued_turns.len(),
                 resume_hooks,
             );
-            log_store.write().await.add(
-                "info",
-                &format!(
-                    "[AgentDiag] agent_runtime_get_session.success session_id={} total_ms={} resume_queue_ms={} detail_ms={} hooks_ms={} queue_snapshots_ms={} projection_ms={} interrupt_marker_ms={} dto_ms={} messages={} turns={} items={} queued_turns={} resume_hooks={}",
-                    session_id,
-                    total_ms,
-                    resume_queue_ms,
-                    detail_ms,
-                    hooks_ms,
-                    queue_snapshots_ms,
-                    projection_ms,
-                    interrupt_marker_ms,
-                    dto_ms,
-                    response.messages.len(),
-                    response.turns.len(),
-                    response.items.len(),
-                    response.queued_turns.len(),
-                    resume_hooks,
-                ),
-            );
             Ok(response)
         }
         Err(error) => {
             let total_ms = started_at.elapsed().as_millis();
             tracing::error!(
-                "[AsterAgent] 获取运行时会话失败: session_id={}, total_ms={}, resume_hooks={}, error={}",
+                "[AsterAgent] 获取运行时会话失败: session_id={}, total_ms={}, resume_hooks={}, history_limit={:?}, error={}",
                 session_id,
                 total_ms,
                 resume_hooks,
+                normalized_history_limit,
                 error
-            );
-            log_store.write().await.add(
-                "error",
-                &format!(
-                    "[AgentDiag] agent_runtime_get_session.error session_id={} total_ms={} resume_hooks={} error={}",
-                    session_id,
-                    total_ms,
-                    resume_hooks,
-                    crate::logger::sanitize_log_message(&error)
-                ),
             );
             Err(error)
         }
@@ -943,4 +975,82 @@ pub async fn agent_runtime_promote_queued_turn(
     let _ = runtime.resume_runtime_queue_if_needed(session_id).await?;
 
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn detail_with_turn_status(status: AgentThreadTurnStatus) -> lime_agent::SessionDetail {
+        lime_agent::SessionDetail {
+            id: "session-runtime-queue".to_string(),
+            name: "队列快路径判定".to_string(),
+            created_at: 0,
+            updated_at: 0,
+            thread_id: "session-runtime-queue".to_string(),
+            model: Some("agent:test".to_string()),
+            working_dir: None,
+            workspace_id: None,
+            messages: Vec::new(),
+            execution_strategy: Some("react".to_string()),
+            execution_runtime: None,
+            turns: vec![lime_core::database::dao::agent_timeline::AgentThreadTurn {
+                id: "turn-runtime-queue".to_string(),
+                thread_id: "session-runtime-queue".to_string(),
+                prompt_text: "测试".to_string(),
+                status,
+                started_at: "2026-03-18T08:00:00Z".to_string(),
+                completed_at: None,
+                error_message: None,
+                created_at: "2026-03-18T08:00:00Z".to_string(),
+                updated_at: "2026-03-18T08:00:00Z".to_string(),
+            }],
+            items: Vec::new(),
+            todo_items: Vec::new(),
+            child_subagent_sessions: Vec::new(),
+            subagent_parent_context: None,
+        }
+    }
+
+    #[test]
+    fn normalize_runtime_session_history_limit_should_default_to_open_tail() {
+        assert_eq!(
+            normalize_runtime_session_history_limit(None),
+            Some(RUNTIME_SESSION_OPEN_HISTORY_LIMIT)
+        );
+    }
+
+    #[test]
+    fn normalize_runtime_session_history_limit_should_keep_zero_as_full_history() {
+        assert_eq!(normalize_runtime_session_history_limit(Some(0)), None);
+    }
+
+    #[test]
+    fn normalize_runtime_session_history_limit_should_clamp_large_values() {
+        assert_eq!(
+            normalize_runtime_session_history_limit(Some(9_999)),
+            Some(RUNTIME_SESSION_MAX_HISTORY_LIMIT)
+        );
+    }
+
+    #[test]
+    fn should_skip_runtime_queue_snapshots_for_completed_limited_history() {
+        let detail = detail_with_turn_status(AgentThreadTurnStatus::Completed);
+
+        assert!(!should_list_runtime_queue_snapshots(&detail, Some(80)));
+    }
+
+    #[test]
+    fn should_list_runtime_queue_snapshots_for_running_limited_history() {
+        let detail = detail_with_turn_status(AgentThreadTurnStatus::Running);
+
+        assert!(should_list_runtime_queue_snapshots(&detail, Some(80)));
+    }
+
+    #[test]
+    fn should_list_runtime_queue_snapshots_for_full_history() {
+        let detail = detail_with_turn_status(AgentThreadTurnStatus::Completed);
+
+        assert!(should_list_runtime_queue_snapshots(&detail, None));
+    }
 }

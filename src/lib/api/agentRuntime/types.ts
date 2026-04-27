@@ -463,6 +463,9 @@ export interface AsterSessionDetail {
   working_dir?: string;
   execution_strategy?: AsterExecutionStrategy;
   execution_runtime?: AsterSessionExecutionRuntime | null;
+  messages_count?: number;
+  history_limit?: number | null;
+  history_truncated?: boolean;
   messages: AgentMessage[];
   turns?: AgentThreadTurn[];
   items?: AgentThreadItem[];
@@ -782,6 +785,10 @@ export interface AgentRuntimeResumeThreadRequest {
 
 export interface AgentRuntimeGetSessionOptions {
   resumeSessionStartHooks?: boolean;
+  /**
+   * 限制首次返回的末尾历史数量；传 0 表示请求完整历史。
+   */
+  historyLimit?: number;
 }
 
 export interface AgentRuntimeReplayRequestRequest {

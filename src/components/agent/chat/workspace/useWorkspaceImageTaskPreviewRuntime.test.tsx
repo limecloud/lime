@@ -131,6 +131,10 @@ function renderHook(
   options?: {
     initialMessages?: Message[];
     initialImageWorkbenchState?: SessionImageWorkbenchState;
+    deriveImageWorkbenchState?: (
+      state: SessionImageWorkbenchState,
+    ) => SessionImageWorkbenchState;
+    onSetChatMessagesDispatch?: () => void;
   },
 ) {
   const container = document.createElement("div");
@@ -166,19 +170,27 @@ function renderHook(
       setCanvasState(currentProps.canvasState);
     }, [currentProps.canvasState]);
 
+    const setChatMessages = React.useCallback<typeof setMessages>((next) => {
+      options?.onSetChatMessagesDispatch?.();
+      setMessages(next);
+    }, []);
+    const effectiveImageWorkbenchState =
+      options?.deriveImageWorkbenchState?.(imageWorkbenchState) ||
+      imageWorkbenchState;
+
     latestValue = {
       messages,
       canvasState,
-      imageWorkbenchState,
+      imageWorkbenchState: effectiveImageWorkbenchState,
     };
 
     useWorkspaceImageTaskPreviewRuntime({
       ...currentProps,
       messages,
-      currentImageWorkbenchState: imageWorkbenchState,
+      currentImageWorkbenchState: effectiveImageWorkbenchState,
       canvasState,
       setCanvasState,
-      setChatMessages: setMessages,
+      setChatMessages,
       updateCurrentImageWorkbenchState: setImageWorkbenchState,
     });
 
@@ -254,6 +266,28 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     }
     vi.useRealTimers();
     vi.resetAllMocks();
+  });
+
+  it("图片工作台状态引用变化但内容无变化时，不应触发空消息更新", async () => {
+    let messageDispatchCount = 0;
+    const { render, getValue } = renderHook(
+      {},
+      {
+        deriveImageWorkbenchState: (state) => ({
+          ...state,
+          tasks: [...state.tasks],
+          outputs: [...state.outputs],
+        }),
+        onSetChatMessagesDispatch: () => {
+          messageDispatchCount += 1;
+        },
+      },
+    );
+
+    await render();
+
+    expect(getValue().messages).toEqual([]);
+    expect(messageDispatchCount).toBe(0);
   });
 
   it("应先插入运行中占位卡，再根据 task file 回填图片与工作台状态", async () => {
@@ -902,24 +936,27 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
       ),
     );
 
-    const duplicatedMessages: Message[] = Array.from({ length: 4 }, (_, index) => ({
-      id: `assistant-image-duplicate-${index + 1}`,
-      role: "assistant",
-      content:
-        "我先按你的描述整理画面主题、尺寸和出图数量，并创建异步图片任务：mock image task",
-      timestamp: new Date(`2026-04-04T10:25:0${index}Z`),
-      isThinking: true,
-      imageWorkbenchPreview: {
-        taskId,
-        prompt: "mock image task",
-        status: "running",
-        expectedImageCount: 9,
-        imageCount: 9,
-        layoutHint: "storyboard_3x3",
-        phase: "queued",
-        statusMessage: "任务已提交，正在排队处理。",
-      },
-    }));
+    const duplicatedMessages: Message[] = Array.from(
+      { length: 4 },
+      (_, index) => ({
+        id: `assistant-image-duplicate-${index + 1}`,
+        role: "assistant",
+        content:
+          "我先按你的描述整理画面主题、尺寸和出图数量，并创建异步图片任务：mock image task",
+        timestamp: new Date(`2026-04-04T10:25:0${index}Z`),
+        isThinking: true,
+        imageWorkbenchPreview: {
+          taskId,
+          prompt: "mock image task",
+          status: "running",
+          expectedImageCount: 9,
+          imageCount: 9,
+          layoutHint: "storyboard_3x3",
+          phase: "queued",
+          statusMessage: "任务已提交，正在排队处理。",
+        },
+      }),
+    );
 
     const { render, getValue } = renderHook(
       {},
@@ -1019,7 +1056,8 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     expect(getValue().messages[0]).toMatchObject({
       id: "assistant-image-path-duplicate-1",
       imageWorkbenchPreview: expect.objectContaining({
-        taskId: "workspace-project-image-1--lime-tasks-image_generate-task-image-mock-1-json",
+        taskId:
+          "workspace-project-image-1--lime-tasks-image_generate-task-image-mock-1-json",
         taskFilePath,
         artifactPath,
         expectedImageCount: 9,
@@ -1344,11 +1382,86 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     ]);
   });
 
+  it("历史消息里的陈旧非终态图片任务不应恢复为轮询任务", async () => {
+    vi.setSystemTime(new Date("2026-04-27T00:00:00Z"));
+    const taskId = "task-image-history-stale-pending-1";
+    vi.mocked(hasTauriInvokeCapability).mockReturnValue(false);
+    vi.mocked(hasTauriRuntimeMarkers).mockReturnValue(false);
+    vi.mocked(getMediaTaskArtifact).mockResolvedValueOnce(
+      createArtifactOutput({
+        task_id: taskId,
+        task_type: "image_generate",
+        status: "pending",
+        normalized_status: "pending",
+        record: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "pending_submit",
+          normalized_status: "pending",
+          created_at: "2026-04-23T21:14:06Z",
+          payload: {
+            prompt: "[img:陈旧未完成图片任务]",
+            count: 1,
+          },
+        }),
+      }),
+    );
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: [
+          {
+            id: `image-workbench:${taskId}:assistant`,
+            role: "assistant",
+            content: "图片任务已提交，正在同步任务状态。",
+            timestamp: new Date("2026-04-23T21:14:06Z"),
+            imageWorkbenchPreview: {
+              taskId,
+              prompt: "陈旧未完成图片任务",
+              status: "running",
+              phase: "queued",
+            },
+          },
+        ],
+      },
+    );
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getMediaTaskArtifact).toHaveBeenCalledTimes(1);
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: `image-workbench:${taskId}:assistant`,
+        content: "图片任务已提交，正在同步任务状态。",
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "running",
+        }),
+      }),
+    ]);
+    expect(getValue().imageWorkbenchState.tasks).toEqual([]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4500);
+      await Promise.resolve();
+    });
+
+    expect(readFilePreview).not.toHaveBeenCalled();
+    expect(getMediaTaskArtifact).toHaveBeenCalledTimes(1);
+  });
+
   it("历史消息带绝对 task file 时，应优先按 task file 恢复跨根目录图片结果", async () => {
     const taskId = "task-image-history-absolute-1";
     const taskFilePath =
       "/Users/youmin/.lime/tasks/image_generate/task-image-history-absolute-1.json";
-    const artifactPath = ".lime/tasks/image_generate/task-image-history-absolute-1.json";
+    const artifactPath =
+      ".lime/tasks/image_generate/task-image-history-absolute-1.json";
     vi.mocked(hasTauriInvokeCapability).mockReturnValue(false);
     vi.mocked(hasTauriRuntimeMarkers).mockReturnValue(false);
     vi.mocked(getMediaTaskArtifact).mockResolvedValueOnce(
@@ -1427,7 +1540,8 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     const taskId = "task-image-external-live-1";
     const taskFilePath =
       "/Users/youmin/.lime/tasks/image_generate/task-image-external-live-1.json";
-    const artifactPath = ".lime/tasks/image_generate/task-image-external-live-1.json";
+    const artifactPath =
+      ".lime/tasks/image_generate/task-image-external-live-1.json";
     let listener: CreationTaskListener | null = null;
     vi.mocked(safeListen).mockImplementationOnce(async (event, handler) => {
       expect(event).toBe("lime://creation_task_submitted");
@@ -1525,6 +1639,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
   });
 
   it("浏览器开发模式下事件丢失时，应按当前会话补捞最近的图片任务卡", async () => {
+    vi.setSystemTime(new Date("2026-04-04T11:06:00Z"));
     vi.mocked(hasTauriInvokeCapability).mockReturnValue(false);
     vi.mocked(hasTauriRuntimeMarkers).mockReturnValue(false);
     vi.mocked(listMediaTaskArtifacts).mockResolvedValueOnce({
@@ -1719,6 +1834,72 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         }),
       }),
     ]);
+  });
+
+  it("进入会话时只有缓存工作台状态也应立即补出图片预览卡", async () => {
+    const taskId = "task-image-history-state-only-1";
+    const cachedState = {
+      ...createInitialSessionImageWorkbenchState(),
+      tasks: [
+        {
+          sessionId: taskId,
+          id: taskId,
+          mode: "generate" as const,
+          status: "complete" as const,
+          prompt: "三国人物插画",
+          rawText: "@配图 生成 三国人物插画",
+          expectedCount: 1,
+          outputIds: [`${taskId}:output:1`],
+          createdAt: Date.now(),
+          hookImageIds: [`${taskId}:hook:1`],
+          applyTarget: null,
+        },
+      ],
+      outputs: [
+        {
+          id: `${taskId}:output:1`,
+          taskId,
+          hookImageId: `${taskId}:hook:1`,
+          refId: `img-${taskId}`,
+          url: "https://example.com/three-kingdoms-state-only.png",
+          prompt: "三国人物插画",
+          createdAt: Date.now(),
+          size: "1024x1024",
+          parentOutputId: null,
+          resourceSaved: false,
+          applyTarget: null,
+        },
+      ],
+      selectedOutputId: `${taskId}:output:1`,
+    };
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialImageWorkbenchState: cachedState,
+      },
+    );
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: `image-workbench:${taskId}:assistant`,
+        content: "图片任务已完成，共生成 1 张。",
+        isThinking: false,
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "complete",
+          imageUrl: "https://example.com/three-kingdoms-state-only.png",
+          previewImages: ["https://example.com/three-kingdoms-state-only.png"],
+        }),
+      }),
+    ]);
+    expect(getValue().imageWorkbenchState.tasks[0]?.id).toBe(taskId);
   });
 
   it("历史消息是富文本提交模板时，也应被已缓存终态整卡替换", async () => {
@@ -1973,8 +2154,10 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
           status: "complete",
           layoutHint: "storyboard_3x3",
           imageUrl: "https://example.com/storyboard-cache-1.png",
-          previewImages: Array.from({ length: 9 }, (_, index) =>
-            `https://example.com/storyboard-cache-${index + 1}.png`,
+          previewImages: Array.from(
+            { length: 9 },
+            (_, index) =>
+              `https://example.com/storyboard-cache-${index + 1}.png`,
           ),
         }),
       }),
@@ -2072,6 +2255,79 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         status: "complete",
       }),
     ]);
+  });
+
+  it("进入旧会话时不应从工作区恢复陈旧非终态图片任务", async () => {
+    vi.setSystemTime(new Date("2026-04-27T00:00:00Z"));
+    vi.mocked(listDirectory)
+      .mockResolvedValueOnce(
+        createDirectoryListingResult("/workspace/project-image-1/.lime/tasks", [
+          {
+            name: "image_generate",
+            path: "/workspace/project-image-1/.lime/tasks/image_generate",
+            isDir: true,
+            size: 0,
+            modifiedAt: Date.now(),
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        createDirectoryListingResult(
+          "/workspace/project-image-1/.lime/tasks/image_generate",
+          [
+            {
+              name: "task-image-stale-pending.json",
+              path: "/workspace/project-image-1/.lime/tasks/image_generate/task-image-stale-pending.json",
+              isDir: false,
+              size: 512,
+              modifiedAt: Date.now(),
+            },
+          ],
+        ),
+      );
+    vi.mocked(readFilePreview).mockResolvedValueOnce(
+      createFilePreviewResult(
+        "/workspace/project-image-1/.lime/tasks/image_generate/task-image-stale-pending.json",
+        withDefaultTaskContext({
+          task_id: "task-image-stale-pending",
+          task_type: "image_generate",
+          task_family: "image",
+          status: "pending_submit",
+          normalized_status: "pending",
+          created_at: "2026-04-23T21:14:06Z",
+          payload: {
+            prompt: "[img:旧会话里陈旧的排队图片任务]",
+            count: 1,
+          },
+        }),
+      ),
+    );
+
+    const { render, getValue } = renderHook();
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(listDirectory).toHaveBeenCalledWith(
+      "/workspace/project-image-1/.lime/tasks",
+    );
+    expect(readFilePreview).toHaveBeenCalledWith(
+      "/workspace/project-image-1/.lime/tasks/image_generate/task-image-stale-pending.json",
+      256 * 1024,
+    );
+    expect(getValue().messages).toEqual([]);
+    expect(getValue().imageWorkbenchState.tasks).toEqual([]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4500);
+      await Promise.resolve();
+    });
+
+    expect(readFilePreview).toHaveBeenCalledTimes(1);
+    expect(getMediaTaskArtifact).not.toHaveBeenCalled();
   });
 
   it("空白新任务首页应允许关闭 task file 自动恢复", async () => {

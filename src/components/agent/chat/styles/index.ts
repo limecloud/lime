@@ -1,5 +1,6 @@
 import styled from "styled-components";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { TASK_CENTER_CHROME_SURFACE } from "../workspace/taskCenterChromeTokens";
 
 export const Navbar = styled.div<{
   $compact?: boolean;
@@ -69,15 +70,20 @@ export const Navbar = styled.div<{
   z-index: 10;
 `;
 
-export const MessageListContainer = styled(ScrollArea)`
+export const MessageListContainer = styled(ScrollArea)<{
+  $taskCenterSurface?: boolean;
+}>`
   flex: 1;
   padding: 6px 0 16px;
-  background: linear-gradient(
-    180deg,
-    rgba(240, 253, 244, 0.66) 0%,
-    rgba(240, 253, 244, 0.26) 22%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  background: ${({ $taskCenterSurface }) =>
+    $taskCenterSurface
+      ? TASK_CENTER_CHROME_SURFACE
+      : `linear-gradient(
+          180deg,
+          rgba(240, 253, 244, 0.66) 0%,
+          rgba(240, 253, 244, 0.26) 22%,
+          rgba(255, 255, 255, 0) 100%
+        )`};
 `;
 
 // Linear Layout Wrapper: Always Row, Left Aligned

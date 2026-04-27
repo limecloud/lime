@@ -6415,6 +6415,133 @@ describe("useAsterAgentChat 偏好持久化", () => {
     }
   });
 
+  it("切换到 stale 快照话题时应先回放缓存，并立即后台刷新", async () => {
+    const workspaceId = "ws-topic-history-stale-refresh";
+    const nowMs = Date.now();
+    const deferredTopicDetail = createDeferred<{
+      id: string;
+      messages: Array<{
+        role: "assistant" | "user";
+        timestamp: number;
+        content: Array<{ type: "text"; text: string }>;
+      }>;
+      turns: [];
+      items: [];
+      queued_turns: [];
+      execution_strategy: "react";
+    }>();
+
+    seedSession(workspaceId, "topic-current");
+    seedSessionSnapshots(workspaceId, {
+      "topic-stale": {
+        messages: [
+          {
+            id: "topic-stale-cached-assistant",
+            role: "assistant",
+            content: "这是 stale 快照里的最近结果。",
+            timestamp: "2026-04-24T10:00:02.000Z",
+          },
+        ],
+        threadTurns: [],
+        threadItems: [],
+        currentTurnId: null,
+        updatedAt: nowMs - 10_000,
+        lastAccessedAt: nowMs - 10_000,
+        expiresAt: nowMs - 1_000,
+        staleUntil: nowMs + 60_000,
+        sessionUpdatedAt: nowMs - 10_000,
+        messagesCount: 2,
+        historyTruncated: true,
+      },
+    });
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: "topic-current",
+        name: "当前任务",
+        created_at: Math.floor(nowMs / 1000),
+        messages_count: 1,
+      },
+      {
+        id: "topic-stale",
+        name: "历史任务 stale",
+        created_at: Math.floor(nowMs / 1000),
+        updated_at: Math.floor((nowMs + 1_000) / 1000),
+        messages_count: 2,
+      },
+    ]);
+    mockGetAgentRuntimeSession.mockImplementation(async (topicId: string) => {
+      if (topicId === "topic-stale") {
+        return deferredTopicDetail.promise;
+      }
+
+      return {
+        id: topicId,
+        messages: [],
+        turns: [],
+        items: [],
+        queued_turns: [],
+        execution_strategy: "react" as const,
+      };
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+      mockGetAgentRuntimeSession.mockClear();
+      mockScheduleMinimumDelayIdleTask.mockClear();
+      mockScheduleMinimumDelayIdleTask.mockImplementation(() => {
+        throw new Error("stale 快照不应等待 idle hydration");
+      });
+
+      await act(async () => {
+        void harness.getValue().switchTopic("topic-stale");
+        await Promise.resolve();
+      });
+
+      expect(harness.getValue().sessionId).toBe("topic-stale");
+      expect(harness.getValue().messages[0]?.content).toBe(
+        "这是 stale 快照里的最近结果。",
+      );
+      expect(harness.getValue().sessionHistoryWindow).toEqual({
+        loadedMessages: 1,
+        totalMessages: 2,
+        isLoadingFull: false,
+        error: null,
+      });
+      expect(mockScheduleMinimumDelayIdleTask).not.toHaveBeenCalled();
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
+        "topic-stale",
+        undefined,
+      );
+
+      await act(async () => {
+        deferredTopicDetail.resolve({
+          id: "topic-stale",
+          messages: [
+            {
+              role: "assistant",
+              timestamp: Math.floor(nowMs / 1000),
+              content: [{ type: "text", text: "这是远端刷新后的结果。" }],
+            },
+          ],
+          turns: [],
+          items: [],
+          queued_turns: [],
+          execution_strategy: "react",
+        });
+      });
+      await flushEffects();
+
+      expect(harness.getValue().messages[0]?.content).toBe(
+        "这是远端刷新后的结果。",
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("切换话题时应优先从 execution_runtime 恢复 provider/model", async () => {
     const workspaceId = "ws-topic-runtime-priority";
     const topicId = "topic-runtime-priority";
@@ -6676,6 +6803,84 @@ describe("useAsterAgentChat 偏好持久化", () => {
         role: "assistant",
         content: "已收到你的选择，继续执行。",
       });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("加载完整历史时应显式请求不裁剪的会话详情", async () => {
+    const workspaceId = "ws-full-history";
+    const topicId = "topic-full-history";
+    const now = Math.floor(Date.now() / 1000);
+    mockGetAgentRuntimeSession
+      .mockResolvedValueOnce({
+        id: topicId,
+        created_at: now,
+        updated_at: now,
+        messages_count: 320,
+        history_truncated: true,
+        execution_strategy: "react",
+        messages: [
+          {
+            role: "assistant",
+            timestamp: now,
+            content: [{ type: "text", text: "最近一条回复" }],
+          },
+        ],
+        turns: [],
+        items: [],
+      })
+      .mockResolvedValueOnce({
+        id: topicId,
+        created_at: now,
+        updated_at: now,
+        messages_count: 2,
+        history_truncated: false,
+        execution_strategy: "react",
+        messages: [
+          {
+            role: "user",
+            timestamp: now - 1,
+            content: [{ type: "text", text: "最早的问题" }],
+          },
+          {
+            role: "assistant",
+            timestamp: now,
+            content: [{ type: "text", text: "最近一条回复" }],
+          },
+        ],
+        turns: [],
+        items: [],
+      });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      await flushEffects();
+
+      expect(harness.getValue().sessionHistoryWindow).toMatchObject({
+        loadedMessages: 1,
+        totalMessages: 320,
+        isLoadingFull: false,
+      });
+
+      await act(async () => {
+        await harness.getValue().loadFullSessionHistory();
+      });
+      await flushEffects();
+
+      expect(mockGetAgentRuntimeSession).toHaveBeenLastCalledWith(topicId, {
+        historyLimit: 0,
+      });
+      expect(harness.getValue().messages.map((msg) => msg.content)).toEqual([
+        "最早的问题",
+        "最近一条回复",
+      ]);
+      expect(harness.getValue().sessionHistoryWindow).toBeNull();
     } finally {
       harness.unmount();
     }

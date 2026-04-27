@@ -2,6 +2,8 @@ use super::*;
 use crate::commands::aster_agent_cmd::dto::AgentRuntimeListSessionsRequest;
 use lime_core::database::dao::agent::SessionArchiveFilter;
 
+const RUNTIME_SESSION_LIST_MAX_LIMIT: usize = 1_000;
+
 /// 创建新会话
 #[tauri::command]
 pub async fn agent_runtime_create_session(
@@ -44,7 +46,9 @@ pub async fn agent_runtime_list_sessions(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    let limit = request.limit.map(|value| value.min(200));
+    let limit = request
+        .limit
+        .map(|value| value.min(RUNTIME_SESSION_LIST_MAX_LIMIT));
     logs.write()
         .await
         .add(

@@ -5,6 +5,21 @@
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
+const HISTORY_FILE_ARTIFACT_INLINE_CONTENT_BYTES_LIMIT: usize = 16 * 1024;
+
+fn history_item_payload_json_projection_sql() -> String {
+    format!(
+        "CASE
+             WHEN item_type = 'file_artifact'
+                  AND length(payload_json) > {limit}
+                  AND json_valid(payload_json)
+             THEN json_remove(payload_json, '$.content')
+             ELSE payload_json
+         END",
+        limit = HISTORY_FILE_ARTIFACT_INLINE_CONTENT_BYTES_LIMIT,
+    )
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentThreadTurnStatus {
@@ -365,6 +380,51 @@ impl AgentTimelineDao {
         rows.collect()
     }
 
+    pub fn list_turns_by_thread_tail(
+        conn: &Connection,
+        thread_id: &str,
+        limit: usize,
+    ) -> Result<Vec<AgentThreadTurn>, rusqlite::Error> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let mut stmt = conn.prepare(
+            "SELECT id, session_id, prompt_text, status, started_at, completed_at,
+                    error_message, created_at, updated_at
+             FROM (
+                 SELECT id, session_id, prompt_text, status, started_at, completed_at,
+                        error_message, created_at, updated_at
+                 FROM agent_thread_turns
+                 WHERE session_id = ?1
+                 ORDER BY started_at DESC, id DESC
+                 LIMIT ?2
+             )
+             ORDER BY started_at ASC, id ASC",
+        )?;
+
+        let rows = stmt.query_map(params![thread_id, limit as i64], |row| {
+            let status_raw: String = row.get(3)?;
+            let status = AgentThreadTurnStatus::try_from(status_raw.as_str()).map_err(|_| {
+                rusqlite::Error::InvalidColumnType(3, "status".into(), rusqlite::types::Type::Text)
+            })?;
+
+            Ok(AgentThreadTurn {
+                id: row.get(0)?,
+                thread_id: row.get(1)?,
+                prompt_text: row.get(2)?,
+                status,
+                started_at: row.get(4)?,
+                completed_at: row.get(5)?,
+                error_message: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })?;
+
+        rows.collect()
+    }
+
     pub fn upsert_item(conn: &Connection, item: &AgentThreadItem) -> Result<(), rusqlite::Error> {
         let payload_json = serde_json::to_string(&item.payload)
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
@@ -436,6 +496,43 @@ impl AgentTimelineDao {
         )?;
 
         let rows = stmt.query_map(params![thread_id], Self::row_to_item)?;
+        rows.collect()
+    }
+
+    pub fn list_items_by_thread_tail(
+        conn: &Connection,
+        thread_id: &str,
+        limit: usize,
+    ) -> Result<Vec<AgentThreadItem>, rusqlite::Error> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let payload_json_projection = history_item_payload_json_projection_sql();
+        let sql = format!(
+            "SELECT id, session_id, turn_id, sequence, status, started_at, completed_at,
+                    updated_at, payload_json, sort_started_at
+             FROM (
+                 SELECT id, session_id, turn_id, sequence, status, started_at, completed_at,
+                        updated_at, {payload_json_projection} AS payload_json,
+                        COALESCE(
+                            (
+                                SELECT started_at
+                                FROM agent_thread_turns
+                                WHERE agent_thread_turns.id = agent_thread_items.turn_id
+                            ),
+                            started_at
+                        ) AS sort_started_at
+                 FROM agent_thread_items
+                 WHERE session_id = ?1
+                 ORDER BY sort_started_at DESC, sequence DESC, id DESC
+                 LIMIT ?2
+             )
+             ORDER BY sort_started_at ASC, sequence ASC, id ASC",
+        );
+        let mut stmt = conn.prepare(&sql)?;
+
+        let rows = stmt.query_map(params![thread_id, limit as i64], Self::row_to_item)?;
         rows.collect()
     }
 
@@ -524,6 +621,121 @@ mod tests {
         assert_eq!(turns.len(), 1);
         assert_eq!(items.len(), 1);
         assert_eq!(items[0], item);
+    }
+
+    #[test]
+    fn tail_queries_should_keep_recent_timeline_in_display_order() {
+        let conn = setup_conn();
+
+        for index in 1..=4 {
+            let turn = AgentThreadTurn {
+                id: format!("turn-{index}"),
+                thread_id: "thread-1".to_string(),
+                prompt_text: format!("任务 {index}"),
+                status: AgentThreadTurnStatus::Completed,
+                started_at: format!("2026-03-13T0{index}:00:00Z"),
+                completed_at: Some(format!("2026-03-13T0{index}:00:10Z")),
+                error_message: None,
+                created_at: format!("2026-03-13T0{index}:00:00Z"),
+                updated_at: format!("2026-03-13T0{index}:00:10Z"),
+            };
+            AgentTimelineDao::create_turn(&conn, &turn).unwrap();
+            AgentTimelineDao::upsert_item(
+                &conn,
+                &AgentThreadItem {
+                    id: format!("item-{index}"),
+                    thread_id: "thread-1".to_string(),
+                    turn_id: turn.id,
+                    sequence: 1,
+                    status: AgentThreadItemStatus::Completed,
+                    started_at: format!("2026-03-13T0{index}:00:01Z"),
+                    completed_at: Some(format!("2026-03-13T0{index}:00:02Z")),
+                    updated_at: format!("2026-03-13T0{index}:00:02Z"),
+                    payload: AgentThreadItemPayload::AgentMessage {
+                        text: format!("结果 {index}"),
+                        phase: None,
+                    },
+                },
+            )
+            .unwrap();
+        }
+
+        let turns = AgentTimelineDao::list_turns_by_thread_tail(&conn, "thread-1", 2).unwrap();
+        let items = AgentTimelineDao::list_items_by_thread_tail(&conn, "thread-1", 2).unwrap();
+
+        assert_eq!(
+            turns
+                .iter()
+                .map(|turn| turn.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["turn-3", "turn-4"],
+        );
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["item-3", "item-4"],
+        );
+    }
+
+    #[test]
+    fn item_tail_query_should_omit_large_file_artifact_content() {
+        let conn = setup_conn();
+        let turn = AgentThreadTurn {
+            id: "turn-artifact".to_string(),
+            thread_id: "thread-1".to_string(),
+            prompt_text: "生成报告".to_string(),
+            status: AgentThreadTurnStatus::Completed,
+            started_at: "2026-03-13T05:00:00Z".to_string(),
+            completed_at: Some("2026-03-13T05:00:10Z".to_string()),
+            error_message: None,
+            created_at: "2026-03-13T05:00:00Z".to_string(),
+            updated_at: "2026-03-13T05:00:10Z".to_string(),
+        };
+        AgentTimelineDao::create_turn(&conn, &turn).unwrap();
+
+        AgentTimelineDao::upsert_item(
+            &conn,
+            &AgentThreadItem {
+                id: "item-large-artifact".to_string(),
+                thread_id: "thread-1".to_string(),
+                turn_id: turn.id,
+                sequence: 1,
+                status: AgentThreadItemStatus::Completed,
+                started_at: "2026-03-13T05:00:01Z".to_string(),
+                completed_at: Some("2026-03-13T05:00:02Z".to_string()),
+                updated_at: "2026-03-13T05:00:02Z".to_string(),
+                payload: AgentThreadItemPayload::FileArtifact {
+                    path: ".lime/artifacts/thread-1/report.artifact.json".to_string(),
+                    source: "artifact_document_service".to_string(),
+                    content: Some("正文".repeat(20_000)),
+                    metadata: Some(serde_json::json!({
+                        "artifactTitle": "日报",
+                        "previewText": "首屏摘要",
+                    })),
+                },
+            },
+        )
+        .unwrap();
+
+        let full_items = AgentTimelineDao::list_items_by_thread(&conn, "thread-1").unwrap();
+        let tail_items = AgentTimelineDao::list_items_by_thread_tail(&conn, "thread-1", 1).unwrap();
+
+        assert!(matches!(
+            &full_items[0].payload,
+            AgentThreadItemPayload::FileArtifact { content: Some(content), .. }
+                if content.contains("正文")
+        ));
+        assert!(matches!(
+            &tail_items[0].payload,
+            AgentThreadItemPayload::FileArtifact { content: None, metadata, .. }
+                if metadata
+                    .as_ref()
+                    .and_then(|value| value.get("artifactTitle"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some("日报")
+        ));
     }
 
     #[test]

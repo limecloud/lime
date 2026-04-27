@@ -19,6 +19,21 @@ fn get_optional_bool_arg(args: &JsonValue, primary: &str, secondary: &str) -> Op
         .and_then(|value| value.as_bool())
 }
 
+fn get_optional_usize_arg(
+    args: &JsonValue,
+    primary: &str,
+    secondary: &str,
+) -> Result<Option<usize>, DynError> {
+    let value = args.get(primary).or_else(|| args.get(secondary));
+    match value {
+        Some(raw) if raw.is_null() => Ok(None),
+        Some(raw) => serde_json::from_value::<usize>(raw.clone())
+            .map(Some)
+            .map_err(|error| format!("参数 {primary}/{secondary} 解析失败: {error}").into()),
+        None => Ok(None),
+    }
+}
+
 pub(super) async fn try_handle(
     state: &DevBridgeState,
     cmd: &str,
@@ -194,6 +209,7 @@ pub(super) async fn try_handle(
                 "resumeSessionStartHooks",
                 "resume_session_start_hooks",
             );
+            let history_limit = get_optional_usize_arg(&args, "historyLimit", "history_limit")?;
             let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
             let db = app_handle.state::<crate::database::DbConnection>();
             let api_key_provider_service =
@@ -217,6 +233,7 @@ pub(super) async fn try_handle(
                     automation_state,
                     session_id,
                     resume_session_start_hooks,
+                    history_limit,
                 )
                 .await?,
             )?

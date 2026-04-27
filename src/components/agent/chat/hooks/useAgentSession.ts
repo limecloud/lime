@@ -79,6 +79,63 @@ import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayId
 const INITIAL_TOPICS_IDLE_TIMEOUT_MS = 1_500;
 const INITIAL_TOPICS_SESSION_REQUEST_LIMIT = 60;
 
+function mapSessionDetailToTopic(
+  sessionId: string,
+  detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>,
+  fallbackWorkspaceId: string | null,
+): Topic {
+  return mapSessionToTopic({
+    id: sessionId,
+    name: detail.name,
+    created_at: detail.created_at,
+    updated_at: detail.updated_at,
+    model: detail.model,
+    messages_count: detail.messages_count ?? detail.messages.length,
+    execution_strategy: detail.execution_strategy,
+    workspace_id: detail.workspace_id ?? fallbackWorkspaceId ?? undefined,
+    working_dir: detail.working_dir,
+  });
+}
+
+function upsertTopicFromSessionDetail(
+  topics: Topic[],
+  detailTopic: Topic,
+): Topic[] {
+  const existingTopic = topics.find((topic) => topic.id === detailTopic.id);
+  const mergedTopic = existingTopic
+    ? {
+        ...detailTopic,
+        isPinned: existingTopic.isPinned,
+        hasUnread: existingTopic.hasUnread,
+        tag: existingTopic.tag,
+      }
+    : detailTopic;
+  const nextTopics = existingTopic
+    ? topics.map((topic) => (topic.id === detailTopic.id ? mergedTopic : topic))
+    : [mergedTopic, ...topics];
+
+  return nextTopics.sort((left, right) => {
+    const updatedDiff = right.updatedAt.getTime() - left.updatedAt.getTime();
+    if (updatedDiff !== 0) {
+      return updatedDiff;
+    }
+
+    const createdDiff = right.createdAt.getTime() - left.createdAt.getTime();
+    if (createdDiff !== 0) {
+      return createdDiff;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+}
+
+export interface AgentSessionHistoryWindow {
+  loadedMessages: number;
+  totalMessages: number;
+  isLoadingFull: boolean;
+  error: string | null;
+}
+
 interface UseAgentSessionOptions {
   runtime: AgentRuntimeAdapter;
   workspaceId: string;
@@ -265,6 +322,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     useState<AsterSubagentParentContext | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicsReady, setTopicsReady] = useState(false);
+  const [sessionHistoryWindow, setSessionHistoryWindow] =
+    useState<AgentSessionHistoryWindow | null>(null);
   const [isAutoRestoringSession, setIsAutoRestoringSession] = useState(
     () => !disableSessionRestore && Boolean(workspaceId?.trim()),
   );
@@ -367,6 +426,37 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     }) => {
       setQueuedTurns(snapshot.queuedTurns);
       setThreadRead(snapshot.threadRead);
+    },
+    [],
+  );
+
+  const resolveSessionHistoryWindow = useCallback(
+    (
+      detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>,
+    ): AgentSessionHistoryWindow | null => {
+      if (detail.history_truncated !== true) {
+        return null;
+      }
+
+      const loadedMessages = detail.messages.length;
+      const totalMessages = Math.max(
+        loadedMessages,
+        typeof detail.messages_count === "number" &&
+          Number.isFinite(detail.messages_count)
+          ? Math.trunc(detail.messages_count)
+          : loadedMessages,
+      );
+
+      if (totalMessages <= loadedMessages) {
+        return null;
+      }
+
+      return {
+        loadedMessages,
+        totalMessages,
+        isLoadingFull: false,
+        error: null,
+      };
     },
     [],
   );
@@ -490,18 +580,31 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       return;
     }
 
+    const activeTopic = topics.find((topic) => topic.id === resolvedSessionId);
+    const totalMessages =
+      sessionHistoryWindow?.totalMessages ??
+      activeTopic?.messagesCount ??
+      messages.length;
     saveAgentSessionCachedSnapshot(resolvedWorkspaceId, resolvedSessionId, {
       messages,
       threadTurns,
       threadItems,
       currentTurnId,
+    }, {
+      sessionUpdatedAt: activeTopic?.updatedAt ?? Date.now(),
+      messagesCount: totalMessages,
+      historyTruncated:
+        (sessionHistoryWindow?.totalMessages ?? totalMessages) >
+        (sessionHistoryWindow?.loadedMessages ?? messages.length),
     });
   }, [
     currentTurnId,
     messages,
     sessionId,
+    sessionHistoryWindow,
     threadItems,
     threadTurns,
+    topics,
     workspaceId,
   ]);
 
@@ -509,6 +612,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     if (disableSessionRestore || !workspaceId?.trim()) {
       sessionStateWorkspaceRef.current = null;
       applySessionSnapshot(createEmptyAgentSessionSnapshot());
+      setSessionHistoryWindow(null);
       setIsAutoRestoringSession(false);
       resetPendingActions();
       resetStreamingRefs();
@@ -539,6 +643,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     restoreCandidateSessionIdRef.current = scopedSessionCandidate;
     applySessionSnapshot({
       ...createEmptyAgentSessionSnapshot(),
+      sessionId: scopedSessionCandidate,
       messages: scopedMessages,
       threadTurns: scopedTurns,
       threadItems: filterConversationThreadItems(
@@ -724,6 +829,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
           const now = new Date();
           setSessionId(newSessionId);
+          setSessionHistoryWindow(null);
           setThreadTurns([]);
           setThreadItems([]);
           setCurrentTurnId(null);
@@ -837,6 +943,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           executionRuntime: executionRuntimeRef.current,
         }),
       );
+      setSessionHistoryWindow(null);
       invalidatePendingSessionSwitches();
       setIsAutoRestoringSession(false);
       resetPendingActions();
@@ -932,6 +1039,11 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       }
 
       const selectedTopic = topics.find((topic) => topic.id === topicId);
+      const metadata = cachedSnapshot.cacheMetadata;
+      const totalMessages =
+        metadata?.messagesCount ??
+        selectedTopic?.messagesCount ??
+        cachedSnapshot.messages.length;
       hydratedSessionRef.current = topicId;
       applySessionSnapshot({
         ...createEmptyAgentSessionSnapshot(),
@@ -946,7 +1058,23 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           selectedTopic?.executionStrategy || executionStrategy,
         ),
       );
+      setSessionHistoryWindow(
+        metadata?.historyTruncated === true ||
+          totalMessages > cachedSnapshot.messages.length
+          ? {
+              loadedMessages: cachedSnapshot.messages.length,
+              totalMessages: Math.max(
+                totalMessages,
+                cachedSnapshot.messages.length,
+              ),
+              isLoadingFull: false,
+              error: null,
+            }
+          : null,
+      );
       logAgentDebug("useAgentSession", "switchTopic.cachedSnapshotApplied", {
+        cacheFreshness: metadata?.freshness ?? null,
+        cacheStorageKind: metadata?.storageKind ?? null,
         cachedMessagesCount: cachedSnapshot.messages.length,
         cachedThreadItemsCount: cachedSnapshot.threadItems.length,
         cachedTurnsCount: cachedSnapshot.threadTurns.length,
@@ -1114,7 +1242,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           currentWorkspaceId: resolvedWorkspaceId,
           knownWorkspaceId,
         });
+        applySessionSnapshot(createEmptyAgentSessionSnapshot());
+        setSessionHistoryWindow(null);
         persistSessionRestoreCandidate(null);
+        hydratedSessionRef.current = null;
+        restoredWorkspaceRef.current = null;
+        skipAutoRestoreRef.current = false;
         return false;
       }
 
@@ -1158,6 +1291,17 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       } else {
         applyResolvedDetail();
       }
+      setSessionHistoryWindow(resolveSessionHistoryWindow(detail));
+      setTopics((prev) =>
+        upsertTopicFromSessionDetail(
+          prev,
+          mapSessionDetailToTopic(
+            topicId,
+            detail,
+            runtimeWorkspaceId || knownWorkspaceId || resolvedWorkspaceId,
+          ),
+        ),
+      );
 
       if (runtimeExecutionStrategy) {
         markSessionExecutionStrategySynced(topicId, runtimeExecutionStrategy);
@@ -1287,6 +1431,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     },
     [
       applySessionDetail,
+      applySessionSnapshot,
       applySessionModelPreference,
       loadSessionAccessMode,
       loadSessionModelPreference,
@@ -1294,6 +1439,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       markSessionModelPreferenceSynced,
       persistSessionAccessMode,
       persistSessionRestoreCandidate,
+      resolveSessionHistoryWindow,
       runtime,
       sessionIdRef,
       setAccessModeState,
@@ -1323,6 +1469,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
       if (isAsterSessionNotFoundError(error)) {
         applySessionSnapshot(createEmptyAgentSessionSnapshot());
+        setSessionHistoryWindow(null);
         persistSessionRestoreCandidate(null);
         hydratedSessionRef.current = null;
         void loadTopics();
@@ -1332,6 +1479,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
       if (!options?.preserveCurrentSnapshot) {
         applySessionSnapshot(createEmptyAgentSessionSnapshot());
+        setSessionHistoryWindow(null);
         persistSessionRestoreCandidate(null);
         hydratedSessionRef.current = null;
       }
@@ -1388,14 +1536,27 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       }
       try {
         const startedAt = Date.now();
+        const selectedTopic = topics.find((topic) => topic.id === topicId);
         const cachedTargetSnapshot =
           currentSessionId && currentSessionId === topicId
             ? null
-            : loadAgentSessionCachedSnapshot(workspaceId, topicId);
+            : loadAgentSessionCachedSnapshot(workspaceId, topicId, {
+                topicUpdatedAt: selectedTopic?.updatedAt ?? null,
+                messagesCount: selectedTopic?.messagesCount ?? null,
+              });
+        const cachedSnapshotMetadata = cachedTargetSnapshot?.cacheMetadata;
+        const shouldRefreshCachedSnapshotImmediately =
+          cachedSnapshotMetadata?.freshness === "stale" ||
+          selectedTopic?.status === "running" ||
+          selectedTopic?.status === "waiting";
         logAgentDebug("useAgentSession", "switchTopic.start", {
+          cacheFreshness: cachedSnapshotMetadata?.freshness ?? null,
+          cacheStorageKind: cachedSnapshotMetadata?.storageKind ?? null,
           cachedLocalMessagesCount: cachedTargetSnapshot?.messages.length ?? 0,
           currentSessionId,
           messagesCount: messages.length,
+          refreshCachedSnapshotImmediately:
+            shouldRefreshCachedSnapshotImmediately,
           topicId,
           workspaceId,
         });
@@ -1415,63 +1576,70 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           persistSessionRestoreCandidate(topicId);
           setIsAutoRestoringSession(false);
           logAgentDebug("useAgentSession", "switchTopic.deferHydration", {
+            cacheFreshness: cachedSnapshotMetadata?.freshness ?? null,
+            cacheStorageKind: cachedSnapshotMetadata?.storageKind ?? null,
             cachedLocalMessagesCount:
               cachedTargetSnapshot?.messages.length ?? 0,
             currentSessionId,
+            refreshImmediately: shouldRefreshCachedSnapshotImmediately,
             topicId,
             workspaceId,
           });
-          deferredSessionHydrationCancelRef.current =
-            scheduleMinimumDelayIdleTask(
-              () => {
-                deferredSessionHydrationCancelRef.current = null;
-                void (async () => {
-                  try {
-                    const detail = await loadRuntimeSessionDetail({
-                      topicId,
-                      startedAt,
-                      mode: "deferred",
-                    });
-                    finalizeResolvedTopicDetail({
-                      topicId,
-                      detail,
-                      startedAt,
-                      localSnapshotOverride:
-                        cachedTargetSnapshot &&
-                        sessionIdRef.current === topicId &&
-                        messagesRef.current === cachedTargetSnapshot.messages &&
-                        threadTurnsRef.current ===
-                          cachedTargetSnapshot.threadTurns &&
-                        threadItemsRef.current ===
-                          cachedTargetSnapshot.threadItems
-                          ? {
-                              sessionId: topicId,
-                              messages: cachedTargetSnapshot.messages,
-                              threadTurns: cachedTargetSnapshot.threadTurns,
-                              threadItems: cachedTargetSnapshot.threadItems,
-                            }
-                          : null,
-                      switchRequestVersion,
-                      useTransition: true,
-                    });
-                  } catch (error) {
-                    if (
-                      sessionSwitchRequestVersionRef.current !==
-                      switchRequestVersion
-                    ) {
-                      return;
-                    }
-                    handleSwitchTopicError(error, topicId, {
-                      preserveCurrentSnapshot: true,
-                    });
-                  }
-                })();
-              },
-              {
+          const hydrateCachedTopic = () => {
+            deferredSessionHydrationCancelRef.current = null;
+            void (async () => {
+              try {
+                const detail = await loadRuntimeSessionDetail({
+                  topicId,
+                  startedAt,
+                  mode: shouldRefreshCachedSnapshotImmediately
+                    ? "direct"
+                    : "deferred",
+                });
+                finalizeResolvedTopicDetail({
+                  topicId,
+                  detail,
+                  startedAt,
+                  localSnapshotOverride:
+                    cachedTargetSnapshot &&
+                    sessionIdRef.current === topicId &&
+                    messagesRef.current === cachedTargetSnapshot.messages &&
+                    threadTurnsRef.current ===
+                      cachedTargetSnapshot.threadTurns &&
+                    threadItemsRef.current === cachedTargetSnapshot.threadItems
+                      ? {
+                          sessionId: topicId,
+                          messages: cachedTargetSnapshot.messages,
+                          threadTurns: cachedTargetSnapshot.threadTurns,
+                          threadItems: cachedTargetSnapshot.threadItems,
+                        }
+                      : null,
+                  switchRequestVersion,
+                  useTransition: true,
+                });
+              } catch (error) {
+                if (
+                  sessionSwitchRequestVersionRef.current !==
+                  switchRequestVersion
+                ) {
+                  return;
+                }
+                handleSwitchTopicError(error, topicId, {
+                  preserveCurrentSnapshot: true,
+                });
+              }
+            })();
+          };
+
+          if (shouldRefreshCachedSnapshotImmediately) {
+            hydrateCachedTopic();
+          } else {
+            deferredSessionHydrationCancelRef.current =
+              scheduleMinimumDelayIdleTask(hydrateCachedTopic, {
                 minimumDelayMs: 0,
                 idleTimeoutMs: 1_500,
-              },
-            );
+              });
+          }
           return;
         }
 
@@ -1517,9 +1685,85 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       persistSessionRestoreCandidate,
       providerTypeRef,
       sessionIdRef,
+      topics,
       workspaceId,
     ],
   );
+
+  const loadFullSessionHistory = useCallback(async () => {
+    const targetSessionId = sessionIdRef.current?.trim();
+    if (!targetSessionId) {
+      return false;
+    }
+
+    const switchRequestVersion = sessionSwitchRequestVersionRef.current;
+    const startedAt = Date.now();
+    setSessionHistoryWindow((current) =>
+      current
+        ? { ...current, isLoadingFull: true, error: null }
+        : {
+            loadedMessages: messagesRef.current.length,
+            totalMessages: messagesRef.current.length,
+            isLoadingFull: true,
+            error: null,
+          },
+    );
+    logAgentDebug("useAgentSession", "loadFullHistory.start", {
+      loadedMessagesCount: messagesRef.current.length,
+      sessionId: targetSessionId,
+      workspaceId,
+    });
+
+    try {
+      const detail = await runtime.getSession(targetSessionId, {
+        historyLimit: 0,
+      });
+      if (
+        sessionIdRef.current !== targetSessionId ||
+        sessionSwitchRequestVersionRef.current !== switchRequestVersion
+      ) {
+        return false;
+      }
+
+      const applied = finalizeResolvedTopicDetail({
+        topicId: targetSessionId,
+        detail,
+        startedAt,
+        switchRequestVersion,
+        useTransition: true,
+      });
+      setSessionHistoryWindow(null);
+      logAgentDebug("useAgentSession", "loadFullHistory.success", {
+        durationMs: Date.now() - startedAt,
+        messagesCount: detail.messages.length,
+        sessionId: targetSessionId,
+        workspaceId,
+      });
+      return applied;
+    } catch (error) {
+      if (sessionIdRef.current !== targetSessionId) {
+        return false;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      setSessionHistoryWindow((current) =>
+        current ? { ...current, isLoadingFull: false, error: message } : null,
+      );
+      logAgentDebug(
+        "useAgentSession",
+        "loadFullHistory.error",
+        {
+          durationMs: Date.now() - startedAt,
+          error,
+          sessionId: targetSessionId,
+          workspaceId,
+        },
+        { level: "error" },
+      );
+      toast.error(`加载完整历史失败: ${message}`);
+      return false;
+    }
+  }, [finalizeResolvedTopicDetail, runtime, sessionIdRef, workspaceId]);
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionIdRef.current) {
@@ -1541,7 +1785,6 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           (topic) => topic.id === targetSessionId,
         );
         await switchTopic(targetSessionId, {
-          forceRefresh: true,
           resumeSessionStartHooks: shouldResumeTaskSession(targetTopic),
         });
         if (sessionIdRef.current) {
@@ -1732,7 +1975,6 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   useEffect(() => {
     if (sessionId) {
       skipAutoRestoreRef.current = false;
-      setIsAutoRestoringSession(false);
     }
   }, [sessionId]);
 
@@ -1807,7 +2049,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
             return [
               mapSessionToTopic({
-                id: detail.id,
+                id: sessionId,
                 name: detail.name,
                 created_at: detail.created_at,
                 updated_at: detail.updated_at,
@@ -2098,12 +2340,14 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     topics,
     setTopics,
     topicsReady,
+    sessionHistoryWindow,
     isAutoRestoringSession,
     isDetachedActiveSession: detachedSessionIdRef.current === sessionId,
     loadTopics,
     createFreshSession,
     ensureSession,
     switchTopic,
+    loadFullSessionHistory,
     deleteTopic,
     renameTopic,
     refreshSessionDetail,

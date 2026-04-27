@@ -451,7 +451,7 @@ describe("DeveloperSettings", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("开发者");
     expect(text).toContain("管理处理工作台、组件调试和诊断动作。");
-    expect(text).toContain("处理工作台与信息收集");
+    expect(text).toContain("处理工作台调试信息");
     expect(text).toContain("服务型技能目录联调");
     expect(text).toContain("站点脚本目录联调");
     expect(text).toContain("正在准备站点脚本目录联调");
@@ -470,7 +470,7 @@ describe("DeveloperSettings", () => {
       "首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。",
     );
     expect(getBodyText()).not.toContain(
-      "关闭时不会显示顶部“工作台”入口，也不会继续读取工具库存、整理环境摘要或保留已展开的处理工作台弹层。",
+      "关闭时仍保留 Harness 入口，但不会继续读取工具库存或整理额外环境摘要。",
     );
 
     const heroTip = await hoverTip("开发者设置首屏说明");
@@ -479,11 +479,13 @@ describe("DeveloperSettings", () => {
     );
     await leaveTip(heroTip);
 
-    const harnessTip = await hoverTip("允许处理工作台进入通用对话说明");
-    expect(getBodyText()).toContain(
-      "关闭时不会显示顶部“工作台”入口，也不会继续读取工具库存、整理环境摘要或保留已展开的处理工作台弹层。",
+    const harnessTip = document.body.querySelector(
+      "button[aria-label='处理工作台调试信息说明']",
     );
-    await leaveTip(harnessTip);
+    expect(harnessTip).toBeInstanceOf(HTMLButtonElement);
+    expect(getBodyText()).toContain(
+      "关闭时通用对话仍保留 Harness 入口，额外工具库存读取与调试信息收集会短路。",
+    );
   });
 
   it("切换组件调试开关后应调用 setEnabled", async () => {
@@ -507,7 +509,7 @@ describe("DeveloperSettings", () => {
     const container = renderComponent();
     await flushEffects();
 
-    await clickButton(findSwitch(container, "切换处理工作台"));
+    await clickButton(findSwitch(container, "切换处理工作台调试信息"));
 
     expect(mockSaveConfig).toHaveBeenCalledTimes(1);
     expect(mockSaveConfig).toHaveBeenCalledWith(
@@ -517,7 +519,7 @@ describe("DeveloperSettings", () => {
         }),
       }),
     );
-    expect(container.textContent).toContain("已开启处理工作台");
+    expect(container.textContent).toContain("已开启处理工作台调试信息收集");
   });
 
   it("点击复制诊断信息后应构建并复制诊断载荷", async () => {

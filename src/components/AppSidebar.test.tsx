@@ -186,7 +186,7 @@ describe("AppSidebar", () => {
 
     expect(container.textContent).toContain("任务");
     expect(container.textContent).toContain("新建任务");
-    expect(container.textContent).toContain("工作台");
+    expect(container.textContent).not.toContain("工作台");
     expect(container.textContent).not.toContain("生成");
     expect(container.textContent).toContain("我的方法");
     expect(container.textContent).toContain("灵感库");
@@ -216,7 +216,6 @@ describe("AppSidebar", () => {
 
     expect(mainNavButtons).toEqual([
       "新建任务",
-      "工作台",
       "我的方法",
       "灵感库",
     ]);
@@ -241,7 +240,7 @@ describe("AppSidebar", () => {
     ).not.toBeNull();
   });
 
-  it("工作台入口应高亮 claw 页面，并优先带回最近会话", async () => {
+  it("claw 页面不应再外露左侧工作台一级入口", async () => {
     const onNavigate = vi.fn();
     mockListAgentRuntimeSessions.mockResolvedValue([
       {
@@ -267,27 +266,9 @@ describe("AppSidebar", () => {
     await flushEffects(2);
 
     expect(
-      container.querySelector(
-        'button[aria-label="工作台"][aria-current="page"]',
-      ),
-    ).not.toBeNull();
-
-    act(() => {
-      (
-        container.querySelector(
-          'button[aria-label="工作台"]',
-        ) as HTMLButtonElement | null
-      )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith(
-      "agent",
-      expect.objectContaining({
-        agentEntry: "claw",
-        initialSessionId: "session-current",
-        projectId: "project-1",
-      }),
-    );
+      container.querySelector('button[aria-label="工作台"]'),
+    ).toBeNull();
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("生成页不应再展示旧的侧栏生成入口", async () => {

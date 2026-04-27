@@ -141,10 +141,10 @@ describe("agentSessionState", () => {
     ).toBe(true);
   });
 
-  it("当前会话、强制刷新或 resume hook 场景不应延后 detail hydration", () => {
+  it("从空态打开命中缓存的话题时也应允许先回放快照", () => {
     expect(
       shouldDeferSessionDetailHydration({
-        currentSessionId: "topic-target",
+        currentSessionId: null,
         topicId: "topic-target",
         cachedSnapshot: {
           messages: [createMessage()],
@@ -153,12 +153,14 @@ describe("agentSessionState", () => {
           currentTurnId: null,
         },
       }),
-    ).toBe(false);
+    ).toBe(true);
+  });
+
+  it("当前会话或 resume hook 场景不应延后 detail hydration", () => {
     expect(
       shouldDeferSessionDetailHydration({
-        currentSessionId: "topic-current",
+        currentSessionId: "topic-target",
         topicId: "topic-target",
-        forceRefresh: true,
         cachedSnapshot: {
           messages: [createMessage()],
           threadTurns: [],

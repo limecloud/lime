@@ -31,4 +31,36 @@ describe("chatLayoutVisibility", () => {
       }),
     ).toBe(false);
   });
+
+  it("任务中心新建空标签可内嵌首页空态", () => {
+    expect(
+      shouldShowChatLayout({
+        agentEntry: "claw",
+        preferEmptyStateForFreshTaskCenterTab: true,
+        hasDisplayMessages: false,
+        hasPendingA2UIForm: false,
+        isThemeWorkbench: false,
+        hasUnconsumedInitialDispatch: false,
+        isPreparingSend: false,
+        isSending: false,
+        queuedTurnCount: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("任务中心新建空标签有会话活动时仍应进入对话布局", () => {
+    expect(
+      shouldShowChatLayout({
+        agentEntry: "claw",
+        preferEmptyStateForFreshTaskCenterTab: true,
+        hasDisplayMessages: true,
+        hasPendingA2UIForm: false,
+        isThemeWorkbench: false,
+        hasUnconsumedInitialDispatch: false,
+        isPreparingSend: false,
+        isSending: false,
+        queuedTurnCount: 0,
+      }),
+    ).toBe(true);
+  });
 });

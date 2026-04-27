@@ -3602,14 +3602,18 @@ impl Agent {
                     &self.extension_manager,
                 ).await;
 
-                let mut stream = Self::stream_response_from_provider(
-                    self.provider().await?,
-                    &model_config,
-                    &system_prompt,
-                    conversation_with_moim.messages(),
-                    &tools,
-                    &toolshim_tools,
-                ).await?;
+                let mut stream = crate::session_context::with_turn_context(
+                    session_config.turn_context.clone(),
+                    Self::stream_response_from_provider(
+                        self.provider().await?,
+                        &model_config,
+                        &system_prompt,
+                        conversation_with_moim.messages(),
+                        &tools,
+                        &toolshim_tools,
+                    ),
+                )
+                .await?;
 
                 let mut no_tools_called = true;
                 let mut messages_to_add = Conversation::default();

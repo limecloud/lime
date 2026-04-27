@@ -92,7 +92,6 @@ import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 import { useImageGen } from "@/components/image-gen/useImageGen";
 import { resolveMediaGenerationPreference } from "@/lib/mediaGeneration";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
-import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import {
   buildTeamMemoryShadowRequestMetadata,
   readTeamMemorySnapshot,
@@ -261,6 +260,12 @@ import {
   createInitialSessionImageWorkbenchState,
   type SessionImageWorkbenchState,
 } from "./workspace/imageWorkbenchHelpers";
+import {
+  buildSessionImageWorkbenchStateFromMessages,
+  isSessionImageWorkbenchStateMeaningful,
+  loadSessionImageWorkbenchCachedState,
+  saveSessionImageWorkbenchCachedState,
+} from "./workspace/imageWorkbenchStateCache";
 import {
   SOCIAL_ARTICLE_SKILL_KEY,
   GENERAL_WORKBENCH_HISTORY_PAGE_SIZE,
@@ -478,7 +483,7 @@ export function AgentChatWorkspace({
   initialSiteSkillLaunch,
 }: AgentChatWorkspaceProps) {
   const normalizedEntryTheme = normalizeInitialTheme(initialTheme);
-  const shouldAutoCollapseClassicClawSidebar = false;
+  const shouldAutoCollapseClassicClawSidebar = agentEntry === "claw";
   const defaultTopicSidebarVisible =
     showChatPanel && !shouldAutoCollapseClassicClawSidebar;
   const [showSidebar, setShowSidebar] = useState(
@@ -587,7 +592,8 @@ export function AgentChatWorkspace({
     normalizedInitialSessionId !== null && !contentId;
   const shouldDeferWorkspaceAuxiliaryLoads =
     shouldPreserveBlankHomeSurface || shouldPrioritizeInitialSessionEntry;
-  const shouldDeferInitialTopicsLoad = shouldPreserveBlankHomeSurface;
+  const shouldDeferInitialTopicsLoad =
+    shouldPreserveBlankHomeSurface || shouldPrioritizeInitialSessionEntry;
   const deferredWorkspaceAuxiliaryLoadMs = shouldPreserveBlankHomeSurface
     ? BLANK_HOME_DEFERRED_LOAD_MS
     : shouldPrioritizeInitialSessionEntry
@@ -1614,6 +1620,7 @@ export function AgentChatWorkspace({
     () => resolveAgentChatMode(mappedTheme, isSpecializedThemeMode),
     [isSpecializedThemeMode, mappedTheme],
   );
+  const generalHarnessEntryEnabled = chatMode === "general";
 
   // 生成系统提示词（包含项目 Memory）
   const systemPrompt = useMemo(() => {
@@ -1689,11 +1696,13 @@ export function AgentChatWorkspace({
     submittedActionsInFlight = [],
     triggerAIGuide,
     topics = [],
+    sessionHistoryWindow = null,
     isAutoRestoringSession = false,
     sessionId,
     createFreshSession,
     ensureSession = async () => null,
     switchTopic: originalSwitchTopic,
+    loadFullSessionHistory = async () => false,
     deleteTopic,
     renameTopic,
     workspacePathMissing = false,
@@ -1873,12 +1882,37 @@ export function AgentChatWorkspace({
     () => sessionId?.trim() || localImageWorkbenchSessionKeyRef.current,
     [sessionId],
   );
+  const cachedImageWorkbenchState = useMemo(() => {
+    const normalizedProjectId = normalizeProjectId(projectId);
+    const normalizedSessionId = sessionId?.trim();
+    if (!normalizedProjectId || !normalizedSessionId) {
+      return null;
+    }
+
+    return loadSessionImageWorkbenchCachedState(
+      normalizedProjectId,
+      normalizedSessionId,
+      { contentId, refreshAccess: false },
+    );
+  }, [contentId, projectId, sessionId]);
   const currentImageWorkbenchState = useMemo(
     () =>
       imageWorkbenchBySessionId[imageWorkbenchSessionKey] ||
+      cachedImageWorkbenchState?.state ||
       createInitialSessionImageWorkbenchState(),
-    [imageWorkbenchBySessionId, imageWorkbenchSessionKey],
+    [
+      cachedImageWorkbenchState,
+      imageWorkbenchBySessionId,
+      imageWorkbenchSessionKey,
+    ],
   );
+  const imageWorkbenchStateForCache = useMemo(() => {
+    if (isSessionImageWorkbenchStateMeaningful(currentImageWorkbenchState)) {
+      return currentImageWorkbenchState;
+    }
+
+    return buildSessionImageWorkbenchStateFromMessages(messages);
+  }, [currentImageWorkbenchState, messages]);
   const updateCurrentImageWorkbenchState = useCallback(
     (
       updater: (
@@ -1964,6 +1998,54 @@ export function AgentChatWorkspace({
     sessionId,
     updateImageWorkbenchStateForSession,
   ]);
+  useEffect(() => {
+    const normalizedProjectId = normalizeProjectId(projectId);
+    const normalizedSessionId = sessionId?.trim();
+    if (!normalizedProjectId || !normalizedSessionId) {
+      return;
+    }
+
+    if (!cachedImageWorkbenchState) {
+      return;
+    }
+
+    setImageWorkbenchBySessionId((previous) => {
+      if (isSessionImageWorkbenchStateMeaningful(previous[normalizedSessionId])) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [normalizedSessionId]: cachedImageWorkbenchState.state,
+      };
+    });
+  }, [cachedImageWorkbenchState, projectId, sessionId]);
+  useEffect(() => {
+    const normalizedProjectId = normalizeProjectId(projectId);
+    const normalizedSessionId = sessionId?.trim();
+    if (
+      !normalizedProjectId ||
+      !normalizedSessionId ||
+      !isSessionImageWorkbenchStateMeaningful(imageWorkbenchStateForCache)
+    ) {
+      return;
+    }
+
+    return scheduleMinimumDelayIdleTask(
+      () => {
+        saveSessionImageWorkbenchCachedState(
+          normalizedProjectId,
+          normalizedSessionId,
+          imageWorkbenchStateForCache,
+          { contentId },
+        );
+      },
+      {
+        minimumDelayMs: 400,
+        idleTimeoutMs: 2_000,
+      },
+    );
+  }, [contentId, imageWorkbenchStateForCache, projectId, sessionId]);
   const teamSessionRuntime = useWorkspaceTeamSessionRuntime({
     sessionId,
     topics,
@@ -2350,7 +2432,7 @@ export function AgentChatWorkspace({
   ]);
 
   const contextHarnessRuntime = useWorkspaceContextHarnessRuntime({
-    enabled: workspaceHarnessEnabled,
+    enabled: workspaceHarnessEnabled || generalHarnessEntryEnabled,
     projectId,
     activeTheme,
     messages,
@@ -3153,6 +3235,22 @@ export function AgentChatWorkspace({
   >(null);
   const [taskCenterTransitionTopicId, setTaskCenterTransitionTopicId] =
     useState<string | null>(null);
+  const [
+    taskCenterEmbeddedHomeSessionIds,
+    setTaskCenterEmbeddedHomeSessionIds,
+  ] = useState<Set<string>>(() => new Set());
+  const [taskCenterLocalSessionOverride, setTaskCenterLocalSessionOverride] =
+    useState<{
+      sessionId: string;
+      routeSessionId: string | null;
+    } | null>(null);
+  const shouldRespectTaskCenterLocalSession = Boolean(
+    taskCenterLocalSessionOverride &&
+    sessionId &&
+    taskCenterLocalSessionOverride.sessionId === sessionId &&
+    taskCenterLocalSessionOverride.routeSessionId ===
+      normalizedInitialSessionId,
+  );
   const taskCenterOpenTabIds = useMemo(
     () =>
       resolveTaskCenterTabIdsForWorkspace(
@@ -3188,6 +3286,10 @@ export function AgentChatWorkspace({
   useEffect(() => {
     if (agentEntry !== "claw") {
       setTaskCenterDetachedTopicId(null);
+      setTaskCenterEmbeddedHomeSessionIds((current) =>
+        current.size > 0 ? new Set<string>() : current,
+      );
+      setTaskCenterLocalSessionOverride(null);
       return;
     }
 
@@ -3227,6 +3329,31 @@ export function AgentChatWorkspace({
   }, [agentEntry, normalizedInitialSessionId, taskCenterWorkspaceId]);
 
   useEffect(() => {
+    if (
+      agentEntry !== "claw" ||
+      !taskCenterWorkspaceId ||
+      !normalizedInitialSessionId ||
+      normalizedInitialSessionId === sessionId ||
+      shouldRespectTaskCenterLocalSession
+    ) {
+      return;
+    }
+
+    setTaskCenterTransitionTopicId((current) =>
+      current === normalizedInitialSessionId
+        ? current
+        : normalizedInitialSessionId,
+    );
+    setTaskCenterDetachedTopicId(null);
+  }, [
+    agentEntry,
+    normalizedInitialSessionId,
+    sessionId,
+    shouldRespectTaskCenterLocalSession,
+    taskCenterWorkspaceId,
+  ]);
+
+  useEffect(() => {
     if (agentEntry !== "claw" || !taskCenterWorkspaceId) {
       return;
     }
@@ -3239,14 +3366,21 @@ export function AgentChatWorkspace({
     }
 
     setTaskCenterOpenTabMap((currentMap) => {
+      const isInitialSessionRoutePending =
+        Boolean(normalizedInitialSessionId) &&
+        normalizedInitialSessionId !== sessionId &&
+        !shouldRespectTaskCenterLocalSession;
       const nextIds = reconcileTaskCenterTabIds({
         existingIds: resolveTaskCenterTabIdsForWorkspace(
           currentMap,
           taskCenterWorkspaceId,
         ),
         topics,
-        currentTopicId:
-          taskCenterDetachedTopicId === sessionId ? null : (sessionId ?? null),
+        currentTopicId: isInitialSessionRoutePending
+          ? null
+          : taskCenterDetachedTopicId === sessionId
+            ? null
+            : (sessionId ?? null),
       });
       return updateTaskCenterTabIdsForWorkspace(
         currentMap,
@@ -3258,6 +3392,7 @@ export function AgentChatWorkspace({
     agentEntry,
     sessionId,
     normalizedInitialSessionId,
+    shouldRespectTaskCenterLocalSession,
     taskCenterDetachedTopicId,
     taskCenterWorkspaceId,
     topics,
@@ -3714,6 +3849,40 @@ export function AgentChatWorkspace({
     [taskCenterWorkspaceId],
   );
 
+  const markTaskCenterEmbeddedHomeSession = useCallback((topicId: string) => {
+    setTaskCenterEmbeddedHomeSessionIds((current) => {
+      if (current.has(topicId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.add(topicId);
+      return next;
+    });
+  }, []);
+
+  const markTaskCenterLocalSessionOverride = useCallback(
+    (topicId: string) => {
+      setTaskCenterLocalSessionOverride({
+        sessionId: topicId,
+        routeSessionId: normalizedInitialSessionId,
+      });
+    },
+    [normalizedInitialSessionId],
+  );
+
+  const clearTaskCenterEmbeddedHomeSession = useCallback((topicId: string) => {
+    setTaskCenterEmbeddedHomeSessionIds((current) => {
+      if (!current.has(topicId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.delete(topicId);
+      return next;
+    });
+  }, []);
+
   const finalizeFreshTaskCenterConversation = useCallback(
     (newSessionId: string, workspaceIdOverride?: string | null) => {
       resetTopicLocalState();
@@ -3721,8 +3890,12 @@ export function AgentChatWorkspace({
       setSelectedText("");
       setMentionedCharacters([]);
       upsertTaskCenterOpenTab(newSessionId, workspaceIdOverride);
+      markTaskCenterEmbeddedHomeSession(newSessionId);
+      markTaskCenterLocalSessionOverride(newSessionId);
     },
     [
+      markTaskCenterEmbeddedHomeSession,
+      markTaskCenterLocalSessionOverride,
       resetTopicLocalState,
       setInput,
       setMentionedCharacters,
@@ -3775,9 +3948,11 @@ export function AgentChatWorkspace({
           upsertTaskCenterOpenTab(topicId, topicWorkspaceId);
         }
       }
+      markTaskCenterLocalSessionOverride(topicId);
     },
     [
       agentEntry,
+      markTaskCenterLocalSessionOverride,
       replaceTaskCenterOpenTabs,
       switchTopic,
       taskCenterWorkspaceId,
@@ -3796,6 +3971,7 @@ export function AgentChatWorkspace({
         allowDetachedSession: true,
       });
       if (switchResult === "success" || switchResult === "deferred") {
+        markTaskCenterLocalSessionOverride(topicId);
         return;
       }
 
@@ -3806,7 +3982,7 @@ export function AgentChatWorkspace({
         current === topicId ? null : current,
       );
     },
-    [switchTopic],
+    [markTaskCenterLocalSessionOverride, switchTopic],
   );
 
   const handleSwitchTaskTopic = useCallback(
@@ -3858,25 +4034,6 @@ export function AgentChatWorkspace({
       replaceOpenTabs: true,
     });
   }, [handleOpenTaskTopic, recentSessionTopic]);
-  const handleCreateTaskCenterConversation = useCallback(async () => {
-    if (!taskCenterWorkspaceId) {
-      toast.info("请先选择工作区后再新建对话");
-      return;
-    }
-
-    setTaskCenterTransitionTopicId(null);
-    setTaskCenterDetachedTopicId(null);
-    const newSessionId = await createFreshSession();
-    if (!newSessionId) {
-      return;
-    }
-
-    finalizeFreshTaskCenterConversation(newSessionId, taskCenterWorkspaceId);
-  }, [
-    createFreshSession,
-    finalizeFreshTaskCenterConversation,
-    taskCenterWorkspaceId,
-  ]);
   const handleCloseTaskCenterTab = useCallback(
     async (topicId: string) => {
       const currentIds = taskCenterOpenTabIdsRef.current;
@@ -3890,6 +4047,7 @@ export function AgentChatWorkspace({
       if (taskCenterTransitionTopicId === topicId) {
         setTaskCenterTransitionTopicId(null);
       }
+      clearTaskCenterEmbeddedHomeSession(topicId);
 
       setTaskCenterOpenTabMap((currentMap) =>
         updateTaskCenterTabIdsForWorkspace(
@@ -3922,6 +4080,7 @@ export function AgentChatWorkspace({
       }
     },
     [
+      clearTaskCenterEmbeddedHomeSession,
       createFreshSession,
       finalizeFreshTaskCenterConversation,
       handleSwitchTaskTopic,
@@ -3932,6 +4091,24 @@ export function AgentChatWorkspace({
       upsertTaskCenterOpenTab,
     ],
   );
+  const handleOpenTaskCenterNewTaskPage = useCallback(() => {
+    setTaskCenterTransitionTopicId(null);
+    setTaskCenterDetachedTopicId(null);
+
+    void (async () => {
+      const newSessionId = await createFreshSession();
+      if (newSessionId) {
+        finalizeFreshTaskCenterConversation(
+          newSessionId,
+          taskCenterWorkspaceId,
+        );
+      }
+    })();
+  }, [
+    createFreshSession,
+    finalizeFreshTaskCenterConversation,
+    taskCenterWorkspaceId,
+  ]);
   const taskCenterPreviewTopicId = useMemo(
     () =>
       resolveTaskCenterPreviewTopicId({
@@ -3949,6 +4126,36 @@ export function AgentChatWorkspace({
       }),
     [sessionId, taskCenterTransitionTopicId],
   );
+  const shouldRenderTaskCenterEmbeddedHome = Boolean(
+    agentEntry === "claw" &&
+    sessionId &&
+    !taskCenterSessionSwitchPending &&
+    taskCenterEmbeddedHomeSessionIds.has(sessionId),
+  );
+  useEffect(() => {
+    if (!sessionId || !taskCenterEmbeddedHomeSessionIds.has(sessionId)) {
+      return;
+    }
+
+    if (
+      hasDisplayMessages ||
+      hasPendingA2UIForm ||
+      isPreparingSend ||
+      isSending ||
+      queuedTurns.length > 0
+    ) {
+      clearTaskCenterEmbeddedHomeSession(sessionId);
+    }
+  }, [
+    clearTaskCenterEmbeddedHomeSession,
+    hasDisplayMessages,
+    hasPendingA2UIForm,
+    isPreparingSend,
+    isSending,
+    queuedTurns.length,
+    sessionId,
+    taskCenterEmbeddedHomeSessionIds,
+  ]);
   const shouldHideDetachedTaskCenterTabs = useMemo(
     () =>
       shouldHideTaskCenterTabsForDetachedSession({
@@ -4028,6 +4235,18 @@ export function AgentChatWorkspace({
       return;
     }
 
+    const currentSessionIsKnownTopic = Boolean(
+      sessionId && topics.some((topic) => topic.id === sessionId),
+    );
+    if (
+      !normalizedInitialSessionId &&
+      sessionId &&
+      !currentSessionIsKnownTopic &&
+      hasDisplayMessages
+    ) {
+      return;
+    }
+
     const fallbackId = resolveTaskCenterFallbackTopicId({
       sessionId,
       switchingTopicId: taskCenterTransitionTopicId,
@@ -4064,6 +4283,7 @@ export function AgentChatWorkspace({
   }, [
     agentEntry,
     handleOpenTaskTopic,
+    hasDisplayMessages,
     isAutoRestoringSession,
     normalizedInitialSessionId,
     sessionId,
@@ -4090,7 +4310,7 @@ export function AgentChatWorkspace({
           void handleCloseTaskCenterTab(topicId);
         }}
         onCreateTask={() => {
-          void handleCreateTaskCenterConversation();
+          handleOpenTaskCenterNewTaskPage();
         }}
         showCanvasToggle={!isThemeWorkbench}
         isCanvasOpen={layoutMode !== "chat"}
@@ -4099,27 +4319,14 @@ export function AgentChatWorkspace({
     );
   }, [
     agentEntry,
-    handleCreateTaskCenterConversation,
     handleCloseTaskCenterTab,
+    handleOpenTaskCenterNewTaskPage,
     handleToggleCanvas,
     handleSwitchTaskTopic,
     isThemeWorkbench,
     layoutMode,
     taskCenterTabItems,
   ]);
-  const handleOpenTaskCenterNewTaskPage = useCallback(() => {
-    if (_onNavigate) {
-      _onNavigate(
-        "agent",
-        buildHomeAgentParams({
-          projectId: projectId ?? undefined,
-        }),
-      );
-      return;
-    }
-
-    handleBackHome();
-  }, [_onNavigate, handleBackHome, projectId]);
   const handleOpenTaskCenterSkillsPage = useCallback(() => {
     if (!_onNavigate) {
       return;
@@ -4422,17 +4629,40 @@ export function AgentChatWorkspace({
   );
   const handleOpenArtifactFromTimeline = useCallback(
     (target: ArtifactTimelineOpenTarget) => {
-      handleWorkspaceFileClick(target.filePath, target.content);
+      void (async () => {
+        let content = target.content;
+        if (!content.trim()) {
+          const absolutePath = resolveAbsoluteWorkspacePath(
+            project?.rootPath,
+            target.filePath,
+          );
+          if (absolutePath) {
+            const preview = await handleHarnessLoadFilePreview(absolutePath);
+            if (preview.error) {
+              toast.error(`打开产物失败: ${preview.error}`);
+              return;
+            }
+            if (preview.isBinary) {
+              toast.info("该产物是二进制格式，暂不支持在工作台预览");
+              return;
+            }
+            content =
+              typeof preview.content === "string" ? preview.content : "";
+          }
+        }
 
-      const normalizedBlockId = target.blockId?.trim();
-      if (!normalizedBlockId) {
-        return;
-      }
+        handleWorkspaceFileClick(target.filePath, content);
 
-      setFocusedArtifactBlockId(normalizedBlockId);
-      setArtifactBlockFocusRequestKey((current) => current + 1);
+        const normalizedBlockId = target.blockId?.trim();
+        if (!normalizedBlockId) {
+          return;
+        }
+
+        setFocusedArtifactBlockId(normalizedBlockId);
+        setArtifactBlockFocusRequestKey((current) => current + 1);
+      })();
     },
-    [handleWorkspaceFileClick],
+    [handleHarnessLoadFilePreview, handleWorkspaceFileClick, project?.rootPath],
   );
   const siteSkillSavedContentTarget = useMemo(
     () =>
@@ -5618,6 +5848,7 @@ export function AgentChatWorkspace({
 
     const showChatLayout = shouldShowChatLayout({
       agentEntry,
+      preferEmptyStateForFreshTaskCenterTab: shouldRenderTaskCenterEmbeddedHome,
       hasDisplayMessages,
       hasPendingA2UIForm,
       isThemeWorkbench,
@@ -5634,7 +5865,8 @@ export function AgentChatWorkspace({
       showChatLayout &&
       !shouldHideGeneralWorkbenchInputForTheme;
     const isWorkspaceCompactChrome = topBarChrome === "workspace-compact";
-    const shouldRenderBrandedEmptyState = !showChatLayout;
+    const shouldRenderBrandedEmptyState =
+      !showChatLayout && !shouldRenderTaskCenterEmbeddedHome;
     const shouldRenderTopBar = !hideTopBar && !shouldRenderBrandedEmptyState;
     const shouldRenderInlineA2UI = isSpecializedThemeMode;
 
@@ -5680,6 +5912,7 @@ export function AgentChatWorkspace({
     isThemeWorkbench,
     layoutMode,
     queuedTurns.length,
+    shouldRenderTaskCenterEmbeddedHome,
     shouldUseCompactGeneralWorkbench,
     teamDispatchPreviewState,
     teamSessionRuntime.hasRuntimeSessions,
@@ -6028,7 +6261,7 @@ export function AgentChatWorkspace({
     generalWorkbenchEntryPrompt,
     handleRestartGeneralWorkbenchEntryPrompt,
     handleContinueGeneralWorkbenchEntryPrompt,
-    generalWorkbenchEnabled: workspaceHarnessEnabled && chatMode === "general",
+    generalWorkbenchEnabled: generalHarnessEntryEnabled,
     harnessPanelVisible: contextHarnessRuntime.harnessPanelVisible,
     setHarnessPanelVisible: contextHarnessRuntime.setHarnessPanelVisible,
     harnessState,
@@ -6264,6 +6497,10 @@ export function AgentChatWorkspace({
     pendingActions: scenePendingActions,
     submittedActionsInFlight: sceneSubmittedActionsInFlight,
     queuedTurns: sceneQueuedTurns,
+    sessionHistoryWindow,
+    loadFullSessionHistory: () => {
+      void loadFullSessionHistory();
+    },
     isPreparingSend: sceneIsPreparingSend,
     isSending: sceneIsSending,
     stopSending,

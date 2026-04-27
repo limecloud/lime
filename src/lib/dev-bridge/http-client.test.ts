@@ -76,12 +76,49 @@ describe("http-client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const firstCheck = healthCheck();
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(3200);
     await expect(firstCheck).resolves.toBe(false);
 
     await expect(invokeViaHttp<string[]>("workspace_list")).resolves.toEqual([
       "project-a",
     ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://127.0.0.1:3030/health");
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("http://127.0.0.1:3030/invoke");
+  });
+
+  it("首次 invoke 的健康探测超时后，后续调用应重新探测而不是进入 cooldown", async () => {
+    const firstHealthTimeout = createAbortablePendingFetch();
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(firstHealthTimeout)
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: { id: "default-project" } }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const firstInvoke = invokeViaHttp("workspace_list").then(
+      () => ({ ok: true as const }),
+      (error) => ({ ok: false as const, error }),
+    );
+    await vi.advanceTimersByTimeAsync(3200);
+    await expect(firstInvoke).resolves.toMatchObject({
+      ok: false,
+      error: expect.objectContaining({
+        message: expect.stringContaining("bridge health check failed"),
+      }),
+    });
+
+    await expect(
+      invokeViaHttp<{ id: string }>("workspace_get_default"),
+    ).resolves.toEqual({ id: "default-project" });
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[1]?.[0]).toBe("http://127.0.0.1:3030/health");
@@ -153,7 +190,7 @@ describe("http-client", () => {
     await vi.advanceTimersByTimeAsync(11000);
 
     const secondInvoke = invokeViaHttp<{ id: string }>("workspace_get_default");
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(3200);
     await expect(secondInvoke).resolves.toEqual({ id: "default-project" });
 
     expect(fetchMock).toHaveBeenCalledTimes(4);
@@ -180,11 +217,11 @@ describe("http-client", () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(settled).toBe(false);
 
-    await vi.advanceTimersByTimeAsync(9000);
+    await vi.advanceTimersByTimeAsync(58000);
     await expect(invokePromise).resolves.toMatchObject({
       ok: false,
       error: expect.objectContaining({
-        message: expect.stringContaining("timeout after 10000ms"),
+        message: expect.stringContaining("timeout after 60000ms"),
       }),
     });
   });

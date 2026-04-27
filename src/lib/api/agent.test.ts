@@ -841,6 +841,27 @@ describe("Agent API 治理护栏", () => {
     });
   });
 
+  it("getAgentRuntimeSession 应支持透传历史 tail 限制", async () => {
+    mockSafeInvoke.mockResolvedValueOnce({
+      id: "session-runtime-tail",
+      messages: [],
+    });
+
+    await expect(
+      getAgentRuntimeSession("session-runtime-tail", {
+        historyLimit: 120,
+      }),
+    ).resolves.toMatchObject({
+      id: "session-runtime-tail",
+      messages: [],
+    });
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_get_session", {
+      sessionId: "session-runtime-tail",
+      historyLimit: 120,
+    });
+  });
+
   it("exportAgentRuntimeHandoffBundle 应走统一 runtime handoff 导出命令", async () => {
     mockSafeInvoke.mockResolvedValueOnce({
       sessionId: "session-runtime-3",

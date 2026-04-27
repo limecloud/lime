@@ -111,6 +111,7 @@ describe("useAgentRuntimeSyncEffects", () => {
       }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-29T00:05:00.000Z"));
     mockIsDevBridgeAvailable.mockReturnValue(false);
     mockHasDevBridgeEventListenerCapability.mockReturnValue(false);
     mockHasTauriEventListenerCapability.mockReturnValue(true);
@@ -201,6 +202,33 @@ describe("useAgentRuntimeSyncEffects", () => {
 
       expect(refreshSessionDetail).toHaveBeenCalledTimes(1);
       expect(refreshSessionDetail).toHaveBeenCalledWith("session-1");
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("恢复出的陈旧 running turn 不应持续轮询完整详情", async () => {
+    const refreshSessionDetail = vi.fn(async () => true);
+    const harness = await mountHook({
+      threadReadStatus: "running",
+      threadTurns: [
+        createThreadTurn({
+          status: "running",
+          started_at: "2026-03-28T22:00:00.000Z",
+          created_at: "2026-03-28T22:00:00.000Z",
+          updated_at: "2026-03-28T22:05:00.000Z",
+        }),
+      ],
+      refreshSessionDetail,
+    });
+
+    try {
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+        await Promise.resolve();
+      });
+
+      expect(refreshSessionDetail).not.toHaveBeenCalled();
     } finally {
       harness.unmount();
     }

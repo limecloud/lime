@@ -28,11 +28,79 @@ use rmcp::model::Tool;
 
 const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
 const LIME_RUNTIME_TOOL_SURFACE_KEY: &str = "tool_surface";
+const LIME_RUNTIME_IMAGE_INPUT_POLICY_KEY: &str = "image_input_policy";
 const TURN_TOOL_SURFACE_DIRECT_ANSWER: &str = "direct_answer";
 const TURN_TOOL_SURFACE_LOCAL_WORKSPACE: &str = "local_workspace";
 const LOCAL_WORKSPACE_TOOL_NAMES: &[&str] = &["Bash", "Read", "Write", "Edit", "Glob", "Grep"];
 const DIRECT_ANSWER_TURN_GUIDANCE: &str = "【当前回合执行约束】本回合应优先直接回答。除非信息明显不足或用户明确要求，否则不要调用工具，也不要把简单回复扩展成多阶段流程。";
 const LOCAL_WORKSPACE_TURN_GUIDANCE: &str = "【当前回合执行约束】本回合只允许使用本地工作区工具。先用最少的侦查动作定位关键文件，优先小范围目录/文件列表与精确搜索；通常先控制在 3 到 6 次工具调用内拿到关键证据，只有前一步明确暴露新线索时再继续深入。若需要连续侦查，请把相互独立的读取/搜索收敛成一批，并在同一条回复里一起发起 2 到 4 个彼此独立的只读工具调用，让运行时并行执行；先完成这一批，再直接输出 1 到 2 句用户可见的结论正文，说明已经确认了什么、还缺什么、为什么还要继续，不要额外输出“阶段结论”标题，再决定是否继续下一批。如果用户消息里已经点名绝对路径、仓库根或具体文件，就把这些显式路径当作本回合唯一优先入口；第一批只围绕这些路径展开，不要先扫描当前默认工作区或无关目录。读取文件时聚焦与问题直接相关的入口、注册表、配置和代码片段，避免重复枚举大目录、避免一次性展开超长目录或整文件全文，也不要把大段原文直接抄回最终回答，改用结论加文件路径。";
+
+fn image_input_policy_disables_provider_images() -> bool {
+    let Some(turn_context) = current_turn_context() else {
+        return false;
+    };
+    let Some(Value::Object(runtime_metadata)) =
+        turn_context.metadata.get(LIME_RUNTIME_METADATA_KEY)
+    else {
+        return false;
+    };
+    let Some(Value::Object(policy)) = runtime_metadata
+        .get(LIME_RUNTIME_IMAGE_INPUT_POLICY_KEY)
+        .or_else(|| runtime_metadata.get("imageInputPolicy"))
+    else {
+        return false;
+    };
+
+    let provider_supports_vision = policy
+        .get("providerSupportsVision")
+        .or_else(|| policy.get("provider_supports_vision"))
+        .and_then(Value::as_bool);
+    let dropped_image_count = policy
+        .get("droppedImageCount")
+        .or_else(|| policy.get("dropped_image_count"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+
+    provider_supports_vision == Some(false) || dropped_image_count > 0
+}
+
+fn strip_images_for_text_only_provider(messages: &[Message]) -> Conversation {
+    let mut removed_total = 0usize;
+    let stripped_messages = messages
+        .iter()
+        .cloned()
+        .map(|mut message| {
+            let mut removed_from_message = 0usize;
+            message.content.retain(|content| {
+                if matches!(content, MessageContent::Image(_)) {
+                    removed_from_message += 1;
+                    false
+                } else {
+                    true
+                }
+            });
+
+            if removed_from_message > 0 {
+                removed_total += removed_from_message;
+                message = message.with_text(format!(
+                    "[系统提示] 这条历史消息包含 {} 张图片，但当前模型不支持图片输入；图片已在发送给模型前省略。",
+                    removed_from_message
+                ));
+            }
+
+            message
+        })
+        .collect::<Vec<_>>();
+
+    if removed_total > 0 {
+        tracing::warn!(
+            removed_total,
+            "[AsterAgent] 当前模型不支持图片输入，已在 provider 请求前省略图片内容"
+        );
+    }
+
+    Conversation::new_unvalidated(stripped_messages)
+}
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
     let type_str = schema.get("type");
@@ -365,6 +433,11 @@ impl Agent {
         } else {
             Conversation::new_unvalidated(messages.to_vec())
         };
+        let messages_for_provider = if image_input_policy_disables_provider_images() {
+            strip_images_for_text_only_provider(messages_for_provider.messages())
+        } else {
+            messages_for_provider
+        };
 
         // Clone owned data to move into the async stream
         let model_config = model_config.clone();
@@ -684,6 +757,44 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
+    struct RecordingProvider {
+        model_config: ModelConfig,
+        observed_messages: std::sync::Arc<std::sync::Mutex<Vec<Vec<Message>>>>,
+    }
+
+    #[async_trait]
+    impl Provider for RecordingProvider {
+        fn metadata() -> crate::providers::base::ProviderMetadata {
+            crate::providers::base::ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "recording"
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        async fn complete_with_model(
+            &self,
+            model_config: &ModelConfig,
+            _system: &str,
+            messages: &[Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+            self.observed_messages
+                .lock()
+                .expect("record provider messages")
+                .push(messages.to_vec());
+            Ok((
+                Message::assistant().with_text("ok"),
+                ProviderUsage::new(model_config.model_name.clone(), Usage::default()),
+            ))
+        }
+    }
+
     /// Mock scheduler for testing
     struct MockScheduler;
 
@@ -899,6 +1010,28 @@ mod tests {
         }
     }
 
+    fn build_turn_context_with_image_input_policy(
+        provider_supports_vision: bool,
+    ) -> TurnContextOverride {
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            LIME_RUNTIME_METADATA_KEY.to_string(),
+            json!({
+                "image_input_policy": {
+                    "submittedImageCount": 1,
+                    "forwardedImageCount": if provider_supports_vision { 1 } else { 0 },
+                    "droppedImageCount": if provider_supports_vision { 0 } else { 1 },
+                    "providerSupportsVision": provider_supports_vision,
+                }
+            }),
+        );
+
+        TurnContextOverride {
+            metadata,
+            ..TurnContextOverride::default()
+        }
+    }
+
     #[tokio::test]
     async fn prepare_tools_and_prompt_hides_all_tools_for_direct_answer_turn_surface(
     ) -> anyhow::Result<()> {
@@ -1098,6 +1231,56 @@ mod tests {
                 .as_slice(),
             ["override-model"]
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stream_response_from_provider_strips_images_when_turn_policy_disables_vision(
+    ) -> anyhow::Result<()> {
+        let observed_messages = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let provider = std::sync::Arc::new(RecordingProvider {
+            model_config: ModelConfig::new("deepseek-reasoner").unwrap(),
+            observed_messages: observed_messages.clone(),
+        });
+        let messages = vec![
+            Message::user()
+                .with_text("请分析截图")
+                .with_image("aGVsbG8=", "image/png"),
+            Message::assistant().with_text("上一轮回复"),
+        ];
+
+        let mut stream = crate::session_context::with_turn_context(
+            Some(build_turn_context_with_image_input_policy(false)),
+            async {
+                Agent::stream_response_from_provider(
+                    provider,
+                    &ModelConfig::new("deepseek-reasoner").unwrap(),
+                    "",
+                    &messages,
+                    &[],
+                    &[],
+                )
+                .await
+            },
+        )
+        .await?;
+        let _ = stream.next().await.expect("stream item should exist")?;
+
+        let observed = observed_messages
+            .lock()
+            .expect("read observed messages")
+            .clone();
+        assert_eq!(observed.len(), 1);
+        assert!(observed[0].iter().all(|message| {
+            message
+                .content
+                .iter()
+                .all(|content| !matches!(content, MessageContent::Image(_)))
+        }));
+        assert!(observed[0][0]
+            .as_concat_text()
+            .contains("当前模型不支持图片输入"));
+
         Ok(())
     }
 

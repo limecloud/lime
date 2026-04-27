@@ -108,6 +108,140 @@ describe("agentStreamRuntimeHandler", () => {
     });
   });
 
+  it("收到完整 message 快照事件时只激活流，不重复写入文本", () => {
+    const setMessages = vi.fn();
+    const activateStream = vi.fn();
+
+    handleTurnStreamEvent({
+      data: {
+        type: "message",
+        message: {
+          id: "msg-runtime-1",
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "完整快照会由后续 text_delta 渲染。",
+            },
+          ],
+          timestamp: 1777284240,
+        },
+      } as AgentEvent,
+      requestState: {
+        accumulatedContent: "",
+        queuedTurnId: null,
+        requestLogId: null,
+        requestStartedAt: 0,
+        requestFinished: false,
+      },
+      callbacks: {
+        activateStream,
+        isStreamActivated: () => true,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener: () => {},
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch: () => true,
+        upsertQueuedTurn: () => {},
+        removeQueuedTurnState: () => {},
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+        appendThinkingToParts: (parts) => parts,
+      },
+      eventName: "agent-runtime-message-test",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-1",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react",
+      content: "生成验收矩阵",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      setMessages: setMessages as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: vi.fn() as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: vi.fn() as never,
+    });
+
+    expect(activateStream).toHaveBeenCalledTimes(1);
+    expect(setMessages).not.toHaveBeenCalled();
+  });
+
+  it("高频 reasoning item_updated 事件不应持续刷新时间线状态", () => {
+    const setThreadItems = vi.fn();
+    const activateStream = vi.fn();
+
+    handleTurnStreamEvent({
+      data: {
+        type: "item_updated",
+        item: {
+          id: "reasoning-1",
+          thread_id: "session-1",
+          turn_id: "turn-1",
+          sequence: 2,
+          type: "reasoning",
+          text: "正在持续追加推理文本",
+          status: "in_progress",
+          started_at: "2026-04-27T10:00:00.000Z",
+          updated_at: "2026-04-27T10:00:01.000Z",
+        },
+      } as AgentEvent,
+      requestState: {
+        accumulatedContent: "",
+        queuedTurnId: null,
+        requestLogId: null,
+        requestStartedAt: 0,
+        requestFinished: false,
+      },
+      callbacks: {
+        activateStream,
+        isStreamActivated: () => true,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener: () => {},
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch: () => true,
+        upsertQueuedTurn: () => {},
+        removeQueuedTurnState: () => {},
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+        appendThinkingToParts: (parts) => parts,
+      },
+      eventName: "agent-runtime-reasoning-test",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-1",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react",
+      content: "生成验收矩阵",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      setMessages: vi.fn() as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: setThreadItems as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: vi.fn() as never,
+    });
+
+    expect(activateStream).toHaveBeenCalledTimes(1);
+    expect(setThreadItems).not.toHaveBeenCalled();
+  });
+
   it("收到 final_done 时应剥离 assistant 正文中的工具协议残留", () => {
     let messages: Message[] = [
       {

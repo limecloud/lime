@@ -13,6 +13,58 @@ import type { AgentThreadTurn } from "../types";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 
 const DEV_BRIDGE_RUNTIME_POLL_MS = 1000;
+const RECOVERED_RUNTIME_POLL_ACTIVE_WINDOW_MS = 30 * 60 * 1000;
+
+function parseTimestampMs(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+  const timestampMs = Date.parse(value);
+  return Number.isFinite(timestampMs) ? timestampMs : null;
+}
+
+function hasRecentRunningTurn(threadTurns: AgentThreadTurn[]): boolean {
+  const nowMs = Date.now();
+  return threadTurns.some((turn) => {
+    if (turn.status !== "running") {
+      return false;
+    }
+
+    const timestampMs =
+      parseTimestampMs(turn.updated_at) ?? parseTimestampMs(turn.started_at);
+    if (timestampMs === null) {
+      return false;
+    }
+
+    return nowMs - timestampMs <= RECOVERED_RUNTIME_POLL_ACTIVE_WINDOW_MS;
+  });
+}
+
+function shouldPollRecoveredRuntimeWork(params: {
+  threadReadStatus?: string | null;
+  queuedTurnCount: number;
+  threadTurns: AgentThreadTurn[];
+}): boolean {
+  if (params.queuedTurnCount > 0) {
+    return true;
+  }
+
+  const normalizedThreadReadStatus = (
+    params.threadReadStatus || ""
+  ).toLowerCase();
+  const hasRunningTurn = params.threadTurns.some(
+    (turn) => turn.status === "running",
+  );
+
+  if (hasRunningTurn) {
+    return hasRecentRunningTurn(params.threadTurns);
+  }
+
+  return (
+    normalizedThreadReadStatus === "running" ||
+    normalizedThreadReadStatus === "queued"
+  );
+}
 
 interface UseAgentRuntimeSyncEffectsOptions {
   runtime: Pick<AgentRuntimeAdapter, "listenToTeamEvents">;
@@ -66,13 +118,13 @@ export function useAgentRuntimeSyncEffects(
       return;
     }
 
-    const normalizedThreadReadStatus = (threadReadStatus || "").toLowerCase();
-    const hasRecoveredQueueWork =
-      normalizedThreadReadStatus === "running" ||
-      normalizedThreadReadStatus === "queued" ||
-      queuedTurnCount > 0 ||
-      threadTurns.some((turn) => turn.status === "running");
-    if (!hasRecoveredQueueWork) {
+    if (
+      !shouldPollRecoveredRuntimeWork({
+        threadReadStatus,
+        queuedTurnCount,
+        threadTurns,
+      })
+    ) {
       return;
     }
 

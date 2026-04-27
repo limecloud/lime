@@ -127,7 +127,7 @@ lime/
 
 补充约束：
 
-- `开发者中心 -> 处理工作台与信息收集` 由 `config.developer.workspace_harness_enabled` 控制，默认关闭；关闭时通用对话不应显示“处理工作台”入口，也不应继续触发对应运行态信息收集链路。
+- `开发者中心 -> 处理工作台调试信息` 由 `config.developer.workspace_harness_enabled` 控制，默认关闭；关闭时通用对话仍保留 Harness 入口，但不应继续触发工具库存读取、额外环境摘要等开发调试信息收集链路。
 
 ## 数据流
 
