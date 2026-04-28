@@ -77,7 +77,8 @@ use aster::session::{SessionType, SubagentSessionMetadata};
 use aster::tools::task_output_tool::TaskOutputInput;
 use aster::tools::{
     BashTool, PermissionBehavior, PermissionCheckResult, TaskManager, TaskOutputTool, TaskStopTool,
-    Tool, ToolContext, ToolError, ToolOptions, ToolResult, MAX_OUTPUT_LENGTH,
+    Tool, ToolContext, ToolError, ToolOptions, ToolResult, WebFetchTool, WebSearchTool,
+    MAX_OUTPUT_LENGTH,
 };
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
@@ -346,8 +347,8 @@ pub(crate) use command_api::{
     agent_runtime_replay_request, agent_runtime_resume_subagent, agent_runtime_resume_thread,
     agent_runtime_save_review_decision, agent_runtime_send_subagent_input,
     agent_runtime_spawn_subagent, agent_runtime_submit_turn, agent_runtime_update_session,
-    agent_runtime_wait_subagents, aster_agent_configure_from_pool, aster_agent_configure_provider,
-    aster_agent_init, aster_agent_reset, aster_agent_status,
+    agent_runtime_wait_subagents, aster_agent_configure_provider, aster_agent_init,
+    aster_agent_reset, aster_agent_status,
 };
 pub(crate) use cover_skill_launch::{
     append_cover_skill_launch_session_permissions, merge_system_prompt_with_cover_skill_launch,
@@ -381,7 +382,7 @@ pub(crate) use dto::{
     AgentRuntimeSubmitTurnRequest, AgentRuntimeThreadDiagnostics, AgentRuntimeThreadReadModel,
     AgentRuntimeToolInventoryRequest, AgentRuntimeUpdateSessionRequest,
     AgentRuntimeWaitSubagentsRequest, AgentRuntimeWaitSubagentsResponse, AsterAgentStatus,
-    AsterChatRequest, AutoContinuePayload, ConfigureFromPoolRequest, ConfigureProviderRequest,
+    AsterChatRequest, AutoContinuePayload, ConfigureProviderRequest,
 };
 pub(crate) use form_skill_launch::{
     append_form_skill_launch_session_permissions, merge_system_prompt_with_form_skill_launch,
@@ -496,8 +497,9 @@ pub(crate) use tool_runtime::social_generate_cover_image_cmd;
 #[cfg(test)]
 #[allow(unused_imports)]
 pub(crate) use tool_runtime::{
-    append_subagent_tool_scope_session_permissions, extract_runtime_subagent_result_text,
-    LimeBrowserMcpTool, SocialGenerateCoverImageTool, ToolSearchBridgeTool,
+    append_subagent_tool_scope_session_permissions, ensure_default_web_tools_registered,
+    extract_runtime_subagent_result_text, LimeBrowserMcpTool, SocialGenerateCoverImageTool,
+    ToolSearchBridgeTool,
 };
 pub(crate) use tool_runtime::{apply_workspace_sandbox_permissions, ImageInput};
 pub(crate) use tool_runtime::{

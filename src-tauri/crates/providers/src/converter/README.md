@@ -4,15 +4,11 @@
 
 ## 架构说明
 
-协议转换模块，实现不同 LLM API 格式之间的转换。
-支持 OpenAI、Claude、CodeWhisperer、Antigravity 等格式。
+协议转换模块，实现 current LLM API 格式之间的转换。旧 CodeWhisperer / Kiro 转换面已退役。
 
 ## 文件索引
 
 - `mod.rs` - 模块入口
-- `protocol_selector.rs` - 协议选择器
-- `openai_to_cw.rs` - OpenAI → CodeWhisperer 转换（支持 web_search 工具）
-- `cw_to_openai.rs` - CodeWhisperer → OpenAI 转换
 - `anthropic_to_openai.rs` - Anthropic → OpenAI 转换
 - `openai_to_antigravity.rs` - OpenAI → Antigravity (Gemini CLI) 转换
 - `reasoning_handler.rs` - 推理内容处理器（DeepSeek/OpenAI o1 等）

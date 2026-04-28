@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use rusqlite::Connection;
 
 use super::{migration, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6};
@@ -62,8 +64,7 @@ fn run_nonfatal_count_migration<F, S>(
 fn run_provider_pool_startup_migrations(conn: &Connection) {
     run_provider_id_migration(conn);
     migration::check_model_registry_version(conn);
-    run_api_keys_to_pool_migration(conn);
-    run_legacy_api_key_cleanup(conn);
+    run_retired_provider_pool_cleanup(conn);
 }
 
 fn run_provider_id_migration(conn: &Connection) {
@@ -78,22 +79,83 @@ fn run_provider_id_migration(conn: &Connection) {
     );
 }
 
-fn run_api_keys_to_pool_migration(conn: &Connection) {
-    run_nonfatal_count_migration(
+#[derive(Debug, Clone, Copy)]
+struct RetiredProviderPoolCleanup {
+    rows_deleted: usize,
+    managed_files_deleted: usize,
+}
+
+fn run_retired_provider_pool_cleanup(conn: &Connection) {
+    run_nonfatal_logged_startup_migration(
         conn,
-        "API Key 迁移失败",
-        migration::migrate_api_keys_to_pool,
-        |_, count| format!("[数据库] 已将 {} 条 API Key 迁移到凭证池", count),
+        "凭证池退役清理失败",
+        |tx| {
+            let rows_deleted = clear_provider_pool_credentials(tx)?;
+            let managed_files_deleted = remove_managed_provider_pool_credential_files()?;
+            Ok(RetiredProviderPoolCleanup {
+                rows_deleted,
+                managed_files_deleted,
+            })
+        },
+        |_, result| {
+            if result.rows_deleted == 0 && result.managed_files_deleted == 0 {
+                return None;
+            }
+            Some(format!(
+                "[数据库] 凭证池已退役，清理 {} 条旧凭证记录和 {} 个托管凭证文件",
+                result.rows_deleted, result.managed_files_deleted
+            ))
+        },
     );
 }
 
-fn run_legacy_api_key_cleanup(conn: &Connection) {
-    run_nonfatal_count_migration(
-        conn,
-        "旧 API Key 凭证清理失败",
-        migration::cleanup_legacy_api_key_credentials,
-        |_, count| format!("[数据库] 已清理 {} 条旧 API Key 凭证", count),
-    );
+fn clear_provider_pool_credentials(conn: &Connection) -> Result<usize, String> {
+    conn.execute("DELETE FROM provider_pool_credentials", [])
+        .map_err(|error| error.to_string())
+}
+
+fn count_managed_files(path: &Path) -> usize {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return 0;
+    };
+
+    let file_type = metadata.file_type();
+    if file_type.is_symlink() || metadata.is_file() {
+        return 1;
+    }
+
+    if !metadata.is_dir() {
+        return 0;
+    }
+
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return 0;
+    };
+
+    entries
+        .filter_map(Result::ok)
+        .map(|entry| count_managed_files(&entry.path()))
+        .sum()
+}
+
+fn remove_managed_provider_pool_credential_files() -> Result<usize, String> {
+    let data_dir = crate::app_paths::preferred_data_dir().map_err(|error| error.to_string())?;
+    let credentials_dir = data_dir.join("credentials");
+
+    let metadata = match std::fs::symlink_metadata(&credentials_dir) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error.to_string()),
+    };
+
+    let deleted_count = count_managed_files(&credentials_dir);
+    if metadata.file_type().is_symlink() || metadata.is_file() {
+        std::fs::remove_file(&credentials_dir).map_err(|error| error.to_string())?;
+    } else if metadata.is_dir() {
+        std::fs::remove_dir_all(&credentials_dir).map_err(|error| error.to_string())?;
+    }
+
+    Ok(deleted_count)
 }
 
 fn run_mcp_startup_migrations(conn: &Connection) {

@@ -42,6 +42,43 @@ type UseAsterAgentChatRuntimeOptions = UseAsterAgentChatOptions & {
 
 const AUTO_TITLE_DEFERRED_LOAD_MS = 10_000;
 const AUTO_TITLE_IDLE_TIMEOUT_MS = 2_000;
+const AUTO_TITLE_PLACEHOLDER_TITLES = new Set([
+  "",
+  "新任务",
+  "新话题",
+  "新对话",
+]);
+
+function isAutoTitlePlaceholder(title: string | null | undefined): boolean {
+  return AUTO_TITLE_PLACEHOLDER_TITLES.has(title?.trim() ?? "");
+}
+
+function isPreviewDerivedTitle(
+  title: string | null | undefined,
+  messages: Array<{ role: string; content: unknown }>,
+): boolean {
+  const normalizedTitle = title?.trim();
+  if (!normalizedTitle) {
+    return false;
+  }
+
+  const firstAssistantMessage = messages.find(
+    (message) =>
+      message.role === "assistant" &&
+      typeof message.content === "string" &&
+      message.content.trim().length > 0,
+  );
+  if (!firstAssistantMessage || typeof firstAssistantMessage.content !== "string") {
+    return false;
+  }
+
+  const normalizedMessage = firstAssistantMessage.content.trim();
+  const messagePrefix = normalizedMessage.slice(0, Math.max(16, normalizedTitle.length));
+  return (
+    normalizedMessage.startsWith(normalizedTitle) ||
+    normalizedTitle.startsWith(messagePrefix)
+  );
+}
 
 export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
   const {
@@ -276,6 +313,17 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
   const sessionTopics = session.topics;
   const sessionSetTopics = session.setTopics;
   const currentSessionId = session.sessionId;
+  const activeSessionTitle = useMemo(() => {
+    const activeSessionId = currentSessionId?.trim();
+    if (!activeSessionId) {
+      return null;
+    }
+
+    const activeTopic = sessionTopics.find(
+      (topic) => topic.id === activeSessionId,
+    );
+    return activeTopic?.title?.trim() ?? null;
+  }, [currentSessionId, sessionTopics]);
 
   useEffect(() => {
     const activeSessionId = currentSessionId?.trim();
@@ -283,17 +331,12 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
       return;
     }
 
-    const activeTopic = sessionTopics.find(
-      (topic) => topic.id === activeSessionId,
-    );
-    if (!activeTopic) {
+    if (activeSessionTitle === null) {
       return;
     }
-    const activeTitle = activeTopic?.title?.trim() || "";
     const shouldAutoGenerateTitle =
-      activeTitle === "" ||
-      activeTitle === "新任务" ||
-      activeTitle === "新话题";
+      isAutoTitlePlaceholder(activeSessionTitle) ||
+      isPreviewDerivedTitle(activeSessionTitle, sessionMessages);
     if (!shouldAutoGenerateTitle) {
       autoTitleCompletedSessionIdsRef.current.add(activeSessionId);
       return;
@@ -324,14 +367,27 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
       () => {
         void (async () => {
           try {
+            const conversationText = sessionMessages
+              .filter(
+                (msg) =>
+                  (msg.role === "user" || msg.role === "assistant") &&
+                  typeof msg.content === "string" &&
+                  msg.content.trim().length > 0,
+              )
+              .map((msg) => `${msg.role}：${msg.content}`)
+              .join("\n")
+              .slice(-1000);
+
             const generatedTitle = (
-              await runtime.generateSessionTitle?.(activeSessionId)
+              await runtime.generateSessionTitle?.(
+                activeSessionId,
+                conversationText,
+              )
             )?.trim();
             if (
               cancelled ||
               !generatedTitle ||
-              generatedTitle === "新任务" ||
-              generatedTitle === "新话题"
+              isAutoTitlePlaceholder(generatedTitle)
             ) {
               return;
             }
@@ -374,11 +430,11 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
       }
     };
   }, [
+    activeSessionTitle,
     currentSessionId,
     runtime,
     sessionMessages,
     sessionSetTopics,
-    sessionTopics,
     stream.isSending,
   ]);
 

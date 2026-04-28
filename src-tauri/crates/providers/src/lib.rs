@@ -3,8 +3,8 @@
 //! 包含所有 Provider 实现、协议转换、流式传输等核心业务模块。
 //!
 //! ## 模块结构
-//! - `providers`: Provider 实现（Kiro、Gemini、Claude、OpenAI、Vertex 等）
-//! - `converter`: 协议转换（OpenAI ↔ CW、OpenAI ↔ Antigravity 等）
+//! - `providers`: Provider 实现（API Key Provider 所需的 Gemini、Claude、OpenAI、Vertex 等）
+//! - `converter`: 协议转换（OpenAI ↔ Antigravity 等）
 //! - `streaming`: 流式传输管理
 //! - `translator`: 请求/响应翻译层
 //! - `stream`: 流事件解析和生成

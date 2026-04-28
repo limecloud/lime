@@ -21,7 +21,6 @@ pub mod durable_memory_fs;
 pub mod event_converter;
 pub mod filesystem_event_protocol;
 pub mod hooks;
-mod kiro_provider_adapter;
 pub mod lsp_bridge;
 pub mod mcp_bridge;
 pub mod prompt;

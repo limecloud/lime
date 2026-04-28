@@ -19,7 +19,6 @@ use lime_core::plugin::PluginManager;
 use lime_core::router::{ModelMapper, Router};
 use lime_core::ProviderType;
 use lime_infra::{Failover, Injector, Retrier, StatsAggregator, TimeoutController, TokenTracker};
-use lime_services::provider_pool_service::ProviderPoolService;
 use parking_lot::RwLock as ParkingLotRwLock;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -46,8 +45,6 @@ pub struct RequestProcessor {
     pub stats: Arc<ParkingLotRwLock<StatsAggregator>>,
     /// Token 追踪器（使用 parking_lot::RwLock 以支持与 TelemetryState 共享）
     pub tokens: Arc<ParkingLotRwLock<TokenTracker>>,
-    /// 凭证池服务
-    pub pool_service: Arc<ProviderPoolService>,
     /// 热重载协调锁（避免配置更新期间请求读取不一致的配置）
     pub reload_lock: Arc<RwLock<()>>,
     /// 提示路由器
@@ -68,7 +65,6 @@ impl RequestProcessor {
         plugins: Arc<PluginManager>,
         stats: Arc<ParkingLotRwLock<StatsAggregator>>,
         tokens: Arc<ParkingLotRwLock<TokenTracker>>,
-        pool_service: Arc<ProviderPoolService>,
     ) -> Self {
         Self {
             router,
@@ -80,7 +76,6 @@ impl RequestProcessor {
             plugins,
             stats,
             tokens,
-            pool_service,
             reload_lock: Arc::new(RwLock::new(())),
             hint_router: Arc::new(RwLock::new(lime_core::router::HintRouter::default())),
             conversation_trimmer: Arc::new(crate::conversation_manager::ConversationTrimmer::new(
@@ -90,7 +85,7 @@ impl RequestProcessor {
     }
 
     /// 使用默认配置创建请求处理器
-    pub fn with_defaults(pool_service: Arc<ProviderPoolService>) -> Self {
+    pub fn with_defaults() -> Self {
         Self {
             router: Arc::new(RwLock::new(Self::create_router_with_defaults())),
             mapper: Arc::new(RwLock::new(ModelMapper::new())),
@@ -101,7 +96,6 @@ impl RequestProcessor {
             plugins: Arc::new(PluginManager::with_defaults()),
             stats: Arc::new(ParkingLotRwLock::new(StatsAggregator::with_defaults())),
             tokens: Arc::new(ParkingLotRwLock::new(TokenTracker::with_defaults())),
-            pool_service,
             reload_lock: Arc::new(RwLock::new(())),
             hint_router: Arc::new(RwLock::new(lime_core::router::HintRouter::default())),
             conversation_trimmer: Arc::new(crate::conversation_manager::ConversationTrimmer::new(
@@ -121,7 +115,6 @@ impl RequestProcessor {
 
     /// 使用共享的统计和 Token 追踪器创建请求处理器
     pub fn with_shared_telemetry(
-        pool_service: Arc<ProviderPoolService>,
         stats: Arc<ParkingLotRwLock<StatsAggregator>>,
         tokens: Arc<ParkingLotRwLock<TokenTracker>>,
     ) -> Self {
@@ -135,7 +128,6 @@ impl RequestProcessor {
             plugins: Arc::new(PluginManager::with_defaults()),
             stats,
             tokens,
-            pool_service,
             reload_lock: Arc::new(RwLock::new(())),
             hint_router: Arc::new(RwLock::new(lime_core::router::HintRouter::default())),
             conversation_trimmer: Arc::new(crate::conversation_manager::ConversationTrimmer::new(

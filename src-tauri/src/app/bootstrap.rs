@@ -11,10 +11,8 @@ use crate::commands::connect_cmd::ConnectStateWrapper;
 use crate::commands::context_memory::ContextMemoryServiceState;
 use crate::commands::machine_id_cmd::MachineIdState;
 use crate::commands::model_registry_cmd::ModelRegistryState;
-use crate::commands::orchestrator_cmd::OrchestratorState;
 use crate::commands::plugin_cmd::PluginManagerState;
 use crate::commands::plugin_install_cmd::PluginInstallerState;
-use crate::commands::provider_pool_cmd::{CredentialSyncServiceState, ProviderPoolServiceState};
 use crate::commands::session_files_cmd::SessionFilesState;
 use crate::commands::skill_cmd::SkillServiceState;
 use crate::commands::webview_cmd::{
@@ -34,12 +32,10 @@ use lime_scheduler::AgentScheduler;
 use lime_server as server;
 use lime_services::api_key_provider_service::ApiKeyProviderService;
 use lime_services::context_memory_service::{ContextMemoryConfig, ContextMemoryService};
-use lime_services::provider_pool_service::ProviderPoolService;
 use lime_services::skill_service::SkillService;
-use lime_services::token_cache_service::TokenCacheService;
 use lime_services::update_check_service::UpdateCheckServiceState;
 
-use super::types::{AppState, LogState, TokenCacheServiceState};
+use super::types::{AppState, LogState};
 
 pub use lime_core::app_bootstrap::{load_and_validate_config, ConfigError};
 
@@ -49,17 +45,13 @@ pub struct AppStates {
     pub logs: LogState,
     pub db: DbConnection,
     pub skill_service: SkillServiceState,
-    pub provider_pool_service: ProviderPoolServiceState,
     pub api_key_provider_service: ApiKeyProviderServiceState,
-    pub credential_sync_service: CredentialSyncServiceState,
-    pub token_cache_service: TokenCacheServiceState,
     pub machine_id_service: MachineIdState,
     pub plugin_manager: PluginManagerState,
     pub plugin_installer: PluginInstallerState,
     pub plugin_rpc_manager: crate::commands::plugin_rpc_cmd::PluginRpcManagerState,
     pub telemetry: crate::commands::telemetry_cmd::TelemetryState,
     pub aster_agent: AsterAgentState,
-    pub orchestrator: OrchestratorState,
     pub connect_state: ConnectStateWrapper,
     pub model_registry: ModelRegistryState,
     pub global_config_manager: GlobalConfigManagerState,
@@ -143,9 +135,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
     let skill_service = SkillService::new().map_err(|e| format!("SkillService 初始化失败: {e}"))?;
     let skill_service_state = SkillServiceState(Arc::new(skill_service));
 
-    let provider_pool_service = ProviderPoolService::new();
-    let provider_pool_service_state = ProviderPoolServiceState(Arc::new(provider_pool_service));
-
     let api_key_provider_service = ApiKeyProviderService::new();
     match api_key_provider_service.migrate_legacy_api_key_encryption(&db) {
         Ok(0) => {
@@ -163,11 +152,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
     }
     let api_key_provider_service_state =
         ApiKeyProviderServiceState(Arc::new(api_key_provider_service));
-
-    let credential_sync_service_state = CredentialSyncServiceState(None);
-
-    let token_cache_service = TokenCacheService::new();
-    let token_cache_service_state = TokenCacheServiceState(Arc::new(token_cache_service));
 
     let machine_id_service = lime_services::machine_id_service::MachineIdService::new()
         .map_err(|e| format!("MachineIdService 初始化失败: {e}"))?;
@@ -188,7 +172,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
 
     // 其他状态
     let aster_agent_state = AsterAgentState::new();
-    let orchestrator_state = OrchestratorState::new();
 
     // 初始化 Connect 状态（延迟初始化，在 setup hook 中完成）
     let connect_state = ConnectStateWrapper(Arc::new(RwLock::new(None)));
@@ -270,17 +253,13 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
         logs,
         db,
         skill_service: skill_service_state,
-        provider_pool_service: provider_pool_service_state,
         api_key_provider_service: api_key_provider_service_state,
-        credential_sync_service: credential_sync_service_state,
-        token_cache_service: token_cache_service_state,
         machine_id_service: machine_id_service_state,
         plugin_manager: plugin_manager_state,
         plugin_installer: plugin_installer_state,
         plugin_rpc_manager: plugin_rpc_manager_state,
         telemetry: telemetry_state,
         aster_agent: aster_agent_state,
-        orchestrator: orchestrator_state,
         connect_state,
         model_registry: model_registry_state,
         global_config_manager: global_config_manager_state,

@@ -54,6 +54,20 @@ import {
   buildToolResultArtifactFromToolResult,
 } from "../utils/taskPreviewFromToolResult";
 
+function appendWithOverlapDetection(base: string, chunk: string): string {
+  if (!base) return chunk;
+  if (!chunk) return base;
+  if (chunk.startsWith(base)) return chunk;
+  if (base.endsWith(chunk)) return base;
+  const maxOverlap = Math.min(base.length, chunk.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (base.slice(-overlap) === chunk.slice(0, overlap)) {
+      return base + chunk.slice(overlap);
+    }
+  }
+  return base + chunk;
+}
+
 type MessageParts = NonNullable<Message["contentParts"]>;
 
 interface StreamObserver {
@@ -560,7 +574,10 @@ export function handleTurnStreamEvent({
             ? {
                 ...msg,
                 isThinking: true,
-                thinkingContent: (msg.thinkingContent || "") + data.text,
+                thinkingContent: appendWithOverlapDetection(
+                  msg.thinkingContent || "",
+                  data.text,
+                ),
                 contentParts: appendThinkingToParts(
                   msg.contentParts || [],
                   data.text,

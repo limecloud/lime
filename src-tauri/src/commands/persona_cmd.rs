@@ -287,7 +287,7 @@ pub struct GeneratedPersonaCommandResult {
 /// AI 一键生成人设
 ///
 /// 根据用户提供的简单描述，调用 AI 生成完整的人设配置。
-/// 自动从凭证池选择可用凭证进行调用。
+/// 自动从 API Key Provider 选择可用凭证进行调用。
 ///
 /// # 参数
 /// - `prompt`: 用户描述，例如"一个幽默风趣的科技博主"

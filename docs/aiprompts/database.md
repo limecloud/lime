@@ -103,4 +103,4 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
 ## 相关文档
 
 - [services.md](services.md) - 业务服务
-- [credential-pool.md](credential-pool.md) - 凭证池管理
+- [credential-pool.md](credential-pool.md) - 凭证池退役说明

@@ -7,7 +7,6 @@
 //! - `file_browser_service` - 文件浏览服务
 //! - `sysinfo_service` - 系统信息服务
 //! - `update_check_service` - 更新检查服务
-//! - `usage_service` - 使用统计服务
 
 #![allow(clippy::type_complexity)]
 #![allow(clippy::let_underscore_future)]
@@ -33,17 +32,13 @@
 //! - `material_service` - 素材服务
 //! - `persona_service` - 人设服务
 //! - `model_registry_service` - 模型注册服务
-//! - `model_service` - 模型服务
 //! - `prompt_service` - Prompt 服务
 //! - `mcp_service` - MCP 服务
 //! - `aster_session_store` - Aster 会话存储
 //! - `session_context_service` - 会话上下文服务
 //! - `ai_summary_service` - AI 摘要服务
 //! - `project_context_builder` - 项目上下文构建器
-//! - `kiro_event_service` - Kiro 事件服务
 //! - `api_key_provider_service` - API Key Provider 服务
-//! - `provider_pool_service` - Provider 池服务
-//! - `token_cache_service` - Token 缓存服务
 
 // 无外部依赖的服务
 pub mod context_memory_service;
@@ -52,7 +47,6 @@ pub mod screenshot_capture_service;
 pub mod screenshot_image_service;
 pub mod sysinfo_service;
 pub mod update_check_service;
-pub mod usage_service;
 pub mod voice_asr_service;
 pub mod voice_command_service;
 pub mod voice_config_service;
@@ -73,7 +67,6 @@ pub mod backup_service;
 pub mod material_service;
 pub mod mcp_service;
 pub mod model_registry_service;
-pub mod model_service;
 pub mod persona_service;
 pub mod prompt_service;
 // 依赖其他 services 的服务
@@ -81,12 +74,7 @@ pub mod ai_summary_service;
 pub mod project_context_builder;
 pub mod session_context_service;
 
-// 事件服务
-pub mod kiro_event_service;
-
 // 依赖 providers 的服务
 pub mod api_key_provider_service;
-pub mod provider_pool_service;
 pub mod provider_type_mapping;
-pub mod token_cache_service;
 pub mod video_generation_service;

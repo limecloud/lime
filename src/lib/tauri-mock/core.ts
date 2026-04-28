@@ -3827,32 +3827,7 @@ const defaultMocks: Record<string, any> = {
         key_path: null,
       },
     },
-    providers: {
-      kiro: {
-        enabled: false,
-        credentials_path: null,
-        region: null,
-      },
-      gemini: {
-        enabled: false,
-        credentials_path: null,
-      },
-      qwen: {
-        enabled: false,
-        credentials_path: null,
-      },
-      openai: {
-        enabled: false,
-        api_key: null,
-        base_url: null,
-      },
-      claude: {
-        enabled: false,
-        api_key: null,
-        base_url: null,
-      },
-    },
-    default_provider: "kiro",
+    default_provider: "openai",
     remote_management: {
       allow_remote: false,
       secret_key: null,
@@ -3867,17 +3842,6 @@ const defaultMocks: Record<string, any> = {
       upstream_url: null,
       model_mappings: [],
       restrict_management_to_localhost: true,
-    },
-    credential_pool: {
-      kiro: [],
-      gemini: [],
-      qwen: [],
-      openai: [],
-      claude: [],
-      gemini_api_keys: [],
-      vertex_api_keys: [],
-      codex: [],
-      iflow: [],
     },
     proxy_url: null,
     minimize_to_tray: false,
@@ -3957,7 +3921,7 @@ const defaultMocks: Record<string, any> = {
   // Provider 相关
   get_providers: () => [],
   get_credentials: () => [],
-  get_default_provider: () => "kiro",
+  get_default_provider: () => "openai",
   set_default_provider: (args: any) => {
     const provider = args?.provider ?? args;
     logMockInfo("[Mock] Default provider set to:", provider);
@@ -5121,10 +5085,6 @@ const defaultMocks: Record<string, any> = {
     initialized: true,
     provider_configured: true,
   }),
-  aster_agent_configure_from_pool: () => ({
-    initialized: true,
-    provider_configured: true,
-  }),
   agent_runtime_submit_turn: () => ({}),
   agent_runtime_interrupt_turn: () => true,
   agent_runtime_create_session: () => "mock-aster-session",
@@ -5639,21 +5599,10 @@ const defaultMocks: Record<string, any> = {
   cancel_plugin_task: () => true,
   get_plugin_queue_stats: () => [],
 
-  // 凭证池相关
+  // Provider 目录相关
   get_relay_providers: () => [],
   list_relay_providers: () => [],
   get_system_provider_catalog: () => [],
-  get_pool_overview: () => [],
-  get_provider_pool_overview: () => [],
-  get_provider_pool_credentials: () => [],
-  add_provider_pool_credential: () => ({ success: true }),
-  update_provider_pool_credential: () => ({ success: true }),
-  delete_provider_pool_credential: () => ({ success: true }),
-  toggle_provider_pool_credential: () => ({ success: true }),
-  reset_provider_pool_credential: () => ({ success: true }),
-  reset_provider_pool_health: () => ({ success: true }),
-  check_provider_pool_credential_health: () => ({ healthy: false }),
-  check_provider_pool_type_health: () => ({ healthy: false }),
 
   // API Key Provider 相关
   get_api_key_providers: () => [],
@@ -5673,7 +5622,6 @@ const defaultMocks: Record<string, any> = {
   update_provider_sort_orders: () => ({ success: true }),
   export_api_key_providers: () => ({ config: "{}" }),
   import_api_key_providers: () => ({ success: true }),
-  get_local_kiro_credential_uuid: () => null,
   create_video_generation_task: (args: any) => {
     const request = args?.request ?? {};
     return {
@@ -6025,54 +5973,6 @@ const defaultMocks: Record<string, any> = {
   session_files_delete_file: () => undefined,
   save_exported_document: () => undefined,
 
-  // OAuth 凭证相关
-  add_kiro_oauth_credential: () => ({ success: true }),
-  add_kiro_from_json: () => ({ success: true }),
-  add_gemini_oauth_credential: () => ({ success: true }),
-  add_qwen_oauth_credential: () => ({ success: true }),
-  add_openai_key_credential: () => ({ success: true }),
-  add_claude_key_credential: () => ({ success: true }),
-  add_gemini_api_key_credential: () => ({ success: true }),
-  add_antigravity_oauth_credential: () => ({ success: true }),
-  add_codex_oauth_credential: () => ({ success: true }),
-  add_claude_oauth_credential: () => ({ success: true }),
-  add_iflow_oauth_credential: () => ({ success: true }),
-  add_iflow_cookie_credential: () => ({ success: true }),
-  start_kiro_builder_id_login: () => ({ success: true }),
-  poll_kiro_builder_id_auth: () => ({ status: "pending" }),
-  cancel_kiro_builder_id_login: () => ({ success: true }),
-  add_kiro_from_builder_id_auth: () => ({ success: true }),
-  start_kiro_social_auth_login: () => ({ success: true }),
-  exchange_kiro_social_auth_token: () => ({ success: true }),
-  cancel_kiro_social_auth_login: () => ({ success: true }),
-  start_kiro_social_auth_callback_server: () => ({ success: true }),
-  refresh_pool_credential_token: () => ({ success: true }),
-  get_pool_credential_oauth_status: () => ({ status: "unknown" }),
-  migrate_private_config_to_pool: () => ({ success: true }),
-  get_credential_health: () => ({ healthy: false }),
-  get_all_credential_health: () => [],
-  get_kiro_credential_fingerprint: () => ({ fingerprint: "" }),
-  switch_kiro_to_local: () => ({ success: true }),
-
-  // Playwright 相关
-  check_playwright_available: () => ({ available: false }),
-  install_playwright: () => ({ success: true }),
-  start_kiro_playwright_login: () => ({ success: true }),
-  cancel_kiro_playwright_login: () => ({ success: true }),
-
-  get_oauth_url: () => ({ url: "https://example.com/oauth" }),
-  save_oauth_credential: () => ({ success: true }),
-  get_oauth_credentials: () => [],
-  get_all_oauth_credentials: () => [],
-  reload_oauth_credentials: () => ({ success: true }),
-  refresh_oauth_token: () => ({ success: true }),
-  get_oauth_env_variables: () => [],
-  get_oauth_token_file_hash: () => ({ hash: "" }),
-  check_and_reload_oauth_credentials: () => ({
-    changed: false,
-    new_hash: "",
-    reloaded: false,
-  }),
 
   // 模型相关
   get_model_registry: () => [],
@@ -6089,8 +5989,6 @@ const defaultMocks: Record<string, any> = {
   refresh_model_registry: () => ({ success: true }),
   search_models: () => [],
   get_all_provider_models: () => ({}),
-  get_all_models_by_provider: () => ({}),
-  get_all_available_models: () => [],
   get_model_preferences: () => [],
   toggle_model_favorite: () => ({ success: true }),
   hide_model: () => ({ success: true }),
@@ -6098,30 +5996,9 @@ const defaultMocks: Record<string, any> = {
   get_model_sync_state: () => ({ syncing: false, last_sync_at: null }),
   get_models_for_provider: () => [],
   get_models_by_tier: () => [],
-  get_default_models_for_provider: () => [],
   get_provider_alias_config: () => ({ alias: {} }),
   get_all_alias_configs: () => ({}),
   sync_tray_model_shortcuts: () => ({}),
-
-  // Orchestrator 相关
-  init_orchestrator: () => ({}),
-  get_orchestrator_config: () => ({ config: {} }),
-  update_orchestrator_config: () => ({ success: true }),
-  get_pool_stats: () => ({ stats: {} }),
-  get_tier_models: () => [],
-  get_all_models: () => [],
-  update_orchestrator_credentials: () => ({ success: true }),
-  add_orchestrator_credential: () => ({ success: true }),
-  remove_orchestrator_credential: () => ({ success: true }),
-  mark_credential_unhealthy: () => ({ success: true }),
-  mark_credential_healthy: () => ({ success: true }),
-  update_credential_load: () => ({ success: true }),
-  select_model: () => ({ model: "" }),
-  quick_select_model: () => ({ model: "" }),
-  select_model_for_task: () => ({ model: "" }),
-  list_strategies: () => [],
-  list_service_tiers: () => [],
-  list_task_hints: () => [],
 
   // MCP 相关
   get_mcp_servers: () => [],
@@ -6207,9 +6084,6 @@ const defaultMocks: Record<string, any> = {
   focus_webview_panel: () => true,
   navigate_webview_panel: () => true,
 
-  // Usage 相关
-  get_kiro_usage: () => ({ usage: {} }),
-
   // Machine ID 相关
   get_current_machine_id: () => ({ machine_id: "" }),
   set_machine_id: () => ({ success: true }),
@@ -6235,22 +6109,6 @@ const defaultMocks: Record<string, any> = {
   remove_injection_rule: () => ({ success: true }),
   update_injection_rule: () => ({ success: true }),
   get_injection_rules: () => ({ rules: [] }),
-
-  // OAuth 登录相关
-  start_antigravity_oauth_login: () => ({ success: true }),
-  get_antigravity_auth_url_and_wait: () => ({ url: "" }),
-  start_codex_oauth_login: () => ({ success: true }),
-  get_codex_auth_url_and_wait: () => ({ url: "" }),
-  start_claude_oauth_login: () => ({ success: true }),
-  get_claude_oauth_auth_url_and_wait: () => ({ url: "" }),
-  claude_oauth_with_cookie: () => ({ success: true }),
-  start_qwen_device_code_login: () => ({ success: true }),
-  get_qwen_device_code_and_wait: () => ({ code: "" }),
-  start_iflow_oauth_login: () => ({ success: true }),
-  get_iflow_auth_url_and_wait: () => ({ url: "" }),
-  start_gemini_oauth_login: () => ({ success: true }),
-  get_gemini_auth_url_and_wait: () => ({ url: "" }),
-  exchange_gemini_code: () => ({ success: true }),
 
   // File System 相关
   reveal_in_finder: () => ({}),
@@ -6279,42 +6137,6 @@ const defaultMocks: Record<string, any> = {
   }),
   clear_logs: () => ({}),
   clear_diagnostic_log_history: () => ({}),
-
-  // Kiro Credentials 相关
-  get_kiro_credentials: () => ({ loaded: false }),
-  refresh_kiro_token: () => ({ success: true }),
-  reload_credentials: () => ({ success: true }),
-  get_env_variables: () => [],
-  get_token_file_hash: () => ({ hash: "" }),
-  check_and_reload_credentials: () => ({
-    changed: false,
-    new_hash: "",
-    reloaded: false,
-  }),
-
-  // Gemini Credentials 相关
-  get_gemini_credentials: () => ({ loaded: false }),
-  reload_gemini_credentials: () => ({ success: true }),
-  refresh_gemini_token: () => ({ success: true }),
-  get_gemini_env_variables: () => [],
-  get_gemini_token_file_hash: () => ({ hash: "" }),
-  check_and_reload_gemini_credentials: () => ({
-    changed: false,
-    new_hash: "",
-    reloaded: false,
-  }),
-
-  // Qwen Credentials 相关
-  get_qwen_credentials: () => ({ loaded: false }),
-  reload_qwen_credentials: () => ({ success: true }),
-  refresh_qwen_token: () => ({ success: true }),
-  get_qwen_env_variables: () => [],
-  get_qwen_token_file_hash: () => ({ hash: "" }),
-  check_and_reload_qwen_credentials: () => ({
-    changed: false,
-    new_hash: "",
-    reloaded: false,
-  }),
 
   // OpenAI Custom 相关
   get_openai_custom_status: () => ({
@@ -6457,7 +6279,7 @@ const defaultMocks: Record<string, any> = {
 
   // Update 相关
   check_update: () => ({
-    current_version: "1.21.0",
+    current_version: "1.22.0",
     latest_version: null,
     has_update: false,
     download_url: "https://github.com/limecloud/lime/releases",
@@ -6468,7 +6290,7 @@ const defaultMocks: Record<string, any> = {
     error: null,
   }),
   check_for_updates: () => ({
-    current: "1.21.0",
+    current: "1.22.0",
     latest: null,
     hasUpdate: false,
     downloadUrl: "https://github.com/limecloud/lime/releases",
@@ -6508,9 +6330,6 @@ const defaultMocks: Record<string, any> = {
   close_update_window: () => ({}),
   set_update_check_settings: () => ({ success: true }),
   test_update_window: () => ({}),
-
-  // Auto Fix 相关
-  auto_fix_configuration: () => ({ success: true }),
 
   // 自动化任务相关
   get_automation_scheduler_config: () => ({

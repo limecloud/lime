@@ -92,12 +92,19 @@ async fn test_real_web_search_preflight_short_input_continue() {
         false,
     );
     let mut tracker = WebSearchExecutionTracker::default();
+    let mut metadata = std::collections::HashMap::new();
+    metadata.insert("webSearchEnabled".to_string(), serde_json::json!(true));
+    let turn_context = aster::session::TurnContextOverride {
+        metadata,
+        ..aster::session::TurnContextOverride::default()
+    };
     let execution = execute_web_search_preflight_if_needed(
         agent,
         &session_id,
         "继续",
         None,
         None,
+        Some(turn_context),
         &policy,
         &mut tracker,
     )

@@ -18,10 +18,6 @@ import {
   getGeneralWorkbenchDocumentState,
   type GeneralWorkbenchDocumentState,
 } from "@/lib/api/project";
-import {
-  providerPoolApi,
-  type ProviderPoolOverview,
-} from "@/lib/api/providerPool";
 import { getActiveContentTarget } from "@/lib/activeContentTarget";
 import { getRuntimeAppVersion } from "@/lib/appVersion";
 import {
@@ -83,23 +79,6 @@ export interface RuntimeConfigSummary {
   crash_reporting_enabled: boolean;
 }
 
-export interface ProviderPoolProviderSummary {
-  provider_type: string;
-  total: number;
-  healthy: number;
-  unhealthy: number;
-  disabled: number;
-}
-
-export interface ProviderPoolDiagnosticSummary {
-  total_provider_types: number;
-  total_credentials: number;
-  healthy_credentials: number;
-  unhealthy_credentials: number;
-  disabled_credentials: number;
-  providers: ProviderPoolProviderSummary[];
-}
-
 export interface ApiKeyProviderEntrySummary {
   id: string;
   type: string;
@@ -142,7 +121,6 @@ export interface McpDiagnosticSummary {
 
 export interface RuntimeDiagnosticSnapshot {
   config_summary?: RuntimeConfigSummary | null;
-  provider_pool_summary?: ProviderPoolDiagnosticSummary | null;
   api_key_provider_summary?: ApiKeyProviderDiagnosticSummary | null;
   mcp_summary?: McpDiagnosticSummary | null;
 }
@@ -269,33 +247,6 @@ function buildRuntimeConfigSummary(config: Config): RuntimeConfigSummary {
   };
 }
 
-function buildProviderPoolSummary(
-  overviews: ProviderPoolOverview[],
-): ProviderPoolDiagnosticSummary {
-  const providers = overviews.map((overview) => ({
-    provider_type: overview.provider_type,
-    total: overview.stats.total,
-    healthy: overview.stats.healthy,
-    unhealthy: overview.stats.unhealthy,
-    disabled: overview.stats.disabled,
-  }));
-
-  return {
-    total_provider_types: providers.length,
-    total_credentials: providers.reduce((sum, item) => sum + item.total, 0),
-    healthy_credentials: providers.reduce((sum, item) => sum + item.healthy, 0),
-    unhealthy_credentials: providers.reduce(
-      (sum, item) => sum + item.unhealthy,
-      0,
-    ),
-    disabled_credentials: providers.reduce(
-      (sum, item) => sum + item.disabled,
-      0,
-    ),
-    providers,
-  };
-}
-
 function buildApiKeyProviderSummary(
   providers: ProviderWithKeysDisplay[],
 ): ApiKeyProviderDiagnosticSummary {
@@ -382,7 +333,6 @@ function buildCollectionFailureNote(
 function hasRuntimeSnapshotData(snapshot: RuntimeDiagnosticSnapshot): boolean {
   return Boolean(
     snapshot.config_summary ||
-    snapshot.provider_pool_summary ||
     snapshot.api_key_provider_summary ||
     snapshot.mcp_summary,
   );
@@ -392,14 +342,9 @@ export async function collectRuntimeSnapshotForDiagnostic(
   config?: Config | null,
 ): Promise<RuntimeDiagnosticCollectionResult> {
   const configTask = config ? Promise.resolve(config) : getConfig();
-  const [
-    configResult,
-    providerPoolResult,
-    apiKeyProviderResult,
-    mcpResult,
-  ] = await Promise.allSettled([
+  const [configResult, apiKeyProviderResult, mcpResult] =
+    await Promise.allSettled([
     configTask,
-    providerPoolApi.getOverview(),
     apiKeyProviderApi.getProviders(),
     mcpApi.listServersWithStatus(),
   ]);
@@ -416,21 +361,6 @@ export async function collectRuntimeSnapshotForDiagnostic(
         "runtime_snapshot.config_summary",
         "get_config",
         configResult.reason,
-      ),
-    );
-  }
-
-  if (providerPoolResult.status === "fulfilled") {
-    snapshot.provider_pool_summary = buildProviderPoolSummary(
-      providerPoolResult.value,
-    );
-  } else {
-    snapshot.provider_pool_summary = null;
-    collectionNotes.push(
-      buildCollectionFailureNote(
-        "runtime_snapshot.provider_pool_summary",
-        "get_provider_pool_overview",
-        providerPoolResult.reason,
       ),
     );
   }
@@ -523,15 +453,13 @@ function buildAutoCollectionNotes(params: {
 
   if (!params.runtimeSnapshot) {
     notes.push(
-      "runtime_snapshot 未采集到：本次导出仍可用于分析日志与调用轨迹，但无法反映配置、凭证池、MCP 与终端运行态。",
+      "runtime_snapshot 未采集到：本次导出仍可用于分析日志与调用轨迹，但无法反映配置、API Key Provider、MCP 与终端运行态。",
     );
   } else if (
-    (params.runtimeSnapshot.provider_pool_summary?.total_credentials ?? 0) ===
-      0 &&
     (params.runtimeSnapshot.api_key_provider_summary?.total_api_keys ?? 0) === 0
   ) {
     notes.push(
-      "运行时快照显示 Provider Pool 凭证数与 API Key 数都为 0；首次安装或初始化未完成时，很多操作不会继续产生更多下游错误与日志。",
+      "运行时快照显示 API Key 数为 0；首次安装或初始化未完成时，很多操作不会继续产生更多下游错误与日志。",
     );
   }
 
@@ -804,7 +732,6 @@ function buildDiagnosticSummary(payload: CrashDiagnosticPayload): string {
     windowsStartupDiagnostics,
     "warning",
   );
-  const providerPoolSummary = payload.runtime_snapshot?.provider_pool_summary;
   const apiKeyProviderSummary =
     payload.runtime_snapshot?.api_key_provider_summary;
   const mcpSummary = payload.runtime_snapshot?.mcp_summary;
@@ -820,7 +747,6 @@ function buildDiagnosticSummary(payload: CrashDiagnosticPayload): string {
     `- 持久化日志尾部行数：${persistedLogCount}`,
     `- 服务端诊断已采集：${serverDiagnosticsCollected}`,
     `- 运行时快照已采集：${runtimeSnapshotCollected}`,
-    `- Provider Pool 凭证总数：${formatOptionalSummaryValue(providerPoolSummary?.total_credentials)}`,
     `- API Key Provider / Key 数：${
       apiKeyProviderSummary
         ? `${apiKeyProviderSummary.total_providers} / ${apiKeyProviderSummary.total_api_keys}`

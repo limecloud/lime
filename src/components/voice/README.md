@@ -18,7 +18,7 @@
 ```tsx
 import { AsrProviderSection, InstructionEditor } from "@/components/voice";
 
-// 在凭证池页面中使用 ASR 管理
+// 在语音服务设置中使用 ASR 管理
 <AsrProviderSection />
 
 // 在设置页面中使用指令编辑器

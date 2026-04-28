@@ -20,8 +20,8 @@ pub mod stream;
 pub use handlers::RpcHandler;
 pub use lime_core::websocket::types;
 pub use lime_core::websocket::{
-    KiroTokenInfo, WsApiRequest, WsApiResponse, WsConfig, WsConnection, WsEndpoint, WsError,
-    WsKiroEvent, WsMessage, WsStats, WsStatsSnapshot, WsStreamChunk, WsStreamEnd,
+    WsApiRequest, WsApiResponse, WsConfig, WsConnection, WsEndpoint, WsError, WsMessage, WsStats,
+    WsStatsSnapshot, WsStreamChunk, WsStreamEnd,
 };
 pub use processor::MessageProcessor;
 pub use protocol::{GatewayRpcRequest, GatewayRpcResponse, RpcError, RpcMethod};

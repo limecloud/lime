@@ -44,11 +44,9 @@ use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::{ChatCompletionRequest, ContentPart, MessageContent};
 use lime_core::ProviderType;
 use lime_processor::RequestContext;
-use lime_providers::converter::anthropic_to_openai::convert_anthropic_to_openai;
 use lime_providers::streaming::StreamFormat as StreamingFormat;
 use lime_server_utils::{
-    build_anthropic_response, build_anthropic_stream_response, build_error_response_with_meta,
-    build_gateway_error_json, message_content_len, parse_cw_response, safe_truncate,
+    build_error_response_with_meta, build_gateway_error_json, message_content_len,
 };
 
 use super::{call_provider_anthropic, call_provider_openai};
@@ -57,7 +55,7 @@ async fn select_credential_for_request(
     state: &AppState,
     request_id: Option<&str>,
     selected_provider: &str,
-    model: &str,
+    _model: &str,
     client_type: &ClientType,
     explicit_provider_id: Option<&str>,
     log_prefix: &str,
@@ -74,13 +72,14 @@ async fn select_credential_for_request(
     if let Some(explicit_provider_id) = explicit_provider_id {
         eprintln!("[{log_prefix}] 使用 X-Provider-Id 指定的 provider: {explicit_provider_id}");
         let cred = state
-            .pool_service
-            .select_credential_with_client_check(
+            .api_key_service
+            .select_credential_for_provider(
                 db,
                 explicit_provider_id,
-                Some(model),
+                Some(explicit_provider_id),
                 Some(client_type),
             )
+            .await
             .ok()
             .flatten();
 
@@ -112,14 +111,18 @@ async fn select_credential_for_request(
 
     if !state.allow_provider_fallback {
         eprintln!(
-            "[{log_prefix}] 已禁用自动降级（retry.auto_switch_provider=false），仅从 Provider Pool 选择"
+            "[{log_prefix}] 已禁用自动降级（retry.auto_switch_provider=false），仅从 API Key Provider 选择"
         );
-        return match state.pool_service.select_credential_with_client_check(
-            db,
-            selected_provider,
-            Some(model),
-            Some(client_type),
-        ) {
+        return match state
+            .api_key_service
+            .select_credential_for_provider(
+                db,
+                selected_provider,
+                Some(selected_provider),
+                Some(client_type),
+            )
+            .await
+        {
             Ok(cred) => {
                 if cred.is_some() {
                     eprintln!("[{log_prefix}] 找到凭证: provider={selected_provider}");
@@ -139,12 +142,10 @@ async fn select_credential_for_request(
 
     let provider_id_hint = selected_provider.to_lowercase();
     match state
-        .pool_service
-        .select_credential_with_fallback(
+        .api_key_service
+        .select_credential_for_provider(
             db,
-            &state.api_key_service,
             selected_provider,
-            Some(model),
             Some(provider_id_hint.as_str()),
             Some(client_type),
         )
@@ -2312,7 +2313,7 @@ pub async fn chat_completions(
         }
     }
 
-    // 如果找到凭证池中的凭证，使用它
+    // 如果找到 API Key Provider 凭证，使用它
     if let Some(cred) = credential {
         eprintln!(
             "[CHAT_COMPLETIONS] 使用凭证: type={}, name={:?}, uuid={}",
@@ -2323,7 +2324,7 @@ pub async fn chat_completions(
         state.logs.write().await.add(
             "info",
             &format!(
-                "[ROUTE] Using pool credential: type={} name={:?} uuid={}",
+                "[ROUTE] Using API Key Provider credential: type={} name={:?} uuid={}",
                 cred.provider_type,
                 cred.name,
                 &cred.uuid[..8]
@@ -2411,367 +2412,37 @@ pub async fn chat_completions(
         );
     }
 
-    // 回退到旧的单凭证模式（仅当允许自动降级且选择的 Provider 是 Kiro 时）
-    // 其余情况（含禁用自动降级）直接返回无可用凭证错误
+    // 凭证池和旧 Kiro 单凭证模式已退役，未找到 API Key Provider 时直接返回错误。
     // **Validates: Requirements 3.2**
-    if !state.allow_provider_fallback || effective_provider.to_lowercase() != "kiro" {
-        let reason = if !state.allow_provider_fallback {
-            "auto fallback disabled by retry.auto_switch_provider=false"
-        } else {
-            "legacy mode only supports Kiro"
-        };
-        state.logs.write().await.add(
-            "error",
-            &format!(
-                "[ROUTE] No pool credential found for '{effective_provider}' (client_type={client_type}), {reason}"
-            ),
-        );
-        let message = if !state.allow_provider_fallback {
-            format!(
-                "没有找到可用的 '{}' 凭证（已禁用自动降级）。请在凭证池中添加对应的凭证。",
-                effective_provider
-            )
-        } else {
-            format!(
-                "没有找到可用的 '{}' 凭证。请在凭证池中添加对应的凭证。",
-                effective_provider
-            )
-        };
-        return build_error_response_with_meta(
-            StatusCode::SERVICE_UNAVAILABLE.as_u16(),
-            &message,
-            Some(&ctx.request_id),
-            Some(&effective_provider),
-            Some(GatewayErrorCode::NoCredentials),
-        );
-    }
-
+    let reason = if !state.allow_provider_fallback {
+        "auto fallback disabled by retry.auto_switch_provider=false"
+    } else {
+        "legacy credential pool fallback retired"
+    };
     state.logs.write().await.add(
-        "debug",
-        &format!("[ROUTE] No pool credential found for '{effective_provider}', using legacy mode"),
+        "error",
+        &format!(
+            "[ROUTE] No API Key Provider credential found for '{effective_provider}' (client_type={client_type}), {reason}"
+        ),
     );
-
-    // 启动 Flow 捕获（legacy mode）
-
-    // 使用实际的 provider ID 构建 Flow Metadata
-    let _provider_type = effective_provider
-        .parse::<ProviderType>()
-        .unwrap_or(ProviderType::OpenAI);
-
-    // 检查是否需要拦截请求（legacy mode）
-    // **Validates: Requirements 2.1, 2.3, 2.5**
-
-    // 检查是否需要刷新 token（无 token 或即将过期）
-    {
-        let _guard = state.kiro_refresh_lock.lock().await;
-        let mut kiro = state.kiro.write().await;
-        let needs_refresh =
-            kiro.credentials.access_token.is_none() || kiro.is_token_expiring_soon();
-        if needs_refresh {
-            if let Err(e) = kiro.refresh_token().await {
-                state
-                    .logs
-                    .write()
-                    .await
-                    .add("error", &format!("Token refresh failed: {e}"));
-                // 标记 Flow 失败
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {e}")}})),
-                ).into_response();
-            }
-        }
-    }
-
-    let kiro = state.kiro.read().await;
-
-    match kiro.call_api(&request).await {
-        Ok(resp) => {
-            let status = resp.status();
-            if status.is_success() {
-                match resp.text().await {
-                    Ok(body) => {
-                        let parsed = parse_cw_response(&body);
-                        let has_tool_calls = !parsed.tool_calls.is_empty();
-
-                        state.logs.write().await.add(
-                            "info",
-                            &format!(
-                                "Request completed: content_len={}, tool_calls={}",
-                                parsed.content.len(),
-                                parsed.tool_calls.len()
-                            ),
-                        );
-
-                        // 构建消息
-                        let message = if has_tool_calls {
-                            serde_json::json!({
-                                "role": "assistant",
-                                "content": if parsed.content.is_empty() { serde_json::Value::Null } else { serde_json::json!(parsed.content) },
-                                "tool_calls": parsed.tool_calls.iter().map(|tc| {
-                                    serde_json::json!({
-                                        "id": tc.id,
-                                        "type": "function",
-                                        "function": {
-                                            "name": tc.function.name,
-                                            "arguments": tc.function.arguments
-                                        }
-                                    })
-                                }).collect::<Vec<_>>()
-                            })
-                        } else {
-                            serde_json::json!({
-                                "role": "assistant",
-                                "content": parsed.content
-                            })
-                        };
-
-                        // 估算 Token 数量（基于字符数，约 4 字符 = 1 token）
-                        let estimated_output_tokens = (parsed.content.len() / 4) as u32;
-                        // 估算输入 Token（基于请求消息）
-                        let estimated_input_tokens = request
-                            .messages
-                            .iter()
-                            .map(|m| {
-                                let content_len = match &m.content {
-                                    Some(c) => message_content_len(c),
-                                    None => 0,
-                                };
-                                content_len / 4
-                            })
-                            .sum::<usize>()
-                            as u32;
-
-                        let response = serde_json::json!({
-                            "id": format!("chatcmpl-{}", uuid::Uuid::new_v4()),
-                            "object": "chat.completion",
-                            "created": std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs(),
-                            "model": request.model,
-                            "choices": [{
-                                "index": 0,
-                                "message": message,
-                                "finish_reason": if has_tool_calls { "tool_calls" } else { "stop" }
-                            }],
-                            "usage": {
-                                "prompt_tokens": estimated_input_tokens,
-                                "completion_tokens": estimated_output_tokens,
-                                "total_tokens": estimated_input_tokens + estimated_output_tokens
-                            }
-                        });
-                        // 记录成功请求统计
-                        record_request_telemetry(
-                            &state,
-                            &ctx,
-                            lime_infra::telemetry::RequestStatus::Success,
-                            None,
-                        );
-                        // 记录 Token 使用量
-                        record_token_usage(
-                            &state,
-                            &ctx,
-                            Some(estimated_input_tokens),
-                            Some(estimated_output_tokens),
-                        );
-                        // 完成 Flow 捕获并检查响应拦截
-                        // **Validates: Requirements 2.1, 2.5**
-                        let response = Json(response).into_response();
-                        return attach_route_debug_headers(
-                            finalize_replayable_response(
-                                response,
-                                &mut idempotency_guard,
-                                &mut dedup_guard,
-                                &mut cache_guard,
-                                &ctx.request_id,
-                            )
-                            .await,
-                            &selected_provider,
-                            &effective_provider,
-                            &ctx.resolved_model,
-                        );
-                    }
-                    Err(e) => {
-                        // 记录失败请求统计
-                        record_request_telemetry(
-                            &state,
-                            &ctx,
-                            lime_infra::telemetry::RequestStatus::Failed,
-                            Some(e.to_string()),
-                        );
-                        // 标记 Flow 失败
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                        )
-                            .into_response()
-                    }
-                }
-            } else if status.as_u16() == 403 || status.as_u16() == 402 {
-                // Token 过期或账户问题，尝试重新加载凭证并刷新
-                drop(kiro);
-                let _guard = state.kiro_refresh_lock.lock().await;
-                let mut kiro = state.kiro.write().await;
-                state.logs.write().await.add(
-                    "warn",
-                    &format!(
-                        "[AUTH] Got {}, reloading credentials and attempting token refresh...",
-                        status.as_u16()
-                    ),
-                );
-
-                // 先重新加载凭证文件（可能用户换了账户）
-                if let Err(e) = kiro.load_credentials().await {
-                    state.logs.write().await.add(
-                        "error",
-                        &format!("[AUTH] Failed to reload credentials: {e}"),
-                    );
-                }
-
-                match kiro.refresh_token().await {
-                    Ok(_) => {
-                        state
-                            .logs
-                            .write()
-                            .await
-                            .add("info", "[AUTH] Token refreshed successfully after reload");
-                        // 重试请求
-                        drop(kiro);
-                        let kiro = state.kiro.read().await;
-                        match kiro.call_api(&request).await {
-                            Ok(retry_resp) => {
-                                if retry_resp.status().is_success() {
-                                    match retry_resp.text().await {
-                                        Ok(body) => {
-                                            let parsed = parse_cw_response(&body);
-                                            let has_tool_calls = !parsed.tool_calls.is_empty();
-
-                                            let message = if has_tool_calls {
-                                                serde_json::json!({
-                                                    "role": "assistant",
-                                                    "content": if parsed.content.is_empty() { serde_json::Value::Null } else { serde_json::json!(parsed.content) },
-                                                    "tool_calls": parsed.tool_calls.iter().map(|tc| {
-                                                        serde_json::json!({
-                                                            "id": tc.id,
-                                                            "type": "function",
-                                                            "function": {
-                                                                "name": tc.function.name,
-                                                                "arguments": tc.function.arguments
-                                                            }
-                                                        })
-                                                    }).collect::<Vec<_>>()
-                                                })
-                                            } else {
-                                                serde_json::json!({
-                                                    "role": "assistant",
-                                                    "content": parsed.content
-                                                })
-                                            };
-
-                                            let response = serde_json::json!({
-                                                "id": format!("chatcmpl-{}", uuid::Uuid::new_v4()),
-                                                "object": "chat.completion",
-                                                "created": std::time::SystemTime::now()
-                                                    .duration_since(std::time::UNIX_EPOCH)
-                                                    .unwrap_or_default()
-                                                    .as_secs(),
-                                                "model": request.model,
-                                                "choices": [{
-                                                    "index": 0,
-                                                    "message": message,
-                                                    "finish_reason": if has_tool_calls { "tool_calls" } else { "stop" }
-                                                }],
-                                                "usage": {
-                                                    "prompt_tokens": 0,
-                                                    "completion_tokens": 0,
-                                                    "total_tokens": 0
-                                                }
-                                            });
-                                            // 完成 Flow 捕获并检查响应拦截（重试成功）
-                                            // **Validates: Requirements 2.1, 2.5**
-                                            let response = Json(response).into_response();
-                                            return attach_route_debug_headers(
-                                                finalize_replayable_response(
-                                                    response,
-                                                    &mut idempotency_guard,
-                                                    &mut dedup_guard,
-                                                    &mut cache_guard,
-                                                    &ctx.request_id,
-                                                )
-                                                .await,
-                                                &selected_provider,
-                                                &effective_provider,
-                                                &ctx.resolved_model,
-                                            );
-                                        }
-                                        Err(e) => {
-                                            // 标记 Flow 失败
-                                            return (
-                                            StatusCode::INTERNAL_SERVER_ERROR,
-                                            Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                                        ).into_response();
-                                        }
-                                    }
-                                }
-                                let body = retry_resp.text().await.unwrap_or_default();
-                                // 标记 Flow 失败（重试失败）
-                                (
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    Json(serde_json::json!({"error": {"message": format!("Retry failed: {}", body)}})),
-                                ).into_response()
-                            }
-                            Err(e) => {
-                                // 标记 Flow 失败
-                                (
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                                )
-                                    .into_response()
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        state
-                            .logs
-                            .write()
-                            .await
-                            .add("error", &format!("[AUTH] Token refresh failed: {e}"));
-                        // 标记 Flow 失败
-                        (
-                            StatusCode::UNAUTHORIZED,
-                            Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {e}")}})),
-                        )
-                            .into_response()
-                    }
-                }
-            } else {
-                let body = resp.text().await.unwrap_or_default();
-                state.logs.write().await.add(
-                    "error",
-                    &format!("Upstream error {}: {}", status, safe_truncate(&body, 200)),
-                );
-                // 标记 Flow 失败
-                (
-                    StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-                    Json(serde_json::json!({"error": {"message": format!("Upstream error: {}", body)}}))
-                ).into_response()
-            }
-        }
-        Err(e) => {
-            state
-                .logs
-                .write()
-                .await
-                .add("error", &format!("API call failed: {e}"));
-            // 标记 Flow 失败
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": {"message": e.to_string()}})),
-            )
-                .into_response()
-        }
-    }
+    let message = if !state.allow_provider_fallback {
+        format!(
+            "没有找到可用的 '{}' API Key Provider 凭证（已禁用自动降级）。",
+            effective_provider
+        )
+    } else {
+        format!(
+            "没有找到可用的 '{}' API Key Provider 凭证。",
+            effective_provider
+        )
+    };
+    build_error_response_with_meta(
+        StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+        &message,
+        Some(&ctx.request_id),
+        Some(&effective_provider),
+        Some(GatewayErrorCode::NoCredentials),
+    )
 }
 
 pub async fn anthropic_messages(
@@ -3087,12 +2758,12 @@ pub async fn anthropic_messages(
         }
     }
 
-    // 如果找到凭证池中的凭证，使用它
+    // 如果找到 API Key Provider 凭证，使用它
     if let Some(cred) = credential {
         state.logs.write().await.add(
             "info",
             &format!(
-                "[ROUTE] Using pool credential: type={} name={:?} uuid={}",
+                "[ROUTE] Using API Key Provider credential: type={} name={:?} uuid={}",
                 cred.provider_type,
                 cred.name,
                 &cred.uuid[..8]
@@ -3181,386 +2852,42 @@ pub async fn anthropic_messages(
         );
     }
 
-    // 回退到旧的单凭证模式（仅当允许自动降级且选择的 Provider 是 Kiro 时）
-    // 其余情况（含禁用自动降级）直接返回无可用凭证错误
+    // 凭证池和旧 Kiro 单凭证模式已退役，未找到 API Key Provider 时直接返回错误。
     // **Validates: Requirements 3.2**
-    if !state.allow_provider_fallback || effective_provider.to_lowercase() != "kiro" {
-        let reason = if !state.allow_provider_fallback {
-            "auto fallback disabled by retry.auto_switch_provider=false"
-        } else {
-            "legacy mode only supports Kiro"
-        };
-        state.logs.write().await.add(
-            "error",
-            &format!(
-                "[ROUTE] No pool credential found for '{effective_provider}' (client_type={client_type}), {reason}"
-            ),
-        );
-        let message = if !state.allow_provider_fallback {
-            format!(
-                "没有找到可用的 '{}' 凭证（已禁用自动降级）。请在凭证池中添加对应的凭证。",
-                effective_provider
-            )
-        } else {
-            format!(
-                "没有找到可用的 '{}' 凭证。请在凭证池中添加对应的凭证。",
-                effective_provider
-            )
-        };
-        let body = build_gateway_error_json(
-            StatusCode::SERVICE_UNAVAILABLE.as_u16(),
-            &message,
-            Some(&ctx.request_id),
-            Some(&effective_provider),
-            Some(GatewayErrorCode::NoCredentials),
-        );
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(serde_json::json!({ "type": "error", "error": body["error"].clone() })),
-        )
-            .into_response();
-    }
-
+    let reason = if !state.allow_provider_fallback {
+        "auto fallback disabled by retry.auto_switch_provider=false"
+    } else {
+        "legacy credential pool fallback retired"
+    };
     state.logs.write().await.add(
-        "debug",
-        &format!("[ROUTE] No pool credential found for '{effective_provider}', using legacy mode"),
-    );
-
-    // 启动 Flow 捕获（legacy mode）
-
-    // 使用实际的 provider ID 构建 Flow Metadata
-    let _provider_type = effective_provider
-        .parse::<ProviderType>()
-        .unwrap_or(ProviderType::OpenAI);
-
-    // 检查是否需要拦截请求（legacy mode）
-    // **Validates: Requirements 2.1, 2.3, 2.5**
-
-    // 检查是否需要刷新 token（无 token 或即将过期）
-    {
-        let _guard = state.kiro_refresh_lock.lock().await;
-        let mut kiro = state.kiro.write().await;
-        let needs_refresh =
-            kiro.credentials.access_token.is_none() || kiro.is_token_expiring_soon();
-        if needs_refresh {
-            state.logs.write().await.add(
-                "info",
-                "[AUTH] No access token or token expiring soon, attempting refresh...",
-            );
-            if let Err(e) = kiro.refresh_token().await {
-                state
-                    .logs
-                    .write()
-                    .await
-                    .add("error", &format!("[AUTH] Token refresh failed: {e}"));
-                // 标记 Flow 失败
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {e}")}})),
-                )
-                    .into_response();
-            }
-            state
-                .logs
-                .write()
-                .await
-                .add("info", "[AUTH] Token refreshed successfully");
-        }
-    }
-
-    // 转换为 OpenAI 格式
-    let openai_request = convert_anthropic_to_openai(&request);
-
-    // 记录转换后的请求信息
-    state.logs.write().await.add(
-        "debug",
+        "error",
         &format!(
-            "[CONVERT] OpenAI format: messages={} tools={} stream={}",
-            openai_request.messages.len(),
-            openai_request.tools.as_ref().map(|t| t.len()).unwrap_or(0),
-            openai_request.stream
+            "[ROUTE] No API Key Provider credential found for '{effective_provider}' (client_type={client_type}), {reason}"
         ),
     );
-
-    let kiro = state.kiro.read().await;
-
-    match kiro.call_api(&openai_request).await {
-        Ok(resp) => {
-            let status = resp.status();
-            state
-                .logs
-                .write()
-                .await
-                .add("info", &format!("[RESP] Upstream status: {status}"));
-
-            if status.is_success() {
-                match resp.bytes().await {
-                    Ok(bytes) => {
-                        // 使用 lossy 转换，避免无效 UTF-8 导致崩溃
-                        let body = String::from_utf8_lossy(&bytes).to_string();
-
-                        // 记录原始响应长度
-                        state.logs.write().await.add(
-                            "debug",
-                            &format!("[RESP] Raw body length: {} bytes", bytes.len()),
-                        );
-
-                        // 保存原始响应到文件用于调试
-                        let request_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
-                        state.logs.read().await.log_raw_response(&request_id, &body);
-                        state.logs.write().await.add(
-                            "debug",
-                            &format!("[RESP] Raw response saved to raw_response_{request_id}.txt"),
-                        );
-
-                        // 记录响应的前200字符用于调试（减少日志量）
-                        let preview: String =
-                            body.chars().filter(|c| !c.is_control()).take(200).collect();
-                        state
-                            .logs
-                            .write()
-                            .await
-                            .add("debug", &format!("[RESP] Body preview: {preview}"));
-
-                        let parsed = parse_cw_response(&body);
-
-                        // 详细记录解析结果
-                        state.logs.write().await.add(
-                            "info",
-                            &format!(
-                                "[RESP] Parsed: content_len={}, tool_calls={}, content_preview={}",
-                                parsed.content.len(),
-                                parsed.tool_calls.len(),
-                                parsed.content.chars().take(100).collect::<String>()
-                            ),
-                        );
-
-                        // 记录 tool calls 详情
-                        for (i, tc) in parsed.tool_calls.iter().enumerate() {
-                            state.logs.write().await.add(
-                                "debug",
-                                &format!(
-                                    "[RESP] Tool call {}: name={} id={}",
-                                    i, tc.function.name, tc.id
-                                ),
-                            );
-                        }
-
-                        // 如果请求流式响应，返回 SSE 格式
-                        if request.stream {
-                            // 完成 Flow 捕获并检查响应拦截（流式）
-                            // **Validates: Requirements 2.1, 2.5**
-                            return build_anthropic_stream_response(&request.model, &parsed);
-                        }
-
-                        // 完成 Flow 捕获并检查响应拦截（非流式）
-                        // **Validates: Requirements 2.1, 2.5**
-
-                        // 非流式响应
-                        let response = build_anthropic_response(&request.model, &parsed);
-                        return attach_route_debug_headers(
-                            finalize_replayable_response(
-                                response,
-                                &mut idempotency_guard,
-                                &mut dedup_guard,
-                                &mut cache_guard,
-                                &ctx.request_id,
-                            )
-                            .await,
-                            &selected_provider,
-                            &effective_provider,
-                            &ctx.resolved_model,
-                        );
-                    }
-                    Err(e) => {
-                        state
-                            .logs
-                            .write()
-                            .await
-                            .add("error", &format!("[ERROR] Response body read failed: {e}"));
-                        // 标记 Flow 失败
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                        )
-                            .into_response()
-                    }
-                }
-            } else if status.as_u16() == 403 || status.as_u16() == 402 {
-                // Token 过期或账户问题，尝试重新加载凭证并刷新
-                drop(kiro);
-                let _guard = state.kiro_refresh_lock.lock().await;
-                let mut kiro = state.kiro.write().await;
-                state.logs.write().await.add(
-                    "warn",
-                    &format!(
-                        "[AUTH] Got {}, reloading credentials and attempting token refresh...",
-                        status.as_u16()
-                    ),
-                );
-
-                // 先重新加载凭证文件（可能用户换了账户）
-                if let Err(e) = kiro.load_credentials().await {
-                    state.logs.write().await.add(
-                        "error",
-                        &format!("[AUTH] Failed to reload credentials: {e}"),
-                    );
-                }
-
-                match kiro.refresh_token().await {
-                    Ok(_) => {
-                        state.logs.write().await.add(
-                            "info",
-                            "[AUTH] Token refreshed successfully, retrying request...",
-                        );
-                        drop(kiro);
-                        let kiro = state.kiro.read().await;
-                        match kiro.call_api(&openai_request).await {
-                            Ok(retry_resp) => {
-                                let retry_status = retry_resp.status();
-                                state.logs.write().await.add(
-                                    "info",
-                                    &format!("[RETRY] Response status: {retry_status}"),
-                                );
-                                if retry_resp.status().is_success() {
-                                    match retry_resp.bytes().await {
-                                        Ok(bytes) => {
-                                            let body = String::from_utf8_lossy(&bytes).to_string();
-                                            let parsed = parse_cw_response(&body);
-                                            state.logs.write().await.add(
-                                                "info",
-                                                &format!(
-                                                "[RETRY] Success: content_len={}, tool_calls={}",
-                                                parsed.content.len(), parsed.tool_calls.len()
-                                            ),
-                                            );
-                                            // 完成 Flow 捕获并检查响应拦截（重试成功）
-                                            // **Validates: Requirements 2.1, 2.5**
-                                            if request.stream {
-                                                return build_anthropic_stream_response(
-                                                    &request.model,
-                                                    &parsed,
-                                                );
-                                            }
-                                            let response =
-                                                build_anthropic_response(&request.model, &parsed);
-                                            return attach_route_debug_headers(
-                                                finalize_replayable_response(
-                                                    response,
-                                                    &mut idempotency_guard,
-                                                    &mut dedup_guard,
-                                                    &mut cache_guard,
-                                                    &ctx.request_id,
-                                                )
-                                                .await,
-                                                &selected_provider,
-                                                &effective_provider,
-                                                &ctx.resolved_model,
-                                            );
-                                        }
-                                        Err(e) => {
-                                            state.logs.write().await.add(
-                                                "error",
-                                                &format!("[RETRY] Body read failed: {e}"),
-                                            );
-                                            // 标记 Flow 失败
-                                            return (
-                                                StatusCode::INTERNAL_SERVER_ERROR,
-                                                Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                                            )
-                                                .into_response();
-                                        }
-                                    }
-                                }
-                                let body = retry_resp
-                                    .bytes()
-                                    .await
-                                    .map(|b| String::from_utf8_lossy(&b).to_string())
-                                    .unwrap_or_default();
-                                state.logs.write().await.add(
-                                    "error",
-                                    &format!(
-                                        "[RETRY] Failed with status {retry_status}: {}",
-                                        safe_truncate(&body, 500)
-                                    ),
-                                );
-                                // 标记 Flow 失败（重试失败）
-                                (
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    Json(serde_json::json!({"error": {"message": format!("Retry failed: {}", body)}})),
-                                )
-                                    .into_response()
-                            }
-                            Err(e) => {
-                                state
-                                    .logs
-                                    .write()
-                                    .await
-                                    .add("error", &format!("[RETRY] Request failed: {e}"));
-                                // 标记 Flow 失败
-                                (
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                                )
-                                    .into_response()
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        state
-                            .logs
-                            .write()
-                            .await
-                            .add("error", &format!("[AUTH] Token refresh failed: {e}"));
-                        // 标记 Flow 失败
-                        (
-                            StatusCode::UNAUTHORIZED,
-                            Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {e}")}})),
-                        )
-                            .into_response()
-                    }
-                }
-            } else {
-                let body = resp.text().await.unwrap_or_default();
-                state.logs.write().await.add(
-                    "error",
-                    &format!(
-                        "[ERROR] Upstream error HTTP {}: {}",
-                        status,
-                        safe_truncate(&body, 500)
-                    ),
-                );
-                // 标记 Flow 失败
-                (
-                    StatusCode::from_u16(status.as_u16())
-                        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-                    Json(
-                        serde_json::json!({"error": {"message": format!("Upstream error: {}", body)}}),
-                    ),
-                )
-                    .into_response()
-            }
-        }
-        Err(e) => {
-            // 详细记录网络/连接错误
-            let error_details = format!("{e:?}");
-            state
-                .logs
-                .write()
-                .await
-                .add("error", &format!("[ERROR] Kiro API call failed: {e}"));
-            state.logs.write().await.add(
-                "debug",
-                &format!("[ERROR] Full error details: {error_details}"),
-            );
-            // 标记 Flow 失败
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": {"message": e.to_string()}})),
-            )
-                .into_response()
-        }
-    }
+    let message = if !state.allow_provider_fallback {
+        format!(
+            "没有找到可用的 '{}' API Key Provider 凭证（已禁用自动降级）。",
+            effective_provider
+        )
+    } else {
+        format!(
+            "没有找到可用的 '{}' API Key Provider 凭证。",
+            effective_provider
+        )
+    };
+    let body = build_gateway_error_json(
+        StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+        &message,
+        Some(&ctx.request_id),
+        Some(&effective_provider),
+        Some(GatewayErrorCode::NoCredentials),
+    );
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(serde_json::json!({ "type": "error", "error": body["error"].clone() })),
+    )
+        .into_response()
 }
 
 // ============================================================================
@@ -3605,17 +2932,11 @@ fn should_use_true_streaming(
 ) -> bool {
     use lime_core::models::provider_pool_model::CredentialData;
 
-    // TODO: 当 StreamingProvider trait 实现后，根据凭证类型返回 true
-    // 目前所有 Provider 都使用伪流式模式
     match &credential.credential {
-        // Kiro/CodeWhisperer - 需要实现 StreamingProvider
-        CredentialData::KiroOAuth { .. } => false,
         // Claude - 需要实现 StreamingProvider
         CredentialData::ClaudeKey { .. } => false,
         // OpenAI - 需要实现 StreamingProvider
         CredentialData::OpenAIKey { .. } => false,
-        // Antigravity - 需要实现 StreamingProvider
-        CredentialData::AntigravityOAuth { .. } => false,
         // 其他类型暂不支持流式
         _ => false,
     }

@@ -4,10 +4,8 @@
 //!
 //! # 需求覆盖
 //!
-//! - 需求 1.1: KiroProvider 流式支持
 //! - 需求 1.2: ClaudeCustomProvider 流式支持
 //! - 需求 1.3: OpenAICustomProvider 流式支持
-//! - 需求 1.4: AntigravityProvider 流式支持
 
 #![allow(dead_code)]
 
@@ -86,13 +84,13 @@ pub trait StreamingProvider: Send + Sync {
 /// 定义不同 Provider 使用的流式响应格式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StreamFormat {
-    /// AWS Event Stream 格式（Kiro/CodeWhisperer 使用）
+    /// AWS Event Stream 格式
     AwsEventStream,
     /// Anthropic SSE 格式（Claude 使用）
     AnthropicSse,
     /// OpenAI SSE 格式（OpenAI 兼容 API 使用）
     OpenAiSse,
-    /// Gemini 流式格式（Antigravity/Gemini 使用）
+    /// Gemini 流式格式
     GeminiStream,
 }
 

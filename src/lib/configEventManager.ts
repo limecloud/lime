@@ -81,12 +81,6 @@ export interface AmpConfigChangeEvent {
   source: ConfigChangeSource;
 }
 
-/** 凭证池配置变更事件 */
-export interface CredentialPoolChangeEvent {
-  changed_providers: string[];
-  source: ConfigChangeSource;
-}
-
 /** 配置变更事件联合类型 */
 export type ConfigChangeEvent =
   | { type: "FullReload"; data: FullReloadEvent }
@@ -96,8 +90,7 @@ export type ConfigChangeEvent =
   | { type: "ServerChanged"; data: ServerChangeEvent }
   | { type: "LoggingChanged"; data: LoggingChangeEvent }
   | { type: "RetryChanged"; data: RetryChangeEvent }
-  | { type: "AmpConfigChanged"; data: AmpConfigChangeEvent }
-  | { type: "CredentialPoolChanged"; data: CredentialPoolChangeEvent };
+  | { type: "AmpConfigChanged"; data: AmpConfigChangeEvent };
 
 /** 事件回调类型 */
 type ConfigEventCallback = (event: ConfigChangeEvent) => void;

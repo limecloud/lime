@@ -25,7 +25,7 @@
 ## 数据与日志位置
 
 - SQLite 数据库：`~/.lime/lime.db`
-- 凭证池副本目录：macOS `~/Library/Application Support/lime/credentials/`，Linux `~/.local/share/lime/credentials/`，Windows `%APPDATA%\\lime\\credentials\\`
+- 旧凭证池副本目录：macOS `~/Library/Application Support/lime/credentials/`，Linux `~/.local/share/lime/credentials/`，Windows `%APPDATA%\\lime\\credentials\\`；启动期会清理 Lime 管理的副本
 - OAuth/Token 目录（默认）：`~/.lime/auth/`
 - 日志目录：`~/.lime/logs/`
 - 请求日志目录：`~/.lime/request_logs/`
@@ -41,7 +41,7 @@
    - 复制以下路径：
    - 配置文件（macOS: `~/Library/Application Support/lime/config.yaml`，Linux: `~/.config/lime/config.yaml`，Windows: `%APPDATA%\\lime\\config.yaml`）
    - 配置备份文件：`config.yaml.backup`
-   - 凭证池副本目录（macOS: `~/Library/Application Support/lime/credentials/`，Linux: `~/.local/share/lime/credentials/`，Windows: `%APPDATA%\\lime\\credentials\\`）
+   - 旧凭证池副本目录（macOS: `~/Library/Application Support/lime/credentials/`，Linux: `~/.local/share/lime/credentials/`，Windows: `%APPDATA%\\lime\\credentials\\`）
    - `~/.lime/lime.db`
    - `~/.lime/auth/`（如需要保留 OAuth/Token）
    - `~/.lime/logs/`、`~/.lime/request_logs/`（如需保留日志）

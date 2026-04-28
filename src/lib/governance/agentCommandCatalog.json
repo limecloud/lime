@@ -7,7 +7,6 @@
     "aster_agent_init",
     "aster_agent_status",
     "aster_agent_configure_provider",
-    "aster_agent_configure_from_pool",
     "aster_agent_reset",
     "agent_runtime_submit_turn",
     "agent_runtime_interrupt_turn",

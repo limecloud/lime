@@ -74,7 +74,6 @@ pub async fn aster_agent_configure_provider(
         base_url: request.base_url,
         credential_uuid: None,
         force_responses_api: false,
-        credential_path: None,
         toolshim: matches!(
             request.tool_call_strategy,
             Some(RuntimeToolCallStrategy::ToolShim)
@@ -101,42 +100,6 @@ pub async fn aster_agent_configure_provider(
         provider_selector: config.provider_selector,
         model_name: Some(config.model_name),
         credential_uuid: None,
-    })
-}
-
-/// 从凭证池配置 Aster Agent 的 Provider
-///
-/// 自动从 Lime 凭证池选择可用凭证并配置 Aster Provider
-#[tauri::command]
-pub async fn aster_agent_configure_from_pool(
-    state: State<'_, AsterAgentState>,
-    db: State<'_, DbConnection>,
-    request: ConfigureFromPoolRequest,
-    session_id: String,
-) -> Result<AsterAgentStatus, String> {
-    tracing::info!(
-        "[AsterAgent] 从凭证池配置 Provider: {} / {}",
-        request.provider_type,
-        request.model_name
-    );
-
-    let aster_config = state
-        .configure_provider_from_pool(
-            &db,
-            &request.provider_type,
-            &request.model_name,
-            &session_id,
-        )
-        .await?;
-    persist_session_provider_routing(&session_id, &request.provider_type).await?;
-
-    Ok(AsterAgentStatus {
-        initialized: true,
-        provider_configured: true,
-        provider_name: Some(aster_config.provider_name),
-        provider_selector: aster_config.provider_selector,
-        model_name: Some(aster_config.model_name),
-        credential_uuid: Some(aster_config.credential_uuid),
     })
 }
 

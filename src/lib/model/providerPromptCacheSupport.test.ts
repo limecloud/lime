@@ -98,7 +98,6 @@ describe("providerPromptCacheSupport", () => {
 
   it("应按 Provider 类型返回统一的 prompt cache 模式", () => {
     expect(getProviderPromptCacheMode("anthropic")).toBe("automatic");
-    expect(getProviderPromptCacheMode("claude_oauth")).toBe("automatic");
     expect(getProviderPromptCacheMode("anthropic-compatible")).toBe(
       "explicit_only",
     );

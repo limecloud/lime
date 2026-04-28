@@ -9,7 +9,6 @@ use tokio::sync::RwLock;
 use crate::logger;
 use crate::tray::TrayManager;
 use lime_server as server;
-use lime_services::token_cache_service::TokenCacheService;
 
 use lime_core::event_emit::EventEmit;
 
@@ -21,9 +20,6 @@ pub type AppState = Arc<RwLock<server::ServerState>>;
 
 /// 日志状态类型别名
 pub type LogState = Arc<RwLock<logger::LogStore>>;
-
-/// TokenCacheService 状态封装
-pub struct TokenCacheServiceState(pub Arc<TokenCacheService>);
 
 /// TrayManager 状态封装
 pub struct TrayManagerState<R: Runtime>(pub Arc<tokio::sync::RwLock<Option<TrayManager<R>>>>);

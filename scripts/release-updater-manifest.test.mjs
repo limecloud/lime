@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { planR2ReleaseCleanup } from "./plan-r2-release-cleanup.mjs";
+import { prepareGitHubReleaseAssets } from "./prepare-github-release-assets.mjs";
 import {
   collectUpdaterManifest,
   writeOutputs,
@@ -215,9 +216,7 @@ describe("release updater manifest", () => {
       path.join(assetsDir, "aarch64-apple-darwin", "Lime.app.tar.gz.sig"),
       encodedSignature,
     );
-    writeFile(
-      path.join(assetsDir, "x86_64-apple-darwin", "Lime.app.tar.gz"),
-    );
+    writeFile(path.join(assetsDir, "x86_64-apple-darwin", "Lime.app.tar.gz"));
     writeFile(
       path.join(assetsDir, "x86_64-apple-darwin", "Lime.app.tar.gz.sig"),
       rawSignature,
@@ -243,11 +242,7 @@ describe("release updater manifest", () => {
       baseUrl: "https://updates.limecloud.com",
       channel: "stable",
       notes: "notes",
-      requiredPlatforms: [
-        "darwin-aarch64",
-        "darwin-x86_64",
-        "windows-x86_64",
-      ],
+      requiredPlatforms: ["darwin-aarch64", "darwin-x86_64", "windows-x86_64"],
       version: "v1.20.0",
     });
 
@@ -290,5 +285,65 @@ describe("R2 release cleanup", () => {
 
     expect(plan.deleteKeys).toEqual(["lime/stable/v1.17.0/Lime.nsis.zip"]);
     expect(plan.protectedVersions).toContain("1.16.0");
+  });
+});
+
+describe("GitHub release asset staging", () => {
+  it("同名 macOS updater 资产上传 GitHub Release 前应重命名", () => {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "lime-github-release-assets-"),
+    );
+    const assetsDir = path.join(root, "release-assets");
+    const outDir = path.join(root, "release-github-assets");
+    const latestPath = path.join(root, "release-updater", "latest.json");
+
+    writeFile(path.join(assetsDir, "aarch64-apple-darwin", "Lime.app.tar.gz"));
+    writeFile(
+      path.join(assetsDir, "aarch64-apple-darwin", "Lime.app.tar.gz.sig"),
+      "arm-sig",
+    );
+    writeFile(
+      path.join(assetsDir, "aarch64-apple-darwin", "Lime_1.22.0_aarch64.dmg"),
+    );
+    writeFile(path.join(assetsDir, "x86_64-apple-darwin", "Lime.app.tar.gz"));
+    writeFile(
+      path.join(assetsDir, "x86_64-apple-darwin", "Lime.app.tar.gz.sig"),
+      "x64-sig",
+    );
+    writeFile(
+      path.join(assetsDir, "x86_64-apple-darwin", "Lime_1.22.0_x64.dmg"),
+    );
+    writeFile(latestPath, "{}");
+
+    const copied = prepareGitHubReleaseAssets({
+      assetsDir,
+      extraAssets: [latestPath],
+      outDir,
+      version: "v1.22.0",
+    });
+
+    expect(copied.map((item) => item.name).sort()).toEqual(
+      [
+        "Lime_1.22.0_aarch64.app.tar.gz",
+        "Lime_1.22.0_aarch64.app.tar.gz.sig",
+        "Lime_1.22.0_aarch64.dmg",
+        "Lime_1.22.0_x64.app.tar.gz",
+        "Lime_1.22.0_x64.app.tar.gz.sig",
+        "Lime_1.22.0_x64.dmg",
+        "latest.json",
+      ].sort(),
+    );
+    expect(
+      fs.readFileSync(
+        path.join(outDir, "Lime_1.22.0_aarch64.app.tar.gz.sig"),
+        "utf8",
+      ),
+    ).toBe("arm-sig");
+    expect(
+      fs.readFileSync(
+        path.join(outDir, "Lime_1.22.0_x64.app.tar.gz.sig"),
+        "utf8",
+      ),
+    ).toBe("x64-sig");
   });
 });

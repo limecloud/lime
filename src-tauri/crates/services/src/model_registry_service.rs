@@ -1133,10 +1133,10 @@ impl ModelRegistryService {
                 .then(a.display_name.cmp(&b.display_name))
         });
 
-        // 3. 加载别名配置
+        // 3. 凭证池 Provider 别名已退役，保留空集合避免旧模型目录回流
         let mut aliases = HashMap::new();
         let aliases_dir = models_dir.join("aliases");
-        let alias_files = ["kiro", "antigravity", "codex", "gemini"];
+        let alias_files: [&str; 0] = [];
 
         for alias_name in alias_files {
             let alias_file = aliases_dir.join(format!("{alias_name}.json"));

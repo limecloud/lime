@@ -3,13 +3,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockUseProviderPool, mockUseApiKeyProvider } = vi.hoisted(() => ({
-  mockUseProviderPool: vi.fn(),
+const { mockUseApiKeyProvider } = vi.hoisted(() => ({
   mockUseApiKeyProvider: vi.fn(),
-}));
-
-vi.mock("./useProviderPool", () => ({
-  useProviderPool: mockUseProviderPool,
 }));
 
 vi.mock("./useApiKeyProvider", () => ({
@@ -53,10 +48,6 @@ describe("useConfiguredProviders", () => {
         IS_REACT_ACT_ENVIRONMENT?: boolean;
       }
     ).IS_REACT_ACT_ENVIRONMENT = true;
-    mockUseProviderPool.mockReturnValue({
-      overview: [],
-      loading: false,
-    });
     mockUseApiKeyProvider.mockReturnValue({
       providers: [],
       loading: false,
@@ -80,7 +71,6 @@ describe("useConfiguredProviders", () => {
   it("仅为配置列表加载 provider 数据时不应再拉取 UI 状态", () => {
     const harness = mountHook(true);
 
-    expect(mockUseProviderPool).toHaveBeenCalledWith({ autoLoad: true });
     expect(mockUseApiKeyProvider).toHaveBeenCalledWith({
       autoLoad: true,
       hydrateUiState: false,

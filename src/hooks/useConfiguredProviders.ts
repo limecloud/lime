@@ -1,22 +1,14 @@
 /**
  * @file 已配置 Provider 列表 Hook
- * @description 从 OAuth 凭证和 API Key Provider 中提取已配置的 Provider 列表
+ * @description 从 API Key Provider 中提取已配置的 Provider 列表
  * @module hooks/useConfiguredProviders
  */
 
 import { useMemo } from "react";
 import { apiKeyProviderApi } from "@/lib/api/apiKeyProvider";
-import {
-  providerPoolApi,
-  type ProviderPoolOverview,
-} from "@/lib/api/providerPool";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
-import { useProviderPool } from "./useProviderPool";
 import { useApiKeyProvider } from "./useApiKeyProvider";
-import {
-  getRegistryIdFromType,
-  getProviderLabel,
-} from "@/lib/constants/providerMappings";
+import { getRegistryIdFromType } from "@/lib/constants/providerMappings";
 import { resolvePromptCacheSupportNotice } from "@/lib/model/providerPromptCacheSupport";
 import type { ProviderDeclaredPromptCacheMode } from "@/lib/types/provider";
 
@@ -99,43 +91,16 @@ function isConfiguredApiKeyProvider(
 }
 
 export function buildConfiguredProviders(
-  oauthCredentials: ProviderPoolOverview[],
   apiKeyProviders: ProviderWithKeysDisplay[],
 ): ConfiguredProvider[] {
-  const safeOauthCredentials = Array.isArray(oauthCredentials)
-    ? oauthCredentials
-    : [];
   const safeApiKeyProviders = Array.isArray(apiKeyProviders)
     ? apiKeyProviders
     : [];
   const providerMap = new Map<string, ConfiguredProvider>();
 
-  safeOauthCredentials.forEach((overview) => {
-    if (overview.credentials.length > 0) {
-      const key = overview.provider_type;
-      const firstCredential = overview.credentials[0];
-      const credentialType = firstCredential.credential_type || key;
-
-      if (!providerMap.has(key)) {
-        providerMap.set(key, {
-          key,
-          label: getProviderLabel(key),
-          registryId: getRegistryIdFromType(key),
-          type: key,
-          credentialType,
-        });
-      }
-    }
-  });
-
   safeApiKeyProviders.filter(isConfiguredApiKeyProvider).forEach((provider) => {
-    let key = provider.id;
-    let label = provider.name;
-
-    if (providerMap.has(key)) {
-      key = `${provider.id}_api_key`;
-      label = `${provider.name} API Key`;
-    }
+    const key = provider.id;
+    const label = provider.name;
 
     if (!providerMap.has(key)) {
       providerMap.set(key, {
@@ -212,12 +177,9 @@ export async function loadConfiguredProviders(
   const sourceOptions = options.forceRefresh
     ? { forceRefresh: true }
     : undefined;
-  const [oauthCredentials, apiKeyProviders] = await Promise.all([
-    providerPoolApi.getOverview(sourceOptions),
-    apiKeyProviderApi.getProviders(sourceOptions),
-  ]);
+  const apiKeyProviders = await apiKeyProviderApi.getProviders(sourceOptions);
 
-  return buildConfiguredProviders(oauthCredentials, apiKeyProviders);
+  return buildConfiguredProviders(apiKeyProviders);
 }
 
 // ============================================================================
@@ -227,8 +189,7 @@ export async function loadConfiguredProviders(
 /**
  * 获取已配置的 Provider 列表
  *
- * 从 OAuth 凭证池和 API Key Provider 中提取已配置凭证的 Provider，
- * 合并去重后返回统一的 Provider 列表。
+ * 从 API Key Provider 中提取已配置凭证的 Provider 列表。
  *
  * @returns 已配置的 Provider 列表和加载状态
  *
@@ -251,22 +212,18 @@ export function useConfiguredProviders(
   options: UseConfiguredProvidersOptions = {},
 ): UseConfiguredProvidersResult {
   const { autoLoad = true } = options;
-  // 获取凭证池数据
-  const { overview: oauthCredentials, loading: oauthLoading } = useProviderPool(
-    { autoLoad },
-  );
   const { providers: apiKeyProviders, loading: apiKeyLoading } =
     useApiKeyProvider({ autoLoad, hydrateUiState: false });
 
   // 计算已配置的 Provider 列表
   const providers = useMemo(
-    () => buildConfiguredProviders(oauthCredentials, apiKeyProviders),
-    [oauthCredentials, apiKeyProviders],
+    () => buildConfiguredProviders(apiKeyProviders),
+    [apiKeyProviders],
   );
 
   return {
     providers,
-    loading: oauthLoading || apiKeyLoading,
+    loading: apiKeyLoading,
   };
 }
 

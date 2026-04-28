@@ -1139,8 +1139,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         const detail = resumeSessionStartHooks
           ? await runtime.getSession(topicId, {
               resumeSessionStartHooks: true,
+              historyLimit: 40,
             })
-          : await runtime.getSession(topicId);
+          : await runtime.getSession(topicId, { historyLimit: 40 });
         logAgentDebug("useAgentSession", "switchTopic.fetchDetail.success", {
           itemsCount: detail.items?.length ?? 0,
           messagesCount: detail.messages.length,

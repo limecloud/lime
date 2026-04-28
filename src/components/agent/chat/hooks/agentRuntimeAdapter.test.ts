@@ -122,4 +122,23 @@ describe("defaultAgentRuntimeAdapter", () => {
       workspaceId: "workspace-9",
     });
   });
+
+  it("generateSessionTitle 应透传标题预览文本", async () => {
+    const client = {
+      ...mockRuntimeClient,
+      generateAgentRuntimeSessionTitle: vi.fn().mockResolvedValue("新标题"),
+    };
+    const adapter = createAgentRuntimeAdapter({
+      client,
+    });
+
+    await expect(
+      adapter.generateSessionTitle?.("session-9", "user：请整理支付异常"),
+    ).resolves.toBe("新标题");
+
+    expect(client.generateAgentRuntimeSessionTitle).toHaveBeenCalledWith(
+      "session-9",
+      "user：请整理支付异常",
+    );
+  });
 });

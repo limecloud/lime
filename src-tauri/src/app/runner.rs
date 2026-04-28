@@ -130,17 +130,13 @@ pub fn run() {
         logs,
         db,
         skill_service: skill_service_state,
-        provider_pool_service: provider_pool_service_state,
         api_key_provider_service: api_key_provider_service_state,
-        credential_sync_service: credential_sync_service_state,
-        token_cache_service: token_cache_service_state,
         machine_id_service: machine_id_service_state,
         plugin_manager: plugin_manager_state,
         plugin_installer: plugin_installer_state,
         plugin_rpc_manager: plugin_rpc_manager_state,
         telemetry: telemetry_state,
         aster_agent: aster_agent_state,
-        orchestrator: orchestrator_state,
         connect_state,
         model_registry: model_registry_state,
         global_config_manager: global_config_manager_state,
@@ -161,7 +157,6 @@ pub fn run() {
     let state_clone = state.clone();
     let logs_clone = logs.clone();
     let db_clone = db.clone();
-    let pool_service_clone = provider_pool_service_state.0.clone();
     #[cfg(debug_assertions)]
     let api_key_provider_service_clone = api_key_provider_service_state.0.clone();
     #[cfg(debug_assertions)]
@@ -170,7 +165,6 @@ pub fn run() {
     let model_registry_clone = model_registry_state.clone();
     #[cfg(debug_assertions)]
     let skill_service_clone = skill_service_state.0.clone();
-    let token_cache_clone = token_cache_service_state.0.clone();
     let shared_stats_clone = shared_stats.clone();
     let shared_tokens_clone = shared_tokens.clone();
     let shared_logger_clone = shared_logger.clone();
@@ -244,17 +238,13 @@ pub fn run() {
         .manage(logs)
         .manage(db)
         .manage(skill_service_state)
-        .manage(provider_pool_service_state)
         .manage(api_key_provider_service_state)
-        .manage(credential_sync_service_state)
-        .manage(token_cache_service_state)
         .manage(machine_id_service_state)
         .manage(telemetry_state)
         .manage(plugin_manager_state)
         .manage(plugin_installer_state)
         .manage(plugin_rpc_manager_state)
         .manage(aster_agent_state)
-        .manage(orchestrator_state)
         .manage(connect_state)
         .manage(model_registry_state)
         .manage(global_config_manager_state)
@@ -502,7 +492,6 @@ pub fn run() {
                 let server_state = state_clone.clone();
                 let logs = logs_clone.clone();
                 let db = Some(db_clone.clone());
-                let pool_service = pool_service_clone.clone();
                 let api_key_provider_service = api_key_provider_service_clone.clone();
                 let connect_state = connect_state_clone.clone();
                 let model_registry = model_registry_clone.clone();
@@ -515,7 +504,6 @@ pub fn run() {
                         server_state,
                         logs,
                         db,
-                        pool_service,
                         api_key_provider_service,
                         connect_state,
                         model_registry,
@@ -742,78 +730,11 @@ pub fn run() {
             let state = state_clone.clone();
             let logs = logs_clone.clone();
             let db = db_clone.clone();
-            let pool_service = pool_service_clone.clone();
-            let token_cache = token_cache_clone.clone();
             let shared_stats = shared_stats_clone.clone();
             let shared_tokens = shared_tokens_clone.clone();
             let shared_logger = shared_logger_clone.clone();
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let mut available_credentials = 0usize;
-                let mut total_credentials = 0usize;
-
-                // 先加载凭证池中的凭证
-                {
-                    logs.write().await.add("info", "[启动] 正在加载凭证池...");
-
-                    // 获取凭证池概览信息
-                    match pool_service.get_overview(&db) {
-                        Ok(overview) => {
-                            let mut loaded_types = Vec::new();
-                            for provider_overview in overview {
-                                let enabled_credentials: Vec<_> = provider_overview
-                                    .credentials
-                                    .iter()
-                                    .filter(|credential| !credential.is_disabled)
-                                    .collect();
-                                let count = enabled_credentials.len();
-                                if count > 0 {
-                                    total_credentials += count;
-                                    available_credentials += enabled_credentials
-                                        .iter()
-                                        .filter(|credential| credential.is_healthy)
-                                        .count();
-                                    let provider_name =
-                                        match provider_overview.provider_type.as_str() {
-                                            "kiro" => "Kiro",
-                                            "gemini" => "Gemini",
-                                            "antigravity" => "Antigravity",
-                                            "openai" => "OpenAI",
-                                            "claude" => "Claude",
-                                            "codex" => "Codex",
-                                            "claude_oauth" => "Claude OAuth",
-                                            _ => &provider_overview.provider_type,
-                                        };
-                                    loaded_types.push(format!("{provider_name} ({count} 个)"));
-                                }
-                            }
-
-                            if loaded_types.is_empty() {
-                                logs.write().await.add("warn", "[启动] 未找到任何可用凭证");
-                            } else {
-                                let message = format!(
-                                    "[启动] 凭证已加载: {} (共 {} 个)",
-                                    loaded_types.join(", "),
-                                    total_credentials
-                                );
-                                logs.write().await.add("info", &message);
-                            }
-                        }
-                        Err(e) => {
-                            logs.write()
-                                .await
-                                .add("warn", &format!("[启动] 获取凭证池信息失败: {e}"));
-                        }
-                    }
-
-                    // 兼容性：仍然尝试加载旧的 Kiro 凭证（如果存在）
-                    let mut s = state.write().await;
-                    if let Err(e) = s.kiro_provider.load_credentials().await {
-                        logs.write()
-                            .await
-                            .add("debug", &format!("[启动] 旧版 Kiro 凭证加载失败: {e}"));
-                    }
-                }
                 // 启动服务器（使用共享的遥测实例）
                 {
                     let mut s = state.write().await;
@@ -823,8 +744,6 @@ pub fn run() {
                     match s
                         .start_with_telemetry(
                             logs.clone(),
-                            pool_service,
-                            token_cache,
                             Some(db),
                             Some(shared_stats),
                             Some(shared_tokens),
@@ -854,18 +773,12 @@ pub fn run() {
                     let tray_guard = tray_state.0.read().await;
                     if let Some(tray_manager) = tray_guard.as_ref() {
                         let current_state = tray_manager.get_state().await;
-                        let icon_status = if total_credentials == 0 || available_credentials == 0 {
-                            TrayIconStatus::Error
-                        } else if available_credentials < total_credentials {
-                            TrayIconStatus::Warning
-                        } else {
-                            TrayIconStatus::Running
-                        };
+                        let icon_status = TrayIconStatus::Running;
 
                         let snapshot = TrayStateSnapshot {
                             icon_status,
-                            available_credentials,
-                            total_credentials,
+                            available_credentials: current_state.available_credentials,
+                            total_credentials: current_state.total_credentials,
                             today_requests: current_state.today_requests,
                             auto_start_enabled: current_state.auto_start_enabled,
                             current_model_provider_type: current_state.current_model_provider_type,
@@ -1096,28 +1009,6 @@ pub fn run() {
             app_commands::get_endpoint_providers,
             app_commands::set_endpoint_provider,
             app_commands::update_provider_env_vars,
-            // Unified OAuth commands (new)
-            commands::oauth_cmd::get_oauth_credentials,
-            commands::oauth_cmd::reload_oauth_credentials,
-            commands::oauth_cmd::refresh_oauth_token,
-            commands::oauth_cmd::get_oauth_env_variables,
-            commands::oauth_cmd::get_oauth_token_file_hash,
-            commands::oauth_cmd::check_and_reload_oauth_credentials,
-            commands::oauth_cmd::get_all_oauth_credentials,
-            // Legacy Kiro commands (from app::commands, deprecated)
-            app_commands::refresh_kiro_token,
-            app_commands::reload_credentials,
-            app_commands::get_kiro_credentials,
-            app_commands::get_env_variables,
-            app_commands::get_token_file_hash,
-            app_commands::check_and_reload_credentials,
-            // Legacy Gemini commands (from app::commands, deprecated)
-            app_commands::get_gemini_credentials,
-            app_commands::reload_gemini_credentials,
-            app_commands::refresh_gemini_token,
-            app_commands::get_gemini_env_variables,
-            app_commands::get_gemini_token_file_hash,
-            app_commands::check_and_reload_gemini_credentials,
             // OpenAI Custom commands (from app::commands)
             app_commands::get_openai_custom_status,
             app_commands::set_openai_custom_config,
@@ -1258,60 +1149,6 @@ pub fn run() {
             commands::sceneapp_cmd::sceneapp_get_scorecard,
             // Ecommerce Review Reply commands
             commands::ecommerce_review_reply_cmd::execute_ecommerce_review_reply,
-            // Provider Pool commands
-            commands::provider_pool_cmd::get_provider_pool_overview,
-            commands::provider_pool_cmd::get_provider_pool_credentials,
-            commands::provider_pool_cmd::add_provider_pool_credential,
-            commands::provider_pool_cmd::update_provider_pool_credential,
-            commands::provider_pool_cmd::delete_provider_pool_credential,
-            commands::provider_pool_cmd::toggle_provider_pool_credential,
-            commands::provider_pool_cmd::reset_provider_pool_credential,
-            commands::provider_pool_cmd::reset_provider_pool_health,
-            commands::provider_pool_cmd::check_provider_pool_credential_health,
-            commands::provider_pool_cmd::check_provider_pool_type_health,
-            commands::provider_pool_cmd::add_kiro_oauth_credential,
-            commands::provider_pool_cmd::add_kiro_from_json,
-            commands::provider_pool_cmd::add_gemini_oauth_credential,
-            commands::provider_pool_cmd::add_antigravity_oauth_credential,
-            commands::provider_pool_cmd::add_openai_key_credential,
-            commands::provider_pool_cmd::add_claude_key_credential,
-            commands::provider_pool_cmd::add_gemini_api_key_credential,
-            commands::provider_pool_cmd::add_codex_oauth_credential,
-            commands::provider_pool_cmd::add_claude_oauth_credential,
-            commands::provider_pool_cmd::refresh_pool_credential_token,
-            commands::provider_pool_cmd::get_pool_credential_oauth_status,
-            commands::provider_pool_cmd::debug_kiro_credentials,
-            commands::provider_pool_cmd::test_user_credentials,
-            commands::provider_pool_cmd::migrate_private_config_to_pool,
-            commands::provider_pool_cmd::start_antigravity_oauth_login,
-            commands::provider_pool_cmd::get_antigravity_auth_url_and_wait,
-            commands::provider_pool_cmd::get_codex_auth_url_and_wait,
-            commands::provider_pool_cmd::start_codex_oauth_login,
-            commands::provider_pool_cmd::get_claude_oauth_auth_url_and_wait,
-            commands::provider_pool_cmd::start_claude_oauth_login,
-            commands::provider_pool_cmd::exchange_claude_oauth_code,
-            commands::provider_pool_cmd::claude_oauth_with_cookie,
-            commands::provider_pool_cmd::get_gemini_auth_url_and_wait,
-            commands::provider_pool_cmd::start_gemini_oauth_login,
-            commands::provider_pool_cmd::exchange_gemini_code,
-            commands::provider_pool_cmd::get_kiro_credential_fingerprint,
-            commands::provider_pool_cmd::get_credential_health,
-            commands::provider_pool_cmd::get_all_credential_health,
-            // Kiro Builder ID 登录命令
-            commands::provider_pool_cmd::start_kiro_builder_id_login,
-            commands::provider_pool_cmd::poll_kiro_builder_id_auth,
-            commands::provider_pool_cmd::cancel_kiro_builder_id_login,
-            commands::provider_pool_cmd::add_kiro_from_builder_id_auth,
-            // Kiro Social Auth 登录命令 (Google/GitHub)
-            commands::provider_pool_cmd::start_kiro_social_auth_login,
-            commands::provider_pool_cmd::exchange_kiro_social_auth_token,
-            commands::provider_pool_cmd::cancel_kiro_social_auth_login,
-            commands::provider_pool_cmd::start_kiro_social_auth_callback_server,
-            // Playwright 指纹浏览器登录命令
-            commands::provider_pool_cmd::check_playwright_available,
-            commands::provider_pool_cmd::install_playwright,
-            commands::provider_pool_cmd::start_kiro_playwright_login,
-            commands::provider_pool_cmd::cancel_kiro_playwright_login,
             commands::browser_runtime_cmd::open_browser_runtime_debugger_window,
             commands::browser_runtime_cmd::close_browser_runtime_debugger_window,
             commands::browser_runtime_cmd::launch_browser_session,
@@ -1370,8 +1207,6 @@ pub fn run() {
             commands::injection_cmd::update_injection_rule,
             // Hint route commands
             commands::security_perf_cmd::get_hint_routes,
-            // Usage commands
-            commands::usage_cmd::get_kiro_usage,
             // Tray commands
             commands::tray_cmd::sync_tray_model_shortcuts,
             // Plugin commands
@@ -1413,8 +1248,6 @@ pub fn run() {
             commands::window_cmd::center_window,
             commands::window_cmd::toggle_fullscreen,
             commands::window_cmd::is_fullscreen,
-            // Auto fix commands
-            commands::auto_fix_cmd::auto_fix_configuration,
             // Machine ID commands
             commands::machine_id_cmd::get_current_machine_id,
             commands::machine_id_cmd::set_machine_id,
@@ -1433,10 +1266,6 @@ pub fn run() {
             commands::machine_id_cmd::paste_machine_id_from_clipboard,
             commands::machine_id_cmd::get_system_info,
             commands::windows_startup_cmd::get_windows_startup_diagnostics,
-            // Kiro Local commands
-            commands::kiro_local::switch_kiro_to_local,
-            commands::kiro_local::get_kiro_fingerprint_info,
-            commands::kiro_local::get_local_kiro_credential_uuid,
             // Agent commands
             commands::agent_cmd::agent_start_process,
             commands::agent_cmd::agent_stop_process,
@@ -1447,7 +1276,6 @@ pub fn run() {
             commands::aster_agent_cmd::command_api::provider_api::aster_agent_status,
             commands::aster_agent_cmd::command_api::provider_api::aster_agent_reset,
             commands::aster_agent_cmd::command_api::provider_api::aster_agent_configure_provider,
-            commands::aster_agent_cmd::command_api::provider_api::aster_agent_configure_from_pool,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_submit_turn,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_interrupt_turn,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_compact_session,
@@ -1489,25 +1317,6 @@ pub fn run() {
             commands::models_cmd::toggle_model_enabled,
             commands::models_cmd::add_provider,
             commands::models_cmd::remove_provider,
-            // Orchestrator commands
-            commands::orchestrator_cmd::init_orchestrator,
-            commands::orchestrator_cmd::get_orchestrator_config,
-            commands::orchestrator_cmd::update_orchestrator_config,
-            commands::orchestrator_cmd::get_pool_stats,
-            commands::orchestrator_cmd::get_tier_models,
-            commands::orchestrator_cmd::get_all_models,
-            commands::orchestrator_cmd::update_orchestrator_credentials,
-            commands::orchestrator_cmd::add_orchestrator_credential,
-            commands::orchestrator_cmd::remove_orchestrator_credential,
-            commands::orchestrator_cmd::mark_credential_unhealthy,
-            commands::orchestrator_cmd::mark_credential_healthy,
-            commands::orchestrator_cmd::update_credential_load,
-            commands::orchestrator_cmd::select_model,
-            commands::orchestrator_cmd::quick_select_model,
-            commands::orchestrator_cmd::select_model_for_task,
-            commands::orchestrator_cmd::list_strategies,
-            commands::orchestrator_cmd::list_service_tiers,
-            commands::orchestrator_cmd::list_task_hints,
             // Connect commands
             // _Requirements: 1.4, 2.3, 4.1, 5.3_
             commands::connect_cmd::handle_deep_link,
@@ -1535,13 +1344,6 @@ pub fn run() {
             commands::model_registry_cmd::get_all_alias_configs,
             commands::model_registry_cmd::fetch_provider_models_from_api,
             commands::model_registry_cmd::fetch_provider_models_auto,
-            // Model Management commands (动态模型列表)
-            commands::model_cmd::get_credential_models,
-            commands::model_cmd::refresh_credential_models,
-            commands::model_cmd::get_all_models_by_provider,
-            commands::model_cmd::get_all_available_models,
-            commands::model_cmd::refresh_all_credential_models,
-            commands::model_cmd::get_default_models_for_provider,
             // WebSocket commands
             commands::websocket_cmd::get_websocket_status,
             commands::websocket_cmd::get_websocket_connections,

@@ -53,17 +53,35 @@ function appendThinkingToParts(
   const lastPart = nextParts[nextParts.length - 1];
 
   if (lastPart?.type === "thinking") {
-    nextParts[nextParts.length - 1] = {
-      type: "thinking",
-      text: lastPart.text + textDelta,
-    };
+    const base = lastPart.text;
+    const chunk = textDelta;
+    let merged: string;
+    if (!base) {
+      merged = chunk;
+    } else if (!chunk) {
+      merged = base;
+    } else if (chunk.startsWith(base)) {
+      merged = chunk;
+    } else if (base.endsWith(chunk)) {
+      merged = base;
+    } else {
+      const maxOverlap = Math.min(base.length, chunk.length);
+      let found = false;
+      merged = base + chunk;
+      for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+        if (base.slice(-overlap) === chunk.slice(0, overlap)) {
+          merged = base + chunk.slice(overlap);
+          found = true;
+          break;
+        }
+      }
+      void found;
+    }
+    nextParts[nextParts.length - 1] = { type: "thinking", text: merged };
     return nextParts;
   }
 
-  nextParts.push({
-    type: "thinking",
-    text: textDelta,
-  });
+  nextParts.push({ type: "thinking", text: textDelta });
   return nextParts;
 }
 

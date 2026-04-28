@@ -2461,7 +2461,6 @@ fn arb_valid_provider_type() -> impl Strategy<Value = String> {
         Just("gemini".to_string()),
         Just("openai".to_string()),
         Just("claude".to_string()),
-        Just("antigravity".to_string()),
         Just("vertex".to_string()),
         Just("gemini_api_key".to_string()),
         Just("codex".to_string()),

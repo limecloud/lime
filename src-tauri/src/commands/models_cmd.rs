@@ -59,19 +59,16 @@ pub struct SimpleProviderConfig {
     pub models: Vec<String>,
 }
 
-/// 需要使用别名配置的 Provider 列表
-const ALIAS_PROVIDERS: &[&str] = &["antigravity", "kiro", "codex", "gemini", "gemini_api_key"];
+/// 凭证池 Provider 别名已退役；模型列表统一走模型注册表。
+const ALIAS_PROVIDERS: &[&str] = &[];
 
 /// 别名配置文件名映射（某些 Provider 共享同一个别名配置）
 fn get_alias_config_key(provider: &str) -> &str {
-    match provider {
-        "gemini_api_key" => "gemini", // Gemini API Key 使用 gemini 的别名配置
-        _ => provider,
-    }
+    provider
 }
 
 /// 获取所有 Provider 的简化配置（用于前端下拉框）
-/// 对于别名 Provider（antigravity、kiro、codex、gemini、gemini_api_key），优先使用别名配置中的模型列表
+/// 模型列表统一来自模型注册表。
 #[tauri::command]
 pub async fn get_all_provider_models(
     app_state: State<'_, AppState>,

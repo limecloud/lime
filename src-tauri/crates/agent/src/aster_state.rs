@@ -2,7 +2,7 @@
 //!
 //! 管理 Aster Agent 实例和相关状态
 //! 提供 Tauri 应用与 Aster 框架的桥接
-//! 支持从 Lime 凭证池自动选择凭证
+//! 支持从 Lime API Key Provider 自动选择凭证
 //!
 //! ## 重要：SessionStore 注入
 //!
@@ -116,7 +116,7 @@ pub struct RuntimeInterruptMarker {
 pub struct ProviderConfig {
     /// Provider 名称 (openai, anthropic, google, ollama 等)
     pub provider_name: String,
-    /// Provider 选择器（优先保留前端 provider_id / pool provider_type）
+    /// Provider 选择器（优先保留前端 provider_id / API Key Provider 类型）
     pub provider_selector: Option<String>,
     /// 模型名称
     pub model_name: String,
@@ -124,12 +124,10 @@ pub struct ProviderConfig {
     pub api_key: Option<String>,
     /// Base URL (可选，用于自定义端点)
     pub base_url: Option<String>,
-    /// 凭证 UUID（来自凭证池，用于记录使用和健康状态）
+    /// 凭证 UUID（来自 API Key Provider，用于记录使用和健康状态）
     pub credential_uuid: Option<String>,
     /// 是否强制 OpenAI provider 使用 Responses API
     pub force_responses_api: bool,
-    /// OAuth/本地 Provider 需要的凭证文件路径
-    pub credential_path: Option<String>,
     /// 当前回合是否需要用 toolshim 兼容无原生 tools 的模型
     pub toolshim: bool,
     /// toolshim 解释器模型（可与实际回复模型不同）
@@ -306,7 +304,6 @@ impl AsterAgentState {
                 .clone()
                 .unwrap_or_else(|| format!("manual:{session_id}")),
             force_responses_api: config.force_responses_api,
-            credential_path: config.credential_path.clone(),
             toolshim: config.toolshim,
             toolshim_model: config.toolshim_model.clone(),
         })
@@ -339,13 +336,13 @@ impl AsterAgentState {
         Ok(())
     }
 
-    /// 从凭证池配置 Provider
+    /// 从 API Key Provider 配置 Provider
     ///
-    /// 自动从 Lime 凭证池选择可用凭证并配置 Aster Provider
+    /// 自动从 Lime API Key Provider 选择可用凭证并配置 Aster Provider
     ///
     /// # 参数
     /// - `db`: 数据库连接
-    /// - `provider_type`: Provider 类型 (openai, anthropic, kiro 等)
+    /// - `provider_type`: Provider 类型 (openai, anthropic, google 等)
     /// - `model`: 模型名称
     /// - `session_id`: 会话 ID
     pub async fn configure_provider_from_pool(
@@ -358,12 +355,12 @@ impl AsterAgentState {
         // 确保 Agent 已初始化（使用带数据库的版本）
         self.init_agent_with_db(db).await?;
 
-        // 从凭证池选择凭证并获取配置
+        // 从 API Key Provider 选择凭证并获取配置
         let aster_config = self
             .credential_bridge
             .select_and_configure(db, provider_type, model)
             .await
-            .map_err(|e| format!("从凭证池选择凭证失败: {e}"))?;
+            .map_err(|e| format!("从 API Key Provider 选择凭证失败: {e}"))?;
 
         // 创建 Provider
         let provider = create_aster_provider(&aster_config)
@@ -388,7 +385,6 @@ impl AsterAgentState {
             base_url: aster_config.base_url.clone(),
             credential_uuid: Some(aster_config.credential_uuid.clone()),
             force_responses_api: aster_config.force_responses_api,
-            credential_path: aster_config.credential_path.clone(),
             toolshim: aster_config.toolshim,
             toolshim_model: aster_config.toolshim_model.clone(),
         };
@@ -408,7 +404,7 @@ impl AsterAgentState {
         }
 
         tracing::info!(
-            "[AsterAgent] 从凭证池配置 Provider 成功: {} / {} (凭证: {})",
+            "[AsterAgent] 从 API Key Provider 配置 Provider 成功: {} / {} (凭证: {})",
             aster_config.provider_name,
             aster_config.model_name,
             aster_config.credential_uuid
@@ -450,7 +446,7 @@ impl AsterAgentState {
 
     /// 清除当前 Provider 配置
     ///
-    /// 用于切换凭证后重置状态，下次对话时会重新从凭证池选择凭证
+    /// 用于切换凭证后重置状态，下次对话时会重新从 API Key Provider 选择凭证
     pub async fn clear_provider_config(&self) {
         let mut config_guard = self.current_provider_config.write().await;
         *config_guard = None;
@@ -853,7 +849,6 @@ mod tests {
             base_url: None,
             credential_uuid: None,
             force_responses_api: false,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -878,7 +873,6 @@ mod tests {
             base_url: None,
             credential_uuid: None,
             force_responses_api: true,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -894,7 +888,7 @@ mod tests {
     }
 
     #[test]
-    fn test_provider_config_detects_kiro_provider_session_token_capability() {
+    fn test_provider_config_treats_retired_kiro_as_history_replay_only() {
         let config = ProviderConfig {
             provider_name: "kiro".to_string(),
             provider_selector: Some("kiro".to_string()),
@@ -903,14 +897,13 @@ mod tests {
             base_url: None,
             credential_uuid: None,
             force_responses_api: false,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
 
         assert_eq!(
             config.provider_continuation_capability(),
-            ProviderContinuationCapability::ProviderSessionToken
+            ProviderContinuationCapability::HistoryReplayOnly
         );
         assert_eq!(
             config.provider_continuation_state(),

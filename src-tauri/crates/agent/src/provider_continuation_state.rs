@@ -19,11 +19,6 @@ fn is_openai_responses_model(model_name: &str) -> bool {
     normalized.starts_with("gpt-5") && normalized.contains("codex")
 }
 
-fn is_kiro_session_provider(candidate: &str) -> bool {
-    let normalized = candidate.trim().to_ascii_lowercase();
-    normalized.contains("kiro") || normalized.contains("codewhisperer")
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderContinuationCapability {
@@ -62,14 +57,6 @@ pub fn resolve_provider_continuation_capability(
         && (force_responses_api || is_openai_responses_model(model_name))
     {
         return ProviderContinuationCapability::PreviousResponseId;
-    }
-
-    if provider_candidates
-        .iter()
-        .flatten()
-        .any(|candidate| is_kiro_session_provider(candidate))
-    {
-        return ProviderContinuationCapability::ProviderSessionToken;
     }
 
     ProviderContinuationCapability::HistoryReplayOnly
@@ -224,10 +211,10 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_provider_continuation_capability_detects_kiro_provider_session_token() {
+    fn test_resolve_provider_continuation_capability_treats_retired_kiro_as_history_replay_only() {
         assert_eq!(
             resolve_provider_continuation_capability("kiro", Some("kiro"), "claude-3.7", false),
-            ProviderContinuationCapability::ProviderSessionToken
+            ProviderContinuationCapability::HistoryReplayOnly
         );
         assert_eq!(
             resolve_provider_continuation_capability(
@@ -236,7 +223,7 @@ mod tests {
                 "claude-3.7",
                 false
             ),
-            ProviderContinuationCapability::ProviderSessionToken
+            ProviderContinuationCapability::HistoryReplayOnly
         );
     }
 

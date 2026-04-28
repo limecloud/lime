@@ -55,7 +55,7 @@
 ### Provider 与数据
 
 - `providers.md` - Provider 接入与认证方式
-- `credential-pool.md` - 凭证池、运行时路径、调试入口
+- `credential-pool.md` - 凭证池退役边界、启动清理与守卫
 - `converter.md` - 协议转换与兼容层
 - `database.md` - 数据库层与持久化
 

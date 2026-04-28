@@ -311,6 +311,53 @@ describe("ModelSelector", () => {
     expect(pageText).toContain("无多模态");
   });
 
+  it("展开后应把 Lime 云端模型与本地供应商分组显示", () => {
+    mockUseConfiguredProviders.mockReturnValue({
+      providers: [
+        {
+          key: "lime-hub",
+          label: "Lime 云端",
+          registryId: "lime-hub",
+          type: "openai",
+          providerId: "lime-hub",
+          apiHost: "https://llm.limeai.run",
+        },
+        {
+          key: "custom-codex",
+          label: "Codex Custom",
+          registryId: "custom-codex",
+          fallbackRegistryId: "codex",
+          type: "codex",
+          providerId: "custom-codex",
+          apiHost: "https://api.openai.com/v1",
+        },
+      ],
+      loading: false,
+    });
+
+    const { container } = renderModelSelector({
+      providerType: "lime-hub",
+      model: "gpt-5.5",
+    });
+
+    const trigger = container.querySelector(
+      'button[role="combobox"]',
+    ) as HTMLButtonElement | null;
+    if (!trigger) {
+      throw new Error("未找到模型选择触发器");
+    }
+
+    act(() => {
+      trigger.click();
+    });
+
+    const pageText = document.body.textContent || "";
+    expect(pageText).toContain("云端模型");
+    expect(pageText).toContain("本地与自定义");
+    expect(pageText).toContain("Lime 云端");
+    expect(pageText).toContain("Codex Custom");
+  });
+
   it("未知 anthropic-compatible Provider 应在选择器中展示显式缓存提示", () => {
     mockUseConfiguredProviders.mockReturnValue({
       providers: [

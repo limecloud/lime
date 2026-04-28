@@ -36,7 +36,7 @@ use lime_infra::telemetry::StatsAggregator;
 #[cfg(debug_assertions)]
 use lime_services::{
     api_key_provider_service::ApiKeyProviderService, model_registry_service::ModelRegistryService,
-    provider_pool_service::ProviderPoolService, skill_service::SkillService,
+    skill_service::SkillService,
 };
 #[cfg(debug_assertions)]
 use tauri::{AppHandle, EventId, Listener};
@@ -69,7 +69,6 @@ pub struct DevBridgeState {
     pub server: app::AppState,
     pub logs: app::LogState,
     pub db: Option<DbConnection>,
-    pub pool_service: Arc<ProviderPoolService>,
     pub api_key_provider_service: Arc<ApiKeyProviderService>,
     pub connect_state: Arc<RwLock<Option<crate::commands::connect_cmd::ConnectState>>>,
     pub model_registry: Arc<RwLock<Option<ModelRegistryService>>>,
@@ -130,7 +129,6 @@ impl DevBridgeServer {
         server: app::AppState,
         logs: app::LogState,
         db: Option<DbConnection>,
-        pool_service: Arc<ProviderPoolService>,
         api_key_provider_service: Arc<ApiKeyProviderService>,
         connect_state: Arc<RwLock<Option<crate::commands::connect_cmd::ConnectState>>>,
         model_registry: Arc<RwLock<Option<ModelRegistryService>>>,
@@ -144,7 +142,6 @@ impl DevBridgeServer {
             server,
             logs,
             db,
-            pool_service,
             api_key_provider_service,
             connect_state,
             model_registry,
@@ -249,7 +246,9 @@ async fn stream_events(
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let listener_event_name = event_name.clone();
-    let listener_id = app_handle.listen_any(listener_event_name.clone(), move |event| {
+    // 只监听 AppHandle 事件目标；listen_any 会同时收到 app/window 目标，浏览器 SSE 会把
+    // 同一个 runtime delta 转发两次，导致流式文字逐 token 重复。
+    let listener_id = app_handle.listen(listener_event_name.clone(), move |event| {
         let payload = event.payload();
         let payload_value = serde_json::from_str::<serde_json::Value>(payload)
             .unwrap_or_else(|_| serde_json::Value::String(payload.to_string()));

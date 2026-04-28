@@ -8,8 +8,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use super::provider_type::ANTIGRAVITY_MODELS_FALLBACK;
-
 /// 凭证来源枚举
 /// 用于标识凭证是如何添加到凭证池的
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -55,11 +53,6 @@ pub enum CredentialData {
         project_id: Option<String>,
     },
 
-    /// Antigravity OAuth 凭证（文件路径）- Google 内部 Gemini 3 Pro
-    AntigravityOAuth {
-        creds_file_path: String,
-        project_id: Option<String>,
-    },
     /// OpenAI API Key 凭证
     OpenAIKey {
         api_key: String,
@@ -116,11 +109,6 @@ impl CredentialData {
                 format!("Gemini OAuth: {}", mask_path(creds_file_path))
             }
 
-            CredentialData::AntigravityOAuth {
-                creds_file_path, ..
-            } => {
-                format!("Antigravity OAuth: {}", mask_path(creds_file_path))
-            }
             CredentialData::OpenAIKey { api_key, .. } => {
                 format!("OpenAI: {}", mask_key(api_key))
             }
@@ -153,8 +141,6 @@ impl CredentialData {
         match self {
             CredentialData::KiroOAuth { .. } => PoolProviderType::Kiro,
             CredentialData::GeminiOAuth { .. } => PoolProviderType::Gemini,
-
-            CredentialData::AntigravityOAuth { .. } => PoolProviderType::Antigravity,
             CredentialData::OpenAIKey { .. } => PoolProviderType::OpenAI,
             CredentialData::ClaudeKey { .. } => PoolProviderType::Claude,
             CredentialData::VertexKey { .. } => PoolProviderType::Vertex,
@@ -326,7 +312,7 @@ impl ProviderCredential {
     /// 检查两个来源的排除列表：
     /// 1. `not_supported_models` - 通用的不支持模型列表（精确匹配）
     /// 2. `excluded_models` - 来自 CredentialData::GeminiApiKey 的排除列表（支持通配符）
-    /// 3. Antigravity 凭证只支持特定的模型列表
+    /// 3. API Key 凭证可声明额外的模型排除列表
     pub fn supports_model(&self, model: &str) -> bool {
         // 检查通用的不支持模型列表（精确匹配）
         if self.not_supported_models.contains(&model.to_string()) {
@@ -343,13 +329,6 @@ impl ProviderCredential {
                     return false;
                 }
             }
-        }
-
-        // Antigravity 凭证只支持特定的模型
-        // 使用 providers::antigravity 中定义的模型列表（fallback）
-        // 实际模型列表由 models/aliases/antigravity.json 定义
-        if let CredentialData::AntigravityOAuth { .. } = &self.credential {
-            return ANTIGRAVITY_MODELS_FALLBACK.contains(&model);
         }
 
         true
@@ -538,7 +517,6 @@ pub fn get_default_check_model(provider_type: PoolProviderType) -> &'static str 
         PoolProviderType::ClaudeOAuth => "claude-sonnet-4-5-20250929",
         // Anthropic 兼容格式使用相同的健康检查模型
         PoolProviderType::AnthropicCompatible => "claude-sonnet-4-5-20250929",
-        PoolProviderType::Antigravity => "gemini-3-pro-preview",
         PoolProviderType::Vertex => "gemini-2.0-flash",
         PoolProviderType::GeminiApiKey => "gemini-2.5-flash",
         PoolProviderType::Codex => "gpt-4o-mini",
@@ -590,7 +568,6 @@ fn get_credential_type(cred: &CredentialData) -> String {
     match cred {
         CredentialData::KiroOAuth { .. } => "kiro_oauth".to_string(),
         CredentialData::GeminiOAuth { .. } => "gemini_oauth".to_string(),
-        CredentialData::AntigravityOAuth { .. } => "antigravity_oauth".to_string(),
         CredentialData::OpenAIKey { .. } => "openai_key".to_string(),
         CredentialData::ClaudeKey { .. } => "claude_key".to_string(),
         CredentialData::VertexKey { .. } => "vertex_key".to_string(),
@@ -606,9 +583,6 @@ pub fn get_oauth_creds_path(cred: &CredentialData) -> Option<String> {
     match cred {
         CredentialData::KiroOAuth { creds_file_path } => Some(creds_file_path.clone()),
         CredentialData::GeminiOAuth {
-            creds_file_path, ..
-        } => Some(creds_file_path.clone()),
-        CredentialData::AntigravityOAuth {
             creds_file_path, ..
         } => Some(creds_file_path.clone()),
         CredentialData::CodexOAuth {

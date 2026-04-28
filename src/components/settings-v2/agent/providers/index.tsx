@@ -17,7 +17,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
-import { ProviderPoolPage } from "@/components/provider-pool";
+import { ApiKeyProviderSection } from "@/components/provider-pool/api-key";
 import { openUrl } from "@/components/openclaw/openUrl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -28,18 +28,11 @@ import {
   useOemCloudAccess,
 } from "@/hooks/useOemCloudAccess";
 import type {
-  OemCloudBillingCycle,
-  OemCloudCreditTopupOrder,
-  OemCloudCreditWallet,
-  OemCloudEntitlementPlan,
   OemCloudCurrentSession,
-  OemCloudOrder,
   OemCloudProviderOfferDetail,
   OemCloudProviderModelItem,
   OemCloudProviderOfferState,
   OemCloudProviderOfferSummary,
-  OemCloudPaymentConfig,
-  OemCloudUsageRecord,
 } from "@/lib/api/oemCloudControlPlane";
 import {
   getCompanionPetStatus,
@@ -287,52 +280,6 @@ function formatMoneyCents(value?: number | null, currency = "CNY"): string {
   }).format(value / 100);
 }
 
-type CloudPaymentOption = {
-  id: string;
-  provider: string;
-  method?: string;
-  label: string;
-  config: OemCloudPaymentConfig;
-};
-
-function buildPaymentOptions(
-  configs: OemCloudPaymentConfig[],
-): CloudPaymentOption[] {
-  return configs.flatMap((config) => {
-    const enabledMethods = config.methods.filter((method) => method.enabled);
-    if (enabledMethods.length === 0) {
-      return [
-        {
-          id: config.provider,
-          provider: config.provider,
-          label: config.displayName,
-          config,
-        },
-      ];
-    }
-    return enabledMethods.map((method) => ({
-      id: `${config.provider}:${method.key}`,
-      provider: config.provider,
-      method: method.key,
-      label: `${config.displayName} · ${method.displayName}`,
-      config,
-    }));
-  });
-}
-
-function formatBillingCycleLabel(value?: OemCloudBillingCycle): string {
-  switch (value) {
-    case "monthly":
-      return "月付";
-    case "yearly":
-      return "年付";
-    case "one_time":
-      return "一次性";
-    default:
-      return value || "未配置";
-  }
-}
-
 function formatSubscriptionStatus(value?: string): string {
   switch (value) {
     case "trial":
@@ -346,73 +293,6 @@ function formatSubscriptionStatus(value?: string): string {
     default:
       return value || "未开通";
   }
-}
-
-function formatOrderStatusLabel(value?: string): string {
-  switch (String(value || "").toLowerCase()) {
-    case "paid":
-    case "completed":
-    case "succeeded":
-      return "已支付";
-    case "pending":
-      return "待支付";
-    case "failed":
-      return "支付失败";
-    case "cancelled":
-    case "canceled":
-      return "已取消";
-    case "refunded":
-      return "已退款";
-    default:
-      return value || "未知";
-  }
-}
-
-function formatWalletStatusLabel(value?: string): string {
-  switch (String(value || "").toLowerCase()) {
-    case "active":
-      return "可用";
-    case "expired":
-      return "已过期";
-    case "depleted":
-      return "已用尽";
-    case "pending":
-      return "待生效";
-    default:
-      return value || "未知";
-  }
-}
-
-type CommerceTone = "slate" | "emerald" | "amber";
-
-function resolvePaidCommerceTone(value?: string): CommerceTone {
-  return String(value).toLowerCase() === "paid" ? "emerald" : "amber";
-}
-
-function resolveActiveCommerceTone(value?: string): CommerceTone {
-  return String(value).toLowerCase() === "active" ? "emerald" : "slate";
-}
-
-function resolveInitialPlanCycle(
-  plan: OemCloudEntitlementPlan,
-): OemCloudBillingCycle | undefined {
-  return (
-    plan.billingCycles.find((item) => item.key === "monthly") ??
-    plan.billingCycles[0]
-  )?.key;
-}
-
-function resolvePlanCycleByKey(
-  plan: OemCloudEntitlementPlan,
-  selectedCycle: OemCloudBillingCycle,
-) {
-  return (
-    plan.billingCycles.find((item) => item.key === selectedCycle) ??
-    plan.billingCycles.find(
-      (item) => item.key === resolveInitialPlanCycle(plan),
-    ) ??
-    plan.billingCycles[0]
-  );
 }
 
 function buildUsagePercent(used: number, limit: number): number {
@@ -429,92 +309,6 @@ function formatUsageRatio(used: number, limit: number): string {
   }
 
   return `${formatCreditAmount(used)} / ${formatCreditAmount(limit)}`;
-}
-
-type DailyUsageBucket = {
-  key: string;
-  label: string;
-  credits: number;
-  tokens: number;
-  count: number;
-};
-
-function formatDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function formatDayLabel(dateKey: string): string {
-  const [, month = "", day = ""] = dateKey.split("-");
-  if (!month || !day) {
-    return dateKey;
-  }
-
-  return `${Number(month)}/${Number(day)}`;
-}
-
-function buildDailyUsageBuckets(
-  records: OemCloudUsageRecord[],
-  days = 14,
-): DailyUsageBucket[] {
-  const parsedDates = records
-    .map((record) => new Date(record.createdAt))
-    .filter((date) => Number.isFinite(date.getTime()));
-  const endDate = parsedDates.length
-    ? new Date(Math.max(...parsedDates.map((date) => date.getTime())))
-    : new Date();
-  endDate.setHours(0, 0, 0, 0);
-
-  const buckets = new Map<string, DailyUsageBucket>();
-  for (let index = days - 1; index >= 0; index -= 1) {
-    const date = new Date(endDate);
-    date.setDate(endDate.getDate() - index);
-    const key = formatDateKey(date);
-    buckets.set(key, {
-      key,
-      label: formatDayLabel(key),
-      credits: 0,
-      tokens: 0,
-      count: 0,
-    });
-  }
-
-  records.forEach((record) => {
-    const date = new Date(record.createdAt);
-    if (!Number.isFinite(date.getTime())) {
-      return;
-    }
-    date.setHours(0, 0, 0, 0);
-    const key = formatDateKey(date);
-    const bucket = buckets.get(key);
-    if (!bucket) {
-      return;
-    }
-    bucket.credits += record.credits;
-    bucket.tokens += record.tokens;
-    bucket.count += 1;
-  });
-
-  return Array.from(buckets.values());
-}
-
-function formatUsageStatusLabel(value?: string): string {
-  switch (String(value || "").toLowerCase()) {
-    case "charged":
-    case "success":
-    case "succeeded":
-      return "已结算";
-    case "reserved":
-      return "预占中";
-    case "released":
-      return "已释放";
-    case "failed":
-      return "失败";
-    default:
-      return value || "未知";
-  }
 }
 
 function formatSubscriptionPeriod(
@@ -1087,7 +881,7 @@ function CompanionProviderBridgeCard() {
     if (previewLoading) {
       return {
         label: "整理摘要中",
-        hint: "正在从当前服务商配置与凭证池整理桌宠预览。",
+        hint: "正在从当前服务商配置整理桌宠预览。",
       };
     }
     if (previewError) {
@@ -1165,7 +959,7 @@ function CompanionProviderBridgeCard() {
         previewProviders.length >= 0,
       pending: previewLoading,
       detail: previewLoading
-        ? "正在从当前服务商配置与凭证池整理脱敏摘要。"
+        ? "正在从当前服务商配置整理脱敏摘要。"
         : previewError
           ? previewError
           : `当前已准备 ${providerOverviewPreview?.total_provider_count ?? 0} 个服务商摘要。`,
@@ -1336,7 +1130,7 @@ function CompanionProviderBridgeCard() {
                   <span>桌宠视角预览</span>
                   <WorkbenchInfoTip
                     ariaLabel="桌宠视角预览说明"
-                    content="这里展示 Lime 准备发给桌宠的服务商脱敏摘要，会合并当前 AI 服务商配置与凭证池状态，但不会带出原始凭证。"
+                    content="这里展示 Lime 准备发给桌宠的服务商脱敏摘要，会基于当前 AI 服务商配置生成，但不会带出原始凭证。"
                     tone="slate"
                   />
                 </div>
@@ -1628,16 +1422,10 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     cloudActivation,
     cloudReadiness,
     pendingPayment,
-    paymentConfigs,
-    plans,
     subscription,
     creditAccount,
-    creditsDashboard,
-    topupPackages,
     usageDashboard,
     billingDashboard,
-    orders,
-    creditTopupOrders,
     accessTokens,
     activeAccessToken,
     lastIssuedRawToken,
@@ -1653,19 +1441,14 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     loadingDetail,
     openingGoogleLogin,
     savingDefault,
-    orderingPlanId,
-    creatingTopupPackageId,
     managingToken,
     errorMessage,
     infoMessage,
     defaultProviderSummary,
-    activeDeveloperAccessEnabled,
     handleRefresh,
     handleGoogleLogin,
     openOfferDetail,
     handleSetDefault,
-    handlePurchasePlan,
-    handleTopupCredits,
     handleCreateAccessToken,
     handleRotateAccessToken,
     handleRevokeAccessToken,
@@ -1676,8 +1459,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
   const isOemRuntime = Boolean(runtime);
   const isLimeBrand = isLimeBrandedHub(hubProviderName);
   const cloudBrandLabel = hubProviderName?.trim() || "Lime 云端";
-  const showProviderSettingsEntry =
-    !isOemRuntime || isLimeBrand || activeDeveloperAccessEnabled;
+  const showProviderSettingsEntry = true;
   const workspaceViews = useMemo(() => {
     const orderedViews: ProviderWorkspaceView[] = [];
 
@@ -1708,13 +1490,6 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       : (workspaceViews[0]?.value ?? "cloud");
   const [activeView, setActiveView] =
     useState<ProviderWorkspaceView>(defaultView);
-  const [selectedPaymentOptionId, setSelectedPaymentOptionId] =
-    useState<string>("");
-  const [selectedPlanBillingCycle, setSelectedPlanBillingCycle] =
-    useState<OemCloudBillingCycle>("monthly");
-  const [cloudCommerceView, setCloudCommerceView] = useState<
-    "usage" | "billing" | "plans"
-  >("usage");
   const [modelSearch, setModelSearch] = useState("");
   const cloudLoginAutoOpenKeyRef = useRef<string | null>(null);
 
@@ -1762,16 +1537,6 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
   ]);
 
   useEffect(() => {
-    const firstPaymentOption = buildPaymentOptions(paymentConfigs)[0]?.id ?? "";
-    if (!firstPaymentOption) {
-      setSelectedPaymentOptionId("");
-      return;
-    }
-
-    setSelectedPaymentOptionId((current) => current || firstPaymentOption);
-  }, [paymentConfigs]);
-
-  useEffect(() => {
     if (!session || selectedOffer || loadingDetail || offers.length === 0) {
       return;
     }
@@ -1795,67 +1560,6 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
 
   const selectedOfferKey =
     selectedOffer?.providerKey ?? defaultCloudOffer?.providerKey;
-  const paymentOptions = useMemo(
-    () => buildPaymentOptions(paymentConfigs),
-    [paymentConfigs],
-  );
-  const selectedPaymentOption = useMemo(
-    () =>
-      paymentOptions.find((item) => item.id === selectedPaymentOptionId) ??
-      paymentOptions[0] ??
-      null,
-    [paymentOptions, selectedPaymentOptionId],
-  );
-  const selectedPaymentConfig = selectedPaymentOption?.config ?? null;
-  const availablePlanBillingCycles = useMemo(() => {
-    const cycleMap = new Map<OemCloudBillingCycle, string>();
-    plans.forEach((plan) => {
-      plan.billingCycles.forEach((cycle) => {
-        if (!cycleMap.has(cycle.key)) {
-          cycleMap.set(
-            cycle.key,
-            cycle.label || formatBillingCycleLabel(cycle.key),
-          );
-        }
-      });
-    });
-
-    const order = ["monthly", "yearly", "one_time"];
-    return Array.from(cycleMap.entries())
-      .map(([key, label]) => ({ key, label }))
-      .sort((left, right) => {
-        const leftIndex = order.indexOf(left.key);
-        const rightIndex = order.indexOf(right.key);
-        if (leftIndex === -1 && rightIndex === -1) {
-          return left.label.localeCompare(right.label, "zh-CN");
-        }
-        if (leftIndex === -1) {
-          return 1;
-        }
-        if (rightIndex === -1) {
-          return -1;
-        }
-        return leftIndex - rightIndex;
-      });
-  }, [plans]);
-
-  useEffect(() => {
-    if (availablePlanBillingCycles.length === 0) {
-      return;
-    }
-    if (
-      !availablePlanBillingCycles.some(
-        (cycle) => cycle.key === selectedPlanBillingCycle,
-      )
-    ) {
-      setSelectedPlanBillingCycle(availablePlanBillingCycles[0].key);
-    }
-  }, [availablePlanBillingCycles, selectedPlanBillingCycle]);
-
-  const rawBillingCurrency = billingDashboard?.billingSummary.currency ?? "";
-  const billingCurrency = /^[A-Z]{3}$/.test(rawBillingCurrency)
-    ? rawBillingCurrency
-    : "CNY";
   const currentPlanName =
     subscription?.planName ||
     billingDashboard?.currentPlan?.name ||
@@ -1898,53 +1602,13 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       session?.tenant.id,
     ],
   );
-  const displayedPlanOrders =
-    billingDashboard?.orders && billingDashboard.orders.length > 0
-      ? billingDashboard.orders
-      : orders;
-  const displayedCreditOrders =
-    creditsDashboard?.creditOrders && creditsDashboard.creditOrders.length > 0
-      ? creditsDashboard.creditOrders
-      : creditTopupOrders;
-  const displayedCreditWallets = creditsDashboard?.creditWallets ?? [];
-  const creditBreakdownItems = [
-    {
-      key: "free",
-      label: "每日基础积分",
-      used: monthlyUsageSummary?.freeCreditsUsed ?? 0,
-      limit: monthlyUsageSummary?.freeCreditsLimit ?? 0,
-      tone: "sky",
-    },
-    {
-      key: "subscription",
-      label: "套餐积分",
-      used: monthlyUsageSummary?.subscriptionCreditsUsed ?? 0,
-      limit: monthlyUsageSummary?.subscriptionCreditsLimit ?? 0,
-      tone: "emerald",
-    },
-    {
-      key: "topup",
-      label: "补充积分",
-      used: monthlyUsageSummary?.topupCreditsUsed ?? 0,
-      limit: monthlyUsageSummary?.topupCreditsLimit ?? 0,
-      tone: "amber",
-    },
-  ];
   const monthlyUsagePercent = buildUsagePercent(
     monthlyUsedCredits,
     monthlyLimitCredits,
   );
-  const dailyUsageBuckets = useMemo(
-    () => buildDailyUsageBuckets(usageDashboard?.usageRecords ?? [], 14),
-    [usageDashboard?.usageRecords],
-  );
-  const maxDailyUsageCredits = Math.max(
-    1,
-    ...dailyUsageBuckets.map((item) => item.credits),
-  );
-  const recentUsageRecords = usageDashboard?.usageRecords.slice(0, 8) ?? [];
-  const recentPlanOrders = displayedPlanOrders.slice(0, 8);
-  const recentCreditOrders = displayedCreditOrders.slice(0, 8);
+  const pendingOrderCount =
+    billingDashboard?.orders.filter((order) => order.status === "pending")
+      .length ?? (pendingPayment ? 1 : 0);
   const subscriptionPeriodLabel = formatSubscriptionPeriod(
     subscription?.currentPeriodStart ||
       billingDashboard?.billingSummary.currentPeriodStart,
@@ -1961,9 +1625,6 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     session?.user.id ||
     "已登录";
   const pendingPaymentReference = pendingPayment?.paymentReference;
-  const canOpenPendingPayment = Boolean(
-    pendingPaymentReference && /^https?:\/\//i.test(pendingPaymentReference),
-  );
   const sdkModelId = resolveSdkModelId(selectedModels);
   const canRenderSdkSnippets = Boolean(sdkModelId && openAIBaseUrl);
   const canRenderAnthropicSnippet = Boolean(sdkModelId && anthropicBaseUrl);
@@ -2090,11 +1751,11 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setCloudCommerceView("plans")}
+                onClick={() => void openUserCenter("/pricing")}
                 className={PRIMARY_ACTION_BUTTON_CLASS}
               >
                 <CreditCard className="h-4 w-4" />
-                升级
+                升级套餐
               </button>
             </div>
           </div>
@@ -2124,10 +1785,10 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
               icon={<WalletCards className="h-3.5 w-3.5" />}
             />
             <SessionValueCard
-              label="支付方式"
-              value={selectedPaymentOption?.label ?? "暂不可购买"}
-              hint="只显示服务端启用的支付配置"
-              icon={<CreditCard className="h-3.5 w-3.5" />}
+              label="待支付"
+              value={`${pendingOrderCount} 笔`}
+              hint="支付与账单明细在用户中心网页完成"
+              icon={<ReceiptText className="h-3.5 w-3.5" />}
             />
           </div>
         </div>
@@ -2148,655 +1809,110 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
         refreshing={refreshing}
       />
 
-      {cloudCommerceView === "plans" ? (
-        <article
-          className={SURFACE_CLASS_NAME}
-          data-testid="cloud-plan-upgrade-page"
-        >
-          <div className="space-y-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setCloudCommerceView("usage")}
-                  className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-900"
-                >
-                  ← 返回使用详情
-                </button>
-                <div>
-                  <h3 className="text-xl font-semibold text-slate-950">
-                    选择适合你的套餐
-                  </h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    套餐、价格和权益全部来自服务端配置；购买后通过真实支付回调同步权益。
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {availablePlanBillingCycles.map((cycle) => (
-                  <button
-                    key={cycle.key}
-                    type="button"
-                    onClick={() => setSelectedPlanBillingCycle(cycle.key)}
-                    className={cn(
-                      "rounded-full border px-4 py-2 text-sm font-medium transition",
-                      selectedPlanBillingCycle === cycle.key
-                        ? "border-slate-950 bg-slate-950 text-white"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                    )}
-                  >
-                    {cycle.label || formatBillingCycleLabel(cycle.key)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div
-              className="flex flex-wrap gap-2"
-              data-testid="cloud-payment-options"
-            >
-              {paymentOptions.length > 0 ? (
-                paymentOptions.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setSelectedPaymentOptionId(option.id)}
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition",
-                      selectedPaymentOption?.id === option.id
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                    )}
-                  >
-                    <CreditCard className="h-3.5 w-3.5" />
-                    {option.label}
-                  </button>
-                ))
-              ) : (
-                <InfoPill label="服务端未启用支付渠道" tone="amber" />
-              )}
-              {canOpenPendingPayment ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    pendingPaymentReference &&
-                    void openUrl(pendingPaymentReference)
-                  }
-                  className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  继续支付
-                </button>
-              ) : null}
-            </div>
-
-            {plans.length === 0 ? (
-              <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500">
-                服务端暂未发布可购买套餐。
-              </div>
-            ) : (
-              <div
-                className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4"
-                data-testid="cloud-plan-grid"
-              >
-                {plans.map((plan) => {
-                  const selectedCycle = resolvePlanCycleByKey(
-                    plan,
-                    selectedPlanBillingCycle,
-                  );
-                  const lowerPlanKey = plan.key.toLowerCase();
-                  const isFreePlan =
-                    lowerPlanKey.includes("free") ||
-                    (selectedCycle?.priceCents ?? plan.priceMonthly) <= 0;
-                  const isCurrentPlan =
-                    subscription?.planId === plan.id ||
-                    subscription?.planKey === plan.key ||
-                    (!subscription && isFreePlan);
-                  const disabled =
-                    isCurrentPlan ||
-                    !selectedPaymentConfig ||
-                    !selectedCycle ||
-                    orderingPlanId === plan.id;
-                  const featureItems = (
-                    plan.featureSections.length > 0
-                      ? plan.featureSections.flatMap((section) => section.items)
-                      : plan.quotaSummaries.length > 0
-                        ? plan.quotaSummaries.map((item) => item.value)
-                        : plan.features
-                  ).slice(0, 5);
-                  const priceLabel = formatMoneyCents(
-                    selectedCycle?.priceCents ?? plan.priceMonthly,
-                    billingCurrency,
-                  );
-                  const actionLabel = isCurrentPlan
-                    ? "当前套餐"
-                    : orderingPlanId === plan.id
-                      ? "正在打开支付..."
-                      : selectedPaymentConfig
-                        ? subscription
-                          ? "升级"
-                          : "选择套餐"
-                        : "暂不可购买";
-
-                  return (
-                    <div
-                      key={plan.id}
-                      className={cn(
-                        "flex min-h-[320px] flex-col rounded-[24px] border bg-white p-5 shadow-sm shadow-slate-950/5",
-                        plan.recommended || isCurrentPlan
-                          ? "border-emerald-200 ring-1 ring-emerald-100"
-                          : "border-slate-200/80",
-                      )}
-                    >
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {isCurrentPlan ? (
-                            <InfoPill label="当前" tone="emerald" />
-                          ) : plan.recommended ? (
-                            <InfoPill
-                              label={plan.badge || "推荐"}
-                              tone="emerald"
-                            />
-                          ) : plan.badge ? (
-                            <InfoPill label={plan.badge} />
-                          ) : null}
-                        </div>
-                        <div>
-                          <h4 className="text-xl font-semibold text-slate-950">
-                            {plan.name}
-                          </h4>
-                          <p className="mt-2 min-h-[44px] text-sm leading-6 text-slate-600">
-                            {plan.tagline ||
-                              plan.description ||
-                              "服务端配置的套餐权益"}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-3xl font-semibold tracking-tight text-slate-950">
-                            {priceLabel}
-                          </span>
-                          <span className="ml-2 text-sm text-slate-500">
-                            / {formatBillingCycleLabel(selectedCycle?.key)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-slate-600">
-                          含{" "}
-                          {formatCreditAmount(
-                            selectedCycle?.credits ?? plan.creditsMonthly,
-                          )}{" "}
-                          积分
-                        </p>
-                      </div>
-
-                      <div className="mt-5 flex-1 space-y-2">
-                        {featureItems.length > 0 ? (
-                          featureItems.map((item) => (
-                            <div
-                              key={`${plan.id}-${item}`}
-                              className="flex items-start gap-2 text-sm leading-6 text-slate-600"
-                            >
-                              <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-500" />
-                              <span>{item}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm leading-6 text-slate-500">
-                            具体权益以服务端套餐配置为准。
-                          </p>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() =>
-                          selectedCycle && selectedPaymentConfig
-                            ? void handlePurchasePlan({
-                                planId: plan.id,
-                                billingCycle: selectedCycle.key,
-                                paymentChannel:
-                                  selectedPaymentOption?.provider ??
-                                  selectedPaymentConfig.provider,
-                                paymentMethod: selectedPaymentOption?.method,
-                              })
-                            : undefined
-                        }
-                        className={cn(
-                          isCurrentPlan
-                            ? "mt-5 inline-flex items-center justify-center rounded-[16px] border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-500"
-                            : cn(PRIMARY_ACTION_BUTTON_CLASS, "mt-5 w-full"),
-                        )}
-                      >
-                        {orderingPlanId === plan.id ? (
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                        ) : isCurrentPlan ? (
-                          <CheckCircle2 className="h-4 w-4" />
-                        ) : (
-                          <CreditCard className="h-4 w-4" />
-                        )}
-                        {actionLabel}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="rounded-[24px] border border-slate-200/80 bg-slate-50 p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-900">
-                    补充积分
-                  </h4>
-                  <p className="mt-1 text-sm text-slate-500">
-                    余额不足时可按服务端积分包充值；没有积分包时不显示兜底套餐。
-                  </p>
-                </div>
-                {topupPackages.length === 0 ? (
-                  <InfoPill label="暂无积分包" />
-                ) : null}
-              </div>
-              {topupPackages.length > 0 ? (
-                <div
-                  className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
-                  data-testid="cloud-topup-grid"
-                >
-                  {topupPackages.map((item) => {
-                    const totalCredits =
-                      item.credits + (item.bonusCredits ?? 0);
-                    const disabled =
-                      !selectedPaymentConfig ||
-                      creatingTopupPackageId === item.id;
-                    return (
-                      <div
-                        key={item.id}
-                        className="rounded-[18px] border border-slate-200 bg-white px-4 py-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">
-                              {item.name}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {formatCreditAmount(totalCredits)} 积分 · 有效{" "}
-                              {item.validDays} 天
-                            </p>
-                          </div>
-                          <span className="text-sm font-semibold text-slate-950">
-                            {formatMoneyCents(item.priceCents, billingCurrency)}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={disabled}
-                          onClick={() =>
-                            selectedPaymentConfig
-                              ? void handleTopupCredits({
-                                  packageId: item.id,
-                                  paymentChannel:
-                                    selectedPaymentOption?.provider ??
-                                    selectedPaymentConfig.provider,
-                                  paymentMethod: selectedPaymentOption?.method,
-                                })
-                              : undefined
-                          }
-                          className={cn(
-                            PRIMARY_ACTION_BUTTON_CLASS,
-                            "mt-3 w-full px-3 py-2 text-xs",
-                          )}
-                        >
-                          {creatingTopupPackageId === item.id ? (
-                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <WalletCards className="h-4 w-4" />
-                          )}
-                          {selectedPaymentConfig ? "充值" : "暂不可购买"}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
+      <article
+        className={SURFACE_CLASS_NAME}
+        data-testid="cloud-commerce-web-entry-card"
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-slate-950">云端管理</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              套餐购买、支付、账单和用量明细在用户中心网页完成，客户端只同步关键状态。
+            </p>
           </div>
-        </article>
-      ) : (
-        <article
-          className={SURFACE_CLASS_NAME}
-          data-testid="cloud-commerce-dashboard"
-        >
-          <div className="space-y-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-100 p-1">
-                {[
-                  ["usage", "使用详情"],
-                  ["billing", "账单"],
-                ].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() =>
-                      setCloudCommerceView(value as "usage" | "billing")
-                    }
-                    className={cn(
-                      "rounded-full px-4 py-2 text-sm font-medium transition",
-                      cloudCommerceView === value
-                        ? "bg-white text-slate-950 shadow-sm shadow-slate-950/5"
-                        : "text-slate-500 hover:text-slate-800",
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
+          <button
+            type="button"
+            onClick={() => void openUserCenter("")}
+            className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            <ExternalLink className="h-4 w-4" />
+            打开用户中心
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              key: "plans",
+              title: "套餐与价格",
+              description: "购买、升级和计费规则",
+              meta: currentPlanName,
+              path: "/pricing",
+              action: "打开套餐与价格",
+              icon: <CreditCard className="h-4 w-4" />,
+              primary: true,
+            },
+            {
+              key: "usage",
+              title: "用量详情",
+              description: "调用记录和额度消耗",
+              meta: `${monthlyUsagePercent}% 本月已用`,
+              path: "/billing?tab=usage",
+              action: "查看用量详情",
+              icon: <Layers3 className="h-4 w-4" />,
+              primary: false,
+            },
+            {
+              key: "billing",
+              title: "账单管理",
+              description: "订单、续费和待支付",
+              meta: `${pendingOrderCount} 笔待支付`,
+              path: "/billing?tab=billing",
+              action: "查看账单管理",
+              icon: <ReceiptText className="h-4 w-4" />,
+              primary: false,
+            },
+            {
+              key: "credits",
+              title: "积分充值",
+              description: "余额、充值包和流水",
+              meta: `${formatCreditAmount(creditAccount?.balance)} 积分`,
+              path: "/credits",
+              action: "管理积分",
+              icon: <WalletCards className="h-4 w-4" />,
+              primary: false,
+            },
+          ].map((item) => (
+            <div
+              key={item.key}
+              className="flex min-h-[168px] flex-col justify-between rounded-[22px] border border-slate-200/80 bg-slate-50 px-4 py-4"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-[14px] border border-slate-200 bg-white text-slate-600">
+                    {item.icon}
+                  </span>
+                  <InfoPill
+                    label={item.meta}
+                    tone={item.primary ? "emerald" : "slate"}
+                  />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-950">
+                    {item.title}
+                  </h4>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {item.description}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setCloudCommerceView("plans")}
-                className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                onClick={() => void openUserCenter(item.path)}
+                className={cn(
+                  "mt-4 inline-flex items-center justify-center gap-2 rounded-[15px] px-3 py-2 text-xs font-medium transition",
+                  item.primary
+                    ? "border border-slate-950 bg-slate-950 text-white hover:bg-slate-800"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                )}
               >
-                <CreditCard className="h-4 w-4" />
-                查看套餐
+                <ExternalLink className="h-3.5 w-3.5" />
+                {item.action}
               </button>
             </div>
-
-            {cloudCommerceView === "usage" ? (
-              <div className="space-y-5" data-testid="cloud-usage-details">
-                <div className="grid gap-3 md:grid-cols-3">
-                  {creditBreakdownItems.map((item) => (
-                    <div
-                      key={item.key}
-                      className="rounded-[20px] border border-slate-200/80 bg-slate-50 px-4 py-3"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-slate-600">
-                          {item.label}
-                        </p>
-                        <span className="text-xs font-medium text-slate-400">
-                          {buildUsagePercent(item.used, item.limit)}%
-                        </span>
-                      </div>
-                      <p className="mt-3 text-xl font-semibold text-slate-950">
-                        {formatUsageRatio(item.used, item.limit)}
-                      </p>
-                      <div className="mt-3 h-1.5 rounded-full bg-white">
-                        <div
-                          className={cn(
-                            "h-full rounded-full",
-                            item.tone === "emerald"
-                              ? "bg-emerald-500"
-                              : item.tone === "amber"
-                                ? "bg-amber-500"
-                                : "bg-sky-500",
-                          )}
-                          style={{
-                            width: `${buildUsagePercent(item.used, item.limit)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="rounded-[24px] border border-slate-200/80 bg-slate-50 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        近 14 天消耗
-                      </h4>
-                      <p className="mt-1 text-sm text-slate-500">
-                        从服务端用量记录聚合，不生成兜底数据。
-                      </p>
-                    </div>
-                    <InfoPill label={`${recentUsageRecords.length} 条记录`} />
-                  </div>
-                  <div className="mt-4 flex h-44 items-end gap-2 rounded-[18px] border border-slate-200 bg-white px-3 py-3">
-                    {dailyUsageBuckets.map((bucket) => {
-                      const height =
-                        bucket.credits > 0
-                          ? Math.max(
-                              8,
-                              Math.round(
-                                (bucket.credits / maxDailyUsageCredits) * 100,
-                              ),
-                            )
-                          : 2;
-                      return (
-                        <div
-                          key={bucket.key}
-                          className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2"
-                          title={`${bucket.key} · ${formatCreditAmount(bucket.credits)} 积分`}
-                        >
-                          <div className="flex h-full w-full items-end justify-center rounded-full bg-slate-100">
-                            <div
-                              className={cn(
-                                "w-full max-w-[18px] rounded-full transition-all",
-                                bucket.credits > 0
-                                  ? "bg-slate-950"
-                                  : "bg-slate-200",
-                              )}
-                              style={{ height: `${height}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] text-slate-400">
-                            {bucket.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] border border-slate-200/80 bg-white">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 px-4 py-3">
-                    <h4 className="text-sm font-semibold text-slate-900">
-                      用量记录
-                    </h4>
-                    <InfoPill label="真实账本" tone="emerald" />
-                  </div>
-                  {recentUsageRecords.length > 0 ? (
-                    <div
-                      className="divide-y divide-slate-100"
-                      data-testid="cloud-usage-records"
-                    >
-                      {recentUsageRecords.map((record) => (
-                        <div
-                          key={record.id}
-                          className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.2fr_1fr_0.8fr_0.8fr] md:items-center"
-                        >
-                          <div>
-                            <p className="font-medium text-slate-900">
-                              {record.model || "未知模型"}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {formatOemCloudDateTime(record.createdAt)}
-                            </p>
-                          </div>
-                          <span className="text-slate-600">
-                            {formatCreditAmount(record.tokens)} tokens
-                          </span>
-                          <span className="font-medium text-slate-900">
-                            {formatCreditAmount(record.credits)} 积分
-                          </span>
-                          <InfoPill
-                            label={formatUsageStatusLabel(record.status)}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="px-4 py-8 text-center text-sm text-slate-500">
-                      暂无用量记录。
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-5" data-testid="cloud-billing-details">
-                <div className="grid gap-3 md:grid-cols-3">
-                  <SessionValueCard
-                    label="累计支付"
-                    value={formatMoneyCents(
-                      billingDashboard?.billingSummary.totalSpentCents,
-                      billingCurrency,
-                    )}
-                    hint="服务端账单摘要返回"
-                    icon={<ReceiptText className="h-3.5 w-3.5" />}
-                  />
-                  <SessionValueCard
-                    label="下次付款"
-                    value={formatMoneyCents(
-                      billingDashboard?.billingSummary.nextPaymentAmountCents,
-                      billingCurrency,
-                    )}
-                    hint="自动续费套餐才会返回下次金额"
-                    icon={<CreditCard className="h-3.5 w-3.5" />}
-                  />
-                  <SessionValueCard
-                    label="最近支付"
-                    value={formatOemCloudDateTime(
-                      billingDashboard?.billingSummary.lastPaidAt,
-                    )}
-                    hint="最近一笔已支付订单"
-                    icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                  />
-                </div>
-
-                <div className="rounded-[24px] border border-slate-200/80 bg-white">
-                  <div className="border-b border-slate-200/80 px-4 py-3">
-                    <h4 className="text-sm font-semibold text-slate-900">
-                      套餐订单
-                    </h4>
-                  </div>
-                  {recentPlanOrders.length > 0 ? (
-                    <div
-                      className="divide-y divide-slate-100"
-                      data-testid="cloud-plan-orders"
-                    >
-                      {recentPlanOrders.map((order: OemCloudOrder) => (
-                        <div
-                          key={order.id}
-                          className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr] md:items-center"
-                        >
-                          <div>
-                            <p className="font-medium text-slate-900">
-                              {order.planName || order.planKey}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {formatOemCloudDateTime(
-                                order.paidAt || order.createdAt,
-                              )}
-                            </p>
-                          </div>
-                          <span className="text-slate-600">
-                            {formatBillingCycleLabel(order.billingCycle)}
-                          </span>
-                          <span className="font-medium text-slate-900">
-                            {formatMoneyCents(
-                              order.amountCents,
-                              billingCurrency,
-                            )}
-                          </span>
-                          <InfoPill
-                            label={formatOrderStatusLabel(order.status)}
-                            tone={resolvePaidCommerceTone(order.status)}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="px-4 py-8 text-center text-sm text-slate-500">
-                      暂无套餐订单。
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <div className="rounded-[24px] border border-slate-200/80 bg-white">
-                    <div className="border-b border-slate-200/80 px-4 py-3">
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        充值订单
-                      </h4>
-                    </div>
-                    {recentCreditOrders.length > 0 ? (
-                      <div className="divide-y divide-slate-100">
-                        {recentCreditOrders.map(
-                          (order: OemCloudCreditTopupOrder) => (
-                            <div key={order.id} className="px-4 py-3 text-sm">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="font-medium text-slate-900">
-                                  {order.packageName}
-                                </span>
-                                <InfoPill
-                                  label={formatOrderStatusLabel(order.status)}
-                                  tone={resolvePaidCommerceTone(order.status)}
-                                />
-                              </div>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {formatMoneyCents(
-                                  order.amountCents,
-                                  billingCurrency,
-                                )}{" "}
-                                · {formatCreditAmount(order.creditsGranted)}{" "}
-                                积分 ·{" "}
-                                {formatOemCloudDateTime(
-                                  order.paidAt || order.createdAt,
-                                )}
-                              </p>
-                            </div>
-                          ),
-                        )}
-                      </div>
-                    ) : (
-                      <div className="px-4 py-8 text-center text-sm text-slate-500">
-                        暂无充值订单。
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-[24px] border border-slate-200/80 bg-white">
-                    <div className="border-b border-slate-200/80 px-4 py-3">
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        积分来源
-                      </h4>
-                    </div>
-                    {displayedCreditWallets.length > 0 ? (
-                      <div className="divide-y divide-slate-100">
-                        {displayedCreditWallets
-                          .slice(0, 6)
-                          .map((wallet: OemCloudCreditWallet) => (
-                            <div key={wallet.id} className="px-4 py-3 text-sm">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="font-medium text-slate-900">
-                                  {wallet.packageName || wallet.sourceType}
-                                </span>
-                                <InfoPill
-                                  label={formatWalletStatusLabel(wallet.status)}
-                                  tone={resolveActiveCommerceTone(
-                                    wallet.status,
-                                  )}
-                                />
-                              </div>
-                              <p className="mt-1 text-xs text-slate-500">
-                                剩余{" "}
-                                {formatCreditAmount(wallet.remainingCredits)} /
-                                共 {formatCreditAmount(wallet.grantedCredits)} ·
-                                到期 {formatOemCloudDateTime(wallet.expiresAt)}
-                              </p>
-                            </div>
-                          ))}
-                      </div>
-                    ) : (
-                      <div className="px-4 py-8 text-center text-sm text-slate-500">
-                        暂无积分来源。
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </article>
-      )}
+          ))}
+        </div>
+      </article>
 
       <details
         className={SURFACE_CLASS_NAME}
@@ -3186,7 +2302,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     </section>
   );
 
-  const localProviderContent = <ProviderPoolPage hideHeader />;
+  const localProviderContent = <ApiKeyProviderSection className="min-h-[640px]" />;
   const companionContent = (
     <div className="space-y-5">
       <CompanionProviderBridgeCard />

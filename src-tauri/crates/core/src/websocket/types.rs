@@ -69,12 +69,6 @@ pub enum WsMessage {
     Ping { timestamp: i64 },
     /// 心跳响应
     Pong { timestamp: i64 },
-    /// 订阅 Kiro 凭证状态事件
-    SubscribeKiroEvents,
-    /// 取消订阅 Kiro 凭证状态事件
-    UnsubscribeKiroEvents,
-    /// Kiro 凭证状态事件通知
-    KiroCredentialEvent(WsKiroEvent),
 }
 
 /// WebSocket API 请求
@@ -320,79 +314,4 @@ pub struct WsStatsSnapshot {
     pub active_connections: u64,
     pub total_messages: u64,
     pub total_errors: u64,
-}
-
-/// WebSocket Kiro 凭证事件
-///
-/// 用于通过 WebSocket 推送 Kiro 凭证状态变化
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "event_type", rename_all = "snake_case")]
-pub enum WsKiroEvent {
-    /// 凭证状态更新
-    CredentialStatusUpdate {
-        uuid: String,
-        is_healthy: bool,
-        is_disabled: bool,
-        error_count: u32,
-        health_score: Option<f64>,
-        last_used: Option<DateTime<Utc>>,
-    },
-    /// 凭证刷新开始
-    RefreshStarted {
-        uuid: String,
-        credential_name: Option<String>,
-    },
-    /// 凭证刷新成功
-    RefreshSuccess {
-        uuid: String,
-        credential_name: Option<String>,
-        new_token_info: KiroTokenInfo,
-    },
-    /// 凭证刷新失败
-    RefreshFailed {
-        uuid: String,
-        credential_name: Option<String>,
-        error: String,
-        error_code: Option<String>,
-    },
-    /// 凭证健康检查完成
-    HealthCheckCompleted {
-        uuid: String,
-        credential_name: Option<String>,
-        is_healthy: bool,
-        health_score: Option<f64>,
-        last_check: DateTime<Utc>,
-    },
-    /// 凭证池统计更新
-    PoolStatsUpdate {
-        total_credentials: u32,
-        healthy_credentials: u32,
-        available_credentials: u32,
-        average_health_score: Option<f64>,
-        last_rotation: Option<DateTime<Utc>>,
-    },
-    /// 凭证轮换事件
-    CredentialRotated {
-        from_uuid: Option<String>,
-        to_uuid: String,
-        reason: String,
-        rotation_time: DateTime<Utc>,
-    },
-    /// 凭证自动禁用事件
-    CredentialAutoDisabled {
-        uuid: String,
-        credential_name: Option<String>,
-        reason: String,
-        error_type: String,
-        disable_time: DateTime<Utc>,
-    },
-}
-
-/// Kiro Token 信息（用于刷新成功事件）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KiroTokenInfo {
-    pub expires_at: DateTime<Utc>,
-    pub auth_method: String,
-    pub provider: String,
-    pub region: String,
 }

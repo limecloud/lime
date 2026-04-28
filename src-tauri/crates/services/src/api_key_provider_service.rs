@@ -5,7 +5,10 @@
 //! **Feature: provider-ui-refactor**
 //! **Validates: Requirements 7.3, 9.1, 9.2, 9.3**
 
-use crate::provider_type_mapping::pool_provider_type_to_api_type;
+use crate::provider_type_mapping::{
+    api_provider_type_to_pool_type, is_custom_provider_id, pool_provider_type_to_api_type,
+    resolve_pool_provider_type_or_default,
+};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
 use lime_core::api_host_utils::{
@@ -2542,6 +2545,60 @@ impl ApiKeyProviderService {
     }
 
     // ==================== 智能降级 ====================
+
+    /// 从 API Key Provider 主路径选择凭证。
+    ///
+    /// Provider Pool 已退役；运行时不再先读 `provider_pool_credentials`，只从
+    /// `api_key_providers` / `api_keys` 选择可用凭证。
+    pub async fn select_credential_for_provider(
+        &self,
+        db: &DbConnection,
+        provider_type: &str,
+        provider_id_hint: Option<&str>,
+        client_type: Option<&lime_core::models::client_type::ClientType>,
+    ) -> Result<Option<ProviderCredential>, String> {
+        let mut pool_type = resolve_pool_provider_type_or_default(provider_type);
+        let mut resolved_provider_id_hint = provider_id_hint;
+
+        if is_custom_provider_id(provider_type) {
+            resolved_provider_id_hint = Some(provider_type);
+        }
+
+        if let Some(custom_provider_id) =
+            resolved_provider_id_hint.filter(|id| is_custom_provider_id(id))
+        {
+            match self.get_provider(db, custom_provider_id) {
+                Ok(Some(provider_with_keys)) => {
+                    pool_type =
+                        api_provider_type_to_pool_type(provider_with_keys.provider.provider_type);
+                    tracing::debug!(
+                        "[API_KEY_PROVIDER] custom provider '{}' 真实类型 {:?} -> {:?}",
+                        custom_provider_id,
+                        provider_with_keys.provider.provider_type,
+                        pool_type
+                    );
+                }
+                Ok(None) => {
+                    tracing::debug!(
+                        "[API_KEY_PROVIDER] custom provider '{}' 不存在，继续使用解析类型 {:?}",
+                        custom_provider_id,
+                        pool_type
+                    );
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        "[API_KEY_PROVIDER] 查询 custom provider '{}' 失败: {}，继续使用解析类型 {:?}",
+                        custom_provider_id,
+                        error,
+                        pool_type
+                    );
+                }
+            }
+        }
+
+        self.get_fallback_credential(db, &pool_type, resolved_provider_id_hint, client_type)
+            .await
+    }
 
     /// 根据 PoolProviderType 获取降级凭证
     ///

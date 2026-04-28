@@ -5,20 +5,17 @@
 ## 架构说明
 
 业务服务层，封装核心业务逻辑。
-提供凭证池管理、Token 缓存、MCP 同步等功能。
+提供 API Key Provider、模型注册表、MCP 同步等功能。旧凭证池、Token 缓存与 Kiro 事件服务已退役。
 
 ## 文件索引
 
 - `mod.rs` - 模块入口
 - `site_adapter_import_service.rs` - 外部适配器来源导入与 Lime 标准编译层
-- `provider_pool_service.rs` - Provider 凭证池服务（多凭证轮询）
-- `token_cache_service.rs` - Token 缓存服务
 - `mcp_service.rs` - MCP 服务器管理
 - `mcp_sync.rs` - MCP 配置同步
 - `prompt_service.rs` - Prompt 管理服务
 - `prompt_sync.rs` - Prompt 同步
 - `skill_service.rs` - 技能管理服务
-- `usage_service.rs` - 使用量统计服务
 - `backup_service.rs` - 备份服务
 - `live_sync.rs` - 实时同步服务
 - `switch.rs` - 开关服务
@@ -30,7 +27,6 @@
 - `browser_runtime_window.rs` - 浏览器运行时调试独立窗口管理
 - `general_chat/` - 通用对话服务模块（会话管理、消息存储）
 - `api_key_provider_service.rs` - API Key Provider 服务
-- `kiro_event_service.rs` - Kiro 事件服务
 - `machine_id_service.rs` - 机器 ID 服务
 - `model_registry_service.rs` - 模型注册表服务
 - `persona_service.rs` - 人设服务（创建、列表、更新、删除、设置默认、模板）

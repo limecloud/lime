@@ -31,7 +31,7 @@ struct ProviderResolutionContext {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum RuntimeProviderConfigurationStrategy {
     Manual { base_url: Option<String> },
-    CredentialPool,
+    ApiKeyProvider,
 }
 
 #[derive(Debug, Clone)]
@@ -95,16 +95,14 @@ fn provider_alias_config_key(provider_key: &str) -> String {
 fn provider_registry_id_from_key(provider_key: &str) -> String {
     match normalize_identifier(provider_key).as_str() {
         "openai" => "openai".to_string(),
-        "anthropic" | "anthropic-compatible" | "claude" | "claude_oauth" => "anthropic".to_string(),
+        "anthropic" | "anthropic-compatible" | "claude" => "anthropic".to_string(),
         "gemini" | "gemini_api_key" => "gemini".to_string(),
         "azure-openai" => "openai".to_string(),
         "vertexai" => "google".to_string(),
         "ollama" => "ollama".to_string(),
         "fal" => "fal".to_string(),
-        "kiro" => "kiro".to_string(),
         "qwen" => "alibaba".to_string(),
         "codex" => "codex".to_string(),
-        "antigravity" => "antigravity".to_string(),
         "iflow" => "openai".to_string(),
         normalized => normalized.to_string(),
     }
@@ -113,7 +111,7 @@ fn provider_registry_id_from_key(provider_key: &str) -> String {
 fn provider_type_from_key(provider_key: &str) -> Option<ApiProviderType> {
     match normalize_identifier(provider_key).as_str() {
         "openai" | "iflow" => Some(ApiProviderType::Openai),
-        "anthropic" | "claude" | "claude_oauth" => Some(ApiProviderType::Anthropic),
+        "anthropic" | "claude" => Some(ApiProviderType::Anthropic),
         "anthropic-compatible" => Some(ApiProviderType::AnthropicCompatible),
         "gemini" | "gemini_api_key" => Some(ApiProviderType::Gemini),
         "azure-openai" => Some(ApiProviderType::AzureOpenai),
@@ -165,7 +163,7 @@ fn resolve_runtime_provider_configuration_strategy(
         is_credentialless_local_provider || context.provider_type == Some(ApiProviderType::Ollama);
 
     if !should_use_manual_provider {
-        return RuntimeProviderConfigurationStrategy::CredentialPool;
+        return RuntimeProviderConfigurationStrategy::ApiKeyProvider;
     }
 
     let fallback_base_url = context.provider_type.map(|provider_type| {
@@ -2384,7 +2382,7 @@ async fn build_runtime_request_provider_config_from_preference(
     let provider_strategy = resolve_runtime_provider_configuration_strategy(&context);
     let base_url = match provider_strategy {
         RuntimeProviderConfigurationStrategy::Manual { base_url } => base_url,
-        RuntimeProviderConfigurationStrategy::CredentialPool => None,
+        RuntimeProviderConfigurationStrategy::ApiKeyProvider => None,
     };
     let model_meta = find_model_meta(&resolved_model, &catalog);
     let model_capabilities = model_meta
@@ -2472,7 +2470,7 @@ pub(super) async fn resolve_runtime_provider_auth_recovery_config(
     let provider_strategy = resolve_runtime_provider_configuration_strategy(&context);
     let base_url = match provider_strategy {
         RuntimeProviderConfigurationStrategy::Manual { base_url } => base_url,
-        RuntimeProviderConfigurationStrategy::CredentialPool => None,
+        RuntimeProviderConfigurationStrategy::ApiKeyProvider => None,
     };
     let model_meta = find_model_meta(&fallback_model, &catalog);
     let model_capabilities = model_meta

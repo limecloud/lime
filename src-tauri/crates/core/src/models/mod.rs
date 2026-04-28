@@ -5,9 +5,7 @@
 pub mod anthropic;
 pub mod app_type;
 pub mod client_type;
-pub mod codewhisperer;
 pub mod injection_types;
-pub mod kiro_fingerprint;
 pub mod machine_id;
 pub mod mcp_model;
 pub mod model_registry;
@@ -24,8 +22,6 @@ pub mod vertex_model;
 pub use anthropic::*;
 pub use app_type::AppType;
 pub use client_type::{select_provider, ClientType};
-#[allow(unused_imports)]
-pub use codewhisperer::*;
 pub use injection_types::{InjectionMode, InjectionRule};
 pub use mcp_model::McpServer;
 #[allow(unused_imports)]

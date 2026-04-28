@@ -17,7 +17,7 @@ use crate::stream::StreamEvent;
 /// # 类型参数
 ///
 /// - `Input`: 前端请求类型（如 OpenAI ChatCompletionRequest）
-/// - `Output`: 后端请求类型（如 CodeWhispererRequest）
+/// - `Output`: 后端请求类型
 /// - `Error`: 转换错误类型
 pub trait RequestTranslator {
     /// 前端请求类型

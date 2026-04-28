@@ -548,7 +548,7 @@ fn spawn_runtime_memory_capture_task(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProviderConfigApplyMode {
     Direct,
-    CredentialPool,
+    ApiKeyProvider,
 }
 
 fn normalize_provider_identity(value: &str) -> String {
@@ -573,7 +573,7 @@ fn resolve_provider_config_apply_mode(
         return ProviderConfigApplyMode::Direct;
     }
 
-    ProviderConfigApplyMode::CredentialPool
+    ProviderConfigApplyMode::ApiKeyProvider
 }
 
 async fn apply_runtime_turn_provider_config(
@@ -606,7 +606,6 @@ async fn apply_runtime_turn_provider_config(
         base_url: provider_config.base_url.clone(),
         credential_uuid: None,
         force_responses_api: false,
-        credential_path: None,
         toolshim: matches!(
             provider_config.tool_call_strategy,
             Some(RuntimeToolCallStrategy::ToolShim)
@@ -629,7 +628,7 @@ async fn apply_runtime_turn_provider_config(
         ProviderConfigApplyMode::Direct => {
             state.configure_provider(config, session_id, db).await?;
         }
-        ProviderConfigApplyMode::CredentialPool => {
+        ProviderConfigApplyMode::ApiKeyProvider => {
             state
                 .configure_provider_from_pool(
                     db,

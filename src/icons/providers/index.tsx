@@ -52,14 +52,12 @@ import SapAiCoreIcon from "./sap-ai-core.svg?react";
 import ScalewayIcon from "./scaleway.svg?react";
 import submodelIconUrl from "./submodel.ico?url";
 import AmpIcon from "./amp.svg?react";
-import KiroIcon from "./kiro.svg?react";
 import DeepseekIcon from "./deepseek.svg?react";
 import ZhipuIcon from "./zhipu.svg?react";
 import KimiIcon from "./kimi.svg?react";
 import MinimaxIcon from "./minimax.svg?react";
 import DoubaoIcon from "./doubao.svg?react";
 import AzureIcon from "./azure.svg?react";
-import antigravityIconUrl from "./antigravity.svg?url";
 import LimeIcon from "./lime.svg?react";
 import LimeHubIcon from "./lime-hub.svg?react";
 import MetaIcon from "./meta.svg?react";
@@ -176,10 +174,6 @@ const createImageIconComponent = (
   return ImageIcon;
 };
 
-const AntigravityIcon = createImageIconComponent(
-  antigravityIconUrl,
-  "Antigravity",
-);
 const AbacusIcon = createImageIconComponent(abacusIconUrl, "Abacus");
 const BasetenIcon = createImageIconComponent(basetenIconUrl, "Baseten");
 const ChutesIcon = createImageIconComponent(chutesIconUrl, "Chutes");
@@ -246,7 +240,6 @@ const iconComponents: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   scaleway: ScalewayIcon,
   submodel: SubmodelIcon,
   amp: AmpIcon,
-  kiro: KiroIcon,
   deepseek: DeepseekIcon,
   zhipu: ZhipuIcon,
   kimi: KimiIcon,
@@ -254,7 +247,6 @@ const iconComponents: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   doubao: DoubaoIcon,
   azure: AzureIcon,
   cloudflare: CloudflareIcon,
-  antigravity: AntigravityIcon,
   lime: LimeIcon,
   "lime-hub": LimeHubIcon,
   meta: MetaIcon,

@@ -20,7 +20,7 @@
 //! let registry = RelayRegistry::new(cache_path);
 //! let relay_info = registry.get(&payload.relay);
 //!
-//! // API Key 直接保存到凭证池系统（通过 ProviderPoolService）
+//! // API Key 通过 API Key Provider 主路径保存
 //! ```
 
 // 子模块声明

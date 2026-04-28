@@ -14,7 +14,7 @@ React 组件层，包含 UI 组件和业务组件。
 - `flow-monitor/` - LLM 流量监控组件
 - `mcp/` - MCP 服务器管理组件（配置管理、运行时控制、工具/提示词/资源浏览与调用）
 - `plugins/` - 插件管理组件
-- `provider-pool/` - Provider 凭证池管理组件
+- `provider-pool/api-key/` - API Key Provider 设置组件（目录名保留历史路径）
 - `routing/` - 路由规则配置组件
 - `smart-input/` - 截图/语音浮窗共享组件（当前仅保留快捷键设置）
 - `settings-v2/` - 设置页面组件（当前主实现）

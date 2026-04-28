@@ -11,16 +11,9 @@ import { resolveKnownAnthropicCompatibleProvider } from "@/lib/model/providerPro
 // ============================================================================
 
 /**
- * 需要使用别名配置的 Provider 列表
- * 这些 Provider 的模型列表从别名配置文件获取，而不是从模型注册表
+ * 凭证池 Provider 别名已退役；模型列表统一从模型注册表读取。
  */
-const ALIAS_PROVIDERS = [
-  "antigravity",
-  "kiro",
-  "codex",
-  "gemini",
-  "gemini_api_key",
-] as const;
+const ALIAS_PROVIDERS = [] as const;
 
 type AliasProvider = (typeof ALIAS_PROVIDERS)[number];
 
@@ -28,9 +21,7 @@ type AliasProvider = (typeof ALIAS_PROVIDERS)[number];
  * 别名配置文件名映射
  * 某些 Provider 共享同一个别名配置文件
  */
-const ALIAS_CONFIG_MAPPING: Record<string, string> = {
-  gemini_api_key: "gemini", // Gemini API Key 使用 gemini 的别名配置
-};
+const ALIAS_CONFIG_MAPPING: Record<string, string> = {};
 
 // ============================================================================
 // Provider 类型映射
@@ -49,7 +40,7 @@ const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
   openai: "openai",
   anthropic: "anthropic",
   "anthropic-compatible": "anthropic",
-  gemini: "gemini",
+  gemini: "google",
   // 云服务
   "azure-openai": "openai",
   vertexai: "google",
@@ -57,26 +48,19 @@ const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
   ollama: "ollama",
   fal: "fal",
   // 特殊 Provider
-  kiro: "kiro",
   claude: "anthropic",
-  claude_oauth: "anthropic",
   qwen: "alibaba",
-  codex: "codex",
-  antigravity: "antigravity",
+  codex: "openai",
   iflow: "openai",
-  gemini_api_key: "gemini",
 };
 
 /**
  * Provider 显示名称映射
  */
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-  kiro: "Kiro",
-  gemini: "Gemini OAuth",
+  gemini: "Gemini",
   qwen: "通义千问",
-  antigravity: "Antigravity",
   codex: "Codex",
-  claude_oauth: "Claude OAuth",
   claude: "Claude",
   openai: "OpenAI",
   anthropic: "Anthropic",
@@ -85,7 +69,6 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   vertexai: "VertexAI",
   ollama: "Ollama",
   fal: "Fal",
-  gemini_api_key: "Gemini API Key",
   iflow: "iFlow",
 };
 

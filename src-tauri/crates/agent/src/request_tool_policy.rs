@@ -1621,6 +1621,7 @@ pub async fn execute_web_search_preflight_if_needed(
     message_text: &str,
     working_directory: Option<&Path>,
     cancel_token: Option<CancellationToken>,
+    turn_context: Option<aster::session::TurnContextOverride>,
     policy: &RequestToolPolicy,
     tracker: &mut WebSearchExecutionTracker,
 ) -> Result<PreflightToolExecution, String> {
@@ -1687,6 +1688,7 @@ pub async fn execute_web_search_preflight_if_needed(
         let session_id = session_id.to_string();
         let working_directory = working_directory.clone();
         let cancel_token = cancel_token.clone();
+        let turn_context = turn_context.clone();
         async move {
             let query = planned.query.clone();
             let params = serde_json::json!({ "query": query });
@@ -1694,12 +1696,13 @@ pub async fn execute_web_search_preflight_if_needed(
             if let Some(token) = cancel_token {
                 context = context.with_cancellation_token(token);
             }
-            let result = {
+            let result = aster::session_context::with_turn_context(turn_context, async {
                 let registry = registry_arc.read().await;
                 registry
                     .execute(&preflight_tool_name, params, &context, None)
                     .await
-            };
+            })
+            .await;
             match result {
                 Ok(tool_result) => PreflightSearchOutcome {
                     index: planned.index,
@@ -1825,6 +1828,7 @@ where
             &message_text,
             working_directory,
             cancel_token.clone(),
+            session_config.turn_context.clone(),
             request_tool_policy,
             &mut web_search_tracker,
         )
@@ -1839,6 +1843,7 @@ where
                 &message_text,
                 working_directory,
                 cancel_token.clone(),
+                session_config.turn_context.clone(),
                 request_tool_policy,
                 &mut optional_preflight_tracker,
             ),
@@ -2192,11 +2197,75 @@ mod tests {
     use aster::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use aster::providers::errors::ProviderError;
     use aster::session::{SessionManager, SessionType, TurnContextOverride, TurnStatus};
+    use aster::tools::{PermissionCheckResult, Tool, ToolError, ToolResult};
     use async_trait::async_trait;
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+
+    struct TurnContextGatedWebSearchTool;
+
+    #[async_trait]
+    impl Tool for TurnContextGatedWebSearchTool {
+        fn name(&self) -> &str {
+            "WebSearch"
+        }
+
+        fn description(&self) -> &str {
+            "测试用 WebSearch 工具"
+        }
+
+        fn input_schema(&self) -> serde_json::Value {
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" }
+                },
+                "required": ["query"]
+            })
+        }
+
+        async fn check_permissions(
+            &self,
+            _params: &serde_json::Value,
+            _context: &ToolContext,
+        ) -> PermissionCheckResult {
+            let allowed = aster::session_context::current_turn_context()
+                .as_ref()
+                .is_some_and(|turn_context| {
+                    ["web_search_enabled", "webSearchEnabled"]
+                        .iter()
+                        .any(|key| {
+                            turn_context
+                                .metadata
+                                .get(*key)
+                                .and_then(serde_json::Value::as_bool)
+                                .unwrap_or(false)
+                        })
+                });
+
+            if allowed {
+                PermissionCheckResult::allow()
+            } else {
+                PermissionCheckResult::ask("WebSearch 需要联网确认。")
+            }
+        }
+
+        async fn execute(
+            &self,
+            params: serde_json::Value,
+            _context: &ToolContext,
+        ) -> Result<ToolResult, ToolError> {
+            let query = params
+                .get("query")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            Ok(ToolResult::success(format!(
+                "预检索测试结果：https://example.com/search?q={query}"
+            )))
+        }
+    }
 
     struct ContextLengthExceededProvider;
 
@@ -2531,6 +2600,53 @@ mod tests {
                 .and_then(|record| record.success),
             Some(true)
         );
+    }
+
+    #[tokio::test]
+    async fn web_search_preflight_uses_turn_context_for_permission_check() {
+        let agent = Agent::new();
+        {
+            let registry_arc = agent.tool_registry().clone();
+            let mut registry = registry_arc.write().await;
+            registry.register(Box::new(TurnContextGatedWebSearchTool));
+        }
+
+        let policy = resolve_request_tool_policy_with_mode(
+            Some(true),
+            Some(RequestToolPolicyMode::Required),
+            false,
+        );
+        let mut metadata = HashMap::new();
+        metadata.insert("webSearchEnabled".to_string(), serde_json::json!(true));
+        let turn_context = TurnContextOverride {
+            metadata,
+            ..TurnContextOverride::default()
+        };
+        let mut tracker = WebSearchExecutionTracker::default();
+
+        let execution = execute_web_search_preflight_if_needed(
+            &agent,
+            "session-web-preflight-permission",
+            "继续",
+            None,
+            None,
+            Some(turn_context),
+            &policy,
+            &mut tracker,
+        )
+        .await
+        .expect("预调用应继承 turn context 并免确认执行");
+
+        assert!(execution
+            .system_prompt_appendix
+            .as_deref()
+            .unwrap_or_default()
+            .contains("预检索测试结果"));
+        assert!(execution.events.iter().any(|event| matches!(
+            event,
+            RuntimeAgentEvent::ToolEnd { result, .. } if result.success
+        )));
+        assert!(tracker.validate_web_search_requirement(&policy).is_ok());
     }
 
     #[test]

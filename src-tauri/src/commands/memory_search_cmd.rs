@@ -9,7 +9,6 @@ use lime_memory::models::{
 };
 use lime_memory::search;
 use lime_services::api_key_provider_service::ApiKeyProviderService;
-use lime_services::provider_pool_service::ProviderPoolService;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -119,15 +118,12 @@ pub async fn unified_memory_semantic_search(
 
     tracing::info!("[Semantic Search] Query: {}", options.query);
 
-    let provider_pool_service = ProviderPoolService::new();
     let api_key_service = ApiKeyProviderService::new();
 
-    let credential = match provider_pool_service
-        .select_credential_with_fallback(
+    let credential = match api_key_service
+        .select_credential_for_provider(
             &db,
-            &api_key_service,
             "openai",
-            None::<&str>,
             None::<&str>,
             None::<&lime_core::models::client_type::ClientType>,
         )
@@ -188,17 +184,12 @@ pub async fn unified_memory_hybrid_search(
         options.semantic_weight
     );
 
-    // Use provider pool system to get API key
-    let provider_pool_service = ProviderPoolService::new();
     let api_key_service = ApiKeyProviderService::new();
 
-    // Try to get credential from provider pool or fallback to API key provider
-    let credential = match provider_pool_service
-        .select_credential_with_fallback(
+    let credential = match api_key_service
+        .select_credential_for_provider(
             &db,
-            &api_key_service,
             "openai",
-            None::<&str>,
             None::<&str>,
             None::<&lime_core::models::client_type::ClientType>,
         )
@@ -228,7 +219,7 @@ pub async fn unified_memory_hybrid_search(
         }
     };
 
-    tracing::debug!("[Hybrid Search] Using API key from provider pool");
+    tracing::debug!("[Hybrid Search] Using API key from API Key Provider");
 
     // Get query embedding
     let query_embedding = lime_embedding::get_embedding(&options.query, &api_key, None)

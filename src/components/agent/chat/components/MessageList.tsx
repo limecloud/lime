@@ -763,6 +763,15 @@ const MessageListInner: React.FC<MessageListProps> = ({
     () => buildMessageTurnGroups(renderedMessages),
     [renderedMessages],
   );
+  const hasStickyTopContent =
+    Boolean(leadingContent) ||
+    persistedHiddenHistoryCount > 0 ||
+    hiddenHistoryCount > 0;
+  const shouldBottomAnchorMessageStack =
+    messageGroups.length > 0 &&
+    !hasStickyTopContent &&
+    !isRestoringSession &&
+    !isTaskCenterEmptyState;
   const renderGroups = useMemo(
     () =>
       messageGroups.map((group) => {
@@ -1088,19 +1097,6 @@ const MessageListInner: React.FC<MessageListProps> = ({
               ),
           )
         : [];
-    const shouldRenderTailRuntimeStatusLine =
-      msg.role === "assistant" &&
-      msg.id === lastAssistantMessageId &&
-      isConversationTailAssistant &&
-      Boolean(tailRuntimeStatusLine);
-    const shouldRenderUsageFooter =
-      isConversationTailAssistant &&
-      !shouldRenderTailRuntimeStatusLine &&
-      !msg.isThinking &&
-      Boolean(msg.usage);
-    const shouldRenderStatusPill =
-      !shouldRenderTailRuntimeStatusLine &&
-      shouldRenderRuntimeStatusPill(msg.runtimeStatus);
     const messageCanvasShortcutTitle = messageSavedSiteContentTarget
       ? resolveSiteSavedContentTargetDisplayName(
           messageSavedSiteContentTarget,
@@ -1125,6 +1121,23 @@ const MessageListInner: React.FC<MessageListProps> = ({
       !msg.taskPreview;
     const hasAssistantBodyContent =
       msg.role !== "assistant" || !shouldCollapseAssistantShell;
+    const shouldSuppressActiveRuntimeLine =
+      tailRuntimeStatusLine?.status === "running" ||
+      tailRuntimeStatusLine?.status === "queued";
+    const shouldRenderTailRuntimeStatusLine =
+      msg.role === "assistant" &&
+      msg.id === lastAssistantMessageId &&
+      isConversationTailAssistant &&
+      Boolean(tailRuntimeStatusLine) &&
+      !shouldSuppressActiveRuntimeLine;
+    const shouldRenderUsageFooter =
+      isConversationTailAssistant &&
+      !shouldRenderTailRuntimeStatusLine &&
+      !msg.isThinking &&
+      Boolean(msg.usage);
+    const shouldRenderStatusPill =
+      !shouldRenderTailRuntimeStatusLine &&
+      shouldRenderRuntimeStatusPill(msg.runtimeStatus);
     const assistantMetaFooter =
       msg.role === "assistant" &&
       (shouldRenderTailRuntimeStatusLine ||
@@ -1525,11 +1538,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
     >
       <div
         data-testid="message-list-column"
-        className={
+        className={[
+          "mx-auto flex min-h-full w-full max-w-[1040px] flex-col gap-4 py-4",
           compactLeadingSpacing
-            ? "mx-auto flex w-full max-w-[1040px] flex-col gap-4 py-4 pl-2.5 pr-3"
-            : "mx-auto flex w-full max-w-[1040px] flex-col gap-4 py-4 pl-4 pr-4"
-        }
+            ? "pl-2.5 pr-3"
+            : "pl-4 pr-4",
+          shouldBottomAnchorMessageStack ? "justify-end" : "justify-start",
+        ].join(" ")}
       >
         {leadingContent ? (
           <div data-testid="message-list-leading-content">{leadingContent}</div>

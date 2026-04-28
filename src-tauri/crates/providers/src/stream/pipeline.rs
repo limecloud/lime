@@ -7,7 +7,7 @@
 //! ```ignore
 //! use lime::stream::pipeline::{StreamPipeline, PipelineConfig};
 //!
-//! let config = PipelineConfig::kiro_to_anthropic("claude-sonnet-4-5".to_string());
+//! let config = PipelineConfig::aws_event_stream_to_anthropic("claude-sonnet-4-5".to_string());
 //! let pipeline = StreamPipeline::new(config);
 //!
 //! // 处理字节流
@@ -23,8 +23,8 @@ use futures::{Stream, StreamExt};
 /// 后端类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackendType {
-    /// Kiro/CodeWhisperer (AWS Event Stream)
-    Kiro,
+    /// AWS Event Stream
+    AwsEventStream,
     /// OpenAI (SSE)
     OpenAi,
     /// Anthropic (SSE)
@@ -54,20 +54,20 @@ pub struct PipelineConfig {
 }
 
 impl PipelineConfig {
-    /// 创建 Kiro → Anthropic 配置
-    pub fn kiro_to_anthropic(model: String) -> Self {
+    /// 创建 AWS Event Stream → Anthropic 配置
+    pub fn aws_event_stream_to_anthropic(model: String) -> Self {
         Self {
-            backend: BackendType::Kiro,
+            backend: BackendType::AwsEventStream,
             frontend: FrontendType::Anthropic,
             model,
             message_id: None,
         }
     }
 
-    /// 创建 Kiro → OpenAI 配置
-    pub fn kiro_to_openai(model: String) -> Self {
+    /// 创建 AWS Event Stream → OpenAI 配置
+    pub fn aws_event_stream_to_openai(model: String) -> Self {
         Self {
-            backend: BackendType::Kiro,
+            backend: BackendType::AwsEventStream,
             frontend: FrontendType::OpenAi,
             model,
             message_id: None,
@@ -102,7 +102,7 @@ impl SseGenerator {
 pub struct StreamPipeline {
     /// 配置
     config: PipelineConfig,
-    /// AWS Event Stream 解析器（用于 Kiro 后端）
+    /// AWS Event Stream 解析器
     aws_parser: Option<AwsEventStreamParser>,
     /// SSE 生成器
     generator: SseGenerator,
@@ -112,7 +112,9 @@ impl StreamPipeline {
     /// 创建新的管道
     pub fn new(config: PipelineConfig) -> Self {
         let aws_parser = match config.backend {
-            BackendType::Kiro => Some(AwsEventStreamParser::with_model(config.model.clone())),
+            BackendType::AwsEventStream => {
+                Some(AwsEventStreamParser::with_model(config.model.clone()))
+            }
             _ => None,
         };
 
@@ -256,26 +258,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pipeline_config_kiro_to_anthropic() {
-        let config = PipelineConfig::kiro_to_anthropic("claude-sonnet-4-5".to_string());
-        assert_eq!(config.backend, BackendType::Kiro);
+    fn test_pipeline_config_aws_event_stream_to_anthropic() {
+        let config = PipelineConfig::aws_event_stream_to_anthropic("claude-sonnet-4-5".to_string());
+        assert_eq!(config.backend, BackendType::AwsEventStream);
         assert_eq!(config.frontend, FrontendType::Anthropic);
         assert_eq!(config.model, "claude-sonnet-4-5");
     }
 
     #[test]
-    fn test_pipeline_config_kiro_to_openai() {
-        let config = PipelineConfig::kiro_to_openai("gpt-4".to_string());
-        assert_eq!(config.backend, BackendType::Kiro);
+    fn test_pipeline_config_aws_event_stream_to_openai() {
+        let config = PipelineConfig::aws_event_stream_to_openai("gpt-4".to_string());
+        assert_eq!(config.backend, BackendType::AwsEventStream);
         assert_eq!(config.frontend, FrontendType::OpenAi);
     }
 
     #[test]
     fn test_pipeline_process_content() {
-        let config = PipelineConfig::kiro_to_anthropic("claude-sonnet-4-5".to_string());
+        let config = PipelineConfig::aws_event_stream_to_anthropic("claude-sonnet-4-5".to_string());
         let mut pipeline = StreamPipeline::new(config);
 
-        // 模拟 Kiro 内容事件
+        // 模拟 AWS Event Stream 内容事件
         let bytes = br#"{"content":"Hello"}"#;
         let sse = pipeline.process_chunk(bytes);
 
@@ -288,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_pipeline_process_tool_use() {
-        let config = PipelineConfig::kiro_to_anthropic("claude-sonnet-4-5".to_string());
+        let config = PipelineConfig::aws_event_stream_to_anthropic("claude-sonnet-4-5".to_string());
         let mut pipeline = StreamPipeline::new(config);
 
         // 工具调用开始
@@ -312,10 +314,10 @@ mod tests {
 
     #[test]
     fn test_pipeline_openai_output() {
-        let config = PipelineConfig::kiro_to_openai("gpt-4".to_string());
+        let config = PipelineConfig::aws_event_stream_to_openai("gpt-4".to_string());
         let mut pipeline = StreamPipeline::new(config);
 
-        // 模拟 Kiro 内容事件
+        // 模拟 AWS Event Stream 内容事件
         let bytes = br#"{"content":"Hello"}"#;
         let sse = pipeline.process_chunk(bytes);
 

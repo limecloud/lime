@@ -12,7 +12,6 @@ use lime_infra::resilience::{FailoverManager, TimeoutError};
 use lime_infra::{
     Failover, FailoverConfig, Retrier, RetryConfig, TimeoutConfig, TimeoutController,
 };
-use lime_services::provider_pool_service::ProviderPoolService;
 use std::future::Future;
 use std::sync::Arc;
 
@@ -72,7 +71,6 @@ pub struct ProviderStep {
     retrier: Arc<Retrier>,
     failover: Arc<Failover>,
     timeout: Arc<TimeoutController>,
-    pool_service: Arc<ProviderPoolService>,
 }
 
 impl ProviderStep {
@@ -80,22 +78,19 @@ impl ProviderStep {
         retrier: Arc<Retrier>,
         failover: Arc<Failover>,
         timeout: Arc<TimeoutController>,
-        pool_service: Arc<ProviderPoolService>,
     ) -> Self {
         Self {
             retrier,
             failover,
             timeout,
-            pool_service,
         }
     }
 
-    pub fn with_defaults(pool_service: Arc<ProviderPoolService>) -> Self {
+    pub fn with_defaults() -> Self {
         Self {
             retrier: Arc::new(Retrier::with_defaults()),
             failover: Arc::new(Failover::new(FailoverConfig::default())),
             timeout: Arc::new(TimeoutController::with_defaults()),
-            pool_service,
         }
     }
 
@@ -103,13 +98,11 @@ impl ProviderStep {
         retry_config: RetryConfig,
         failover_config: FailoverConfig,
         timeout_config: TimeoutConfig,
-        pool_service: Arc<ProviderPoolService>,
     ) -> Self {
         Self {
             retrier: Arc::new(Retrier::new(retry_config)),
             failover: Arc::new(Failover::new(failover_config)),
             timeout: Arc::new(TimeoutController::new(timeout_config)),
-            pool_service,
         }
     }
 
@@ -121,9 +114,6 @@ impl ProviderStep {
     }
     pub fn timeout(&self) -> &TimeoutController {
         &self.timeout
-    }
-    pub fn pool_service(&self) -> &ProviderPoolService {
-        &self.pool_service
     }
 
     /// 带重试执行 Provider 调用
@@ -388,23 +378,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_step_new() {
-        let pool_service = Arc::new(ProviderPoolService::new());
-        let step = ProviderStep::with_defaults(pool_service);
+        let step = ProviderStep::with_defaults();
         assert_eq!(step.name(), "provider");
         assert!(step.is_enabled());
     }
 
     #[tokio::test]
     async fn test_provider_step_execute() {
-        let pool_service = Arc::new(ProviderPoolService::new());
-        let step = ProviderStep::with_defaults(pool_service);
+        let step = ProviderStep::with_defaults();
         let mut ctx = RequestContext::new("claude-sonnet-4-5".to_string());
         let mut payload = serde_json::json!({"model": "claude-sonnet-4-5"});
         assert!(step.execute(&mut ctx, &mut payload).await.is_ok());
     }
     #[tokio::test]
     async fn test_provider_step_with_config() {
-        let pool_service = Arc::new(ProviderPoolService::new());
         let retry_config = RetryConfig::new(5, 500, 10000);
         let failover_config = FailoverConfig::new(true, true);
         let timeout_config = TimeoutConfig::new(60000, 15000);
@@ -413,7 +400,6 @@ mod tests {
             retry_config.clone(),
             failover_config.clone(),
             timeout_config.clone(),
-            pool_service,
         );
 
         assert_eq!(step.retrier().config().max_retries, 5);
@@ -462,8 +448,7 @@ mod tests {
 
     #[test]
     fn test_is_retryable_status() {
-        let pool_service = Arc::new(ProviderPoolService::new());
-        let step = ProviderStep::with_defaults(pool_service);
+        let step = ProviderStep::with_defaults();
 
         assert!(step.is_retryable_status(408));
         assert!(step.is_retryable_status(429));
@@ -481,8 +466,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_with_retry_success() {
-        let pool_service = Arc::new(ProviderPoolService::new());
-        let step = ProviderStep::with_defaults(pool_service);
+        let step = ProviderStep::with_defaults();
         let mut ctx = RequestContext::new("test-model".to_string());
 
         let result = step
@@ -502,8 +486,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_with_retry_non_retryable_error() {
-        let pool_service = Arc::new(ProviderPoolService::new());
-        let step = ProviderStep::with_defaults(pool_service);
+        let step = ProviderStep::with_defaults();
         let mut ctx = RequestContext::new("test-model".to_string());
 
         let result = step
@@ -520,8 +503,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_failover() {
-        let pool_service = Arc::new(ProviderPoolService::new());
-        let step = ProviderStep::with_defaults(pool_service);
+        let step = ProviderStep::with_defaults();
         let mut ctx = RequestContext::new("test-model".to_string());
         ctx.set_provider(ProviderType::Kiro);
 
@@ -539,8 +521,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_failover_no_alternative() {
-        let pool_service = Arc::new(ProviderPoolService::new());
-        let step = ProviderStep::with_defaults(pool_service);
+        let step = ProviderStep::with_defaults();
         let mut ctx = RequestContext::new("test-model".to_string());
         ctx.set_provider(ProviderType::Kiro);
 
@@ -553,13 +534,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_with_timeout_success() {
-        let pool_service = Arc::new(ProviderPoolService::new());
         let timeout_config = TimeoutConfig::new(5000, 1000);
         let step = ProviderStep::with_config(
             RetryConfig::default(),
             FailoverConfig::default(),
             timeout_config,
-            pool_service,
         );
         let ctx = RequestContext::new("test-model".to_string());
 
@@ -579,13 +558,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_with_timeout_timeout() {
-        let pool_service = Arc::new(ProviderPoolService::new());
         let timeout_config = TimeoutConfig::new(50, 0);
         let step = ProviderStep::with_config(
             RetryConfig::default(),
             FailoverConfig::default(),
             timeout_config,
-            pool_service,
         );
         let ctx = RequestContext::new("test-model".to_string());
 

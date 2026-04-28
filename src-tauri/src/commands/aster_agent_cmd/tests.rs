@@ -949,6 +949,41 @@ mod tests {
     }
 
     #[test]
+    fn test_default_web_tools_are_restored_after_fast_chat_prune() {
+        let disabled_policy = resolve_request_tool_policy(Some(false), false);
+        let allowed_policy = resolve_request_tool_policy(Some(true), false);
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebFetch",
+            "Web fetch",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_fast_chat_request_tool_policy_tools_from_registry(
+            &mut registry,
+            TurnExecutionProfile::FastChat,
+            &disabled_policy,
+        );
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("WebFetch"));
+
+        ensure_default_web_tools_registered(&mut registry);
+        prune_fast_chat_request_tool_policy_tools_from_registry(
+            &mut registry,
+            TurnExecutionProfile::FastChat,
+            &allowed_policy,
+        );
+
+        assert!(registry.contains("WebSearch"));
+        assert!(registry.contains("WebFetch"));
+    }
+
+    #[test]
     fn test_build_service_skill_launch_run_request_requires_attached_session() {
         let metadata = serde_json::json!({
             "harness": {

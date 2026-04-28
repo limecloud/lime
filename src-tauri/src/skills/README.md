@@ -55,12 +55,12 @@ AI 通过 SkillTool 发现新 Skill
 
 ### LimeLlmProvider
 
-使用 ProviderPoolService 选择凭证并调用 LLM API。
+使用 API Key Provider 选择凭证并调用 LLM API。
 
 **功能**：
-- 通过 ProviderPoolService 选择可用凭证
+- 通过 API Key Provider 选择可用凭证
 - 支持指定 provider 类型和 model 参数
-- 智能降级到 API Key Provider
+- 不再读取旧凭证池、OAuth token 文件或本地 CLI 凭证目录
 
 ### TauriExecutionCallback
 
@@ -101,7 +101,6 @@ skills/
 │   └── 社媒产物 Tool/Artifact 事件补投影
 ├── llm_provider.rs (桥接)
 │   └── crates/skills/src/lime_llm_provider.rs
-│       ├── ProviderPoolService (凭证池管理)
 │       └── ApiKeyProviderService (API Key 服务)
 └── execution_callback.rs
     └── tauri::AppHandle (事件发送)

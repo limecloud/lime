@@ -12,7 +12,6 @@
 //! - `config`: 配置管理（类型、YAML、热重载、导入导出）
 //! - `connect`: Deep Link 协议和中转商注册表
 //! - `middleware`: HTTP 中间件（认证、限速）
-//! - `orchestrator`: 模型选择编排器
 //! - `plugin`: 插件系统（加载、管理、UI、安装）
 //! - `session`: 会话管理（限速、粘性路由）
 //! - `session_files`: 会话文件存储
@@ -47,9 +46,6 @@ pub mod general_chat;
 
 // 路由系统
 pub mod router;
-
-// 凭证池核心（types, pool, health, risk）
-pub mod credential;
 
 // 请求处理器核心类型（context, error）
 pub mod processor;

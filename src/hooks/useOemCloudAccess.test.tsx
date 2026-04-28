@@ -307,7 +307,7 @@ describe("useOemCloudAccess", () => {
     expect(latestState?.session?.token).toBe("session-token-restore");
   });
 
-  it("购买和充值只创建订单、打开 checkout，API Key 明文只临时保存", async () => {
+  it("客户端不再创建购买订单，API Key 明文只临时保存", async () => {
     const bootstrapPayload = {
       session: {
         tenant: {
@@ -336,16 +336,6 @@ describe("useOemCloudAccess", () => {
         basePath: "/gateway-api",
       },
     };
-    const order = {
-      id: "order-001",
-      planName: "Pro",
-      paymentReference: "",
-    };
-    const topupOrder = {
-      id: "topup-order-001",
-      packageName: "10 万积分包",
-      paymentReference: "",
-    };
     const accessToken = {
       id: "token-001",
       tenantId: "tenant-0001",
@@ -360,36 +350,6 @@ describe("useOemCloudAccess", () => {
       expiresAt: "2026-05-27T00:00:00.000Z",
     };
     controlPlaneMocks.getClientBootstrap.mockResolvedValue(bootstrapPayload);
-    controlPlaneMocks.createClientOrder.mockResolvedValue(order);
-    controlPlaneMocks.getClientOrder.mockResolvedValue({
-      ...order,
-      planName: "Pro",
-      status: "paid",
-    });
-    controlPlaneMocks.createClientOrderCheckout.mockResolvedValue({
-      orderKind: "plan_order",
-      orderId: "order-001",
-      paymentChannel: "epay",
-      paymentMethod: "alipay",
-      checkoutUrl: "https://pay.limeai.run/order-001",
-      status: "pending",
-    });
-    controlPlaneMocks.createClientCreditTopupOrder.mockResolvedValue(
-      topupOrder,
-    );
-    controlPlaneMocks.getClientCreditTopupOrder.mockResolvedValue({
-      ...topupOrder,
-      packageName: "10 万积分包",
-      status: "paid",
-    });
-    controlPlaneMocks.createClientCreditTopupOrderCheckout.mockResolvedValue({
-      orderKind: "credit_topup_order",
-      orderId: "topup-order-001",
-      paymentChannel: "epay",
-      paymentMethod: "alipay",
-      checkoutUrl: "https://pay.limeai.run/topup-order-001",
-      status: "pending",
-    });
     controlPlaneMocks.createClientAccessToken.mockResolvedValue({
       token: accessToken,
       apiKey: "sk-lime-once",
@@ -417,92 +377,13 @@ describe("useOemCloudAccess", () => {
       root.render(<HookHarness />);
     });
     await flushEffects();
-    vi.useFakeTimers();
 
-    await act(async () => {
-      await latestState?.handlePurchasePlan({
-        planId: "plan-pro",
-        paymentChannel: "epay",
-        paymentMethod: "alipay",
-        billingCycle: "monthly",
-      });
-    });
-
-    expect(controlPlaneMocks.createClientOrder).toHaveBeenCalledWith(
-      "tenant-0001",
-      {
-        planId: "plan-pro",
-        paymentChannel: "epay",
-        paymentMethod: "alipay",
-        billingCycle: "monthly",
-      },
-    );
-    expect(controlPlaneMocks.createClientOrderCheckout).toHaveBeenCalledWith(
-      "tenant-0001",
-      "order-001",
-      {
-        paymentMethod: "alipay",
-        successUrl:
-          "https://user.limeai.run/api/v1/public/tenants/tenant-0001/payments/epay/return?orderId=order-001&kind=plan_order&status=success",
-        cancelUrl:
-          "https://user.limeai.run/api/v1/public/tenants/tenant-0001/payments/epay/return?orderId=order-001&kind=plan_order&status=cancelled",
-      },
-    );
-    expect(shellOpenMock).toHaveBeenCalledWith(
-      "https://pay.limeai.run/order-001",
-    );
-    expect(latestState?.paymentWatcher?.status).toBe("waiting");
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2600);
-      await Promise.resolve();
-    });
-
-    expect(controlPlaneMocks.getClientOrder).toHaveBeenCalledWith(
-      "tenant-0001",
-      "order-001",
-    );
-    expect(latestState?.paymentWatcher?.status).toBe("confirmed");
-
-    await act(async () => {
-      await latestState?.handleTopupCredits({
-        packageId: "topup-100k",
-        paymentChannel: "epay",
-        paymentMethod: "alipay",
-      });
-    });
-
-    expect(controlPlaneMocks.createClientCreditTopupOrder).toHaveBeenCalledWith(
-      "tenant-0001",
-      {
-        packageId: "topup-100k",
-        paymentChannel: "epay",
-        paymentMethod: "alipay",
-      },
-    );
+    expect("handlePurchasePlan" in (latestState ?? {})).toBe(false);
+    expect("handleTopupCredits" in (latestState ?? {})).toBe(false);
+    expect(controlPlaneMocks.createClientOrder).not.toHaveBeenCalled();
     expect(
-      controlPlaneMocks.createClientCreditTopupOrderCheckout,
-    ).toHaveBeenCalledWith("tenant-0001", "topup-order-001", {
-      paymentMethod: "alipay",
-      successUrl:
-        "https://user.limeai.run/api/v1/public/tenants/tenant-0001/payments/epay/return?orderId=topup-order-001&kind=credit_topup_order&status=success",
-      cancelUrl:
-        "https://user.limeai.run/api/v1/public/tenants/tenant-0001/payments/epay/return?orderId=topup-order-001&kind=credit_topup_order&status=cancelled",
-    });
-    expect(shellOpenMock).toHaveBeenCalledWith(
-      "https://pay.limeai.run/topup-order-001",
-    );
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2600);
-      await Promise.resolve();
-    });
-
-    expect(controlPlaneMocks.getClientCreditTopupOrder).toHaveBeenCalledWith(
-      "tenant-0001",
-      "topup-order-001",
-    );
-    expect(latestState?.paymentWatcher?.status).toBe("confirmed");
+      controlPlaneMocks.createClientCreditTopupOrder,
+    ).not.toHaveBeenCalled();
 
     await act(async () => {
       await latestState?.handleCreateAccessToken({

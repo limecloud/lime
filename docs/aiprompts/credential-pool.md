@@ -1,229 +1,64 @@
-# 凭证池管理
+# 凭证池退役说明
 
-## 概述
+## 当前状态
 
-凭证池管理系统实现多凭证轮询负载均衡、健康检查和自动 Token 刷新。
+凭证池管理系统已退役，分类为 `dead`。
 
-## 核心组件
+后续 Provider 凭证与模型选择只允许收敛到以下 `current` 主路径：
 
-```
-src-tauri/src/
-├── credential/              # 凭证池核心
-│   ├── mod.rs
-│   ├── pool.rs              # 凭证池实现
-│   └── health.rs            # 健康检查
-└── services/
-    ├── provider_pool_service.rs  # 池服务
-    └── token_cache_service.rs    # Token 缓存
-```
+- API Key Provider：应用内 Provider 配置、连接测试、模型发现与默认模型选择
+- configured providers：用户已配置 Provider 的事实源
+- 模型注册表：Provider / model 目录与协议能力事实源
+- 协议转换器：请求协议适配能力，例如 coding plan 仍可使用 `openai_to_antigravity`
 
-## 凭证池架构
+旧凭证池不再提供多凭证轮询、OAuth 登录、本地 CLI 凭证导入、健康检查、Token 自动刷新、使用量统计或管理页面。
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ProviderPoolService                           │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                    Credential Pool                           ││
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐        ││
-│  │  │ Cred 1  │  │ Cred 2  │  │ Cred 3  │  │ Cred N  │        ││
-│  │  │ Healthy │  │ Healthy │  │ Expired │  │ Healthy │        ││
-│  │  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘        ││
-│  │       │            │            │            │              ││
-│  │       └────────────┴────────────┴────────────┘              ││
-│  │                         │                                    ││
-│  │                    Round Robin                               ││
-│  └─────────────────────────┼───────────────────────────────────┘│
-│                            │                                     │
-│  ┌─────────────────────────┼───────────────────────────────────┐│
-│  │              Health Checker (定时任务)                       ││
-│  │  - Token 过期检查                                            ││
-│  │  - 自动刷新                                                  ││
-│  │  - 不健康凭证剔除                                            ││
-│  └─────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-```
+## 已下线范围
 
-## 负载均衡策略
+- 前端凭证池管理页、旧凭证卡片、OAuth / 本地凭证表单、`useProviderPool` 与 `providerPool` API 网关
+- Rust `ProviderPoolService`、`TokenCacheService`、Kiro 事件服务、OAuth 命令与旧 provider pool 命令
+- Kiro / Qwen / Antigravity / Codex OAuth / Claude OAuth / Gemini OAuth 这类登录型或本地 CLI 凭证运行时
+- `provider_pool_credentials` 的运行时读取、健康写回与 fallback 选择
 
-### Round Robin (轮询)
+## 数据处理
 
-```rust
-pub struct RoundRobinPool {
-    credentials: Vec<CredentialEntry>,
-    current_index: AtomicUsize,
-}
+启动期迁移会清理 Lime 管理的旧凭证池数据：
 
-impl RoundRobinPool {
-    pub fn next(&self) -> Option<&CredentialEntry> {
-        let healthy: Vec<_> = self.credentials
-            .iter()
-            .filter(|c| c.is_healthy())
-            .collect();
+- 清空 `provider_pool_credentials`
+- 删除 Lime 应用数据目录下托管的 `credentials/` 副本
 
-        if healthy.is_empty() {
-            return None;
-        }
+这只处理 Lime 自己复制和管理过的数据，不删除用户外部 CLI 原始目录，例如 `~/.codex`、`~/.gemini` 或其它第三方工具目录。
 
-        let index = self.current_index
-            .fetch_add(1, Ordering::Relaxed) % healthy.len();
-        Some(healthy[index])
-    }
-}
+## 保留边界
+
+以下内容不是凭证池功能，仍可继续演进：
+
+- API Key Provider 中的 OpenAI、Anthropic、Gemini API Key、OpenRouter、GitHub、Azure 等配置
+- 模型名或模型系列中出现的 `codex`、`gemini`、`qwen` 等字符串
+- 协议转换器，尤其是 `src-tauri/crates/providers/src/converter/openai_to_antigravity.rs`
+- server 内部短期用于桥接 API Key Provider 的兼容 DTO；它只能承载 current API Key Provider 数据，不代表凭证池恢复
+
+## 守卫
+
+旧 UI / Hook / API 文件路径已登记到 `src/lib/governance/legacySurfaceCatalog.json`，不允许重新接回前端入口。
+
+涉及 Provider 或命令边界时，至少执行：
+
+```bash
+npm run test:contracts
+npm run governance:legacy-report
 ```
 
-### 权重轮询 (可选)
+如果改动影响设置页或 Agent 运行主路径，再补：
 
-```rust
-pub struct WeightedPool {
-    credentials: Vec<(CredentialEntry, u32)>,  // (凭证, 权重)
-}
-```
-
-## 健康检查
-
-### 检查项目
-
-| 检查项     | 说明               | 频率         |
-| ---------- | ------------------ | ------------ |
-| Token 过期 | 检查 expires_at    | 每次请求前   |
-| Token 刷新 | 尝试刷新过期 Token | Token 过期时 |
-| API 可用性 | 发送测试请求       | 定时 (5分钟) |
-
-### 健康状态
-
-```rust
-pub enum HealthStatus {
-    Healthy,                    // 健康
-    TokenExpired,               // Token 过期
-    TokenRefreshing,            // 正在刷新
-    RefreshFailed(String),      // 刷新失败
-    Unhealthy(String),          // 不健康
-    Disabled,                   // 已禁用
-}
-```
-
-### 自动恢复
-
-```rust
-// 健康检查任务
-async fn health_check_task(pool: Arc<ProviderPoolService>) {
-    loop {
-        for credential in pool.credentials() {
-            match credential.health_status() {
-                HealthStatus::TokenExpired => {
-                    // 尝试刷新
-                    if let Err(e) = pool.refresh_token(&credential).await {
-                        credential.set_status(HealthStatus::RefreshFailed(e));
-                    }
-                }
-                HealthStatus::RefreshFailed(_) => {
-                    // 重试刷新 (最多 3 次)
-                    if credential.retry_count() < 3 {
-                        pool.retry_refresh(&credential).await;
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        tokio::time::sleep(Duration::from_secs(300)).await;
-    }
-}
-```
-
-## Token 缓存
-
-### 缓存策略
-
-```rust
-pub struct TokenCacheService {
-    cache: DashMap<String, CachedToken>,
-}
-
-struct CachedToken {
-    access_token: String,
-    expires_at: i64,
-    refresh_token: String,
-}
-
-impl TokenCacheService {
-    pub async fn get_or_refresh(&self, credential_id: &str) -> Result<String> {
-        if let Some(cached) = self.cache.get(credential_id) {
-            if !cached.is_expired() {
-                return Ok(cached.access_token.clone());
-            }
-        }
-
-        // 刷新并缓存
-        let new_token = self.refresh(credential_id).await?;
-        self.cache.insert(credential_id.to_string(), new_token.clone());
-        Ok(new_token.access_token)
-    }
-}
-```
-
-### 数据库持久化
-
-```sql
-CREATE TABLE token_cache (
-    credential_id TEXT PRIMARY KEY,
-    access_token TEXT NOT NULL,
-    refresh_token TEXT NOT NULL,
-    expires_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-);
-```
-
-## 凭证生命周期
-
-```
-┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
-│ 上传    │ ──▶ │ 验证    │ ──▶ │ 激活    │ ──▶ │ 使用中  │
-└─────────┘     └─────────┘     └─────────┘     └────┬────┘
-                                                     │
-                    ┌────────────────────────────────┘
-                    │
-                    ▼
-              ┌─────────┐     ┌─────────┐     ┌─────────┐
-              │ 过期    │ ──▶ │ 刷新    │ ──▶ │ 恢复    │
-              └─────────┘     └────┬────┘     └─────────┘
-                                   │
-                                   ▼ (失败)
-                             ┌─────────┐
-                             │ 禁用    │
-                             └─────────┘
-```
-
-## API 接口
-
-### Tauri Commands
-
-```rust
-#[tauri::command]
-async fn add_credential(provider: String, path: String) -> Result<()>;
-
-#[tauri::command]
-async fn remove_credential(id: String) -> Result<()>;
-
-#[tauri::command]
-async fn list_credentials() -> Result<Vec<CredentialInfo>>;
-
-#[tauri::command]
-async fn refresh_credential(id: String) -> Result<()>;
-
-#[tauri::command]
-async fn get_pool_status() -> Result<PoolStatus>;
+```bash
+npm run verify:local
+npm run verify:gui-smoke
 ```
 
 ## 相关文档
 
-- [providers.md](providers.md) - Provider 系统
-- [services.md](services.md) - 业务服务
-- [database.md](database.md) - 数据库层
-
-## 运行时路径与调试
-
-- 凭证文件默认存放在应用数据目录下的 `lime/credentials/`
-- `~/Library/Application Support/lime/credentials/` 只作为 macOS 示例，Windows 必须使用对应的应用数据目录
-- `request_logs`、日志目录等运行时路径也应通过统一 `app_paths` / 系统目录 API 获取，不要在实现里写死
-- 需要排查 Kiro 凭证加载时，可使用 `debug_kiro_credentials` 对应命令进行诊断；具体命令边界以 `docs/aiprompts/commands.md` 和 Rust 注册表为准
+- [providers.md](providers.md) - Provider current 主路径
+- [commands.md](commands.md) - Tauri 命令边界
+- [database.md](database.md) - 数据库层与启动迁移
+- [converter.md](converter.md) - 协议转换

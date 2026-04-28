@@ -9,8 +9,7 @@
 ```
 src/hooks/
 ├── index.ts                # 导出入口
-├── useProviderPool.ts      # 凭证池管理
-├── useOAuthCredentials.ts  # OAuth 凭证
+├── useConfiguredProviders.ts # 已配置 Provider 读取
 ├── useFlowEvents.ts        # 流量事件
 ├── useMcpServers.ts        # MCP 服务器
 ├── useDeepLink.ts          # Deep Link 处理
@@ -23,6 +22,7 @@ src/hooks/
 - 历史 `useTauri.ts` 兼容聚合层已删除，不要重新引入新的“大一统 API Hook”。
 - Agent 工作台统一走 `src/components/agent/chat/hooks/index.ts` 暴露的 `useAgentChatUnified`，底层实现委托 `useAsterAgentChat`。
 - 历史 `@/hooks/useUnifiedChat` 与 `src/lib/api/unified-chat.ts` 已删除，不要重建 compat Hook / API。
+- 凭证池 Hook `useProviderPool` 已删除；Provider 配置只允许走 API Key Provider / configured providers 主路径。
 
 ## 核心 Hooks
 
@@ -40,37 +40,9 @@ src/hooks/
 - Hook 实现：`src/components/agent/chat/hooks/useAsterAgentChat.ts`
 - API 封装：`src/lib/api/agentRuntime.ts`
 
-### useProviderPool
+### useConfiguredProviders
 
-```typescript
-export function useProviderPool() {
-  const [credentials, setCredentials] = useState<Credential[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const refresh = async () => {
-    setLoading(true);
-    const list = await invoke<Credential[]>("list_credentials");
-    setCredentials(list);
-    setLoading(false);
-  };
-
-  const addCredential = async (provider: string, path: string) => {
-    await invoke("add_credential", { provider, filePath: path });
-    await refresh();
-  };
-
-  const removeCredential = async (id: string) => {
-    await invoke("remove_credential", { id });
-    await refresh();
-  };
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  return { credentials, loading, addCredential, removeCredential, refresh };
-}
-```
+Provider 列表与默认模型读取应优先复用 `src/lib/api/modelRegistry.ts`、`src/lib/api/appConfigTypes.ts` 和现有 configured provider Hook，不要重新创建凭证池 Hook 或 OAuth Hook。
 
 ### useFlowEvents
 
@@ -117,7 +89,7 @@ export function useDeepLink() {
 ### 命名约定
 
 - 以 `use` 开头
-- 描述功能: `useProviderPool`, `useFlowEvents`
+- 描述功能: `useConfiguredProviders`, `useFlowEvents`
 
 ### 返回值
 

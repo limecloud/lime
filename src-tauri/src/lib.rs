@@ -25,7 +25,6 @@ pub use lime_providers::providers;
 // 从 core crate 重新导出（保持 crate::xxx 路径兼容）
 pub use lime_core::connect;
 pub use lime_core::content;
-pub use lime_core::credential;
 pub use lime_core::database;
 pub use lime_core::memory;
 pub use lime_core::session_files;
@@ -68,8 +67,7 @@ use lime_core::models;
 mod tests;
 
 // 重新导出核心类型以保持向后兼容
-pub use app::{AppState, LogState, ProviderType, TokenCacheServiceState, TrayManagerState};
-pub use lime_services::provider_pool_service::ProviderPoolService;
+pub use app::{AppState, LogState, ProviderType, TrayManagerState};
 
 // 重新导出 run 函数（main.rs 入口）
 pub use app::run;

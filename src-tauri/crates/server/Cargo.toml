@@ -9,7 +9,6 @@ lime-config.workspace = true
 lime-infra.workspace = true
 lime-providers.workspace = true
 lime-services.workspace = true
-lime-credential.workspace = true
 lime-websocket.workspace = true
 lime-processor.workspace = true
 lime-server-utils.workspace = true

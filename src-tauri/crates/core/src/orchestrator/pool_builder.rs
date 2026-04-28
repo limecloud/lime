@@ -16,7 +16,6 @@ pub enum ProviderType {
     Kiro,
     Azure,
     Bedrock,
-    Antigravity,
     Custom,
 }
 
@@ -30,7 +29,6 @@ impl ProviderType {
             "kiro" | "codewhisperer" => Some(ProviderType::Kiro),
             "azure" => Some(ProviderType::Azure),
             "bedrock" => Some(ProviderType::Bedrock),
-            "antigravity" => Some(ProviderType::Antigravity),
             _ => Some(ProviderType::Custom),
         }
     }
@@ -44,7 +42,6 @@ impl ProviderType {
             ProviderType::Kiro => "Kiro",
             ProviderType::Azure => "Azure",
             ProviderType::Bedrock => "Bedrock",
-            ProviderType::Antigravity => "Antigravity",
             ProviderType::Custom => "Custom",
         }
     }
@@ -243,47 +240,6 @@ pub fn builtin_provider_definitions() -> Vec<ProviderDefinition> {
             ],
             default_base_url: None,
         },
-        // Antigravity (Google Cloud Code Assist)
-        ProviderDefinition {
-            provider_type: ProviderType::Antigravity,
-            display_name: "Antigravity".to_string(),
-            families: vec![
-                // Max 等级：Gemini 3 Pro 和 Claude Opus
-                ModelFamily {
-                    name: "gemini-3-pro".to_string(),
-                    pattern: "gemini-3-pro*".to_string(),
-                    tier: 3,
-                    description: Some("Gemini 3 Pro via Antigravity".to_string()),
-                },
-                ModelFamily {
-                    name: "opus".to_string(),
-                    pattern: "*opus*".to_string(),
-                    tier: 3,
-                    description: Some("Claude Opus via Antigravity".to_string()),
-                },
-                // Pro 等级：Claude Sonnet 和 Gemini 2.5
-                ModelFamily {
-                    name: "sonnet".to_string(),
-                    pattern: "*sonnet*".to_string(),
-                    tier: 2,
-                    description: Some("Claude Sonnet via Antigravity".to_string()),
-                },
-                ModelFamily {
-                    name: "gemini-2.5".to_string(),
-                    pattern: "gemini-2.5*".to_string(),
-                    tier: 2,
-                    description: Some("Gemini 2.5 via Antigravity".to_string()),
-                },
-                // Mini 等级：Flash 模型
-                ModelFamily {
-                    name: "gemini-3-flash".to_string(),
-                    pattern: "gemini-3-flash*".to_string(),
-                    tier: 1,
-                    description: Some("Gemini 3 Flash via Antigravity".to_string()),
-                },
-            ],
-            default_base_url: None,
-        },
     ]
 }
 
@@ -460,7 +416,7 @@ pub struct CredentialInfo {
     pub id: String,
     /// Provider 类型（用于模型分类）
     pub provider_type: ProviderType,
-    /// 原始 Provider 类型字符串（用于前端识别，如 "antigravity"、"kiro" 等）
+    /// 原始 Provider 类型字符串（用于前端识别，如 "kiro" 等）
     pub original_provider_type: Option<String>,
     /// 支持的模型列表
     pub supported_models: Vec<String>,
@@ -541,7 +497,7 @@ impl DynamicPoolBuilder {
                     .or_else(|| metadata.as_ref().and_then(|m| m.family.clone()));
 
                 // 构建 AvailableModel
-                // 优先使用原始 provider 类型（如 "antigravity"），否则使用枚举名称
+                // 优先使用原始 provider 类型，否则使用枚举名称
                 let provider_type_str = credential
                     .original_provider_type
                     .clone()

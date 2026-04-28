@@ -29,8 +29,6 @@ pub enum ProviderType {
     Qwen,
     /// Codex (OpenAI 兼容)
     Codex,
-    /// Antigravity (OpenAI 兼容)
-    Antigravity,
     /// iFlow (OpenAI 兼容)
     IFlow,
 }
@@ -47,7 +45,6 @@ impl ProviderType {
             "openai" => Self::OpenAI,
             "qwen" => Self::Qwen,
             "codex" => Self::Codex,
-            "antigravity" => Self::Antigravity,
             "iflow" => Self::IFlow,
             _ => Self::OpenAI, // 默认使用 OpenAI 协议
         }
@@ -116,7 +113,7 @@ impl ProviderType {
     pub fn is_openai_compatible(&self) -> bool {
         matches!(
             self,
-            Self::OpenAI | Self::Qwen | Self::Codex | Self::Antigravity | Self::IFlow | Self::Kiro
+            Self::OpenAI | Self::Qwen | Self::Codex | Self::IFlow | Self::Kiro
         )
     }
 }

@@ -180,6 +180,22 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         : configuredProviders,
     [configuredProviders, providerFilter],
   );
+  const cloudProviders = useMemo(
+    () =>
+      visibleProviders.filter(
+        (provider) =>
+          provider.key === "lime-hub" || provider.providerId === "lime-hub",
+      ),
+    [visibleProviders],
+  );
+  const localProviders = useMemo(
+    () =>
+      visibleProviders.filter(
+        (provider) =>
+          provider.key !== "lime-hub" && provider.providerId !== "lime-hub",
+      ),
+    [visibleProviders],
+  );
   const selectedProvider = useMemo(() => {
     return findConfiguredProviderBySelection(configuredProviders, providerType);
   }, [configuredProviders, providerType]);
@@ -596,48 +612,67 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                       当前已选供应商暂不可用
                     </div>
                   ) : null}
-                  {visibleProviders.map((provider) => {
-                  const isSelected = selectedProvider?.key === provider.key;
-                  const providerPromptCacheMode = getProviderPromptCacheMode(
-                    provider.type,
-                    provider.promptCacheMode,
-                    provider.apiHost,
-                  );
+                  {[
+                    { title: "云端模型", providers: cloudProviders },
+                    { title: "本地与自定义", providers: localProviders },
+                  ]
+                    .filter((section) => section.providers.length > 0)
+                    .map((section) => (
+                      <div key={section.title} className="space-y-1">
+                        <div className="px-2 pt-2 text-[10px] font-semibold tracking-[0.08em] text-slate-400">
+                          {section.title}
+                        </div>
+                        {section.providers.map((provider) => {
+                          const isSelected =
+                            selectedProvider?.key === provider.key;
+                          const providerPromptCacheMode =
+                            getProviderPromptCacheMode(
+                              provider.type,
+                              provider.promptCacheMode,
+                              provider.apiHost,
+                            );
 
-                  return (
-                    <button
-                      key={provider.key}
-                      onClick={() =>
-                        setProviderType(provider.providerId ?? provider.key)
-                      }
-                      className={cn(
-                        itemClassName,
-                        isSelected
-                          ? "border-slate-200 bg-white text-slate-900 shadow-sm shadow-slate-950/5"
-                          : "text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-900",
-                      )}
-                    >
-                      <span className="flex items-center gap-2 min-w-0">
-                        <ProviderIcon
-                          providerType={provider.key}
-                          fallbackText={provider.label}
-                          size={15}
-                        />
-                        <span className="min-w-0 flex flex-col gap-1">
-                          <span className="truncate">{provider.label}</span>
-                          {providerPromptCacheMode === "explicit_only" ? (
-                            <span className="text-[10px] leading-4 text-amber-700">
-                              显式缓存
-                            </span>
-                          ) : null}
-                        </span>
-                      </span>
-                      {isSelected && (
-                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      )}
-                    </button>
-                  );
-                  })}
+                          return (
+                            <button
+                              key={provider.key}
+                              onClick={() =>
+                                setProviderType(
+                                  provider.providerId ?? provider.key,
+                                )
+                              }
+                              className={cn(
+                                itemClassName,
+                                isSelected
+                                  ? "border-slate-200 bg-white text-slate-900 shadow-sm shadow-slate-950/5"
+                                  : "text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-900",
+                              )}
+                            >
+                              <span className="flex min-w-0 items-center gap-2">
+                                <ProviderIcon
+                                  providerType={provider.key}
+                                  fallbackText={provider.label}
+                                  size={15}
+                                />
+                                <span className="flex min-w-0 flex-col gap-1">
+                                  <span className="truncate">
+                                    {provider.label}
+                                  </span>
+                                  {providerPromptCacheMode ===
+                                  "explicit_only" ? (
+                                    <span className="text-[10px] leading-4 text-amber-700">
+                                      显式缓存
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </span>
+                              {isSelected && (
+                                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
                 </>
               )}
             </div>

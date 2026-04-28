@@ -87,7 +87,7 @@ pub async fn transcribe_audio(
                         );
                     }
                 }
-                return Err("未配置语音识别服务。请在设置 → 凭证池 → ASR 中添加讯飞、百度或 OpenAI Whisper 凭证。".to_string());
+                return Err("未配置语音识别服务。请在设置 → Agent → 语音中添加讯飞、百度或 OpenAI Whisper 凭证。".to_string());
             }
             Err(error) => {
                 tracing::error!("[语音识别] 获取默认凭证失败: {}", error);

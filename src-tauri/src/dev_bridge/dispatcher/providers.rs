@@ -144,33 +144,6 @@ pub(super) async fn try_handle(
                 .await?,
             )?
         }
-        "aster_agent_configure_from_pool" => {
-            let app_handle = require_app_handle(state)?;
-            let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
-            let db = app_handle.state::<crate::database::DbConnection>();
-            let args = args_or_default(args);
-            let request = parse_nested_arg::<
-                crate::commands::aster_agent_cmd::ConfigureFromPoolRequest,
-            >(&args, "request")?;
-            let session_id = get_string_arg(&args, "session_id", "sessionId")?;
-
-            serde_json::to_value(
-                crate::commands::aster_agent_cmd::aster_agent_configure_from_pool(
-                    aster_state,
-                    db,
-                    request,
-                    session_id,
-                )
-                .await?,
-            )?
-        }
-        "get_provider_pool_overview" => {
-            if let Some(db) = &state.db {
-                serde_json::to_value(state.pool_service.get_overview(db)?)?
-            } else {
-                serde_json::json!([])
-            }
-        }
         "get_api_key_providers" => {
             if let Some(db) = &state.db {
                 let providers = state.api_key_provider_service.get_all_providers(db)?;
@@ -284,17 +257,6 @@ pub(super) async fn try_handle(
                     )
                     .await?,
             )?
-        }
-        "get_provider_pool_credentials" => {
-            if let Some(db) = &state.db {
-                let conn = db.lock().map_err(|e| e.to_string())?;
-                let credentials =
-                    crate::database::dao::provider_pool::ProviderPoolDao::get_all(&conn)
-                        .unwrap_or_default();
-                serde_json::to_value(credentials)?
-            } else {
-                serde_json::json!([])
-            }
         }
         "get_provider_ui_state" => {
             let args = args_or_default(args);

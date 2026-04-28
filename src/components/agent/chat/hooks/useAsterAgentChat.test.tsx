@@ -11,6 +11,7 @@ const {
   mockListAgentRuntimeSessions,
   mockGetAgentRuntimeSession,
   mockGetAgentRuntimeThreadRead,
+  mockGenerateAgentRuntimeSessionTitle,
   mockUpdateAgentRuntimeSession,
   mockDeleteAgentRuntimeSession,
   mockCompactAgentRuntimeSession,
@@ -36,6 +37,7 @@ const {
   mockListAgentRuntimeSessions: vi.fn(),
   mockGetAgentRuntimeSession: vi.fn(),
   mockGetAgentRuntimeThreadRead: vi.fn(),
+  mockGenerateAgentRuntimeSessionTitle: vi.fn(),
   mockUpdateAgentRuntimeSession: vi.fn(),
   mockDeleteAgentRuntimeSession: vi.fn(),
   mockCompactAgentRuntimeSession: vi.fn(),
@@ -74,6 +76,7 @@ vi.mock("@/lib/api/agentRuntime", () => ({
     listAgentRuntimeSessions: mockListAgentRuntimeSessions,
     getAgentRuntimeSession: mockGetAgentRuntimeSession,
     getAgentRuntimeThreadRead: mockGetAgentRuntimeThreadRead,
+    generateAgentRuntimeSessionTitle: mockGenerateAgentRuntimeSessionTitle,
     updateAgentRuntimeSession: mockUpdateAgentRuntimeSession,
     deleteAgentRuntimeSession: mockDeleteAgentRuntimeSession,
     compactAgentRuntimeSession: mockCompactAgentRuntimeSession,
@@ -90,6 +93,7 @@ vi.mock("@/lib/api/agentRuntime", () => ({
   listAgentRuntimeSessions: mockListAgentRuntimeSessions,
   getAgentRuntimeSession: mockGetAgentRuntimeSession,
   getAgentRuntimeThreadRead: mockGetAgentRuntimeThreadRead,
+  generateAgentRuntimeSessionTitle: mockGenerateAgentRuntimeSessionTitle,
   updateAgentRuntimeSession: mockUpdateAgentRuntimeSession,
   deleteAgentRuntimeSession: mockDeleteAgentRuntimeSession,
   compactAgentRuntimeSession: mockCompactAgentRuntimeSession,
@@ -299,7 +303,7 @@ function seedSessionSnapshots(
   );
 }
 
-  beforeEach(() => {
+beforeEach(() => {
   (
     globalThis as typeof globalThis & {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -312,6 +316,7 @@ function seedSessionSnapshots(
   mockListAgentRuntimeSessions.mockReset();
   mockGetAgentRuntimeSession.mockReset();
   mockGetAgentRuntimeThreadRead.mockReset();
+  mockGenerateAgentRuntimeSessionTitle.mockReset();
   mockUpdateAgentRuntimeSession.mockReset();
   mockDeleteAgentRuntimeSession.mockReset();
   mockCompactAgentRuntimeSession.mockReset();
@@ -324,14 +329,14 @@ function seedSessionSnapshots(
   mockSafeListen.mockReset();
   mockParseSkillSlashCommand.mockReset();
   mockTryExecuteSlashSkillCommand.mockReset();
-    mockWechatChannelSetRuntimeModel.mockReset();
-    mockGetDefaultProvider.mockReset();
-    mockResolveClawWorkspaceProviderSelection.mockReset();
-    mockScheduleMinimumDelayIdleTask.mockReset();
-    mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
-      task();
-      return () => undefined;
-    });
+  mockWechatChannelSetRuntimeModel.mockReset();
+  mockGetDefaultProvider.mockReset();
+  mockResolveClawWorkspaceProviderSelection.mockReset();
+  mockScheduleMinimumDelayIdleTask.mockReset();
+  mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
+    task();
+    return () => undefined;
+  });
   mockToast.success.mockReset();
   mockToast.error.mockReset();
   mockToast.info.mockReset();
@@ -348,6 +353,7 @@ function seedSessionSnapshots(
     messages: [],
   });
   mockGetAgentRuntimeThreadRead.mockResolvedValue(undefined);
+  mockGenerateAgentRuntimeSessionTitle.mockResolvedValue("");
   mockUpdateAgentRuntimeSession.mockResolvedValue(undefined);
   mockDeleteAgentRuntimeSession.mockResolvedValue(undefined);
   mockCompactAgentRuntimeSession.mockResolvedValue(undefined);
@@ -840,7 +846,7 @@ describe("useAsterAgentChat 任务快照", () => {
 
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         sessionId,
-        undefined,
+        { historyLimit: 40 },
       );
       expect(mockInterruptAgentRuntimeTurn).toHaveBeenCalledWith({
         session_id: sessionId,
@@ -978,7 +984,7 @@ describe("useAsterAgentChat 任务快照", () => {
 
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         sessionId,
-        undefined,
+        { historyLimit: 40 },
       );
       expect(harness.getValue().queuedTurns).toEqual([
         {
@@ -2833,7 +2839,7 @@ describe("useAsterAgentChat runtime routing", () => {
 
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         sessionId,
-        undefined,
+        { historyLimit: 40 },
       );
       expect(harness.getValue().currentTurnId).toBe("turn-real-1");
       expect(harness.getValue().threadItems).toEqual(
@@ -3041,7 +3047,7 @@ describe("useAsterAgentChat runtime routing", () => {
         .find((msg) => msg.role === "assistant");
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         sessionId,
-        undefined,
+        { historyLimit: 40 },
       );
       expect(assistantMessage).toBeTruthy();
       expect(assistantMessage?.content).toContain(
@@ -5802,7 +5808,7 @@ describe("useAsterAgentChat 偏好持久化", () => {
       await flushEffects();
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         sessionId,
-        undefined,
+        { historyLimit: 40 },
       );
       expect(
         JSON.parse(
@@ -5870,7 +5876,7 @@ describe("useAsterAgentChat 偏好持久化", () => {
 
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         sessionId,
-        undefined,
+        { historyLimit: 40 },
       );
       expect(harness.getValue().sessionId).toBeNull();
       expect(
@@ -6115,8 +6121,8 @@ describe("useAsterAgentChat 偏好持久化", () => {
       });
 
       await act(async () => {
-        harness.getValue().setProviderType("antigravity");
-        harness.getValue().setModel("gemini-3-pro-image-preview");
+        harness.getValue().setProviderType("gemini");
+        harness.getValue().setModel("gemini-3-pro-preview");
       });
       await flushEffects();
 
@@ -6532,7 +6538,7 @@ describe("useAsterAgentChat 偏好持久化", () => {
       expect(mockScheduleMinimumDelayIdleTask).not.toHaveBeenCalled();
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         "topic-stale",
-        undefined,
+        { historyLimit: 40 },
       );
 
       await act(async () => {
@@ -9418,6 +9424,122 @@ describe("useAsterAgentChat 兼容接口", () => {
         .getValue()
         .topics.find((topic) => topic.id === "topic-1");
       expect(renamedTopic?.title).toBe("新标题");
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("自动标题生成进行中时，话题状态刷新不应取消导航标题回写", async () => {
+    const workspaceId = "ws-auto-title";
+    const sessionId = "session-auto-title";
+    const generatedTitle = "支付页错误定位";
+    const deferredTitle = createDeferred<string>();
+    mockCreateAgentRuntimeSession.mockResolvedValue(sessionId);
+    mockGenerateAgentRuntimeSessionTitle.mockReturnValueOnce(
+      deferredTitle.promise,
+    );
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().createFreshSession();
+      });
+      await flushEffects();
+
+      await act(async () => {
+        harness.getValue().setMessages([
+          {
+            id: "msg-user-title",
+            role: "user",
+            content: "帮我定位支付页提交时报 500 的问题",
+            timestamp: new Date(),
+          },
+          {
+            id: "msg-assistant-title",
+            role: "assistant",
+            content: "我会先检查支付页请求链路。",
+            timestamp: new Date(),
+          },
+        ]);
+      });
+      await flushEffects();
+
+      expect(mockGenerateAgentRuntimeSessionTitle).toHaveBeenCalledWith(
+        sessionId,
+        expect.stringContaining("帮我定位支付页提交时报 500 的问题"),
+      );
+
+      await act(async () => {
+        harness.getValue().updateTopicSnapshot(sessionId, {
+          lastPreview: "正在检查支付页请求链路。",
+          messagesCount: 2,
+          status: "running",
+        });
+      });
+
+      await act(async () => {
+        deferredTitle.resolve(generatedTitle);
+        await Promise.resolve();
+      });
+      await flushEffects();
+
+      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
+        session_id: sessionId,
+        name: generatedTitle,
+      });
+      expect(
+        harness.getValue().topics.find((topic) => topic.id === sessionId)
+          ?.title,
+      ).toBe(generatedTitle);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("自动标题应覆盖新对话占位标题", async () => {
+    const workspaceId = "ws-auto-title-new-dialogue";
+    const sessionId = "session-new-dialogue-title";
+    const generatedTitle = "国际新闻摘要";
+    mockCreateAgentRuntimeSession.mockResolvedValue(sessionId);
+    mockGenerateAgentRuntimeSessionTitle.mockResolvedValue(generatedTitle);
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().createFreshSession("新对话");
+      });
+      await flushEffects();
+
+      await act(async () => {
+        harness.getValue().setMessages([
+          {
+            id: "msg-user-new-dialogue-title",
+            role: "user",
+            content: "请用 WebSearch 查询今天国际新闻，简短列出 3 条。",
+            timestamp: new Date(),
+          },
+        ]);
+      });
+      await flushEffects();
+
+      expect(mockGenerateAgentRuntimeSessionTitle).toHaveBeenCalledWith(
+        sessionId,
+        expect.stringContaining("今天国际新闻"),
+      );
+      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
+        session_id: sessionId,
+        name: generatedTitle,
+      });
+      expect(
+        harness.getValue().topics.find((topic) => topic.id === sessionId)
+          ?.title,
+      ).toBe(generatedTitle);
     } finally {
       harness.unmount();
     }

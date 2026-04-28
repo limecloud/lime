@@ -9,8 +9,8 @@
 ```
 src-tauri/src/services/
 ├── mod.rs                      # 模块入口
-├── provider_pool_service.rs    # 凭证池服务
-├── token_cache_service.rs      # Token 缓存
+├── api_key_provider_service.rs # API Key Provider 服务
+├── model_registry_service.rs   # 模型注册表服务
 ├── mcp_service.rs              # MCP 服务器管理
 ├── prompt_service.rs           # Prompt 管理
 ├── skill_service.rs            # 技能管理
@@ -23,45 +23,14 @@ src-tauri/src/services/
 
 > 注意：`general_chat/` 兼容壳已删除。
 > 新功能与新治理都应直接落到 `agent_runtime_*` 与现役 `agent/chat` 体系，不要重新引回旧入口。
-> `ProviderPoolService::select_credential_with_fallback_legacy` 也已删除，凭证选择统一走现役 `select_credential_with_fallback`。
+> 旧 `ProviderPoolService`、`TokenCacheService` 与 OAuth/local CLI credential runtime 已退役。凭证选择统一走 `ApiKeyProviderService`。
 
-### ProviderPoolService
-
-```rust
-pub struct ProviderPoolService {
-    pools: HashMap<ProviderType, CredentialPool>,
-    health_checker: HealthChecker,
-}
-
-impl ProviderPoolService {
-    /// 获取下一个可用凭证
-    pub async fn next_credential(&self, provider: ProviderType) -> Option<Credential>;
-    
-    /// 添加凭证到池
-    pub async fn add_credential(&self, credential: Credential) -> Result<()>;
-    
-    /// 移除凭证
-    pub async fn remove_credential(&self, id: &str) -> Result<()>;
-    
-    /// 启动健康检查
-    pub fn start_health_check(&self);
-}
-```
-
-### TokenCacheService
+### ApiKeyProviderService
 
 ```rust
-pub struct TokenCacheService {
-    cache: DashMap<String, CachedToken>,
-    db: Arc<Database>,
-}
-
-impl TokenCacheService {
-    /// 获取或刷新 Token
-    pub async fn get_or_refresh(&self, credential_id: &str) -> Result<String>;
-    
-    /// 使 Token 失效
-    pub async fn invalidate(&self, credential_id: &str);
+impl ApiKeyProviderService {
+    /// 选择当前 Provider 可用的 API Key 配置
+    pub async fn select_credential_for_provider(&self, provider_id: &str) -> Result<ProviderCredential>;
 }
 ```
 
@@ -87,24 +56,10 @@ impl McpService {
 ## 服务注入
 
 ```rust
-// 在 main.rs 中初始化
-let pool_service = Arc::new(ProviderPoolService::new());
-let token_cache = Arc::new(TokenCacheService::new(db.clone()));
-
-app.manage(pool_service);
-app.manage(token_cache);
-
-// 在命令中使用
-#[tauri::command]
-async fn add_credential(
-    pool: State<'_, Arc<ProviderPoolService>>,
-    // ...
-) -> Result<(), String> {
-    pool.add_credential(credential).await
-}
+// 服务由 bootstrap / state 注入，命令层不再管理凭证池服务。
 ```
 
 ## 相关文档
 
 - [commands.md](commands.md) - Tauri 命令
-- [credential-pool.md](credential-pool.md) - 凭证池管理
+- [credential-pool.md](credential-pool.md) - 凭证池退役说明

@@ -1,6 +1,6 @@
 //! Lime LLM Provider 实现
 //!
-//! 使用 ProviderPoolService 选择凭证并调用 LLM API。
+//! 使用 API Key Provider 选择凭证并调用 LLM API。
 //! trait 定义（LlmProvider, SkillError）已迁移到 lime-skills crate。
 
 use std::sync::Arc;
@@ -14,20 +14,17 @@ use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::provider_pool_model::PoolProviderType;
 use lime_core::models::provider_pool_model::{CredentialData, ProviderCredential};
 use lime_providers::providers::claude_custom::{ClaudeCustomProvider, PromptCacheMode};
-use lime_providers::providers::kiro::KiroProvider;
+use lime_providers::providers::gemini::{GeminiApiKeyCredential, GeminiApiKeyProvider};
 use lime_providers::providers::openai_custom::OpenAICustomProvider;
 use lime_services::api_key_provider_service::ApiKeyProviderService;
-use lime_services::provider_pool_service::ProviderPoolService;
 
 use crate::{LlmProvider, SkillError};
 
 /// Lime LLM Provider
 ///
-/// 使用 ProviderPoolService 选择凭证并调用 LLM API。
+/// 使用 API Key Provider 选择凭证并调用 LLM API。
 /// 实现 aster-rust 定义的 LlmProvider trait。
 pub struct LimeLlmProvider {
-    /// 凭证池服务
-    pool_service: Arc<ProviderPoolService>,
     /// API Key Provider 服务（用于智能降级）
     api_key_service: Arc<ApiKeyProviderService>,
     /// 数据库连接
@@ -40,16 +37,10 @@ impl LimeLlmProvider {
     /// 创建新的 LimeLlmProvider 实例
     ///
     /// # Arguments
-    /// * `pool_service` - 凭证池服务
     /// * `api_key_service` - API Key 服务
     /// * `db` - 数据库连接
-    pub fn new(
-        pool_service: Arc<ProviderPoolService>,
-        api_key_service: Arc<ApiKeyProviderService>,
-        db: DbConnection,
-    ) -> Self {
+    pub fn new(api_key_service: Arc<ApiKeyProviderService>, db: DbConnection) -> Self {
         Self {
-            pool_service,
             api_key_service,
             db,
             preferred_provider: None,
@@ -59,18 +50,15 @@ impl LimeLlmProvider {
     /// 创建带有偏好 Provider 的实例
     ///
     /// # Arguments
-    /// * `pool_service` - 凭证池服务
     /// * `api_key_service` - API Key 服务
     /// * `db` - 数据库连接
     /// * `preferred_provider` - 偏好的 Provider 类型
     pub fn with_preferred_provider(
-        pool_service: Arc<ProviderPoolService>,
         api_key_service: Arc<ApiKeyProviderService>,
         db: DbConnection,
         preferred_provider: String,
     ) -> Self {
         Self {
-            pool_service,
             api_key_service,
             db,
             preferred_provider: Some(preferred_provider),
@@ -99,10 +87,8 @@ impl LimeLlmProvider {
         match provider.to_lowercase().as_str() {
             "openai" | "gpt" => Some(PoolProviderType::OpenAI),
             "anthropic" | "claude" => Some(PoolProviderType::Claude),
-            "gemini" | "google" => Some(PoolProviderType::Gemini),
-            "kiro" | "codewhisperer" => Some(PoolProviderType::Kiro),
+            "gemini" | "google" => Some(PoolProviderType::GeminiApiKey),
             "vertex" => Some(PoolProviderType::Vertex),
-            "codex" => Some(PoolProviderType::Codex),
             _ => None,
         }
     }
@@ -125,10 +111,6 @@ impl LimeLlmProvider {
         model: &str,
     ) -> Result<String, SkillError> {
         match &credential.credential {
-            CredentialData::KiroOAuth { creds_file_path } => {
-                self.call_kiro_api(creds_file_path, system_prompt, user_message, model)
-                    .await
-            }
             CredentialData::ClaudeKey { api_key, base_url } => {
                 self.call_claude_api(
                     api_key,
@@ -178,77 +160,84 @@ impl LimeLlmProvider {
                 )
                 .await
             }
+            CredentialData::GeminiApiKey {
+                api_key,
+                base_url,
+                excluded_models,
+            } => {
+                self.call_gemini_api(
+                    &credential.uuid,
+                    api_key,
+                    base_url.as_deref(),
+                    excluded_models,
+                    system_prompt,
+                    user_message,
+                    model,
+                )
+                .await
+            }
             _ => Err(SkillError::ProviderError(format!(
-                "不支持的凭证类型: {:?}",
+                "凭证池/OAuth 凭证已退役，当前只支持 API Key Provider 凭证: {:?}",
                 credential.provider_type
             ))),
         }
     }
 
-    /// 调用 Kiro API
-    async fn call_kiro_api(
+    /// 调用 Gemini API Key Provider
+    async fn call_gemini_api(
         &self,
-        creds_file_path: &str,
+        credential_id: &str,
+        api_key: &str,
+        base_url: Option<&str>,
+        excluded_models: &[String],
         system_prompt: &str,
         user_message: &str,
         model: &str,
     ) -> Result<String, SkillError> {
-        use lime_core::models::anthropic::AnthropicMessage;
-        use lime_providers::converter::anthropic_to_openai::convert_anthropic_to_openai;
-        use lime_providers::providers::traits::CredentialProvider;
-        use lime_server_utils::parse_cw_response;
+        let credential =
+            GeminiApiKeyCredential::new(credential_id.to_string(), api_key.to_string())
+                .with_base_url(base_url.map(ToString::to_string))
+                .with_excluded_models(excluded_models.to_vec());
 
-        let mut kiro = KiroProvider::new();
-        kiro.load_credentials_from_path(creds_file_path)
-            .await
-            .map_err(|e| SkillError::ProviderError(format!("加载 Kiro 凭证失败: {}", e)))?;
-
-        // 确保 Token 有效
-        if !kiro.is_token_valid() || kiro.is_token_expiring_soon() {
-            kiro.refresh_token()
-                .await
-                .map_err(|e| SkillError::ProviderError(format!("刷新 Token 失败: {}", e)))?;
-        }
-
-        // 构建 Anthropic 请求
-        let request = AnthropicMessagesRequest {
-            model: model.to_string(),
-            max_tokens: Some(4096),
-            system: Some(serde_json::Value::String(system_prompt.to_string())),
-            messages: vec![AnthropicMessage {
-                role: "user".to_string(),
-                content: serde_json::Value::String(user_message.to_string()),
-            }],
-            stream: false,
-            temperature: None,
-            tools: None,
-            tool_choice: None,
-        };
-
-        // 转换为 OpenAI 格式并调用
-        let openai_request = convert_anthropic_to_openai(&request);
-        let resp = kiro
-            .call_api(&openai_request)
-            .await
-            .map_err(|e| SkillError::ProviderError(format!("Kiro API 调用失败: {}", e)))?;
-
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
+        if !credential.supports_model(model) {
             return Err(SkillError::ProviderError(format!(
-                "Kiro API 返回错误: status={}, body={}",
-                status, body
+                "Gemini API Key 凭证不支持模型: {}",
+                model
             )));
         }
 
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| SkillError::ProviderError(format!("读取响应失败: {}", e)))?;
-        let body = String::from_utf8_lossy(&bytes).to_string();
-        let parsed = parse_cw_response(&body);
+        let provider = GeminiApiKeyProvider::new();
+        let prompt = if system_prompt.trim().is_empty() {
+            user_message.to_string()
+        } else {
+            format!("{}\n\n{}", system_prompt, user_message)
+        };
+        let body = serde_json::json!({
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{ "text": prompt }]
+                }
+            ],
+            "generationConfig": {
+                "maxOutputTokens": 4096
+            }
+        });
 
-        Ok(parsed.content)
+        let json = provider
+            .generate_content(&credential, model, &body)
+            .await
+            .map_err(|e| SkillError::ProviderError(format!("Gemini API 调用失败: {}", e)))?;
+
+        let content = json["candidates"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|candidate| candidate["content"]["parts"].as_array())
+            .and_then(|parts| parts.first())
+            .and_then(|part| part["text"].as_str())
+            .unwrap_or("");
+
+        Ok(content.to_string())
     }
 
     /// 调用 Claude API
@@ -400,13 +389,13 @@ impl LlmProvider for LimeLlmProvider {
     /// 调用 LLM 进行对话
     ///
     /// # 实现说明
-    /// 1. 使用 ProviderPoolService.select_credential_with_fallback() 选择凭证
+    /// 1. 使用 API Key Provider 选择凭证
     /// 2. 如果指定了 preferred_provider，优先选择该类型的凭证
     /// 3. 如果指定了 model，传递给底层 provider
     /// 4. 如果没有可用凭证，返回 ProviderError
     ///
     /// # Requirements
-    /// - 1.2: 使用 ProviderPoolService 选择可用凭证
+    /// - 1.2: 使用 API Key Provider 选择可用凭证
     /// - 1.3: 优先选择指定 provider 类型的凭证
     /// - 1.4: 将 model 参数传递给底层 provider
     /// - 1.5: 没有可用凭证时返回 ProviderError
@@ -428,15 +417,13 @@ impl LlmProvider for LimeLlmProvider {
             model_name
         );
 
-        // 使用 ProviderPoolService 选择凭证（Requirements 1.2, 1.3）
+        // 使用 API Key Provider 选择凭证（Requirements 1.2, 1.3）
         let credential = self
-            .pool_service
-            .select_credential_with_fallback(
+            .api_key_service
+            .select_credential_for_provider(
                 &self.db,
-                &self.api_key_service,
                 provider_type,
-                Some(model_name),
-                None, // provider_id_hint
+                Some(provider_type),
                 None, // client_type
             )
             .await
@@ -463,16 +450,14 @@ impl LlmProvider for LimeLlmProvider {
         // 记录使用情况
         match &result {
             Ok(_) => {
-                let _ = self.pool_service.record_usage(&self.db, &credential.uuid);
-                let _ =
-                    self.pool_service
-                        .mark_healthy(&self.db, &credential.uuid, Some(model_name));
+                if let Some(api_key_id) = credential.uuid.strip_prefix("fallback-") {
+                    let _ = self.api_key_service.record_usage(&self.db, api_key_id);
+                }
             }
             Err(e) => {
-                let _ = self.pool_service.mark_unhealthy(
-                    &self.db,
-                    &credential.uuid,
-                    Some(&e.to_string()),
+                tracing::debug!(
+                    "[LimeLlmProvider] 调用失败，API Key Provider 不写回凭证池健康状态: {}",
+                    e
                 );
             }
         }
@@ -521,23 +506,11 @@ mod tests {
     fn test_map_skill_provider_gemini() {
         assert_eq!(
             LimeLlmProvider::map_skill_provider_to_pool_type("gemini"),
-            Some(PoolProviderType::Gemini)
+            Some(PoolProviderType::GeminiApiKey)
         );
         assert_eq!(
             LimeLlmProvider::map_skill_provider_to_pool_type("google"),
-            Some(PoolProviderType::Gemini)
-        );
-    }
-
-    #[test]
-    fn test_map_skill_provider_kiro() {
-        assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("kiro"),
-            Some(PoolProviderType::Kiro)
-        );
-        assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("codewhisperer"),
-            Some(PoolProviderType::Kiro)
+            Some(PoolProviderType::GeminiApiKey)
         );
     }
 

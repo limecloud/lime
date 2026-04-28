@@ -2,7 +2,7 @@
 
 ## 集成状态 ✅
 
-Lime 已完整集成 aster-rust 框架，包括凭证池桥接。
+Lime 已完整集成 aster-rust 框架。Provider 配置桥接已收敛到 API Key Provider。
 
 ## 当前事实源
 
@@ -18,13 +18,12 @@ Lime 已完整集成 aster-rust 框架，包括凭证池桥接。
 - `aster_state.rs` - Agent 状态管理
 - `aster_agent.rs` - Agent 包装器
 - `event_converter.rs` - 事件转换器
-- `credential_bridge.rs` - 凭证池桥接
+- `credential_bridge.rs` - API Key Provider 桥接
 
 **Tauri 命令** (`src-tauri/src/commands/aster_agent_cmd.rs`):
 
 - `aster_agent_init` - 初始化 Agent
 - `aster_agent_configure_provider` - 手动配置 Provider
-- `aster_agent_configure_from_pool` - 从凭证池配置 Provider（推荐）
 - `aster_agent_status` - 获取状态
 - `agent_runtime_submit_turn` - 统一提交 turn
 - `agent_runtime_interrupt_turn` - 统一中断 turn
@@ -59,9 +58,9 @@ Lime 已完整集成 aster-rust 框架，包括凭证池桥接。
 │         │                │                                      │
 │         ▼                ▼                                      │
 │  ┌─────────────────────────────────────┐                        │
-│  │     Lime 凭证池                 │                        │
-│  │  - ProviderPoolService              │                        │
+│  │     Lime Provider 配置              │                        │
 │  │  - ApiKeyProviderService            │                        │
+│  │  - ModelRegistryService             │                        │
 │  └─────────────────────────────────────┘                        │
 └─────────────────────────────────────────────────────────────────┘
                                 │
@@ -75,7 +74,7 @@ Lime 已完整集成 aster-rust 框架，包括凭证池桥接。
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 凭证池桥接
+## Provider 桥接
 
 ### 支持的凭证类型映射
 
@@ -83,12 +82,11 @@ Lime 已完整集成 aster-rust 框架，包括凭证池桥接。
 | -------------------------- | -------------- |
 | OpenAIKey                  | openai         |
 | ClaudeKey / AnthropicKey   | anthropic      |
-| KiroOAuth                  | bedrock        |
-| GeminiOAuth / GeminiApiKey | google         |
+| GeminiApiKey               | google         |
 | VertexKey                  | gcpvertexai    |
-| CodexOAuth                 | codex          |
-| ClaudeOAuth                | anthropic      |
-| AntigravityOAuth           | google         |
+| Codex API Key              | codex          |
+
+Kiro / Gemini OAuth / Codex OAuth / Claude OAuth / Antigravity OAuth 均已退役，不再作为 Aster Provider 配置来源。
 
 ### 使用方式
 
@@ -127,4 +125,4 @@ await submitAgentRuntimeTurn({
 
 - [overview.md](overview.md) - 项目架构
 - [providers.md](providers.md) - Provider 系统
-- [credential-pool.md](credential-pool.md) - 凭证池管理
+- [credential-pool.md](credential-pool.md) - 凭证池退役说明

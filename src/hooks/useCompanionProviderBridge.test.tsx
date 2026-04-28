@@ -13,7 +13,6 @@ import {
 } from "@/lib/api/companion";
 import { safeListen } from "@/lib/dev-bridge";
 import { apiKeyProviderApi } from "@/lib/api/apiKeyProvider";
-import { providerPoolApi } from "@/lib/api/providerPool";
 import { subscribeProviderDataChanged } from "@/lib/providerDataEvents";
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import { SettingsTabs } from "@/types/settings";
@@ -34,12 +33,6 @@ vi.mock("@/lib/dev-bridge", () => ({
 vi.mock("@/lib/api/apiKeyProvider", () => ({
   apiKeyProviderApi: {
     getProviders: vi.fn(),
-  },
-}));
-
-vi.mock("@/lib/api/providerPool", () => ({
-  providerPoolApi: {
-    getOverview: vi.fn(),
   },
 }));
 
@@ -120,21 +113,34 @@ describe("useCompanionProviderBridge", () => {
       delivered: true,
       connected: true,
     });
-    vi.mocked(providerPoolApi.getOverview).mockResolvedValue([
+    vi.mocked(apiKeyProviderApi.getProviders).mockResolvedValue([
       {
-        provider_type: "openai",
-        stats: {
-          total: 1,
-          healthy: 1,
-          unhealthy: 0,
-          disabled: 0,
-          total_usage: 3,
-          total_errors: 0,
-        },
-        credentials: [],
+        id: "openai",
+        name: "OpenAI",
+        type: "openai",
+        api_host: "https://api.openai.com/v1",
+        is_system: true,
+        group: "cloud",
+        enabled: true,
+        sort_order: 0,
+        custom_models: [],
+        prompt_cache_mode: null,
+        api_key_count: 1,
+        api_keys: [
+          {
+            id: "openai-key-1",
+            provider_id: "openai",
+            api_key_masked: "sk-***1234",
+            enabled: true,
+            usage_count: 3,
+            error_count: 0,
+            created_at: "2026-04-01T00:00:00Z",
+          },
+        ],
+        created_at: "2026-04-01T00:00:00Z",
+        updated_at: "2026-04-01T00:00:00Z",
       },
     ]);
-    vi.mocked(apiKeyProviderApi.getProviders).mockResolvedValue([]);
     vi.mocked(subscribeProviderDataChanged).mockReturnValue(vi.fn());
     vi.mocked(safeListen).mockResolvedValue(vi.fn());
     vi.mocked(hasTauriInvokeCapability).mockReturnValue(true);
@@ -230,7 +236,6 @@ describe("useCompanionProviderBridge", () => {
     await render();
 
     vi.mocked(sendCompanionPetCommand).mockClear();
-    vi.mocked(providerPoolApi.getOverview).mockClear();
     vi.mocked(apiKeyProviderApi.getProviders).mockClear();
 
     await act(async () => {
@@ -239,9 +244,6 @@ describe("useCompanionProviderBridge", () => {
       await Promise.resolve();
     });
 
-    expect(providerPoolApi.getOverview).toHaveBeenCalledWith({
-      forceRefresh: true,
-    });
     expect(apiKeyProviderApi.getProviders).toHaveBeenCalledWith({
       forceRefresh: true,
     });
@@ -277,6 +279,7 @@ describe("useCompanionProviderBridge", () => {
         enabled: true,
         sort_order: 10,
         custom_models: [],
+        prompt_cache_mode: null,
         api_key_count: 1,
         api_keys: [
           {
@@ -309,17 +312,9 @@ describe("useCompanionProviderBridge", () => {
             available: true,
             needs_attention: false,
           },
-          {
-            provider_type: "openai",
-            display_name: "OpenAI",
-            total_count: 1,
-            healthy_count: 1,
-            available: true,
-            needs_attention: false,
-          },
         ],
-        total_provider_count: 2,
-        available_provider_count: 2,
+        total_provider_count: 1,
+        available_provider_count: 1,
         needs_attention_provider_count: 0,
       },
     });

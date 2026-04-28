@@ -4,6 +4,7 @@ import {
   type UpdateProviderRequest,
 } from "@/lib/api/apiKeyProvider";
 import {
+  createClientAccessToken,
   type OemCloudBootstrapResponse,
   listClientProviderOfferModels,
 } from "@/lib/api/oemCloudControlPlane";
@@ -23,6 +24,7 @@ import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 function buildSyncSignature(
   runtime: ReturnType<typeof resolveOemCloudRuntimeContext>,
   customModels: string[],
+  localApiKeyReady: boolean,
 ): string {
   return JSON.stringify({
     gatewayBaseUrl: runtime?.gatewayBaseUrl ?? null,
@@ -30,6 +32,7 @@ function buildSyncSignature(
     tenantId: runtime?.tenantId ?? null,
     sessionToken: runtime?.sessionToken ?? null,
     customModels,
+    localApiKeyReady,
   });
 }
 
@@ -55,22 +58,91 @@ async function resolveSyncedCustomModels(
 
   const snapshot = getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>();
   const preference = snapshot?.providerPreference;
-  if (preference?.providerSource !== "oem_cloud" || !preference.providerKey) {
+  const offers = Array.isArray(snapshot?.providerOffersSummary)
+    ? snapshot.providerOffersSummary.filter(
+        (offer) => offer.source === "oem_cloud" && offer.providerKey,
+      )
+    : [];
+  const cloudPreference =
+    preference?.providerSource === "oem_cloud" && preference.providerKey
+      ? preference
+      : null;
+  if (!cloudPreference && offers.length === 0) {
     return [];
   }
 
-  const matchedOffer = snapshot?.providerOffersSummary?.find(
-    (offer) => offer.providerKey === preference.providerKey,
+  const offerKeys = Array.from(
+    new Set([
+      cloudPreference?.providerKey,
+      ...offers.map((offer) => offer.providerKey),
+    ].filter((value): value is string => Boolean(value))),
   );
-  const models = await listClientProviderOfferModels(
-    runtime.tenantId,
-    preference.providerKey,
+  const modelGroups = await Promise.all(
+    offerKeys.map(async (providerKey) => {
+      const matchedOffer = offers.find(
+        (offer) => offer.providerKey === providerKey,
+      );
+      const models = await listClientProviderOfferModels(
+        runtime.tenantId,
+        providerKey,
+      );
+      return {
+        defaultModel:
+          providerKey === cloudPreference?.providerKey
+            ? cloudPreference.defaultModel || matchedOffer?.defaultModel
+            : matchedOffer?.defaultModel,
+        modelIds: models.map((model) => model.modelId),
+      };
+    }),
   );
 
   return normalizeCustomModels(
-    models.map((model) => model.modelId),
-    preference.defaultModel || matchedOffer?.defaultModel,
+    modelGroups.flatMap((group) => [
+      group.defaultModel ?? "",
+      ...group.modelIds,
+    ]),
+    cloudPreference?.defaultModel,
   );
+}
+
+function hasUsableLocalApiKey(provider: {
+  api_key_count?: number;
+  api_keys?: Array<{ enabled?: boolean }>;
+}): boolean {
+  if (Array.isArray(provider.api_keys)) {
+    return provider.api_keys.some((apiKey) => apiKey.enabled !== false);
+  }
+  return (
+    typeof provider.api_key_count === "number" && provider.api_key_count > 0
+  );
+}
+
+async function ensureLocalLimeHubApiKey(input: {
+  runtime: NonNullable<ReturnType<typeof resolveOemCloudRuntimeContext>>;
+  customModels: string[];
+  localApiKeyReady: boolean;
+}): Promise<boolean> {
+  const { runtime, customModels, localApiKeyReady } = input;
+  if (localApiKeyReady || !runtime.sessionToken || customModels.length === 0) {
+    return localApiKeyReady;
+  }
+
+  const response = await createClientAccessToken(runtime.tenantId, {
+    name: "Lime Desktop Cloud Model Key",
+    scopes: ["llm:invoke"],
+    allowedModels: customModels,
+  });
+  const apiKey = response.apiKey || response.rawToken;
+  if (!apiKey) {
+    return false;
+  }
+
+  await apiKeyProviderApi.addApiKey({
+    provider_id: OEM_LIME_HUB_PROVIDER_ID,
+    api_key: apiKey,
+    alias: "Lime 云端模型",
+  });
+  return true;
 }
 
 export function useOemLimeHubProviderSync() {
@@ -88,7 +160,7 @@ export function useOemLimeHubProviderSync() {
       try {
         const runtime = resolveOemCloudRuntimeContext();
         if (!runtime) {
-          lastAppliedSignatureRef.current = buildSyncSignature(null, []);
+          lastAppliedSignatureRef.current = buildSyncSignature(null, [], false);
           return;
         }
 
@@ -103,26 +175,39 @@ export function useOemLimeHubProviderSync() {
           (provider) => provider.id === OEM_LIME_HUB_PROVIDER_ID,
         );
         if (!limeHubProvider) {
-          lastAppliedSignatureRef.current = buildSyncSignature(runtime, []);
+          lastAppliedSignatureRef.current = buildSyncSignature(
+            runtime,
+            [],
+            false,
+          );
           return;
         }
 
         const nextProviderName = resolveOemLimeHubProviderName(runtime);
         const nextApiHost = buildOemLimeHubApiHost(runtime);
+        const currentCustomModels = Array.isArray(limeHubProvider.custom_models)
+          ? limeHubProvider.custom_models
+          : [];
         let nextCustomModels: string[] = [];
         try {
           nextCustomModels = await resolveSyncedCustomModels(runtime);
         } catch (error) {
+          nextCustomModels = currentCustomModels;
           console.warn(
-            "[OEM] 同步云端模型目录失败，保留现有内部模型配置:",
+            "[Lime 云端] 同步模型目录失败，保留现有模型配置:",
             error,
           );
         }
         if (disposed) {
           return;
         }
+        const localApiKeyReady = hasUsableLocalApiKey(limeHubProvider);
 
-        const signature = buildSyncSignature(runtime, nextCustomModels);
+        const signature = buildSyncSignature(
+          runtime,
+          nextCustomModels,
+          localApiKeyReady,
+        );
         if (lastAppliedSignatureRef.current === signature) {
           return;
         }
@@ -144,9 +229,6 @@ export function useOemLimeHubProviderSync() {
         if (limeHubProvider.sort_order !== 0) {
           updateRequest.sort_order = 0;
         }
-        const currentCustomModels = Array.isArray(limeHubProvider.custom_models)
-          ? limeHubProvider.custom_models
-          : [];
         const customModelsChanged =
           currentCustomModels.length !== nextCustomModels.length ||
           currentCustomModels.some(
@@ -163,9 +245,19 @@ export function useOemLimeHubProviderSync() {
           );
         }
 
-        lastAppliedSignatureRef.current = signature;
+        const nextLocalApiKeyReady = await ensureLocalLimeHubApiKey({
+          runtime,
+          customModels: nextCustomModels,
+          localApiKeyReady,
+        });
+
+        lastAppliedSignatureRef.current = buildSyncSignature(
+          runtime,
+          nextCustomModels,
+          nextLocalApiKeyReady,
+        );
       } catch (error) {
-        console.warn("[OEM] 同步 Lime Hub Provider 失败:", error);
+        console.warn("[Lime 云端] 同步 Provider 失败:", error);
       }
     }
 

@@ -98,7 +98,31 @@ function normalizeLiveActivityText(
 }
 
 function appendLiveActivityDraft(previous: string | undefined, chunk: string) {
-  return normalizeLiveActivityText(`${previous ?? ""}${chunk}`) ?? undefined;
+  const base = previous ?? "";
+  if (!base) {
+    return normalizeLiveActivityText(chunk) ?? undefined;
+  }
+
+  if (!chunk) {
+    return normalizeLiveActivityText(base) ?? undefined;
+  }
+
+  if (chunk.startsWith(base)) {
+    return normalizeLiveActivityText(chunk) ?? undefined;
+  }
+
+  if (base.endsWith(chunk)) {
+    return normalizeLiveActivityText(base) ?? undefined;
+  }
+
+  const maxOverlap = Math.min(base.length, chunk.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (base.slice(-overlap) === chunk.slice(0, overlap)) {
+      return normalizeLiveActivityText(`${base}${chunk.slice(overlap)}`) ?? undefined;
+    }
+  }
+
+  return normalizeLiveActivityText(`${base}${chunk}`) ?? undefined;
 }
 
 function buildActivityEntry(params: {

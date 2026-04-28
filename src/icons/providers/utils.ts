@@ -53,7 +53,6 @@ export const availableIcons = [
   "sap-ai-core",
   "scaleway",
   "amp",
-  "kiro",
   "deepseek",
   "zhipu",
   "kimi",
@@ -61,7 +60,6 @@ export const availableIcons = [
   "doubao",
   "azure",
   "cloudflare",
-  "antigravity",
   "lime",
   "lime-hub",
   "meta",
@@ -145,20 +143,16 @@ const LEGACY_LIME_HUB_ICON_ALIAS = `${"lobe"}${"hub"}`;
 
 /**
  * Provider 类型/ID 到图标名称的映射
- * 支持 OAuth Provider 类型和 API Key Provider ID
+ * 支持 API Key Provider ID
  */
 export const providerTypeToIcon: Record<string, string> = {
-  // ===== OAuth Provider 类型映射 =====
-  kiro: "kiro",
   gemini: "gemini",
   qwen: "qwen",
-  antigravity: "antigravity",
   openai: "openai",
   claude: "claude",
   anthropic: "anthropic",
   "anthropic-compatible": "anthropic",
   codex: "openai",
-  claude_oauth: "claude",
   iflow: "alibaba",
   iflowcn: "alibaba",
   amp: "amp",

@@ -37,7 +37,7 @@ pub struct ApiCompatibilityResult {
 /// 检查 API 兼容性
 #[tauri::command]
 pub async fn check_api_compatibility(
-    state: tauri::State<'_, AppState>,
+    _state: tauri::State<'_, AppState>,
     logs: tauri::State<'_, LogState>,
     provider: String,
 ) -> Result<ApiCompatibilityResult, String> {
@@ -49,36 +49,19 @@ pub async fn check_api_compatibility(
         &format!("[API检测] 开始检测 {provider_type} API 兼容性（代理工具调用能力测试）..."),
     );
 
-    let s = state.read().await;
     let mut results: Vec<ApiCheckResult> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
 
     // 代理工具调用主链需要的测试项目
     let test_cases: Vec<(&str, &str)> = match provider_type {
-        ProviderType::Kiro => vec![
-            ("claude-sonnet-4-5", "basic"),
-            ("claude-sonnet-4-5", "tool_call"),
-        ],
-        ProviderType::Gemini => vec![
-            ("gemini-2.5-flash", "basic"),
-            ("gemini-2.5-flash", "tool_call"),
-        ],
-        ProviderType::Antigravity => vec![
-            ("gemini-3-pro-preview", "basic"),
-            ("gemini-3-pro-preview", "tool_call"),
-        ],
+        ProviderType::Kiro
+        | ProviderType::Gemini
+        | ProviderType::GeminiApiKey
+        | ProviderType::Codex
+        | ProviderType::ClaudeOAuth => vec![],
         ProviderType::Vertex => vec![
             ("gemini-2.0-flash", "basic"),
             ("gemini-2.0-flash", "tool_call"),
-        ],
-        ProviderType::GeminiApiKey => vec![
-            ("gemini-2.5-flash", "basic"),
-            ("gemini-2.5-flash", "tool_call"),
-        ],
-        ProviderType::Codex => vec![("gpt-4.1", "basic"), ("gpt-4.1", "tool_call")],
-        ProviderType::ClaudeOAuth => vec![
-            ("claude-sonnet-4-5", "basic"),
-            ("claude-sonnet-4-5", "tool_call"),
         ],
         // Anthropic 兼容格式 - 使用 Claude 相同的测试
         ProviderType::AnthropicCompatible => vec![],
@@ -95,7 +78,7 @@ pub async fn check_api_compatibility(
         let test_name = format!("{model} ({test_type})");
 
         // 根据测试类型构建不同的请求
-        let test_request = match test_type {
+        let _test_request = match test_type {
             "tool_call" => {
                 // 测试 Tool Calls - 代理工具调用主链能力
                 crate::models::openai::ChatCompletionRequest {
@@ -157,13 +140,8 @@ pub async fn check_api_compatibility(
             }
         };
 
-        let result = match provider_type {
-            ProviderType::Kiro => s.kiro_provider.call_api(&test_request).await,
-            ProviderType::Gemini => {
-                Err("Gemini API compatibility check not yet implemented".into())
-            }
-            _ => Err("Provider not supported for direct API check".into()),
-        };
+        let result: Result<reqwest::Response, Box<dyn std::error::Error + Send + Sync>> =
+            Err("Provider not supported for direct API check".into());
 
         let time_ms = start.elapsed().as_millis() as u64;
 

@@ -673,13 +673,53 @@
     {
       "id": "provider-pool-standalone-credential-forms",
       "classification": "dead-candidate",
-      "description": "已删除的 provider-pool 独立凭证表单与旧 barrel 入口，当前凭证池主链统一停留在 AddCredentialModal 内嵌表单",
+      "description": "已删除的 provider-pool 独立凭证表单与旧 barrel 入口；凭证池 UI 已整体退役，current 主链为 API Key Provider / configured providers",
       "targets": [
         "src/components/provider-pool/credential-forms/AntigravityFormStandalone.tsx",
         "src/components/provider-pool/credential-forms/ClaudeFormStandalone.tsx",
         "src/components/provider-pool/credential-forms/GeminiFormStandalone.tsx",
         "src/components/provider-pool/credential-forms/KiroFormStandalone.tsx",
         "src/components/provider-pool/credential-forms/index.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "provider-pool-dead-ui-api-surfaces",
+      "classification": "dead-candidate",
+      "description": "已删除的凭证池管理页、旧凭证卡片、OAuth/本地凭证表单、前端 API 网关与 Hook；current 只允许从设置页进入 API Key Provider",
+      "targets": [
+        "src/components/provider-pool/AddCredentialModal.tsx",
+        "src/components/provider-pool/AmpConfigSection.tsx",
+        "src/components/provider-pool/CodexSection.tsx",
+        "src/components/provider-pool/CredentialCard.test.ts",
+        "src/components/provider-pool/CredentialCard.tsx",
+        "src/components/provider-pool/CredentialCard.ui.test.tsx",
+        "src/components/provider-pool/CredentialCardContextMenu.tsx",
+        "src/components/provider-pool/EditCredentialModal.tsx",
+        "src/components/provider-pool/ErrorDisplay.test.tsx",
+        "src/components/provider-pool/ErrorDisplay.tsx",
+        "src/components/provider-pool/GeminiApiKeySection.tsx",
+        "src/components/provider-pool/ProviderPoolPage.tsx",
+        "src/components/provider-pool/README.md",
+        "src/components/provider-pool/RelayProvidersSection.tsx",
+        "src/components/provider-pool/UsageDisplay.tsx",
+        "src/components/provider-pool/VertexAISection.tsx",
+        "src/components/provider-pool/credential-forms/AntigravityForm.tsx",
+        "src/components/provider-pool/credential-forms/ClaudeOAuthForm.tsx",
+        "src/components/provider-pool/credential-forms/CodexForm.tsx",
+        "src/components/provider-pool/credential-forms/FileImportForm.tsx",
+        "src/components/provider-pool/credential-forms/GeminiForm.tsx",
+        "src/components/provider-pool/credential-forms/KiroForm.tsx",
+        "src/components/provider-pool/credential-forms/ModeSelector.tsx",
+        "src/components/provider-pool/credential-forms/OAuthUrlDisplay.tsx",
+        "src/components/provider-pool/credential-forms/types.ts",
+        "src/components/provider-pool/index.ts",
+        "src/hooks/useProviderPool.ts",
+        "src/lib/api/providerAuthEvents.ts",
+        "src/lib/api/providerPool.ts",
+        "src/lib/api/providerRuntime.ts",
+        "src/lib/api/providerRuntimeTypes.ts",
+        "src/lib/api/usage.ts"
       ],
       "allowedPaths": []
     },
@@ -3175,6 +3215,164 @@
       "classification": "dead-candidate",
       "description": "已零引用的 provider pool legacy 凭证选择兼容方法",
       "patterns": ["select_credential_with_fallback_legacy"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-provider-runtime-modules",
+      "classification": "dead-candidate",
+      "description": "已删除的旧凭证池 Provider runtime 模块不允许重新进入 lime-providers 编译图",
+      "patterns": [
+        "pub mod antigravity;",
+        "pub mod kiro;",
+        "pub mod claude_oauth;",
+        "AntigravityProvider",
+        "KiroProvider",
+        "ClaudeOAuthProvider"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/providers/src/providers"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-gemini-oauth-runtime",
+      "classification": "dead-candidate",
+      "description": "Gemini OAuth 登录 runtime 已随凭证池退役；Gemini current 只允许保留 API Key Provider",
+      "patterns": [
+        "GeminiCredentials",
+        "GeminiProvider",
+        "GeminiOAuthResult",
+        "start_gemini_oauth_login",
+        "start_gemini_oauth_server_and_get_url",
+        "GEMINI_OAUTH_"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/providers/src/providers"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-codex-oauth-runtime",
+      "classification": "dead-candidate",
+      "description": "Codex OAuth / PKCE / 本地 token refresh runtime 已随凭证池退役；Codex current 只允许保留 API Key Provider / Responses API 辅助能力",
+      "patterns": [
+        "PKCECodes",
+        "OAuthServer",
+        "OAuthCallbackResult",
+        "CodexOAuthResult",
+        "start_codex_oauth_login",
+        "start_codex_oauth_server_and_get_url",
+        "stop_codex_oauth_server",
+        "generate_codex_auth_url",
+        "exchange_codex_code_for_token",
+        "refresh_token_with_retry",
+        "ensure_valid_token",
+        "parse_jwt_claims",
+        "OPENAI_AUTH_URL",
+        "OPENAI_TOKEN_URL",
+        "OPENAI_CLIENT_ID",
+        "access_token",
+        "refresh_token",
+        "id_token"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/providers/src/providers/codex.rs"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-oauth-token-traits",
+      "classification": "dead-candidate",
+      "description": "旧 OAuth CredentialProvider / TokenManager 抽象已随凭证池退役，不允许重新作为 provider runtime 主链导出",
+      "patterns": [
+        "pub mod traits;",
+        "CredentialProvider",
+        "TokenManager",
+        "ProviderResult",
+        "refresh_token_with_retry",
+        "ensure_valid_token"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/providers/src/providers"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-kiro-usage-service",
+      "classification": "dead-candidate",
+      "description": "旧 Kiro / AWS Q 用量查询服务已随凭证池退役",
+      "patterns": [
+        "pub mod usage_service;",
+        "USAGE_LIMITS_URL",
+        "get_usage_limits(",
+        "get_usage_limits_safe("
+      ],
+      "includePathPrefixes": ["src-tauri/crates/services/src"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-kiro-fingerprint-model",
+      "classification": "dead-candidate",
+      "description": "旧 Kiro 凭证指纹绑定模型已随凭证池退役",
+      "patterns": [
+        "pub mod kiro_fingerprint;",
+        "KiroFingerprintBinding",
+        "KiroFingerprintStore",
+        "kiro_fingerprints.json"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/core/src/models"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-provider-pool-dao",
+      "classification": "dead-candidate",
+      "description": "旧 provider_pool DAO 已退出运行时；provider_pool_credentials 只允许停留在 schema / 启动清理 / 历史迁移边界",
+      "patterns": [
+        "pub mod provider_pool;",
+        "ProviderPoolDao",
+        "get_grouped(conn:",
+        "provider_pool_credentials"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/core/src/database/dao"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-cw-converters",
+      "classification": "dead-candidate",
+      "description": "旧 CodeWhisperer / Kiro 转换模块和模型已删除；Antigravity 只保留 openai_to_antigravity 协议转换",
+      "patterns": [
+        "pub mod cw_to_openai;",
+        "pub mod openai_to_cw;",
+        "pub mod protocol_selector;",
+        "pub mod codewhisperer;",
+        "cw_to_openai",
+        "openai_to_cw",
+        "protocol_selector",
+        "CodeWhispererRequest",
+        "CodeWhispererResponse"
+      ],
+      "includePathPrefixes": [
+        "src-tauri/crates/providers/src/converter",
+        "src-tauri/crates/core/src/models"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-kiro-translator",
+      "classification": "dead-candidate",
+      "description": "旧 Kiro translator 已随凭证池退役，不允许重新加入 translator 编译图",
+      "patterns": [
+        "pub mod kiro;",
+        "translator::kiro",
+        "kiro::anthropic",
+        "kiro::openai"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/providers/src/translator"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-kiro-stream-pipeline-api",
+      "classification": "dead-candidate",
+      "description": "旧 Kiro 命名流式管道 API 已退役；如需保留格式转换只能暴露通用 AWS Event Stream 语义",
+      "patterns": [
+        "BackendType::Kiro",
+        "Kiro,",
+        "kiro_to_anthropic",
+        "kiro_to_openai"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/providers/src/stream/pipeline.rs"],
       "allowedPaths": []
     },
     {

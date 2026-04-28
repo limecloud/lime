@@ -126,7 +126,6 @@ const bridgeTruthCommands = new Set<string>([
   "wechat_channel_list_accounts",
   "get_default_provider",
   "get_provider_ui_state",
-  "get_provider_pool_overview",
   "get_api_key_providers",
   "get_model_registry",
   "get_model_registry_provider_ids",

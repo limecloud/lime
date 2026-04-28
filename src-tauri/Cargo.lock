@@ -166,16 +166,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
-name = "aead"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d122413f284cf2d62fb1b7db97e02edb8cda96d769b16e443a4f6195e35662b0"
-dependencies = [
- "crypto-common",
- "generic-array",
-]
-
-[[package]]
 name = "aes"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1863,30 +1853,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
-name = "chacha20"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818"
-dependencies = [
- "cfg-if",
- "cipher",
- "cpufeatures",
-]
-
-[[package]]
-name = "chacha20poly1305"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35"
-dependencies = [
- "aead",
- "chacha20",
- "cipher",
- "poly1305",
- "zeroize",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1918,7 +1884,6 @@ checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
 dependencies = [
  "crypto-common",
  "inout",
- "zeroize",
 ]
 
 [[package]]
@@ -2403,7 +2368,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
 dependencies = [
  "generic-array",
- "rand_core 0.6.4",
  "typenum",
 ]
 
@@ -5101,7 +5065,7 @@ dependencies = [
 
 [[package]]
 name = "lime"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -5132,7 +5096,6 @@ dependencies = [
  "lime-browser-runtime",
  "lime-config",
  "lime-core",
- "lime-credential",
  "lime-embedding",
  "lime-gateway",
  "lime-infra",
@@ -5205,7 +5168,7 @@ dependencies = [
 
 [[package]]
 name = "lime-agent"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "anyhow",
  "aster-core",
@@ -5234,7 +5197,7 @@ dependencies = [
 
 [[package]]
 name = "lime-browser-runtime"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "chrono",
  "futures",
@@ -5251,7 +5214,7 @@ dependencies = [
 
 [[package]]
 name = "lime-cli"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "clap",
  "lime-core",
@@ -5263,7 +5226,7 @@ dependencies = [
 
 [[package]]
 name = "lime-config"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -5279,7 +5242,7 @@ dependencies = [
 
 [[package]]
 name = "lime-core"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "aster-models",
  "async-trait",
@@ -5318,28 +5281,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lime-credential"
-version = "1.21.0"
-dependencies = [
- "axum 0.7.9",
- "base64 0.22.1",
- "chacha20poly1305",
- "chrono",
- "dashmap 5.5.3",
- "lime-core",
- "lime-infra",
- "proptest",
- "rand 0.8.5",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "lime-embedding"
 version = "0.1.0"
 dependencies = [
@@ -5354,7 +5295,7 @@ dependencies = [
 
 [[package]]
 name = "lime-gateway"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "aes",
  "axum 0.7.9",
@@ -5384,7 +5325,7 @@ dependencies = [
 
 [[package]]
 name = "lime-infra"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "chrono",
  "dashmap 5.5.3",
@@ -5404,7 +5345,7 @@ dependencies = [
 
 [[package]]
 name = "lime-mcp"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "async-trait",
  "dirs 5.0.1",
@@ -5420,7 +5361,7 @@ dependencies = [
 
 [[package]]
 name = "lime-media-runtime"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "axum 0.7.9",
  "chrono",
@@ -5451,7 +5392,7 @@ dependencies = [
 
 [[package]]
 name = "lime-processor"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -5470,7 +5411,7 @@ dependencies = [
 
 [[package]]
 name = "lime-providers"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5525,7 +5466,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "aster-core",
  "async-stream",
@@ -5540,7 +5481,6 @@ dependencies = [
  "lime-agent",
  "lime-config",
  "lime-core",
- "lime-credential",
  "lime-infra",
  "lime-processor",
  "lime-providers",
@@ -5570,7 +5510,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server-utils"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "axum 0.7.9",
  "futures",
@@ -5585,7 +5525,7 @@ dependencies = [
 
 [[package]]
 name = "lime-services"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "anyhow",
  "aster-core",
@@ -5628,7 +5568,7 @@ dependencies = [
 
 [[package]]
 name = "lime-skills"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "async-trait",
  "dirs 5.0.1",
@@ -5646,7 +5586,7 @@ dependencies = [
 
 [[package]]
 name = "lime-websocket"
-version = "1.21.0"
+version = "1.22.0"
 dependencies = [
  "axum 0.7.9",
  "chrono",
@@ -6716,12 +6656,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
-name = "opaque-debug"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
-
-[[package]]
 name = "open"
 version = "5.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7397,17 +7331,6 @@ dependencies = [
  "pin-project-lite",
  "rustix 1.1.3",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "poly1305"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf"
-dependencies = [
- "cpufeatures",
- "opaque-debug",
- "universal-hash",
 ]
 
 [[package]]
@@ -11015,16 +10938,6 @@ name = "unicode_categories"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39ec24b3121d976906ece63c9daad25b85969647682eee313cb5779fdd69e14e"
-
-[[package]]
-name = "universal-hash"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
-dependencies = [
- "crypto-common",
- "subtle",
-]
 
 [[package]]
 name = "unsafe-libyaml"

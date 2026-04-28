@@ -12,7 +12,7 @@ cask "lime" do
   end
 
   name "Lime"
-  desc "AI 代理服务桌面应用 - 多 Provider 凭证池管理"
+  desc "AI 代理服务桌面应用 - 多 Provider API Key 管理"
   homepage "https://github.com/aiclientproxy/lime"
 
   livecheck do

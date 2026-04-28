@@ -10,7 +10,6 @@ import {
   normalizeFetchProviderModelsSource,
   type FetchProviderModelsResult,
 } from "@/lib/api/modelRegistry";
-import { providerPoolApi } from "@/lib/api/providerPool";
 import { useModelRegistry } from "./useModelRegistry";
 import { useAliasConfig } from "./useAliasConfig";
 import {
@@ -18,7 +17,6 @@ import {
   isAliasProvider,
 } from "@/lib/constants/providerMappings";
 import {
-  buildProviderModelsFromBackendModelIds,
   buildProviderModelsFromRegistry,
 } from "@/lib/model/providerModelsCatalog";
 import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
@@ -96,32 +94,6 @@ async function fetchProviderModelsFromApi(
   return [];
 }
 
-async function fetchProviderModelsFromProviderPool(
-  selectedProvider: ConfiguredProvider,
-  registryModels: EnhancedModelMetadata[],
-): Promise<EnhancedModelMetadata[]> {
-  if (selectedProvider.providerId) {
-    return [];
-  }
-
-  try {
-    const modelsByProvider = await providerPoolApi.getAllModelsByProvider();
-    const providerModelIds = modelsByProvider[selectedProvider.type] ?? [];
-
-    if (!Array.isArray(providerModelIds) || providerModelIds.length === 0) {
-      return [];
-    }
-
-    return buildProviderModelsFromBackendModelIds(
-      selectedProvider,
-      registryModels,
-      providerModelIds,
-    );
-  } catch {
-    return [];
-  }
-}
-
 export async function loadProviderModels(
   selectedProvider: ConfiguredProvider | undefined | null,
   options: LoadProviderModelsOptions = {},
@@ -161,16 +133,8 @@ export async function loadProviderModels(
     registryModels,
     aliasConfig,
   );
-  const providerPoolModels = await fetchProviderModelsFromProviderPool(
-    selectedProvider,
-    registryModels,
-  );
   if (useLiveFetchTruthOnly) {
     return fetchProviderModelsFromApi(selectedProvider);
-  }
-
-  if (providerPoolModels.length > 0) {
-    return providerPoolModels;
   }
 
   if (localResult.hasLocalModels || localResult.models.length > 0) {
@@ -260,13 +224,6 @@ export function useProviderModels(
   const [apiModels, setApiModels] = useState<EnhancedModelMetadata[]>([]);
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [providerPoolModelIds, setProviderPoolModelIds] = useState<string[]>(
-    [],
-  );
-  const [providerPoolLoading, setProviderPoolLoading] = useState(false);
-  const [providerPoolError, setProviderPoolError] = useState<string | null>(
-    null,
-  );
 
   // 计算本地模型列表
   const localResult = useMemo(
@@ -285,78 +242,12 @@ export function useProviderModels(
         : null,
     [selectedProvider],
   );
-  const selectedProviderId = selectedProvider?.providerId;
-  const selectedProviderType = selectedProvider?.type;
   const useLiveFetchTruthOnly = Boolean(
     liveFetchOnly && autoFetchCapability?.supported,
   );
   const canReadLiveModels = Boolean(
     !useLiveFetchTruthOnly || !autoFetchCapability?.requiresApiKey || hasApiKey,
   );
-  const providerPoolModels = useMemo(
-    () =>
-      buildProviderModelsFromBackendModelIds(
-        selectedProvider,
-        registryModels,
-        providerPoolModelIds,
-      ),
-    [providerPoolModelIds, registryModels, selectedProvider],
-  );
-
-  useEffect(() => {
-    if (!selectedProviderType || selectedProviderId) {
-      setProviderPoolModelIds([]);
-      setProviderPoolLoading(false);
-      setProviderPoolError(null);
-      return;
-    }
-
-    if (!autoLoad) {
-      setProviderPoolModelIds([]);
-      setProviderPoolLoading(false);
-      setProviderPoolError(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadProviderPoolModels = async () => {
-      setProviderPoolLoading(true);
-      setProviderPoolError(null);
-
-      try {
-        const modelsByProvider = await providerPoolApi.getAllModelsByProvider();
-        if (cancelled) {
-          return;
-        }
-
-        const nextModelIds = modelsByProvider[selectedProviderType] ?? [];
-        setProviderPoolModelIds(
-          Array.isArray(nextModelIds) ? nextModelIds : [],
-        );
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        setProviderPoolError(
-          error instanceof Error ? error.message : String(error),
-        );
-        setProviderPoolModelIds([]);
-      } finally {
-        if (!cancelled) {
-          setProviderPoolLoading(false);
-        }
-      }
-    };
-
-    void loadProviderPoolModels();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [autoLoad, selectedProviderId, selectedProviderType]);
-
   // 当本地没有模型时，从 API 获取
   useEffect(() => {
     if (!selectedProvider) {
@@ -442,13 +333,6 @@ export function useProviderModels(
       };
     }
 
-    if (providerPoolModels.length > 0) {
-      return {
-        modelIds: providerPoolModels.map((model) => model.id),
-        models: returnFullMetadata ? providerPoolModels : [],
-      };
-    }
-
     // 如果有本地模型，使用本地模型
     if (localResult.hasLocalModels || localResult.models.length > 0) {
       return {
@@ -485,20 +369,13 @@ export function useProviderModels(
       modelIds: localResult.modelIds,
       models: returnFullMetadata ? localResult.models : [],
     };
-  }, [
-    apiModels,
-    localResult,
-    providerPoolModels,
-    returnFullMetadata,
-    useLiveFetchTruthOnly,
-  ]);
+  }, [apiModels, localResult, returnFullMetadata, useLiveFetchTruthOnly]);
 
   // 计算加载状态
-  const loading =
-    registryLoading || aliasLoading || apiLoading || providerPoolLoading;
+  const loading = registryLoading || aliasLoading || apiLoading;
 
   // 计算错误状态
-  const error = registryError || apiError || providerPoolError || null;
+  const error = registryError || apiError || null;
 
   return {
     ...finalResult,

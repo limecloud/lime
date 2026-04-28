@@ -22,8 +22,8 @@ pub struct TimeoutConfig {
 impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
-            request_timeout_ms: 120_000,    // 2 分钟
-            stream_idle_timeout_ms: 30_000, // 30 秒
+            request_timeout_ms: 120_000,     // 2 分钟
+            stream_idle_timeout_ms: 120_000, // 2 分钟，兼容推理模型长时间思考
         }
     }
 }
@@ -434,7 +434,7 @@ mod unit_tests {
     fn test_timeout_config_default() {
         let config = TimeoutConfig::default();
         assert_eq!(config.request_timeout_ms, 120_000);
-        assert_eq!(config.stream_idle_timeout_ms, 30_000);
+        assert_eq!(config.stream_idle_timeout_ms, 120_000);
         assert!(config.has_request_timeout());
         assert!(config.has_stream_idle_timeout());
     }

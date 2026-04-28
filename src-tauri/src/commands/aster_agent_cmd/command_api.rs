@@ -64,8 +64,7 @@ fn build_subagent_control_runtime(
 }
 
 pub(crate) use provider_api::{
-    aster_agent_configure_from_pool, aster_agent_configure_provider, aster_agent_init,
-    aster_agent_reset, aster_agent_status,
+    aster_agent_configure_provider, aster_agent_init, aster_agent_reset, aster_agent_status,
 };
 pub(crate) use runtime_api::{
     agent_runtime_compact_session, agent_runtime_diff_file_checkpoint,

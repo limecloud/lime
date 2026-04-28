@@ -16,7 +16,6 @@ const {
   mockLoadProviderModels,
   mockUseConfiguredProviders,
   mockUseProviderModels,
-  mockProviderPoolGetOverview,
   mockApiKeyProvidersGetProviders,
   mockEmitProviderDataChanged,
   mockWechatChannelSetRuntimeModel,
@@ -38,7 +37,6 @@ const {
   mockLoadProviderModels: vi.fn(),
   mockUseConfiguredProviders: vi.fn(),
   mockUseProviderModels: vi.fn(),
-  mockProviderPoolGetOverview: vi.fn(),
   mockApiKeyProvidersGetProviders: vi.fn(),
   mockEmitProviderDataChanged: vi.fn(),
   mockWechatChannelSetRuntimeModel: vi.fn(async () => undefined),
@@ -117,12 +115,6 @@ vi.mock("@/hooks/useConfiguredProviders", () => ({
 vi.mock("@/hooks/useProviderModels", () => ({
   loadProviderModels: mockLoadProviderModels,
   useProviderModels: mockUseProviderModels,
-}));
-
-vi.mock("@/lib/api/providerPool", () => ({
-  providerPoolApi: {
-    getOverview: mockProviderPoolGetOverview,
-  },
 }));
 
 vi.mock("@/lib/api/apiKeyProvider", () => ({
@@ -321,7 +313,6 @@ beforeEach(() => {
   mockCreateAgentRuntimeSession.mockResolvedValue("created-session");
   mockUpdateAgentRuntimeSession.mockResolvedValue(undefined);
   mockSafeListen.mockResolvedValue(() => {});
-  mockProviderPoolGetOverview.mockResolvedValue([]);
   mockApiKeyProvidersGetProviders.mockResolvedValue([]);
   mockEmitProviderDataChanged.mockImplementation(() => {});
   mockWechatChannelSetRuntimeModel.mockResolvedValue(undefined);

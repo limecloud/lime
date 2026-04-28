@@ -26,7 +26,7 @@ describe("Config Validation: Default Language Fallback", () => {
   it("should fallback to zh for invalid language", () => {
     const map = getTextMap("invalid" as Language);
     expect(map).toBeDefined();
-    expect(map["凭证池"]).toBe("凭证池"); // Chinese
+    expect(map["设置"]).toBe("设置"); // Chinese
   });
 
   it("should fallback to zh for null language", () => {

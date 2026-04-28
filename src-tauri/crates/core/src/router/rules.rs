@@ -92,9 +92,9 @@ mod tests {
 
     #[test]
     fn test_route_returns_default() {
-        let router = Router::new(ProviderType::Antigravity);
+        let router = Router::new(ProviderType::Gemini);
         let result = router.route("any-model");
-        assert_eq!(result.provider, Some(ProviderType::Antigravity));
+        assert_eq!(result.provider, Some(ProviderType::Gemini));
         assert!(result.is_default);
     }
 

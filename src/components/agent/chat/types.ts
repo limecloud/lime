@@ -394,14 +394,6 @@ export const PROVIDER_CONFIG: Record<
       "claude-haiku-4-5-20251001",
     ],
   },
-  kiro: {
-    label: "Kiro",
-    models: [
-      "claude-opus-4-5-20251101",
-      "claude-sonnet-4-5-20250929",
-      "claude-sonnet-4-20250514",
-    ],
-  },
   openai: {
     label: "OpenAI",
     models: [
@@ -434,27 +426,6 @@ export const PROVIDER_CONFIG: Record<
   codex: {
     label: "Codex",
     models: [], // 从后端别名配置动态加载
-  },
-  claude_oauth: {
-    label: "Claude OAuth",
-    models: [
-      "claude-opus-4-5-20251101",
-      "claude-sonnet-4-5-20250929",
-      "claude-sonnet-4-20250514",
-    ],
-  },
-  antigravity: {
-    label: "Antigravity",
-    models: [
-      "gemini-3-pro-preview",
-      "gemini-3-pro-image-preview",
-      "gemini-3-flash-preview",
-      "gemini-2.5-flash",
-      "gemini-2.5-computer-use-preview-10-2025",
-      "gemini-claude-sonnet-4-5",
-      "gemini-claude-sonnet-4-5-thinking",
-      "gemini-claude-opus-4-5-thinking",
-    ],
   },
   submodel: {
     label: "Submodel",

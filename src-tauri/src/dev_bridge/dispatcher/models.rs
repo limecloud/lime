@@ -1,4 +1,4 @@
-use super::{args_or_default, get_db, get_string_arg};
+use super::{args_or_default, get_string_arg};
 use crate::dev_bridge::DevBridgeState;
 use lime_server_utils::load_model_registry_provider_ids_from_resources;
 use lime_services::model_registry_service::ModelRegistryService;
@@ -67,24 +67,6 @@ pub(super) async fn try_handle(
         }
         "get_model_registry_provider_ids" => {
             serde_json::to_value(load_model_registry_provider_ids_from_resources()?)?
-        }
-        "get_all_models_by_provider" => {
-            let model_service = lime_services::model_service::ModelService::new();
-            serde_json::to_value(model_service.get_all_models_by_provider(get_db(state)?)?)?
-        }
-        "get_all_available_models" => {
-            let model_service = lime_services::model_service::ModelService::new();
-            serde_json::to_value(model_service.get_all_available_models(get_db(state)?)?)?
-        }
-        "get_default_models_for_provider" => {
-            let args = args_or_default(args);
-            let provider_type = get_string_arg(&args, "providerType", "provider_type")?;
-            let parsed_provider_type: crate::models::provider_pool_model::PoolProviderType =
-                provider_type.parse().map_err(|err: String| err)?;
-            let model_service = lime_services::model_service::ModelService::new();
-            serde_json::to_value(
-                model_service.get_default_models_for_provider(&parsed_provider_type),
-            )?
         }
         "fetch_provider_models_auto" => {
             let args = args_or_default(args);

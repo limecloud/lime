@@ -25,13 +25,7 @@ use lime_core::models::provider_pool_model::ProviderCredential;
 use lime_core::websocket::WsErrorCode;
 use lime_processor::RequestContext;
 use lime_providers::converter::anthropic_to_openai::convert_anthropic_to_openai;
-use lime_providers::converter::openai_to_antigravity::{
-    convert_antigravity_to_openai_response, convert_openai_to_antigravity_with_context,
-};
-use lime_providers::providers::{
-    AntigravityProvider, ClaudeCustomProvider, KiroProvider, OpenAICustomProvider, PromptCacheMode,
-};
-use lime_server_utils::parse_cw_response;
+use lime_providers::providers::{ClaudeCustomProvider, OpenAICustomProvider, PromptCacheMode};
 use lime_websocket::{
     WsApiRequest, WsApiResponse, WsEndpoint, WsError, WsMessage as WsProtoMessage,
 };
@@ -253,32 +247,6 @@ async fn handle_ws_message(
             "Invalid message type from client",
         ))),
         WsProtoMessage::Error(_) => None,
-        WsProtoMessage::SubscribeKiroEvents => {
-            // TODO: 实现Kiro事件订阅
-            Some(WsProtoMessage::Response(WsApiResponse {
-                request_id: "subscribe_kiro_events".to_string(),
-                payload: serde_json::json!({
-                    "status": "subscribed",
-                    "message": "Successfully subscribed to kiro events"
-                }),
-            }))
-        }
-        WsProtoMessage::UnsubscribeKiroEvents => {
-            // TODO: 实现Kiro事件取消订阅
-            Some(WsProtoMessage::Response(WsApiResponse {
-                request_id: "unsubscribe_kiro_events".to_string(),
-                payload: serde_json::json!({
-                    "status": "unsubscribed",
-                    "message": "Successfully unsubscribed from kiro events"
-                }),
-            }))
-        }
-        WsProtoMessage::KiroCredentialEvent(_) => {
-            // Kiro事件是服务端到客户端的消息，客户端不应该发送
-            Some(WsProtoMessage::Error(WsError::invalid_message(
-                "KiroCredentialEvent messages are server-to-client only",
-            )))
-        }
     }
 }
 
@@ -420,11 +388,12 @@ async fn handle_ws_chat_completions(
     // 获取默认 provider
     let default_provider = state.default_provider.read().await.clone();
 
-    // 尝试从凭证池中选择凭证（不降级，指定什么就用什么）
+    // 从 API Key Provider 主路径选择凭证。
     let credential = match &state.db {
         Some(db) => state
-            .pool_service
-            .select_credential(db, &default_provider, Some(&request.model))
+            .api_key_service
+            .select_credential_for_provider(db, &default_provider, Some(&default_provider), None)
+            .await
             .ok()
             .flatten(),
         None => None,
@@ -446,9 +415,7 @@ async fn handle_ws_chat_completions(
         build_ws_gateway_error(
             Some(request_id.to_string()),
             GatewayErrorCode::NoCredentials,
-            format!(
-                "No available credentials for provider '{default_provider}'. Please add credentials in the Provider Pool."
-            ),
+            format!("No available API Key Provider credentials for provider '{default_provider}'."),
         )
     }
 }
@@ -486,11 +453,12 @@ async fn handle_ws_anthropic_messages(
     // 获取默认 provider
     let default_provider = state.default_provider.read().await.clone();
 
-    // 尝试从凭证池中选择凭证（带智能降级）
+    // 从 API Key Provider 主路径选择凭证。
     let credential = match &state.db {
         Some(db) => state
-            .pool_service
-            .select_credential(db, &default_provider, Some(&request.model))
+            .api_key_service
+            .select_credential_for_provider(db, &default_provider, Some(&default_provider), None)
+            .await
             .ok()
             .flatten(),
         None => None,
@@ -510,9 +478,7 @@ async fn handle_ws_anthropic_messages(
         build_ws_gateway_error(
             Some(request_id.to_string()),
             GatewayErrorCode::NoCredentials,
-            format!(
-                "No available credentials for provider '{default_provider}'. Please add credentials in the Provider Pool."
-            ),
+            format!("No available API Key Provider credentials for provider '{default_provider}'."),
         )
     }
 }
@@ -526,106 +492,11 @@ pub async fn call_provider_openai_for_ws(
     use lime_core::models::provider_pool_model::CredentialData;
 
     match &credential.credential {
-        CredentialData::KiroOAuth { creds_file_path } => {
-            let mut kiro = KiroProvider::new();
-            if let Err(e) = kiro.load_credentials_from_path(creds_file_path).await {
-                if let Some(db) = &state.db {
-                    let _ = state.pool_service.mark_unhealthy(
-                        db,
-                        &credential.uuid,
-                        Some(&format!("Failed to load credentials: {e}")),
-                    );
-                }
-                return Err(e.to_string());
-            }
-            if let Err(e) = kiro.refresh_token().await {
-                if let Some(db) = &state.db {
-                    let _ = state.pool_service.mark_unhealthy(
-                        db,
-                        &credential.uuid,
-                        Some(&format!("Token refresh failed: {e}")),
-                    );
-                }
-                return Err(e.to_string());
-            }
-
-            let resp = match kiro.call_api(request).await {
-                Ok(r) => r,
-                Err(e) => {
-                    if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&e.to_string()),
-                        );
-                    }
-                    return Err(e.to_string());
-                }
-            };
-            if resp.status().is_success() {
-                let body = resp.text().await.map_err(|e| e.to_string())?;
-                let parsed = parse_cw_response(&body);
-                let has_tool_calls = !parsed.tool_calls.is_empty();
-
-                // 记录成功
-                if let Some(db) = &state.db {
-                    let _ =
-                        state
-                            .pool_service
-                            .mark_healthy(db, &credential.uuid, Some(&request.model));
-                    let _ = state.pool_service.record_usage(db, &credential.uuid);
-                }
-
-                let message = if has_tool_calls {
-                    serde_json::json!({
-                        "role": "assistant",
-                        "content": if parsed.content.is_empty() { serde_json::Value::Null } else { serde_json::json!(parsed.content) },
-                        "tool_calls": parsed.tool_calls.iter().map(|tc| {
-                            serde_json::json!({
-                                "id": tc.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments
-                                }
-                            })
-                        }).collect::<Vec<_>>()
-                    })
-                } else {
-                    serde_json::json!({
-                        "role": "assistant",
-                        "content": parsed.content
-                    })
-                };
-
-                Ok(serde_json::json!({
-                    "id": format!("chatcmpl-{}", uuid::Uuid::new_v4()),
-                    "object": "chat.completion",
-                    "created": std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    "model": request.model,
-                    "choices": [{
-                        "index": 0,
-                        "message": message,
-                        "finish_reason": if has_tool_calls { "tool_calls" } else { "stop" }
-                    }],
-                    "usage": {
-                        "prompt_tokens": 0,
-                        "completion_tokens": 0,
-                        "total_tokens": 0
-                    }
-                }))
-            } else {
-                let body = resp.text().await.unwrap_or_default();
-                if let Some(db) = &state.db {
-                    let _ = state
-                        .pool_service
-                        .mark_unhealthy(db, &credential.uuid, Some(&body));
-                }
-                Err(format!("Upstream error: {body}"))
-            }
+        CredentialData::KiroOAuth { .. }
+        | CredentialData::GeminiOAuth { .. }
+        | CredentialData::CodexOAuth { .. }
+        | CredentialData::ClaudeOAuth { .. } => {
+            Err("凭证池/OAuth/local CLI credential 已退役，请改用 API Key Provider。".to_string())
         }
         CredentialData::OpenAIKey { api_key, base_url } => {
             let provider = OpenAICustomProvider::with_config(api_key.clone(), base_url.clone());
@@ -633,7 +504,7 @@ pub async fn call_provider_openai_for_ws(
                 Ok(r) => r,
                 Err(e) => {
                     if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(
+                        let _ = state.mark_credential_unhealthy(
                             db,
                             &credential.uuid,
                             Some(&e.to_string()),
@@ -646,10 +517,8 @@ pub async fn call_provider_openai_for_ws(
                 // 记录成功
                 if let Some(db) = &state.db {
                     let _ =
-                        state
-                            .pool_service
-                            .mark_healthy(db, &credential.uuid, Some(&request.model));
-                    let _ = state.pool_service.record_usage(db, &credential.uuid);
+                        state.mark_credential_healthy(db, &credential.uuid, Some(&request.model));
+                    let _ = state.record_credential_usage(db, &credential.uuid);
                 }
                 resp.json::<serde_json::Value>()
                     .await
@@ -657,9 +526,7 @@ pub async fn call_provider_openai_for_ws(
             } else {
                 let body = resp.text().await.unwrap_or_default();
                 if let Some(db) = &state.db {
-                    let _ = state
-                        .pool_service
-                        .mark_unhealthy(db, &credential.uuid, Some(&body));
+                    let _ = state.mark_credential_unhealthy(db, &credential.uuid, Some(&body));
                 }
                 Err(format!("Upstream error: {body}"))
             }
@@ -690,18 +557,18 @@ pub async fn call_provider_openai_for_ws(
                 Ok(result) => {
                     // 记录成功
                     if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_healthy(
+                        let _ = state.mark_credential_healthy(
                             db,
                             &credential.uuid,
                             Some(&request.model),
                         );
-                        let _ = state.pool_service.record_usage(db, &credential.uuid);
+                        let _ = state.record_credential_usage(db, &credential.uuid);
                     }
                     Ok(result)
                 }
                 Err(e) => {
                     if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(
+                        let _ = state.mark_credential_unhealthy(
                             db,
                             &credential.uuid,
                             Some(&e.to_string()),
@@ -711,99 +578,8 @@ pub async fn call_provider_openai_for_ws(
                 }
             }
         }
-        CredentialData::AntigravityOAuth {
-            creds_file_path,
-            project_id,
-        } => {
-            let mut antigravity = AntigravityProvider::new();
-            if let Err(e) = antigravity
-                .load_credentials_from_path(creds_file_path)
-                .await
-            {
-                if let Some(db) = &state.db {
-                    let _ = state.pool_service.mark_unhealthy(
-                        db,
-                        &credential.uuid,
-                        Some(&format!("Failed to load credentials: {e}")),
-                    );
-                }
-                return Err(e.to_string());
-            }
-
-            // 使用新的 validate_token() 方法检查 Token 状态
-            let validation_result = antigravity.validate_token();
-            tracing::info!("[Antigravity WS] Token 验证结果: {:?}", validation_result);
-
-            // 根据验证结果决定是否刷新
-            if validation_result.needs_refresh() {
-                tracing::info!("[Antigravity WS] Token 需要刷新，开始刷新...");
-                match antigravity.refresh_token_with_retry(3).await {
-                    Ok(new_token) => {
-                        tracing::info!(
-                            "[Antigravity WS] Token 刷新成功，新 token 长度: {}",
-                            new_token.len()
-                        );
-                        // 刷新成功，标记为健康
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_healthy(db, &credential.uuid, None);
-                        }
-                    }
-                    Err(refresh_error) => {
-                        tracing::error!("[Antigravity WS] Token 刷新失败: {:?}", refresh_error);
-                        // 使用新的 mark_unhealthy_with_details 方法
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_unhealthy_with_details(
-                                db,
-                                &credential.uuid,
-                                &refresh_error,
-                            );
-                        }
-                        return Err(refresh_error.user_message());
-                    }
-                }
-            }
-
-            // 设置项目 ID
-            if let Some(pid) = project_id {
-                antigravity.project_id = Some(pid.clone());
-            }
-            let proj_id = antigravity.project_id.clone().unwrap_or_default();
-
-            let antigravity_request = convert_openai_to_antigravity_with_context(request, &proj_id);
-            match antigravity
-                .call_api("generateContent", &antigravity_request)
-                .await
-            {
-                Ok(resp) => {
-                    // 记录成功
-                    if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_healthy(
-                            db,
-                            &credential.uuid,
-                            Some(&request.model),
-                        );
-                        let _ = state.pool_service.record_usage(db, &credential.uuid);
-                    }
-                    Ok(convert_antigravity_to_openai_response(
-                        &resp,
-                        &request.model,
-                    ))
-                }
-                Err(e) => {
-                    if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&e.to_string()),
-                        );
-                    }
-                    Err(e.to_string())
-                }
-            }
-        }
-        // GeminiOAuth 和 QwenOAuth 暂不支持 WebSocket，需要使用 HTTP 端点
         _ => Err(
-            "This credential type is not yet supported via WebSocket. Please use HTTP endpoints."
+            "This credential type is not supported via WebSocket. Please use API Key Provider credentials."
                 .to_string(),
         ),
     }
@@ -844,7 +620,7 @@ pub async fn call_provider_anthropic_for_ws(
                 Ok(r) => r,
                 Err(e) => {
                     if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(
+                        let _ = state.mark_credential_unhealthy(
                             db,
                             &credential.uuid,
                             Some(&e.to_string()),
@@ -857,10 +633,8 @@ pub async fn call_provider_anthropic_for_ws(
                 // 记录成功
                 if let Some(db) = &state.db {
                     let _ =
-                        state
-                            .pool_service
-                            .mark_healthy(db, &credential.uuid, Some(&request.model));
-                    let _ = state.pool_service.record_usage(db, &credential.uuid);
+                        state.mark_credential_healthy(db, &credential.uuid, Some(&request.model));
+                    let _ = state.record_credential_usage(db, &credential.uuid);
                 }
                 resp.json::<serde_json::Value>()
                     .await
@@ -868,9 +642,7 @@ pub async fn call_provider_anthropic_for_ws(
             } else {
                 let body = resp.text().await.unwrap_or_default();
                 if let Some(db) = &state.db {
-                    let _ = state
-                        .pool_service
-                        .mark_unhealthy(db, &credential.uuid, Some(&body));
+                    let _ = state.mark_credential_unhealthy(db, &credential.uuid, Some(&body));
                 }
                 Err(format!("Upstream error: {body}"))
             }

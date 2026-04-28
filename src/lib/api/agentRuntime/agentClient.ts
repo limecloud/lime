@@ -81,9 +81,11 @@ export function createAgentClient({
 
   async function generateAgentRuntimeSessionTitle(
     sessionId: string,
+    previewText?: string,
   ): Promise<string> {
     return await generateAgentRuntimeTitle({
       sessionId,
+      previewText,
       titleKind: "session",
     });
   }

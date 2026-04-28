@@ -271,6 +271,26 @@ describe("MessageList", () => {
     expect(leadingContent?.textContent).toContain("scene summary heading");
     expect(messageColumn?.firstElementChild).toBe(leadingContent);
     expect(messageColumn?.textContent).toContain("第一条消息");
+    expect(messageColumn?.className).toContain("justify-start");
+  });
+
+  it("短对话首帧应贴近输入区底部，避免发送后消息短暂贴顶", () => {
+    const container = render([
+      {
+        id: "msg-user-first-frame",
+        role: "user",
+        content: "你好",
+        timestamp: new Date("2026-04-25T10:00:00.000Z"),
+      } as Message,
+    ]);
+
+    const messageColumn = container.querySelector(
+      '[data-testid="message-list-column"]',
+    );
+
+    expect(messageColumn?.textContent).toContain("你好");
+    expect(messageColumn?.className).toContain("min-h-full");
+    expect(messageColumn?.className).toContain("justify-end");
   });
 
   it("自动恢复生成会话时应展示恢复占位而不是空白引导", () => {
@@ -726,7 +746,47 @@ describe("MessageList", () => {
     expect(container.textContent).not.toContain("正在整理相关信息");
   });
 
-  it("首个文本分片到来前，不应渲染空白 assistant 气泡，只保留运行态行", () => {
+  it("assistant 已有正文且仍在发送时，不应在消息尾部追加处理中状态回复", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-user-active-status-tail",
+        role: "user",
+        content: "hello",
+        timestamp: now,
+      },
+      {
+        id: "msg-assistant-active-status-tail",
+        role: "assistant",
+        content: "我正在处理你的请求。",
+        timestamp: new Date(now.getTime() + 1000),
+        isThinking: true,
+        runtimeStatus: {
+          phase: "routing",
+          title: "处理中",
+          detail: "正在等待模型输出。",
+          checkpoints: ["请求已发送"],
+        },
+      },
+    ];
+
+    const container = render(messages, {
+      isSending: true,
+    });
+
+    expect(
+      container.querySelector('[data-testid="streaming-renderer"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("我正在处理你的请求。");
+    expect(
+      container.querySelector('[data-testid="assistant-message-meta-footer"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
+    ).toBeNull();
+  });
+
+  it("首个文本分片到来前，不应把运行态当作 assistant 回复渲染", () => {
     const now = new Date();
     const messages: Message[] = [
       {
@@ -753,11 +813,11 @@ describe("MessageList", () => {
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="assistant-message-meta-footer"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("处理中");
+    ).toBeNull();
+    expect(container.textContent).not.toContain("处理中");
     expect(container.textContent).not.toContain("<empty-assistant>");
   });
 
@@ -794,15 +854,15 @@ describe("MessageList", () => {
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="assistant-message-meta-footer"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("处理中");
+    ).toBeNull();
+    expect(container.textContent).not.toContain("处理中");
     expect(container.textContent).not.toContain("Built-in Tool");
   });
 
-  it("assistant 占位消息只有启动态 runtimeStatus 时，也不应保留空白气泡", () => {
+  it("assistant 占位消息只有启动态 runtimeStatus 时，也不应保留状态回复", () => {
     const now = new Date();
     const messages: Message[] = [
       {
@@ -840,11 +900,11 @@ describe("MessageList", () => {
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="assistant-message-meta-footer"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("处理中");
+    ).toBeNull();
+    expect(container.textContent).not.toContain("处理中");
     expect(container.textContent).not.toContain("正在启动处理流程");
   });
 
@@ -2563,10 +2623,10 @@ describe("MessageList", () => {
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="assistant-message-meta-footer"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it("本地工具批次的阶段结论不应再进入主消息流时间线", () => {
@@ -3385,7 +3445,7 @@ describe("MessageList", () => {
     ).toBeTruthy();
     expect(
       container.querySelector('[data-testid="assistant-message-meta-footer"]'),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="agent-thread-reliability-panel"]'),
     ).toBeNull();

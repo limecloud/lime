@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d1c5121cbf2443b7b1b0aa0c62b5a79e69056478a04b9451979d3e7d94845c65 # shrinks to provider = "antigravity"

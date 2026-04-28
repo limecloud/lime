@@ -18,29 +18,14 @@ use lime_core::config::{
     Config, ConfigChangeKind, ConfigManager, EndpointProvidersConfig, FileChangeEvent, FileWatcher,
     HotReloadManager, ReloadResult,
 };
-use lime_core::database::dao::provider_pool::ProviderPoolDao;
 use lime_core::database::DbConnection;
 use lime_core::logger::LogStore;
 use lime_core::models::anthropic::*;
-use lime_core::models::openai::*;
-use lime_core::models::provider_pool_model::CredentialData;
-use lime_credential::CredentialSyncService;
 use lime_infra::injection::Injector;
 use lime_processor::{RequestContext, RequestProcessor};
-use lime_providers::converter::anthropic_to_openai::convert_anthropic_to_openai;
-use lime_providers::providers::antigravity::AntigravityProvider;
 use lime_providers::providers::claude_custom::ClaudeCustomProvider;
-use lime_providers::providers::gemini::GeminiProvider;
-use lime_providers::providers::kiro::KiroProvider;
 use lime_providers::providers::openai_custom::OpenAICustomProvider;
-use lime_server_utils::{
-    build_anthropic_response, build_anthropic_stream_response, build_error_response,
-    build_error_response_with_status, build_gemini_cli_request, build_gemini_native_request,
-    models, parse_cw_response,
-};
-use lime_services::kiro_event_service::KiroEventService;
-use lime_services::provider_pool_service::ProviderPoolService;
-use lime_services::token_cache_service::TokenCacheService;
+use lime_server_utils::models;
 use lime_websocket::{WsConfig, WsConnectionManager, WsStats};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -285,8 +270,6 @@ pub struct ServerState {
     pub running: bool,
     pub requests: u64,
     pub start_time: Option<std::time::Instant>,
-    pub kiro_provider: KiroProvider,
-    pub gemini_provider: GeminiProvider,
     pub openai_custom_provider: OpenAICustomProvider,
     pub claude_custom_provider: ClaudeCustomProvider,
     pub default_provider_ref: Arc<RwLock<String>>,
@@ -308,8 +291,6 @@ pub struct ServerState {
 
 impl ServerState {
     pub fn new(config: Config) -> Self {
-        let kiro = KiroProvider::new();
-        let gemini = GeminiProvider::new();
         let openai_custom = OpenAICustomProvider::new();
         let claude_custom = ClaudeCustomProvider::new();
         let default_provider_ref = Arc::new(RwLock::new(config.default_provider.clone()));
@@ -334,8 +315,6 @@ impl ServerState {
             running: false,
             requests: 0,
             start_time: None,
-            kiro_provider: kiro,
-            gemini_provider: gemini,
             openai_custom_provider: openai_custom,
             claude_custom_provider: claude_custom,
             default_provider_ref,
@@ -390,12 +369,9 @@ impl ServerState {
     pub async fn start(
         &mut self,
         logs: Arc<RwLock<LogStore>>,
-        pool_service: Arc<ProviderPoolService>,
-        token_cache: Arc<TokenCacheService>,
         db: Option<DbConnection>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.start_with_telemetry(logs, pool_service, token_cache, db, None, None, None)
-            .await
+        self.start_with_telemetry(logs, db, None, None, None).await
     }
 
     /// 启动服务器（使用共享的遥测实例）
@@ -405,8 +381,6 @@ impl ServerState {
     pub async fn start_with_telemetry(
         &mut self,
         logs: Arc<RwLock<LogStore>>,
-        pool_service: Arc<ProviderPoolService>,
-        token_cache: Arc<TokenCacheService>,
         db: Option<DbConnection>,
         shared_stats: Option<Arc<parking_lot::RwLock<lime_infra::telemetry::StatsAggregator>>>,
         shared_tokens: Option<Arc<parking_lot::RwLock<lime_infra::telemetry::TokenTracker>>>,
@@ -414,8 +388,6 @@ impl ServerState {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.start_with_telemetry_and_flow_monitor(
             logs,
-            pool_service,
-            token_cache,
             db,
             shared_stats,
             shared_tokens,
@@ -431,8 +403,6 @@ impl ServerState {
     pub async fn start_with_telemetry_and_flow_monitor(
         &mut self,
         logs: Arc<RwLock<LogStore>>,
-        pool_service: Arc<ProviderPoolService>,
-        token_cache: Arc<TokenCacheService>,
         db: Option<DbConnection>,
         shared_stats: Option<Arc<parking_lot::RwLock<lime_infra::telemetry::StatsAggregator>>>,
         shared_tokens: Option<Arc<parking_lot::RwLock<lime_infra::telemetry::TokenTracker>>>,
@@ -464,10 +434,6 @@ impl ServerState {
         let api_key = self.config.server.api_key.clone();
         let default_provider_ref = self.default_provider_ref.clone();
 
-        // 重新加载凭证
-        let _ = self.kiro_provider.load_credentials().await;
-        let kiro = self.kiro_provider.clone();
-
         // 创建参数注入器
         let injection_enabled = self.config.injection.enabled;
         let injector = Injector::with_rules(
@@ -486,11 +452,10 @@ impl ServerState {
         // 创建请求处理器（在 spawn 之前创建，以便保存 router_ref）
         let processor = match (&shared_stats, &shared_tokens) {
             (Some(stats), Some(tokens)) => Arc::new(RequestProcessor::with_shared_telemetry(
-                pool_service.clone(),
                 stats.clone(),
                 tokens.clone(),
             )),
-            _ => Arc::new(RequestProcessor::with_defaults(pool_service.clone())),
+            _ => Arc::new(RequestProcessor::with_defaults()),
         };
 
         // 从配置初始化 Router 的默认 Provider
@@ -556,11 +521,8 @@ impl ServerState {
                 port,
                 &api_key,
                 default_provider_ref,
-                kiro,
                 logs,
                 rx,
-                pool_service,
-                token_cache,
                 db,
                 injector,
                 injection_enabled,
@@ -608,12 +570,7 @@ pub struct AppState {
     pub api_key: String,
     pub base_url: String,
     pub default_provider: Arc<RwLock<String>>,
-    pub kiro: Arc<RwLock<KiroProvider>>,
     pub logs: Arc<RwLock<LogStore>>,
-    pub kiro_refresh_lock: Arc<tokio::sync::Mutex<()>>,
-    pub gemini_refresh_lock: Arc<tokio::sync::Mutex<()>>,
-    pub pool_service: Arc<ProviderPoolService>,
-    pub token_cache: Arc<TokenCacheService>,
     pub db: Option<DbConnection>,
     /// 参数注入器
     pub injector: Arc<RwLock<Injector>>,
@@ -638,8 +595,6 @@ pub struct AppState {
     /// Provider 维度模型配置（用于能力感知回退）
     pub provider_models:
         Arc<std::collections::HashMap<String, lime_core::config::ProviderModelsConfig>>,
-    /// Kiro 事件服务
-    pub kiro_event_service: Arc<KiroEventService>,
     /// API Key Provider 服务（用于智能降级）
     pub api_key_service: Arc<lime_services::api_key_provider_service::ApiKeyProviderService>,
     /// 速率限制器
@@ -655,6 +610,42 @@ pub struct AppState {
         Arc<middleware::capability_routing_metrics::CapabilityRoutingMetricsStore>,
     /// 凭证清理器
     pub sanitizer: Arc<lime_core::sanitizer::CredentialSanitizer>,
+}
+
+impl AppState {
+    fn fallback_api_key_id<'a>(&self, uuid: &'a str) -> Option<&'a str> {
+        uuid.strip_prefix("fallback-")
+            .filter(|value| !value.is_empty())
+    }
+
+    pub fn record_credential_usage(&self, db: &DbConnection, uuid: &str) -> Result<(), String> {
+        if let Some(api_key_id) = self.fallback_api_key_id(uuid) {
+            return self.api_key_service.record_usage(db, api_key_id);
+        }
+
+        tracing::debug!("[SERVER] 忽略已退役的凭证池使用记录: {}", uuid);
+        Ok(())
+    }
+
+    pub fn mark_credential_healthy(
+        &self,
+        _db: &DbConnection,
+        uuid: &str,
+        _model: Option<&str>,
+    ) -> Result<(), String> {
+        tracing::debug!("[SERVER] 忽略凭证健康写回: {}", uuid);
+        Ok(())
+    }
+
+    pub fn mark_credential_unhealthy(
+        &self,
+        _db: &DbConnection,
+        uuid: &str,
+        _error: Option<&str>,
+    ) -> Result<(), String> {
+        tracing::debug!("[SERVER] 忽略凭证失败写回: {}", uuid);
+        Ok(())
+    }
 }
 
 /// 启动配置文件监控
@@ -730,32 +721,7 @@ async fn start_config_watcher(
                         let new_config = manager.config();
                         update_processor_config(&processor_clone, &new_config).await;
 
-                        // 同步凭证池
-                        if let (Some(ref db), Some(ref cfg_manager)) =
-                            (&db_clone, &config_manager_clone)
-                        {
-                            match sync_credential_pool_from_config(db, cfg_manager, &logs_clone)
-                                .await
-                            {
-                                Ok(count) => {
-                                    tracing::info!(
-                                        "[HOT_RELOAD] 凭证池同步完成，共 {} 个凭证",
-                                        count
-                                    );
-                                    logs_clone.write().await.add(
-                                        "info",
-                                        &format!("[HOT_RELOAD] 凭证池同步完成，共 {count} 个凭证"),
-                                    );
-                                }
-                                Err(e) => {
-                                    tracing::warn!("[HOT_RELOAD] 凭证池同步失败: {}", e);
-                                    logs_clone
-                                        .write()
-                                        .await
-                                        .add("warn", &format!("[HOT_RELOAD] 凭证池同步失败: {e}"));
-                                }
-                            }
-                        }
+                        let _ = (&db_clone, &config_manager_clone);
                     }
                     ReloadResult::RolledBack { error, .. } => {
                         tracing::warn!("[HOT_RELOAD] 配置热重载失败，已回滚: {}", error);
@@ -866,58 +832,6 @@ async fn update_processor_config(processor: &RequestProcessor, config: &Config) 
     tracing::info!("[HOT_RELOAD] 处理器配置更新完成");
 }
 
-/// 从配置同步凭证池
-///
-/// 当配置热重载成功后，从 YAML 配置中加载凭证并同步到数据库。
-///
-/// # 同步策略
-///
-/// - 从配置中加载所有凭证
-/// - 对于配置中存在但数据库中不存在的凭证，添加到数据库
-/// - 对于配置中存在且数据库中也存在的凭证，更新数据库中的记录
-/// - 对于数据库中存在但配置中不存在的凭证，保留（不删除，避免丢失运行时状态）
-async fn sync_credential_pool_from_config(
-    db: &DbConnection,
-    config_manager: &Arc<std::sync::RwLock<ConfigManager>>,
-    _logs: &Arc<RwLock<LogStore>>,
-) -> Result<usize, String> {
-    // 创建凭证同步服务
-    let sync_service = CredentialSyncService::new(config_manager.clone());
-
-    // 从配置加载凭证
-    let credentials = sync_service.load_from_config().map_err(|e| e.to_string())?;
-
-    let conn = lime_core::database::lock_db(db)?;
-    let mut synced_count = 0;
-
-    for cred in &credentials {
-        // 检查凭证是否已存在
-        let existing =
-            ProviderPoolDao::get_by_uuid(&conn, &cred.uuid).map_err(|e| e.to_string())?;
-
-        if existing.is_some() {
-            // 更新现有凭证
-            ProviderPoolDao::update(&conn, cred).map_err(|e| e.to_string())?;
-            tracing::debug!(
-                "[HOT_RELOAD] 更新凭证: {} ({})",
-                cred.uuid,
-                cred.provider_type
-            );
-        } else {
-            // 添加新凭证
-            ProviderPoolDao::insert(&conn, cred).map_err(|e| e.to_string())?;
-            tracing::debug!(
-                "[HOT_RELOAD] 添加凭证: {} ({})",
-                cred.uuid,
-                cred.provider_type
-            );
-        }
-        synced_count += 1;
-    }
-
-    Ok(synced_count)
-}
-
 /// 开发桥接启动回调类型
 pub type DevBridgeCallback = Box<dyn FnOnce(AppState) + Send + 'static>;
 
@@ -926,11 +840,8 @@ async fn run_server(
     port: u16,
     api_key: &str,
     default_provider: Arc<RwLock<String>>,
-    kiro: KiroProvider,
     logs: Arc<RwLock<LogStore>>,
     shutdown: oneshot::Receiver<()>,
-    pool_service: Arc<ProviderPoolService>,
-    token_cache: Arc<TokenCacheService>,
     db: Option<DbConnection>,
     injector: Injector,
     injection_enabled: bool,
@@ -955,11 +866,10 @@ async fn run_server(
         Some(p) => p,
         None => match (&shared_stats, &shared_tokens) {
             (Some(stats), Some(tokens)) => Arc::new(RequestProcessor::with_shared_telemetry(
-                pool_service.clone(),
                 stats.clone(),
                 tokens.clone(),
             )),
-            _ => Arc::new(RequestProcessor::with_defaults(pool_service.clone())),
+            _ => Arc::new(RequestProcessor::with_defaults()),
         },
     };
 
@@ -1043,9 +953,6 @@ async fn run_server(
             .unwrap_or_default(),
     );
 
-    // 创建 Kiro 事件服务
-    let kiro_event_service = Arc::new(KiroEventService::new());
-
     // 创建 API Key Provider 服务
     let api_key_service =
         Arc::new(lime_services::api_key_provider_service::ApiKeyProviderService::new());
@@ -1059,12 +966,7 @@ async fn run_server(
         api_key: api_key.to_string(),
         base_url,
         default_provider,
-        kiro: Arc::new(RwLock::new(kiro)),
         logs,
-        kiro_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
-        gemini_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
-        pool_service,
-        token_cache,
         db,
         injector: Arc::new(RwLock::new(injector)),
         injection_enabled: Arc::new(RwLock::new(injection_enabled)),
@@ -1077,7 +979,6 @@ async fn run_server(
         amp_router,
         endpoint_providers,
         provider_models,
-        kiro_event_service,
         api_key_service,
         rate_limiter: Some(Arc::new(
             middleware::rate_limit::SlidingWindowRateLimiter::new(
@@ -1113,25 +1014,6 @@ async fn run_server(
 
     // 设置请求体大小限制为 100MB，支持大型上下文请求（如 Claude Code 的 /compact 命令）
     let body_limit = 100 * 1024 * 1024; // 100MB
-
-    // Kiro凭证管理API路由
-    let kiro_api_routes = Router::new()
-        .route(
-            "/api/kiro/credentials/available",
-            get(handlers::get_available_credentials),
-        )
-        .route(
-            "/api/kiro/credentials/select",
-            post(handlers::select_credential),
-        )
-        .route(
-            "/api/kiro/credentials/{uuid}/refresh",
-            axum::routing::put(handlers::refresh_credential),
-        )
-        .route(
-            "/api/kiro/credentials/{uuid}/status",
-            get(handlers::get_credential_status),
-        );
 
     // 凭证 API 路由（用于 aster Agent 集成）
     let credentials_api_routes = Router::new()
@@ -1204,8 +1086,6 @@ async fn run_server(
             "/lime-chrome-control/:lime_key",
             get(handlers::chrome_control_ws_upgrade),
         )
-        // Kiro凭证管理API路由
-        .merge(kiro_api_routes)
         // 凭证 API 路由（用于 aster Agent 集成）
         .merge(credentials_api_routes)
         .layer(cors_layer)
@@ -1398,501 +1278,15 @@ async fn gemini_generate_content(
             .into_response();
     }
 
-    let is_stream = method == "streamGenerateContent";
+    let _ = request;
 
-    // 获取默认 provider
-    let default_provider = state.default_provider.read().await.clone();
-
-    // 尝试从凭证池中选择凭证（不降级，指定什么就用什么）
-    let credential = match &state.db {
-        Some(db) => state
-            .pool_service
-            .select_credential(db, &default_provider, Some(model))
-            .ok()
-            .flatten(),
-        None => None,
-    };
-
-    let cred = match credential {
-        Some(c) => c,
-        None => {
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(serde_json::json!({
-                    "error": {
-                        "message": format!("No available credentials for provider '{}'. Please add credentials in the Provider Pool.", default_provider)
-                    }
-                })),
-            )
-                .into_response();
-        }
-    };
-
-    state.logs.write().await.add(
-        "info",
-        &format!(
-            "[GEMINI] 使用凭证: type={} name={:?} uuid={}",
-            cred.provider_type,
-            cred.name,
-            &cred.uuid[..8]
-        ),
-    );
-
-    // 调用 Antigravity Provider
-    match &cred.credential {
-        CredentialData::AntigravityOAuth {
-            creds_file_path,
-            project_id,
-        } => {
-            let mut antigravity = AntigravityProvider::new();
-            if let Err(e) = antigravity
-                .load_credentials_from_path(creds_file_path)
-                .await
-            {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({
-                        "error": {
-                            "message": format!("加载 Antigravity 凭证失败: {}", e)
-                        }
-                    })),
-                )
-                    .into_response();
+    (
+        StatusCode::GONE,
+        Json(serde_json::json!({
+            "error": {
+                "message": "Gemini CLI OAuth 原生端点已退役。请通过 API Key Provider 使用 /v1/chat/completions 或 /v1/messages。"
             }
-
-            // 使用新的 validate_token() 方法检查 Token 状态
-            let validation_result = antigravity.validate_token();
-            tracing::info!(
-                "[Antigravity Gemini] Token 验证结果: {:?}",
-                validation_result
-            );
-
-            // 根据验证结果决定是否刷新
-            if validation_result.needs_refresh() {
-                tracing::info!("[Antigravity Gemini] Token 需要刷新，开始刷新...");
-                match antigravity.refresh_token_with_retry(3).await {
-                    Ok(new_token) => {
-                        tracing::info!(
-                            "[Antigravity Gemini] Token 刷新成功，新 token 长度: {}",
-                            new_token.len()
-                        );
-                    }
-                    Err(refresh_error) => {
-                        tracing::error!("[Antigravity Gemini] Token 刷新失败: {:?}", refresh_error);
-
-                        // 根据错误类型返回不同的状态码和消息
-                        let (status, message) = if refresh_error.requires_reauth() {
-                            (StatusCode::UNAUTHORIZED, refresh_error.user_message())
-                        } else {
-                            (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                refresh_error.user_message(),
-                            )
-                        };
-
-                        return (
-                            status,
-                            Json(serde_json::json!({
-                                "error": {
-                                    "message": message
-                                }
-                            })),
-                        )
-                            .into_response();
-                    }
-                }
-            }
-
-            // 设置项目 ID
-            if let Some(pid) = project_id {
-                antigravity.project_id = Some(pid.clone());
-            } else if antigravity.project_id.is_none() {
-                // 如果凭证中没有 project_id，尝试从 API 获取或生成随机 ID
-                if let Err(e) = antigravity.discover_project().await {
-                    tracing::warn!("[Antigravity] 获取项目 ID 失败: {}，使用随机生成的 ID", e);
-                    // 生成随机项目 ID
-                    let uuid = uuid::Uuid::new_v4();
-                    let bytes = uuid.as_bytes();
-                    let adjectives = ["useful", "bright", "swift", "calm", "bold"];
-                    let nouns = ["fuze", "wave", "spark", "flow", "core"];
-                    let adj = adjectives[(bytes[0] as usize) % adjectives.len()];
-                    let noun = nouns[(bytes[1] as usize) % nouns.len()];
-                    let random_part: String = uuid.to_string()[..5].to_lowercase();
-                    antigravity.project_id = Some(format!("{adj}-{noun}-{random_part}"));
-                }
-            }
-
-            let proj_id = antigravity.project_id.clone().unwrap_or_else(|| {
-                // 最后的后备：生成随机 ID
-                let uuid = uuid::Uuid::new_v4();
-                format!("lime-{}", &uuid.to_string()[..8])
-            });
-
-            state
-                .logs
-                .write()
-                .await
-                .add("debug", &format!("[GEMINI] 使用 project_id: {proj_id}"));
-
-            // 构建 Antigravity 请求体
-            // 直接使用用户传入的 Gemini 格式请求，只添加必要的字段
-            let antigravity_request = build_gemini_native_request(&request, model, &proj_id);
-
-            state.logs.write().await.add(
-                "debug",
-                &format!(
-                    "[GEMINI] 请求体: {}",
-                    serde_json::to_string(&antigravity_request).unwrap_or_default()
-                ),
-            );
-
-            if is_stream {
-                // 流式响应 - 暂不支持，返回错误
-                return (
-                    StatusCode::NOT_IMPLEMENTED,
-                    Json(serde_json::json!({
-                        "error": {
-                            "message": "流式响应暂不支持，请使用 generateContent"
-                        }
-                    })),
-                )
-                    .into_response();
-            }
-
-            // 非流式响应
-            match antigravity
-                .call_api("generateContent", &antigravity_request)
-                .await
-            {
-                Ok(resp) => {
-                    state.logs.write().await.add(
-                        "info",
-                        &format!(
-                            "[GEMINI] 响应成功: {}",
-                            serde_json::to_string(&resp)
-                                .unwrap_or_default()
-                                .chars()
-                                .take(200)
-                                .collect::<String>()
-                        ),
-                    );
-
-                    // 直接返回 Gemini 格式响应
-                    Json(resp).into_response()
-                }
-                Err(api_err) => {
-                    state.logs.write().await.add(
-                        "error",
-                        &format!(
-                            "[GEMINI] 请求失败 (HTTP {}): {}",
-                            api_err.status_code, api_err.message
-                        ),
-                    );
-
-                    // 直接使用 AntigravityApiError 的状态码构建响应
-                    build_error_response_with_status(api_err.status_code, &api_err.to_string())
-                }
-            }
-        }
-        CredentialData::GeminiOAuth {
-            creds_file_path,
-            project_id,
-        } => {
-            // 使用 GeminiProvider 处理 Gemini CLI OAuth 凭证
-            let mut gemini = GeminiProvider::new();
-            if let Err(e) = gemini.load_credentials_from_path(creds_file_path).await {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({
-                        "error": {
-                            "message": format!("加载 Gemini 凭证失败: {}", e)
-                        }
-                    })),
-                )
-                    .into_response();
-            }
-
-            // 检查并刷新 Token
-            if !gemini.is_token_valid() {
-                tracing::info!("[Gemini CLI] Token 需要刷新，开始刷新...");
-                match gemini.refresh_token_with_retry(3).await {
-                    Ok(new_token) => {
-                        tracing::info!(
-                            "[Gemini CLI] Token 刷新成功，新 token 长度: {}",
-                            new_token.len()
-                        );
-                    }
-                    Err(refresh_error) => {
-                        tracing::error!("[Gemini CLI] Token 刷新失败: {:?}", refresh_error);
-                        return (
-                            StatusCode::UNAUTHORIZED,
-                            Json(serde_json::json!({
-                                "error": {
-                                    "message": format!("Token 刷新失败: {}", refresh_error)
-                                }
-                            })),
-                        )
-                            .into_response();
-                    }
-                }
-            }
-
-            // 设置项目 ID
-            if let Some(pid) = project_id {
-                gemini.project_id = Some(pid.clone());
-            } else if gemini.project_id.is_none() {
-                // 尝试从 API 获取项目 ID
-                if let Err(e) = gemini.discover_project().await {
-                    tracing::warn!("[Gemini CLI] 获取项目 ID 失败: {}，使用随机生成的 ID", e);
-                    let uuid = uuid::Uuid::new_v4();
-                    let bytes = uuid.as_bytes();
-                    let adjectives = ["useful", "bright", "swift", "calm", "bold"];
-                    let nouns = ["fuze", "wave", "spark", "flow", "core"];
-                    let adj = adjectives[(bytes[0] as usize) % adjectives.len()];
-                    let noun = nouns[(bytes[1] as usize) % nouns.len()];
-                    let random_part: String = uuid.to_string()[..5].to_lowercase();
-                    gemini.project_id = Some(format!("{adj}-{noun}-{random_part}"));
-                }
-            }
-
-            let proj_id = gemini.project_id.clone().unwrap_or_else(|| {
-                let uuid = uuid::Uuid::new_v4();
-                format!("lime-{}", &uuid.to_string()[..8])
-            });
-
-            state
-                .logs
-                .write()
-                .await
-                .add("debug", &format!("[GEMINI CLI] 使用 project_id: {proj_id}"));
-
-            // 构建 Gemini CLI 请求体
-            // Gemini CLI 使用 Cloud Code Assist 端点，不做模型名称映射
-            let gemini_request = build_gemini_cli_request(&request, model, &proj_id);
-
-            state.logs.write().await.add(
-                "debug",
-                &format!(
-                    "[GEMINI CLI] 请求体: {}",
-                    serde_json::to_string(&gemini_request).unwrap_or_default()
-                ),
-            );
-
-            if is_stream {
-                // 流式响应 - 暂不支持
-                return (
-                    StatusCode::NOT_IMPLEMENTED,
-                    Json(serde_json::json!({
-                        "error": {
-                            "message": "Gemini CLI 流式响应暂不支持，请使用 generateContent"
-                        }
-                    })),
-                )
-                    .into_response();
-            }
-
-            // 非流式响应
-            match gemini.call_api("generateContent", &gemini_request).await {
-                Ok(resp) => {
-                    state.logs.write().await.add(
-                        "info",
-                        &format!(
-                            "[GEMINI CLI] 响应成功: {}",
-                            serde_json::to_string(&resp)
-                                .unwrap_or_default()
-                                .chars()
-                                .take(200)
-                                .collect::<String>()
-                        ),
-                    );
-
-                    // 直接返回 Gemini 格式响应
-                    Json(resp).into_response()
-                }
-                Err(api_err) => {
-                    state
-                        .logs
-                        .write()
-                        .await
-                        .add("error", &format!("[GEMINI CLI] 请求失败: {api_err}"));
-
-                    build_error_response(&api_err.to_string())
-                }
-            }
-        }
-        _ => (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": {
-                    "message": "Gemini 原生协议只支持 Antigravity 或 Gemini CLI OAuth 凭证"
-                }
-            })),
-        )
-            .into_response(),
-    }
-}
-
-/// 内部 Anthropic messages 处理 (使用默认 Kiro)
-/// 预留：用于内部直接调用 Kiro API
-#[allow(dead_code)]
-async fn anthropic_messages_internal(
-    state: &AppState,
-    request: &AnthropicMessagesRequest,
-) -> Response {
-    // 检查 token
-    {
-        let _guard = state.kiro_refresh_lock.lock().await;
-        let mut kiro = state.kiro.write().await;
-        let needs_refresh =
-            kiro.credentials.access_token.is_none() || kiro.is_token_expiring_soon();
-        if needs_refresh {
-            if let Err(e) = kiro.refresh_token().await {
-                state
-                    .logs
-                    .write()
-                    .await
-                    .add("error", &format!("[AUTH] Token refresh failed: {e}"));
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {e}")}})),
-                )
-                    .into_response();
-            }
-        }
-    }
-
-    let openai_request = convert_anthropic_to_openai(request);
-    let kiro = state.kiro.read().await;
-
-    match kiro.call_api(&openai_request).await {
-        Ok(resp) => {
-            let status = resp.status();
-            if status.is_success() {
-                match resp.bytes().await {
-                    Ok(bytes) => {
-                        let body = String::from_utf8_lossy(&bytes).to_string();
-                        let parsed = parse_cw_response(&body);
-                        if request.stream {
-                            build_anthropic_stream_response(&request.model, &parsed)
-                        } else {
-                            build_anthropic_response(&request.model, &parsed)
-                        }
-                    }
-                    Err(e) => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                    )
-                        .into_response(),
-                }
-            } else {
-                let body = resp.text().await.unwrap_or_default();
-                (
-                    StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-                    Json(serde_json::json!({"error": {"message": format!("Upstream error: {}", body)}})),
-                )
-                    .into_response()
-            }
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": {"message": e.to_string()}})),
-        )
-            .into_response(),
-    }
-}
-
-/// 内部 OpenAI chat completions 处理 (使用默认 Kiro)
-/// 预留：用于内部直接调用 Kiro API
-#[allow(dead_code)]
-async fn chat_completions_internal(state: &AppState, request: &ChatCompletionRequest) -> Response {
-    {
-        let _guard = state.kiro_refresh_lock.lock().await;
-        let mut kiro = state.kiro.write().await;
-        let needs_refresh =
-            kiro.credentials.access_token.is_none() || kiro.is_token_expiring_soon();
-        if needs_refresh {
-            if let Err(e) = kiro.refresh_token().await {
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {e}")}})),
-                )
-                    .into_response();
-            }
-        }
-    }
-
-    let kiro = state.kiro.read().await;
-    match kiro.call_api(request).await {
-        Ok(resp) => {
-            let status = resp.status();
-            if status.is_success() {
-                match resp.text().await {
-                    Ok(body) => {
-                        let parsed = parse_cw_response(&body);
-                        let has_tool_calls = !parsed.tool_calls.is_empty();
-
-                        let message = if has_tool_calls {
-                            serde_json::json!({
-                                "role": "assistant",
-                                "content": if parsed.content.is_empty() { serde_json::Value::Null } else { serde_json::json!(parsed.content) },
-                                "tool_calls": parsed.tool_calls.iter().map(|tc| {
-                                    serde_json::json!({
-                                        "id": tc.id,
-                                        "type": "function",
-                                        "function": {
-                                            "name": tc.function.name,
-                                            "arguments": tc.function.arguments
-                                        }
-                                    })
-                                }).collect::<Vec<_>>()
-                            })
-                        } else {
-                            serde_json::json!({
-                                "role": "assistant",
-                                "content": parsed.content
-                            })
-                        };
-
-                        let response = serde_json::json!({
-                            "id": format!("chatcmpl-{}", uuid::Uuid::new_v4()),
-                            "object": "chat.completion",
-                            "created": std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs(),
-                            "model": request.model,
-                            "choices": [{
-                                "index": 0,
-                                "message": message,
-                                "finish_reason": if has_tool_calls { "tool_calls" } else { "stop" }
-                            }],
-                            "usage": {
-                                "prompt_tokens": 0,
-                                "completion_tokens": 0,
-                                "total_tokens": 0
-                            }
-                        });
-                        Json(response).into_response()
-                    }
-                    Err(e) => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                    )
-                        .into_response(),
-                }
-            } else {
-                let body = resp.text().await.unwrap_or_default();
-                (
-                    StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-                    Json(serde_json::json!({"error": {"message": format!("Upstream error: {}", body)}})),
-                )
-                    .into_response()
-            }
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": {"message": e.to_string()}})),
-        )
-            .into_response(),
-    }
+        })),
+    )
+        .into_response()
 }

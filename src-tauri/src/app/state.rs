@@ -8,10 +8,8 @@ use tokio::sync::RwLock;
 use crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState;
 use crate::commands::context_memory::ContextMemoryServiceState;
 use crate::commands::machine_id_cmd::MachineIdState;
-use crate::commands::orchestrator_cmd::OrchestratorState;
 use crate::commands::plugin_cmd::PluginManagerState;
 use crate::commands::plugin_install_cmd::PluginInstallerState;
-use crate::commands::provider_pool_cmd::{CredentialSyncServiceState, ProviderPoolServiceState};
 use crate::commands::skill_cmd::SkillServiceState;
 use crate::config::{GlobalConfigManager, GlobalConfigManagerState};
 use crate::database;
@@ -20,11 +18,9 @@ use crate::telemetry;
 use lime_core::config::{Config, ConfigManager};
 use lime_services::api_key_provider_service::ApiKeyProviderService;
 use lime_services::context_memory_service::{ContextMemoryConfig, ContextMemoryService};
-use lime_services::provider_pool_service::ProviderPoolService;
 use lime_services::skill_service::SkillService;
-use lime_services::token_cache_service::TokenCacheService;
 
-use super::types::{AppState, LogState, TokenCacheServiceState};
+use super::types::{AppState, LogState};
 use crate::logger;
 use lime_server as server;
 
@@ -47,14 +43,10 @@ pub fn init_global_config_manager(config: &Config) -> GlobalConfigManagerState {
 /// 初始化服务状态
 pub struct ServiceStates {
     pub skill_service: SkillServiceState,
-    pub provider_pool_service: ProviderPoolServiceState,
     pub api_key_provider_service: ApiKeyProviderServiceState,
-    pub credential_sync_service: CredentialSyncServiceState,
-    pub token_cache_service: TokenCacheServiceState,
     pub machine_id_service: MachineIdState,
     pub plugin_manager: PluginManagerState,
     pub plugin_installer: PluginInstallerState,
-    pub orchestrator: OrchestratorState,
     pub context_memory_service: ContextMemoryServiceState,
 }
 
@@ -64,21 +56,10 @@ pub fn init_service_states() -> ServiceStates {
     let skill_service = SkillService::new().expect("Failed to initialize SkillService");
     let skill_service_state = SkillServiceState(Arc::new(skill_service));
 
-    // Initialize ProviderPoolService
-    let provider_pool_service = ProviderPoolService::new();
-    let provider_pool_service_state = ProviderPoolServiceState(Arc::new(provider_pool_service));
-
     // Initialize ApiKeyProviderService
     let api_key_provider_service = ApiKeyProviderService::new();
     let api_key_provider_service_state =
         ApiKeyProviderServiceState(Arc::new(api_key_provider_service));
-
-    // Initialize CredentialSyncService (optional)
-    let credential_sync_service_state = CredentialSyncServiceState(None);
-
-    // Initialize TokenCacheService
-    let token_cache_service = TokenCacheService::new();
-    let token_cache_service_state = TokenCacheServiceState(Arc::new(token_cache_service));
 
     // Initialize MachineIdService
     let machine_id_service = lime_services::machine_id_service::MachineIdService::new()
@@ -92,9 +73,6 @@ pub fn init_service_states() -> ServiceStates {
     // Initialize PluginInstaller
     let plugin_installer_state = init_plugin_installer();
 
-    // Initialize Orchestrator State
-    let orchestrator_state = OrchestratorState::new();
-
     // Initialize ContextMemoryService
     let app_config = lime_core::config::load_config().unwrap_or_default();
     let context_memory_config = build_context_memory_config(&app_config);
@@ -104,14 +82,10 @@ pub fn init_service_states() -> ServiceStates {
 
     ServiceStates {
         skill_service: skill_service_state,
-        provider_pool_service: provider_pool_service_state,
         api_key_provider_service: api_key_provider_service_state,
-        credential_sync_service: credential_sync_service_state,
-        token_cache_service: token_cache_service_state,
         machine_id_service: machine_id_service_state,
         plugin_manager: plugin_manager_state,
         plugin_installer: plugin_installer_state,
-        orchestrator: orchestrator_state,
         context_memory_service: context_memory_service_state,
     }
 }

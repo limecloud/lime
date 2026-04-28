@@ -9,7 +9,7 @@ AI Agent 集成模块，基于 aster-rust 框架实现。
 ### 设计决策
 
 - **Aster 框架**：使用 aster-rust 框架获得多 Provider、工具系统、会话管理等能力
-- **凭证池桥接**：自动从 Lime 凭证池选择凭证配置 Aster Provider
+- **Provider 桥接**：自动从 API Key Provider 选择凭证配置 Aster Provider
 - **流式响应**：通过 Tauri 事件系统向前端推送流式内容
 - **Skills 集成**：自动加载 Lime Skills 到 aster-rust，使 AI 能够自动调用
 - **多代理收敛**：旧 SubAgent scheduler Tauri 桥已删除，角色与 team runtime 纯逻辑统一收敛到 `crates/agent/src/subagent_scheduler.rs`
@@ -66,13 +66,13 @@ AsterAgentState::reload_lime_skills();
 - 再看 `docs/aiprompts/prompt-foundation.md`
 - 不要从本页示例反推新的 Tauri 主路径
 
-### 从凭证池配置（推荐）
+### 从 API Key Provider 配置（推荐）
 
 ```rust
 // 初始化（同时加载 Skills）
 state.init_agent_with_db(&db).await?;
 
-// 从凭证池自动选择凭证并配置 Provider
+// 从 API Key Provider 自动选择凭证并配置 Provider
 let config = state
     .configure_provider_from_pool(&db, "openai", "gpt-4", &session_id)
     .await?;
@@ -118,18 +118,18 @@ let stream = agent.reply(user_message, session_config, Some(cancel_token)).await
 |------|------|
 | `aster_agent_init` | 初始化 Agent |
 | `aster_agent_configure_provider` | 手动配置 Provider |
-| `aster_agent_configure_from_pool` | 从凭证池配置 Provider（推荐） |
+| `aster_agent_configure_provider` | 从 API Key Provider / configured providers 配置 Provider |
 | `agent_runtime_submit_turn` | 统一提交 turn |
 | `agent_runtime_interrupt_turn` | 统一中断 turn |
 | `agent_runtime_create/list/get/update/delete_session` | 统一会话管理 |
 | `agent_runtime_spawn_subagent / agent_runtime_send_subagent_input / agent_runtime_wait_subagents / agent_runtime_resume_subagent / agent_runtime_close_subagent` | subagent 控制面 |
 | `agent_runtime_respond_action` | 统一响应工具确认 / ask / elicitation |
 
-## 凭证池桥接
+## Provider 桥接
 
 `credential_bridge.rs` 在主 crate 中仅作为兼容导出，核心逻辑位于 `crates/agent/src/credential_bridge.rs`：
 
-- 自动从凭证池选择可用凭证
+- 自动从 API Key Provider 选择可用凭证
 - 支持 OAuth 和 API Key 两种凭证类型
 - 自动刷新过期的 OAuth Token
 - 记录凭证使用和健康状态

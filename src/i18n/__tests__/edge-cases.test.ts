@@ -11,13 +11,13 @@ describe("Edge Cases: Text Map", () => {
   it("should return Chinese text map for zh language", () => {
     const map = getTextMap("zh");
     expect(map).toBeDefined();
-    expect(map["凭证池"]).toBe("凭证池");
+    expect(map["设置"]).toBe("设置");
   });
 
   it("should return English text map for en language", () => {
     const map = getTextMap("en");
     expect(map).toBeDefined();
-    expect(map["凭证池"]).toBe("Credential Pool");
+    expect(map["设置"]).toBe("Settings");
   });
 
   it("should handle missing keys gracefully", () => {

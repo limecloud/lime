@@ -1,109 +1,96 @@
-## Lime v1.21.0
+## Lime v1.22.0
 
-发布日期：`2026-04-28`
+发布日期：`2026-04-29`
 
 ### 发布概览
 
-- 本次发布目标 tag 为 `v1.21.0`。
-- 本次发布聚焦稳定版自动更新与 R2 分发链路、OEM 云端商业闭环、工作台首页与侧栏体验、资源管理器、Provider 模型管理收口、主题外观与设置页更新。
-- 本轮待递交内容覆盖 Rust 后端、Tauri update command、DevBridge / mock、发布工作流、前端 Workspace / Settings / Provider Pool / Resource Manager、测试覆盖、版本锁文件与临时产物清理。
+- 本次发布目标 tag 为 `v1.22.0`。
+- 本次发布聚焦稳定版 GitHub Release / R2 分发链路收口、lime-cli 独立产物发布、Provider / Credential 旧路径清退、云端用户中心商业边界收口，以及 Agent 会话恢复与模型选择体验稳定性。
+- 本轮待递交内容覆盖 Rust 后端、Tauri 配置、发布工作流、release asset 脚本、Provider / Model / Credential 治理、前端 Workspace / Settings / Provider API Key 主路径、测试覆盖、版本锁文件与执行计划文档。
 
 ### 重点更新
 
-#### 1. 稳定版更新与 R2 发布链路
+#### 1. 版本号同步到 v1.22.0
 
-- `.github/workflows/release.yml` 补齐稳定版 updater 发布门禁，要求签名密钥与更新地址就绪后再生成 updater artifacts。
-- 发布流程会规范化 Tauri updater 公钥，并在仅产出 sidecar `.sig` 时由发布脚本生成稳定版 `latest.json`。
-- 新增 `scripts/release-updater-manifest.mjs`，聚合各平台 `latest.json`，生成统一 `latest.json`、版本化清单、R2 上传计划与 manifest metadata。
-- 新增 `scripts/plan-r2-release-cleanup.mjs`，按稳定版本窗口规划旧 R2 updater 产物清理，避免发布桶无限增长。
-- `scripts/release-updater-manifest.test.mjs` 覆盖平台缺失、版本不匹配、同名跨平台 artifact 与旧版本清理保护逻辑。
-- `src-tauri/src/commands/update_cmd.rs` 与 `src-tauri/crates/services/src/update_check_service.rs` 切到静态清单检查 + Tauri updater 安装主链，并补齐 semver 比较与缓存兜底。
-
-#### 2. 版本号同步到 v1.21.0
-
-- 应用版本已同步为 `1.21.0`：
+- 应用版本已同步为 `1.22.0`：
   - `package.json`
   - `package-lock.json`
   - `src-tauri/Cargo.toml`
   - `src-tauri/Cargo.lock`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/tauri.conf.headless.json`
-- `packages/lime-cli-npm/package.json` 与 `packages/lime-cli-npm/README.md` 已同步到 `1.21.0`，保持 CLI wrapper 与桌面 release 版本一致。
-- 浏览器模式默认 mock 的 update current version 已同步为 `1.21.0`。
+- `packages/lime-cli-npm/package.json` 与 `packages/lime-cli-npm/README.md` 已同步到 `1.22.0`，保持 CLI wrapper 与桌面 release 版本一致。
+- 浏览器模式默认 mock 的 update current version 已同步为 `1.22.0`。
+- GitHub release asset staging 测试中的当前发布样例已同步到 `v1.22.0`。
 
-#### 3. OEM 云端商业闭环
+#### 2. 稳定版发布与 R2 分发链路
 
-- 新增 `src/lib/oemCloudPaymentReturn.ts`，统一生成、解析、暂存并分发 `lime://payment/return` 支付回跳事件。
-- `useDeepLink` 识别支付回跳 deep link，直接分发云端商业刷新事件，不再走旧 `handle_deep_link` 命令分支。
-- `useOemCloudAccess` 接入云端激活、支付配置、套餐订单、充值订单、账本、积分余额与访问令牌刷新主链。
-- 套餐购买和积分充值 checkout 支持 HTTPS bridge 回跳 URL，支付完成后自动刷新云端权益、积分余额与订单 watcher。
-- `docs/exec-plans/oem-cloud-commerce-loop-progress.md` 记录当前阶段、已清退的旧支付配置入口与下一轮真实渠道沙箱验证计划。
+- `.github/workflows/release.yml` 将桌面应用构建、GitHub Release 资产发布、R2 updater 发布和 lime-cli 资产发布拆成更清晰的阶段。
+- 新增 `scripts/prepare-github-release-assets.mjs`，在上传 GitHub Release 前统一整理资产名，避免 macOS `Lime.app.tar.gz` / `.sig` 同名跨架构冲突。
+- GitHub Release 上传改为使用 `release-github-assets` 暂存目录，并在资产上传后显式发布 release、标记 latest。
+- R2 updater 发布改为独立 job，从 GitHub Release 或 `RELEASE_NOTES.md` 准备 updater release notes，再生成稳定版 manifest。
+- Cloudflare R2 上传 / 列表 / 删除命令补齐 `--remote`，并在 wrangler 不支持 `r2 object list` 时跳过旧版本清理而不是阻塞发布。
+- lime-cli release binary 与 npm wrapper 资产改为独立矩阵 job 发布，保留 macOS / Windows / Linux CLI 产物，不再耦合桌面安装包矩阵。
 
-#### 4. 工作台首页、侧栏与导航体验
+#### 3. Provider / Credential 旧路径清退
 
-- `AppSidebar` 增加最近对话 / 归档会话架、分页加载、归档切换、外观切换、账户菜单与折叠态细节。
-- 新增 `src/components/app-sidebar/AppSidebarConversationShelf.tsx`，把会话架从侧栏主体中拆出，降低侧栏单体复杂度。
-- 工作台首页空态升级为“先开始这一轮 / 继续这轮 / 直接开工”入口，强化任务起手、推荐模板与继续上下文。
-- Workspace / Task Center / ChatNavbar / Inputbar / EmptyState / Team Workspace 等主路径继续收口视觉状态、运行时状态与回归断言。
-- `src/lib/windowControls.ts`、窗口 chrome 与主窗口启动链路继续补齐 macOS / headless 场景下的窗口控制一致性。
+- 清退旧 Provider Pool 页面、凭证卡片、Credential 表单、OAuth / Kiro / Antigravity / Claude OAuth / usage 等旧命令与服务路径。
+- Rust 后端删除旧 credential crate、provider pool DAO / service、Kiro credential handler、旧 provider converter / translator / fingerprint 模型等 dead surface。
+- 前端保留当前 API Key Provider 设置主路径，并继续收口模型启用、模型能力、Prompt Cache 与 companion provider 概览口径。
+- `agentCommandCatalog`、`legacySurfaceCatalog`、DevBridge mock 与相关测试同步更新，避免已删除命令继续作为 current surface 出现。
+- 模型资源索引删除旧 Antigravity / Kiro / Codex alias/provider 静态入口，减少 provider 真相源分叉。
 
-#### 5. 资源管理器
+#### 4. Agent 会话恢复与工作台稳定性
 
-- 新增 `src/features/resource-manager/`，提供资源管理器页面、侧栏、工具栏、预览面板、Inspector、搜索与导航意图。
-- 支持图片、文本、Markdown、PDF、Office、音视频、数据文件、压缩包与系统委托类型的分层预览渲染。
-- 支持资源下载、复制、系统打开、Finder 揭示、聊天位置与项目资源上下文回跳。
-- 补齐 `ResourceManagerPage`、资源预览搜索、会话状态和导航意图测试。
+- 会话切换 / 恢复详情默认按 `historyLimit: 40` 拉取近期历史，完整历史加载仍通过显式 `historyLimit: 0` 入口完成。
+- `useAsterAgentChat` 回归断言已同步新的 session detail 拉取参数，覆盖 stop refresh、timeline cache hydrate、workspace guard 与 stale 快照刷新路径。
+- 工作台消息流、模型选择、Provider selector、Team Workspace、artifact / saved content 展示继续保持与 runtime execution metadata 对齐。
+- `ModelSelector`、`useConfiguredProviders`、`useProviderModels`、Prompt Cache 支持判断与 companion provider overview 补齐回归覆盖。
 
-#### 6. Provider Pool 与设置页收口
+#### 5. 云端用户中心与商业边界
 
-- Provider 模型管理改为“启用的模型”左侧列表 + 添加模型面板，删除旧 API Key 列表 / Provider 表单 / 模型列表拆分组件。
-- 新增 `ModelProviderList`、`ModelAddPanel`、`providerConfigUtils` 与连接测试类型，统一 Provider 配置工具函数与 UI 入口。
-- 设置页 Provider、About、Developer、Experimental、Appearance、Channels 与 Automation 页面继续收口布局、状态展示和回归断言。
-- Prompt Cache 与 Anthropic-compatible 能力口径更新，避免把显式 `cache_control` 能力误显示为自动缓存。
+- 新增 `docs/exec-plans/cloud-commerce-user-center-boundary.md`，明确套餐购买、支付、账单、用量明细统一收敛到 `limecore` 用户中心网页。
+- Lime 客户端云端服务设置面继续收口为会话状态、当前套餐、积分余额、待支付提醒与用户中心跳转入口。
+- 客户端移除直接创建套餐 / 充值订单的旧处理面，避免本地商业工作台与用户中心形成双轨。
+- `useOemCloudAccess` 与 OEM cloud / LimeHub provider 同步测试继续覆盖登录态、权益摘要、API Key 与回跳刷新路径。
 
-#### 7. App Update 前端与 mock
+#### 6. 文档、治理与回归
 
-- `src/lib/api/appUpdate.ts` 扩展 release notes URL / pubDate / 错误信息字段。
-- `src/lib/tauri-mock/core.ts` 补齐 `check_update`、`check_for_updates` 与下载无更新态 mock，浏览器模式不再落入 unknown command。
-- About 设置页更新检查、下载失败、诊断错误和版本展示补齐测试覆盖。
-
-#### 8. 文档、治理与临时产物
-
-- `README.md` 更新产品定位文案：从“本地优先的 AI API Proxy 桌面应用”收敛为 AI Agent 创作工作台。
-- `src/lib/governance/legacySurfaceCatalog.json` 与测试补充新的 legacy surface 口径。
-- 删除根目录临时调试产物：`monitor.sh`、`network-before.md`、`post-hmr-state.png`、`tmp-e2e-home.png`、`knip.governance.json`。
-- 新增 `theme-scope-messages-ocean.png` 作为本轮主题视觉验证产物。
+- `docs/aiprompts/` 下 Provider、Credential Pool、Services、Hooks、Components、Overview 等导航文档同步当前 provider / credential / model registry 事实源。
+- `docs/content/03.providers/1.overview.md` 与 `src/components/provider-pool/api-key/README.md` 更新当前 Provider 配置入口说明。
+- `scripts/release-updater-manifest.test.mjs` 增加 GitHub release asset staging 覆盖，保护 macOS 同名 updater bundle 重命名逻辑。
+- `src-tauri/proptest-regressions/` 已纳入本轮待递交范围，保留 property test 回归种子。
 
 ### 待递交范围确认
 
-- 版本与发布：版本文件、lockfile、CLI wrapper、release workflow、R2 updater manifest / cleanup 脚本与测试。
-- Rust 主链：update command、update service、window chrome、runner/app 模块、DevBridge dispatcher、tray 事件与菜单处理。
-- 前端主链：AppSidebar、Workspace、Task Center、EmptyState、Inputbar、Team Workspace、Settings、Provider Pool、Resource Manager、MCP、Memory、SceneApps、Resources。
-- 商业闭环：OEM cloud control plane API、支付回跳 deep link、权益 / 积分 / 账本刷新、订单 watcher 与执行计划文档。
-- 验证与治理：新增/更新测试、legacy catalog、release updater contract、删除临时调试文件与旧 Provider Pool 组件。
+- 版本与发布：版本文件、lockfile、Tauri 配置、CLI wrapper、release workflow、GitHub release asset staging 脚本与测试。
+- Rust 主链：Provider / Credential / Server / Services / Agent / DevBridge / model registry / router / websocket 相关 current surface 收口。
+- 前端主链：Agent Chat Workspace、MessageList、ModelSelector、Settings Provider、API Key Provider、Provider hooks、mock 与治理目录册。
+- 商业边界：云端用户中心执行计划、OEM cloud access / LimeHub provider sync、设置页云端服务入口。
+- 验证与治理：新增/更新测试、legacy catalog、release updater contract、删除旧 Provider Pool / credential / Kiro / Antigravity 等 dead surface。
 
 ### 校验状态
 
 - 已通过：
   - `npm run verify:app-version`
   - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
-  - `cargo test --manifest-path "src-tauri/Cargo.toml"` — 1112 passed / 0 failed / 2 ignored
+  - `cargo test --manifest-path "src-tauri/Cargo.toml"` — 1070 passed / 0 failed / 2 ignored
   - `cargo clippy --manifest-path "src-tauri/Cargo.toml" --all-targets --all-features`
   - `npm run lint`
-  - `npm test` — 44 个 Vitest smart 批次通过
+  - `npx vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx"`
+  - `npm test` — 43 个 Vitest smart 批次通过
   - `npm run test:contracts`
-  - `npm run smoke:agent-runtime-tool-surface`
-  - `npm run smoke:agent-runtime-tool-surface-page`
   - `git diff --check`
 - `cargo test` 通过，当前存在 1 条预存 warning：
   - `write_auxiliary_runtime_projection_fixture` 的 `dead_code`
-- `cargo clippy` 通过，当前存在 4 条预存 warning：
+- `cargo clippy` 通过，当前存在 6 条 warning：
   - `crates/services/src/aster_session_store.rs` 的 `manual_repeat_n`
-  - `crates/skills/src/lime_llm_provider.rs` 的 `too_many_arguments`
+  - `crates/skills/src/lime_llm_provider.rs` 的 2 处 `too_many_arguments`
+  - `crates/agent/src/request_tool_policy.rs` 的 `too_many_arguments`
   - `crates/agent/src/session_execution_runtime.rs` 的 `needless_lifetimes`
   - `src/services/runtime_evidence_pack_service.rs` 的 `dead_code`
-- GUI 主路径补充复测已通过：`smoke:agent-runtime-tool-surface` 与 `smoke:agent-runtime-tool-surface-page` 均确认 Harness 入口在执行态可见，修复此前等待 Harness 按钮超时的问题。
+- GUI 主路径未额外执行 `npm run verify:gui-smoke`；本轮发布收口以版本、发布链路、Provider / Credential 治理和前端 / Rust 回归为主要风险覆盖。
 
 ---
 
-**完整变更**: `v1.20.0` -> `v1.21.0`
+**完整变更**: `v1.21.0` -> `v1.22.0`

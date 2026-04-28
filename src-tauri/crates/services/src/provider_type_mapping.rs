@@ -1,7 +1,6 @@
 //! Provider 类型映射与解析工具
 //!
-//! 统一 services 层中 PoolProviderType 与 ApiProviderType 的映射规则，
-//! 避免 `provider_pool_service` 与 `api_key_provider_service` 规则漂移。
+//! 统一 API Key Provider 主路径中历史 ProviderType 与 ApiProviderType 的映射规则。
 
 use lime_core::database::dao::api_key_provider::ApiProviderType;
 use lime_core::models::provider_pool_model::PoolProviderType;
@@ -10,11 +9,6 @@ use lime_core::models::provider_type::is_custom_provider_id as core_is_custom_pr
 /// 是否为自定义 Provider ID（`custom-*`）
 pub(crate) fn is_custom_provider_id(provider_type: &str) -> bool {
     core_is_custom_provider_id(provider_type)
-}
-
-/// 解析 PoolProviderType
-pub(crate) fn parse_pool_provider_type(provider_type: &str) -> Result<PoolProviderType, String> {
-    provider_type.parse().map_err(|e: String| e)
 }
 
 /// 解析 PoolProviderType（失败时回退到 OpenAI）
@@ -47,9 +41,6 @@ pub(crate) fn pool_provider_type_to_api_type(
         PoolProviderType::GeminiApiKey => Some(ApiProviderType::Gemini),
         PoolProviderType::Vertex => Some(ApiProviderType::Vertexai),
 
-        // OAuth 类型 - 可降级到 API Key
-        PoolProviderType::Gemini => Some(ApiProviderType::Gemini), // Gemini OAuth → Gemini API Key
-
         // API Key Provider 类型 - 直接映射
         PoolProviderType::Anthropic => Some(ApiProviderType::Anthropic),
         PoolProviderType::AnthropicCompatible => Some(ApiProviderType::AnthropicCompatible),
@@ -57,19 +48,19 @@ pub(crate) fn pool_provider_type_to_api_type(
         PoolProviderType::AwsBedrock => Some(ApiProviderType::AwsBedrock),
         PoolProviderType::Ollama => Some(ApiProviderType::Ollama),
 
-        // OAuth-only，无降级
-        PoolProviderType::Kiro => None,
-        PoolProviderType::Codex => None,
-        PoolProviderType::ClaudeOAuth => None,
-        PoolProviderType::Antigravity => None,
+        // 已退役的凭证池 / OAuth 类型不再自动映射到 API Key Provider。
+        PoolProviderType::Kiro
+        | PoolProviderType::Gemini
+        | PoolProviderType::Codex
+        | PoolProviderType::ClaudeOAuth => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        api_provider_type_to_pool_type, is_custom_provider_id, parse_pool_provider_type,
-        pool_provider_type_to_api_type, resolve_pool_provider_type_or_default,
+        api_provider_type_to_pool_type, is_custom_provider_id, pool_provider_type_to_api_type,
+        resolve_pool_provider_type_or_default,
     };
     use lime_core::database::dao::api_key_provider::ApiProviderType;
     use lime_core::models::provider_pool_model::PoolProviderType;
@@ -112,11 +103,6 @@ mod tests {
 
     #[test]
     fn test_pool_provider_type_parser_helpers() {
-        assert_eq!(
-            parse_pool_provider_type("openai").unwrap(),
-            PoolProviderType::OpenAI
-        );
-        assert!(parse_pool_provider_type("not-exists").is_err());
         assert_eq!(
             resolve_pool_provider_type_or_default("not-exists"),
             PoolProviderType::OpenAI

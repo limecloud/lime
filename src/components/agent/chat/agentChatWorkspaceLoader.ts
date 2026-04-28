@@ -3,7 +3,7 @@ const MODULE_IMPORT_FAILURE_PATTERNS = [
   "Failed to fetch dynamically imported module",
 ] as const;
 
-const DEFAULT_RETRY_DELAYS_MS = [200, 600] as const;
+const DEFAULT_RETRY_DELAYS_MS = [120, 320] as const;
 
 function isRetryableModuleImportFailure(error: unknown): boolean {
   if (!(error instanceof Error)) {
@@ -50,4 +50,8 @@ export async function loadModuleWithRetry<TModule>(
 
 export function loadAgentChatWorkspaceModule() {
   return loadModuleWithRetry(() => import("./AgentChatWorkspace"));
+}
+
+export function preloadAgentChatWorkspaceModule(): void {
+  void loadAgentChatWorkspaceModule();
 }

@@ -27,6 +27,7 @@
 - 参考运行时主链总计划：`docs/exec-plans/upstream-runtime-alignment-plan.md`
 - 参考运行时主链进度日志：`docs/exec-plans/upstream-runtime-alignment-progress.md`
 - Provider 模型能力 taxonomy 进度日志：`docs/exec-plans/provider-model-taxonomy-progress.md`
+- 云端套餐与支付边界收口计划：`docs/exec-plans/cloud-commerce-user-center-boundary.md`
 - `@` 命令本地执行纠偏计划：`docs/exec-plans/at-command-local-execution-alignment-plan.md`
 - LimeNext 总实施计划（`legacy current reference`，当前主规划已切到 `docs/roadmap/limenextv2/README.md`）：`docs/exec-plans/limenext-plan.md`
 - LimeNext 推进日志：`docs/exec-plans/limenext-progress.md`

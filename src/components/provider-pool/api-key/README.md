@@ -46,7 +46,7 @@
 ```tsx
 import { ApiKeyProviderSection } from "@/components/provider-pool/api-key";
 
-function ProviderPoolPage() {
+function ProviderSettingsPage() {
   return (
     <div className="h-full">
       <ApiKeyProviderSection />

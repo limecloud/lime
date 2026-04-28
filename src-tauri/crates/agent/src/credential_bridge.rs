@@ -1,28 +1,21 @@
-//! 凭证池桥接模块
+//! API Key Provider 桥接模块
 //!
-//! 将 Lime 凭证池与 Aster Provider 系统连接
-//! 支持从凭证池自动选择凭证并配置 Aster Provider
+//! 将 Lime API Key Provider 主路径与 Aster Provider 系统连接。
 //!
 //! ## 功能
-//! - 从凭证池选择可用凭证
+//! - 从 API Key Provider 选择可用凭证
 //! - 将凭证转换为 Aster Provider 配置
-//! - 支持 OAuth 和 API Key 两种凭证类型
-//! - 自动刷新过期的 OAuth Token
 //! - 智能拆分 base_url 为 host + path，避免路径重复（如智谱 /v4/v1 问题）
 
 use aster::model::ModelConfig;
 use aster::providers::base::Provider;
 use lime_core::database::dao::api_key_provider::{infer_managed_runtime_spec, ApiProviderType};
 use lime_core::database::DbConnection;
-use lime_core::models::provider_pool_model::{
-    CredentialData, PoolProviderType, ProviderCredential,
-};
+use lime_core::models::provider_pool_model::{CredentialData, ProviderCredential};
 use lime_core::models::provider_type::is_custom_provider_id;
 use lime_services::api_key_provider_service::ApiKeyProviderService;
-use lime_services::provider_pool_service::ProviderPoolService;
 use std::sync::Arc;
 
-use crate::kiro_provider_adapter::LimeKiroProvider;
 use crate::provider_safety::wrap_provider_with_safety;
 
 /// 凭证桥接错误
@@ -71,19 +64,16 @@ pub struct AsterProviderConfig {
     pub credential_uuid: String,
     /// 是否强制 OpenAI provider 使用 Responses API（用于 Codex 等兼容链路）
     pub force_responses_api: bool,
-    /// OAuth/本地 Provider 需要的凭证文件路径
-    pub credential_path: Option<String>,
     /// 当前回合是否启用 toolshim
     pub toolshim: bool,
     /// toolshim 解释器模型
     pub toolshim_model: Option<String>,
 }
 
-/// 凭证池桥接器
+/// Provider 凭证桥接器
 ///
-/// 负责从 Lime 凭证池选择凭证并转换为 Aster Provider 配置
+/// 负责从 Lime API Key Provider 选择凭证并转换为 Aster Provider 配置
 pub struct CredentialBridge {
-    pool_service: ProviderPoolService,
     api_key_service: ApiKeyProviderService,
 }
 
@@ -96,7 +86,6 @@ impl Default for CredentialBridge {
 impl CredentialBridge {
     pub fn new() -> Self {
         Self {
-            pool_service: ProviderPoolService::new(),
             api_key_service: ApiKeyProviderService::new(),
         }
     }
@@ -106,7 +95,7 @@ impl CredentialBridge {
             .filter(|value| !value.is_empty())
     }
 
-    /// 从凭证池选择凭证并创建 Aster Provider 配置
+    /// 从 API Key Provider 选择凭证并创建 Aster Provider 配置
     ///
     /// # 参数
     /// - `db`: 数据库连接
@@ -121,19 +110,9 @@ impl CredentialBridge {
         provider_type: &str,
         model: &str,
     ) -> Result<AsterProviderConfig, CredentialBridgeError> {
-        // 1. 从凭证池选择凭证
-        // 将 provider_type 同时作为 provider_id_hint 传递，支持 60+ API Key Provider
-        // 例如 "deepseek", "moonshot", "qwen" 等
         let credential = self
-            .pool_service
-            .select_credential_with_fallback(
-                db,
-                &self.api_key_service,
-                provider_type,
-                Some(model),
-                Some(provider_type), // 传递 provider_id_hint 支持智能降级
-                None,
-            )
+            .api_key_service
+            .select_credential_for_provider(db, provider_type, Some(provider_type), None)
             .await
             .map_err(CredentialBridgeError::DatabaseError)?
             .ok_or_else(|| {
@@ -223,22 +202,6 @@ impl CredentialBridge {
                 false,
             ),
 
-            // Kiro OAuth - 需要获取 access_token
-            CredentialData::KiroOAuth { creds_file_path } => {
-                let token = self
-                    .get_kiro_token(creds_file_path, db, &credential.uuid)
-                    .await?;
-                ("kiro".to_string(), Some(token), None, false)
-            }
-
-            // Gemini OAuth
-            CredentialData::GeminiOAuth {
-                creds_file_path, ..
-            } => {
-                let token = self.get_oauth_token(creds_file_path).await?;
-                ("google".to_string(), Some(token), None, false)
-            }
-
             // Gemini API Key
             CredentialData::GeminiApiKey {
                 api_key, base_url, ..
@@ -259,33 +222,11 @@ impl CredentialBridge {
                 false,
             ),
 
-            // Codex OAuth
-            CredentialData::CodexOAuth {
-                creds_file_path,
-                api_base_url,
-            } => {
-                let token = self.get_codex_token(creds_file_path).await?;
-                (
-                    // 统一走 OpenAI provider，保证 tools/stream 事件链路一致
-                    "openai".to_string(),
-                    Some(token),
-                    api_base_url.clone(),
-                    true,
-                )
-            }
-
-            // Claude OAuth
-            CredentialData::ClaudeOAuth { creds_file_path } => {
-                let token = self.get_oauth_token(creds_file_path).await?;
-                ("anthropic".to_string(), Some(token), None, false)
-            }
-
-            // Antigravity OAuth
-            CredentialData::AntigravityOAuth {
-                creds_file_path, ..
-            } => {
-                let token = self.get_oauth_token(creds_file_path).await?;
-                ("google".to_string(), Some(token), None, false)
+            unsupported => {
+                return Err(CredentialBridgeError::UnsupportedCredentialType(format!(
+                    "凭证池/OAuth 凭证已退役，当前只支持 API Key Provider 凭证: {:?}",
+                    unsupported
+                )));
             }
         };
 
@@ -297,85 +238,8 @@ impl CredentialBridge {
             base_url,
             credential_uuid: credential.uuid.clone(),
             force_responses_api,
-            credential_path: match &credential.credential {
-                CredentialData::KiroOAuth { creds_file_path } => Some(creds_file_path.clone()),
-                _ => None,
-            },
             toolshim: false,
             toolshim_model: None,
-        })
-    }
-
-    /// 获取 Kiro OAuth Token
-    async fn get_kiro_token(
-        &self,
-        creds_path: &str,
-        _db: &DbConnection,
-        _uuid: &str,
-    ) -> Result<String, CredentialBridgeError> {
-        use lime_providers::providers::KiroProvider;
-
-        let mut provider = KiroProvider::new();
-        provider
-            .load_credentials_from_path(creds_path)
-            .await
-            .map_err(|e| {
-                CredentialBridgeError::TokenRefreshFailed(format!("加载 Kiro 凭证失败: {e}"))
-            })?;
-
-        // 检查 token 是否过期，如果过期则刷新
-        if provider.is_token_expired() {
-            tracing::info!("[CredentialBridge] Kiro token 已过期，尝试刷新");
-            self.pool_service
-                .refresh_kiro_token(creds_path)
-                .await
-                .map_err(CredentialBridgeError::TokenRefreshFailed)?;
-
-            // 重新加载凭证
-            provider
-                .load_credentials_from_path(creds_path)
-                .await
-                .map_err(|e| {
-                    CredentialBridgeError::TokenRefreshFailed(format!("重新加载凭证失败: {e}"))
-                })?;
-        }
-
-        provider.credentials.access_token.ok_or_else(|| {
-            CredentialBridgeError::TokenRefreshFailed("缺少 access_token".to_string())
-        })
-    }
-
-    /// 获取通用 OAuth Token
-    async fn get_oauth_token(&self, creds_path: &str) -> Result<String, CredentialBridgeError> {
-        let content = std::fs::read_to_string(creds_path).map_err(|e| {
-            CredentialBridgeError::TokenRefreshFailed(format!("读取凭证文件失败: {e}"))
-        })?;
-
-        let creds: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| CredentialBridgeError::TokenRefreshFailed(format!("解析凭证失败: {e}")))?;
-
-        creds["access_token"]
-            .as_str()
-            .map(String::from)
-            .ok_or_else(|| {
-                CredentialBridgeError::TokenRefreshFailed("凭证中缺少 access_token".to_string())
-            })
-    }
-
-    /// 获取 Codex OAuth Token
-    async fn get_codex_token(&self, creds_path: &str) -> Result<String, CredentialBridgeError> {
-        use lime_providers::providers::CodexProvider;
-
-        let mut provider = CodexProvider::new();
-        provider
-            .load_credentials_from_path(creds_path)
-            .await
-            .map_err(|e| {
-                CredentialBridgeError::TokenRefreshFailed(format!("加载 Codex 凭证失败: {e}"))
-            })?;
-
-        provider.ensure_valid_token().await.map_err(|e| {
-            CredentialBridgeError::TokenRefreshFailed(format!("获取 Codex token 失败: {e}"))
         })
     }
 
@@ -388,9 +252,8 @@ impl CredentialBridge {
                 .map_err(CredentialBridgeError::DatabaseError);
         }
 
-        self.pool_service
-            .record_usage(db, uuid)
-            .map_err(CredentialBridgeError::DatabaseError)
+        tracing::debug!("[CredentialBridge] 忽略已退役的凭证池使用记录: {}", uuid);
+        Ok(())
     }
 
     /// 标记凭证为健康
@@ -404,9 +267,9 @@ impl CredentialBridge {
             return Ok(());
         }
 
-        self.pool_service
-            .mark_healthy(db, uuid, model)
-            .map_err(CredentialBridgeError::DatabaseError)
+        let _ = (db, model);
+        tracing::debug!("[CredentialBridge] 忽略已退役的凭证池健康标记: {}", uuid);
+        Ok(())
     }
 
     /// 标记凭证为不健康
@@ -420,9 +283,9 @@ impl CredentialBridge {
             return Ok(());
         }
 
-        self.pool_service
-            .mark_unhealthy(db, uuid, error)
-            .map_err(CredentialBridgeError::DatabaseError)
+        let _ = (db, error);
+        tracing::debug!("[CredentialBridge] 忽略已退役的凭证池失败标记: {}", uuid);
+        Ok(())
     }
 }
 
@@ -441,28 +304,6 @@ pub async fn create_aster_provider(
             model_name = %config.model_name,
             "[CredentialBridge] 检测到 OpenAI 兼容非 OpenAI provider，已禁用默认 fast_model"
         );
-    }
-
-    if config.provider_name == "kiro" {
-        let model_config = build_provider_model_config(config)?;
-
-        let credential_path = config.credential_path.clone().ok_or_else(|| {
-            CredentialBridgeError::ProviderCreationFailed(
-                "Kiro provider 缺少 credential_path".to_string(),
-            )
-        })?;
-
-        let provider = LimeKiroProvider::new(credential_path, model_config).map_err(|error| {
-            CredentialBridgeError::ProviderCreationFailed(format!(
-                "创建 Kiro Provider 失败: {}",
-                error
-            ))
-        })?;
-
-        return Ok(wrap_provider_with_safety(
-            Arc::new(provider),
-            disable_default_fast_model,
-        ));
     }
 
     // 设置环境变量
@@ -515,7 +356,7 @@ fn is_first_party_openai_base_url(base_url: &str) -> bool {
 }
 
 fn is_first_party_anthropic_selector(selector: &str) -> bool {
-    matches!(selector, "anthropic" | "claude" | "claude_oauth")
+    matches!(selector, "anthropic" | "claude")
 }
 
 fn is_first_party_anthropic_base_url(base_url: &str) -> bool {
@@ -714,28 +555,6 @@ fn set_provider_env_vars(config: &AsterProviderConfig) {
     }
 }
 
-/// Provider 类型映射
-///
-/// 将 Lime PoolProviderType 映射到 Aster Provider 名称
-pub fn map_pool_type_to_aster(pool_type: &PoolProviderType) -> &'static str {
-    match pool_type {
-        PoolProviderType::Kiro => "kiro",
-        PoolProviderType::Gemini => "google",
-        PoolProviderType::Antigravity => "google",
-        PoolProviderType::OpenAI => "openai",
-        PoolProviderType::Claude => "anthropic",
-        PoolProviderType::Anthropic => "anthropic",
-        PoolProviderType::AnthropicCompatible => "anthropic",
-        PoolProviderType::Vertex => "gcpvertexai",
-        PoolProviderType::GeminiApiKey => "google",
-        PoolProviderType::Codex => "codex",
-        PoolProviderType::ClaudeOAuth => "anthropic",
-        PoolProviderType::AzureOpenai => "azure",
-        PoolProviderType::AwsBedrock => "bedrock",
-        PoolProviderType::Ollama => "ollama",
-    }
-}
-
 /// 将 provider_type 字符串映射到 Aster Provider 名称
 ///
 /// 支持 60+ API Key Provider，包括 deepseek, moonshot, qwen 等
@@ -750,9 +569,8 @@ fn map_provider_type_to_aster(provider_type: &str) -> &'static str {
         "anthropic" | "claude" => "anthropic",
         "google" | "gemini" => "google",
         "bedrock" => "bedrock",
-        "kiro" | "codewhisperer" => "kiro",
         "gcpvertexai" | "vertex" => "gcpvertexai",
-        "codex" => "codex",
+        "codex" => "openai",
         "azure" | "azure-openai" => "azure",
         "ollama" => "ollama",
 
@@ -790,17 +608,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_map_pool_type_to_aster() {
-        assert_eq!(map_pool_type_to_aster(&PoolProviderType::OpenAI), "openai");
-        assert_eq!(
-            map_pool_type_to_aster(&PoolProviderType::Claude),
-            "anthropic"
-        );
-        assert_eq!(map_pool_type_to_aster(&PoolProviderType::Gemini), "google");
-        assert_eq!(map_pool_type_to_aster(&PoolProviderType::Kiro), "kiro");
-    }
-
-    #[test]
     fn test_map_provider_type_to_aster_with_api_type() {
         assert_eq!(
             map_provider_type_to_aster_with_api_type(
@@ -836,7 +643,6 @@ mod tests {
             base_url: Some("https://example.com/openai".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: true,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -871,7 +677,6 @@ mod tests {
             base_url: Some("https://api.openai.com/v1".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: true,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -908,7 +713,6 @@ mod tests {
             base_url: Some("https://open.bigmodel.cn/api/paas/v4".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -926,7 +730,6 @@ mod tests {
             base_url: Some("https://api.openai.com/v1".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -944,7 +747,6 @@ mod tests {
             base_url: Some("https://example.com/openai".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: true,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -962,7 +764,6 @@ mod tests {
             base_url: Some("https://token-plan-cn.xiaomimimo.com/anthropic".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -980,7 +781,6 @@ mod tests {
             base_url: Some("https://api.anthropic.com".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -1029,7 +829,6 @@ mod tests {
             base_url: Some("https://open.bigmodel.cn/api/anthropic".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -1064,7 +863,6 @@ mod tests {
             base_url: Some("https://api.anthropic.com".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
-            credential_path: None,
             toolshim: false,
             toolshim_model: None,
         };
@@ -1088,7 +886,6 @@ mod tests {
             base_url: Some("http://127.0.0.1:11434".to_string()),
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
-            credential_path: None,
             toolshim: true,
             toolshim_model: Some("glm-5.1:cloud".to_string()),
         };

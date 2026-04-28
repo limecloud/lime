@@ -4,8 +4,6 @@ import { clearServiceSkillCatalogCache } from "@/lib/api/serviceSkills";
 import {
   type ClientPasswordLoginPayload,
   type CreateClientAccessTokenPayload,
-  type CreateClientCreditTopupOrderPayload,
-  type CreateClientOrderPayload,
   type OemCloudAccessToken,
   type OemCloudActivationResponse,
   type OemCloudActiveAccessTokenResponse,
@@ -35,10 +33,6 @@ import {
   type VerifyClientAuthEmailCodePayload,
   OemCloudControlPlaneError,
   createClientAccessToken,
-  createClientCreditTopupOrder,
-  createClientCreditTopupOrderCheckout,
-  createClientOrder,
-  createClientOrderCheckout,
   getClientBootstrap,
   getClientCloudActivation,
   getClientCreditTopupOrder,
@@ -64,7 +58,6 @@ import {
   startOemCloudLogin,
 } from "@/lib/oemCloudLoginLauncher";
 import {
-  buildOemCloudPaymentReturnBridgeUrl,
   clearStoredOemCloudPaymentReturn,
   consumeStoredOemCloudPaymentReturn,
   OEM_CLOUD_PAYMENT_RETURN_EVENT,
@@ -106,16 +99,6 @@ function isAuthExpired(error: unknown) {
     error instanceof OemCloudControlPlaneError &&
     (error.status === 401 || error.status === 403)
   );
-}
-
-async function openPaymentReferenceIfUrl(reference?: string) {
-  const target = reference?.trim();
-  if (!target || !/^https?:\/\//i.test(target)) {
-    return false;
-  }
-
-  await openExternalUrl(target);
-  return true;
 }
 
 export function formatOemCloudDateTime(value?: string) {
@@ -382,9 +365,6 @@ export function useOemCloudAccess() {
   const [openingGoogleLogin, setOpeningGoogleLogin] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [savingDefault, setSavingDefault] = useState<string>("");
-  const [orderingPlanId, setOrderingPlanId] = useState<string>("");
-  const [creatingTopupPackageId, setCreatingTopupPackageId] =
-    useState<string>("");
   const [managingToken, setManagingToken] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
@@ -956,18 +936,13 @@ export function useOemCloudAccess() {
 
     let cancelled = false;
 
-    const handlePaymentReturn = async (
-      detail: OemCloudPaymentReturnDetail,
-    ) => {
+    const handlePaymentReturn = async (detail: OemCloudPaymentReturnDetail) => {
       const currentSession = sessionRef.current;
       if (cancelled || !currentSession?.tenant.id) {
         return;
       }
 
-      if (
-        detail.tenantId &&
-        detail.tenantId !== currentSession.tenant.id
-      ) {
+      if (detail.tenantId && detail.tenantId !== currentSession.tenant.id) {
         return;
       }
 
@@ -1052,10 +1027,7 @@ export function useOemCloudAccess() {
         handlePaymentReturnEvent,
       );
     };
-  }, [
-    cancelPaymentWatcher,
-    session?.tenant.id,
-  ]);
+  }, [cancelPaymentWatcher, session?.tenant.id]);
 
   const handleSendEmailCode = useCallback(async () => {
     if (!runtime) {
@@ -1268,147 +1240,6 @@ export function useOemCloudAccess() {
       }
     },
     [clearCloudState, refreshAuthenticatedState, session],
-  );
-
-  const handlePurchasePlan = useCallback(
-    async (payload: CreateClientOrderPayload) => {
-      if (!runtime || !session?.tenant.id) {
-        return;
-      }
-
-      setOrderingPlanId(payload.planId);
-      setErrorMessage(null);
-      setInfoMessage(null);
-      try {
-        const order = await createClientOrder(session.tenant.id, payload);
-        const successUrl = buildOemCloudPaymentReturnBridgeUrl({
-          controlPlaneBaseUrl: runtime.controlPlaneBaseUrl,
-          tenantId: session.tenant.id,
-          provider: payload.paymentChannel,
-          orderId: order.id,
-          kind: "plan_order",
-          status: "success",
-        });
-        const cancelUrl = buildOemCloudPaymentReturnBridgeUrl({
-          controlPlaneBaseUrl: runtime.controlPlaneBaseUrl,
-          tenantId: session.tenant.id,
-          provider: payload.paymentChannel,
-          orderId: order.id,
-          kind: "plan_order",
-          status: "cancelled",
-        });
-        const checkout = await createClientOrderCheckout(
-          session.tenant.id,
-          order.id,
-          {
-            paymentMethod: payload.paymentMethod,
-            successUrl,
-            cancelUrl,
-          },
-        );
-        const openedPayment = await openPaymentReferenceIfUrl(
-          checkout.checkoutUrl || checkout.paymentReference,
-        );
-        await refreshAuthenticatedState(session.tenant.id, session.token);
-        startPaymentStatusWatcher({
-          kind: "plan_order",
-          orderId: order.id,
-          title: order.planName || "套餐订单",
-        });
-        setInfoMessage(
-          openedPayment
-            ? "已创建套餐订单并打开真实支付页，Lime 会等待支付回调并自动同步权益。"
-            : "已创建套餐订单，但支付渠道没有返回可打开的 checkoutUrl；Lime 会继续等待服务端回调。",
-        );
-      } catch (error) {
-        if (isAuthExpired(error)) {
-          clearCloudState("云端会话已失效，请重新登录。");
-          return;
-        }
-        setErrorMessage(buildErrorMessage(error, "购买套餐失败"));
-      } finally {
-        setOrderingPlanId("");
-      }
-    },
-    [
-      clearCloudState,
-      refreshAuthenticatedState,
-      runtime,
-      session,
-      startPaymentStatusWatcher,
-    ],
-  );
-
-  const handleTopupCredits = useCallback(
-    async (payload: CreateClientCreditTopupOrderPayload) => {
-      if (!runtime || !session?.tenant.id) {
-        return;
-      }
-
-      setCreatingTopupPackageId(payload.packageId || "custom");
-      setErrorMessage(null);
-      setInfoMessage(null);
-      try {
-        const order = await createClientCreditTopupOrder(
-          session.tenant.id,
-          payload,
-        );
-        const successUrl = buildOemCloudPaymentReturnBridgeUrl({
-          controlPlaneBaseUrl: runtime.controlPlaneBaseUrl,
-          tenantId: session.tenant.id,
-          provider: payload.paymentChannel,
-          orderId: order.id,
-          kind: "credit_topup_order",
-          status: "success",
-        });
-        const cancelUrl = buildOemCloudPaymentReturnBridgeUrl({
-          controlPlaneBaseUrl: runtime.controlPlaneBaseUrl,
-          tenantId: session.tenant.id,
-          provider: payload.paymentChannel,
-          orderId: order.id,
-          kind: "credit_topup_order",
-          status: "cancelled",
-        });
-        const checkout = await createClientCreditTopupOrderCheckout(
-          session.tenant.id,
-          order.id,
-          {
-            paymentMethod: payload.paymentMethod,
-            successUrl,
-            cancelUrl,
-          },
-        );
-        const openedPayment = await openPaymentReferenceIfUrl(
-          checkout.checkoutUrl || checkout.paymentReference,
-        );
-        await refreshAuthenticatedState(session.tenant.id, session.token);
-        startPaymentStatusWatcher({
-          kind: "credit_topup_order",
-          orderId: order.id,
-          title: order.packageName || "充值订单",
-        });
-        setInfoMessage(
-          openedPayment
-            ? "已创建充值订单并打开真实支付页，Lime 会等待支付回调并自动同步余额。"
-            : "已创建充值订单，但支付渠道没有返回可打开的 checkoutUrl；Lime 会继续等待服务端回调。",
-        );
-      } catch (error) {
-        if (isAuthExpired(error)) {
-          clearCloudState("云端会话已失效，请重新登录。");
-          return;
-        }
-        setErrorMessage(buildErrorMessage(error, "充值积分失败"));
-      } finally {
-        setCreatingTopupPackageId("");
-      }
-    },
-    [
-      clearCloudState,
-      refreshAuthenticatedState,
-      runtime,
-      session,
-      startPaymentStatusWatcher,
-    ],
   );
 
   const handleCreateAccessToken = useCallback(
@@ -1653,8 +1484,6 @@ export function useOemCloudAccess() {
     openingGoogleLogin,
     loadingDetail,
     savingDefault,
-    orderingPlanId,
-    creatingTopupPackageId,
     managingToken,
     errorMessage,
     setErrorMessage,
@@ -1676,8 +1505,6 @@ export function useOemCloudAccess() {
     handleLogout,
     openOfferDetail,
     handleSetDefault,
-    handlePurchasePlan,
-    handleTopupCredits,
     handleCreateAccessToken,
     handleRotateAccessToken,
     handleRevokeAccessToken,

@@ -108,6 +108,15 @@ fn unregister_named_tools(registry: &mut aster::tools::ToolRegistry, tool_names:
     }
 }
 
+pub(crate) fn ensure_default_web_tools_registered(registry: &mut aster::tools::ToolRegistry) {
+    if !registry.contains("WebFetch") {
+        registry.register(Box::new(WebFetchTool::new()));
+    }
+    if !registry.contains("WebSearch") {
+        registry.register(Box::new(WebSearchTool::new()));
+    }
+}
+
 const FAST_CHAT_DISABLED_WEB_TOOL_PATTERNS: &[&str] =
     &["WebSearch", "web_search", "WebFetch", "web_fetch"];
 const SUBAGENT_TOOL_SCOPE_DEFAULT_DENY_PRIORITY: i32 = 1298;
@@ -517,6 +526,7 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
         app_handle.clone(),
         config_manager.0.clone(),
     );
+    ensure_default_web_tools_registered(&mut registry);
     workspace_tools::wrap_registry_native_tools_for_workspace_runtime(&mut registry);
     prune_fast_chat_request_tool_policy_tools_from_registry(
         &mut registry,

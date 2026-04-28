@@ -10,15 +10,6 @@
 //! - `StreamManager`: 管理流式请求的生命周期
 //! - `StreamingProvider`: Provider 的流式 API 接口
 //! - `FlowMonitor`: 实时捕获流式响应
-//! - `handle_kiro_stream()`: Kiro 凭证的真正流式处理（AWS Event Stream → Anthropic SSE）
-//!
-//! # Kiro 凭证流式处理
-//!
-//! 当使用 Kiro 凭证且 `stream=true` 时，系统会：
-//! 1. 调用 `KiroProvider.call_api_stream()` 获取 AWS Event Stream 格式的流式响应
-//! 2. 使用 `AwsEventStreamParser` 实时解析每个 JSON payload
-//! 3. 使用 `AnthropicSseGenerator` 转换为 Anthropic SSE 格式
-//! 4. 通过 `FlowMonitor.process_chunk()` 记录每个 chunk
 //!
 //! # 错误处理
 //!
@@ -38,7 +29,7 @@
 //! - 需求 5.1: 流式传输期间发生网络错误时，发出错误事件并以失败状态完成 flow
 //! - 需求 5.2: AWS Event Stream 解析失败时记录错误并继续处理后续 chunks
 //! - 需求 5.3: 将上游 Provider 返回的错误转发给客户端
-//! - 需求 6.1: 流式请求使用 handle_kiro_stream()
+//! - 需求 6.1: 流式请求直接走 current API Key Provider 主链
 //! - 需求 6.2: 非流式请求返回完整 JSON 响应
 
 use axum::{
@@ -55,24 +46,30 @@ use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::ChatCompletionRequest;
 use lime_core::models::provider_pool_model::{CredentialData, ProviderCredential};
 use lime_providers::converter::anthropic_to_openai::convert_anthropic_to_openai;
-use lime_providers::converter::openai_to_antigravity::{
-    convert_antigravity_to_openai_response, convert_openai_to_antigravity_with_context,
-};
 use lime_providers::providers::{
-    AntigravityProvider, ClaudeCustomProvider, CodexProvider, KiroProvider, OpenAICustomProvider,
-    PromptCacheMode, VertexProvider,
+    ClaudeCustomProvider, OpenAICustomProvider, PromptCacheMode, VertexProvider,
 };
 use lime_providers::session::store_thought_signature;
-use lime_providers::stream::{PipelineConfig, StreamPipeline};
 use lime_providers::streaming::traits::StreamingProvider;
 use lime_providers::streaming::{
     StreamConfig, StreamContext, StreamError, StreamFormat as StreamingFormat, StreamManager,
     StreamResponse,
 };
 use lime_server_utils::{
-    build_anthropic_response, build_anthropic_stream_response, build_error_response,
-    build_error_response_with_status, parse_cw_response, safe_truncate, CWParsedResponse,
+    build_anthropic_response, build_anthropic_stream_response, CWParsedResponse,
 };
+
+fn retired_credential_response(kind: &str) -> Response {
+    (
+        StatusCode::GONE,
+        Json(serde_json::json!({
+            "error": {
+                "message": format!("{kind} 已退役。请改用 API Key Provider / configured providers。")
+            }
+        })),
+    )
+        .into_response()
+}
 
 /// 根据凭证调用 Provider (Anthropic 格式)
 ///
@@ -85,358 +82,13 @@ pub async fn call_provider_anthropic(
     state: &AppState,
     credential: &ProviderCredential,
     request: &AnthropicMessagesRequest,
-    flow_id: Option<&str>,
+    _flow_id: Option<&str>,
 ) -> Response {
     match &credential.credential {
-        CredentialData::KiroOAuth { creds_file_path } => {
-            // 如果是流式请求，使用真正的流式处理（需求 1.1, 6.1）
-            if request.stream {
-                return handle_kiro_stream(state, credential, request, flow_id).await;
-            }
-
-            // 非流式请求，使用现有的 call_api() 方法（需求 6.1, 6.2, 6.3）
-            // 使用 TokenCacheService 获取有效 token
-            let db = match &state.db {
-                Some(db) => db,
-                None => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": {"message": "Database not available"}})),
-                    )
-                        .into_response();
-                }
-            };
-            // 获取缓存的 token
-            let token = match state
-                .token_cache
-                .get_valid_token(db, &credential.uuid)
-                .await
-            {
-                Ok(t) => t,
-                Err(e) => {
-                    tracing::warn!("[POOL] Token cache miss, loading from source: {}", e);
-                    // 回退到从源文件加载
-                    let mut kiro = KiroProvider::new();
-                    if let Err(e) = kiro.load_credentials_from_path(creds_file_path).await {
-                        // 记录凭证加载失败
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&format!("Failed to load credentials: {e}")),
-                        );
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({"error": {"message": format!("Failed to load Kiro credentials: {}", e)}})),
-                        )
-                            .into_response();
-                    }
-                    if let Err(e) = kiro.refresh_token().await {
-                        // 记录 Token 刷新失败
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&format!("Token refresh failed: {e}")),
-                        );
-                        return (
-                            StatusCode::UNAUTHORIZED,
-                            Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {}", e)}})),
-                        )
-                            .into_response();
-                    }
-                    kiro.credentials.access_token.unwrap_or_default()
-                }
-            };
-            // 使用获取到的 token 创建 KiroProvider
-            let mut kiro = KiroProvider::new();
-            // 从源文件加载其他配置（region, profile_arn 等）
-            // 注意：必须先加载凭证文件，再设置 token，因为 load_credentials_from_path 会覆盖整个 credentials
-            let _ = kiro.load_credentials_from_path(creds_file_path).await;
-            // 使用缓存的 token 覆盖文件中的 token（缓存的 token 更新）
-            kiro.credentials.access_token = Some(token);
-            let openai_request = convert_anthropic_to_openai(request);
-            let resp = match kiro.call_api(&openai_request).await {
-                Ok(r) => r,
-                Err(e) => {
-                    // 记录 API 调用失败
-                    let _ = state.pool_service.mark_unhealthy(
-                        db,
-                        &credential.uuid,
-                        Some(&e.to_string()),
-                    );
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                    )
-                        .into_response();
-                }
-            };
-            let status = resp.status();
-            if status.is_success() {
-                match resp.bytes().await {
-                    Ok(bytes) => {
-                        let body = String::from_utf8_lossy(&bytes).to_string();
-                        let parsed = parse_cw_response(&body);
-                        // 记录成功
-                        let _ = state.pool_service.mark_healthy(
-                            db,
-                            &credential.uuid,
-                            Some(&request.model),
-                        );
-                        let _ = state.pool_service.record_usage(db, &credential.uuid);
-                        // 非流式请求返回完整 JSON 响应（需求 6.2）
-                        build_anthropic_response(&request.model, &parsed)
-                    }
-                    Err(e) => {
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&e.to_string()),
-                        );
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                        )
-                            .into_response()
-                    }
-                }
-            } else if status.as_u16() == 401 || status.as_u16() == 403 {
-                // Token 过期，强制刷新并重试
-                tracing::info!(
-                    "[POOL] Got {}, forcing token refresh for {}",
-                    status,
-                    &credential.uuid[..8]
-                );
-                let new_token = match state
-                    .token_cache
-                    .refresh_and_cache(db, &credential.uuid, true)
-                    .await
-                {
-                    Ok(t) => t,
-                    Err(e) => {
-                        // 记录 Token 刷新失败
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&format!("Token refresh failed: {e}")),
-                        );
-                        return (
-                            StatusCode::UNAUTHORIZED,
-                            Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {}", e)}})),
-                        )
-                            .into_response();
-                    }
-                };
-                // 使用新 token 重试
-                kiro.credentials.access_token = Some(new_token);
-                match kiro.call_api(&openai_request).await {
-                    Ok(retry_resp) => {
-                        if retry_resp.status().is_success() {
-                            match retry_resp.bytes().await {
-                                Ok(bytes) => {
-                                    let body = String::from_utf8_lossy(&bytes).to_string();
-                                    let parsed = parse_cw_response(&body);
-                                    // 记录重试成功
-                                    let _ = state.pool_service.mark_healthy(
-                                        db,
-                                        &credential.uuid,
-                                        Some(&request.model),
-                                    );
-                                    let _ = state.pool_service.record_usage(db, &credential.uuid);
-                                    // 非流式请求返回完整 JSON 响应（需求 6.2）
-                                    build_anthropic_response(&request.model, &parsed)
-                                }
-                                Err(e) => {
-                                    let _ = state.pool_service.mark_unhealthy(
-                                        db,
-                                        &credential.uuid,
-                                        Some(&e.to_string()),
-                                    );
-                                    (
-                                        StatusCode::INTERNAL_SERVER_ERROR,
-                                        Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                                    )
-                                        .into_response()
-                                }
-                            }
-                        } else {
-                            let body = retry_resp.text().await.unwrap_or_default();
-                            let _ = state.pool_service.mark_unhealthy(
-                                db,
-                                &credential.uuid,
-                                Some(&format!("Retry failed: {body}")),
-                            );
-                            (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                Json(serde_json::json!({"error": {"message": format!("Retry failed: {}", body)}})),
-                            )
-                                .into_response()
-                        }
-                    }
-                    Err(e) => {
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&e.to_string()),
-                        );
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                        )
-                            .into_response()
-                    }
-                }
-            } else {
-                let status_code = status.as_u16();
-                let body = resp.text().await.unwrap_or_default();
-                eprintln!("[PROVIDER_CALL] Kiro 请求失败: status={} body={}", status_code, &body[..body.len().min(500)]);
-                // 只有 5xx 错误才标记为不健康
-                if status_code >= 500 {
-                    let _ = state
-                        .pool_service
-                        .mark_unhealthy(db, &credential.uuid, Some(&body));
-                }
-                // 转发上游的实际状态码
-                (
-                    StatusCode::from_u16(status_code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-                    Json(serde_json::json!({"error": {"message": body}})),
-                )
-                    .into_response()
-            }
+        CredentialData::KiroOAuth { .. } => {
+            retired_credential_response("Kiro OAuth/local CLI credential")
         }
-        CredentialData::GeminiOAuth { .. } => {
-            // Gemini OAuth 路由暂不支持
-            (
-                StatusCode::NOT_IMPLEMENTED,
-                Json(serde_json::json!({"error": {"message": "Gemini OAuth routing not yet implemented. Use /v1/messages with Gemini models instead."}})),
-            )
-                .into_response()
-        }
-        CredentialData::AntigravityOAuth {
-            creds_file_path,
-            project_id,
-        } => {
-            let mut antigravity = AntigravityProvider::new();
-            if let Err(e) = antigravity
-                .load_credentials_from_path(creds_file_path)
-                .await
-            {
-                // 记录凭证加载失败
-                if let Some(db) = &state.db {
-                    let _ = state.pool_service.mark_unhealthy(
-                        db,
-                        &credential.uuid,
-                        Some(&format!("Failed to load credentials: {e}")),
-                    );
-                }
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": {"message": format!("Failed to load Antigravity credentials: {}", e)}})),
-                )
-                    .into_response();
-            }
-
-            // 使用新的 validate_token() 方法检查 Token 状态
-            let validation_result = antigravity.validate_token();
-            tracing::info!("[Antigravity] Token 验证结果: {:?}", validation_result);
-
-            // 根据验证结果决定是否刷新
-            if validation_result.needs_refresh() {
-                tracing::info!("[Antigravity] Token 需要刷新，开始刷新...");
-                match antigravity.refresh_token_with_retry(3).await {
-                    Ok(new_token) => {
-                        tracing::info!("[Antigravity] Token 刷新成功，新 token 长度: {}", new_token.len());
-                        // 刷新成功，标记为健康
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_healthy(
-                                db,
-                                &credential.uuid,
-                                None,
-                            );
-                        }
-                    }
-                    Err(refresh_error) => {
-                        tracing::error!("[Antigravity] Token 刷新失败: {:?}", refresh_error);
-                        // 使用新的 mark_unhealthy_with_details 方法
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_unhealthy_with_details(
-                                db,
-                                &credential.uuid,
-                                &refresh_error,
-                            );
-                        }
-
-                        // 根据错误类型返回不同的状态码和消息
-                        let (status, message) = if refresh_error.requires_reauth() {
-                            (StatusCode::UNAUTHORIZED, refresh_error.user_message())
-                        } else {
-                            (StatusCode::INTERNAL_SERVER_ERROR, refresh_error.user_message())
-                        };
-
-                        return (
-                            status,
-                            Json(serde_json::json!({"error": {"message": message}})),
-                        )
-                            .into_response();
-                    }
-                }
-            }
-
-            // 设置项目 ID
-            if let Some(pid) = project_id {
-                antigravity.project_id = Some(pid.clone());
-            } else if let Err(e) = antigravity.discover_project().await {
-                tracing::warn!("[Antigravity] Failed to discover project: {}", e);
-            }
-            // 获取 project_id 用于请求
-            let proj_id = antigravity.project_id.clone().unwrap_or_default();
-            // 先转换为 OpenAI 格式，再转换为 Antigravity 格式
-            let openai_request = convert_anthropic_to_openai(request);
-            let antigravity_request = convert_openai_to_antigravity_with_context(&openai_request, &proj_id);
-            match antigravity
-                .generate_content(&request.model, &antigravity_request)
-                .await
-            {
-                Ok(resp) => {
-                    // 转换为 OpenAI 格式，再构建 Anthropic 响应
-                    let content = resp["candidates"][0]["content"]["parts"][0]["text"]
-                        .as_str()
-                        .unwrap_or("");
-                    let parsed = CWParsedResponse {
-                        content: content.to_string(),
-                        tool_calls: Vec::new(),
-                        usage_credits: 0.0,
-                        context_usage_percentage: 0.0,
-                    };
-                    // 记录成功
-                    if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_healthy(
-                            db,
-                            &credential.uuid,
-                            Some(&request.model),
-                        );
-                        let _ = state.pool_service.record_usage(db, &credential.uuid);
-                    }
-                    if request.stream {
-                        build_anthropic_stream_response(&request.model, &parsed)
-                    } else {
-                        build_anthropic_response(&request.model, &parsed)
-                    }
-                }
-                Err(api_err) => {
-                    // 记录 API 调用失败
-                    if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&api_err.message),
-                        );
-                    }
-
-                    // 直接使用 AntigravityApiError 的状态码构建响应
-                    build_error_response_with_status(api_err.status_code, &api_err.to_string())
-                }
-            }
-        }
+        CredentialData::GeminiOAuth { .. } => retired_credential_response("Gemini OAuth credential"),
         CredentialData::OpenAIKey { api_key, base_url } => {
             let openai = OpenAICustomProvider::with_config(api_key.clone(), base_url.clone());
             let openai_request = convert_anthropic_to_openai(request);
@@ -463,13 +115,13 @@ pub async fn call_provider_anthropic(
                                     };
                                     // 记录成功
                                     if let Some(db) = &state.db {
-                                        let _ = state.pool_service.mark_healthy(
+                                        let _ = state.mark_credential_healthy(
                                             db,
                                             &credential.uuid,
                                             Some(&request.model),
                                         );
                                         let _ =
-                                            state.pool_service.record_usage(db, &credential.uuid);
+                                            state.record_credential_usage(db, &credential.uuid);
                                     }
                                     if request.stream {
                                         build_anthropic_stream_response(&request.model, &parsed)
@@ -480,7 +132,7 @@ pub async fn call_provider_anthropic(
                                     // 记录解析失败和原始响应
                                     eprintln!("[PROVIDER_CALL] 解析 OpenAI 响应失败，原始响应: {}", &body);
                                     if let Some(db) = &state.db {
-                                        let _ = state.pool_service.mark_unhealthy(
+                                        let _ = state.mark_credential_unhealthy(
                                             db,
                                             &credential.uuid,
                                             Some("Failed to parse OpenAI response"),
@@ -495,7 +147,7 @@ pub async fn call_provider_anthropic(
                             }
                             Err(e) => {
                                 if let Some(db) = &state.db {
-                                    let _ = state.pool_service.mark_unhealthy(
+                                    let _ = state.mark_credential_unhealthy(
                                         db,
                                         &credential.uuid,
                                         Some(&e.to_string()),
@@ -515,7 +167,7 @@ pub async fn call_provider_anthropic(
                         // 只有 5xx 错误才标记为不健康，4xx 错误（如模型不支持）不应该标记凭证为不健康
                         if status_code >= 500 {
                             if let Some(db) = &state.db {
-                                let _ = state.pool_service.mark_unhealthy(
+                                let _ = state.mark_credential_unhealthy(
                                     db,
                                     &credential.uuid,
                                     Some(&body),
@@ -532,7 +184,7 @@ pub async fn call_provider_anthropic(
                 }
                 Err(e) => {
                     if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(
+                        let _ = state.mark_credential_unhealthy(
                             db,
                             &credential.uuid,
                             Some(&e.to_string()),
@@ -605,12 +257,12 @@ pub async fn call_provider_anthropic(
                         );
                         // 记录成功
                         if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_healthy(
+                            let _ = state.mark_credential_healthy(
                                 db,
                                 &credential.uuid,
                                 Some(&request.model),
                             );
-                            let _ = state.pool_service.record_usage(db, &credential.uuid);
+                            let _ = state.record_credential_usage(db, &credential.uuid);
                         }
                         // 透传流式响应，保持 SSE 格式
                         let stream = resp.bytes_stream();
@@ -645,12 +297,12 @@ pub async fn call_provider_anthropic(
                                 );
                                 // 记录成功
                                 if let Some(db) = &state.db {
-                                    let _ = state.pool_service.mark_healthy(
+                                    let _ = state.mark_credential_healthy(
                                         db,
                                         &credential.uuid,
                                         Some(&request.model),
                                     );
-                                    let _ = state.pool_service.record_usage(db, &credential.uuid);
+                                    let _ = state.record_credential_usage(db, &credential.uuid);
                                 }
                                 Response::builder()
                                     .status(StatusCode::OK)
@@ -673,7 +325,7 @@ pub async fn call_provider_anthropic(
                                     ),
                                 );
                                 if let Some(db) = &state.db {
-                                    let _ = state.pool_service.mark_unhealthy(
+                                    let _ = state.mark_credential_unhealthy(
                                         db,
                                         &credential.uuid,
                                         Some(&body),
@@ -693,7 +345,7 @@ pub async fn call_provider_anthropic(
                                 &format!("[CLAUDE] 读取响应失败: {e}"),
                             );
                             if let Some(db) = &state.db {
-                                let _ = state.pool_service.mark_unhealthy(
+                                let _ = state.mark_credential_unhealthy(
                                     db,
                                     &credential.uuid,
                                     Some(&e.to_string()),
@@ -709,7 +361,7 @@ pub async fn call_provider_anthropic(
                 }
                 Err(e) => {
                     if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(
+                        let _ = state.mark_credential_unhealthy(
                             db,
                             &credential.uuid,
                             Some(&e.to_string()),
@@ -734,8 +386,8 @@ pub async fn call_provider_anthropic(
                         Ok(body) => {
                             if status.is_success() {
                                 if let Some(db) = &state.db {
-                                    let _ = state.pool_service.mark_healthy(db, &credential.uuid, Some(&request.model));
-                                    let _ = state.pool_service.record_usage(db, &credential.uuid);
+                                    let _ = state.mark_credential_healthy(db, &credential.uuid, Some(&request.model));
+                                    let _ = state.record_credential_usage(db, &credential.uuid);
                                 }
                                 Response::builder()
                                     .status(StatusCode::OK)
@@ -746,14 +398,14 @@ pub async fn call_provider_anthropic(
                                     })
                             } else {
                                 if let Some(db) = &state.db {
-                                    let _ = state.pool_service.mark_unhealthy(db, &credential.uuid, Some(&body));
+                                    let _ = state.mark_credential_unhealthy(db, &credential.uuid, Some(&body));
                                 }
                                 (StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR), Json(serde_json::json!({"error": {"message": body}}))).into_response()
                             }
                         }
                         Err(e) => {
                             if let Some(db) = &state.db {
-                                let _ = state.pool_service.mark_unhealthy(db, &credential.uuid, Some(&e.to_string()));
+                                let _ = state.mark_credential_unhealthy(db, &credential.uuid, Some(&e.to_string()));
                             }
                             (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": {"message": e.to_string()}}))).into_response()
                         }
@@ -761,7 +413,7 @@ pub async fn call_provider_anthropic(
                 }
                 Err(e) => {
                     if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(db, &credential.uuid, Some(&e.to_string()));
+                        let _ = state.mark_credential_unhealthy(db, &credential.uuid, Some(&e.to_string()));
                     }
                     (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": {"message": e.to_string()}}))).into_response()
                 }
@@ -775,14 +427,9 @@ pub async fn call_provider_anthropic(
             )
                 .into_response()
         }
-        // 新增的凭证类型暂不支持 Anthropic 格式
-        CredentialData::CodexOAuth { .. }
-        | CredentialData::ClaudeOAuth { .. } => {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": {"message": "This credential type does not support Anthropic format yet"}})),
-            )
-                .into_response()
+        CredentialData::CodexOAuth { .. } => retired_credential_response("Codex OAuth credential"),
+        CredentialData::ClaudeOAuth { .. } => {
+            retired_credential_response("Claude OAuth credential")
         }
         // Anthropic API Key - 根据 base_url 决定调用方式
         CredentialData::AnthropicKey { api_key, base_url } => {
@@ -823,12 +470,12 @@ pub async fn call_provider_anthropic(
                             "[ANTHROPIC] 流式请求，透传 SSE 响应",
                         );
                         if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_healthy(
+                            let _ = state.mark_credential_healthy(
                                 db,
                                 &credential.uuid,
                                 Some(&request.model),
                             );
-                            let _ = state.pool_service.record_usage(db, &credential.uuid);
+                            let _ = state.record_credential_usage(db, &credential.uuid);
                         }
                         let stream = resp.bytes_stream();
                         return Response::builder()
@@ -853,12 +500,12 @@ pub async fn call_provider_anthropic(
                         Ok(body) => {
                             if status.is_success() {
                                 if let Some(db) = &state.db {
-                                    let _ = state.pool_service.mark_healthy(
+                                    let _ = state.mark_credential_healthy(
                                         db,
                                         &credential.uuid,
                                         Some(&request.model),
                                     );
-                                    let _ = state.pool_service.record_usage(db, &credential.uuid);
+                                    let _ = state.record_credential_usage(db, &credential.uuid);
                                 }
                                 Response::builder()
                                     .status(StatusCode::OK)
@@ -881,7 +528,7 @@ pub async fn call_provider_anthropic(
                                     ),
                                 );
                                 if let Some(db) = &state.db {
-                                    let _ = state.pool_service.mark_unhealthy(
+                                    let _ = state.mark_credential_unhealthy(
                                         db,
                                         &credential.uuid,
                                         Some(&format!("API error: {status}")),
@@ -904,7 +551,7 @@ pub async fn call_provider_anthropic(
                 }
                 Err(e) => {
                     if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(
+                        let _ = state.mark_credential_unhealthy(
                             db,
                             &credential.uuid,
                             Some(&format!("API call failed: {e}")),
@@ -938,13 +585,12 @@ pub async fn call_provider_openai(
 
     // 调试：打印凭证类型
     let cred_type = match &credential.credential {
-        CredentialData::KiroOAuth { .. } => "KiroOAuth",
+        CredentialData::KiroOAuth { .. } => "RetiredKiroOAuth",
         CredentialData::ClaudeKey { .. } => "ClaudeKey",
         CredentialData::OpenAIKey { .. } => "OpenAIKey",
-        CredentialData::GeminiOAuth { .. } => "GeminiOAuth",
+        CredentialData::GeminiOAuth { .. } => "RetiredGeminiOAuth",
         CredentialData::GeminiApiKey { .. } => "GeminiApiKey",
         CredentialData::VertexKey { .. } => "VertexKey",
-        CredentialData::AntigravityOAuth { .. } => "AntigravityOAuth",
         _ => "Other",
     };
     tracing::info!(
@@ -956,641 +602,10 @@ pub async fn call_provider_openai(
     );
 
     match &credential.credential {
-        CredentialData::KiroOAuth { creds_file_path } => {
-            // 优先使用 token cache，避免每次都刷新 token
-            let db = match &state.db {
-                Some(db) => db,
-                None => {
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": {"message": "Database not available"}})),
-                    )
-                        .into_response();
-                }
-            };
-
-            // 获取缓存的 token（自动处理过期和刷新）
-            let token = match state
-                .token_cache
-                .get_valid_token(db, &credential.uuid)
-                .await
-            {
-                Ok(t) => t,
-                Err(e) => {
-                    tracing::warn!("[POOL] Token cache miss, loading from source: {}", e);
-                    // 降级：从源文件加载并刷新
-                    let mut kiro = KiroProvider::new();
-                    if let Err(e) = kiro.load_credentials_from_path(creds_file_path).await {
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&format!("Failed to load credentials: {e}")),
-                        );
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({"error": {"message": format!("Failed to load Kiro credentials: {}", e)}})),
-                        )
-                            .into_response();
-                    }
-                    if let Err(e) = kiro.refresh_token().await {
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&format!("Token refresh failed: {e}")),
-                        );
-                        return (
-                            StatusCode::UNAUTHORIZED,
-                            Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {}", e)}})),
-                        )
-                            .into_response();
-                    }
-                    kiro.credentials.access_token.unwrap_or_default()
-                }
-            };
-
-            // 使用获取到的 token 创建 KiroProvider
-            let mut kiro = KiroProvider::new();
-            // 从源文件加载其他配置（region, profile_arn 等）
-            // 注意：必须先加载凭证文件，再设置 token，因为 load_credentials_from_path 会覆盖整个 credentials
-            let _ = kiro.load_credentials_from_path(creds_file_path).await;
-            // 使用缓存的 token 覆盖文件中的 token（缓存的 token 更新）
-            kiro.credentials.access_token = Some(token);
-
-            tracing::info!("[CALL_PROVIDER_OPENAI] request.stream = {}, model = {}", request.stream, request.model);
-
-            // 检查是否为流式请求
-            if request.stream {
-                // 流式请求处理
-                tracing::info!("[OPENAI_STREAM] 处理流式请求, model={}", request.model);
-                match kiro.call_api_stream(request).await {
-                    Ok(stream_response) => {
-                        // 记录成功
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_healthy(db, &credential.uuid, Some(&request.model));
-                            let _ = state.pool_service.record_usage(db, &credential.uuid);
-                        }
-
-                        tracing::info!("[OPENAI_STREAM] 开始转换流式响应");
-
-                        // 使用新的统一流处理管道 (Kiro → OpenAI)
-                        let config = PipelineConfig::kiro_to_openai(request.model.clone());
-                        let pipeline = std::sync::Arc::new(tokio::sync::Mutex::new(
-                            StreamPipeline::new(config),
-                        ));
-
-                        // 创建转换流
-                        let pipeline_for_stream = pipeline.clone();
-                        let pipeline_for_finalize = pipeline.clone();
-                        let final_stream = async_stream::stream! {
-                            use futures::StreamExt;
-
-                            let mut stream_response = stream_response;
-
-                            while let Some(chunk_result) = stream_response.next().await {
-                                match chunk_result {
-                                    Ok(bytes) => {
-                                        tracing::debug!(
-                                            "[OPENAI_STREAM] 收到 {} 字节数据",
-                                            bytes.len()
-                                        );
-
-                                        // 使用 Pipeline 处理 chunk
-                                        let sse_events = {
-                                            let mut pipeline_guard = pipeline_for_stream.lock().await;
-                                            pipeline_guard.process_chunk(&bytes)
-                                        };
-
-                                        tracing::debug!(
-                                            "[OPENAI_STREAM] 生成 {} 个 SSE 事件",
-                                            sse_events.len()
-                                        );
-
-                                        // yield 每个 SSE 事件
-                                        for sse_str in sse_events {
-                                            yield Ok::<String, StreamError>(sse_str);
-                                        }
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("[OPENAI_STREAM] 流式传输错误: {}", e);
-                                        yield Err(e);
-                                        return;
-                                    }
-                                }
-                            }
-
-                            tracing::info!("[OPENAI_STREAM] 流结束，生成 finalize 事件");
-
-                            // 流结束，使用 Pipeline 生成结束事件
-                            let final_events = {
-                                let mut pipeline_guard = pipeline_for_finalize.lock().await;
-                                pipeline_guard.finish()
-                            };
-
-                            tracing::info!("[OPENAI_STREAM] finalize 生成 {} 个事件", final_events.len());
-
-                            for sse_str in final_events {
-                                yield Ok::<String, StreamError>(sse_str);
-                            }
-                        };
-
-                        tracing::info!("[OPENAI_STREAM] 构建 SSE 响应");
-
-                        // 转换为 Body 流
-                        let body_stream = final_stream.map(|result| -> Result<axum::body::Bytes, std::io::Error> {
-                            match result {
-                                Ok(event) => Ok(axum::body::Bytes::from(event)),
-                                Err(e) => Ok(axum::body::Bytes::from(e.to_sse_error())),
-                            }
-                        });
-
-                        // 构建 SSE 响应
-                        return Response::builder()
-                            .status(StatusCode::OK)
-                            .header(header::CONTENT_TYPE, "text/event-stream")
-                            .header(header::CACHE_CONTROL, "no-cache")
-                            .header(header::CONNECTION, "keep-alive")
-                            .header(header::TRANSFER_ENCODING, "chunked")
-                            .header("X-Accel-Buffering", "no")
-                            .body(Body::from_stream(body_stream))
-                            .unwrap_or_else(|_| {
-                                (
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    Json(
-                                        serde_json::json!({"error": {"message": "Failed to build streaming response"}}),
-                                    ),
-                                )
-                                    .into_response()
-                            });
-                    }
-                    Err(e) => {
-                        // 记录请求错误
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_unhealthy(db, &credential.uuid, Some(&e.to_string()));
-                        }
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                        )
-                            .into_response();
-                    }
-                }
-            }
-
-            // 非流式请求处理
-            match kiro.call_api(request).await {
-                Ok(resp) => {
-                    let status = resp.status();
-                    if status.is_success() {
-                        // 记录成功
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_healthy(db, &credential.uuid, Some(&request.model));
-                            let _ = state.pool_service.record_usage(db, &credential.uuid);
-                        }
-                        match resp.text().await {
-                            Ok(body) => {
-                                let parsed = parse_cw_response(&body);
-                                let has_tool_calls = !parsed.tool_calls.is_empty();
-                                let message = if has_tool_calls {
-                                    serde_json::json!({
-                                        "role": "assistant",
-                                        "content": if parsed.content.is_empty() { serde_json::Value::Null } else { serde_json::json!(parsed.content) },
-                                        "tool_calls": parsed.tool_calls.iter().map(|tc| {
-                                            serde_json::json!({
-                                                "id": tc.id,
-                                                "type": "function",
-                                                "function": {
-                                                    "name": tc.function.name,
-                                                    "arguments": tc.function.arguments
-                                                }
-                                            })
-                                        }).collect::<Vec<_>>()
-                                    })
-                                } else {
-                                    serde_json::json!({
-                                        "role": "assistant",
-                                        "content": parsed.content
-                                    })
-                                };
-                                Json(serde_json::json!({
-                                    "id": format!("chatcmpl-{}", uuid::Uuid::new_v4()),
-                                    "object": "chat.completion",
-                                    "created": std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap_or_default()
-                                        .as_secs(),
-                                    "model": request.model,
-                                    "choices": [{
-                                        "index": 0,
-                                        "message": message,
-                                        "finish_reason": if has_tool_calls { "tool_calls" } else { "stop" }
-                                    }],
-                                    "usage": {
-                                        "prompt_tokens": 0,
-                                        "completion_tokens": 0,
-                                        "total_tokens": 0
-                                    }
-                                }))
-                                .into_response()
-                            }
-                            Err(e) => (
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                            )
-                                .into_response(),
-                        }
-                    } else {
-                        // 记录 API 调用失败
-                        let body = resp.text().await.unwrap_or_default();
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_unhealthy(db, &credential.uuid, Some(&format!("HTTP {}: {}", status, safe_truncate(&body, 100))));
-                        }
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({"error": {"message": body}})),
-                        )
-                            .into_response()
-                    }
-                }
-                Err(e) => {
-                    // 记录请求错误
-                    if let Some(db) = &state.db {
-                        let _ = state.pool_service.mark_unhealthy(db, &credential.uuid, Some(&e.to_string()));
-                    }
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": {"message": e.to_string()}})),
-                    )
-                        .into_response()
-                }
-            }
+        CredentialData::KiroOAuth { .. } => {
+            retired_credential_response("Kiro OAuth/local CLI credential")
         }
-        CredentialData::GeminiOAuth { .. } => {
-            (
-                StatusCode::NOT_IMPLEMENTED,
-                Json(serde_json::json!({"error": {"message": "Gemini OAuth routing not yet implemented."}})),
-            )
-                .into_response()
-        }
-        CredentialData::AntigravityOAuth { creds_file_path, project_id } => {
-            eprintln!("\n========== [ANTIGRAVITY] 开始处理 Antigravity 请求 ==========");
-            eprintln!("[ANTIGRAVITY] 凭证文件: {creds_file_path}");
-            eprintln!("[ANTIGRAVITY] 项目ID: {project_id:?}");
-            eprintln!("[ANTIGRAVITY] 模型: {}", request.model);
-            eprintln!("[ANTIGRAVITY] 流式: {}", request.stream);
-
-            let mut antigravity = AntigravityProvider::new();
-            if let Err(e) = antigravity.load_credentials_from_path(creds_file_path).await {
-                eprintln!("[ANTIGRAVITY] 加载凭证失败: {e}");
-                // 记录凭证加载失败
-                if let Some(db) = &state.db {
-                    let _ = state.pool_service.mark_unhealthy(
-                        db,
-                        &credential.uuid,
-                        Some(&format!("Failed to load credentials: {e}")),
-                    );
-                }
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": {"message": format!("Failed to load Antigravity credentials: {}", e)}})),
-                )
-                    .into_response();
-            }
-            eprintln!("[ANTIGRAVITY] 凭证加载成功");
-
-            // 使用新的 validate_token() 方法检查 Token 状态
-            let validation_result = antigravity.validate_token();
-            eprintln!("[ANTIGRAVITY] Token 验证结果: {validation_result:?}");
-            eprintln!("[ANTIGRAVITY] needs_refresh() = {}", validation_result.needs_refresh());
-            tracing::info!("[Antigravity] Token 验证结果: {:?}", validation_result);
-
-            // 根据验证结果决定是否刷新
-            if validation_result.needs_refresh() {
-                eprintln!("[ANTIGRAVITY] Token 需要刷新，开始刷新...");
-                tracing::info!("[Antigravity] Token 需要刷新，开始刷新...");
-                match antigravity.refresh_token_with_retry(3).await {
-                    Ok(new_token) => {
-                        eprintln!("[ANTIGRAVITY] Token 刷新成功，新 token 长度: {}", new_token.len());
-                        tracing::info!("[Antigravity] Token 刷新成功，新 token 长度: {}", new_token.len());
-                        // 刷新成功，标记为健康
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_healthy(
-                                db,
-                                &credential.uuid,
-                                None,
-                            );
-                        }
-                    }
-                    Err(refresh_error) => {
-                        eprintln!("[ANTIGRAVITY] Token 刷新失败: {refresh_error:?}");
-                        tracing::error!("[Antigravity] Token 刷新失败: {:?}", refresh_error);
-                        // 使用新的 mark_unhealthy_with_details 方法
-                        if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_unhealthy_with_details(
-                                db,
-                                &credential.uuid,
-                                &refresh_error,
-                            );
-                        }
-
-                        // 根据错误类型返回不同的状态码和消息
-                        let (status, message) = if refresh_error.requires_reauth() {
-                            (StatusCode::UNAUTHORIZED, refresh_error.user_message())
-                        } else {
-                            (StatusCode::INTERNAL_SERVER_ERROR, refresh_error.user_message())
-                        };
-
-                        return (
-                            status,
-                            Json(serde_json::json!({"error": {"message": message}})),
-                        )
-                            .into_response();
-                    }
-                }
-            } else {
-                eprintln!("[ANTIGRAVITY] Token 不需要刷新，继续使用现有 Token");
-            }
-
-            // 设置项目 ID
-            if let Some(pid) = project_id {
-                antigravity.project_id = Some(pid.clone());
-            } else if let Err(e) = antigravity.discover_project().await {
-                tracing::warn!("[Antigravity] Failed to discover project: {}", e);
-            }
-
-            tracing::info!("[ANTIGRAVITY] request.stream = {}, model = {}, project_id = {:?}",
-                request.stream, request.model, antigravity.project_id);
-
-            // 检查是否为流式请求
-            if request.stream {
-                tracing::info!("[ANTIGRAVITY_STREAM] ========== 开始处理流式请求 ==========");
-                tracing::info!("[ANTIGRAVITY_STREAM] model={}, has_token={}",
-                    request.model, antigravity.credentials.access_token.is_some());
-
-                // 检查是否是图片生成模型
-                // 注意：gemini-3-pro-image-preview 是支持图片理解的模型，不是图片生成模型
-                // 只有明确的图片生成模型才需要走非流式路径
-                let is_image_generation_model = request.model == "imagen"
-                    || request.model.starts_with("imagen-")
-                    || request.model.contains("image-generation");
-                tracing::info!("[ANTIGRAVITY_STREAM] is_image_generation_model={}", is_image_generation_model);
-
-                // 对于图片生成模型，使用非流式请求然后模拟流式返回
-                if is_image_generation_model {
-                    tracing::info!("[ANTIGRAVITY_STREAM] 图片生成模型，使用非流式请求");
-
-                    // 获取 project_id 用于请求
-                    let proj_id = antigravity.project_id.clone().unwrap_or_default();
-                    // 转换请求格式 - 这已经是完整的 Antigravity 请求格式
-                    let antigravity_request = convert_openai_to_antigravity_with_context(request, &proj_id);
-
-                    // 直接调用 call_api，因为 antigravity_request 已经是完整格式
-                    match antigravity.call_api("generateContent", &antigravity_request).await {
-                        Ok(resp) => {
-                            let resp_str = serde_json::to_string_pretty(&resp).unwrap_or_default();
-                            if is_lime_debug_enabled() {
-                                let debug_dir = lime_core::app_paths::resolve_logs_dir()
-                                    .unwrap_or_else(|_| std::env::temp_dir().join("lime").join("logs"));
-                                let _ = std::fs::create_dir_all(&debug_dir);
-                                let debug_file = debug_dir.join("antigravity_image_response.json");
-                                let _ = std::fs::write(&debug_file, &resp_str);
-                                tracing::info!(
-                                    "[ANTIGRAVITY_STREAM] 原始响应已保存到: {:?}, 大小: {} bytes",
-                                    debug_file,
-                                    resp_str.len()
-                                );
-                                eprintln!(
-                                    "[ANTIGRAVITY_STREAM] 原始响应已保存到: {:?}, 大小: {} bytes",
-                                    debug_file,
-                                    resp_str.len()
-                                );
-                            }
-
-                            tracing::info!("[ANTIGRAVITY_STREAM] 图片生成完成，转换为流式响应");
-
-                            // 将非流式响应转换为 OpenAI 格式
-                            let openai_response = convert_antigravity_to_openai_response(&resp, &request.model);
-
-                            let openai_str = serde_json::to_string_pretty(&openai_response).unwrap_or_default();
-                            if is_lime_debug_enabled() {
-                                let debug_dir = lime_core::app_paths::resolve_logs_dir()
-                                    .unwrap_or_else(|_| std::env::temp_dir().join("lime").join("logs"));
-                                let _ = std::fs::create_dir_all(&debug_dir);
-                                let openai_debug_file =
-                                    debug_dir.join("antigravity_image_openai_response.json");
-                                let _ = std::fs::write(&openai_debug_file, &openai_str);
-                                tracing::info!(
-                                    "[ANTIGRAVITY_STREAM] OpenAI 响应已保存到: {:?}, 大小: {} bytes",
-                                    openai_debug_file,
-                                    openai_str.len()
-                                );
-                                eprintln!(
-                                    "[ANTIGRAVITY_STREAM] OpenAI 响应已保存到: {:?}, 大小: {} bytes",
-                                    openai_debug_file,
-                                    openai_str.len()
-                                );
-                            }
-
-                            // 将非流式响应转换为流式 SSE 格式
-                            let model = request.model.clone();
-                            let chunk_id = format!("chatcmpl-{}", uuid::Uuid::new_v4());
-                            let created = chrono::Utc::now().timestamp();
-
-                            // 提取内容
-                            let content = openai_response
-                                .get("choices")
-                                .and_then(|c| c.as_array())
-                                .and_then(|arr| arr.first())
-                                .and_then(|choice| choice.get("message"))
-                                .and_then(|msg| msg.get("content"))
-                                .and_then(|c| c.as_str())
-                                .unwrap_or("");
-
-                            tracing::info!("[ANTIGRAVITY_STREAM] 图片内容长度: {} 字符", content.len());
-                            eprintln!("[ANTIGRAVITY_STREAM] 图片内容长度: {} 字符", content.len());
-
-                            // 构建 SSE 事件
-                            let mut sse_events = String::new();
-
-                            // 发送内容 chunk
-                            if !content.is_empty() {
-                                let chunk_response = serde_json::json!({
-                                    "id": chunk_id,
-                                    "object": "chat.completion.chunk",
-                                    "created": created,
-                                    "model": model,
-                                    "choices": [{
-                                        "index": 0,
-                                        "delta": {
-                                            "content": content
-                                        },
-                                        "finish_reason": null
-                                    }]
-                                });
-                                sse_events.push_str(&format!("data: {chunk_response}\n\n"));
-                            }
-
-                            // 发送结束 chunk
-                            let done_response = serde_json::json!({
-                                "id": chunk_id,
-                                "object": "chat.completion.chunk",
-                                "created": created,
-                                "model": model,
-                                "choices": [{
-                                    "index": 0,
-                                    "delta": {},
-                                    "finish_reason": "stop"
-                                }]
-                            });
-                            sse_events.push_str(&format!("data: {done_response}\n\n"));
-                            sse_events.push_str("data: [DONE]\n\n");
-
-                            return Response::builder()
-                                .status(StatusCode::OK)
-                                .header(header::CONTENT_TYPE, "text/event-stream")
-                                .header(header::CACHE_CONTROL, "no-cache")
-                                .header(header::CONNECTION, "keep-alive")
-                                .body(Body::from(sse_events))
-                                .unwrap_or_else(|_| {
-                                    (
-                                        StatusCode::INTERNAL_SERVER_ERROR,
-                                        Json(serde_json::json!({"error": {"message": "Failed to build streaming response"}})),
-                                    )
-                                        .into_response()
-                                });
-                        }
-                        Err(api_err) => {
-                            tracing::error!("[ANTIGRAVITY_STREAM] 图片生成失败 (HTTP {}): {}", api_err.status_code, api_err.message);
-                            // 直接使用 AntigravityApiError 的状态码构建响应
-                            return build_error_response_with_status(api_err.status_code, &api_err.to_string());
-                        }
-                    }
-                }
-
-                match antigravity.call_api_stream(request).await {
-                    Ok(stream_response) => {
-                        eprintln!("[ANTIGRAVITY_STREAM] ✓ 流式响应已建立");
-                        tracing::info!("[ANTIGRAVITY_STREAM] ✓ 流式响应已建立");
-
-                        let model = request.model.clone();
-
-                        // Antigravity 返回的是分片的 JSON，需要累积所有数据后解析
-                        // 使用 channel 来收集所有数据，然后一次性返回
-                        let (tx, rx) = tokio::sync::oneshot::channel::<Result<String, String>>();
-
-                        // 在后台任务中收集所有数据
-                        let model_clone = model.clone();
-                        tokio::spawn(async move {
-                            use futures::StreamExt;
-                            let mut stream = stream_response;
-                            let mut all_data = String::new();
-                            let mut chunk_count = 0u32;
-
-                            while let Some(result) = stream.next().await {
-                                chunk_count += 1;
-                                match result {
-                                    Ok(bytes) => {
-                                        let text = String::from_utf8_lossy(&bytes);
-                                        all_data.push_str(&text);
-
-                                        if chunk_count <= 3 {
-                                            eprintln!("[ANTIGRAVITY_STREAM] 收集 chunk #{}: {} bytes", chunk_count, bytes.len());
-                                        } else if chunk_count % 200 == 0 {
-                                            eprintln!("[ANTIGRAVITY_STREAM] 已收集 {} 个 chunk, 总大小: {} bytes", chunk_count, all_data.len());
-                                        }
-                                    }
-                                    Err(e) => {
-                                        eprintln!("[ANTIGRAVITY_STREAM] chunk #{chunk_count} 错误: {e}");
-                                        let _ = tx.send(Err(e.to_string()));
-                                        return;
-                                    }
-                                }
-                            }
-
-                            eprintln!("[ANTIGRAVITY_STREAM] 流结束，共收集 {} 个 chunk, 总大小: {} bytes", chunk_count, all_data.len());
-
-                            // 尝试解析累积的 JSON 数据
-                            // Antigravity 返回格式: { "response": { "candidates": [...] } }
-                            let result = parse_antigravity_accumulated_response(&all_data, &model_clone);
-                            let _ = tx.send(result);
-                        });
-
-                        // 等待数据收集完成，然后构建 SSE 响应
-                        let sse_stream = async_stream::stream! {
-                            match rx.await {
-                                Ok(Ok(sse_content)) => {
-                                    // 返回累积的 SSE 事件
-                                    yield Ok::<_, std::io::Error>(axum::body::Bytes::from(sse_content));
-                                }
-                                Ok(Err(e)) => {
-                                    eprintln!("[ANTIGRAVITY_STREAM] 解析错误: {e}");
-                                    let error_event = format!(
-                                        "data: {{\"error\": {{\"message\": \"{}\"}}}}\n\ndata: [DONE]\n\n",
-                                        e.replace("\"", "\\\"")
-                                    );
-                                    yield Ok(axum::body::Bytes::from(error_event));
-                                }
-                                Err(_) => {
-                                    eprintln!("[ANTIGRAVITY_STREAM] channel 接收错误");
-                                    let error_event = "data: {\"error\": {\"message\": \"Internal error\"}}\n\ndata: [DONE]\n\n";
-                                    yield Ok(axum::body::Bytes::from(error_event.to_string()));
-                                }
-                            }
-                        };
-
-                        return Response::builder()
-                            .status(StatusCode::OK)
-                            .header(header::CONTENT_TYPE, "text/event-stream")
-                            .header(header::CACHE_CONTROL, "no-cache")
-                            .header(header::CONNECTION, "keep-alive")
-                            .header("X-Accel-Buffering", "no")
-                            .body(Body::from_stream(sse_stream))
-                            .unwrap_or_else(|_| {
-                                (
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    Json(
-                                        serde_json::json!({"error": {"message": "Failed to build streaming response"}}),
-                                    ),
-                                )
-                                    .into_response()
-                            });
-                    }
-                    Err(provider_err) => {
-                        // call_api_stream 返回 ProviderError，使用字符串解析状态码
-                        return build_error_response(&provider_err.to_string());
-                    }
-                }
-            }
-
-            // 非流式请求处理
-            eprintln!("[ANTIGRAVITY_OPENAI] ========== 开始处理非流式请求 ==========");
-            eprintln!("[ANTIGRAVITY_OPENAI] 模型: {}", request.model);
-
-            // 获取 project_id 用于请求
-            let proj_id = antigravity.project_id.clone().unwrap_or_default();
-            eprintln!("[ANTIGRAVITY_OPENAI] 项目ID: {proj_id}");
-
-            // 转换请求格式
-            eprintln!("[ANTIGRAVITY_OPENAI] 开始转换请求格式...");
-            let antigravity_request = convert_openai_to_antigravity_with_context(request, &proj_id);
-            eprintln!("[ANTIGRAVITY_OPENAI] 请求格式转换完成");
-
-            eprintln!("[ANTIGRAVITY_OPENAI] 调用 generate_content...");
-            match antigravity.generate_content(&request.model, &antigravity_request).await {
-                Ok(resp) => {
-                    eprintln!("[ANTIGRAVITY_OPENAI] generate_content 返回成功");
-                    let openai_response = convert_antigravity_to_openai_response(&resp, &request.model);
-                    eprintln!("[ANTIGRAVITY_OPENAI] ========== 非流式请求处理完成 ==========");
-                    Json(openai_response).into_response()
-                }
-                Err(api_err) => {
-                    eprintln!("[ANTIGRAVITY_OPENAI] generate_content 失败 (HTTP {}): {}", api_err.status_code, api_err.message);
-                    eprintln!("[ANTIGRAVITY_OPENAI] ========== 非流式请求处理失败 ==========");
-
-                    // 直接使用 AntigravityApiError 的状态码构建响应
-                    build_error_response_with_status(api_err.status_code, &api_err.to_string())
-                }
-            }
-        }
+        CredentialData::GeminiOAuth { .. } => retired_credential_response("Gemini OAuth credential"),
         CredentialData::OpenAIKey { api_key, base_url } => {
             let openai = OpenAICustomProvider::with_config(api_key.clone(), base_url.clone());
 
@@ -1860,12 +875,12 @@ pub async fn call_provider_openai(
                     match openai.call_api_stream(request).await {
                         Ok(stream_response) => {
                             if let Some(db) = &state.db {
-                                let _ = state.pool_service.mark_healthy(
+                                let _ = state.mark_credential_healthy(
                                     db,
                                     &credential.uuid,
                                     Some(&request.model),
                                 );
-                                let _ = state.pool_service.record_usage(db, &credential.uuid);
+                                let _ = state.record_credential_usage(db, &credential.uuid);
                             }
 
                             let body_stream =
@@ -1894,7 +909,7 @@ pub async fn call_provider_openai(
                         }
                         Err(e) => {
                             if let Some(db) = &state.db {
-                                let _ = state.pool_service.mark_unhealthy(
+                                let _ = state.mark_credential_unhealthy(
                                     db,
                                     &credential.uuid,
                                     Some(&format!("Streaming API call failed: {e}")),
@@ -1925,15 +940,15 @@ pub async fn call_provider_openai(
                         // 非流式响应
                         if status.is_success() {
                             if let Some(db) = &state.db {
-                                let _ = state.pool_service.mark_healthy(
+                                let _ = state.mark_credential_healthy(
                                     db,
                                     &credential.uuid,
                                     Some(&request.model),
                                 );
-                                let _ = state.pool_service.record_usage(db, &credential.uuid);
+                                let _ = state.record_credential_usage(db, &credential.uuid);
                             }
                         } else if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_unhealthy(
+                            let _ = state.mark_credential_unhealthy(
                                 db,
                                 &credential.uuid,
                                 Some(&format!("API error: {status}")),
@@ -1961,7 +976,7 @@ pub async fn call_provider_openai(
                     }
                     Err(e) => {
                         if let Some(db) = &state.db {
-                            let _ = state.pool_service.mark_unhealthy(
+                            let _ = state.mark_credential_unhealthy(
                                 db,
                                 &credential.uuid,
                                 Some(&format!("API call failed: {e}")),
@@ -1983,210 +998,9 @@ pub async fn call_provider_openai(
                     .into_response()
             }
         }
-        // Codex OAuth 凭证处理
-        CredentialData::CodexOAuth {
-            creds_file_path,
-            api_base_url,
-        } => {
-            // 加载 Codex 凭证
-            let mut codex = CodexProvider::new();
-            if let Err(e) = codex.load_credentials_from_path(creds_file_path).await {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": {"message": format!("Failed to load Codex credentials: {}", e)}})),
-                )
-                    .into_response();
-            }
-
-            // 如果配置了自定义 API Base URL，覆盖凭证文件中的配置
-            if let Some(base_url) = api_base_url {
-                if !base_url.trim().is_empty() {
-                    codex.credentials.api_base_url = Some(base_url.clone());
-                }
-            }
-
-            // 确保 token 有效
-            if let Err(e) = codex.ensure_valid_token().await {
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({"error": {"message": format!("Codex token refresh failed: {}", e)}})),
-                )
-                    .into_response();
-            }
-
-            // 将 ChatCompletionRequest 转换为 serde_json::Value
-            let request_json = match serde_json::to_value(request) {
-                Ok(v) => v,
-                Err(e) => {
-                    return (
-                        StatusCode::BAD_REQUEST,
-                        Json(serde_json::json!({"error": {"message": format!("Failed to serialize request: {}", e)}})),
-                    )
-                        .into_response();
-                }
-            };
-
-            // 调用 Codex API
-            match codex.call_api(&request_json).await {
-                Ok(response) => {
-                    let status = response.status();
-                    let headers = response.headers().clone();
-
-                    // 检查是否为流式响应
-                    if request.stream {
-                        // 流式响应：读取 Codex SSE 流，转换为 OpenAI SSE 格式
-                        // 参考 CLIProxyAPI: internal/translator/codex/openai/chat-completions/codex_openai_response.go
-                        use std::sync::Arc;
-                        use tokio::sync::Mutex;
-
-                        let bytes_stream = response.bytes_stream();
-
-                        // 创建转换状态（包含缓冲区）
-                        struct StreamState {
-                            convert_state: CodexConvertState,
-                            buffer: String,
-                        }
-
-                        let state = Arc::new(Mutex::new(StreamState {
-                            convert_state: CodexConvertState::default(),
-                            buffer: String::new(),
-                        }));
-
-                        let converted_stream = bytes_stream.map(move |result| {
-                            let state = Arc::clone(&state);
-                            async move {
-                                match result {
-                                    Ok(bytes) => {
-                                        let chunk = String::from_utf8_lossy(&bytes);
-                                        let mut state = state.lock().await;
-                                        state.buffer.push_str(&chunk);
-
-                                        let mut output = String::new();
-
-                                        // 处理缓冲区中的完整行
-                                        while let Some(newline_pos) = state.buffer.find('\n') {
-                                            let line = state.buffer[..newline_pos].to_string();
-                                            state.buffer = state.buffer[newline_pos + 1..].to_string();
-
-                                            if let Some(data) = line.strip_prefix("data: ") {
-                                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
-                                                    if let Some(converted) = convert_codex_event_to_openai_sse_with_state(
-                                                        &json,
-                                                        &mut state.convert_state,
-                                                    ) {
-                                                        output.push_str(&format!("data: {converted}\n\n"));
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        Ok::<_, std::io::Error>(bytes::Bytes::from(output))
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("[Codex] Stream error: {}", e);
-                                        Err(std::io::Error::other(e.to_string()))
-                                    }
-                                }
-                            }
-                        }).buffer_unordered(1).filter_map(|result| async move {
-                            match result {
-                                Ok(bytes) if !bytes.is_empty() => Some(Ok(bytes)),
-                                Ok(_) => None,
-                                Err(e) => Some(Err(e)),
-                            }
-                        });
-
-                        let body = Body::from_stream(converted_stream);
-                        let mut response_builder = Response::builder()
-                            .status(status)
-                            .header(header::CONTENT_TYPE, "text/event-stream")
-                            .header(header::CACHE_CONTROL, "no-cache")
-                            .header(header::CONNECTION, "keep-alive");
-
-                        for (key, value) in headers.iter() {
-                            if key != header::CONTENT_TYPE
-                                && key != header::TRANSFER_ENCODING
-                                && key != header::CONTENT_LENGTH
-                            {
-                                response_builder = response_builder.header(key, value);
-                            }
-                        }
-
-                        response_builder.body(body).unwrap_or_else(|_| {
-                            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to build response")
-                                .into_response()
-                        })
-                    } else {
-                        // 非流式响应：读取 SSE 流，解析 response.completed 事件，转换为 OpenAI 格式
-                        // 参考 CLIProxyAPI: internal/translator/codex/openai/chat-completions/codex_openai_response.go
-                        match response.bytes().await {
-                            Ok(body) => {
-                                // 解析 SSE 数据，查找 response.completed 事件
-                                let body_str = String::from_utf8_lossy(&body);
-                                let mut completed_data: Option<serde_json::Value> = None;
-
-                                for line in body_str.lines() {
-                                    if let Some(data) = line.strip_prefix("data: ") {
-                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
-                                            if json.get("type").and_then(|t| t.as_str()) == Some("response.completed") {
-                                                completed_data = Some(json);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                match completed_data {
-                                    Some(codex_response) => {
-                                        // 转换为 OpenAI Chat Completions 格式
-                                        let openai_response = convert_codex_to_openai_non_stream(&codex_response);
-                                        Response::builder()
-                                            .status(StatusCode::OK)
-                                            .header(header::CONTENT_TYPE, "application/json")
-                                            .body(Body::from(openai_response.to_string()))
-                                            .unwrap_or_else(|_| {
-                                                (StatusCode::INTERNAL_SERVER_ERROR, "Failed to build response")
-                                                    .into_response()
-                                            })
-                                    }
-                                    None => {
-                                        tracing::error!("[Codex] No response.completed event found in SSE stream");
-                                        (
-                                            StatusCode::INTERNAL_SERVER_ERROR,
-                                            Json(serde_json::json!({"error": {"message": "No response.completed event found in Codex response"}})),
-                                        )
-                                            .into_response()
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!("[Codex] Failed to read response body: {}", e);
-                                (
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    Json(serde_json::json!({"error": {"message": format!("Failed to read Codex response: {}", e)}})),
-                                )
-                                    .into_response()
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("[Codex] API call failed: {}", e);
-                    (
-                        StatusCode::BAD_GATEWAY,
-                        Json(serde_json::json!({"error": {"message": format!("Codex API call failed: {}", e)}})),
-                    )
-                        .into_response()
-                }
-            }
-        }
-        // 新增的凭证类型暂不支持 OpenAI 格式
+        CredentialData::CodexOAuth { .. } => retired_credential_response("Codex OAuth credential"),
         CredentialData::ClaudeOAuth { .. } => {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": {"message": "This credential type does not support OpenAI format yet"}})),
-            )
-                .into_response()
+            retired_credential_response("Claude OAuth credential")
         }
     }
 }
@@ -2206,12 +1020,8 @@ pub async fn call_provider_openai(
 /// 流式格式枚举
 pub fn get_stream_format_for_credential(credential: &ProviderCredential) -> StreamingFormat {
     match &credential.credential {
-        CredentialData::KiroOAuth { .. } => StreamingFormat::AwsEventStream,
         CredentialData::ClaudeKey { .. } => StreamingFormat::AnthropicSse,
         CredentialData::OpenAIKey { .. } => StreamingFormat::OpenAiSse,
-        // TODO: 任务 6 完成后，将这些改为 GeminiStream
-        CredentialData::AntigravityOAuth { .. } => StreamingFormat::OpenAiSse,
-        CredentialData::GeminiOAuth { .. } => StreamingFormat::OpenAiSse,
         CredentialData::GeminiApiKey { .. } => StreamingFormat::OpenAiSse,
         CredentialData::VertexKey { .. } => StreamingFormat::OpenAiSse,
         _ => StreamingFormat::OpenAiSse,
@@ -2578,307 +1388,6 @@ pub async fn monitor_client_disconnect(cancel_token: tokio_util::sync::Cancellat
 
     // 等待取消令牌被触发（由其他地方触发）
     cancel_token.cancelled().await;
-}
-
-// ============================================================================
-// Kiro 凭证真正流式响应处理
-// ============================================================================
-
-/// Kiro 凭证流式响应处理
-///
-/// 实现真正的端到端流式传输，将 AWS Event Stream 格式转换为 Anthropic SSE 格式。
-///
-/// # 参数
-/// - `state`: 应用状态
-/// - `credential`: Kiro 凭证信息
-/// - `request`: Anthropic 格式请求
-/// - `flow_id`: Flow ID（可选，用于流式响应处理）
-///
-/// # 需求覆盖
-/// - 需求 1.1: 使用 reqwest 的流式响应模式
-/// - 需求 1.2: 实时解析每个 JSON payload 并转换为 Anthropic SSE 事件
-/// - 需求 1.3: 立即发送 content_block_delta 事件给客户端
-/// - 需求 3.1: Flow Monitor 记录 chunk_count 大于 0
-/// - 需求 3.2: 调用 process_chunk 更新流重建器
-/// - 需求 3.3: 流完成时拥有完整的重建响应内容
-/// - 需求 4.4: 在流式请求前检查 Token 是否即将过期（10分钟内）并提前刷新
-pub async fn handle_kiro_stream(
-    state: &AppState,
-    credential: &ProviderCredential,
-    request: &AnthropicMessagesRequest,
-    flow_id: Option<&str>,
-) -> Response {
-    tracing::info!(
-        "[KIRO_STREAM] handle_kiro_stream 被调用, model={}, flow_id={:?}",
-        request.model,
-        flow_id
-    );
-
-    // 提取凭证文件路径
-    let creds_file_path = match &credential.credential {
-        CredentialData::KiroOAuth { creds_file_path } => creds_file_path.clone(),
-        _ => {
-            tracing::error!("[KIRO_STREAM] 无效的凭证类型");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": {"message": "Invalid credential type for Kiro stream"}})),
-            )
-                .into_response();
-        }
-    };
-
-    tracing::info!("[KIRO_STREAM] 凭证文件路径: {}", creds_file_path);
-
-    // 获取数据库连接
-    let db = match &state.db {
-        Some(db) => db,
-        None => {
-            tracing::error!("[KIRO_STREAM] 数据库不可用");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": {"message": "Database not available"}})),
-            )
-                .into_response();
-        }
-    };
-
-    // 获取有效 token（需求 4.4: 检查 Token 是否即将过期，10分钟内则提前刷新）
-    let token = match state
-        .token_cache
-        .ensure_token_valid_for_streaming(db, &credential.uuid, 10)
-        .await
-    {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::warn!(
-                "[KIRO_STREAM] Token validation failed, loading from source: {}",
-                e
-            );
-            // 回退到从源文件加载
-            let mut kiro = KiroProvider::new();
-            if let Err(e) = kiro.load_credentials_from_path(&creds_file_path).await {
-                let _ = state.pool_service.mark_unhealthy(
-                    db,
-                    &credential.uuid,
-                    Some(&format!("Failed to load credentials: {e}")),
-                );
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": {"message": format!("Failed to load Kiro credentials: {}", e)}})),
-                )
-                    .into_response();
-            }
-            if let Err(e) = kiro.refresh_token().await {
-                let _ = state.pool_service.mark_unhealthy(
-                    db,
-                    &credential.uuid,
-                    Some(&format!("Token refresh failed: {e}")),
-                );
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({"error": {"message": format!("Token refresh failed: {}", e)}})),
-                )
-                    .into_response();
-            }
-            kiro.credentials.access_token.unwrap_or_default()
-        }
-    };
-
-    // 创建 KiroProvider 并设置 token
-    let mut kiro = KiroProvider::new();
-    // 从源文件加载其他配置（region, profile_arn 等）
-    // 注意：必须先加载凭证文件，再设置 token，因为 load_credentials_from_path 会覆盖整个 credentials
-    let _ = kiro.load_credentials_from_path(&creds_file_path).await;
-    // 使用缓存的 token 覆盖文件中的 token（缓存的 token 更新）
-    kiro.credentials.access_token = Some(token);
-
-    tracing::info!("[KIRO_STREAM] 准备调用 call_api_stream_anthropic (直接转换)");
-
-    // 调用流式 API - 直接使用 Anthropic 格式（需求 4.1, 4.2, 4.3: 401/403 错误重试逻辑）
-    let stream_response = match kiro.call_api_stream_anthropic(request).await {
-        Ok(stream) => {
-            tracing::info!("[KIRO_STREAM] call_api_stream 成功返回流");
-            stream
-        }
-        Err(e) => {
-            tracing::error!("[KIRO_STREAM] call_api_stream 失败: {}", e);
-            // 检查是否是 401/403 错误或 Token 过期，需要刷新 token 重试（需求 4.1）
-            let needs_token_refresh = matches!(
-                &e,
-                lime_providers::providers::ProviderError::AuthenticationError(_)
-                    | lime_providers::providers::ProviderError::TokenExpired(_)
-            );
-
-            if needs_token_refresh {
-                tracing::info!(
-                    "[KIRO_STREAM] Got auth/token error ({}), forcing token refresh for {}",
-                    e.short_message(),
-                    &credential.uuid[..8]
-                );
-                // 强制刷新 token（需求 4.1）
-                let new_token = match state
-                    .token_cache
-                    .refresh_and_cache(db, &credential.uuid, true)
-                    .await
-                {
-                    Ok(t) => t,
-                    Err(refresh_err) => {
-                        // 需求 4.3: Token 刷新失败时返回明确的错误信息
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&format!("Token refresh failed: {refresh_err}")),
-                        );
-                        return (
-                            StatusCode::UNAUTHORIZED,
-                            Json(serde_json::json!({
-                                "error": {
-                                    "type": "authentication_error",
-                                    "message": format!("Token refresh failed: {}", refresh_err)
-                                }
-                            })),
-                        )
-                            .into_response();
-                    }
-                };
-
-                // 使用新 token 重试（需求 4.2）
-                kiro.credentials.access_token = Some(new_token);
-                match kiro.call_api_stream_anthropic(request).await {
-                    Ok(stream) => stream,
-                    Err(retry_err) => {
-                        let _ = state.pool_service.mark_unhealthy(
-                            db,
-                            &credential.uuid,
-                            Some(&retry_err.to_string()),
-                        );
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            Json(serde_json::json!({
-                                "error": {
-                                    "type": "api_error",
-                                    "message": format!("Retry failed after token refresh: {}", retry_err)
-                                }
-                            })),
-                        )
-                            .into_response();
-                    }
-                }
-            } else {
-                let _ =
-                    state
-                        .pool_service
-                        .mark_unhealthy(db, &credential.uuid, Some(&e.to_string()));
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({
-                        "error": {
-                            "type": "api_error",
-                            "message": e.to_string()
-                        }
-                    })),
-                )
-                    .into_response();
-            }
-        }
-    };
-
-    // 记录成功
-    let _ = state
-        .pool_service
-        .mark_healthy(db, &credential.uuid, Some(&request.model));
-    let _ = state.pool_service.record_usage(db, &credential.uuid);
-
-    tracing::info!(
-        "[KIRO_STREAM] 开始处理流式响应, model={}, flow_id={:?}",
-        request.model,
-        flow_id
-    );
-
-    // 使用新的统一流处理管道 (Kiro → Anthropic)
-    let config = PipelineConfig::kiro_to_anthropic(request.model.clone());
-    let pipeline = std::sync::Arc::new(tokio::sync::Mutex::new(StreamPipeline::new(config)));
-
-    let pipeline_clone = pipeline.clone();
-    let pipeline_for_finalize = pipeline.clone();
-
-    let final_stream = async_stream::stream! {
-        use futures::StreamExt;
-
-        let mut stream_response = stream_response;
-
-        while let Some(chunk_result) = stream_response.next().await {
-            match chunk_result {
-                Ok(bytes) => {
-                    tracing::info!(
-                        "[KIRO_STREAM] 收到 {} 字节数据",
-                        bytes.len()
-                    );
-
-                    let sse_strings = {
-                        let mut pipeline_guard = pipeline_clone.lock().await;
-                        pipeline_guard.process_chunk(&bytes)
-                    };
-
-                    tracing::info!(
-                        "[KIRO_STREAM] 生成 {} 个 SSE 事件",
-                        sse_strings.len()
-                    );
-
-                    for sse_str in sse_strings {
-                        yield Ok::<String, StreamError>(sse_str);
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("[KIRO_STREAM] 流式传输期间发生错误: {}", e);
-                    yield Err(e);
-                    return;
-                }
-            }
-        }
-
-        tracing::info!("[KIRO_STREAM] 流结束，生成 finalize 事件");
-
-        let final_events = {
-            let mut pipeline_guard = pipeline_for_finalize.lock().await;
-            pipeline_guard.finish()
-        };
-
-        tracing::info!("[KIRO_STREAM] finalize 生成 {} 个事件", final_events.len());
-
-        for sse_str in final_events {
-            yield Ok::<String, StreamError>(sse_str);
-        }
-    };
-
-    tracing::info!("[KIRO_STREAM] 构建 SSE 响应");
-
-    // 转换为 Body 流
-    let body_stream = final_stream.map(|result| -> Result<axum::body::Bytes, std::io::Error> {
-        match result {
-            Ok(event) => Ok(axum::body::Bytes::from(event)),
-            Err(e) => Ok(axum::body::Bytes::from(e.to_sse_error())),
-        }
-    });
-
-    // 构建 SSE 响应
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/event-stream")
-        .header(header::CACHE_CONTROL, "no-cache")
-        .header(header::CONNECTION, "keep-alive")
-        .header(header::TRANSFER_ENCODING, "chunked")
-        .header("X-Accel-Buffering", "no")
-        .body(Body::from_stream(body_stream))
-        .unwrap_or_else(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(
-                    serde_json::json!({"error": {"message": "Failed to build streaming response"}}),
-                ),
-            )
-                .into_response()
-        })
 }
 
 fn is_lime_debug_enabled() -> bool {

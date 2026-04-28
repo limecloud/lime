@@ -274,17 +274,6 @@ async fn handle_message(
             )))
         }
         WsMessage::Error(_) => None,
-        WsMessage::SubscribeKiroEvents => {
-            // TODO: 实现Kiro事件订阅
-            None
-        }
-        WsMessage::UnsubscribeKiroEvents => {
-            // TODO: 实现Kiro事件取消订阅
-            None
-        }
-        WsMessage::KiroCredentialEvent(_) => Some(WsMessage::Error(WsError::invalid_message(
-            "KiroCredentialEvent messages are server-to-client only",
-        ))),
     }
 }
 

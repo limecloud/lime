@@ -23,7 +23,6 @@ pub enum ProviderType {
     /// Anthropic 兼容格式（支持 system 数组格式等变体）
     #[serde(rename = "anthropic_compatible")]
     AnthropicCompatible,
-    Antigravity,
     Vertex,
     #[serde(rename = "gemini_api_key")]
     GeminiApiKey,
@@ -55,7 +54,6 @@ impl std::fmt::Display for ProviderType {
             ProviderType::Claude => write!(f, "claude"),
             ProviderType::ClaudeOAuth => write!(f, "claude_oauth"),
             ProviderType::AnthropicCompatible => write!(f, "anthropic_compatible"),
-            ProviderType::Antigravity => write!(f, "antigravity"),
             ProviderType::Vertex => write!(f, "vertex"),
             ProviderType::GeminiApiKey => write!(f, "gemini_api_key"),
             ProviderType::Codex => write!(f, "codex"),
@@ -80,7 +78,6 @@ impl std::str::FromStr for ProviderType {
             "anthropic_compatible" | "anthropic-compatible" => {
                 Ok(ProviderType::AnthropicCompatible)
             }
-            "antigravity" => Ok(ProviderType::Antigravity),
             "vertex" => Ok(ProviderType::Vertex),
             "gemini_api_key" => Ok(ProviderType::GeminiApiKey),
             "codex" => Ok(ProviderType::Codex),
@@ -112,26 +109,6 @@ impl std::str::FromStr for ProviderType {
         }
     }
 }
-
-/// Antigravity 支持的模型列表（fallback，当无法从 models 仓库获取时使用）
-pub const ANTIGRAVITY_MODELS_FALLBACK: &[&str] = &[
-    "gemini-2.5-computer-use-preview-10-2025",
-    "gemini-3-pro-image-preview",
-    "gemini-3-pro-preview",
-    "gemini-3-flash-preview",
-    "gemini-2.5-flash-preview",
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-3-flash",
-    "gemini-3-pro-high",
-    "gemini-3-pro-low",
-    "gemini-claude-sonnet-4-5",
-    "gemini-claude-sonnet-4-5-thinking",
-    "gemini-claude-opus-4-5-thinking",
-    "claude-sonnet-4-5",
-    "claude-sonnet-4-5-thinking",
-    "claude-opus-4-5-thinking",
-];
 
 #[cfg(test)]
 mod tests {

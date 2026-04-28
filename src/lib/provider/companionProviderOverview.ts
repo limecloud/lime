@@ -2,10 +2,6 @@ import {
   apiKeyProviderApi,
   type ProviderWithKeysDisplay,
 } from "@/lib/api/apiKeyProvider";
-import {
-  providerPoolApi,
-  type ProviderPoolOverview,
-} from "@/lib/api/providerPool";
 import { getProviderLabel } from "@/lib/constants/providerMappings";
 
 export interface CompanionProviderSummary {
@@ -26,26 +22,6 @@ export interface CompanionProviderOverviewPayload {
 
 interface LoadCompanionProviderOverviewOptions {
   forceRefresh?: boolean;
-}
-
-function buildProviderSummary(
-  pool: ProviderPoolOverview,
-): CompanionProviderSummary {
-  const totalCount = pool.stats.total;
-  const healthyCount = pool.stats.healthy;
-  const hasUnhealthyCredential = pool.stats.unhealthy > 0;
-  const hasDisabledCredential = pool.stats.disabled > 0;
-
-  return {
-    provider_type: pool.provider_type,
-    display_name: getProviderLabel(pool.provider_type),
-    total_count: totalCount,
-    healthy_count: healthyCount,
-    available: healthyCount > 0,
-    needs_attention:
-      totalCount > 0 &&
-      (healthyCount === 0 || hasUnhealthyCredential || hasDisabledCredential),
-  };
 }
 
 function normalizeProviderKey(value?: string | null): string {
@@ -122,18 +98,9 @@ function mergeProviderSummary(
 }
 
 export function buildCompanionProviderOverview(
-  overview: ProviderPoolOverview[],
   apiKeyProviders: ProviderWithKeysDisplay[] = [],
 ): CompanionProviderOverviewPayload {
   const providerMap = new Map<string, CompanionProviderSummary>();
-
-  overview
-    .filter((pool) => pool.stats.total > 0)
-    .map(buildProviderSummary)
-    .forEach((summary) => {
-      const key = normalizeProviderKey(summary.provider_type);
-      providerMap.set(key, mergeProviderSummary(providerMap.get(key), summary));
-    });
 
   apiKeyProviders
     .map(buildApiKeyProviderSummary)
@@ -163,10 +130,7 @@ export async function loadCompanionProviderOverview(
   const sourceOptions = options.forceRefresh
     ? { forceRefresh: true }
     : undefined;
-  const [overview, apiKeyProviders] = await Promise.all([
-    providerPoolApi.getOverview(sourceOptions),
-    apiKeyProviderApi.getProviders(sourceOptions),
-  ]);
+  const apiKeyProviders = await apiKeyProviderApi.getProviders(sourceOptions);
 
-  return buildCompanionProviderOverview(overview, apiKeyProviders);
+  return buildCompanionProviderOverview(apiKeyProviders);
 }

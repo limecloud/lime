@@ -16,7 +16,6 @@ pub mod mcp;
 pub mod orchestrator;
 pub mod persona_dao;
 pub mod prompts;
-pub mod provider_pool;
 pub mod providers;
 pub mod publish_config_dao;
 pub mod skills;

@@ -18,8 +18,8 @@
 ### 核心表
 
 - `api_key_providers` - API Key Provider 配置
-- `api_keys` - API Key 条目（已迁移到 provider_pool_credentials）
-- `provider_pool_credentials` - 凭证池（统一管理所有凭证）
+- `api_key_providers` - API Key Provider 配置主表
+- `provider_pool_credentials` - 旧凭证池表；启动期清空，仅保留历史迁移边界
 - `providers` - Provider 配置
 - `settings` - 应用设置
 
@@ -43,7 +43,7 @@
 | `dao/api_key_provider.rs` | API Key Provider DAO |
 | `dao/mcp.rs` | MCP 服务器 DAO |
 | `dao/prompts.rs` | 提示词 DAO |
-| `dao/provider_pool.rs` | 凭证池 DAO |
+| `dao/provider_pool.rs` | 旧凭证池 DAO；不得作为运行时选择入口 |
 | `dao/providers.rs` | Provider DAO |
 | `dao/skills.rs` | 技能 DAO |
 
@@ -51,7 +51,7 @@
 
 ### API Keys 迁移
 
-`migrate_api_keys_to_pool()` 函数将 `api_keys` 表中的数据迁移到 `provider_pool_credentials` 表：
+旧 `migrate_api_keys_to_pool()` 只属于历史迁移链。当前启动期会清理 `provider_pool_credentials`，运行时不再读取该表选择凭证。
 
 - 根据 provider_type 自动转换为对应的 CredentialData 类型
 - 保留使用统计和错误计数

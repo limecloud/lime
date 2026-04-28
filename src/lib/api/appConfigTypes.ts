@@ -4,9 +4,19 @@ import type {
   ToolCallingConfig,
 } from "./experimentalFeatureTypes";
 import type { MemoryConfig } from "./memoryRuntimeTypes";
-import type { AmpConfig, CredentialPoolConfig } from "./providerRuntimeTypes";
 
 export type { ToolCallingConfig } from "./experimentalFeatureTypes";
+
+export interface AmpModelMapping {
+  from: string;
+  to: string;
+}
+
+export interface AmpConfig {
+  upstream_url: string | null;
+  model_mappings: AmpModelMapping[];
+  restrict_management_to_localhost: boolean;
+}
 
 export interface TlsConfig {
   enable: boolean;
@@ -195,36 +205,10 @@ export interface Config {
     tls: TlsConfig;
     response_cache: ResponseCacheConfig;
   };
-  providers: {
-    kiro: {
-      enabled: boolean;
-      credentials_path: string | null;
-      region: string | null;
-    };
-    gemini: {
-      enabled: boolean;
-      credentials_path: string | null;
-    };
-    qwen: {
-      enabled: boolean;
-      credentials_path: string | null;
-    };
-    openai: {
-      enabled: boolean;
-      api_key: string | null;
-      base_url: string | null;
-    };
-    claude: {
-      enabled: boolean;
-      api_key: string | null;
-      base_url: string | null;
-    };
-  };
   default_provider: string;
   remote_management: RemoteManagementConfig;
   quota_exceeded: QuotaExceededConfig;
   ampcode: AmpConfig;
-  credential_pool: CredentialPoolConfig;
   proxy_url: string | null;
   minimize_to_tray: boolean;
   language: string;

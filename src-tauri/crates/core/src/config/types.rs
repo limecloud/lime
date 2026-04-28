@@ -1577,7 +1577,7 @@ pub struct RoutingConfig {
 }
 
 fn default_provider() -> String {
-    "kiro".to_string()
+    "openai".to_string()
 }
 
 impl Default for RoutingConfig {
@@ -1975,51 +1975,6 @@ impl Default for ModelsConfig {
                     },
                     ModelInfo {
                         id: "claude-3-5-sonnet-20241022".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                ],
-            },
-        );
-
-        // Antigravity
-        providers.insert(
-            "antigravity".to_string(),
-            ProviderModelsConfig {
-                label: "Antigravity".to_string(),
-                models: vec![
-                    ModelInfo {
-                        id: "gemini-3-pro-preview".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "gemini-3-pro-image-preview".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "gemini-3-flash-preview".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "gemini-2.5-computer-use-preview-10-2025".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "gemini-claude-sonnet-4-5".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "gemini-claude-sonnet-4-5-thinking".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "gemini-claude-opus-4-5-thinking".to_string(),
                         name: None,
                         enabled: true,
                     },

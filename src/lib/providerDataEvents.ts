@@ -5,7 +5,7 @@
 
 const PROVIDER_DATA_CHANGED_EVENT = "provider-data-changed";
 
-type ProviderDataChangedSource = "provider_pool" | "api_key";
+type ProviderDataChangedSource = "api_key";
 
 interface ProviderDataChangedDetail {
   source: ProviderDataChangedSource;

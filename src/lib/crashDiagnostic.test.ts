@@ -372,29 +372,6 @@ describe("buildCrashDiagnosticPayload", () => {
           gateway_tunnel_enabled: false,
           crash_reporting_enabled: true,
         },
-        provider_pool_summary: {
-          total_provider_types: 2,
-          total_credentials: 3,
-          healthy_credentials: 2,
-          unhealthy_credentials: 1,
-          disabled_credentials: 0,
-          providers: [
-            {
-              provider_type: "openai",
-              total: 2,
-              healthy: 2,
-              unhealthy: 0,
-              disabled: 0,
-            },
-            {
-              provider_type: "claude",
-              total: 1,
-              healthy: 0,
-              unhealthy: 1,
-              disabled: 0,
-            },
-          ],
-        },
         api_key_provider_summary: {
           total_providers: 2,
           enabled_providers: 2,
@@ -466,7 +443,6 @@ describe("buildCrashDiagnosticPayload", () => {
       "deepseek",
     );
     expect(text).toContain("运行时快照已采集：是");
-    expect(text).toContain("Provider Pool 凭证总数：3");
     expect(text).toContain("API Key Provider / Key 数：2 / 4");
     expect(text).toContain("MCP 服务器数 / 运行中数：3 / 1");
   });
@@ -479,14 +455,6 @@ describe("buildCrashDiagnosticPayload", () => {
       platform: payload.platform,
       userAgent: payload.user_agent,
       runtimeSnapshot: {
-        provider_pool_summary: {
-          total_provider_types: 0,
-          total_credentials: 0,
-          healthy_credentials: 0,
-          unhealthy_credentials: 0,
-          disabled_credentials: 0,
-          providers: [],
-        },
         api_key_provider_summary: {
           total_providers: 1,
           enabled_providers: 1,
@@ -512,7 +480,7 @@ describe("buildCrashDiagnosticPayload", () => {
 
     expect(diagnostic.diagnostic_collection_notes).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("Provider Pool 凭证数与 API Key 数都为 0"),
+        expect.stringContaining("API Key 数为 0"),
       ]),
     );
   });

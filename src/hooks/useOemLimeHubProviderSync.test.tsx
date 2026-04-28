@@ -9,22 +9,26 @@ import {
 } from "@/lib/oemCloudSession";
 
 const apiKeyProviderMocks = vi.hoisted(() => ({
+  addApiKey: vi.fn(),
   getProviders: vi.fn(),
   updateProvider: vi.fn(),
 }));
 
 const controlPlaneMocks = vi.hoisted(() => ({
+  createClientAccessToken: vi.fn(),
   listClientProviderOfferModels: vi.fn(),
 }));
 
 vi.mock("@/lib/api/apiKeyProvider", () => ({
   apiKeyProviderApi: {
+    addApiKey: apiKeyProviderMocks.addApiKey,
     getProviders: apiKeyProviderMocks.getProviders,
     updateProvider: apiKeyProviderMocks.updateProvider,
   },
 }));
 
 vi.mock("@/lib/api/oemCloudControlPlane", () => ({
+  createClientAccessToken: controlPlaneMocks.createClientAccessToken,
   listClientProviderOfferModels:
     controlPlaneMocks.listClientProviderOfferModels,
 }));
@@ -86,7 +90,12 @@ describe("useOemLimeHubProviderSync", () => {
         api_keys: [],
       },
     ]);
+    apiKeyProviderMocks.addApiKey.mockResolvedValue({ id: "local-key-001" });
     apiKeyProviderMocks.updateProvider.mockResolvedValue(undefined);
+    controlPlaneMocks.createClientAccessToken.mockResolvedValue({
+      token: { id: "cloud-token-001" },
+      apiKey: "sk-lime-desktop",
+    });
     controlPlaneMocks.listClientProviderOfferModels.mockResolvedValue([
       {
         id: "model-001",
@@ -115,6 +124,82 @@ describe("useOemLimeHubProviderSync", () => {
   });
 
   it("应把默认云端来源的模型目录同步到内部 lime-hub provider", async () => {
+    controlPlaneMocks.listClientProviderOfferModels.mockImplementation(
+      async (_tenantId: string, providerKey: string) =>
+        providerKey === "coding-main"
+          ? [
+              {
+                id: "model-101",
+                modelId: "gpt-5.5",
+              },
+              {
+                id: "model-102",
+                modelId: "gpt-5.4",
+              },
+              {
+                id: "model-103",
+                modelId: "gpt-5.4-mini",
+              },
+              {
+                id: "model-104",
+                modelId: "gpt-5.3-codex",
+              },
+              {
+                id: "model-105",
+                modelId: "gpt-5.2",
+              },
+              {
+                id: "model-106",
+                modelId: "claude-opus-4-5",
+              },
+              {
+                id: "model-107",
+                modelId: "claude-sonnet-4-5",
+              },
+              {
+                id: "model-108",
+                modelId: "claude-haiku-4-5",
+              },
+              {
+                id: "model-109",
+                modelId: "gemini-2.5-pro",
+              },
+              {
+                id: "model-110",
+                modelId: "gemini-2.5-flash",
+              },
+              {
+                id: "model-111",
+                modelId: "kimi-coding-plan",
+              },
+              {
+                id: "model-112",
+                modelId: "glm-coding-plan",
+              },
+              {
+                id: "model-113",
+                modelId: "minimax-coding-plan",
+              },
+              {
+                id: "model-114",
+                modelId: "mimo-coding-plan",
+              },
+              {
+                id: "model-115",
+                modelId: "deepseek-coding-plan",
+              },
+            ]
+          : [
+              {
+                id: "model-001",
+                modelId: "gpt-5.2-fast",
+              },
+              {
+                id: "model-002",
+                modelId: "gpt-5.2-pro",
+              },
+            ],
+    );
     setStoredOemCloudSessionState({
       token: "session-token-001",
       tenant: {
@@ -135,8 +220,14 @@ describe("useOemLimeHubProviderSync", () => {
       },
       providerOffersSummary: [
         {
+          source: "oem_cloud",
           providerKey: "offer-main",
           defaultModel: "gpt-5.2-pro",
+        },
+        {
+          source: "oem_cloud",
+          providerKey: "coding-main",
+          defaultModel: "gpt-5.5",
         },
       ],
     });
@@ -155,6 +246,9 @@ describe("useOemLimeHubProviderSync", () => {
     expect(
       controlPlaneMocks.listClientProviderOfferModels,
     ).toHaveBeenCalledWith("tenant-0001", "offer-main");
+    expect(
+      controlPlaneMocks.listClientProviderOfferModels,
+    ).toHaveBeenCalledWith("tenant-0001", "coding-main");
     expect(apiKeyProviderMocks.updateProvider).toHaveBeenCalledWith(
       "lime-hub",
       {
@@ -163,8 +257,243 @@ describe("useOemLimeHubProviderSync", () => {
         type: "openai",
         enabled: true,
         sort_order: 0,
-        custom_models: ["gpt-5.2-pro", "gpt-5.2-fast"],
+        custom_models: [
+          "gpt-5.2-pro",
+          "gpt-5.2-fast",
+          "gpt-5.5",
+          "gpt-5.4",
+          "gpt-5.4-mini",
+          "gpt-5.3-codex",
+          "gpt-5.2",
+          "claude-opus-4-5",
+          "claude-sonnet-4-5",
+          "claude-haiku-4-5",
+          "gemini-2.5-pro",
+          "gemini-2.5-flash",
+          "kimi-coding-plan",
+          "glm-coding-plan",
+          "minimax-coding-plan",
+          "mimo-coding-plan",
+          "deepseek-coding-plan",
+        ],
       },
+    );
+    expect(controlPlaneMocks.createClientAccessToken).toHaveBeenCalledWith(
+      "tenant-0001",
+      {
+        name: "Lime Desktop Cloud Model Key",
+        scopes: ["llm:invoke"],
+        allowedModels: [
+          "gpt-5.2-pro",
+          "gpt-5.2-fast",
+          "gpt-5.5",
+          "gpt-5.4",
+          "gpt-5.4-mini",
+          "gpt-5.3-codex",
+          "gpt-5.2",
+          "claude-opus-4-5",
+          "claude-sonnet-4-5",
+          "claude-haiku-4-5",
+          "gemini-2.5-pro",
+          "gemini-2.5-flash",
+          "kimi-coding-plan",
+          "glm-coding-plan",
+          "minimax-coding-plan",
+          "mimo-coding-plan",
+          "deepseek-coding-plan",
+        ],
+      },
+    );
+    expect(apiKeyProviderMocks.addApiKey).toHaveBeenCalledWith({
+      provider_id: "lime-hub",
+      api_key: "sk-lime-desktop",
+      alias: "Lime 云端模型",
+    });
+  });
+
+  it("已有本地云端 Key 时不应重复创建桌面 Key", async () => {
+    setStoredOemCloudSessionState({
+      token: "session-token-001",
+      tenant: {
+        id: "tenant-0001",
+      },
+      user: {
+        id: "user-001",
+      },
+      session: {
+        id: "session-001",
+      },
+    });
+    setOemCloudBootstrapSnapshot({
+      providerPreference: {
+        providerSource: "oem_cloud",
+        providerKey: "offer-main",
+        defaultModel: "gpt-5.2-pro",
+      },
+      providerOffersSummary: [
+        {
+          source: "oem_cloud",
+          providerKey: "offer-main",
+          defaultModel: "gpt-5.2-pro",
+        },
+      ],
+    });
+
+    apiKeyProviderMocks.getProviders.mockResolvedValue([
+      {
+        id: "lime-hub",
+        name: "Acme Hub",
+        api_host: "https://gateway-api.limeai.run/root",
+        type: "openai",
+        enabled: true,
+        sort_order: 0,
+        custom_models: ["gpt-5.2-pro", "gpt-5.2-fast"],
+        api_key_count: 1,
+        api_keys: [{ enabled: true }],
+      },
+    ]);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedHarness = { container, root };
+
+    act(() => {
+      root.render(<HookHarness />);
+    });
+
+    await flushEffects();
+
+    expect(controlPlaneMocks.createClientAccessToken).not.toHaveBeenCalled();
+    expect(apiKeyProviderMocks.addApiKey).not.toHaveBeenCalled();
+  });
+
+  it("本地云端 Key 已禁用时应重新创建桌面 Key", async () => {
+    setStoredOemCloudSessionState({
+      token: "session-token-001",
+      tenant: {
+        id: "tenant-0001",
+      },
+      user: {
+        id: "user-001",
+      },
+      session: {
+        id: "session-001",
+      },
+    });
+    setOemCloudBootstrapSnapshot({
+      providerPreference: {
+        providerSource: "oem_cloud",
+        providerKey: "offer-main",
+        defaultModel: "gpt-5.2-pro",
+      },
+      providerOffersSummary: [
+        {
+          source: "oem_cloud",
+          providerKey: "offer-main",
+          defaultModel: "gpt-5.2-pro",
+        },
+      ],
+    });
+
+    apiKeyProviderMocks.getProviders.mockResolvedValue([
+      {
+        id: "lime-hub",
+        name: "Acme Hub",
+        api_host: "https://gateway-api.limeai.run/root",
+        type: "openai",
+        enabled: true,
+        sort_order: 0,
+        custom_models: ["gpt-5.2-pro", "gpt-5.2-fast"],
+        api_key_count: 1,
+        api_keys: [{ enabled: false }],
+      },
+    ]);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedHarness = { container, root };
+
+    act(() => {
+      root.render(<HookHarness />);
+    });
+
+    await flushEffects();
+
+    expect(controlPlaneMocks.createClientAccessToken).toHaveBeenCalledWith(
+      "tenant-0001",
+      expect.objectContaining({
+        allowedModels: ["gpt-5.2-pro", "gpt-5.2-fast"],
+      }),
+    );
+    expect(apiKeyProviderMocks.addApiKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider_id: "lime-hub",
+        api_key: "sk-lime-desktop",
+      }),
+    );
+  });
+
+  it("登录后即使当前偏好为本地来源，也应同步可见云端模型目录", async () => {
+    setStoredOemCloudSessionState({
+      token: "session-token-001",
+      tenant: {
+        id: "tenant-0001",
+      },
+      user: {
+        id: "user-001",
+      },
+      session: {
+        id: "session-001",
+      },
+    });
+    setOemCloudBootstrapSnapshot({
+      providerPreference: {
+        providerSource: "local",
+        providerKey: "openai",
+      },
+      providerOffersSummary: [
+        {
+          source: "oem_cloud",
+          providerKey: "coding-main",
+          defaultModel: "gpt-5.5",
+        },
+      ],
+    });
+    controlPlaneMocks.listClientProviderOfferModels.mockResolvedValue([
+      {
+        id: "model-101",
+        modelId: "gpt-5.5",
+      },
+      {
+        id: "model-102",
+        modelId: "minimax-coding-plan",
+      },
+    ]);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedHarness = { container, root };
+
+    act(() => {
+      root.render(<HookHarness />);
+    });
+
+    await flushEffects();
+
+    expect(apiKeyProviderMocks.updateProvider).toHaveBeenCalledWith(
+      "lime-hub",
+      expect.objectContaining({
+        custom_models: ["gpt-5.5", "minimax-coding-plan"],
+      }),
+    );
+    expect(apiKeyProviderMocks.addApiKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider_id: "lime-hub",
+        api_key: "sk-lime-desktop",
+      }),
     );
   });
 
@@ -221,5 +550,7 @@ describe("useOemLimeHubProviderSync", () => {
         custom_models: [],
       },
     );
+    expect(controlPlaneMocks.createClientAccessToken).not.toHaveBeenCalled();
+    expect(apiKeyProviderMocks.addApiKey).not.toHaveBeenCalled();
   });
 });

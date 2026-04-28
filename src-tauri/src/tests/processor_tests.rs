@@ -2,13 +2,11 @@
 
 use crate::ProviderType;
 use lime_processor::*;
-use lime_services::provider_pool_service::ProviderPoolService;
 use std::sync::Arc;
 
 #[test]
 fn test_request_processor_new() {
-    let pool_service = Arc::new(ProviderPoolService::new());
-    let processor = RequestProcessor::with_defaults(pool_service);
+    let processor = RequestProcessor::with_defaults();
 
     // 验证所有组件都已初始化
     assert!(Arc::strong_count(&processor.router) >= 1);
@@ -20,13 +18,11 @@ fn test_request_processor_new() {
     assert!(Arc::strong_count(&processor.plugins) >= 1);
     assert!(Arc::strong_count(&processor.stats) >= 1);
     assert!(Arc::strong_count(&processor.tokens) >= 1);
-    assert!(Arc::strong_count(&processor.pool_service) >= 1);
 }
 
 #[tokio::test]
 async fn test_request_processor_components() {
-    let pool_service = Arc::new(ProviderPoolService::new());
-    let processor = RequestProcessor::with_defaults(pool_service);
+    let processor = RequestProcessor::with_defaults();
 
     // 验证路由器可以正常使用
     {
@@ -65,8 +61,7 @@ async fn test_request_processor_components() {
 
 #[tokio::test]
 async fn test_resolve_model_with_alias() {
-    let pool_service = Arc::new(ProviderPoolService::new());
-    let processor = RequestProcessor::with_defaults(pool_service);
+    let processor = RequestProcessor::with_defaults();
 
     // 添加别名映射
     {
@@ -89,8 +84,7 @@ async fn test_resolve_model_with_alias() {
 
 #[tokio::test]
 async fn test_resolve_model_for_context() {
-    let pool_service = Arc::new(ProviderPoolService::new());
-    let processor = RequestProcessor::with_defaults(pool_service);
+    let processor = RequestProcessor::with_defaults();
 
     // 添加别名映射
     {
@@ -115,8 +109,7 @@ async fn test_resolve_model_for_context() {
 
 #[tokio::test]
 async fn test_route_model_returns_default() {
-    let pool_service = Arc::new(ProviderPoolService::new());
-    let processor = RequestProcessor::with_defaults(pool_service);
+    let processor = RequestProcessor::with_defaults();
 
     // 默认路由器为空，所有模型都应返回 None
     let (provider, is_default) = processor.route_model("gemini-2.5-flash").await;
@@ -130,8 +123,7 @@ async fn test_route_model_returns_default() {
 
 #[tokio::test]
 async fn test_route_for_context() {
-    let pool_service = Arc::new(ProviderPoolService::new());
-    let processor = RequestProcessor::with_defaults(pool_service);
+    let processor = RequestProcessor::with_defaults();
 
     // 创建请求上下文
     let mut ctx = RequestContext::new("gemini-2.5-flash".to_string());
@@ -146,8 +138,7 @@ async fn test_route_for_context() {
 
 #[tokio::test]
 async fn test_resolve_and_route() {
-    let pool_service = Arc::new(ProviderPoolService::new());
-    let processor = RequestProcessor::with_defaults(pool_service);
+    let processor = RequestProcessor::with_defaults();
 
     // 添加别名映射
     {
@@ -262,8 +253,7 @@ proptest! {
     fn prop_request_stats_recorded(
         log in arb_request_log()
     ) {
-        let pool_service = Arc::new(ProviderPoolService::new());
-        let processor = RequestProcessor::with_defaults(pool_service);
+        let processor = RequestProcessor::with_defaults();
 
         let original_id = log.id.clone();
         let original_provider = log.provider;

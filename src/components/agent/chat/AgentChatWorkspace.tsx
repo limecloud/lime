@@ -486,6 +486,14 @@ export function AgentChatWorkspace({
   openBrowserAssistOnMount = false,
   initialSiteSkillLaunch,
 }: AgentChatWorkspaceProps) {
+  // 性能埋点：记录组件渲染开始时间
+  const workspaceRenderT0 = useRef<number>(performance.now());
+  useEffect(() => {
+    console.info(
+      `[PERF] AgentChatWorkspace mounted: ${(performance.now() - workspaceRenderT0.current).toFixed(0)}ms`,
+    );
+  }, []);
+
   const normalizedEntryTheme = normalizeInitialTheme(initialTheme);
   const shouldAutoCollapseClassicClawSidebar = agentEntry === "claw";
   const defaultTopicSidebarVisible =
@@ -733,6 +741,7 @@ export function AgentChatWorkspace({
 
     let cancelled = false;
     const startedAt = Date.now();
+    const perfT0 = performance.now();
     logAgentDebug("AgentChatPage", "resolveDefaultProjectAlias.start", {
       externalProjectId: externalProjectId ?? null,
     });
@@ -828,6 +837,9 @@ export function AgentChatWorkspace({
           projectId: defaultProject.id,
           rootPath: resolvedRootPath,
         });
+        console.info(
+          `[PERF] resolveDefaultProjectAlias: ${(performance.now() - perfT0).toFixed(0)}ms`,
+        );
       } catch (error) {
         if (cancelled) {
           return;
@@ -3121,6 +3133,7 @@ export function AgentChatWorkspace({
 
     let disposed = false;
     setGeneralWorkbenchEntryCheckPending(true);
+    const perfT0 = performance.now();
 
     void (async () => {
       try {
@@ -3128,6 +3141,10 @@ export function AgentChatWorkspace({
           sessionId,
           3,
         ).catch(() => null);
+
+        console.info(
+          `[PERF] executionRunGetGeneralWorkbenchState: ${(performance.now() - perfT0).toFixed(0)}ms`,
+        );
 
         if (disposed) {
           return;

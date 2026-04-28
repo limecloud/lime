@@ -75,9 +75,6 @@ describe("mockPriorityCommands", () => {
     expect(
       shouldDisallowMockFallbackInBrowser("get_model_registry_provider_ids"),
     ).toBe(true);
-    expect(
-      shouldDisallowMockFallbackInBrowser("get_provider_pool_overview"),
-    ).toBe(true);
     expect(shouldDisallowMockFallbackInBrowser("get_provider_ui_state")).toBe(
       true,
     );

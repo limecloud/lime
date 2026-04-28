@@ -12,7 +12,7 @@ pub struct AsterAgentStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider_selector: Option<String>,
     pub model_name: Option<String>,
-    /// 凭证 UUID（来自凭证池）
+    /// 凭证 UUID（来自 API Key Provider）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credential_uuid: Option<String>,
 }
@@ -34,15 +34,6 @@ pub struct ConfigureProviderRequest {
     pub tool_call_strategy: Option<RuntimeToolCallStrategy>,
     #[serde(default, alias = "toolshimModel")]
     pub toolshim_model: Option<String>,
-}
-
-/// 从凭证池配置 Provider 的请求
-#[derive(Debug, Deserialize)]
-pub struct ConfigureFromPoolRequest {
-    /// Provider 类型 (openai, anthropic, kiro, gemini 等)
-    pub provider_type: String,
-    /// 模型名称
-    pub model_name: String,
 }
 
 #[derive(Debug, Default, Deserialize)]

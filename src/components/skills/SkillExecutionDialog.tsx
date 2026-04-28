@@ -63,7 +63,6 @@ const PROVIDER_OPTIONS = [
   { value: "openai", label: "OpenAI" },
   { value: "anthropic", label: "Anthropic (Claude)" },
   { value: "gemini", label: "Google Gemini" },
-  { value: "kiro", label: "Kiro" },
 ] as const;
 
 /**

@@ -70,7 +70,10 @@ export interface AgentRuntimeAdapter {
     providerType: string,
     model: string,
   ): Promise<void>;
-  generateSessionTitle?(sessionId: string): Promise<string>;
+  generateSessionTitle?(
+    sessionId: string,
+    previewText?: string,
+  ): Promise<string>;
   submitOp(op: AgentOp): Promise<void>;
   compactSession(sessionId: string, eventName: string): Promise<void>;
   interruptTurn(sessionId: string): Promise<boolean>;
@@ -169,8 +172,8 @@ export function createAgentRuntimeAdapter({
         model_name: model,
       });
     },
-    async generateSessionTitle(sessionId) {
-      return client.generateAgentRuntimeSessionTitle(sessionId);
+    async generateSessionTitle(sessionId, previewText) {
+      return client.generateAgentRuntimeSessionTitle(sessionId, previewText);
     },
     async submitOp(op) {
       switch (op.type) {
