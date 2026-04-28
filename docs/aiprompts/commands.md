@@ -39,6 +39,7 @@
 - `install_browser_connector_extension_cmd`
 - `open_browser_extensions_page_cmd`
 - `open_browser_remote_debugging_page_cmd`
+- `open_browser_connector_guide_window`
 - `disconnect_browser_connector_session`
 
 这些命令属于当前设置主路径，不应再在页面组件里散落裸 `invoke`。

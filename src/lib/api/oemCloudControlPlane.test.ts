@@ -13,6 +13,7 @@ import {
   getClientOrder,
   getClientBootstrap,
   getClientCreditsDashboard,
+  getPublicAuthCatalog,
   getClientProviderOffer,
   getClientReferralDashboard,
   listPublicOAuthProviders,
@@ -174,6 +175,11 @@ describe("oemCloudControlPlane desktop auth", () => {
               loginHint: "使用 Google 登录",
             },
           ],
+          authPolicy: {
+            required: true,
+            startupTrigger: "oauth",
+            primaryProvider: "google",
+          },
         },
       }),
     }));
@@ -201,6 +207,63 @@ describe("oemCloudControlPlane desktop auth", () => {
         loginHint: "使用 Google 登录",
       },
     ]);
+  });
+
+  it("应读取公开登录目录与启动策略", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        code: 200,
+        message: "success",
+        data: {
+          items: [
+            {
+              provider: "google",
+              displayName: "Google",
+              scopes: ["openid", "email"],
+              enabled: true,
+            },
+          ],
+          authPolicy: {
+            required: true,
+            startupTrigger: "oauth",
+            primaryProvider: "google",
+          },
+        },
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const catalog = await getPublicAuthCatalog("tenant-0001");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/oauth/providers",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Accept: "application/json",
+        }),
+      }),
+    );
+    expect(catalog).toEqual({
+      providers: [
+        {
+          provider: "google",
+          displayName: "Google",
+          authorizeUrl: undefined,
+          redirectUri: undefined,
+          scopes: ["openid", "email"],
+          enabled: true,
+          loginHint: undefined,
+        },
+      ],
+      authPolicy: {
+        required: true,
+        startupTrigger: "oauth",
+        primaryProvider: "google",
+      },
+    });
   });
 
   it("应解析 bootstrap 中缓存的邀请开关与分享事实源", async () => {

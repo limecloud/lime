@@ -334,8 +334,8 @@ function BrowserConnectorGuideContent() {
   );
 
   return (
-    <main className="lime-settings-theme-scope min-h-screen overflow-y-auto bg-[color:var(--lime-stage-surface,hsl(var(--background)))] text-[color:var(--lime-text,hsl(var(--foreground)))]">
-      <div className="mx-auto max-w-[900px] px-7 py-12 sm:px-10">
+    <main className="lime-settings-theme-scope h-screen overflow-y-auto bg-[color:var(--lime-stage-surface,hsl(var(--background)))] text-[color:var(--lime-text,hsl(var(--foreground)))]">
+      <div className="mx-auto max-w-[900px] px-7 py-12 pb-20 sm:px-10">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-start">
           <div className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-[18px] border border-emerald-200 bg-emerald-50 text-emerald-700">
             <Sparkles className="h-7 w-7" />

@@ -9,7 +9,7 @@
       "contains": "bigmodel.cn/api/coding/paas/v4"
     },
     {
-      "provider": "zhipuai",
+      "provider": "zai",
       "contains": "api.z.ai/api/anthropic"
     },
     {
@@ -21,12 +21,24 @@
       "contains": "moonshot.ai/anthropic"
     },
     {
+      "provider": "kimi-for-coding",
+      "contains": "api.kimi.com/coding"
+    },
+    {
       "provider": "minimax",
       "contains": "minimaxi.com/anthropic"
     },
     {
       "provider": "minimax",
       "contains": "minimax.io/anthropic"
+    },
+    {
+      "provider": "alibaba-cn",
+      "contains": "coding.dashscope.aliyuncs.com/apps/anthropic"
+    },
+    {
+      "provider": "alibaba",
+      "contains": "coding-intl.dashscope.aliyuncs.com/apps/anthropic"
     },
     {
       "provider": "xiaomi",

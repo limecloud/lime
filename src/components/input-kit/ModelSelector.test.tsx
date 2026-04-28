@@ -374,14 +374,44 @@ describe("ModelSelector", () => {
       model: "glm-5.1",
     },
     {
+      label: "Z.AI Anthropic",
+      apiHost: "https://api.z.ai/api/anthropic",
+      model: "glm-4.7",
+    },
+    {
       label: "Kimi Anthropic",
       apiHost: "https://api.moonshot.cn/anthropic",
       model: "kimi-k2.5",
     },
     {
+      label: "Kimi Global Anthropic",
+      apiHost: "https://api.moonshot.ai/anthropic",
+      model: "kimi-k2.5",
+    },
+    {
+      label: "Kimi Code Subscription",
+      apiHost: "https://api.kimi.com/coding/",
+      model: "k2p5",
+    },
+    {
       label: "MiniMax Anthropic",
       apiHost: "https://api.minimaxi.com/anthropic",
       model: "minimax-m1",
+    },
+    {
+      label: "MiniMax Global Anthropic",
+      apiHost: "https://api.minimax.io/anthropic",
+      model: "minimax-m1",
+    },
+    {
+      label: "Alibaba Coding Anthropic",
+      apiHost: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+      model: "qwen3-coder-plus",
+    },
+    {
+      label: "Alibaba Global Coding Anthropic",
+      apiHost: "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic",
+      model: "qwen3-coder-plus",
     },
     {
       label: "MiMo Anthropic",

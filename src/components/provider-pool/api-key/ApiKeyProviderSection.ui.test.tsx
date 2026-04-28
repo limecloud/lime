@@ -288,10 +288,67 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     });
 
     expect(container.textContent ?? "").toContain("DeepSeek");
-    expect(container.textContent ?? "").toContain("Kimi Coding Plan");
+    expect(container.textContent ?? "").toContain("Kimi API（国内按量）");
+    expect(container.textContent ?? "").toContain("GLM Coding Plan（国内）");
+    expect(container.textContent ?? "").not.toContain("Kimi Code 会员（订阅）");
+    expect(container.textContent ?? "").not.toContain("Z.AI Coding Plan（海外）");
     expect(container.querySelector('[data-testid="model-add-catalog"]')?.className).toContain(
       "overflow-y-auto",
     );
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-template-id="glm-cn-coding-plan"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent ?? "").toContain("https://open.bigmodel.cn/api/anthropic");
+  });
+
+  it("海外分类应展示国内厂商的国际订阅入口", async () => {
+    createHookState();
+    const container = renderSection();
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("add-model-button").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("model-catalog-category-overseas").click();
+      await Promise.resolve();
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Kimi Code 会员（订阅）");
+    expect(text).toContain("Kimi API（海外按量）");
+    expect(text).toContain("Z.AI Coding Plan（海外）");
+    expect(text).toContain("MiniMax Coding Plan（海外）");
+    expect(text).toContain("Alibaba Coding Plan（海外）");
+    expect(text).not.toContain("GLM Coding Plan（国内）");
+    expect(
+      container.querySelector('[data-template-id="kimi-code-subscription"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-template-id="zai-coding-plan"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-template-id="minimax-coding-plan-global"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-template-id="alibaba-coding-plan-global"]'),
+    ).not.toBeNull();
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-template-id="kimi-code-subscription"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent ?? "").toContain("https://api.kimi.com/coding/");
   });
 
   it("自定义供应商可在添加流程内完成创建、加 Key、写入模型并激活", async () => {

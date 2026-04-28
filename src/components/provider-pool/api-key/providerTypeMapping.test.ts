@@ -124,6 +124,48 @@ describe("providerTypeMapping", () => {
     expect(resolved).toBe("minimax");
   });
 
+  it("Z.AI 海外 Anthropic 兼容 Host 应映射到 Z.AI 目录", () => {
+    const resolved = resolveRegistryProviderId("custom-zai-provider", {
+      providerType: "anthropic-compatible",
+      apiHost: "https://api.z.ai/api/anthropic",
+      catalogAliasMap: null,
+      validRegistryProviders: ["anthropic", "zai", "zhipuai"],
+    });
+
+    expect(resolved).toBe("zai");
+  });
+
+  it("Kimi Code 订阅 Host 应映射到 Kimi For Coding 目录", () => {
+    const resolved = resolveRegistryProviderId("custom-kimi-code-provider", {
+      providerType: "anthropic-compatible",
+      apiHost: "https://api.kimi.com/coding/",
+      catalogAliasMap: null,
+      validRegistryProviders: ["anthropic", "kimi-for-coding", "moonshotai"],
+    });
+
+    expect(resolved).toBe("kimi-for-coding");
+  });
+
+  it("阿里 Coding Plan 国内和海外 Host 应分别映射到对应目录", () => {
+    expect(
+      resolveRegistryProviderId("custom-alibaba-cn-provider", {
+        providerType: "anthropic-compatible",
+        apiHost: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+        catalogAliasMap: null,
+        validRegistryProviders: ["anthropic", "alibaba-cn", "alibaba"],
+      }),
+    ).toBe("alibaba-cn");
+
+    expect(
+      resolveRegistryProviderId("custom-alibaba-global-provider", {
+        providerType: "anthropic-compatible",
+        apiHost: "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic",
+        catalogAliasMap: null,
+        validRegistryProviders: ["anthropic", "alibaba-cn", "alibaba"],
+      }),
+    ).toBe("alibaba");
+  });
+
   it("MiMo 的 Anthropic 兼容 Host 应映射到 Xiaomi 模型目录", () => {
     const resolved = resolveRegistryProviderId("custom-mimo-provider", {
       providerType: "anthropic-compatible",

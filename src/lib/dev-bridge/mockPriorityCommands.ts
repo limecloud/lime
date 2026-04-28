@@ -69,6 +69,7 @@ const mockPriorityCommands = new Set<string>([
   "install_browser_connector_extension_cmd",
   "open_browser_extensions_page_cmd",
   "open_browser_remote_debugging_page_cmd",
+  "open_browser_connector_guide_window",
   "disconnect_browser_connector_session",
   "launch_browser_session",
   "launch_browser_profile_runtime_assist_cmd",

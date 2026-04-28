@@ -43,8 +43,14 @@ describe("providerPromptCacheSupport", () => {
 
   it.each([
     "https://open.bigmodel.cn/api/anthropic",
+    "https://api.z.ai/api/anthropic",
     "https://api.moonshot.cn/anthropic",
+    "https://api.moonshot.ai/anthropic",
+    "https://api.kimi.com/coding/",
     "https://api.minimaxi.com/anthropic",
+    "https://api.minimax.io/anthropic",
+    "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+    "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic",
     "https://token-plan-cn.xiaomimimo.com/anthropic",
   ])("已知官方 Anthropic 兼容 Host %s 不应误报显式缓存提示", (apiHost) => {
     expect(isKnownAutomaticAnthropicCompatibleHost(apiHost)).toBe(true);
@@ -121,6 +127,29 @@ describe("providerPromptCacheSupport", () => {
         "https://open.bigmodel.cn/api/anthropic",
       ),
     ).toBe("zhipuai");
+    expect(
+      resolveKnownAnthropicCompatibleProvider(
+        "https://api.z.ai/api/anthropic",
+      ),
+    ).toBe("zai");
+    expect(
+      getRegistryIdFromType(
+        "anthropic-compatible",
+        "https://api.kimi.com/coding/",
+      ),
+    ).toBe("kimi-for-coding");
+    expect(
+      getRegistryIdFromType(
+        "anthropic-compatible",
+        "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+      ),
+    ).toBe("alibaba-cn");
+    expect(
+      getRegistryIdFromType(
+        "anthropic-compatible",
+        "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic",
+      ),
+    ).toBe("alibaba");
     expect(
       resolveKnownAnthropicCompatibleProvider(
         "https://token-plan-cn.xiaomimimo.com/anthropic",

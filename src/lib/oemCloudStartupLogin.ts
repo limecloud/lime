@@ -1,5 +1,5 @@
 import {
-  listPublicOAuthProviders,
+  getPublicAuthCatalog,
   type OemCloudPublicOAuthProvider,
 } from "@/lib/api/oemCloudControlPlane";
 import {
@@ -15,7 +15,9 @@ export type OemCloudStartupLoginStatus =
   | "not_configured"
   | "has_session"
   | "already_attempted"
+  | "not_required"
   | "no_google_provider"
+  | "unsupported_policy"
   | "started"
   | "failed";
 
@@ -38,11 +40,32 @@ function hasGoogleOAuthProvider(
   );
 }
 
+function shouldStartGoogleOauth(
+  catalog: Awaited<ReturnType<typeof getPublicAuthCatalog>>,
+): OemCloudStartupLoginResult | null {
+  if (!catalog.authPolicy.required) {
+    return { status: "not_required" };
+  }
+
+  if (
+    catalog.authPolicy.startupTrigger !== "oauth" ||
+    normalizeProvider(catalog.authPolicy.primaryProvider) !== "google"
+  ) {
+    return { status: "unsupported_policy" };
+  }
+
+  if (!hasGoogleOAuthProvider(catalog.providers)) {
+    return { status: "no_google_provider" };
+  }
+
+  return null;
+}
+
 function hasCurrentTenantSession(runtime: OemCloudRuntimeContext): boolean {
   const storedSession = getStoredOemCloudSessionState();
   return Boolean(
     storedSession?.token &&
-      storedSession.session.tenant.id === runtime.tenantId,
+    storedSession.session.tenant.id === runtime.tenantId,
   );
 }
 
@@ -83,9 +106,11 @@ export async function startOemCloudStartupLoginIfRequired(
     return { status: "already_attempted" };
   }
 
-  let providers: OemCloudPublicOAuthProvider[];
+  let startupDecision: OemCloudStartupLoginResult | null;
   try {
-    providers = await listPublicOAuthProviders(runtime.tenantId);
+    startupDecision = shouldStartGoogleOauth(
+      await getPublicAuthCatalog(runtime.tenantId),
+    );
   } catch (error) {
     const reason =
       error instanceof Error && error.message.trim()
@@ -95,8 +120,8 @@ export async function startOemCloudStartupLoginIfRequired(
     return { status: "failed", reason };
   }
 
-  if (!hasGoogleOAuthProvider(providers)) {
-    return { status: "no_google_provider" };
+  if (startupDecision) {
+    return startupDecision;
   }
 
   markStartupAttempt(runtime);

@@ -1561,6 +1561,7 @@ pub fn run() {
             commands::browser_connector_cmd::install_browser_connector_extension_cmd,
             commands::browser_connector_cmd::open_browser_extensions_page_cmd,
             commands::browser_connector_cmd::open_browser_remote_debugging_page_cmd,
+            commands::browser_connector_cmd::open_browser_connector_guide_window,
             // Browser profile commands
             commands::browser_profile_cmd::list_browser_profiles_cmd,
             commands::browser_profile_cmd::save_browser_profile_cmd,

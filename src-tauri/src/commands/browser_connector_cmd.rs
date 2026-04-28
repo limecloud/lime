@@ -1,6 +1,10 @@
 //! 浏览器连接器命令
 
 use crate::app::AppState;
+use crate::services::browser_connector_guide_window::{
+    normalize_browser_connector_guide_mode,
+    open_browser_connector_guide_window as open_browser_connector_guide_window_service,
+};
 use crate::services::browser_connector_service::{
     get_browser_connector_install_status, get_browser_connector_settings,
     install_browser_connector_extension, sync_browser_connector_auto_config_if_installed,
@@ -35,6 +39,12 @@ pub struct SetSystemConnectorEnabledRequest {
 pub struct SetBrowserActionCapabilityEnabledRequest {
     pub key: String,
     pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OpenBrowserConnectorGuideWindowRequest {
+    #[serde(default)]
+    pub mode: Option<String>,
 }
 
 fn normalize_bridge_host(host: &str) -> String {
@@ -200,4 +210,15 @@ pub async fn open_browser_extensions_page_cmd() -> Result<bool, String> {
 #[tauri::command]
 pub async fn open_browser_remote_debugging_page_cmd() -> Result<bool, String> {
     open_chrome_url("chrome://inspect/#remote-debugging")
+}
+
+#[tauri::command]
+pub fn open_browser_connector_guide_window(
+    app: AppHandle,
+    request: Option<OpenBrowserConnectorGuideWindowRequest>,
+) -> Result<(), String> {
+    let mode = request.and_then(|request| request.mode);
+    let mode = normalize_browser_connector_guide_mode(mode.as_deref());
+    open_browser_connector_guide_window_service(&app, mode)
+        .map_err(|error| format!("打开浏览器连接器引导窗口失败: {error}"))
 }

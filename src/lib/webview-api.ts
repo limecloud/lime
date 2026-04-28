@@ -349,6 +349,8 @@ export interface BrowserConnectorInstallResult {
   auto_config_path: string;
 }
 
+export type BrowserConnectorGuideMode = "extension" | "cdp";
+
 export type BrowserBackendType =
   | "aster_compat"
   | "lime_extension_bridge"
@@ -997,6 +999,14 @@ export async function openBrowserExtensionsPage(): Promise<boolean> {
 
 export async function openBrowserRemoteDebuggingPage(): Promise<boolean> {
   return safeInvoke<boolean>("open_browser_remote_debugging_page_cmd");
+}
+
+export async function openBrowserConnectorGuideWindow(request: {
+  mode: BrowserConnectorGuideMode;
+}): Promise<void> {
+  return safeInvoke<void>("open_browser_connector_guide_window", {
+    request,
+  });
 }
 
 /**

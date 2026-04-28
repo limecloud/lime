@@ -4260,10 +4260,17 @@ export function AgentChatWorkspace({
       }),
     [sessionId, taskCenterTransitionTopicId],
   );
+  const hasHomeConversationActivity =
+    hasDisplayMessages ||
+    hasPendingA2UIForm ||
+    isPreparingSend ||
+    isSending ||
+    queuedTurns.length > 0;
   const shouldRenderTaskCenterEmbeddedHome = Boolean(
     agentEntry === "claw" &&
     sessionId &&
     !taskCenterSessionSwitchPending &&
+    !hasHomeConversationActivity &&
     taskCenterEmbeddedHomeSessionIds.has(sessionId),
   );
   useEffect(() => {
@@ -4271,27 +4278,18 @@ export function AgentChatWorkspace({
       return;
     }
 
-    if (
-      hasDisplayMessages ||
-      hasPendingA2UIForm ||
-      isPreparingSend ||
-      isSending ||
-      queuedTurns.length > 0
-    ) {
+    if (hasHomeConversationActivity) {
       clearTaskCenterEmbeddedHomeSession(sessionId);
     }
   }, [
     clearTaskCenterEmbeddedHomeSession,
-    hasDisplayMessages,
-    hasPendingA2UIForm,
-    isPreparingSend,
-    isSending,
-    queuedTurns.length,
+    hasHomeConversationActivity,
     sessionId,
     taskCenterEmbeddedHomeSessionIds,
   ]);
   const suppressHomeNavbarUtilityActions =
-    shouldUseBrowserWorkspaceHomeChrome || shouldRenderTaskCenterEmbeddedHome;
+    (shouldUseBrowserWorkspaceHomeChrome && !hasHomeConversationActivity) ||
+    shouldRenderTaskCenterEmbeddedHome;
 
   useEffect(() => {
     if (

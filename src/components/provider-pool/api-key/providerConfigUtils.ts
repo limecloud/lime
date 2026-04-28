@@ -57,7 +57,7 @@ const SPECIAL_PROVIDER_PROTOCOL_HINTS: Partial<Record<ProviderType, string>> = {
   anthropic:
     "Anthropic 继续使用原生协议，不会被收敛到普通 OpenAI 兼容请求格式。",
   "anthropic-compatible":
-    "Anthropic 兼容用于接入实现 Anthropic wire format 的第三方服务，会沿用 Anthropic 请求结构与模型映射。Lime 会自动识别已知官方 Anthropic 兼容端点（如 GLM / Kimi / MiniMax / MiMo）；未知端点默认回退为仅显式缓存。",
+    "Anthropic 兼容用于接入实现 Anthropic wire format 的第三方服务，会沿用 Anthropic 请求结构与模型映射。Lime 会自动识别已知官方 Anthropic 兼容端点（如 GLM / Z.AI / Kimi / MiniMax / Alibaba / MiMo）；未知端点默认回退为仅显式缓存。",
   gemini:
     "Gemini 保留原生协议能力与专属模型映射，不按普通 OpenAI 兼容 Provider 处理。",
 };

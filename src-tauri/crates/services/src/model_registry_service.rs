@@ -2373,6 +2373,38 @@ impl ModelRegistryService {
             return &["zai"];
         }
 
+        if host.contains("moonshot.cn") {
+            return &["moonshotai-cn", "moonshotai", "kimi-for-coding"];
+        }
+
+        if host.contains("moonshot.ai") {
+            return &["moonshotai", "kimi-for-coding"];
+        }
+
+        if host.contains("api.kimi.com") {
+            return &["kimi-for-coding"];
+        }
+
+        if host.contains("minimaxi.com") {
+            return &["minimax-cn", "minimax"];
+        }
+
+        if host.contains("minimax.io") {
+            return &["minimax"];
+        }
+
+        if host.contains("coding-intl.dashscope.aliyuncs.com") {
+            return &["alibaba", "alibaba-cn"];
+        }
+
+        if host.contains("dashscope-intl.aliyuncs.com") {
+            return &["alibaba", "alibaba-cn"];
+        }
+
+        if host.contains("dashscope.aliyuncs.com") {
+            return &["alibaba-cn", "alibaba"];
+        }
+
         if host.contains("anthropic.com") {
             return &["anthropic"];
         }
@@ -3707,6 +3739,22 @@ mod tests {
                 "https://open.bigmodel.cn/api/anthropic"
             ),
             ["zhipuai"]
+        );
+        assert_eq!(
+            ModelRegistryService::infer_provider_ids_from_api_host(
+                "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic"
+            ),
+            ["alibaba", "alibaba-cn"]
+        );
+        assert_eq!(
+            ModelRegistryService::infer_provider_ids_from_api_host(
+                "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/"
+            ),
+            ["alibaba", "alibaba-cn"]
+        );
+        assert_eq!(
+            ModelRegistryService::infer_provider_ids_from_api_host("https://api.kimi.com/coding/"),
+            ["kimi-for-coding"]
         );
         assert_eq!(
             ModelRegistryService::infer_provider_ids_from_api_host("https://api.openai.com/v1"),

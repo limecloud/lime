@@ -45,6 +45,10 @@
       "providers": ["moonshotai", "kimi-for-coding"]
     },
     {
+      "contains": "api.kimi.com",
+      "providers": ["kimi-for-coding"]
+    },
+    {
       "contains": "siliconflow.cn",
       "providers": ["siliconflow-cn", "siliconflow"]
     },
@@ -78,7 +82,7 @@
     },
     {
       "contains": "minimaxi.com",
-      "providers": ["minimax"]
+      "providers": ["minimax-cn", "minimax"]
     },
     {
       "contains": "minimax.io",
@@ -87,6 +91,14 @@
     {
       "contains": "xiaomimimo.com",
       "providers": ["xiaomi"]
+    },
+    {
+      "contains": "coding-intl.dashscope.aliyuncs.com",
+      "providers": ["alibaba", "alibaba-cn"]
+    },
+    {
+      "contains": "dashscope-intl.aliyuncs.com",
+      "providers": ["alibaba", "alibaba-cn"]
     },
     {
       "contains": "dashscope.aliyuncs.com",

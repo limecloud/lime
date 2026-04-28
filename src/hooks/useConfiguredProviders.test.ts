@@ -247,14 +247,44 @@ describe("buildConfiguredProviders", () => {
       apiHost: "https://open.bigmodel.cn/api/anthropic",
     },
     {
+      id: "zai-anthropic",
+      name: "Z.AI Anthropic",
+      apiHost: "https://api.z.ai/api/anthropic",
+    },
+    {
       id: "kimi-anthropic",
       name: "Kimi Anthropic",
       apiHost: "https://api.moonshot.cn/anthropic",
     },
     {
+      id: "kimi-global-anthropic",
+      name: "Kimi Global Anthropic",
+      apiHost: "https://api.moonshot.ai/anthropic",
+    },
+    {
+      id: "kimi-code-subscription",
+      name: "Kimi Code Subscription",
+      apiHost: "https://api.kimi.com/coding/",
+    },
+    {
       id: "minimax-anthropic",
       name: "MiniMax Anthropic",
       apiHost: "https://api.minimaxi.com/anthropic",
+    },
+    {
+      id: "minimax-global-anthropic",
+      name: "MiniMax Global Anthropic",
+      apiHost: "https://api.minimax.io/anthropic",
+    },
+    {
+      id: "alibaba-coding-anthropic",
+      name: "Alibaba Coding Anthropic",
+      apiHost: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+    },
+    {
+      id: "alibaba-global-coding-anthropic",
+      name: "Alibaba Global Coding Anthropic",
+      apiHost: "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic",
     },
     {
       id: "mimo-anthropic",

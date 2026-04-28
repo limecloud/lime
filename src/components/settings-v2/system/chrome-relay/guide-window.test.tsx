@@ -13,6 +13,7 @@ const {
   mockSetBrowserConnectorInstallRoot,
   mockOpenBrowserExtensionsPage,
   mockOpenBrowserRemoteDebuggingPage,
+  mockOpenBrowserConnectorGuideWindowCommand,
   mockHasTauriInvokeCapability,
 } = vi.hoisted(() => ({
   mockOpenDialog: vi.fn(),
@@ -25,6 +26,7 @@ const {
   mockSetBrowserConnectorInstallRoot: vi.fn(),
   mockOpenBrowserExtensionsPage: vi.fn(),
   mockOpenBrowserRemoteDebuggingPage: vi.fn(),
+  mockOpenBrowserConnectorGuideWindowCommand: vi.fn(),
   mockHasTauriInvokeCapability: vi.fn(),
 }));
 
@@ -53,6 +55,7 @@ vi.mock("@/lib/webview-api", async () => {
     setBrowserConnectorInstallRoot: mockSetBrowserConnectorInstallRoot,
     openBrowserExtensionsPage: mockOpenBrowserExtensionsPage,
     openBrowserRemoteDebuggingPage: mockOpenBrowserRemoteDebuggingPage,
+    openBrowserConnectorGuideWindow: mockOpenBrowserConnectorGuideWindowCommand,
   };
 });
 
@@ -168,6 +171,7 @@ beforeEach(() => {
   });
   mockOpenBrowserExtensionsPage.mockResolvedValue(true);
   mockOpenBrowserRemoteDebuggingPage.mockResolvedValue(true);
+  mockOpenBrowserConnectorGuideWindowCommand.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -230,6 +234,15 @@ describe("BrowserConnectorGuideWindow", () => {
     );
   });
 
+  it("独立窗口内容区应可滚动", async () => {
+    const container = renderGuide("/browser-connector-guide?mode=extension");
+    await flushEffects();
+
+    const main = container.querySelector("main");
+    expect(main?.className).toContain("h-screen");
+    expect(main?.className).toContain("overflow-y-auto");
+  });
+
   it("cdp 模式应展示直连步骤并打开远程调试页", async () => {
     const container = renderGuide("/browser-connector-guide?mode=cdp");
     await flushEffects();
@@ -271,6 +284,22 @@ describe("BrowserConnectorGuideWindow", () => {
       "_blank",
       "noopener,noreferrer",
     );
+    expect(mockOpenBrowserConnectorGuideWindowCommand).not.toHaveBeenCalled();
+    mockWindowOpen.mockRestore();
+  });
+
+  it("Tauri 环境打开引导时应走 Rust 开窗命令", async () => {
+    const mockWindowOpen = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => null);
+    mockHasTauriInvokeCapability.mockReturnValue(true);
+
+    await openBrowserConnectorGuideWindow({ mode: "cdp" });
+
+    expect(mockOpenBrowserConnectorGuideWindowCommand).toHaveBeenCalledWith({
+      mode: "cdp",
+    });
+    expect(mockWindowOpen).not.toHaveBeenCalled();
     mockWindowOpen.mockRestore();
   });
 });

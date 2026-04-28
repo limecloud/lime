@@ -2,12 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setStoredOemCloudSessionState } from "@/lib/oemCloudSession";
 import { startOemCloudStartupLoginIfRequired } from "@/lib/oemCloudStartupLogin";
 
-const { mockListPublicOAuthProviders, mockStartOemCloudLogin } = vi.hoisted(
-  () => ({
-    mockListPublicOAuthProviders: vi.fn(),
-    mockStartOemCloudLogin: vi.fn(),
-  }),
-);
+const { mockGetPublicAuthCatalog, mockStartOemCloudLogin } = vi.hoisted(() => ({
+  mockGetPublicAuthCatalog: vi.fn(),
+  mockStartOemCloudLogin: vi.fn(),
+}));
 
 vi.mock("@/lib/api/oemCloudControlPlane", async (importOriginal) => {
   const actual =
@@ -15,7 +13,7 @@ vi.mock("@/lib/api/oemCloudControlPlane", async (importOriginal) => {
 
   return {
     ...actual,
-    listPublicOAuthProviders: mockListPublicOAuthProviders,
+    getPublicAuthCatalog: mockGetPublicAuthCatalog,
   };
 });
 
@@ -41,14 +39,21 @@ describe("oemCloudStartupLogin", () => {
     delete window.__LIME_OEM_CLOUD__;
     delete window.__LIME_SESSION_TOKEN__;
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    mockListPublicOAuthProviders.mockResolvedValue([
-      {
-        provider: "google",
-        displayName: "Google",
-        enabled: true,
-        scopes: ["openid", "email"],
+    mockGetPublicAuthCatalog.mockResolvedValue({
+      providers: [
+        {
+          provider: "google",
+          displayName: "Google",
+          enabled: true,
+          scopes: ["openid", "email"],
+        },
+      ],
+      authPolicy: {
+        required: true,
+        startupTrigger: "oauth",
+        primaryProvider: "google",
       },
-    ]);
+    });
     mockStartOemCloudLogin.mockResolvedValue({
       mode: "desktop_auth",
       openedUrl: "https://user.limeai.run/oauth/desktop/authorize",
@@ -70,7 +75,7 @@ describe("oemCloudStartupLogin", () => {
     const result = await startOemCloudStartupLoginIfRequired();
 
     expect(result.status).toBe("started");
-    expect(mockListPublicOAuthProviders).toHaveBeenCalledWith("tenant-0001");
+    expect(mockGetPublicAuthCatalog).toHaveBeenCalledWith("tenant-0001");
     expect(mockStartOemCloudLogin).toHaveBeenCalledWith(
       expect.objectContaining({
         baseUrl: "https://user.limeai.run",
@@ -101,20 +106,27 @@ describe("oemCloudStartupLogin", () => {
     const result = await startOemCloudStartupLoginIfRequired();
 
     expect(result.status).toBe("has_session");
-    expect(mockListPublicOAuthProviders).not.toHaveBeenCalled();
+    expect(mockGetPublicAuthCatalog).not.toHaveBeenCalled();
     expect(mockStartOemCloudLogin).not.toHaveBeenCalled();
   });
 
   it("后端未下发 Google Provider 时保持开源默认使用", async () => {
     configureRuntime();
-    mockListPublicOAuthProviders.mockResolvedValue([
-      {
-        provider: "github",
-        displayName: "GitHub",
-        enabled: true,
-        scopes: [],
+    mockGetPublicAuthCatalog.mockResolvedValue({
+      providers: [
+        {
+          provider: "github",
+          displayName: "GitHub",
+          enabled: true,
+          scopes: [],
+        },
+      ],
+      authPolicy: {
+        required: true,
+        startupTrigger: "oauth",
+        primaryProvider: "google",
       },
-    ]);
+    });
 
     const result = await startOemCloudStartupLoginIfRequired();
 
@@ -124,7 +136,7 @@ describe("oemCloudStartupLogin", () => {
 
   it("读取后端登录策略失败时不应阻塞主应用启动", async () => {
     configureRuntime();
-    mockListPublicOAuthProviders.mockRejectedValue(new Error("network down"));
+    mockGetPublicAuthCatalog.mockRejectedValue(new Error("network down"));
 
     const result = await startOemCloudStartupLoginIfRequired();
 
@@ -132,6 +144,53 @@ describe("oemCloudStartupLogin", () => {
       status: "failed",
       reason: "network down",
     });
+    expect(mockStartOemCloudLogin).not.toHaveBeenCalled();
+  });
+
+  it("后端未要求启动登录时应保持开源默认使用", async () => {
+    configureRuntime();
+    mockGetPublicAuthCatalog.mockResolvedValue({
+      providers: [
+        {
+          provider: "google",
+          displayName: "Google",
+          enabled: true,
+          scopes: ["openid", "email"],
+        },
+      ],
+      authPolicy: {
+        required: false,
+        startupTrigger: "none",
+      },
+    });
+
+    const result = await startOemCloudStartupLoginIfRequired();
+
+    expect(result.status).toBe("not_required");
+    expect(mockStartOemCloudLogin).not.toHaveBeenCalled();
+  });
+
+  it("后端要求的启动策略不是 Google OAuth 时不应猜测兜底", async () => {
+    configureRuntime();
+    mockGetPublicAuthCatalog.mockResolvedValue({
+      providers: [
+        {
+          provider: "github",
+          displayName: "GitHub",
+          enabled: true,
+          scopes: [],
+        },
+      ],
+      authPolicy: {
+        required: true,
+        startupTrigger: "oauth",
+        primaryProvider: "github",
+      },
+    });
+
+    const result = await startOemCloudStartupLoginIfRequired();
+
+    expect(result.status).toBe("unsupported_policy");
     expect(mockStartOemCloudLogin).not.toHaveBeenCalled();
   });
 });

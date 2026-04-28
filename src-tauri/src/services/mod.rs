@@ -14,6 +14,7 @@ pub mod artifact_prompt_service;
 pub mod artifact_request_metadata_service;
 pub mod auto_memory_service;
 pub mod automation_service;
+pub mod browser_connector_guide_window;
 pub mod browser_connector_service;
 pub mod browser_environment_service;
 pub mod browser_profile_service;

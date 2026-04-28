@@ -4845,6 +4845,7 @@ const defaultMocks: Record<string, any> = {
   },
   open_browser_extensions_page_cmd: () => true,
   open_browser_remote_debugging_page_cmd: () => true,
+  open_browser_connector_guide_window: () => ({ success: true }),
   chrome_bridge_execute_command: (args: any) => ({
     success: true,
     request_id: `mock-${Date.now()}`,

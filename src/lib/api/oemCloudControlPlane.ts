@@ -57,6 +57,19 @@ export interface OemCloudPublicOAuthProvider {
   loginHint?: string;
 }
 
+export type OemCloudAuthStartupTrigger = "none" | "oauth";
+
+export interface OemCloudAuthPolicy {
+  required: boolean;
+  startupTrigger: OemCloudAuthStartupTrigger;
+  primaryProvider?: string;
+}
+
+export interface OemCloudPublicAuthCatalog {
+  providers: OemCloudPublicOAuthProvider[];
+  authPolicy: OemCloudAuthPolicy;
+}
+
 export interface OemCloudCurrentSession extends Omit<
   OemCloudCurrentSessionLike,
   "tenant" | "user" | "session"
@@ -181,6 +194,7 @@ export interface OemCloudBootstrapResponse {
     status: string;
     distributionChannels: string[];
   };
+  authPolicy: OemCloudAuthPolicy;
   providerOffersSummary: OemCloudProviderOfferSummary[];
   providerPreference: OemCloudProviderPreference;
   skillCatalog?: unknown;
@@ -1128,6 +1142,27 @@ function parsePublicOAuthProvider(value: unknown): OemCloudPublicOAuthProvider {
   };
 }
 
+function parseAuthPolicy(value: unknown): OemCloudAuthPolicy {
+  const record = isRecord(value) ? value : {};
+  const startupTrigger = normalizeText(record.startupTrigger);
+
+  return {
+    required: normalizeBoolean(record.required),
+    startupTrigger: startupTrigger === "oauth" ? "oauth" : "none",
+    primaryProvider: normalizeText(record.primaryProvider) ?? undefined,
+  };
+}
+
+function parsePublicAuthCatalog(value: unknown): OemCloudPublicAuthCatalog {
+  const record = isRecord(value) ? value : {};
+  return {
+    providers: Array.isArray(record.items)
+      ? record.items.map(parsePublicOAuthProvider)
+      : [],
+    authPolicy: parseAuthPolicy(record.authPolicy),
+  };
+}
+
 function parseProviderOfferSummary(
   value: unknown,
 ): OemCloudProviderOfferSummary {
@@ -1486,6 +1521,7 @@ function parseBootstrap(value: unknown): OemCloudBootstrapResponse {
         value.app && isRecord(value.app) ? value.app.distributionChannels : [],
       ),
     },
+    authPolicy: parseAuthPolicy(value.authPolicy),
     providerOffersSummary: Array.isArray(value.providerOffersSummary)
       ? value.providerOffersSummary.map(parseProviderOfferSummary)
       : [],
@@ -2437,13 +2473,17 @@ export async function pollClientDesktopAuthSession(
 export async function listPublicOAuthProviders(
   tenantId: string,
 ): Promise<OemCloudPublicOAuthProvider[]> {
-  const response = await requestControlPlane<{ items?: unknown[] }>(
-    `/v1/public/tenants/${encodeURIComponent(tenantId)}/oauth/providers`,
-  );
+  return (await getPublicAuthCatalog(tenantId)).providers;
+}
 
-  return Array.isArray(response.items)
-    ? response.items.map(parsePublicOAuthProvider)
-    : [];
+export async function getPublicAuthCatalog(
+  tenantId: string,
+): Promise<OemCloudPublicAuthCatalog> {
+  return parsePublicAuthCatalog(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/oauth/providers`,
+    ),
+  );
 }
 
 export async function verifyClientAuthEmailCode(

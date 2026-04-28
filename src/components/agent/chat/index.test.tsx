@@ -2032,6 +2032,9 @@ describe("AgentChatPage 侧栏显示控制", () => {
     });
     await flushEffects();
 
+    expect(
+      container.querySelector('[data-testid="toggle-harness"]'),
+    ).not.toBeNull();
     expect(container.querySelector('[data-testid="chat-sidebar"]')).toBeNull();
 
     clickButton(container, "toggle-history");

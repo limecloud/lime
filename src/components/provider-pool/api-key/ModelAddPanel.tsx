@@ -49,6 +49,8 @@ export type ModelCatalogCategory =
   | "aggregator"
   | "overseas"
   | "local";
+type ProviderRegion = "cn" | "global";
+type ProviderBillingMode = "payg" | "coding_plan" | "subscription";
 
 interface ProviderTemplate {
   id: string;
@@ -62,7 +64,10 @@ interface ProviderTemplate {
   defaultModels: string[];
   iconProviderId?: string;
   systemProviderId?: string;
+  providerResourceId?: string;
   isCustom?: boolean;
+  region?: ProviderRegion;
+  billingMode?: ProviderBillingMode;
 }
 
 interface FormState {
@@ -94,58 +99,160 @@ const CATEGORY_OPTIONS: Array<{ value: ModelCatalogCategory; label: string }> = 
 
 const FEATURED_TEMPLATES: ProviderTemplate[] = [
   {
-    id: "kimi-coding-plan",
-    name: "Kimi Coding Plan",
-    description: "Anthropic 协议编码套餐，适合 Claude Code / OpenClaw 工作流",
-    category: "recommended",
+    id: "kimi-code-subscription",
+    name: "Kimi Code 会员（订阅）",
+    description: "Kimi Code 官方订阅入口，Anthropic 协议，适合 Claude Code / OpenClaw",
+    category: "overseas",
+    type: "anthropic-compatible",
+    apiHost: "https://api.kimi.com/coding/",
+    recommended: true,
+    apiKeyUrl: "https://www.kimi.com/code",
+    defaultModels: ["k2p5"],
+    iconProviderId: "moonshotai",
+    providerResourceId: "kimi-for-coding",
+    region: "global",
+    billingMode: "subscription",
+  },
+  {
+    id: "kimi-api-cn",
+    name: "Kimi API（国内按量）",
+    description: "Moonshot 中国区 Anthropic 协议 API，适合按量接入 Kimi 模型",
+    category: "cn",
     type: "anthropic-compatible",
     apiHost: "https://api.moonshot.cn/anthropic",
     recommended: true,
     apiKeyUrl: "https://platform.moonshot.cn/console/api-keys",
-    defaultModels: ["k2p5"],
+    defaultModels: ["kimi-k2.5"],
     iconProviderId: "moonshotai",
+    providerResourceId: "moonshotai-cn",
+    region: "cn",
+    billingMode: "payg",
+  },
+  {
+    id: "kimi-api-global",
+    name: "Kimi API（海外按量）",
+    description: "Moonshot 国际区 Anthropic 协议 API，适合海外账号按量接入",
+    category: "overseas",
+    type: "anthropic-compatible",
+    apiHost: "https://api.moonshot.ai/anthropic",
+    recommended: true,
+    apiKeyUrl: "https://platform.moonshot.ai/console/api-keys",
+    defaultModels: ["kimi-k2.5"],
+    iconProviderId: "moonshotai",
+    providerResourceId: "moonshotai",
+    region: "global",
+    billingMode: "payg",
   },
   {
     id: "minimax-coding-plan",
-    name: "MiniMax Coding Plan",
-    description: "Anthropic 协议编码套餐，默认使用 MiniMax-M2.7",
-    category: "recommended",
+    name: "MiniMax Coding Plan（国内）",
+    description: "MiniMax 中国区 Anthropic 协议编码套餐，默认使用 MiniMax-M2.7",
+    category: "cn",
     type: "anthropic-compatible",
     apiHost: "https://api.minimaxi.com/anthropic",
     recommended: true,
     apiKeyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key",
     defaultModels: ["MiniMax-M2.7"],
-    iconProviderId: "minimax",
+    iconProviderId: "minimax-cn",
+    providerResourceId: "minimax-cn",
+    region: "cn",
+    billingMode: "coding_plan",
   },
   {
-    id: "glm-coding-plan",
-    name: "GLM Coding Plan",
-    description: "智谱 Coding Plan，Anthropic/Claude API 兼容编码入口",
-    category: "recommended",
+    id: "minimax-coding-plan-global",
+    name: "MiniMax Coding Plan（海外）",
+    description: "MiniMax 国际区 Anthropic 协议编码套餐，使用海外订阅入口",
+    category: "overseas",
+    type: "anthropic-compatible",
+    apiHost: "https://api.minimax.io/anthropic",
+    recommended: true,
+    apiKeyUrl: "https://platform.minimax.io/user-center/basic-information/interface-key",
+    defaultModels: ["MiniMax-M2.7"],
+    iconProviderId: "minimax",
+    providerResourceId: "minimax",
+    region: "global",
+    billingMode: "coding_plan",
+  },
+  {
+    id: "glm-cn-coding-plan",
+    name: "GLM Coding Plan（国内）",
+    description: "智谱 BigModel 中国区 Anthropic/Claude API 兼容编码入口",
+    category: "cn",
+    type: "anthropic-compatible",
+    apiHost: "https://open.bigmodel.cn/api/anthropic",
+    recommended: true,
+    apiKeyUrl: "https://open.bigmodel.cn/usercenter/apikeys",
+    defaultModels: ["glm-4.7"],
+    iconProviderId: "zhipuai",
+    providerResourceId: "zhipuai-coding-plan",
+    region: "cn",
+    billingMode: "coding_plan",
+  },
+  {
+    id: "zai-coding-plan",
+    name: "Z.AI Coding Plan（海外）",
+    description: "Z.AI 国际区 Anthropic/Claude API 兼容编码入口",
+    category: "overseas",
     type: "anthropic-compatible",
     apiHost: "https://api.z.ai/api/anthropic",
     recommended: true,
     apiKeyUrl: "https://z.ai/manage-apikey/apikey-list",
     defaultModels: ["glm-4.7"],
     iconProviderId: "zai",
+    providerResourceId: "zai-coding-plan",
+    region: "global",
+    billingMode: "coding_plan",
   },
   {
     id: "mimo-coding-plan",
     name: "MiMo Coding Plan",
     description: "小米 MiMo Token Plan，兼容 Claude Code 的 Anthropic 协议",
-    category: "recommended",
+    category: "cn",
     type: "anthropic-compatible",
     apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
     recommended: true,
     apiKeyUrl: "https://mimo.mi.com/",
     defaultModels: ["mimo-v2.5-pro"],
     iconProviderId: "xiaomi",
+    providerResourceId: "xiaomi",
+    region: "cn",
+    billingMode: "subscription",
+  },
+  {
+    id: "alibaba-coding-plan-cn",
+    name: "Alibaba Coding Plan（国内）",
+    description: "阿里云百炼中国区 Claude Code Coding Plan 专用 Anthropic 入口",
+    category: "cn",
+    type: "anthropic-compatible",
+    apiHost: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+    recommended: true,
+    apiKeyUrl: "https://bailian.console.aliyun.com/",
+    defaultModels: ["qwen3-coder-plus"],
+    iconProviderId: "alibaba-cn",
+    providerResourceId: "alibaba-cn",
+    region: "cn",
+    billingMode: "coding_plan",
+  },
+  {
+    id: "alibaba-coding-plan-global",
+    name: "Alibaba Coding Plan（海外）",
+    description: "阿里云 Model Studio 国际区 Claude Code Coding Plan 专用 Anthropic 入口",
+    category: "overseas",
+    type: "anthropic-compatible",
+    apiHost: "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic",
+    recommended: true,
+    apiKeyUrl: "https://modelstudio.console.alibabacloud.com/",
+    defaultModels: ["qwen3-coder-plus"],
+    iconProviderId: "alibaba",
+    providerResourceId: "alibaba",
+    region: "global",
+    billingMode: "coding_plan",
   },
   {
     id: "aihubmix-recommended",
     name: "AiHubMix",
     description: "聚合 Claude、OpenAI、Gemini 的常用中转服务",
-    category: "recommended",
+    category: "aggregator",
     type: "openai",
     apiHost: "https://aihubmix.com",
     recommended: true,
@@ -157,7 +264,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     id: "openrouter-recommended",
     name: "OpenRouter",
     description: "海外模型聚合平台，可按模型 ID 灵活接入",
-    category: "recommended",
+    category: "overseas",
     type: "openai",
     apiHost: "https://openrouter.ai/api/v1/",
     recommended: true,
@@ -180,7 +287,6 @@ const CUSTOM_TEMPLATE: ProviderTemplate = {
 };
 
 const CN_PROVIDER_IDS = new Set([
-  "alibaba",
   "alibaba-cn",
   "bailing",
   "baidu-cloud",
@@ -192,10 +298,8 @@ const CN_PROVIDER_IDS = new Set([
   "infini",
   "internlm",
   "kimi-for-coding",
-  "minimax",
   "minimax-cn",
   "modelscope",
-  "moonshotai",
   "moonshotai-cn",
   "sensenova",
   "spark",
@@ -206,8 +310,6 @@ const CN_PROVIDER_IDS = new Set([
   "xiaomi",
   "xirang",
   "yi",
-  "zai",
-  "zai-coding-plan",
   "zhipuai",
   "zhipuai-coding-plan",
   "zhinao",
@@ -259,15 +361,15 @@ const LOCAL_PROVIDER_IDS = new Set([
 
 const RESOURCE_PROVIDER_API_HOSTS: Record<string, string> = {
   aihubmix: "https://aihubmix.com",
-  alibaba: "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+  alibaba: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
   "alibaba-cn": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
   anthropic: "https://api.anthropic.com",
   deepseek: "https://api.deepseek.com",
-  "kimi-for-coding": "https://api.moonshot.cn/anthropic",
+  "kimi-for-coding": "https://api.kimi.com/coding/",
   lmstudio: "http://localhost:1234",
-  minimax: "https://api.minimaxi.com/anthropic",
+  minimax: "https://api.minimax.io/anthropic",
   "minimax-cn": "https://api.minimaxi.com/anthropic",
-  moonshotai: "https://api.moonshot.cn",
+  moonshotai: "https://api.moonshot.ai",
   "moonshotai-cn": "https://api.moonshot.cn",
   openai: "https://api.openai.com",
   openrouter: "https://openrouter.ai/api/v1/",
@@ -275,8 +377,17 @@ const RESOURCE_PROVIDER_API_HOSTS: Record<string, string> = {
   "siliconflow-cn": "https://api.siliconflow.cn",
   xiaomi: "https://token-plan-cn.xiaomimimo.com/anthropic",
   "zai-coding-plan": "https://api.z.ai/api/anthropic",
-  "zhipuai-coding-plan": "https://api.z.ai/api/anthropic",
+  "zhipuai-coding-plan": "https://open.bigmodel.cn/api/anthropic",
 };
+
+const ANTHROPIC_COMPATIBLE_REGISTRY_PROVIDER_IDS = new Set([
+  "kimi-for-coding",
+  "minimax",
+  "minimax-cn",
+  "xiaomi",
+  "zai-coding-plan",
+  "zhipuai-coding-plan",
+]);
 
 function normalizeCatalogProviderType(providerType: string): ProviderType {
   return isSupportedProviderType(providerType) ? providerType : "openai";
@@ -351,10 +462,13 @@ function buildRegistryTemplates(
         ? `模型目录 · ${apiHost}`
         : "模型目录供应商，按服务文档补充 API Base URL",
       category: resolveProviderCategory(providerId),
-      type: providerId === "kimi-for-coding" ? "anthropic-compatible" : "openai",
+      type: ANTHROPIC_COMPATIBLE_REGISTRY_PROVIDER_IDS.has(providerId)
+        ? "anthropic-compatible"
+        : "openai",
       apiHost,
       defaultModels: [],
       iconProviderId: providerId,
+      providerResourceId: providerId,
     });
   });
 
@@ -366,7 +480,9 @@ function dedupeTemplates(templates: ProviderTemplate[]): ProviderTemplate[] {
   const result: ProviderTemplate[] = [];
 
   for (const template of templates) {
-    const key = template.systemProviderId ?? template.id;
+    const key = template.providerResourceId
+      ? `provider:${template.providerResourceId}:${template.apiHost}`
+      : template.systemProviderId ?? template.id;
     if (seen.has(key)) {
       continue;
     }
@@ -424,6 +540,55 @@ function renderTemplateIcon(template: ProviderTemplate) {
       fallbackText={template.name}
       size={24}
     />
+  );
+}
+
+function getRegionLabel(region?: ProviderRegion): string | null {
+  switch (region) {
+    case "cn":
+      return "国内";
+    case "global":
+      return "海外";
+    default:
+      return null;
+  }
+}
+
+function getBillingModeLabel(mode?: ProviderBillingMode): string | null {
+  switch (mode) {
+    case "payg":
+      return "按量 API";
+    case "coding_plan":
+      return "Coding Plan";
+    case "subscription":
+      return "订阅套餐";
+    default:
+      return null;
+  }
+}
+
+function renderTemplateBadges(template: ProviderTemplate) {
+  const badges = [
+    template.recommended ? "推荐" : null,
+    getRegionLabel(template.region),
+    getBillingModeLabel(template.billingMode),
+  ].filter((item): item is string => Boolean(item));
+
+  if (badges.length === 0) {
+    return null;
+  }
+
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {badges.map((badge) => (
+        <Badge
+          key={badge}
+          className="border border-slate-200 bg-slate-50 px-2 py-0 text-[11px] text-slate-600 hover:bg-slate-50"
+        >
+          {badge}
+        </Badge>
+      ))}
+    </span>
   );
 }
 
@@ -635,14 +800,14 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
         )}
         data-testid="model-add-catalog"
       >
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-full bg-slate-100 p-1">
+        <div className="mb-4 grid grid-cols-2 gap-1 rounded-[18px] bg-slate-100 p-1 sm:flex sm:flex-wrap sm:items-center sm:gap-2 sm:rounded-full">
           {CATEGORY_OPTIONS.map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => setCategory(option.value)}
               className={cn(
-                "min-w-[118px] rounded-full px-4 py-2 text-sm font-semibold transition",
+                "min-w-0 rounded-[14px] px-3 py-2 text-sm font-semibold transition sm:min-w-[118px] sm:rounded-full sm:px-4",
                 category === option.value
                   ? "bg-white text-slate-900 shadow-sm shadow-slate-950/5"
                   : "text-slate-500 hover:text-slate-800",
@@ -675,15 +840,11 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
                   {renderTemplateIcon(template)}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-slate-900">
+                  <span className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+                    <span className="min-w-0 truncate text-sm font-semibold text-slate-900">
                       {template.name}
                     </span>
-                    {template.recommended ? (
-                      <Badge className="border border-amber-200 bg-amber-50 px-2 py-0 text-[11px] text-amber-700 hover:bg-amber-50">
-                        推荐
-                      </Badge>
-                    ) : null}
+                    {renderTemplateBadges(template)}
                   </span>
                   <span className="mt-1 block text-sm leading-5 text-slate-500">
                     {template.description}
@@ -748,9 +909,12 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
               {renderTemplateIcon(template)}
             </span>
             <div className="min-w-0">
-              <h3 className="truncate text-lg font-semibold text-slate-900">
-                {template.isCustom ? "自定义供应商" : `配置 ${template.name}`}
-              </h3>
+              <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                <h3 className="min-w-0 truncate text-lg font-semibold text-slate-900">
+                  {template.isCustom ? "自定义供应商" : `配置 ${template.name}`}
+                </h3>
+                {renderTemplateBadges(template)}
+              </div>
               <p className="mt-1 text-sm text-slate-500">{template.description}</p>
             </div>
           </div>

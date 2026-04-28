@@ -71,6 +71,19 @@
     "companion_launch_pet",
     "companion_send_pet_command"
   ],
+  "browserConnectorCommands": [
+    "disconnect_browser_connector_session",
+    "get_browser_connector_settings_cmd",
+    "set_browser_connector_install_root_cmd",
+    "set_browser_connector_enabled_cmd",
+    "set_system_connector_enabled_cmd",
+    "set_browser_action_capability_enabled_cmd",
+    "get_browser_connector_install_status_cmd",
+    "install_browser_connector_extension_cmd",
+    "open_browser_extensions_page_cmd",
+    "open_browser_remote_debugging_page_cmd",
+    "open_browser_connector_guide_window"
+  ],
   "memoryRuntimeCommands": [
     "memory_runtime_get_stats",
     "memory_runtime_get_overview",

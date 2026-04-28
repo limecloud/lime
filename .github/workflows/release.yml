@@ -315,9 +315,9 @@ jobs:
           key_path.chmod(0o600)
 
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
-              env_file.write(f"TAURI_SIGNING_PRIVATE_KEY_PATH={key_path}\n")
+              env_file.write(f"TAURI_SIGNING_PRIVATE_KEY={normalized_key}\n")
 
-          print(f"Normalized updater key written to {key_path}")
+          print(f"Normalized updater key verified and staged for Tauri signing from {key_path}")
           PY
 
       - name: Validate updater signing key
@@ -327,7 +327,6 @@ jobs:
           PROBE_FILE="$RUNNER_TEMP/tauri-signing-probe.txt"
           printf 'lime-release-signing-probe\n' > "$PROBE_FILE"
           npx tauri signer sign \
-            -f "$TAURI_SIGNING_PRIVATE_KEY_PATH" \
             -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" \
             "$PROBE_FILE" >/dev/null
 

@@ -990,6 +990,7 @@ async function waitForBridgeHealth(options, startedByScript) {
   let lastExitedChildLogAt = 0;
   let lastError = null;
   let lastHeartbeatAt = startedAt;
+  let lastHealthDuringCompileAt = 0;
 
   console.log(`[bridge:health] 开始检查: ${options.healthUrl}`);
 
@@ -1056,6 +1057,20 @@ async function waitForBridgeHealth(options, startedByScript) {
       const elapsed = Date.now() - startedAt;
       const status =
         payload && typeof payload === "object" ? payload.status : undefined;
+      const smokeRustcProcesses = listActiveGuiSmokeGroupProcesses(
+        startedByScript,
+      ).filter((item) => item.command.includes("/bin/rustc"));
+      if (startedByScript && smokeRustcProcesses.length > 0) {
+        if (elapsed - lastHealthDuringCompileAt >= GUI_SMOKE_BRIDGE_HEARTBEAT_MS) {
+          lastHealthDuringCompileAt = elapsed;
+          const heartbeat = describeGuiSmokeHeartbeat(startedByScript);
+          console.log(
+            `[bridge:health] 检测到健康响应但本轮 headless Tauri 仍在编译，继续等待本轮 DevBridge 稳定就绪${heartbeat ? `；进程组: ${heartbeat}` : ""}`,
+          );
+        }
+        await sleep(options.intervalMs);
+        continue;
+      }
       console.log(
         `[bridge:health] 就绪: ${options.healthUrl} (${elapsed}ms)${status ? ` status=${status}` : ""}`,
       );
@@ -1369,7 +1384,21 @@ async function main() {
 
     runCommand(
       npmCommand,
-      ["run", "smoke:agent-runtime-tool-surface-page"],
+      [
+        "run",
+        "smoke:agent-runtime-tool-surface-page",
+        "--",
+        "--app-url",
+        options.appUrl,
+        "--health-url",
+        options.healthUrl,
+        "--invoke-url",
+        options.invokeUrl,
+        "--timeout-ms",
+        String(options.timeoutMs),
+        "--interval-ms",
+        String(options.intervalMs),
+      ],
       "smoke:agent-runtime-tool-surface-page",
       options.timeoutMs + 30_000,
     );

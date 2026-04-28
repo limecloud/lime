@@ -49,10 +49,13 @@ fn should_use_bearer_auth_for_anthropic_host(host: &str) -> bool {
 
     [
         "bigmodel.cn/api/anthropic",
+        "api.z.ai/api/anthropic",
         "moonshot.cn/anthropic",
         "moonshot.ai/anthropic",
         "minimaxi.com/anthropic",
         "minimax.io/anthropic",
+        "coding.dashscope.aliyuncs.com/apps/anthropic",
+        "coding-intl.dashscope.aliyuncs.com/apps/anthropic",
         "token-plan-cn.xiaomimimo.com/anthropic",
     ]
     .iter()
@@ -409,12 +412,21 @@ mod tests {
         assert!(should_use_bearer_auth_for_anthropic_host(
             "https://open.bigmodel.cn/api/anthropic"
         ));
+        assert!(should_use_bearer_auth_for_anthropic_host(
+            "https://api.z.ai/api/anthropic"
+        ));
+        assert!(should_use_bearer_auth_for_anthropic_host(
+            "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic"
+        ));
     }
 
     #[test]
     fn test_official_anthropic_host_keeps_x_api_key_auth() {
         assert!(!should_use_bearer_auth_for_anthropic_host(
             "https://api.anthropic.com"
+        ));
+        assert!(!should_use_bearer_auth_for_anthropic_host(
+            "https://api.kimi.com/coding/"
         ));
     }
 
@@ -479,6 +491,12 @@ mod tests {
         ));
         assert!(supports_automatic_prompt_cache_for_host(
             "https://api.minimaxi.com/anthropic"
+        ));
+        assert!(supports_automatic_prompt_cache_for_host(
+            "https://coding.dashscope.aliyuncs.com/apps/anthropic"
+        ));
+        assert!(supports_automatic_prompt_cache_for_host(
+            "https://api.kimi.com/coding/"
         ));
     }
 
