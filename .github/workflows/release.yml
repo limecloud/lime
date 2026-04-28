@@ -330,9 +330,6 @@ jobs:
 
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
               env_file.write(f"TAURI_SIGNING_PRIVATE_KEY_PATH={key_path}\n")
-              env_file.write("TAURI_SIGNING_PRIVATE_KEY<<__TAURI_SIGNING_PRIVATE_KEY__\n")
-              env_file.write(normalized_key.rstrip("\n") + "\n")
-              env_file.write("__TAURI_SIGNING_PRIVATE_KEY__\n")
 
           print(f"Normalized updater key written to {key_path}")
           PY

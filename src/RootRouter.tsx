@@ -14,6 +14,7 @@ import { Toaster } from "./components/ui/sonner";
 import { AppCrashBoundary } from "./components/layout/AppCrashBoundary";
 import { finalizeModuleImportAutoReload } from "./components/layout/CrashRecoveryPanel.helpers";
 import { getRuntimeAppVersion } from "./lib/appVersion";
+import { startOemCloudStartupLoginIfRequired } from "./lib/oemCloudStartupLogin";
 
 /**
  * 根据 URL 路径渲染对应的组件
@@ -27,6 +28,13 @@ import { getRuntimeAppVersion } from "./lib/appVersion";
  */
 export function RootRouter() {
   const pathname = window.location.pathname;
+  const isMainAppRoute = ![
+    "/smart-input",
+    "/update-notification",
+    "/browser-runtime-debugger",
+    "/resource-manager",
+    "/browser-connector-guide",
+  ].includes(pathname);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -40,6 +48,14 @@ export function RootRouter() {
       window.history,
     );
   }, [pathname]);
+
+  useEffect(() => {
+    if (!isMainAppRoute) {
+      return;
+    }
+
+    void startOemCloudStartupLoginIfRequired();
+  }, [isMainAppRoute]);
 
   // 截图对话悬浮窗口路由（也用于语音输入）
   if (pathname === "/smart-input") {

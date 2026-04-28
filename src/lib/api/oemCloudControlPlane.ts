@@ -47,6 +47,16 @@ export interface OemCloudUserSession {
   expiresAt: string;
 }
 
+export interface OemCloudPublicOAuthProvider {
+  provider: string;
+  displayName: string;
+  authorizeUrl?: string;
+  redirectUri?: string;
+  scopes: string[];
+  enabled: boolean;
+  loginHint?: string;
+}
+
 export interface OemCloudCurrentSession extends Omit<
   OemCloudCurrentSessionLike,
   "tenant" | "user" | "session"
@@ -1093,6 +1103,28 @@ function parseCurrentSession(value: unknown): OemCloudCurrentSession {
       issuedAt: normalizeText(session?.issuedAt) ?? "",
       expiresAt: normalizeText(session?.expiresAt) ?? "",
     },
+  };
+}
+
+function parsePublicOAuthProvider(value: unknown): OemCloudPublicOAuthProvider {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("OAuth Provider 格式非法");
+  }
+
+  const provider = normalizeText(value.provider);
+  const displayName = normalizeText(value.displayName) ?? provider;
+  if (!provider || !displayName) {
+    throw new OemCloudControlPlaneError("OAuth Provider 格式非法");
+  }
+
+  return {
+    provider,
+    displayName,
+    authorizeUrl: normalizeText(value.authorizeUrl) ?? undefined,
+    redirectUri: normalizeText(value.redirectUri) ?? undefined,
+    scopes: normalizeStringArray(value.scopes),
+    enabled: normalizeBoolean(value.enabled, true),
+    loginHint: normalizeText(value.loginHint) ?? undefined,
   };
 }
 
@@ -2400,6 +2432,18 @@ export async function pollClientDesktopAuthSession(
       },
     ),
   );
+}
+
+export async function listPublicOAuthProviders(
+  tenantId: string,
+): Promise<OemCloudPublicOAuthProvider[]> {
+  const response = await requestControlPlane<{ items?: unknown[] }>(
+    `/v1/public/tenants/${encodeURIComponent(tenantId)}/oauth/providers`,
+  );
+
+  return Array.isArray(response.items)
+    ? response.items.map(parsePublicOAuthProvider)
+    : [];
 }
 
 export async function verifyClientAuthEmailCode(

@@ -285,6 +285,7 @@ describe("WebSearchSettings", () => {
     );
     await leaveTip(heroTip);
 
+    await switchTab(document.body, "图片搜索");
     const pexelsTip = await hoverTip("Pexels 接入说明");
     expect(getBodyText()).toContain(
       "申请地址：https://www.pexels.com/api/new/",
@@ -312,6 +313,8 @@ describe("WebSearchSettings", () => {
       findInput(container, "web-search-provider-priority"),
       "multi_search_engine, tavily, bing_search_api",
     );
+
+    await switchTab(container, "Provider 凭证");
     await setInputValue(
       findInput(container, "web-search-tavily-key"),
       "tavily-new-key",
@@ -328,6 +331,8 @@ describe("WebSearchSettings", () => {
       findInput(container, "web-search-google-engine-id"),
       "cx-new-id",
     );
+
+    await switchTab(container, "MSE 聚合");
     await setInputValue(
       findInput(container, "web-search-mse-custom-engine-name"),
       "hn",
@@ -336,6 +341,8 @@ describe("WebSearchSettings", () => {
       findInput(container, "web-search-mse-custom-engine-template"),
       "https://hn.algolia.com/?q={query}",
     );
+
+    await switchTab(container, "图片搜索");
     await setInputValue(
       findInput(container, "web-search-pexels-key"),
       "new-key",
@@ -384,6 +391,7 @@ describe("WebSearchSettings", () => {
     await flushEffects();
     await flushEffects();
 
+    await switchTab(container, "图片搜索");
     await act(async () => {
       findButton(container, "申请 Pexels Key").click();
       await flushEffects();
@@ -397,6 +405,7 @@ describe("WebSearchSettings", () => {
     await flushEffects();
     await flushEffects();
 
+    await switchTab(container, "Provider 凭证");
     await act(async () => {
       findButton(container, "申请 Tavily Key").click();
       await flushEffects();
@@ -417,6 +426,7 @@ describe("WebSearchSettings", () => {
       await flushEffects();
       await flushEffects();
 
+      await switchTab(container, "图片搜索");
       await act(async () => {
         findButton(container, "申请 Pexels Key").click();
         await flushEffects();
@@ -436,6 +446,7 @@ describe("WebSearchSettings", () => {
     await flushEffects();
     await flushEffects();
 
+    await switchTab(container, "图片搜索");
     await act(async () => {
       findButton(container, "申请 Pixabay Key").click();
       await flushEffects();
@@ -451,6 +462,7 @@ describe("WebSearchSettings", () => {
     await flushEffects();
     await flushEffects();
 
+    await switchTab(container, "Provider 凭证");
     await act(async () => {
       findButton(container, "申请 Bing Key").click();
       await flushEffects();
@@ -466,6 +478,7 @@ describe("WebSearchSettings", () => {
     await flushEffects();
     await flushEffects();
 
+    await switchTab(container, "Provider 凭证");
     await act(async () => {
       findButton(container, "申请 Google Key").click();
       await flushEffects();
@@ -481,6 +494,7 @@ describe("WebSearchSettings", () => {
     await flushEffects();
     await flushEffects();
 
+    await switchTab(container, "Provider 凭证");
     await act(async () => {
       findButton(container, "创建 CSE").click();
       await flushEffects();
