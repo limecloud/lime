@@ -87,7 +87,6 @@ export const SETTINGS_GROUPS: Record<SettingsGroupKey, SettingsTabs[]> = {
     SettingsTabs.Environment,
     SettingsTabs.ChromeRelay,
     SettingsTabs.Automation,
-    SettingsTabs.Experimental,
     SettingsTabs.Developer,
     SettingsTabs.About,
   ],

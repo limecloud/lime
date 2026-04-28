@@ -1,3 +1,5 @@
+import { cacheOemCloudReferralStateFromBootstrap } from "@/lib/oemCloudReferralCache";
+
 const OEM_CLOUD_SESSION_STORAGE_KEY = "lime:oem-cloud-session:v1";
 export const OEM_CLOUD_SESSION_CHANGED_EVENT = "lime:oem-cloud-session-changed";
 export const OEM_CLOUD_BOOTSTRAP_CHANGED_EVENT =
@@ -254,7 +256,7 @@ export function setStoredOemCloudSessionState(
     normalizeAccessToken(session.token) ??
     normalizeAccessToken(normalizedSession?.token);
   if (!normalizedSession || !token) {
-    throw new Error("缺少有效的 OEM 云端 Session Token");
+    throw new Error("缺少有效的品牌云端 Session Token");
   }
 
   const nextState: OemCloudStoredSessionState = {
@@ -297,6 +299,9 @@ export function setOemCloudBootstrapSnapshot(payload: unknown): void {
   }
 
   window.__LIME_BOOTSTRAP__ = payload;
+  if (payload) {
+    cacheOemCloudReferralStateFromBootstrap(payload);
+  }
   emitBootstrapChanged(payload);
 }
 

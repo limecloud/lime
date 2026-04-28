@@ -23,6 +23,7 @@ const {
   mockSetI18nLanguage,
   mockScheduleMinimumDelayIdleTask,
   mockLogoutClient,
+  mockStartOemCloudLogin,
   mockGetClientReferralDashboard,
   mockClearSiteAdapterCatalogCache,
   mockToastSuccess,
@@ -41,6 +42,7 @@ const {
     return () => undefined;
   }),
   mockLogoutClient: vi.fn(),
+  mockStartOemCloudLogin: vi.fn(),
   mockGetClientReferralDashboard: vi.fn(),
   mockClearSiteAdapterCatalogCache: vi.fn(),
   mockToastSuccess: vi.fn(),
@@ -73,6 +75,10 @@ vi.mock("@/lib/api/agentRuntime", () => ({
 vi.mock("@/lib/api/oemCloudControlPlane", () => ({
   logoutClient: mockLogoutClient,
   getClientReferralDashboard: mockGetClientReferralDashboard,
+}));
+
+vi.mock("@/lib/oemCloudLoginLauncher", () => ({
+  startOemCloudLogin: mockStartOemCloudLogin,
 }));
 
 vi.mock("sonner", () => ({
@@ -162,6 +168,51 @@ async function clickAccountMenuItem(container: HTMLElement, label: string) {
   });
 }
 
+function buildMockReferralDashboard() {
+  return {
+    code: {
+      id: "refcode-001",
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      code: "LIME-2026",
+      landingUrl: "https://limeai.run/invite?code=LIME-2026",
+      status: "active",
+      createdAt: "2026-04-28T00:00:00.000Z",
+      updatedAt: "2026-04-28T00:00:00.000Z",
+    },
+    policy: {
+      enabled: true,
+      rewardCredits: 600,
+      referrerRewardCredits: 480,
+      inviteeRewardCredits: 120,
+      claimWindowDays: 30,
+      autoClaimEnabled: true,
+      allowManualClaimFallback: true,
+      riskReviewEnabled: false,
+    },
+    summary: {
+      totalInvites: 0,
+      successfulInvites: 0,
+      totalRewardCredits: 0,
+      referrerRewardCreditsTotal: 0,
+      inviteeRewardCreditsTotal: 0,
+    },
+    events: [],
+    rewards: [],
+    invitedBy: {},
+    share: {
+      brandName: "Lime",
+      code: "LIME-2026",
+      landingUrl: "https://limeai.run/invite?code=LIME-2026",
+      downloadUrl: "https://limeai.run",
+      shareText:
+        "邀请你体验Lime，让AI做牛做马，我们来做牛人！前往 https://limeai.run 下载客户端，复制邀请码 LIME-2026 激活并注册账号参与内测",
+      headline: "登录后自动领取奖励",
+      rules: "复制邀请码后完成注册即可参与内测。",
+    },
+  };
+}
+
 describe("AppSidebar", () => {
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -179,48 +230,13 @@ describe("AppSidebar", () => {
     mockListAgentRuntimeSessions.mockResolvedValue([]);
     mockUpdateAgentRuntimeSession.mockResolvedValue(undefined);
     mockLogoutClient.mockResolvedValue(undefined);
-    mockGetClientReferralDashboard.mockResolvedValue({
-      code: {
-        id: "refcode-001",
-        tenantId: "tenant-0001",
-        userId: "user-001",
-        code: "LIME-2026",
-        landingUrl: "https://limeai.run/invite?code=LIME-2026",
-        status: "active",
-        createdAt: "2026-04-28T00:00:00.000Z",
-        updatedAt: "2026-04-28T00:00:00.000Z",
-      },
-      policy: {
-        enabled: true,
-        rewardCredits: 600,
-        referrerRewardCredits: 480,
-        inviteeRewardCredits: 120,
-        claimWindowDays: 30,
-        autoClaimEnabled: true,
-        allowManualClaimFallback: true,
-        riskReviewEnabled: false,
-      },
-      summary: {
-        totalInvites: 0,
-        successfulInvites: 0,
-        totalRewardCredits: 0,
-        referrerRewardCreditsTotal: 0,
-        inviteeRewardCreditsTotal: 0,
-      },
-      events: [],
-      rewards: [],
-      invitedBy: {},
-      share: {
-        brandName: "Lime",
-        code: "LIME-2026",
-        landingUrl: "https://limeai.run/invite?code=LIME-2026",
-        downloadUrl: "https://limeai.run",
-        shareText:
-          "邀请你体验Lime，让AI做牛做马，我们来做牛人！前往 https://limeai.run 下载客户端，复制邀请码 LIME-2026 激活并注册账号参与内测",
-        headline: "登录后自动领取奖励",
-        rules: "复制邀请码后完成注册即可参与内测。",
-      },
+    mockStartOemCloudLogin.mockResolvedValue({
+      mode: "login_url",
+      openedUrl: "https://user.limeai.run/login",
     });
+    mockGetClientReferralDashboard.mockResolvedValue(
+      buildMockReferralDashboard(),
+    );
     mockClearSiteAdapterCatalogCache.mockResolvedValue(null);
     mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
       task();
@@ -411,7 +427,7 @@ describe("AppSidebar", () => {
     expect(onNavigate.mock.calls[0]?.[0]).toBe("agent");
   });
 
-  it("首页侧边栏底部应展示紧凑用户弹框与 OEM 云端入口", async () => {
+  it("首页侧边栏底部应展示紧凑用户弹框与 Lime 云端入口", async () => {
     const onNavigate = vi.fn();
     setStoredOemCloudSessionState({
       token: "session-token",
@@ -438,7 +454,7 @@ describe("AppSidebar", () => {
     );
     expect(accountButton).not.toBeNull();
     expect(container.textContent).toContain("zhong feng shan");
-    expect(container.textContent).toContain("OEM");
+    expect(container.textContent).toContain("云端");
 
     await act(async () => {
       accountButton?.click();
@@ -451,7 +467,7 @@ describe("AppSidebar", () => {
     expect(accountMenu).not.toBeNull();
     expect(accountMenu?.textContent).toContain("zhong feng shan");
     expect(accountMenu?.textContent).toContain("user@example.com");
-    expect(accountMenu?.textContent).toContain("OEM 已连接");
+    expect(accountMenu?.textContent).toContain("云端已连接");
     expect(accountMenu?.textContent).toContain("套餐、积分和模型目录");
     expect(accountMenu?.textContent).toContain("语言");
     expect(accountMenu?.textContent).toContain("持续流程");
@@ -461,7 +477,7 @@ describe("AppSidebar", () => {
     expect(accountMenu?.textContent).toContain("模型设置");
     expect(accountMenu?.textContent).toContain("关于");
     expect(accountMenu?.textContent).toContain("退出登录");
-    expect(accountMenu?.textContent).not.toContain("连接 OEM 云端");
+    expect(accountMenu?.textContent).not.toContain("连接 Lime 云端");
     expect(accountMenu?.textContent).not.toContain("主题");
     expect(accountMenu?.textContent).not.toContain("帮助中心");
 
@@ -496,9 +512,13 @@ describe("AppSidebar", () => {
       session: { id: "session-001", provider: "google" },
     });
     setOemCloudBootstrapSnapshot({
+      session: {
+        tenant: { id: "tenant-0001", name: "Lime Cloud" },
+      },
       features: {
         referralEnabled: true,
       },
+      referral: buildMockReferralDashboard(),
     });
 
     const container = mountSidebarContainer({
@@ -524,7 +544,7 @@ describe("AppSidebar", () => {
     });
     await flushEffects(4);
 
-    expect(mockGetClientReferralDashboard).toHaveBeenCalledWith("tenant-0001");
+    expect(mockGetClientReferralDashboard).not.toHaveBeenCalled();
     const dialog = document.body.querySelector(
       '[data-testid="app-sidebar-invite-dialog"]',
     );
@@ -549,7 +569,41 @@ describe("AppSidebar", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith("已复制邀请文案");
   });
 
-  it("未连接 OEM 云端时应保持开源使用口径", async () => {
+  it("缓存的云端邀请开关关闭时不应展示头部邀请入口", async () => {
+    setStoredOemCloudSessionState({
+      token: "session-token",
+      tenant: { id: "tenant-0001", name: "Lime Cloud" },
+      user: {
+        id: "user-001",
+        displayName: "晚风",
+        email: "wanfeng@example.com",
+      },
+      session: { id: "session-001", provider: "google" },
+    });
+    setOemCloudBootstrapSnapshot({
+      session: {
+        tenant: { id: "tenant-0001", name: "Lime Cloud" },
+      },
+      features: {
+        referralEnabled: false,
+      },
+    });
+
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    expect(
+      container.querySelector('[data-testid="app-sidebar-invite-button"]'),
+    ).toBeNull();
+    expect(mockGetClientReferralDashboard).not.toHaveBeenCalled();
+  });
+
+  it("未连接 Lime 云端时应保持开源使用口径", async () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
@@ -575,13 +629,49 @@ describe("AppSidebar", () => {
       '[data-testid="app-sidebar-account-menu"]',
     );
     expect(accountMenu?.textContent).toContain("开源版");
-    expect(accountMenu?.textContent).toContain("OEM 云端可选");
+    expect(accountMenu?.textContent).toContain("云端可选");
     expect(accountMenu?.textContent).toContain("模型设置");
-    expect(accountMenu?.textContent).toContain("连接 OEM 云端");
+    expect(accountMenu?.textContent).toContain("连接 Lime 云端");
     expect(accountMenu?.textContent).not.toContain("退出登录");
+    expect(
+      accountMenu?.querySelector('button[aria-label="Lime 云端"]'),
+    ).toBeNull();
+
+    await act(async () => {
+      accountMenu
+        ?.querySelector<HTMLButtonElement>('button[aria-label="连接 Lime 云端"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(mockStartOemCloudLogin).toHaveBeenCalledTimes(1);
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "已打开 Lime 云端 登录页，请在浏览器完成授权",
+    );
   });
 
-  it("OEM 登录完成后侧边栏应从开源态刷新为账号信息", async () => {
+  it("开源版说明应折叠到信息图标中", async () => {
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+    await openAccountMenu(container);
+
+    const accountMenu = container.querySelector(
+      '[data-testid="app-sidebar-account-menu"]',
+    );
+    expect(accountMenu?.textContent).not.toContain(
+      "本地开源功能可直接使用",
+    );
+    expect(
+      accountMenu?.querySelector('button[aria-label="开源版说明"]'),
+    ).not.toBeNull();
+  });
+
+  it("Lime 云端登录完成后侧边栏应从开源态刷新为账号信息", async () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
@@ -615,7 +705,7 @@ describe("AppSidebar", () => {
     await flushEffects(2);
 
     expect(container.textContent).toContain("晚风");
-    expect(container.textContent).toContain("OEM");
+    expect(container.textContent).toContain("云端");
 
     await openAccountMenu(container);
     const accountMenu = container.querySelector(
@@ -685,6 +775,15 @@ describe("AppSidebar", () => {
 
   it("用户弹框中的收缩入口应导航到真实页面", async () => {
     const onNavigate = vi.fn();
+    setStoredOemCloudSessionState({
+      token: "session-token",
+      tenant: { id: "tenant-0001" },
+      user: {
+        id: "user-001",
+        displayName: "zhong feng shan",
+      },
+      session: { id: "session-001" },
+    });
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
@@ -711,7 +810,7 @@ describe("AppSidebar", () => {
       providerView: "settings",
     });
 
-    await clickAccountMenuItem(container, "OEM 云端");
+    await clickAccountMenuItem(container, "Lime 云端");
     expect(onNavigate).toHaveBeenLastCalledWith("settings", {
       tab: SettingsTabs.Providers,
       providerView: "cloud",

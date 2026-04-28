@@ -329,7 +329,7 @@ export function MediaServicesSettings() {
           </h1>
           <WorkbenchInfoTip
             ariaLabel="服务模型总览说明"
-            content="统一管理当前已经接入主链的命名、翻译、提词重写与媒体生成默认模型，继续复用本地、自管云端和 OEM 云端同一套模型 taxonomy。"
+            content="统一管理当前已经接入主链的命名、翻译、提词重写与媒体生成默认模型，继续复用本地、自管云端和品牌云端同一套模型 taxonomy。"
             tone="mint"
           />
         </div>

@@ -175,7 +175,7 @@ export function ImageGenSettings() {
     ? "只展示已声明图片生成能力的 Provider。"
     : imageProviders.length === 0
       ? "当前没有可用图片 Provider；请先在凭证管理中为可出图服务配置模型或自定义模型。"
-      : "只展示已声明图片生成能力的 Provider；后续接入 OEM 云端目录时也会复用同一筛选口径。";
+      : "只展示已声明图片生成能力的 Provider；后续接入品牌云端目录时也会复用同一筛选口径。";
 
   return (
     <div className="max-w-[820px] space-y-4">

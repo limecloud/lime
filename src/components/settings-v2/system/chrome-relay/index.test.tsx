@@ -22,6 +22,7 @@ const {
   mockDisconnectBrowserConnectorSession,
   mockGetBrowserBackendPolicy,
   mockGetBrowserBackendsStatus,
+  mockOpenBrowserConnectorGuideWindow,
 } = vi.hoisted(() => ({
   mockOpenDialog: vi.fn(),
   mockGetConfig: vi.fn(),
@@ -42,6 +43,7 @@ const {
   mockDisconnectBrowserConnectorSession: vi.fn(),
   mockGetBrowserBackendPolicy: vi.fn(),
   mockGetBrowserBackendsStatus: vi.fn(),
+  mockOpenBrowserConnectorGuideWindow: vi.fn(),
 }));
 
 vi.mock("@/lib/api/appConfig", () => ({
@@ -54,6 +56,16 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 
 vi.mock("@/features/browser-runtime", () => ({
   BrowserRuntimeDebugPanel: () => <div data-testid="browser-runtime-panel" />,
+}));
+
+vi.mock("./guide-window", () => ({
+  BrowserConnectorGuideWindow: () => (
+    <div data-testid="connector-guide-window" />
+  ),
+}));
+
+vi.mock("./guide-window-launcher", () => ({
+  openBrowserConnectorGuideWindow: mockOpenBrowserConnectorGuideWindow,
 }));
 
 vi.mock("@/lib/webview-api", async () => {
@@ -139,32 +151,12 @@ function renderComponent() {
 async function flushEffects() {
   await act(async () => {
     await Promise.resolve();
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
   });
 }
 
 function getBodyText() {
   return document.body.textContent ?? "";
-}
-
-async function hoverTip(ariaLabel: string) {
-  const trigger = document.body.querySelector(
-    `button[aria-label='${ariaLabel}']`,
-  );
-  expect(trigger).toBeInstanceOf(HTMLButtonElement);
-
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    await Promise.resolve();
-  });
-
-  return trigger as HTMLButtonElement;
-}
-
-async function leaveTip(trigger: HTMLButtonElement | null) {
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
-    await Promise.resolve();
-  });
 }
 
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
@@ -191,7 +183,7 @@ function findTabButton(
 }
 
 async function openAdvancedTab(container: HTMLElement) {
-  const tabButton = findTabButton(container, "高级工具");
+  const tabButton = findButton(container, "打开高级工具");
   await act(async () => {
     tabButton.click();
     await flushEffects();
@@ -372,6 +364,7 @@ beforeEach(() => {
   });
   mockOpenBrowserExtensionsPage.mockResolvedValue(true);
   mockOpenBrowserRemoteDebuggingPage.mockResolvedValue(true);
+  mockOpenBrowserConnectorGuideWindow.mockResolvedValue(undefined);
   mockLaunchBrowserSession.mockResolvedValue({
     profile: {
       success: true,
@@ -451,16 +444,14 @@ afterEach(() => {
 });
 
 describe("ChromeRelaySettings", () => {
-  it("默认应聚焦核心设置，并在高级工具中切换到浏览器实时调试面板", async () => {
+  it("默认应聚焦浏览器列表，并在高级工具中切换到浏览器实时调试面板", async () => {
     const container = renderComponent();
     await flushEffects();
 
-    expect(container.textContent).toContain("核心设置");
-    expect(container.textContent).toContain("连接器");
-    expect(container.textContent).toContain(
-      "管理扩展安装、连接器状态和桥接能力。",
-    );
-    expect(container.textContent).toContain("安装 Lime Browser Bridge");
+    expect(container.textContent).toContain("浏览器列表");
+    expect(container.textContent).toContain("Google Chrome");
+    expect(container.textContent).toContain("通过扩展连接");
+    expect(container.textContent).toContain("CDP 直连");
     expect(container.textContent).not.toContain("连接方式");
     expect(container.textContent).not.toContain("高级控制");
     expect(
@@ -480,62 +471,27 @@ describe("ChromeRelaySettings", () => {
     ).not.toBeNull();
   });
 
-  it("应把连接器补充说明收进 tips", async () => {
+  it("核心页不应再用说明 tips 承载安装长文", async () => {
     renderComponent();
     await flushEffects();
 
+    expect(
+      document.body.querySelector("button[aria-label='连接器总览说明']"),
+    ).toBeNull();
     expect(getBodyText()).not.toContain(
-      "先安装扩展，再开启连接器。这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。",
+      "核心页只保留当前浏览器状态和两种连接入口；安装步骤、远程调试步骤放到独立引导窗口。",
     );
-    expect(getBodyText()).not.toContain(
-      "选择安装目录，同步扩展文件，然后去 Chrome 扩展页加载已解压目录。",
-    );
-
-    const overviewTip = await hoverTip("连接器总览说明");
-    expect(getBodyText()).toContain(
-      "先安装扩展，再开启连接器。这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。",
-    );
-    await leaveTip(overviewTip);
-
-    const installTip = await hoverTip("安装 Lime Browser Bridge 说明");
-    expect(getBodyText()).toContain(
-      "选择安装目录，同步扩展文件，然后去 Chrome 扩展页加载已解压目录。",
-    );
-    await leaveTip(installTip);
   });
 
-  it("应明确提示不要直接加载仓库源码目录", async () => {
+  it("核心页不应展示扩展安装长步骤", async () => {
     const container = renderComponent();
     await flushEffects();
 
-    expect(container.textContent).toContain(
+    expect(container.textContent).not.toContain(
       "不要直接加载仓库源码里的 `extensions/lime-chrome`",
     );
-    expect(container.textContent).toContain(
+    expect(container.textContent).not.toContain(
       "源码目录不带 `auto_config.json`，扩展会提示缺少 `serverUrl / bridgeKey`。",
-    );
-  });
-
-  it("选择目录后应安装浏览器连接器到固定子目录", async () => {
-    const container = renderComponent();
-    await flushEffects();
-
-    const button = findButton(container, "选择目录并安装");
-    await act(async () => {
-      button.click();
-      await flushEffects();
-    });
-
-    expect(mockOpenDialog).toHaveBeenCalledTimes(1);
-    expect(mockSetBrowserConnectorInstallRoot).toHaveBeenCalledWith(
-      "/Users/test/connectors",
-    );
-    expect(mockInstallBrowserConnectorExtension).toHaveBeenCalledWith({
-      install_root_dir: "/Users/test/connectors",
-      profile_key: "default",
-    });
-    expect(container.textContent).toContain(
-      "浏览器连接器已同步到 /Users/test/connectors/Lime Browser Connector",
     );
   });
 
@@ -598,11 +554,38 @@ describe("ChromeRelaySettings", () => {
     expect(container.textContent).toContain("已打开独立浏览器调试窗口");
   });
 
-  it("应提供扩展与远程调试引导入口", async () => {
+  it("核心页应提供扩展与 CDP 独立引导入口", async () => {
     const container = renderComponent();
     await flushEffects();
 
     expect(container.textContent).not.toContain("连接方式");
+    expect(container.textContent).toContain("连接引导");
+    expect(container.textContent).toContain("配置引导");
+
+    const extensionGuideButton = findButton(container, "连接引导");
+    await act(async () => {
+      extensionGuideButton.click();
+      await flushEffects();
+    });
+
+    expect(mockOpenBrowserConnectorGuideWindow).toHaveBeenCalledWith({
+      mode: "extension",
+    });
+
+    const cdpGuideButton = findButton(container, "配置引导");
+    await act(async () => {
+      cdpGuideButton.click();
+      await flushEffects();
+    });
+
+    expect(mockOpenBrowserConnectorGuideWindow).toHaveBeenCalledWith({
+      mode: "cdp",
+    });
+  });
+
+  it("高级工具仍保留扩展页与远程调试快捷入口", async () => {
+    const container = renderComponent();
+    await flushEffects();
 
     await openAdvancedTab(container);
 
@@ -628,7 +611,8 @@ describe("ChromeRelaySettings", () => {
   });
 
   it("扩展已连接时应允许断开当前连接", async () => {
-    mockGetChromeBridgeStatus.mockResolvedValueOnce({
+    mockGetChromeBridgeStatus.mockReset();
+    mockGetChromeBridgeStatus.mockResolvedValue({
       observer_count: 1,
       control_count: 1,
       pending_command_count: 0,
@@ -647,11 +631,24 @@ describe("ChromeRelaySettings", () => {
       ],
       pending_commands: [],
     });
+    mockGetBrowserBackendsStatus.mockResolvedValue({
+      policy: {
+        priority: ["aster_compat", "lime_extension_bridge", "cdp_direct"],
+        auto_fallback: true,
+      },
+      bridge_observer_count: 1,
+      bridge_control_count: 1,
+      running_profile_count: 1,
+      cdp_alive_profile_count: 1,
+      aster_native_host_supported: true,
+      aster_native_host_configured: false,
+      backends: [],
+    });
 
     const container = renderComponent();
     await flushEffects();
+    await flushEffects();
 
-    expect(container.textContent).toContain("Lime 已连接当前 Chrome");
     await openAdvancedTab(container);
 
     const button = findButton(container, "断开已连接扩展");
@@ -724,6 +721,7 @@ describe("ChromeRelaySettings", () => {
   it("应允许切换浏览器动作配置", async () => {
     const container = renderComponent();
     await flushEffects();
+    await openAdvancedTab(container);
 
     const target = container.querySelector(
       'button[aria-label="切换页面内查找"]',

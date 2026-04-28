@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-shell";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 
@@ -305,16 +306,7 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-6 pb-20">
       <div className="h-[228px] animate-pulse rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)]" />
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <div className="space-y-6">
-          <div className="h-[380px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
-          <div className="h-[420px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
-        </div>
-        <div className="space-y-6">
-          <div className="h-[280px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
-          <div className="h-[260px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
-        </div>
-      </div>
+      <div className="h-[520px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
     </div>
   );
 }
@@ -639,47 +631,84 @@ export function WebSearchSettings() {
         </div>
       ) : null}
 
-      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
-                网络搜索
-              </h1>
-              <WorkbenchInfoTip
-                ariaLabel="联网搜索设置总览说明"
-                content="管理搜索引擎、Provider 回退链和图片搜索 Key；各服务的接入说明已经分别收进对应配置分区。"
-                tone="mint"
-              />
+      <Tabs defaultValue="search" className="space-y-5">
+        <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                  网络搜索
+                </h1>
+                <WorkbenchInfoTip
+                  ariaLabel="联网搜索设置总览说明"
+                  content="管理搜索引擎、Provider 回退链和图片搜索 Key；各服务的接入说明已经分别收进对应配置分区。"
+                  tone="mint"
+                />
+              </div>
+              <p className="text-sm text-slate-500">
+                管理搜索引擎、Provider 回退和图片搜索 Key。
+              </p>
             </div>
-            <p className="text-sm text-slate-500">
-              管理搜索引擎、Provider 回退和图片搜索 Key。
-            </p>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-              搜索引擎：{draftEngine === "google" ? "Google" : "小红书"}
-            </span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-              当前 Provider：{draftProvider}
-            </span>
-            <span
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-medium",
-                hasUnsavedChanges
-                  ? "border-amber-200 bg-amber-50 text-amber-700"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-700",
-              )}
-            >
-              状态：{hasUnsavedChanges ? "待保存" : "已保存"}
-            </span>
-          </div>
-        </div>
-      </section>
+            <div className="flex w-full flex-col gap-3 xl:w-auto xl:items-end">
+              <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                  搜索引擎：{draftEngine === "google" ? "Google" : "小红书"}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                  当前 Provider：{draftProvider}
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs font-medium",
+                    hasUnsavedChanges
+                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-700",
+                  )}
+                >
+                  状态：{hasUnsavedChanges ? "待保存" : "已保存"}
+                </span>
+              </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <div className="space-y-6">
+              <TabsList className="grid h-auto w-full grid-cols-2 rounded-[20px] border border-slate-200 bg-slate-50 p-1 shadow-sm shadow-slate-950/5 lg:grid-cols-4 xl:w-[640px]">
+                <TabsTrigger
+                  value="search"
+                  data-testid="web-search-tab-search"
+                  className="gap-2 rounded-[14px] px-3 py-3"
+                >
+                  <Search className="h-4 w-4" />
+                  搜索链路
+                </TabsTrigger>
+                <TabsTrigger
+                  value="providers"
+                  data-testid="web-search-tab-providers"
+                  className="gap-2 rounded-[14px] px-3 py-3"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Provider 凭证
+                </TabsTrigger>
+                <TabsTrigger
+                  value="mse"
+                  data-testid="web-search-tab-mse"
+                  className="gap-2 rounded-[14px] px-3 py-3"
+                >
+                  <Layers3 className="h-4 w-4" />
+                  MSE 聚合
+                </TabsTrigger>
+                <TabsTrigger
+                  value="images"
+                  data-testid="web-search-tab-images"
+                  className="gap-2 rounded-[14px] px-3 py-3"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  图片搜索
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </div>
+        </section>
+
+        <TabsContent value="search" className="mt-0">
           <SurfacePanel
             icon={Search}
             title="联网搜索配置"
@@ -816,7 +845,9 @@ export function WebSearchSettings() {
               </article>
             </div>
           </SurfacePanel>
+        </TabsContent>
 
+        <TabsContent value="providers" className="mt-0">
           <SurfacePanel
             icon={ShieldCheck}
             title="Provider 凭证"
@@ -974,7 +1005,9 @@ export function WebSearchSettings() {
               </article>
             </div>
           </SurfacePanel>
+        </TabsContent>
 
+        <TabsContent value="mse" className="mt-0">
           <SurfacePanel
             icon={Layers3}
             title="Multi Search Engine"
@@ -1111,9 +1144,9 @@ export function WebSearchSettings() {
               </article>
             </div>
           </SurfacePanel>
-        </div>
+        </TabsContent>
 
-        <div className="space-y-6">
+        <TabsContent value="images" className="mt-0 space-y-6">
           <SurfacePanel
             icon={ImageIcon}
             title="联网图片搜索"
@@ -1274,8 +1307,8 @@ export function WebSearchSettings() {
               </div>
             </div>
           </SurfacePanel>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       <div className="sticky bottom-0 rounded-[24px] border border-slate-200/80 bg-white/92 px-4 py-3 shadow-lg shadow-slate-950/5 backdrop-blur supports-[backdrop-filter]:bg-white/80">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

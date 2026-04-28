@@ -4632,7 +4632,7 @@ export function HarnessStatusPanel({
                               variant="outline"
                               className="border-amber-300 bg-white text-amber-700"
                             >
-                              OEM 托管锁定
+                              品牌云端托管锁定
                             </Badge>
                           ) : null}
                           {runtimeFactSummary.oemPolicy.quotaLow ? (
@@ -4640,7 +4640,7 @@ export function HarnessStatusPanel({
                               variant="outline"
                               className="border-orange-300 bg-white text-orange-700"
                             >
-                              OEM 额度偏低
+                              品牌云端额度偏低
                             </Badge>
                           ) : null}
                           {runtimeFactSummary.oemPolicy.canInvoke === false ? (
@@ -4648,7 +4648,7 @@ export function HarnessStatusPanel({
                               variant="outline"
                               className="border-rose-300 bg-white text-rose-700"
                             >
-                              OEM 当前不可调用
+                              品牌云端当前不可调用
                             </Badge>
                           ) : null}
                           {runtimeFactSummary.oemPolicy
@@ -4665,7 +4665,7 @@ export function HarnessStatusPanel({
                           {runtimeFactSummary.oemPolicy.defaultModel ||
                           runtimeFactSummary.oemPolicy.selectedModel ? (
                             <span>
-                              OEM 模型{" "}
+                              品牌云端模型{" "}
                               {runtimeFactSummary.oemPolicy.defaultModel ||
                                 runtimeFactSummary.oemPolicy.selectedModel}
                             </span>

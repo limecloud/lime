@@ -41,14 +41,9 @@ const AutomationSettings = lazy(() =>
     default: module.AutomationSettings,
   })),
 );
-const ExperimentalSettings = lazy(() =>
-  import("../system/experimental").then((module) => ({
-    default: module.ExperimentalSettings,
-  })),
-);
-const DeveloperSettings = lazy(() =>
-  import("../system/developer").then((module) => ({
-    default: module.DeveloperSettings,
+const DeveloperLabSettings = lazy(() =>
+  import("../system/developer-lab").then((module) => ({
+    default: module.DeveloperLabSettings,
   })),
 );
 const AboutSection = lazy(() =>
@@ -330,16 +325,18 @@ const ACTIVE_SETTINGS_TABS = new Set<SettingsTabs>([
   SettingsTabs.Environment,
   SettingsTabs.ChromeRelay,
   SettingsTabs.Automation,
-  SettingsTabs.Experimental,
   SettingsTabs.Developer,
   SettingsTabs.About,
 ]);
 
 function resolveActiveSettingsTab(tab?: SettingsTabs): SettingsTabs {
-  if (!tab || !ACTIVE_SETTINGS_TABS.has(tab)) {
+  const canonicalTab =
+    tab === SettingsTabs.Experimental ? SettingsTabs.Developer : tab;
+
+  if (!canonicalTab || !ACTIVE_SETTINGS_TABS.has(canonicalTab)) {
     return SettingsTabs.Home;
   }
-  return tab;
+  return canonicalTab;
 }
 
 function preloadSettingsTab(tab: SettingsTabs): Promise<unknown> | null {
@@ -375,11 +372,9 @@ function preloadSettingsTab(tab: SettingsTabs): Promise<unknown> | null {
       return import("../system/chrome-relay");
     case SettingsTabs.Automation:
       return import("../system/automation");
-    case SettingsTabs.Experimental:
-      return import("../system/experimental");
     case SettingsTabs.Developer:
       return Promise.all([
-        import("../system/developer"),
+        import("../system/developer-lab"),
         import("../system/developer/preload").then((module) =>
           module.preloadDeveloperDefaultSections(),
         ),
@@ -402,6 +397,7 @@ function renderSettingsContent(
   onNavigate?: (page: Page, params?: PageParams) => void,
   initialProviderView?: SettingsProviderView,
   onOpenCompanion?: () => void,
+  activeDeveloperLabTab: "developer" | "experimental" = "developer",
 ): ReactNode {
   const hasManagedAccountProfile = Boolean(resolveOemCloudRuntimeContext());
 
@@ -454,10 +450,7 @@ function renderSettingsContent(
     // 智能体组
     case SettingsTabs.Providers:
       return withSettingsContentFallback(
-        <CloudProviderSettings
-          onOpenProfile={() => onTabChange(SettingsTabs.Profile)}
-          initialView={initialProviderView}
-        />,
+        <CloudProviderSettings initialView={initialProviderView} />,
         "正在加载 AI 服务商设置...",
       );
 
@@ -507,16 +500,10 @@ function renderSettingsContent(
         "正在加载自动化设置...",
       );
 
-    case SettingsTabs.Experimental:
-      return withSettingsContentFallback(
-        <ExperimentalSettings />,
-        "正在加载实验功能...",
-      );
-
     case SettingsTabs.Developer:
       return withSettingsContentFallback(
-        <DeveloperSettings />,
-        "正在加载开发者工具...",
+        <DeveloperLabSettings initialTab={activeDeveloperLabTab} />,
+        "正在加载开发者与实验功能...",
       );
 
     case SettingsTabs.About:
@@ -544,6 +531,13 @@ interface SettingsLayoutV2Props {
 }
 
 const WIDE_CONTENT_TABS = ACTIVE_SETTINGS_TABS;
+type DeveloperLabInitialTab = "developer" | "experimental";
+
+function resolveDeveloperLabInitialTab(
+  tab?: SettingsTabs,
+): DeveloperLabInitialTab {
+  return tab === SettingsTabs.Experimental ? "experimental" : "developer";
+}
 
 export function SettingsLayoutV2({
   onNavigate,
@@ -556,6 +550,8 @@ export function SettingsLayoutV2({
   const [activeProviderView, setActiveProviderView] = useState<
     SettingsProviderView | undefined
   >(initialProviderView);
+  const [activeDeveloperLabTab, setActiveDeveloperLabTab] =
+    useState<DeveloperLabInitialTab>(resolveDeveloperLabInitialTab(initialTab));
   const contentContainerRef = useRef<HTMLElement | null>(null);
   const prefetchedTabsRef = useRef<Set<SettingsTabs>>(new Set());
   const reserveWindowControls = shouldReserveMacWindowControls();
@@ -563,6 +559,9 @@ export function SettingsLayoutV2({
   const handleTabChange = useCallback((tab: SettingsTabs) => {
     const nextTab = resolveActiveSettingsTab(tab);
     setActiveTab(nextTab);
+    if (nextTab === SettingsTabs.Developer) {
+      setActiveDeveloperLabTab(resolveDeveloperLabInitialTab(tab));
+    }
     if (nextTab !== SettingsTabs.Providers) {
       setActiveProviderView(undefined);
     }
@@ -595,6 +594,7 @@ export function SettingsLayoutV2({
 
   useEffect(() => {
     setActiveTab(resolveActiveSettingsTab(initialTab));
+    setActiveDeveloperLabTab(resolveDeveloperLabInitialTab(initialTab));
   }, [initialTab]);
 
   useEffect(() => {
@@ -649,6 +649,7 @@ export function SettingsLayoutV2({
               onNavigate,
               activeProviderView,
               handleOpenCompanion,
+              activeDeveloperLabTab,
             )}
           </ContentWrapper>
         </ContentContainer>

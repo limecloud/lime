@@ -185,6 +185,7 @@ function createAccessState(overrides: Record<string, unknown> = {}) {
     refreshing: false,
     loadingCommerce: false,
     loadingDetail: false,
+    openingGoogleLogin: false,
     savingDefault: "",
     orderingPlanId: "",
     creatingTopupPackageId: "",
@@ -199,6 +200,7 @@ function createAccessState(overrides: Record<string, unknown> = {}) {
     activeDeveloperAccessEnabled: false,
     activeDeveloperAccessLabel: "已关闭",
     handleRefresh: vi.fn(),
+    handleGoogleLogin: vi.fn(),
     openOfferDetail: vi.fn(),
     handleSetDefault: vi.fn(),
     handlePurchasePlan: vi.fn(),
@@ -294,7 +296,6 @@ function createApiKeyProviders() {
 
 async function renderPage(
   props: {
-    onOpenProfile?: () => void;
     initialView?: "settings" | "cloud" | "companion";
   } = {},
 ) {
@@ -456,6 +457,7 @@ describe("CloudProviderSettings", () => {
     expect(text).toContain("凭证池占位");
     expect(text).not.toContain("Lime Pet Companion");
     expect(text).not.toContain("把本地 Provider 配置和 OEM 云端服务拆开管理");
+    expect(text).not.toContain("把本地 Provider 配置和品牌云端服务拆开管理");
     expect(text).not.toContain("默认先进入“服务商设置”处理 Provider");
     expect(text).not.toContain("public/oem-runtime-config.js");
     expect(settingsTab?.getAttribute("data-state")).toBe("active");
@@ -468,8 +470,8 @@ describe("CloudProviderSettings", () => {
       );
     });
 
-    expect(container.textContent ?? "").toContain("先配置 OEM 云端运行时");
-    expect(container.textContent ?? "").toContain(
+    expect(container.textContent ?? "").toContain("当前版本未配置云端服务");
+    expect(container.textContent ?? "").not.toContain(
       "public/oem-runtime-config.js",
     );
     expect(settingsTab?.getAttribute("data-state")).toBe("inactive");
@@ -477,28 +479,30 @@ describe("CloudProviderSettings", () => {
     expect(companionTab?.getAttribute("data-state")).toBe("inactive");
   });
 
-  it("未登录时应提示前往个人中心登录", async () => {
-    const onOpenProfile = vi.fn();
-    const { container } = await renderPage({ onOpenProfile });
+  it("未登录时应直接打开品牌云端登录入口", async () => {
+    const handleGoogleLogin = vi.fn().mockResolvedValue(undefined);
+    mockUseOemCloudAccess.mockReturnValue(
+      createAccessState({ handleGoogleLogin }),
+    );
+
+    const { container } = await renderPage();
 
     await act(async () => {
       findButton(container, "云端服务").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
+      await Promise.resolve();
     });
 
-    expect(container.textContent ?? "").toContain("去个人中心登录");
-
-    await act(async () => {
-      findButton(container, "去个人中心登录").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
-    expect(onOpenProfile).toHaveBeenCalledTimes(1);
+    const text = container.textContent ?? "";
+    expect(text).toContain("正在打开 Lime Hub 登录");
+    expect(text).toContain("重新打开登录页");
+    expect(text).not.toContain("去个人中心登录");
+    expect(text).not.toContain("云端页面承接什么");
+    expect(handleGoogleLogin).toHaveBeenCalledTimes(1);
   });
 
-  it("已登录时应在云端页展示 OEM 来源目录与模型详情", async () => {
+  it("已登录时应在云端页展示品牌来源目录与模型详情", async () => {
     const handleRefresh = vi.fn();
     const handleSetDefault = vi.fn();
     const selectedOffer = {
@@ -615,7 +619,7 @@ describe("CloudProviderSettings", () => {
     expect(text).toContain("账本记录");
     expect(text).toContain("Lime Hub 主服务");
     expect(text).toContain("GPT-5.2 Pro");
-    expect(text).toContain("OEM 云端");
+    expect(text).toContain("Lime 云端");
     expect(text).toContain("对话");
     expect(text).toContain("视觉理解");
     expect(text).toContain("图片生成");
@@ -972,7 +976,7 @@ describe("CloudProviderSettings", () => {
     expect(handleDismissIssuedToken).toHaveBeenCalledTimes(1);
   });
 
-  it("已下发 taxonomy 时应优先使用统一 schema 渲染 OEM 模型目录", async () => {
+  it("已下发 taxonomy 时应优先使用统一 schema 渲染品牌模型目录", async () => {
     mockUseOemCloudAccess.mockReturnValue(
       createAccessState({
         session: {

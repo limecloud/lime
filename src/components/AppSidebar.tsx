@@ -36,6 +36,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Activity,
+  X,
   LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -95,6 +96,12 @@ import {
   type OemCloudReferralDashboard,
 } from "@/lib/api/oemCloudControlPlane";
 import { clearSiteAdapterCatalogCache } from "@/lib/siteAdapterCatalogBootstrap";
+import { startOemCloudLogin } from "@/lib/oemCloudLoginLauncher";
+import {
+  cacheOemCloudReferralDashboard,
+  readCachedOemCloudReferralState,
+  type OemCloudReferralCachedState,
+} from "@/lib/oemCloudReferralCache";
 import {
   LAST_PROJECT_ID_KEY,
   loadPersistedProjectId,
@@ -664,7 +671,7 @@ const HeaderInviteButton = styled.button<{
     $active ? "var(--sidebar-hover)" : "transparent"};
   color: ${({ $active }) =>
     $active ? "var(--sidebar-foreground)" : "var(--sidebar-muted)"};
-  opacity: ${({ $active }) => ($active ? 0.92 : 0.76)};
+  opacity: ${({ $active }) => ($active ? 0.86 : 0.68)};
   cursor: pointer;
   flex: 0 0 auto;
   transition:
@@ -675,19 +682,19 @@ const HeaderInviteButton = styled.button<{
   &:hover {
     background: var(--sidebar-hover);
     color: var(--sidebar-foreground);
-    opacity: 0.92;
+    opacity: 0.86;
   }
 
   svg {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
   }
 
   span {
     display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 600;
     white-space: nowrap;
   }
 `;
@@ -705,8 +712,41 @@ const InviteDialogSurface = styled.div`
   --invite-brand: var(--lime-brand, #10b981);
   --invite-brand-strong: var(--lime-brand-strong, #166534);
   --invite-brand-soft: var(--lime-brand-soft, #ecfdf5);
+  position: relative;
   background: var(--invite-surface);
   color: var(--invite-text);
+`;
+
+const InviteDialogCloseButton = styled.button`
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--invite-surface) 84%, transparent);
+  color: var(--invite-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+
+  &:hover {
+    border-color: var(--invite-border);
+    background: var(--invite-surface-hover);
+    color: var(--invite-text-strong);
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
 `;
 
 const InviteDialogHeader = styled.div`
@@ -1362,11 +1402,34 @@ const AccountPlanActionButton = styled.button<{ $primary?: boolean }>`
         : "var(--lime-surface-hover, #f4fdf4)"};
   }
 
+  &:disabled {
+    cursor: progress;
+    opacity: 0.66;
+    transform: none;
+  }
+
   svg {
     width: 14px;
     height: 14px;
     flex-shrink: 0;
   }
+`;
+
+const AccountMenuNotice = styled.div<{ $tone?: "error" | "info" }>`
+  border-radius: 12px;
+  border: 1px solid
+    ${({ $tone }) =>
+      $tone === "error"
+        ? "var(--lime-danger-border, #fecdd3)"
+        : "var(--lime-card-subtle-border, #d9eadf)"};
+  background: ${({ $tone }) =>
+    $tone === "error" ? "var(--lime-danger-soft, #fff1f2)" : "#f8fcf9"};
+  color: ${({ $tone }) =>
+    $tone === "error" ? "var(--lime-danger, #be123c)" : "#526455"};
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
 `;
 
 const AccountPlanHeader = styled.span`
@@ -1377,6 +1440,41 @@ const AccountPlanHeader = styled.span`
   font-size: 14px;
   font-weight: 800;
   color: var(--lime-text-strong, #0f172a);
+`;
+
+const AccountPlanTitle = styled.span`
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+`;
+
+const AccountInfoIconButton = styled.button`
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--lime-card-subtle-border, #d9eadf);
+  background: var(--lime-surface, #ffffff);
+  color: var(--lime-text-muted, #6b826b);
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+
+  &:hover {
+    border-color: var(--lime-brand-soft-border, #bbf7d0);
+    background: var(--lime-brand-soft, #ecfdf5);
+    color: var(--lime-brand-strong, #166534);
+  }
+
+  svg {
+    width: 13px;
+    height: 13px;
+  }
 `;
 
 const AccountPlanBadge = styled.span<{ $connected?: boolean }>`
@@ -1735,7 +1833,7 @@ function resolveBootstrapDefaultProviderSummary(
   const matchedOffer = bootstrap.providerOffersSummary.find(
     (offer) => offer.providerKey === preference.providerKey,
   );
-  return `${matchedOffer?.displayName?.trim() || "OEM 云端"}${modelSuffix}`;
+  return `${matchedOffer?.displayName?.trim() || "Lime 云端"}${modelSuffix}`;
 }
 
 function resolveAccountInitial(name: string): string {
@@ -1745,6 +1843,17 @@ function resolveAccountInitial(name: string): string {
   }
 
   return normalized.slice(0, 1).toUpperCase();
+}
+
+function resolveCloudBrandLabel(
+  bootstrap: OemCloudBootstrapResponse | null,
+): string {
+  const appName = bootstrap?.app?.name?.trim();
+  if (!appName) {
+    return "Lime 云端";
+  }
+
+  return /云|Cloud|Hub/i.test(appName) ? appName : `${appName} 云端`;
 }
 
 function formatReferralCredits(value: number | undefined): string {
@@ -1835,7 +1944,15 @@ export function AppSidebar({
         ? null
         : getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>(),
     );
+  const [cachedReferralState, setCachedReferralState] =
+    useState<OemCloudReferralCachedState | null>(() =>
+      typeof window === "undefined" ? null : readCachedOemCloudReferralState(),
+    );
   const [accountLogoutPending, setAccountLogoutPending] = useState(false);
+  const [accountLoginPending, setAccountLoginPending] = useState(false);
+  const [accountLoginError, setAccountLoginError] = useState<string | null>(
+    null,
+  );
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteDashboard, setInviteDashboard] =
     useState<OemCloudReferralDashboard | null>(null);
@@ -1984,8 +2101,17 @@ export function AppSidebar({
       return;
     }
 
-    setCloudSessionState(getStoredOemCloudSessionState());
-    return subscribeOemCloudSessionChanged(setCloudSessionState);
+    const currentSession = getStoredOemCloudSessionState();
+    setCloudSessionState(currentSession);
+    setCachedReferralState(
+      readCachedOemCloudReferralState(currentSession?.session.tenant.id),
+    );
+    return subscribeOemCloudSessionChanged((state) => {
+      setCloudSessionState(state);
+      setCachedReferralState(
+        readCachedOemCloudReferralState(state?.session.tenant.id),
+      );
+    });
   }, []);
 
   useEffect(() => {
@@ -1993,21 +2119,40 @@ export function AppSidebar({
       return;
     }
 
-    setCloudBootstrapState(
-      getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>(),
+    const currentBootstrap =
+      getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>();
+    setCloudBootstrapState(currentBootstrap);
+    setCachedReferralState(
+      readCachedOemCloudReferralState(currentBootstrap?.session.tenant.id),
     );
     return subscribeOemCloudBootstrapChanged((payload) => {
-      setCloudBootstrapState((payload as OemCloudBootstrapResponse) ?? null);
+      const nextBootstrap = (payload as OemCloudBootstrapResponse) ?? null;
+      setCloudBootstrapState(nextBootstrap);
+      setCachedReferralState(
+        readCachedOemCloudReferralState(nextBootstrap?.session.tenant.id),
+      );
     });
   }, []);
 
   const inviteTenantId = cloudSessionState?.session.tenant.id;
+  const cachedInviteDashboard =
+    cloudBootstrapState?.referral ?? cachedReferralState?.dashboard ?? null;
+  const inviteFeatureEnabled =
+    cloudBootstrapState?.features.referralEnabled ??
+    cachedReferralState?.referralEnabled ??
+    true;
   const canLoadReferralDashboard =
-    Boolean(cloudSessionState) &&
-    cloudBootstrapState?.features.referralEnabled !== false;
+    Boolean(cloudSessionState) && inviteFeatureEnabled;
 
   useEffect(() => {
     if (!inviteDialogOpen || !inviteTenantId || !canLoadReferralDashboard) {
+      return;
+    }
+
+    if (cachedInviteDashboard) {
+      setInviteDashboard(cachedInviteDashboard);
+      setInviteError(null);
+      setInviteLoading(false);
       return;
     }
 
@@ -2018,6 +2163,9 @@ export function AppSidebar({
     getClientReferralDashboard(inviteTenantId)
       .then((dashboard) => {
         if (!cancelled) {
+          setCachedReferralState(
+            cacheOemCloudReferralDashboard(inviteTenantId, dashboard),
+          );
           setInviteDashboard(dashboard);
         }
       })
@@ -2046,21 +2194,14 @@ export function AppSidebar({
     inviteReloadKey,
     inviteTenantId,
     canLoadReferralDashboard,
+    cachedInviteDashboard,
   ]);
 
   useEffect(() => {
-    if (
-      cloudSessionState &&
-      cloudBootstrapState?.features.referralEnabled === false &&
-      inviteDialogOpen
-    ) {
+    if (inviteFeatureEnabled === false && inviteDialogOpen) {
       setInviteDialogOpen(false);
     }
-  }, [
-    cloudBootstrapState?.features.referralEnabled,
-    cloudSessionState,
-    inviteDialogOpen,
-  ]);
+  }, [inviteFeatureEnabled, inviteDialogOpen]);
 
   useEffect(() => {
     if (!accountMenuOpen || typeof window === "undefined") {
@@ -2809,11 +2950,12 @@ export function AppSidebar({
   const accountProviderLabel = resolveAccountProviderLabel(cloudSessionState);
   const accountDefaultProviderSummary =
     resolveBootstrapDefaultProviderSummary(cloudBootstrapState);
+  const cloudBrandLabel = resolveCloudBrandLabel(cloudBootstrapState);
+  const connectCloudLabel = `连接 ${cloudBrandLabel}`;
   const accountAvatarUrl = cloudSessionState?.session.user.avatarUrl?.trim();
   const accountInitial = resolveAccountInitial(accountDisplayName);
   const hasCloudAccount = Boolean(cloudSessionState);
-  const inviteEntryVisible =
-    !hasCloudAccount || cloudBootstrapState?.features.referralEnabled !== false;
+  const inviteEntryVisible = inviteFeatureEnabled;
   const accountButtonTooltip = hasCloudAccount
     ? `${accountDisplayName}${accountEmail ? ` · ${accountEmail}` : ""}`
     : "开源使用 · 本地可用";
@@ -2822,7 +2964,7 @@ export function AppSidebar({
   const inviteHeadline = inviteShare?.headline?.trim() || "邀请好友加入内测";
   const inviteRules =
     inviteShare?.rules?.trim() ||
-    "通过云端邀请策略自动发放奖励，具体到账以当前 OEM 租户配置为准。";
+    "通过云端邀请策略自动发放奖励，具体到账以当前品牌云端配置为准。";
 
   const handleThemeModeChange = useCallback((nextThemeMode: LimeThemeMode) => {
     const themeMode = persistLimeThemeMode(nextThemeMode);
@@ -2849,6 +2991,31 @@ export function AppSidebar({
     [onNavigate],
   );
 
+  const handleAccountLogin = useCallback(async () => {
+    setAccountLoginPending(true);
+    setAccountLoginError(null);
+    try {
+      const result = await startOemCloudLogin();
+      toast.success(
+        result.mode === "desktop_auth"
+          ? `${cloudBrandLabel} 登录已同步`
+          : `已打开 ${cloudBrandLabel} 登录页，请在浏览器完成授权`,
+      );
+      setAccountMenuOpen(false);
+      setLanguageMenuOpen(false);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message.trim()
+          : `打开 ${cloudBrandLabel} 登录页失败`;
+      setAccountLoginError(message);
+      toast.error(message);
+    } finally {
+      setAccountLoginPending(false);
+    }
+  }, [cloudBrandLabel]);
+
+
   const handleAccountLogout = useCallback(async () => {
     const tenantId = cloudSessionState?.session.tenant.id;
     setAccountLogoutPending(true);
@@ -2857,7 +3024,7 @@ export function AppSidebar({
         await logoutClient(tenantId);
       }
     } catch (error) {
-      console.error("OEM 云端退出登录失败，已清理本地会话:", error);
+      console.error("云端退出登录失败，已清理本地会话:", error);
     } finally {
       clearStoredOemCloudSessionState();
       clearOemCloudBootstrapSnapshot();
@@ -2969,7 +3136,7 @@ export function AppSidebar({
                     $collapsed={collapsed}
                     $active={inviteDialogOpen}
                     onClick={() => {
-                      setInviteDashboard(null);
+                      setInviteDashboard(cachedInviteDashboard);
                       setInviteDialogOpen(true);
                     }}
                     title="邀请好友"
@@ -3237,7 +3404,7 @@ export function AppSidebar({
                 ) : null}
                 <AccountTrailing $collapsed={collapsed}>
                   <AccountStateBadge $connected={hasCloudAccount}>
-                    {hasCloudAccount ? "OEM" : "本地可用"}
+                    {hasCloudAccount ? "云端" : "本地可用"}
                   </AccountStateBadge>
                   <ChevronDown />
                 </AccountTrailing>
@@ -3271,16 +3438,18 @@ export function AppSidebar({
                             {accountDisplayName}
                           </AccountCloudName>
                           <AccountCloudEmail>
-                            {accountEmail ?? "OEM 云端账号"}
+                            {accountEmail ?? "云端账号"}
                           </AccountCloudEmail>
                         </AccountCloudIdentityText>
                       </AccountCloudIdentity>
-                      <AccountPlanBadge $connected>OEM 已连接</AccountPlanBadge>
+                      <AccountPlanBadge $connected>云端已连接</AccountPlanBadge>
                     </AccountPlanHeader>
                     <AccountPlanDescription>
                       已连接
-                      {accountTenantLabel ? ` ${accountTenantLabel} ` : " OEM "}
-                      云端；套餐、积分和模型目录以云端实时状态为准。
+                      {accountTenantLabel
+                        ? ` ${accountTenantLabel} `
+                        : ` ${cloudBrandLabel} `}
+                      ；套餐、积分和模型目录以云端实时状态为准。
                     </AccountPlanDescription>
                     <AccountPlanDetail>
                       <span>登录方式：{accountProviderLabel}</span>
@@ -3292,31 +3461,41 @@ export function AppSidebar({
                 ) : (
                   <AccountPlanCard data-testid="app-sidebar-open-source-card">
                     <AccountPlanHeader>
-                      <span>开源版</span>
+                      <AccountPlanTitle>
+                        <span>开源版</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AccountInfoIconButton
+                              type="button"
+                              aria-label="开源版说明"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <Info />
+                            </AccountInfoIconButton>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">
+                            {`本地开源功能可直接使用；你可以先进入模型设置配置本地渠道，也可以按需连接 ${cloudBrandLabel} 同步账号、积分、套餐和商业化能力。`}
+                          </TooltipContent>
+                        </Tooltip>
+                      </AccountPlanTitle>
                       <AccountPlanBadge>本地可用</AccountPlanBadge>
                     </AccountPlanHeader>
-                    <AccountPlanDescription>
-                      本地开源功能可直接使用；你可以先进入模型设置配置本地渠道，也可以按需连接
-                      OEM 云端同步账号、积分、套餐和商业化能力。
-                    </AccountPlanDescription>
                     <AccountPlanDetail>
                       <span>不登录也可用</span>
-                      <span>OEM 云端可选</span>
+                      <span>云端可选</span>
                     </AccountPlanDetail>
                     <AccountPlanActions>
                       <AccountPlanActionButton
                         type="button"
                         $primary
-                        aria-label="连接 OEM 云端"
-                        onClick={() =>
-                          handleAccountMenuNavigate({
-                            tab: SettingsTabs.Providers,
-                            providerView: "cloud",
-                          })
-                        }
+                        disabled={accountLoginPending}
+                        aria-label={connectCloudLabel}
+                        onClick={() => void handleAccountLogin()}
                       >
                         <LogIn />
-                        连接 OEM 云端
+                        {accountLoginPending
+                          ? "正在打开..."
+                          : connectCloudLabel}
                       </AccountPlanActionButton>
                       <AccountPlanActionButton
                         type="button"
@@ -3332,6 +3511,11 @@ export function AppSidebar({
                         模型设置
                       </AccountPlanActionButton>
                     </AccountPlanActions>
+                    {accountLoginError ? (
+                      <AccountMenuNotice $tone="error">
+                        {accountLoginError}
+                      </AccountMenuNotice>
+                    ) : null}
                   </AccountPlanCard>
                 )}
 
@@ -3448,22 +3632,24 @@ export function AppSidebar({
                     </AccountMenuItemLeading>
                     <ChevronRight />
                   </AccountMenuItem>
-                  <AccountMenuItem
-                    type="button"
-                    aria-label="OEM 云端"
-                    onClick={() =>
-                      handleAccountMenuNavigate({
-                        tab: SettingsTabs.Providers,
-                        providerView: "cloud",
-                      })
-                    }
-                  >
-                    <AccountMenuItemLeading>
-                      <Cloud />
-                      OEM 云端
-                    </AccountMenuItemLeading>
-                    <ChevronRight />
-                  </AccountMenuItem>
+                  {hasCloudAccount ? (
+                    <AccountMenuItem
+                      type="button"
+                      aria-label={cloudBrandLabel}
+                      onClick={() =>
+                        handleAccountMenuNavigate({
+                          tab: SettingsTabs.Providers,
+                          providerView: "cloud",
+                        })
+                      }
+                    >
+                      <AccountMenuItemLeading>
+                        <Cloud />
+                        {cloudBrandLabel}
+                      </AccountMenuItemLeading>
+                      <ChevronRight />
+                    </AccountMenuItem>
+                  ) : null}
                   <AccountMenuItem
                     type="button"
                     aria-label="关于"
@@ -3505,8 +3691,16 @@ export function AppSidebar({
         onClose={() => setInviteDialogOpen(false)}
         className="p-0"
         maxWidth="max-w-xl"
+        showCloseButton={false}
       >
         <InviteDialogSurface data-testid="app-sidebar-invite-dialog">
+          <InviteDialogCloseButton
+            type="button"
+            aria-label="关闭邀请弹窗"
+            onClick={() => setInviteDialogOpen(false)}
+          >
+            <X />
+          </InviteDialogCloseButton>
           <InviteDialogHeader>
             <InviteDialogEyebrow>
               {inviteShare?.brandName ?? accountTenantLabel ?? "Lime"} 邀请
@@ -3521,18 +3715,14 @@ export function AppSidebar({
           <InviteDialogBody>
             {!hasCloudAccount ? (
               <InviteStatusCard>
-                登录 Lime 云端后会生成专属邀请码，并自动读取当前 OEM
-                租户的品牌、域名和奖励策略。
+                {`连接 ${cloudBrandLabel} 后会生成专属邀请码，并自动读取当前品牌云端的域名和奖励策略。`}
                 <InviteActionBar style={{ marginTop: 10 }}>
                   <InviteDialogActionButton
                     type="button"
                     $primary
                     onClick={() => {
                       setInviteDialogOpen(false);
-                      onNavigate("settings", {
-                        tab: SettingsTabs.Providers,
-                        providerView: "cloud",
-                      });
+                      void handleAccountLogin();
                     }}
                   >
                     <Cloud />

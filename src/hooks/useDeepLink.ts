@@ -19,6 +19,11 @@ import {
   dispatchOemCloudPaymentReturn,
   parseOemCloudPaymentReturnUrl,
 } from "@/lib/oemCloudPaymentReturn";
+import {
+  claimStoredOemCloudReferralInvite,
+  handleOemCloudReferralInviteUrl,
+  type OemCloudReferralClaimResult,
+} from "@/lib/oemCloudReferralClaim";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
 import {
@@ -324,39 +329,83 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
     setIsDialogOpen(true);
   }, []);
 
-  const handleOauthCallbackUrl = useCallback(async (url: string) => {
-    const payload = parseOemCloudDesktopOAuthCallbackUrl(url);
-    if (!payload) {
-      return false;
-    }
+  const showReferralClaimResult = useCallback(
+    (result: OemCloudReferralClaimResult) => {
+      if (result.status === "claimed") {
+        toast.success("邀请码已领取", {
+          description: "云端邀请奖励已提交，积分到账以当前品牌策略为准。",
+        });
+        return;
+      }
 
-    if (payload.error) {
-      toast.error("Google 登录未完成", {
-        description: payload.error,
-      });
-      return true;
-    }
+      if (result.status === "pending_login") {
+        toast.info("邀请码已保存", {
+          description: "登录 Lime 云端账号后会自动完成邀请绑定。",
+        });
+        return;
+      }
 
+      if (result.status === "tenant_mismatch") {
+        toast.error("邀请码租户不匹配", {
+          description: "请切换到对应品牌账号后再领取。",
+        });
+      }
+    },
+    [],
+  );
+
+  const tryClaimStoredReferralInvite = useCallback(async () => {
     try {
-      await completeOemCloudDesktopOAuthLogin(payload);
-      const providerName = resolveOemLimeHubProviderName(
-        resolveOemCloudRuntimeContext(),
-      );
-      toast.success("Google 登录成功", {
-        description: `个人中心会话、${providerName} 云端目录与服务技能目录已同步。`,
-      });
+      const result = await claimStoredOemCloudReferralInvite();
+      showReferralClaimResult(result);
     } catch (error) {
       const message =
         error instanceof Error && error.message.trim()
           ? error.message.trim()
-          : "同步桌面端登录结果失败";
-      toast.error("Google 登录失败", {
+          : "自动领取邀请码失败";
+      toast.error("邀请码领取失败", {
         description: message,
       });
     }
+  }, [showReferralClaimResult]);
 
-    return true;
-  }, []);
+  const handleOauthCallbackUrl = useCallback(
+    async (url: string) => {
+      const payload = parseOemCloudDesktopOAuthCallbackUrl(url);
+      if (!payload) {
+        return false;
+      }
+
+      if (payload.error) {
+        toast.error("Google 登录未完成", {
+          description: payload.error,
+        });
+        return true;
+      }
+
+      try {
+        await completeOemCloudDesktopOAuthLogin(payload);
+        const providerName = resolveOemLimeHubProviderName(
+          resolveOemCloudRuntimeContext(),
+        );
+        toast.success("Google 登录成功", {
+          description: `个人中心会话、${providerName} 云端目录与服务技能目录已同步。`,
+        });
+        await tryClaimStoredReferralInvite();
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message.trim()
+            : "同步桌面端登录结果失败";
+        toast.error("Google 登录失败", {
+          description: message,
+        });
+      }
+
+      return true;
+    },
+    [tryClaimStoredReferralInvite],
+  );
 
   const handleOpenDeepLinkEvent = useCallback(
     (result: OpenDeepLinkResult) => {
@@ -392,6 +441,24 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
       }
 
       if (await handleOauthCallbackUrl(normalizedUrl)) {
+        return;
+      }
+
+      try {
+        const referralClaimResult =
+          await handleOemCloudReferralInviteUrl(normalizedUrl);
+        if (referralClaimResult.status !== "ignored") {
+          showReferralClaimResult(referralClaimResult);
+          return;
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message.trim()
+            : "自动领取邀请码失败";
+        toast.error("邀请码领取失败", {
+          description: message,
+        });
         return;
       }
 
@@ -441,6 +508,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
       handleOpenDeepLinkEvent,
       handleOauthCallbackUrl,
       onOpenBrowserConnectorSettings,
+      showReferralClaimResult,
     ],
   );
 
@@ -605,6 +673,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
               await processDeepLinkUrl(url);
             }
           }
+          await tryClaimStoredReferralInvite();
         } else {
           // 如果组件已卸载，立即取消监听
           unlisten();
@@ -639,6 +708,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
     handleDeepLinkError,
     handleOauthCallbackUrl,
     processDeepLinkUrl,
+    tryClaimStoredReferralInvite,
     onOpenBrowserConnectorSettings,
     onOpenWebsiteDeepLink,
   ]);

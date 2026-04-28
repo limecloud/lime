@@ -488,8 +488,8 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(container.textContent).toContain("当前路由事实");
     expect(container.textContent).toContain("决策原因");
     expect(container.textContent).toContain("回退链");
-    expect(container.textContent).toContain("OEM 托管锁定");
-    expect(container.textContent).toContain("OEM 额度偏低");
+    expect(container.textContent).toContain("品牌云端托管锁定");
+    expect(container.textContent).toContain("品牌云端额度偏低");
     expect(container.textContent).toContain("claude-sonnet-4");
   });
 

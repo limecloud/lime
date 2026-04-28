@@ -8,11 +8,13 @@ const {
   mockPreloadDeveloperDefaultSections,
   mockCloudProviderSettings,
   mockSettingsHomePage,
+  mockDeveloperLabSettings,
 } = vi.hoisted(() => ({
   mockSettingsSidebar: vi.fn(),
   mockPreloadDeveloperDefaultSections: vi.fn(),
   mockCloudProviderSettings: vi.fn(),
   mockSettingsHomePage: vi.fn(),
+  mockDeveloperLabSettings: vi.fn(),
 }));
 
 const { mockResolveOemCloudRuntimeContext } = vi.hoisted(() => ({
@@ -39,11 +41,11 @@ vi.mock("../general/memory", () => ({
 vi.mock("../system/automation", () => ({
   AutomationSettings: () => <div>automation</div>,
 }));
-vi.mock("../system/experimental", () => ({
-  ExperimentalSettings: () => <div>experimental</div>,
-}));
-vi.mock("../system/developer", () => ({
-  DeveloperSettings: () => <div>developer</div>,
+vi.mock("../system/developer-lab", () => ({
+  DeveloperLabSettings: (props: unknown) => {
+    mockDeveloperLabSettings(props);
+    return <div>developer-lab</div>;
+  },
 }));
 vi.mock("../system/developer/preload", () => ({
   preloadDeveloperDefaultSections: mockPreloadDeveloperDefaultSections,
@@ -156,6 +158,7 @@ afterEach(() => {
   mockPreloadDeveloperDefaultSections.mockReset();
   mockCloudProviderSettings.mockReset();
   mockSettingsHomePage.mockReset();
+  mockDeveloperLabSettings.mockReset();
 
   while (mounted.length > 0) {
     const current = mounted.pop();
@@ -204,12 +207,22 @@ describe("SettingsLayoutV2 Experimental Tab", () => {
     expect(text).not.toContain("execution-tracker");
   });
 
-  it("实验功能页应直接展示内容，不再复用壳层设置页标题", async () => {
+  it("旧实验功能直达入口应切到开发者与实验功能合并页", async () => {
     const container = renderComponent(SettingsTabs.Experimental);
     await flushEffects();
     const text = container.textContent ?? "";
+    const sidebarProps = mockSettingsSidebar.mock.calls.at(-1)?.[0] as
+      | {
+          activeTab?: SettingsTabs;
+        }
+      | undefined;
 
-    expect(text).toContain("experimental");
+    expect(text).toContain("developer-lab");
+    expect(text).not.toContain("experimental");
+    expect(sidebarProps?.activeTab).toBe(SettingsTabs.Developer);
+    expect(mockDeveloperLabSettings.mock.calls.at(-1)?.[0]).toMatchObject({
+      initialTab: "experimental",
+    });
     expect(text).not.toContain("实验功能");
   });
 });
@@ -254,12 +267,15 @@ describe("SettingsLayoutV2 Developer Tab", () => {
     expect(onNavigate.mock.calls[0]?.[0]).toBe("agent");
   });
 
-  it("开发者页应直接展示内容，不再复用壳层设置页标题", async () => {
+  it("开发者页应展示开发者与实验功能合并页，不再复用壳层设置页标题", async () => {
     const container = renderComponent(SettingsTabs.Developer);
     await flushEffects();
     const text = container.textContent ?? "";
 
-    expect(text).toContain("developer");
+    expect(text).toContain("developer-lab");
+    expect(mockDeveloperLabSettings.mock.calls.at(-1)?.[0]).toMatchObject({
+      initialTab: "developer",
+    });
     expect(text).not.toContain("开发者");
   });
 

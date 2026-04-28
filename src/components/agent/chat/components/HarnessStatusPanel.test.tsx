@@ -812,8 +812,8 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("运行时事实");
     expect(document.body.textContent).toContain("决策原因");
     expect(document.body.textContent).toContain("回退链");
-    expect(document.body.textContent).toContain("OEM 托管锁定");
-    expect(document.body.textContent).toContain("OEM 额度偏低");
+    expect(document.body.textContent).toContain("品牌云端托管锁定");
+    expect(document.body.textContent).toContain("品牌云端额度偏低");
     expect(document.body.textContent).toContain("claude-sonnet-4");
   });
 

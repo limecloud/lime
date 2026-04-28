@@ -103,9 +103,9 @@ describe("SettingsSidebar", () => {
     const activeButton = Array.from(container.querySelectorAll("button")).find(
       (item) => item.textContent?.includes("外观"),
     );
-    const inactiveButton = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("设置首页"),
-    );
+    const inactiveButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((item) => item.textContent?.includes("设置首页"));
 
     expect(sidebar).not.toBeNull();
     expect(activeButton?.getAttribute("data-active")).toBe("true");
@@ -138,5 +138,89 @@ describe("SettingsSidebar", () => {
     });
 
     expect(onTabPrefetch).toHaveBeenCalledWith(SettingsTabs.Appearance);
+  });
+
+  it("小屏悬浮导航按钮应显示当前页面并按需展开菜单", () => {
+    const { container } = renderSidebar({
+      activeTab: SettingsTabs.Appearance,
+    });
+    const floatingButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="settings-floating-nav-button"]',
+    );
+
+    expect(floatingButton).not.toBeNull();
+    expect(floatingButton?.textContent).toContain("外观");
+    expect(floatingButton?.getAttribute("aria-expanded")).toBe("false");
+    expect(
+      container.querySelector('[data-testid="settings-floating-nav-panel"]'),
+    ).toBeNull();
+
+    act(() => {
+      floatingButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const floatingPanel = container.querySelector(
+      '[data-testid="settings-floating-nav-panel"]',
+    );
+    const activeButton = Array.from(
+      floatingPanel?.querySelectorAll("button") ?? [],
+    ).find((item) => item.textContent?.includes("外观"));
+
+    expect(floatingButton?.getAttribute("aria-expanded")).toBe("true");
+    expect(floatingPanel).not.toBeNull();
+    expect(activeButton?.getAttribute("data-active")).toBe("true");
+  });
+
+  it("点击悬浮菜单项后应切换 tab 并关闭浮层", () => {
+    const onTabChange = vi.fn();
+    const { container } = renderSidebar({ onTabChange });
+    const floatingButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="settings-floating-nav-button"]',
+    );
+
+    act(() => {
+      floatingButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const floatingPanel = container.querySelector(
+      '[data-testid="settings-floating-nav-panel"]',
+    );
+    const appearanceButton = Array.from(
+      floatingPanel?.querySelectorAll("button") ?? [],
+    ).find((item) => item.textContent?.includes("外观"));
+
+    act(() => {
+      appearanceButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(onTabChange).toHaveBeenCalledWith(SettingsTabs.Appearance);
+    expect(
+      container.querySelector('[data-testid="settings-floating-nav-panel"]'),
+    ).toBeNull();
+    expect(floatingButton?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("按 Escape 应关闭悬浮导航浮层", () => {
+    const { container } = renderSidebar();
+    const floatingButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="settings-floating-nav-button"]',
+    );
+
+    act(() => {
+      floatingButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(
+      container.querySelector('[data-testid="settings-floating-nav-panel"]'),
+    ).not.toBeNull();
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+
+    expect(
+      container.querySelector('[data-testid="settings-floating-nav-panel"]'),
+    ).toBeNull();
   });
 });

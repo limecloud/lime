@@ -212,7 +212,13 @@ function DeferredPanelFallback({ label }: { label: string }) {
   );
 }
 
-export function ExperimentalSettings() {
+interface ExperimentalSettingsProps {
+  embedded?: boolean;
+}
+
+export function ExperimentalSettings({
+  embedded = false,
+}: ExperimentalSettingsProps = {}) {
   // 状态
   const [config, setConfig] = useState<ExperimentalFeatures | null>(null);
   const [toolCallingConfig, setToolCallingConfig] = useState<ToolCallingConfig>(
@@ -614,7 +620,7 @@ export function ExperimentalSettings() {
 
   if (loading) {
     return (
-      <div className="space-y-6 pb-8">
+      <div className={cn("space-y-6", embedded ? "pb-0" : "pb-8")}>
         <div className="h-[228px] animate-pulse rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)]" />
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
           <div className="h-[320px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
@@ -649,7 +655,7 @@ export function ExperimentalSettings() {
   const busyLabel = saving ? "保存中" : diagnosticBusy ? "诊断执行中" : null;
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className={cn("space-y-5", embedded ? "pb-0" : "pb-8")}>
       {message && (
         <div
           className={cn(
@@ -667,9 +673,15 @@ export function ExperimentalSettings() {
       <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-1.5">
-            <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
-              实验功能
-            </h1>
+            {embedded ? (
+              <h2 className="text-[20px] font-semibold tracking-tight text-slate-900">
+                实验功能
+              </h2>
+            ) : (
+              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                实验功能
+              </h1>
+            )}
             <p className="text-sm text-slate-500">
               不稳定能力集中开关，用完及时关回。
             </p>

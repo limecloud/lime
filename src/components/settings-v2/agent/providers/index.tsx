@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   Bot,
@@ -562,7 +562,7 @@ function formatOemModelDeploymentLabel(value?: string | null): string {
       return "云端";
     case "oem_cloud":
     default:
-      return "OEM 云端";
+      return "Lime 云端";
   }
 }
 
@@ -1599,7 +1599,6 @@ function isLimeBrandedHub(hubProviderName: string | null | undefined): boolean {
 }
 
 export interface CloudProviderSettingsProps {
-  onOpenProfile?: () => void;
   initialView?: ProviderWorkspaceView;
 }
 
@@ -1661,6 +1660,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
 
   const isOemRuntime = Boolean(runtime);
   const isLimeBrand = isLimeBrandedHub(hubProviderName);
+  const cloudBrandLabel = hubProviderName?.trim() || "Lime 云端";
   const showProviderSettingsEntry =
     !isOemRuntime || isLimeBrand || activeDeveloperAccessEnabled;
   const workspaceViews = useMemo(() => {
@@ -1699,6 +1699,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     Record<string, OemCloudBillingCycle>
   >({});
   const [modelSearch, setModelSearch] = useState("");
+  const cloudLoginAutoOpenKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!workspaceViews.some((item) => item.value === activeView)) {
@@ -1715,6 +1716,33 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       setActiveView(initialView);
     }
   }, [initialView, workspaceViews]);
+
+  useEffect(() => {
+    if (
+      activeView !== "cloud" ||
+      !runtime ||
+      session ||
+      initializing ||
+      openingGoogleLogin
+    ) {
+      return;
+    }
+
+    const autoOpenKey = `${runtime.baseUrl}::${runtime.tenantId}`;
+    if (cloudLoginAutoOpenKeyRef.current === autoOpenKey) {
+      return;
+    }
+
+    cloudLoginAutoOpenKeyRef.current = autoOpenKey;
+    void handleGoogleLogin();
+  }, [
+    activeView,
+    handleGoogleLogin,
+    initializing,
+    openingGoogleLogin,
+    runtime,
+    session,
+  ]);
 
   useEffect(() => {
     const firstPaymentOption = buildPaymentOptions(paymentConfigs)[0]?.id ?? "";
@@ -1894,14 +1922,10 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       <article className={SURFACE_CLASS_NAME}>
         <div className="space-y-2">
           <h3 className="text-lg font-semibold text-slate-900">
-            先配置 OEM 云端运行时
+            当前版本未配置云端服务
           </h3>
           <p className="text-sm leading-6 text-slate-600">
-            当前没有可用的云端运行时配置。请先在
-            <span className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
-              public/oem-runtime-config.js
-            </span>
-            中配置域名、网关地址和租户信息，再继续接入云端服务。
+            本地功能可以继续使用；云端登录入口需要由品牌服务配置后才会显示。
           </p>
         </div>
       </article>
@@ -1914,52 +1938,28 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       </div>
     </article>
   ) : !session ? (
-    <section className="space-y-4">
+    <section className="space-y-4" data-testid="cloud-login-redirect-state">
       <article className={SURFACE_CLASS_NAME}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <h3 className="text-lg font-semibold text-slate-900">
-              登录后开通云端套餐
+              正在打开 {cloudBrandLabel} 登录
             </h3>
             <p className="text-sm leading-6 text-slate-600">
-              当前还没有可用的个人中心会话。登录后可以购买套餐、充值 Token
-              积分、创建 API Key，并同步云端模型目录。
+              登录完成后会自动回到客户端，同步套餐、积分、API Key 和云端模型目录。
             </p>
           </div>
           <div className="flex flex-col gap-2">
             <button
               type="button"
-              onClick={() => props.onOpenProfile?.()}
-              className={PRIMARY_ACTION_BUTTON_CLASS}
-              data-testid="open-profile-login"
-            >
-              <LogIn className="h-4 w-4" />
-              去个人中心登录
-            </button>
-            <button
-              type="button"
               onClick={() => void handleGoogleLogin()}
               disabled={openingGoogleLogin}
-              className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              className={PRIMARY_ACTION_BUTTON_CLASS}
+              data-testid="open-cloud-login"
             >
-              <ExternalLink className="h-4 w-4" />
-              {openingGoogleLogin ? "等待授权中..." : "在浏览器继续授权"}
+              <LogIn className="h-4 w-4" />
+              {openingGoogleLogin ? "正在打开登录页..." : "重新打开登录页"}
             </button>
-          </div>
-        </div>
-      </article>
-
-      <article className={SURFACE_CLASS_NAME}>
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-900">
-              云端页面承接什么
-            </h3>
-            <WorkbenchInfoTip
-              ariaLabel="云端页面说明"
-              content="这里保留 OEM 商业化相关的 Offer、套餐、模型目录、默认来源和会话状态，不再和本地 Provider 配置共用一个长页。"
-              tone="slate"
-            />
           </div>
         </div>
       </article>

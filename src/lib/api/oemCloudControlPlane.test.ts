@@ -11,6 +11,7 @@ import {
   getClientCloudActivation,
   getClientCreditTopupOrder,
   getClientOrder,
+  getClientBootstrap,
   getClientCreditsDashboard,
   getClientProviderOffer,
   getClientReferralDashboard,
@@ -150,6 +151,97 @@ describe("oemCloudControlPlane desktop auth", () => {
       pollIntervalSeconds: 2,
       sessionToken: "session-token-001",
       sessionExpiresAt: "2026-03-24T16:00:00.000Z",
+    });
+  });
+
+  it("应解析 bootstrap 中缓存的邀请开关与分享事实源", async () => {
+    window.__LIME_SESSION_TOKEN__ = "session-token-001";
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        code: 200,
+        message: "success",
+        data: {
+          session: {
+            token: "session-token-001",
+            tenant: { id: "tenant-0001", name: "Lime" },
+            user: { id: "user-001", displayName: "晚风" },
+            session: { id: "session-001", provider: "google" },
+          },
+          app: {
+            id: "app-001",
+            key: "lime",
+            name: "Lime",
+            slug: "lime",
+            category: "official",
+            status: "active",
+            distributionChannels: ["desktop"],
+          },
+          providerOffersSummary: [],
+          providerPreference: {
+            tenantId: "tenant-0001",
+            userId: "user-001",
+            providerSource: "local",
+            providerKey: "local",
+            needsValidation: false,
+            updatedAt: "2026-04-28T00:00:00.000Z",
+          },
+          features: {
+            referralEnabled: true,
+          },
+          referral: {
+            code: {
+              id: "refcode-001",
+              tenantId: "tenant-0001",
+              userId: "user-001",
+              code: "LIME-2026",
+              landingUrl: "https://limeai.run/invite?code=LIME-2026",
+              status: "active",
+              createdAt: "2026-04-28T00:00:00.000Z",
+              updatedAt: "2026-04-28T00:00:00.000Z",
+            },
+            policy: {
+              enabled: true,
+              referrerRewardCredits: 480,
+              inviteeRewardCredits: 120,
+              claimWindowDays: 30,
+              autoClaimEnabled: true,
+              allowManualClaimFallback: true,
+            },
+            summary: {},
+            events: [],
+            rewards: [],
+            invitedBy: {},
+            share: {
+              brandName: "Lime",
+              code: "LIME-2026",
+              landingUrl: "https://limeai.run/invite?code=LIME-2026",
+              downloadUrl: "https://limeai.run",
+              shareText: "邀请你体验Lime",
+            },
+          },
+        },
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const bootstrap = await getClientBootstrap("tenant-0001");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/client/bootstrap",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer session-token-001",
+        }),
+      }),
+    );
+    expect(bootstrap.features.referralEnabled).toBe(true);
+    expect(bootstrap.referral?.share).toMatchObject({
+      brandName: "Lime",
+      code: "LIME-2026",
+      downloadUrl: "https://limeai.run",
     });
   });
 

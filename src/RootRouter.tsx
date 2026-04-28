@@ -9,6 +9,7 @@ import { SmartInputPage } from "./pages/smart-input";
 import { UpdateNotificationPage } from "./pages/update-notification";
 import { BrowserRuntimeDebuggerPage } from "./pages";
 import { ResourceManagerPage } from "./features/resource-manager";
+import { BrowserConnectorGuideWindow } from "./components/settings-v2/system/chrome-relay/guide-window";
 import { Toaster } from "./components/ui/sonner";
 import { AppCrashBoundary } from "./components/layout/AppCrashBoundary";
 import { finalizeModuleImportAutoReload } from "./components/layout/CrashRecoveryPanel.helpers";
@@ -21,6 +22,7 @@ import { getRuntimeAppVersion } from "./lib/appVersion";
  * - /update-notification: 更新提醒悬浮窗口（独立 Tauri 窗口）
  * - /browser-runtime-debugger: 浏览器运行时独立调试窗口
  * - /resource-manager: 独立资源管理器窗口
+ * - /browser-connector-guide: 浏览器连接器独立引导窗口
  * - 其他: 主应用
  */
 export function RootRouter() {
@@ -70,6 +72,15 @@ export function RootRouter() {
     return (
       <AppCrashBoundary>
         <ResourceManagerPage />
+        <Toaster />
+      </AppCrashBoundary>
+    );
+  }
+
+  if (pathname === "/browser-connector-guide") {
+    return (
+      <AppCrashBoundary>
+        <BrowserConnectorGuideWindow />
         <Toaster />
       </AppCrashBoundary>
     );

@@ -1133,10 +1133,10 @@ export function applyServerSyncedServiceSkillCatalog(
 async function requestRemoteServiceSkillCatalog(): Promise<NormalizedServiceSkillCatalogInput> {
   const runtime = resolveOemCloudRuntimeContext();
   if (!runtime) {
-    throw new Error("缺少 OEM 云端配置，请先注入 base_url 与 tenant_id。");
+    throw new Error("缺少品牌云端配置，请先注入 base_url 与 tenant_id。");
   }
   if (!hasOemCloudSession(runtime)) {
-    throw new Error("缺少 OEM 云端 Session Token，请先完成登录或注入会话。");
+    throw new Error("缺少品牌云端 Session Token，请先完成登录或注入会话。");
   }
 
   const response = await fetch(

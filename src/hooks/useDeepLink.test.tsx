@@ -10,6 +10,20 @@ import {
   OEM_CLOUD_PAYMENT_RETURN_EVENT,
   readStoredOemCloudPaymentReturn,
 } from "@/lib/oemCloudPaymentReturn";
+import { readStoredOemCloudReferralInvite } from "@/lib/oemCloudReferralClaim";
+import { setStoredOemCloudSessionState } from "@/lib/oemCloudSession";
+
+const {
+  mockClaimClientReferral,
+  mockToastError,
+  mockToastInfo,
+  mockToastSuccess,
+} = vi.hoisted(() => ({
+  mockClaimClientReferral: vi.fn(),
+  mockToastError: vi.fn(),
+  mockToastInfo: vi.fn(),
+  mockToastSuccess: vi.fn(),
+}));
 
 vi.mock("@/lib/dev-bridge", () => ({
   safeInvoke: vi.fn(),
@@ -46,22 +60,25 @@ vi.mock("@/lib/api/oemCloudRuntime", () => ({
   resolveOemCloudRuntimeContext: vi.fn(() => null),
 }));
 
+vi.mock("@/lib/api/oemCloudControlPlane", () => ({
+  claimClientReferral: mockClaimClientReferral,
+}));
+
 vi.mock("@/lib/oemLimeHubProvider", () => ({
   resolveOemLimeHubProviderName: vi.fn(() => "Lime Hub"),
 }));
 
 vi.mock("sonner", () => ({
   toast: {
-    error: vi.fn(),
-    success: vi.fn(),
+    error: mockToastError,
+    info: mockToastInfo,
+    success: mockToastSuccess,
   },
 }));
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
-function renderHook(
-  options?: Parameters<typeof useDeepLink>[0],
-) {
+function renderHook(options?: Parameters<typeof useDeepLink>[0]) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -92,7 +109,11 @@ describe("useDeepLink", () => {
     vi.mocked(safeListen).mockResolvedValue(vi.fn());
     vi.mocked(safeInvoke).mockResolvedValue({});
     vi.mocked(getCurrent).mockResolvedValue([]);
+    mockClaimClientReferral.mockResolvedValue({});
     window.localStorage.clear();
+    delete window.__LIME_BOOTSTRAP__;
+    delete window.__LIME_OEM_CLOUD__;
+    delete window.__LIME_SESSION_TOKEN__;
   });
 
   afterEach(() => {
@@ -106,6 +127,9 @@ describe("useDeepLink", () => {
       });
       mounted.container.remove();
     }
+    delete window.__LIME_BOOTSTRAP__;
+    delete window.__LIME_OEM_CLOUD__;
+    delete window.__LIME_SESSION_TOKEN__;
   });
 
   it("浏览器开发模式下不应注册 deep-link 事件桥", async () => {
@@ -178,5 +202,56 @@ describe("useDeepLink", () => {
       orderId: "order-001",
       kind: "plan_order",
     });
+  });
+
+  it("应缓存邀请 deep link，等待云端登录后自动领取", async () => {
+    vi.mocked(getCurrent).mockResolvedValue([
+      "lime://invite?code=nm-45bc-8dhw&tenantId=tenant-0001",
+    ]);
+
+    await renderHook();
+
+    expect(mockClaimClientReferral).not.toHaveBeenCalled();
+    expect(readStoredOemCloudReferralInvite()).toMatchObject({
+      code: "NM-45BC-8DHW",
+      tenantId: "tenant-0001",
+    });
+    expect(mockToastInfo).toHaveBeenCalledWith(
+      "邀请码已保存",
+      expect.objectContaining({
+        description: expect.stringContaining("登录 Lime 云端账号后"),
+      }),
+    );
+  });
+
+  it("已有云端会话时应自动调用邀请 claim 接口", async () => {
+    setStoredOemCloudSessionState({
+      token: "session-token-001",
+      tenant: { id: "tenant-0001", name: "Lime" },
+      user: { id: "user-001", displayName: "晚风" },
+      session: { id: "session-001" },
+    });
+    vi.mocked(getCurrent).mockResolvedValue([
+      "https://limeai.run/invite?code=LIME-2026&tenantId=tenant-0001",
+    ]);
+
+    await renderHook();
+
+    expect(mockClaimClientReferral).toHaveBeenCalledWith(
+      "tenant-0001",
+      expect.objectContaining({
+        code: "LIME-2026",
+        claimMethod: "auto",
+        entrySource: "link",
+        landingPath: "/invite?code=LIME-2026&tenantId=tenant-0001",
+      }),
+    );
+    expect(readStoredOemCloudReferralInvite()).toBeNull();
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "邀请码已领取",
+      expect.objectContaining({
+        description: expect.stringContaining("云端邀请奖励已提交"),
+      }),
+    );
   });
 });

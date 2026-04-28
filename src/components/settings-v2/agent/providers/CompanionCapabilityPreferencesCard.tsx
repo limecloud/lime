@@ -284,7 +284,7 @@ export function CompanionCapabilityPreferencesCard() {
               </h3>
               <p className="text-sm leading-6 text-slate-600">
                 用与聊天页相同的模型选择器，为 Lime 青柠精灵单独指定当前已接入主链的通用模型。
-                本地、自管云端与 OEM 云端继续复用同一套筛选口径。
+                本地、自管云端与品牌云端继续复用同一套筛选口径。
               </p>
             </div>
           </div>

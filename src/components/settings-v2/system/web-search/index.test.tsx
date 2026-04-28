@@ -79,6 +79,13 @@ function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   return target as HTMLButtonElement;
 }
 
+async function switchTab(container: HTMLElement, text: string) {
+  await act(async () => {
+    findButton(container, text).click();
+    await flushEffects();
+  });
+}
+
 function findSelect(container: HTMLElement, id: string): HTMLSelectElement {
   const node = container.querySelector<HTMLSelectElement>(`#${id}`);
   if (!node) {
@@ -181,7 +188,7 @@ afterEach(() => {
 });
 
 describe("WebSearchSettings", () => {
-  it("应加载网络搜索与图片搜索配置", async () => {
+  it("应默认进入搜索链路 tab，并延迟挂载其他配置区", async () => {
     const container = renderComponent();
     await flushEffects();
     await flushEffects();
@@ -193,13 +200,27 @@ describe("WebSearchSettings", () => {
     expect(text).toContain("状态：已保存");
     expect(text).toContain("联网搜索配置");
     expect(text).toContain("Provider 凭证");
-    expect(text).toContain("Multi Search Engine");
-    expect(text).toContain("联网图片搜索");
+    expect(text).toContain("MSE 聚合");
+    expect(text).toContain("图片搜索");
+    expect(text).not.toContain("联网图片搜索");
+    expect(container.querySelector("#web-search-tavily-key")).toBeNull();
+    expect(container.querySelector("#web-search-mse-priority")).toBeNull();
+    expect(container.querySelector("#web-search-pexels-key")).toBeNull();
 
     const select = findSelect(container, "web-search-engine");
     expect(select.value).toBe("google");
     const provider = findSelect(container, "web-search-provider");
     expect(provider.value).toBe("duckduckgo_instant");
+  });
+
+  it("切到 Provider 凭证 tab 后应加载搜索服务 Key", async () => {
+    const container = renderComponent();
+    await flushEffects();
+    await flushEffects();
+
+    await switchTab(container, "Provider 凭证");
+
+    expect(container.textContent).toContain("Provider 凭证");
     const tavilyInput = findInput(container, "web-search-tavily-key");
     expect(tavilyInput.value).toBe("tavily-old-key");
 
@@ -212,7 +233,34 @@ describe("WebSearchSettings", () => {
       "web-search-google-engine-id",
     );
     expect(googleEngineInput.value).toBe("cx-old-id");
+  });
 
+  it("切到 MSE 聚合 tab 后应加载聚合配置", async () => {
+    const container = renderComponent();
+    await flushEffects();
+    await flushEffects();
+
+    await switchTab(container, "MSE 聚合");
+
+    expect(container.textContent).toContain("Multi Search Engine");
+    expect(findInput(container, "web-search-mse-priority").value).toBe(
+      "google, bing",
+    );
+    expect(findInput(container, "web-search-mse-max-per-engine").value).toBe(
+      "5",
+    );
+    expect(findInput(container, "web-search-mse-timeout").value).toBe("4000");
+  });
+
+  it("切到图片搜索 tab 后应加载图片 Key 和观测面板", async () => {
+    const container = renderComponent();
+    await flushEffects();
+    await flushEffects();
+
+    await switchTab(container, "图片搜索");
+
+    expect(container.textContent).toContain("联网图片搜索");
+    expect(container.textContent).toContain("观测面板");
     const input = findInput(container, "web-search-pexels-key");
     expect(input.value).toBe("old-key");
     const pixabayInput = findInput(container, "web-search-pixabay-key");

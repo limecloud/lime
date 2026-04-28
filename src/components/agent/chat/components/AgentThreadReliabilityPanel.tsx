@@ -1431,7 +1431,7 @@ export const AgentThreadReliabilityPanel: React.FC<
                     variant="outline"
                     className="border-amber-300 bg-white text-amber-700"
                   >
-                    OEM 托管锁定
+                    品牌云端托管锁定
                   </Badge>
                 ) : null}
                 {(oemPolicy as { quotaLow?: boolean | null }).quotaLow ? (
@@ -1439,14 +1439,14 @@ export const AgentThreadReliabilityPanel: React.FC<
                     variant="outline"
                     className="border-orange-300 bg-white text-orange-700"
                   >
-                    OEM 额度偏低
+                    品牌云端额度偏低
                   </Badge>
                 ) : null}
                 {(oemPolicy as { defaultModel?: string | null }).defaultModel ||
                 (oemPolicy as { selectedModel?: string | null })
                   .selectedModel ? (
                   <span className="text-xs text-muted-foreground">
-                    OEM 模型{" "}
+                    品牌云端模型{" "}
                     {
                       ((oemPolicy as { defaultModel?: string | null })
                         .defaultModel ||

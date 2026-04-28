@@ -206,7 +206,13 @@ function AdvancedDetails({
   );
 }
 
-export function DeveloperSettings() {
+interface DeveloperSettingsProps {
+  embedded?: boolean;
+}
+
+export function DeveloperSettings({
+  embedded = false,
+}: DeveloperSettingsProps = {}) {
   const { enabled, setEnabled } = useComponentDebug();
   const [appConfig, setAppConfig] = useState<Config | null>(null);
   const [diagnosticBusy, setDiagnosticBusy] = useState(false);
@@ -446,7 +452,7 @@ export function DeveloperSettings() {
   const workspaceHarnessEnabled = isWorkspaceHarnessEnabled(appConfig);
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className={cn("space-y-5", embedded ? "pb-0" : "pb-8")}>
       {message ? (
         <div
           className={cn(
@@ -464,9 +470,15 @@ export function DeveloperSettings() {
       <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-1.5">
-            <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
-              开发者
-            </h1>
+            {embedded ? (
+              <h2 className="text-[20px] font-semibold tracking-tight text-slate-900">
+                开发者工具
+              </h2>
+            ) : (
+              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                开发者
+              </h1>
+            )}
             <p className="text-sm text-slate-500">
               排查问题时打开，用完关回去。
             </p>

@@ -179,6 +179,7 @@ export interface OemCloudBootstrapResponse {
   sceneCatalog?: Array<{ id: string }>;
   features: OemCloudFeatureFlags;
   gateway?: OemCloudGatewayConfig;
+  referral?: OemCloudReferralDashboard | null;
 }
 
 export interface SendClientAuthEmailCodePayload {
@@ -980,7 +981,7 @@ function ensureRuntime() {
   const runtime = resolveOemCloudRuntimeContext();
   if (!runtime) {
     throw new OemCloudControlPlaneError(
-      "缺少 OEM 云端配置，请先配置域名与租户。",
+      "缺少品牌云端配置，请先配置域名与租户。",
     );
   }
   return runtime;
@@ -1008,7 +1009,7 @@ async function requestControlPlane<T>(
     const token = normalizeText(runtime.sessionToken);
     if (!token) {
       throw new OemCloudControlPlaneError(
-        "缺少 OEM 云端 Session Token，请先完成登录。",
+        "缺少品牌云端 Session Token，请先完成登录。",
       );
     }
     headers.Authorization = `Bearer ${token}`;
@@ -1471,6 +1472,9 @@ function parseBootstrap(value: unknown): OemCloudBootstrapResponse {
     gateway: isRecord(value.gateway)
       ? parseGatewayConfig(value.gateway)
       : undefined,
+    referral: isRecord(value.referral)
+      ? parseReferralDashboard(value.referral)
+      : null,
   };
 }
 

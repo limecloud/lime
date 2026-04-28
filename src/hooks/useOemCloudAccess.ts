@@ -1059,7 +1059,7 @@ export function useOemCloudAccess() {
 
   const handleSendEmailCode = useCallback(async () => {
     if (!runtime) {
-      setErrorMessage("缺少 OEM 云端配置，请先配置域名与租户。");
+      setErrorMessage("当前版本未配置云端登录入口。");
       return;
     }
 
@@ -1091,7 +1091,7 @@ export function useOemCloudAccess() {
 
   const handleEmailCodeLogin = useCallback(async () => {
     if (!runtime) {
-      setErrorMessage("缺少 OEM 云端配置，请先配置域名与租户。");
+      setErrorMessage("当前版本未配置云端登录入口。");
       return;
     }
 
@@ -1130,7 +1130,7 @@ export function useOemCloudAccess() {
 
   const handlePasswordLogin = useCallback(async () => {
     if (!runtime) {
-      setErrorMessage("缺少 OEM 云端配置，请先配置域名与租户。");
+      setErrorMessage("当前版本未配置云端登录入口。");
       return;
     }
 
@@ -1183,7 +1183,7 @@ export function useOemCloudAccess() {
 
   const handleGoogleLogin = useCallback(async () => {
     if (!runtime) {
-      setErrorMessage("缺少 OEM 云端配置，请先配置域名与租户。");
+      setErrorMessage("当前版本未配置云端登录入口。");
       return;
     }
 
@@ -1191,69 +1191,16 @@ export function useOemCloudAccess() {
     setErrorMessage(null);
     setInfoMessage(null);
 
-    let oauthCompleted = false;
-    let disposeCompletionListener = () => undefined;
-
     try {
-      const oauthCompletedPromise =
-        typeof window === "undefined"
-          ? new Promise<void>(() => undefined)
-          : new Promise<void>((resolve) => {
-              const handleOauthCompleted = (event: Event) => {
-                const detail =
-                  event instanceof CustomEvent
-                    ? (event.detail as OemCloudDesktopOAuthCompletedDetail)
-                    : null;
-                if (
-                  detail?.provider !== "google" ||
-                  detail.tenantId !== runtime.tenantId
-                ) {
-                  return;
-                }
-
-                oauthCompleted = true;
-                resolve();
-              };
-
-              window.addEventListener(
-                OEM_CLOUD_OAUTH_COMPLETED_EVENT,
-                handleOauthCompleted,
-              );
-              disposeCompletionListener = () => {
-                window.removeEventListener(
-                  OEM_CLOUD_OAUTH_COMPLETED_EVENT,
-                  handleOauthCompleted,
-                );
-              };
-            });
-
-      const authSession = await createGoogleDesktopAuthSession(runtime);
-
-      await openExternalUrl(authSession.authorizeUrl);
+      const result = await startOemCloudLogin(runtime);
       setInfoMessage(
-        "已打开系统浏览器，请完成 Google 授权；如果浏览器出现确认页，请继续完成，桌面端会自动同步登录结果。",
+        result.mode === "desktop_auth"
+          ? "已打开系统浏览器，请完成 Google 授权；如果浏览器出现确认页，请继续完成，桌面端会自动同步登录结果。"
+          : "已打开 Lime 云端登录页，请在浏览器完成授权，桌面端会自动同步登录结果。",
       );
-
-      const pollPromise = pollGoogleDesktopAuthSession(
-        runtime,
-        authSession,
-        () => oauthCompleted,
-      );
-
-      const winner = await Promise.race([
-        oauthCompletedPromise.then(() => "event" as const),
-        pollPromise.then(() => "poll" as const),
-      ]);
-
-      if (winner === "event") {
-        void pollPromise.catch(() => undefined);
-      }
     } catch (error) {
-      if (!oauthCompleted) {
-        setErrorMessage(buildErrorMessage(error, "Google 登录失败"));
-      }
+      setErrorMessage(buildErrorMessage(error, "打开 Lime 云端登录页失败"));
     } finally {
-      disposeCompletionListener();
       setOpeningGoogleLogin(false);
     }
   }, [runtime]);
@@ -1562,7 +1509,9 @@ export function useOemCloudAccess() {
         return;
       }
 
-      await openExternalUrl(buildUserCenterUrl(configuredTarget.baseUrl, path));
+      await openExternalUrl(
+        buildOemCloudUserCenterUrl(configuredTarget.baseUrl, path),
+      );
     },
     [configuredTarget],
   );

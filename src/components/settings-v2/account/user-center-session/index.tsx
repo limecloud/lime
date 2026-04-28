@@ -207,11 +207,7 @@ export function UserCenterSessionSettings() {
 
           {!runtime ? (
             <div className="rounded-[24px] border border-dashed border-slate-300 bg-white/80 px-5 py-6 text-sm leading-6 text-slate-600">
-              当前没有可用的运行时配置。请先在
-              <span className="mx-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">
-                public/oem-runtime-config.js
-              </span>
-              中配置域名、网关地址和租户信息，然后再进行登录。
+              当前版本未配置云端服务。开源版可继续使用本地功能；品牌服务配置登录入口后会自动显示。
             </div>
           ) : initializing ? (
             <div className="rounded-[24px] border border-white/90 bg-white/84 p-5 shadow-sm">

@@ -21,7 +21,6 @@ import {
   Search,
   Variable,
   Monitor,
-  FlaskConical,
   Code,
   Info,
   LucideIcon,
@@ -165,15 +164,10 @@ export function useSettingsCategory(): CategoryGroup[] {
           icon: Bot,
         },
         {
-          key: SettingsTabs.Experimental,
-          label: t("settings.tab.experimental", "实验功能"),
-          icon: FlaskConical,
-          experimental: true,
-        },
-        {
           key: SettingsTabs.Developer,
-          label: t("settings.tab.developer", "开发者"),
+          label: t("settings.tab.developerLab", "开发者与实验功能"),
           icon: Code,
+          experimental: true,
         },
         {
           key: SettingsTabs.About,

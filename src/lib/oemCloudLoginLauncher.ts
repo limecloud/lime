@@ -260,17 +260,18 @@ export async function startOemCloudLogin(
   runtime = resolveOemCloudRuntimeContext(),
 ): Promise<OemCloudLoginLaunchResult> {
   if (!runtime) {
-    throw new Error("缺少 OEM 云端配置，请先配置域名与租户。");
+    throw new Error("当前版本未配置云端登录入口。");
   }
 
   let oauthCompleted = false;
+  let disposeOauthCompletedListener: () => void = () => undefined;
   const oauthCompletedPromise =
     typeof window === "undefined"
       ? new Promise<void>(() => undefined)
       : new Promise<void>((resolve) => {
-          const dispose = subscribeOauthCompleted(runtime, () => {
+          disposeOauthCompletedListener = subscribeOauthCompleted(runtime, () => {
             oauthCompleted = true;
-            dispose();
+            disposeOauthCompletedListener();
             resolve();
           });
         });
@@ -279,6 +280,7 @@ export async function startOemCloudLogin(
   try {
     authSession = await createGoogleDesktopAuthSession(runtime);
   } catch (error) {
+    disposeOauthCompletedListener();
     if (
       error instanceof Error &&
       /localhost 本地回调/.test(error.message)
@@ -296,10 +298,15 @@ export async function startOemCloudLogin(
     () => oauthCompleted,
   );
 
-  const winner = await Promise.race([
-    oauthCompletedPromise.then(() => "event" as const),
-    pollPromise.then(() => "poll" as const),
-  ]);
+  let winner: "event" | "poll";
+  try {
+    winner = await Promise.race([
+      oauthCompletedPromise.then(() => "event" as const),
+      pollPromise.then(() => "poll" as const),
+    ]);
+  } finally {
+    disposeOauthCompletedListener();
+  }
 
   if (winner === "event") {
     void pollPromise.catch(() => undefined);
