@@ -3,7 +3,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { TeamWorkspaceBoardChromeDisplayState } from "../../team-workspace-runtime/boardChromeSelectors";
 import type { TeamWorkspaceRuntimeStatus } from "../../teamWorkspaceRuntime";
-import { TEAM_WORKSPACE_IDLE_STATUS_LABEL, TEAM_WORKSPACE_SURFACE_TITLE } from "../../utils/teamWorkspaceCopy";
+import {
+  TEAM_WORKSPACE_IDLE_STATUS_LABEL,
+  TEAM_WORKSPACE_SURFACE_TITLE,
+} from "../../utils/teamWorkspaceCopy";
 
 interface TeamWorkspaceStatusMeta {
   badgeClassName: string;
@@ -63,7 +66,9 @@ export function TeamWorkspaceBoardHeader({
           >
             {boardChromeDisplay.compactBoardHeadline}
           </span>
-          {!useCompactCanvasChrome && !isChildSession && totalTeamSessions > 0 ? (
+          {!useCompactCanvasChrome &&
+          !isChildSession &&
+          totalTeamSessions > 0 ? (
             <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700">
               {totalTeamSessions} 项任务
             </span>

@@ -74,9 +74,7 @@ import type {
   AgentRuntimeThreadReadModel,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import {
-  buildMessageTurnTimeline,
-} from "../utils/threadTimelineView";
+import { buildMessageTurnTimeline } from "../utils/threadTimelineView";
 import { buildMessageTurnGroups } from "../utils/messageTurnGrouping";
 import { resolveLatestProjectFileSavedSiteContentTargetFromMessage } from "../utils/latestSavedSiteContentTarget";
 import {
@@ -208,7 +206,9 @@ const MessageRuntimeStatusPill: React.FC<{
     .slice(0, 2)
     .join(" · ");
   const tooltip = [titleText, detailText, checkpointsText]
-    .filter((item, index, array) => Boolean(item) && array.indexOf(item) === index)
+    .filter(
+      (item, index, array) => Boolean(item) && array.indexOf(item) === index,
+    )
     .join("\n");
 
   return (
@@ -573,10 +573,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   } | null>(null);
   const [renderedMessageCount, setRenderedMessageCount] = useState(() =>
     shouldUseProgressiveRender
-      ? Math.min(
-          visibleMessages.length,
-          MESSAGE_LIST_INITIAL_RENDER_COUNT,
-        )
+      ? Math.min(visibleMessages.length, MESSAGE_LIST_INITIAL_RENDER_COUNT)
       : visibleMessages.length,
   );
 
@@ -614,10 +611,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     setRenderedMessageCount((current) =>
       Math.min(
         visibleMessages.length,
-        Math.max(
-          current + appendedCount,
-          MESSAGE_LIST_INITIAL_RENDER_COUNT,
-        ),
+        Math.max(current + appendedCount, MESSAGE_LIST_INITIAL_RENDER_COUNT),
       ),
     );
   }, [
@@ -677,10 +671,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     () =>
       hiddenHistoryCount > 0
         ? turns.slice(
-            -Math.max(
-              renderedMessageCount,
-              MESSAGE_LIST_INITIAL_RENDER_COUNT,
-            ),
+            -Math.max(renderedMessageCount, MESSAGE_LIST_INITIAL_RENDER_COUNT),
           )
         : turns,
     [hiddenHistoryCount, renderedMessageCount, turns],
@@ -776,7 +767,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
     () =>
       messageGroups.map((group) => {
         const lastAssistantId =
-          group.assistantMessages[group.assistantMessages.length - 1]?.id ?? null;
+          group.assistantMessages[group.assistantMessages.length - 1]?.id ??
+          null;
         const mappedTimeline =
           group.assistantMessages
             .map((message) => timelineByMessageId.get(message.id))
@@ -785,8 +777,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
           Boolean(lastAssistantId) &&
           currentTurnTimeline?.messageId === lastAssistantId;
         const isActiveGroup =
-          Boolean(lastAssistantId) && lastAssistantId === lastAssistantMessageId;
-        const timeline = isCurrentTurnGroup ? currentTurnTimeline : mappedTimeline;
+          Boolean(lastAssistantId) &&
+          lastAssistantId === lastAssistantMessageId;
+        const timeline = isCurrentTurnGroup
+          ? currentTurnTimeline
+          : mappedTimeline;
 
         return {
           ...group,
@@ -817,7 +812,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
       }
 
       const hasRunningToolCall =
-        (message.toolCalls || []).some((toolCall) => toolCall.status === "running") ||
+        (message.toolCalls || []).some(
+          (toolCall) => toolCall.status === "running",
+        ) ||
         (message.contentParts || []).some(
           (part) =>
             part.type === "tool_use" && part.toolCall.status === "running",
@@ -1115,9 +1112,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
     const shouldCollapseAssistantShell =
       msg.role === "assistant" &&
       !hasVisibleAssistantText &&
-      !(conversationContentParts?.length) &&
+      !conversationContentParts?.length &&
       !conversationThinkingContent?.trim() &&
-      !(conversationToolCalls?.length) &&
+      !conversationToolCalls?.length &&
       !((msg.actionRequests || []).length > 0) &&
       !primaryTimeline &&
       !trailingTimeline &&
@@ -1544,8 +1541,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
           >
             <div className="min-w-0 flex-1">
               为了更快打开旧对话，当前先展示最近{" "}
-              {sessionHistoryWindow?.loadedMessages ?? renderedMessages.length} /{" "}
-              {sessionHistoryWindow?.totalMessages ?? renderedMessages.length}{" "}
+              {sessionHistoryWindow?.loadedMessages ?? renderedMessages.length}{" "}
+              / {sessionHistoryWindow?.totalMessages ?? renderedMessages.length}{" "}
               条消息。
               {sessionHistoryWindow?.error ? (
                 <span className="ml-2 text-red-600">
@@ -1577,8 +1574,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
             className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 text-sm text-slate-600"
           >
             <div className="min-w-0 flex-1">
-              为了更快打开对话，当前先展示最近 {renderedMessages.length} 条消息，
-              更早的 {hiddenHistoryCount} 条会在空闲时继续补齐。
+              为了更快打开对话，当前先展示最近 {renderedMessages.length}{" "}
+              条消息， 更早的 {hiddenHistoryCount} 条会在空闲时继续补齐。
             </div>
             <button
               type="button"

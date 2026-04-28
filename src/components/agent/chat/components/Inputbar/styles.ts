@@ -39,12 +39,12 @@ export const Container = styled.div`
 
 export const InputBarContainer = styled.div`
   position: relative;
-  border: 1px solid rgba(110, 231, 183, 0.55);
+  border: 1px solid var(--lime-composer-border, rgba(110, 231, 183, 0.84));
   border-radius: 22px;
   padding: 10px 12px 10px 10px;
-  background: linear-gradient(180deg, #fdfffb 0%, #f6fbf7 100%);
+  background: var(--lime-composer-surface);
   box-shadow:
-    0 10px 28px rgba(22, 101, 52, 0.04),
+    0 10px 28px var(--lime-shadow-color),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transition:
     border-color 0.2s ease,
@@ -52,32 +52,26 @@ export const InputBarContainer = styled.div`
     background 0.2s ease;
 
   &:focus-within {
-    border-color: rgba(74, 222, 128, 0.65);
-    background: linear-gradient(180deg, #ffffff 0%, #f4fbf5 100%);
+    border-color: var(--lime-composer-border-focus, rgba(74, 222, 128, 0.7));
+    background: var(--lime-composer-surface-focus);
     box-shadow:
-      0 0 0 3px rgba(74, 222, 128, 0.22),
-      0 14px 32px rgba(22, 101, 52, 0.06),
+      0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24)),
+      0 14px 32px var(--lime-shadow-color),
       inset 0 1px 0 rgba(255, 255, 255, 0.92);
   }
 
   &.file-dragging {
-    border: 2px dashed #2ecc71;
-    background-color: rgba(46, 204, 113, 0.03);
+    border: 2px dashed var(--lime-brand, #10b981);
+    background-color: var(--lime-brand-soft, #ecfdf5);
   }
 
   &.floating-composer {
     border-radius: 34px;
     padding: 20px 24px 18px 22px;
-    background:
-      radial-gradient(
-        circle at top right,
-        rgba(220, 252, 231, 0.48),
-        rgba(255, 255, 255, 0) 34%
-      ),
-      linear-gradient(180deg, #ffffff 0%, #f7fcf8 100%);
-    border-color: rgba(110, 231, 183, 0.84);
+    background: var(--lime-composer-surface-floating);
+    border-color: var(--lime-composer-border, rgba(110, 231, 183, 0.84));
     box-shadow:
-      0 28px 56px -38px rgba(22, 101, 52, 0.24),
+      0 28px 56px -38px var(--lime-shadow-color),
       inset 0 1px 0 rgba(255, 255, 255, 0.88);
   }
 
@@ -87,11 +81,11 @@ export const InputBarContainer = styled.div`
   }
 
   &.floating-composer:focus-within {
-    background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
-    border-color: rgba(74, 222, 128, 0.7);
+    background: var(--lime-composer-surface-focus);
+    border-color: var(--lime-composer-border-focus, rgba(74, 222, 128, 0.7));
     box-shadow:
-      0 0 0 3px rgba(74, 222, 128, 0.25),
-      0 28px 56px -34px rgba(22, 101, 52, 0.24),
+      0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24)),
+      0 28px 56px -34px var(--lime-shadow-color),
       inset 0 1px 0 rgba(255, 255, 255, 0.88);
   }
 `;
@@ -220,8 +214,8 @@ export const MetaSelectWrap = styled.label`
   min-height: 28px;
   padding: 0 12px 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--lime-surface-border, rgba(226, 240, 226, 0.82));
+  background: var(--lime-surface, #ffffff);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   color: hsl(var(--muted-foreground));
   transition:
@@ -245,10 +239,10 @@ export const MetaSelectWrap = styled.label`
   }
 
   &:focus-within {
-    border-color: rgba(167, 243, 208, 0.42);
-    background: rgba(255, 255, 255, 0.98);
+    border-color: var(--lime-surface-border-strong, #bbf7d0);
+    background: var(--lime-surface, #ffffff);
     box-shadow:
-      0 0 0 3px rgba(167, 243, 208, 0.28),
+      0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24)),
       inset 0 1px 0 rgba(255, 255, 255, 0.92);
     color: hsl(var(--foreground));
   }
@@ -304,9 +298,13 @@ export const MetaToggleButton = styled.button<{
   border-radius: 999px;
   border: 1px solid
     ${({ $checked }) =>
-      $checked ? "rgba(167, 243, 208, 0.4)" : "rgba(148, 163, 184, 0.24)"};
+      $checked
+        ? "var(--lime-surface-border-strong, #bbf7d0)"
+        : "var(--lime-surface-border, rgba(226, 240, 226, 0.82))"};
   background: ${({ $checked }) =>
-    $checked ? "rgba(240, 253, 244, 0.98)" : "rgba(255, 255, 255, 0.9)"};
+    $checked
+      ? "var(--lime-brand-soft, #ecfdf5)"
+      : "var(--lime-surface, #ffffff)"};
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   color: ${({ $checked }) =>
     $checked ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"};
@@ -320,18 +318,22 @@ export const MetaToggleButton = styled.button<{
 
   &:hover {
     border-color: ${({ $checked }) =>
-      $checked ? "rgba(167, 243, 208, 0.5)" : "rgba(148, 163, 184, 0.34)"};
+      $checked
+        ? "var(--lime-surface-border-strong, #bbf7d0)"
+        : "var(--lime-surface-border, rgba(226, 240, 226, 0.82))"};
     background: ${({ $checked }) =>
-      $checked ? "rgba(220, 252, 231, 1)" : "rgba(255, 255, 255, 0.98)"};
+      $checked
+        ? "var(--lime-brand-soft, #ecfdf5)"
+        : "var(--lime-surface-hover, #f4fdf4)"};
     color: hsl(var(--foreground));
     transform: translateY(-1px);
   }
 
   &:focus-visible {
     outline: none;
-    border-color: rgba(167, 243, 208, 0.44);
+    border-color: var(--lime-surface-border-strong, #bbf7d0);
     box-shadow:
-      0 0 0 3px rgba(167, 243, 208, 0.28),
+      0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24)),
       inset 0 1px 0 rgba(255, 255, 255, 0.92);
   }
 
@@ -353,9 +355,13 @@ export const MetaToggleCheck = styled.span<{
   border-radius: 4px;
   border: 1px solid
     ${({ $checked }) =>
-      $checked ? "rgba(34, 197, 94, 0.45)" : "rgba(148, 163, 184, 0.42)"};
+      $checked
+        ? "var(--lime-brand, #10b981)"
+        : "var(--lime-surface-border, rgba(226, 240, 226, 0.82))"};
   background: ${({ $checked }) =>
-    $checked ? "rgba(220, 252, 231, 0.9)" : "rgba(255, 255, 255, 0.96)"};
+    $checked
+      ? "var(--lime-brand-soft, #ecfdf5)"
+      : "var(--lime-surface, #ffffff)"};
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
   flex-shrink: 0;
 
@@ -428,9 +434,9 @@ export const ToolButton = styled.button`
   }
 
   &.active {
-    color: #14532d;
-    border-color: rgba(167, 243, 208, 0.44);
-    background: rgba(220, 252, 231, 0.82);
+    color: var(--lime-brand-strong, #166534);
+    border-color: var(--lime-surface-border-strong, #bbf7d0);
+    background: var(--lime-brand-soft, #ecfdf5);
   }
 
   span {
@@ -463,7 +469,7 @@ export const InputIconButton = styled.button<{
           : "rgba(148, 163, 184, 0.28)"};
   background: ${({ $primary, $destructive }) =>
     $primary
-      ? "#1aa34e"
+      ? "var(--lime-brand, #10b981)"
       : $destructive
         ? "rgba(255, 226, 234, 0.92)"
         : "rgba(255, 255, 255, 0.9)"};
@@ -484,7 +490,7 @@ export const InputIconButton = styled.button<{
     transform: translateY(-1px);
     background: ${({ $primary, $destructive }) =>
       $primary
-        ? "#168840"
+        ? "var(--lime-brand-strong, #166534)"
         : $destructive
           ? "rgba(255, 221, 229, 1)"
           : "rgba(255, 255, 255, 1)"};
@@ -497,21 +503,21 @@ export const InputIconButton = styled.button<{
   }
 
   &.is-active {
-    border-color: rgba(167, 243, 208, 0.44);
-    background: rgba(220, 252, 231, 0.82);
-    color: #14532d;
+    border-color: var(--lime-surface-border-strong, #bbf7d0);
+    background: var(--lime-brand-soft, #ecfdf5);
+    color: var(--lime-brand-strong, #166534);
   }
 
   &.is-recording {
-    border-color: rgba(120, 235, 190, 0.6);
-    background: rgba(120, 235, 190, 0.12);
-    color: #14532d;
+    border-color: var(--lime-brand, #10b981);
+    background: var(--lime-brand-soft, #ecfdf5);
+    color: var(--lime-brand-strong, #166534);
   }
 
   &.is-processing {
-    border-color: rgba(167, 243, 208, 0.6);
-    background: rgba(167, 243, 208, 0.12);
-    color: #14532d;
+    border-color: var(--lime-surface-border-strong, #bbf7d0);
+    background: var(--lime-brand-soft, #ecfdf5);
+    color: var(--lime-brand-strong, #166534);
   }
 
   &:disabled {

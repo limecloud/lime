@@ -168,7 +168,7 @@ export function AutomationJobDetailsDialog({
     <Dialog open={open && Boolean(job)} onOpenChange={onOpenChange}>
       <DialogContent
         maxWidth="max-w-[1120px]"
-        className="max-h-[calc(100vh-32px)] overflow-hidden rounded-[28px] border border-slate-200/80 bg-white p-0"
+        className="lime-workbench-theme-scope max-h-[calc(100vh-32px)] overflow-hidden rounded-[28px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-0"
       >
         {job ? (
           <div

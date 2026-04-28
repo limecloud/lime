@@ -523,7 +523,7 @@ export function AutomationJobDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         maxWidth="max-w-[820px]"
-        className="max-h-[calc(100vh-32px)] overflow-hidden rounded-[28px] border border-slate-200/80 bg-white p-0"
+        className="lime-workbench-theme-scope max-h-[calc(100vh-32px)] overflow-hidden rounded-[28px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-0"
       >
         <div className="flex max-h-[calc(100vh-32px)] flex-col rounded-[28px] bg-white">
           <DialogHeader className="shrink-0 border-b border-slate-200/70 bg-white px-4 py-4 sm:px-6 sm:py-5">

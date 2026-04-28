@@ -5,29 +5,60 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentPageParams, Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 import { AppSidebar } from "./AppSidebar";
+import { LIME_COLOR_SCHEME_STORAGE_KEY } from "@/lib/appearance/colorSchemes";
+import { LIME_THEME_STORAGE_KEY } from "@/lib/appearance/themeMode";
+import {
+  getStoredOemCloudSessionState,
+  setOemCloudBootstrapSnapshot,
+  setStoredOemCloudSessionState,
+} from "@/lib/oemCloudSession";
 
 const {
   mockGetConfig,
+  mockSaveConfig,
   mockGetPluginsForSurface,
   mockSubscribeAppConfigChanged,
   mockListAgentRuntimeSessions,
   mockUpdateAgentRuntimeSession,
+  mockSetI18nLanguage,
   mockScheduleMinimumDelayIdleTask,
+  mockLogoutClient,
+  mockGetClientReferralDashboard,
+  mockClearSiteAdapterCatalogCache,
+  mockToastSuccess,
+  mockToastError,
+  mockToastInfo,
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(),
+  mockSaveConfig: vi.fn(),
   mockGetPluginsForSurface: vi.fn(),
   mockSubscribeAppConfigChanged: vi.fn(),
   mockListAgentRuntimeSessions: vi.fn(),
   mockUpdateAgentRuntimeSession: vi.fn(),
+  mockSetI18nLanguage: vi.fn(),
   mockScheduleMinimumDelayIdleTask: vi.fn((task: () => void) => {
     task();
     return () => undefined;
   }),
+  mockLogoutClient: vi.fn(),
+  mockGetClientReferralDashboard: vi.fn(),
+  mockClearSiteAdapterCatalogCache: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+  mockToastInfo: vi.fn(),
 }));
 
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: mockGetConfig,
+  saveConfig: mockSaveConfig,
   subscribeAppConfigChanged: mockSubscribeAppConfigChanged,
+}));
+
+vi.mock("@/i18n/I18nPatchProvider", () => ({
+  useI18nPatch: () => ({
+    language: "zh",
+    setLanguage: mockSetI18nLanguage,
+  }),
 }));
 
 vi.mock("@/lib/api/pluginUI", () => ({
@@ -37,6 +68,23 @@ vi.mock("@/lib/api/pluginUI", () => ({
 vi.mock("@/lib/api/agentRuntime", () => ({
   listAgentRuntimeSessions: mockListAgentRuntimeSessions,
   updateAgentRuntimeSession: mockUpdateAgentRuntimeSession,
+}));
+
+vi.mock("@/lib/api/oemCloudControlPlane", () => ({
+  logoutClient: mockLogoutClient,
+  getClientReferralDashboard: mockGetClientReferralDashboard,
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: mockToastSuccess,
+    error: mockToastError,
+    info: mockToastInfo,
+  },
+}));
+
+vi.mock("@/lib/siteAdapterCatalogBootstrap", () => ({
+  clearSiteAdapterCatalogCache: mockClearSiteAdapterCatalogCache,
 }));
 
 vi.mock("@/lib/utils/scheduleMinimumDelayIdleTask", () => ({
@@ -92,14 +140,88 @@ async function flushEffects(times = 1) {
   }
 }
 
+async function openAccountMenu(container: HTMLElement) {
+  await act(async () => {
+    container
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="app-sidebar-account-button"]',
+      )
+      ?.click();
+    await Promise.resolve();
+  });
+}
+
+async function clickAccountMenuItem(container: HTMLElement, label: string) {
+  await openAccountMenu(container);
+
+  await act(async () => {
+    container
+      .querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
+      ?.click();
+    await Promise.resolve();
+  });
+}
+
 describe("AppSidebar", () => {
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     localStorage.clear();
+    delete window.__LIME_BOOTSTRAP__;
+    delete window.__LIME_OEM_CLOUD__;
+    delete window.__LIME_SESSION_TOKEN__;
+    document.documentElement.classList.remove("dark");
+    document.documentElement.removeAttribute("data-lime-theme");
+    document.documentElement.removeAttribute("data-lime-color-scheme");
+    document.documentElement.removeAttribute("style");
     mockGetConfig.mockResolvedValue({});
+    mockSaveConfig.mockResolvedValue(undefined);
     mockGetPluginsForSurface.mockResolvedValue([]);
     mockListAgentRuntimeSessions.mockResolvedValue([]);
     mockUpdateAgentRuntimeSession.mockResolvedValue(undefined);
+    mockLogoutClient.mockResolvedValue(undefined);
+    mockGetClientReferralDashboard.mockResolvedValue({
+      code: {
+        id: "refcode-001",
+        tenantId: "tenant-0001",
+        userId: "user-001",
+        code: "LIME-2026",
+        landingUrl: "https://limeai.run/invite?code=LIME-2026",
+        status: "active",
+        createdAt: "2026-04-28T00:00:00.000Z",
+        updatedAt: "2026-04-28T00:00:00.000Z",
+      },
+      policy: {
+        enabled: true,
+        rewardCredits: 600,
+        referrerRewardCredits: 480,
+        inviteeRewardCredits: 120,
+        claimWindowDays: 30,
+        autoClaimEnabled: true,
+        allowManualClaimFallback: true,
+        riskReviewEnabled: false,
+      },
+      summary: {
+        totalInvites: 0,
+        successfulInvites: 0,
+        totalRewardCredits: 0,
+        referrerRewardCreditsTotal: 0,
+        inviteeRewardCreditsTotal: 0,
+      },
+      events: [],
+      rewards: [],
+      invitedBy: {},
+      share: {
+        brandName: "Lime",
+        code: "LIME-2026",
+        landingUrl: "https://limeai.run/invite?code=LIME-2026",
+        downloadUrl: "https://limeai.run",
+        shareText:
+          "邀请你体验Lime，让AI做牛做马，我们来做牛人！前往 https://limeai.run 下载客户端，复制邀请码 LIME-2026 激活并注册账号参与内测",
+        headline: "登录后自动领取奖励",
+        rules: "复制邀请码后完成注册即可参与内测。",
+      },
+    });
+    mockClearSiteAdapterCatalogCache.mockResolvedValue(null);
     mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
       task();
       return () => undefined;
@@ -133,6 +255,13 @@ describe("AppSidebar", () => {
 
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+    delete window.__LIME_BOOTSTRAP__;
+    delete window.__LIME_OEM_CLOUD__;
+    delete window.__LIME_SESSION_TOKEN__;
+    document.documentElement.classList.remove("dark");
+    document.documentElement.removeAttribute("data-lime-theme");
+    document.documentElement.removeAttribute("data-lime-color-scheme");
+    document.documentElement.removeAttribute("style");
     (
       globalThis as typeof globalThis & {
         __appConfigListener?: () => void;
@@ -176,7 +305,7 @@ describe("AppSidebar", () => {
     );
   });
 
-  it("默认应渲染一级主导航和底部系统入口", async () => {
+  it("默认应渲染一级主导航，并将系统入口收进用户弹框", async () => {
     const container = mountSidebarContainer({
       currentPageParams: {
         agentEntry: "new-task",
@@ -190,9 +319,9 @@ describe("AppSidebar", () => {
     expect(container.textContent).not.toContain("生成");
     expect(container.textContent).toContain("我的方法");
     expect(container.textContent).toContain("灵感库");
-    expect(container.textContent).toContain("设置");
-    expect(container.textContent).toContain("持续流程");
-    expect(container.textContent).toContain("消息渠道");
+    expect(container.textContent).not.toContain("设置");
+    expect(container.textContent).not.toContain("持续流程");
+    expect(container.textContent).not.toContain("消息渠道");
     expect(container.textContent).not.toContain("插件中心");
     expect(container.textContent).not.toContain("OpenClaw");
     expect(container.textContent).not.toContain("桌宠");
@@ -205,23 +334,433 @@ describe("AppSidebar", () => {
     const mainNavButtons = Array.from(
       container.querySelectorAll('[data-testid="app-sidebar-main-nav"] button'),
     ).map((button) => button.getAttribute("aria-label"));
-    const footerNavButtons = Array.from(
-      container.querySelectorAll(
-        '[data-testid="app-sidebar-footer-nav"] button',
-      ),
-    ).map((button) => button.getAttribute("aria-label"));
     const footerArea = container.querySelector(
       '[data-testid="app-sidebar-footer-area"]',
     );
 
-    expect(mainNavButtons).toEqual([
-      "新建任务",
-      "我的方法",
-      "灵感库",
-    ]);
-    expect(footerNavButtons).toEqual(["设置", "持续流程", "消息渠道"]);
+    expect(mainNavButtons).toEqual(["新建任务", "我的方法", "灵感库"]);
+    expect(
+      container.querySelector('[data-testid="app-sidebar-footer-nav"]'),
+    ).toBeNull();
     expect(footerArea).not.toBeNull();
     expect(getComputedStyle(footerArea as Element).paddingBottom).toBe("16px");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-account-button"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    const accountMenu = container.querySelector(
+      '[data-testid="app-sidebar-account-menu"]',
+    );
+    expect(accountMenu?.textContent).toContain("设置");
+    expect(accountMenu?.textContent).toContain("持续流程");
+    expect(accountMenu?.textContent).toContain("消息渠道");
+  });
+
+  it("Lime 首页入口应保持在左侧栏顶部，并在 macOS 预留系统按钮安全区", async () => {
+    vi.stubGlobal("navigator", {
+      platform: "MacIntel",
+      userAgent: "Mac OS X",
+    });
+
+    const onNavigate = vi.fn();
+    const container = mountSidebarContainer({
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+      onNavigate,
+    });
+    await flushEffects(2);
+
+    const sidebar = container.querySelector('[data-testid="app-sidebar"]');
+    const header = container.querySelector(
+      '[data-testid="app-sidebar-header"]',
+    );
+    const homeButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="返回 Lime 首页"]',
+    );
+    const mainNav = container.querySelector(
+      '[data-testid="app-sidebar-main-nav"]',
+    );
+
+    expect(sidebar?.getAttribute("data-window-controls-reserved")).toBe("true");
+    expect(header).not.toBeNull();
+    expect(homeButton).not.toBeNull();
+    expect(header?.contains(homeButton)).toBe(true);
+    expect(
+      Boolean(
+        header &&
+        mainNav &&
+        (header.compareDocumentPosition(mainNav) &
+          Node.DOCUMENT_POSITION_FOLLOWING) !==
+          0,
+      ),
+    ).toBe(true);
+
+    await act(async () => {
+      homeButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    expect(onNavigate.mock.calls[0]?.[0]).toBe("agent");
+  });
+
+  it("首页侧边栏底部应展示紧凑用户弹框与 OEM 云端入口", async () => {
+    const onNavigate = vi.fn();
+    setStoredOemCloudSessionState({
+      token: "session-token",
+      tenant: { id: "tenant-0001" },
+      user: {
+        id: "user-001",
+        displayName: "zhong feng shan",
+        email: "user@example.com",
+      },
+      session: { id: "session-001" },
+    });
+
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+      onNavigate,
+    });
+    await flushEffects(2);
+
+    const accountButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="app-sidebar-account-button"]',
+    );
+    expect(accountButton).not.toBeNull();
+    expect(container.textContent).toContain("zhong feng shan");
+    expect(container.textContent).toContain("OEM");
+
+    await act(async () => {
+      accountButton?.click();
+      await Promise.resolve();
+    });
+
+    const accountMenu = container.querySelector(
+      '[data-testid="app-sidebar-account-menu"]',
+    );
+    expect(accountMenu).not.toBeNull();
+    expect(accountMenu?.textContent).toContain("zhong feng shan");
+    expect(accountMenu?.textContent).toContain("user@example.com");
+    expect(accountMenu?.textContent).toContain("OEM 已连接");
+    expect(accountMenu?.textContent).toContain("套餐、积分和模型目录");
+    expect(accountMenu?.textContent).toContain("语言");
+    expect(accountMenu?.textContent).toContain("持续流程");
+    expect(accountMenu?.textContent).toContain("消息渠道");
+    expect(accountMenu?.textContent).toContain("设置");
+    expect(accountMenu?.textContent).toContain("用户中心");
+    expect(accountMenu?.textContent).toContain("模型设置");
+    expect(accountMenu?.textContent).toContain("关于");
+    expect(accountMenu?.textContent).toContain("退出登录");
+    expect(accountMenu?.textContent).not.toContain("连接 OEM 云端");
+    expect(accountMenu?.textContent).not.toContain("主题");
+    expect(accountMenu?.textContent).not.toContain("帮助中心");
+
+    const settingsButton = Array.from(
+      accountMenu?.querySelectorAll("button") ?? [],
+    ).find((button) => button.textContent?.includes("设置"));
+
+    await act(async () => {
+      settingsButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("settings", {
+      tab: SettingsTabs.Home,
+    });
+  });
+
+  it("云端开启邀请时应在头部展示入口并读取 share 事实源", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    setStoredOemCloudSessionState({
+      token: "session-token",
+      tenant: { id: "tenant-0001", name: "Lime Cloud" },
+      user: {
+        id: "user-001",
+        displayName: "晚风",
+        email: "wanfeng@example.com",
+      },
+      session: { id: "session-001", provider: "google" },
+    });
+    setOemCloudBootstrapSnapshot({
+      features: {
+        referralEnabled: true,
+      },
+    });
+
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    const header = container.querySelector(
+      '[data-testid="app-sidebar-header"]',
+    );
+    const inviteButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="app-sidebar-invite-button"]',
+    );
+    expect(inviteButton).not.toBeNull();
+    expect(header?.contains(inviteButton)).toBe(true);
+
+    await act(async () => {
+      inviteButton?.click();
+      await Promise.resolve();
+    });
+    await flushEffects(4);
+
+    expect(mockGetClientReferralDashboard).toHaveBeenCalledWith("tenant-0001");
+    const dialog = document.body.querySelector(
+      '[data-testid="app-sidebar-invite-dialog"]',
+    );
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain("LIME-2026");
+    expect(dialog?.textContent).toContain("https://limeai.run");
+    expect(dialog?.textContent).toContain("480 积分");
+    expect(dialog?.textContent).toContain("120 积分");
+
+    const copyShareButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("复制邀请文案"));
+
+    await act(async () => {
+      copyShareButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(writeText).toHaveBeenCalledWith(
+      "邀请你体验Lime，让AI做牛做马，我们来做牛人！前往 https://limeai.run 下载客户端，复制邀请码 LIME-2026 激活并注册账号参与内测",
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith("已复制邀请文案");
+  });
+
+  it("未连接 OEM 云端时应保持开源使用口径", async () => {
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    expect(container.textContent).toContain("开源使用");
+    expect(container.textContent).toContain("开源");
+    expect(container.textContent).not.toContain("升级");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-account-button"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    const accountMenu = container.querySelector(
+      '[data-testid="app-sidebar-account-menu"]',
+    );
+    expect(accountMenu?.textContent).toContain("开源版");
+    expect(accountMenu?.textContent).toContain("OEM 云端可选");
+    expect(accountMenu?.textContent).toContain("模型设置");
+    expect(accountMenu?.textContent).toContain("连接 OEM 云端");
+    expect(accountMenu?.textContent).not.toContain("退出登录");
+  });
+
+  it("OEM 登录完成后侧边栏应从开源态刷新为账号信息", async () => {
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    expect(container.textContent).toContain("开源使用");
+
+    await act(async () => {
+      setStoredOemCloudSessionState({
+        token: "session-token",
+        tenant: {
+          id: "tenant-0001",
+          name: "Lime Cloud",
+        },
+        user: {
+          id: "user-001",
+          displayName: "晚风",
+          email: "wanfeng@example.com",
+          avatarUrl: "https://example.com/avatar.png",
+        },
+        session: {
+          id: "session-001",
+          provider: "google",
+        },
+      });
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+
+    expect(container.textContent).toContain("晚风");
+    expect(container.textContent).toContain("OEM");
+
+    await openAccountMenu(container);
+    const accountMenu = container.querySelector(
+      '[data-testid="app-sidebar-account-menu"]',
+    );
+    expect(accountMenu?.textContent).toContain("wanfeng@example.com");
+    expect(accountMenu?.textContent).toContain("Lime Cloud");
+    expect(accountMenu?.textContent).toContain("登录方式：Google");
+  });
+
+  it("用户弹框的语言入口应使用二级弹框并保存真实语言设置", async () => {
+    mockGetConfig.mockResolvedValue({ language: "zh" });
+
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-account-button"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="app-sidebar-language-menu"]'),
+    ).toBeNull();
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="语言"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    const languageMenu = container.querySelector(
+      '[data-testid="app-sidebar-language-menu"]',
+    );
+    expect(languageMenu).not.toBeNull();
+    expect(languageMenu?.textContent).toContain("中文");
+    expect(languageMenu?.textContent).toContain("English");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="切换语言为English"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+
+    expect(mockSetI18nLanguage).toHaveBeenCalledWith("en");
+    expect(mockSaveConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ language: "en" }),
+    );
+    expect(
+      container.querySelector('[data-testid="app-sidebar-language-menu"]'),
+    ).toBeNull();
+  });
+
+  it("用户弹框中的收缩入口应导航到真实页面", async () => {
+    const onNavigate = vi.fn();
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+      onNavigate,
+    });
+    await flushEffects(2);
+
+    await clickAccountMenuItem(container, "设置");
+    expect(onNavigate).toHaveBeenLastCalledWith("settings", {
+      tab: SettingsTabs.Home,
+    });
+
+    await clickAccountMenuItem(container, "持续流程");
+    expect(onNavigate).toHaveBeenLastCalledWith("automation", undefined);
+
+    await clickAccountMenuItem(container, "消息渠道");
+    expect(onNavigate).toHaveBeenLastCalledWith("channels", undefined);
+
+    await clickAccountMenuItem(container, "模型设置");
+    expect(onNavigate).toHaveBeenLastCalledWith("settings", {
+      tab: SettingsTabs.Providers,
+      providerView: "settings",
+    });
+
+    await clickAccountMenuItem(container, "OEM 云端");
+    expect(onNavigate).toHaveBeenLastCalledWith("settings", {
+      tab: SettingsTabs.Providers,
+      providerView: "cloud",
+    });
+
+    await clickAccountMenuItem(container, "关于");
+    expect(onNavigate).toHaveBeenLastCalledWith("settings", {
+      tab: SettingsTabs.About,
+    });
+  });
+
+  it("用户弹框退出登录应清理个人中心会话", async () => {
+    setStoredOemCloudSessionState({
+      token: "session-token",
+      tenant: { id: "tenant-0001" },
+      user: {
+        id: "user-001",
+        displayName: "zhong feng shan",
+      },
+      session: { id: "session-001" },
+    });
+
+    const container = mountSidebarContainer();
+    await flushEffects(2);
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-account-button"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    const logoutButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("退出登录"),
+    );
+
+    await act(async () => {
+      logoutButton?.click();
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+
+    expect(mockLogoutClient).toHaveBeenCalledWith("tenant-0001");
+    expect(getStoredOemCloudSessionState()).toBeNull();
+    expect(
+      container.querySelector('[data-testid="app-sidebar-account-menu"]'),
+    ).toBeNull();
   });
 
   it("新建任务页应高亮新建任务入口", async () => {
@@ -265,9 +804,7 @@ describe("AppSidebar", () => {
     });
     await flushEffects(2);
 
-    expect(
-      container.querySelector('button[aria-label="工作台"]'),
-    ).toBeNull();
+    expect(container.querySelector('button[aria-label="工作台"]')).toBeNull();
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
@@ -284,6 +821,7 @@ describe("AppSidebar", () => {
   });
 
   it("一级导航下方应继续展示最近对话与归档，并对归档列表懒加载", async () => {
+    localStorage.setItem("agent_last_project_id", JSON.stringify("project-1"));
     mockListAgentRuntimeSessions.mockImplementation(
       async (options?: {
         archivedOnly?: boolean;
@@ -326,7 +864,7 @@ describe("AppSidebar", () => {
     expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
     expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
       limit: 37,
-      workspaceId: undefined,
+      workspaceId: "project-1",
     });
 
     const mainNav = container.querySelector(
@@ -375,9 +913,23 @@ describe("AppSidebar", () => {
     ).toBe("auto");
     expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
       archivedOnly: true,
-      limit: 25,
-      workspaceId: undefined,
+      limit: 17,
+      workspaceId: "project-1",
     });
+  });
+
+  it("没有当前工作区时不应加载全局最近对话", async () => {
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    expect(container.textContent).toContain("最近对话");
+    expect(container.textContent).toContain("还没有开始对话");
+    expect(mockListAgentRuntimeSessions).not.toHaveBeenCalled();
   });
 
   it("最近对话应限制初始渲染数量，并保留当前会话可见", async () => {
@@ -426,7 +978,7 @@ describe("AppSidebar", () => {
     });
     await flushEffects(2);
 
-    expect(container.querySelector('button[title="会话 24"]')).not.toBeNull();
+    expect(container.querySelector('button[title="会话 19"]')).not.toBeNull();
   });
 
   it("切换人物或项目上下文时不应把已有最近对话重置成加载态", async () => {
@@ -478,7 +1030,7 @@ describe("AppSidebar", () => {
     expect(mounted.container.textContent).toContain("最近会话");
     expect(mounted.container.textContent).not.toContain("正在加载对话");
     expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(2);
-    expect(mockListAgentRuntimeSessions).toHaveBeenLastCalledWith({
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
       limit: 37,
       workspaceId: "project-2",
     });
@@ -502,6 +1054,7 @@ describe("AppSidebar", () => {
       currentPage: "agent",
       currentPageParams: {
         agentEntry: "new-task",
+        projectId: "project-1",
       } as AgentPageParams,
     });
     await flushEffects(2);
@@ -601,11 +1154,28 @@ describe("AppSidebar", () => {
     });
     await flushEffects(2);
 
-    expect(container.textContent).toContain("持续流程");
-    expect(container.textContent).toContain("消息渠道");
-    expect(container.textContent).toContain("插件中心");
-    expect(container.textContent).toContain("OpenClaw");
-    expect(container.textContent).toContain("桌宠");
+    expect(container.textContent).not.toContain("插件中心");
+    expect(container.textContent).not.toContain("OpenClaw");
+    expect(container.textContent).not.toContain("桌宠");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-account-button"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    const accountMenu = container.querySelector(
+      '[data-testid="app-sidebar-account-menu"]',
+    );
+    expect(accountMenu?.textContent).toContain("设置");
+    expect(accountMenu?.textContent).toContain("持续流程");
+    expect(accountMenu?.textContent).toContain("消息渠道");
+    expect(accountMenu?.textContent).toContain("插件中心");
+    expect(accountMenu?.textContent).toContain("OpenClaw");
+    expect(accountMenu?.textContent).toContain("桌宠");
   });
 
   it("配置变更后应重新读取可选入口并刷新侧栏", async () => {
@@ -628,10 +1198,26 @@ describe("AppSidebar", () => {
     });
     await flushEffects(2);
 
-    expect(container.textContent).toContain("持续流程");
-    expect(container.textContent).toContain("消息渠道");
     expect(container.textContent).not.toContain("插件中心");
     expect(container.textContent).not.toContain("桌宠");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-account-button"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    let accountMenu = container.querySelector(
+      '[data-testid="app-sidebar-account-menu"]',
+    );
+    expect(accountMenu?.textContent).toContain("设置");
+    expect(accountMenu?.textContent).toContain("持续流程");
+    expect(accountMenu?.textContent).toContain("消息渠道");
+    expect(accountMenu?.textContent).not.toContain("插件中心");
+    expect(accountMenu?.textContent).not.toContain("桌宠");
 
     await act(async () => {
       (
@@ -643,8 +1229,11 @@ describe("AppSidebar", () => {
     });
     await flushEffects(2);
 
-    expect(container.textContent).toContain("插件中心");
-    expect(container.textContent).toContain("桌宠");
+    accountMenu = container.querySelector(
+      '[data-testid="app-sidebar-account-menu"]',
+    );
+    expect(accountMenu?.textContent).toContain("插件中心");
+    expect(accountMenu?.textContent).toContain("桌宠");
   });
 
   it("sceneapps 页面不应再在侧栏展示独立主入口", async () => {
@@ -701,6 +1290,61 @@ describe("AppSidebar", () => {
     expect(container.textContent).not.toContain("桌宠");
   });
 
+  it("底部外观入口应弹出轻量快捷面板并同步主题与配色", async () => {
+    const container = mountSidebarContainer({
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="快速切换外观"]',
+    );
+
+    expect(trigger).not.toBeNull();
+
+    await act(async () => {
+      trigger?.click();
+      await Promise.resolve();
+    });
+
+    const popover = container.querySelector(
+      '[data-testid="app-sidebar-appearance-popover"]',
+    );
+    expect(popover).not.toBeNull();
+    expect(popover?.textContent).toContain("浅色");
+    expect(popover?.textContent).toContain("深色");
+    expect(popover?.textContent).toContain("跟随系统");
+    expect(popover?.textContent).toContain("Lime 经典");
+    expect(popover?.textContent).toContain("森林");
+    expect(popover?.textContent).toContain("海雾");
+    expect(popover?.textContent).toContain("砂岩");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="切换配色为海雾"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(localStorage.getItem(LIME_COLOR_SCHEME_STORAGE_KEY)).toBe(
+      "lime-ocean",
+    );
+    expect(document.documentElement.dataset.limeColorScheme).toBe("lime-ocean");
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="切换主题为深色"]')
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(localStorage.getItem(LIME_THEME_STORAGE_KEY)).toBe("dark");
+    expect(document.documentElement.dataset.limeTheme).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
+
   it("桌宠入口开启后，进入 companion 视图应高亮桌宠", async () => {
     mockGetConfig.mockResolvedValue({
       navigation: {
@@ -716,6 +1360,15 @@ describe("AppSidebar", () => {
       },
     });
     await flushEffects(2);
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-account-button"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
 
     expect(
       container.querySelector('button[aria-label="桌宠"][aria-current="page"]'),

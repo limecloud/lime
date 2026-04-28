@@ -18,13 +18,12 @@ use tauri_plugin_updater::UpdaterExt;
 
 const DAY_SECONDS: u64 = 24 * 3600;
 const UPDATE_CHECK_CACHE_TTL_SECS: u64 = 10 * 60;
-const FALLBACK_RELEASES_URL: &str = "https://github.com/aiclientproxy/lime/releases";
-const DEFAULT_UPDATE_MANIFEST_URL: &str =
-    "https://github.com/aiclientproxy/lime/releases/latest/download/latest.json";
+const FALLBACK_RELEASES_URL: &str = "https://github.com/limecloud/lime/releases";
+const DEFAULT_UPDATE_MANIFEST_URL: &str = "https://updates.limecloud.com/lime/stable/latest.json";
 
 /// 编译期注入 updater 公钥；开发环境可为空，此时仅保留手动下载兜底。
 const COMPILED_UPDATER_PUBLIC_KEY: Option<&str> = option_env!("LIME_UPDATER_PUBLIC_KEY");
-/// 编译期注入 updater manifest 地址；未配置时使用 GitHub Releases latest.json。
+/// 编译期注入 updater manifest 地址；未配置时使用 Cloudflare R2 稳定清单。
 const COMPILED_UPDATER_ENDPOINT: Option<&str> = option_env!("LIME_UPDATER_ENDPOINT");
 
 /// 更新检查配置（前端可见）
@@ -62,6 +61,8 @@ pub struct VersionCheckResult {
     pub download_url: Option<String>,
     #[serde(rename = "releaseNotes")]
     pub release_notes: Option<String>,
+    #[serde(rename = "releaseNotesUrl")]
+    pub release_notes_url: Option<String>,
     #[serde(rename = "pubDate")]
     pub pub_date: Option<String>,
     pub error: Option<String>,
@@ -97,7 +98,6 @@ struct StaticUpdateManifest {
 #[derive(Debug, Deserialize)]
 struct StaticUpdatePlatform {
     url: String,
-    #[allow(dead_code)]
     signature: Option<String>,
 }
 
@@ -131,7 +131,7 @@ fn updater_public_key() -> Option<&'static str> {
 
 fn release_tag_url(version: &str) -> String {
     format!(
-        "https://github.com/aiclientproxy/lime/releases/tag/v{}",
+        "https://github.com/limecloud/lime/releases/tag/v{}",
         version.trim_start_matches('v')
     )
 }
@@ -195,16 +195,18 @@ fn build_update_info(
     latest: Option<String>,
     release_notes: Option<String>,
     pub_date: Option<String>,
+    download_url: Option<String>,
     error: Option<String>,
 ) -> UpdateInfo {
     let current_version = UpdateCheckService::current_version().to_string();
     let latest_version = latest
         .as_deref()
         .map(|value| value.trim_start_matches('v').to_string());
-    let download_url = latest_version
+    let release_page_url = latest_version
         .as_deref()
         .map(release_tag_url)
         .or_else(|| Some(FALLBACK_RELEASES_URL.to_string()));
+    let download_url = download_url.or_else(|| release_page_url.clone());
     let has_update = latest_version
         .as_deref()
         .map(|latest_version| UpdateCheckService::version_compare(&current_version, latest_version))
@@ -215,7 +217,7 @@ fn build_update_info(
         latest_version,
         has_update,
         download_url: download_url.clone(),
-        release_notes_url: download_url,
+        release_notes_url: release_page_url,
         release_notes,
         pub_date,
         checked_at: current_unix_timestamp(),
@@ -228,20 +230,16 @@ fn build_update_info_from_cache_or_default(
     error: Option<String>,
 ) -> UpdateInfo {
     if let Some(cached) = cache {
-        let mut info = build_update_info(
+        return build_update_info(
             cached.latest.clone(),
             cached.release_notes.clone(),
             cached.pub_date.clone(),
+            cached.download_url.clone(),
             error,
         );
-        if cached.download_url.is_some() {
-            info.download_url = cached.download_url.clone();
-            info.release_notes_url = cached.download_url.clone();
-        }
-        return info;
     }
 
-    build_update_info(None, None, None, error)
+    build_update_info(None, None, None, None, error)
 }
 
 fn build_version_check_result(info: UpdateInfo) -> VersionCheckResult {
@@ -251,6 +249,7 @@ fn build_version_check_result(info: UpdateInfo) -> VersionCheckResult {
         has_update: info.has_update,
         download_url: info.download_url,
         release_notes: info.release_notes,
+        release_notes_url: info.release_notes_url,
         pub_date: info.pub_date,
         error: info.error,
     }
@@ -259,26 +258,49 @@ fn build_version_check_result(info: UpdateInfo) -> VersionCheckResult {
 fn manifest_to_cache(manifest: &StaticUpdateManifest, checked_at: u64) -> UpdateCheckCache {
     UpdateCheckCache {
         latest: Some(manifest.version.trim_start_matches('v').to_string()),
-        download_url: Some(release_tag_url(&manifest.version)),
+        download_url: manifest_platform_download_url(manifest)
+            .or_else(|| Some(release_tag_url(&manifest.version))),
         release_notes: manifest.notes.clone(),
         pub_date: manifest.pub_date.clone(),
         last_checked_unix: checked_at,
     }
 }
 
+fn manifest_platform_download_url(manifest: &StaticUpdateManifest) -> Option<String> {
+    current_platform_key()
+        .and_then(|platform_key| manifest.platforms.get(platform_key))
+        .filter(|platform| {
+            !platform.url.trim().is_empty()
+                && platform
+                    .signature
+                    .as_deref()
+                    .is_some_and(|signature| !signature.trim().is_empty())
+        })
+        .map(|platform| platform.url.trim())
+        .filter(|url| !url.is_empty())
+        .map(ToOwned::to_owned)
+}
+
 fn build_update_info_from_manifest(manifest: StaticUpdateManifest) -> UpdateInfo {
     let latest_version = manifest.version.trim_start_matches('v').to_string();
+    let download_url = manifest_platform_download_url(&manifest);
     let platform_error = match current_platform_key() {
         Some(platform_key)
             if manifest
                 .platforms
                 .get(platform_key)
-                .is_some_and(|platform| !platform.url.trim().is_empty()) =>
+                .is_some_and(|platform| {
+                    !platform.url.trim().is_empty()
+                        && platform
+                            .signature
+                            .as_deref()
+                            .is_some_and(|signature| !signature.trim().is_empty())
+                }) =>
         {
             None
         }
         Some(platform_key) if manifest.platforms.contains_key(platform_key) => Some(format!(
-            "已检测到新版本，但当前平台 {} 的安装包地址为空，请前往发布页手动下载",
+            "已检测到新版本，但当前平台 {} 的更新包地址或签名为空，请前往发布页手动下载",
             platform_key
         )),
         Some(platform_key) => Some(format!(
@@ -292,6 +314,7 @@ fn build_update_info_from_manifest(manifest: StaticUpdateManifest) -> UpdateInfo
         Some(latest_version),
         manifest.notes,
         manifest.pub_date,
+        download_url,
         platform_error,
     )
 }
@@ -840,6 +863,7 @@ mod tests {
     fn test_build_update_info_from_manifest() {
         let next_version_tag = next_patch_version_tag();
         let next_version = next_version_tag.trim_start_matches('v').to_string();
+        let platform_url = "https://updates.limecloud.com/lime/stable/v9.9.9/lime.app.tar.gz";
         let manifest = StaticUpdateManifest {
             version: next_version_tag,
             notes: Some("bug fixes".to_string()),
@@ -849,7 +873,7 @@ mod tests {
                     .unwrap_or("windows-x86_64")
                     .to_string(),
                 StaticUpdatePlatform {
-                    url: "https://example.com/lime.nsis.zip".to_string(),
+                    url: platform_url.to_string(),
                     signature: Some("sig".to_string()),
                 },
             )]),
@@ -858,6 +882,51 @@ mod tests {
         let info = build_update_info_from_manifest(manifest);
         assert_eq!(info.latest_version.as_deref(), Some(next_version.as_str()));
         assert!(info.has_update);
-        assert_eq!(info.error, None);
+        if current_platform_key().is_some() {
+            assert_eq!(info.download_url.as_deref(), Some(platform_url));
+            assert_eq!(info.error, None);
+        } else {
+            assert_eq!(
+                info.download_url.as_deref(),
+                Some(release_tag_url(&next_version).as_str())
+            );
+            assert!(info
+                .error
+                .as_deref()
+                .is_some_and(|message| message.contains("暂不支持")));
+        }
+    }
+
+    #[test]
+    fn test_build_update_info_from_manifest_requires_signature() {
+        let Some(platform_key) = current_platform_key() else {
+            return;
+        };
+        let manifest = StaticUpdateManifest {
+            version: next_patch_version_tag(),
+            notes: None,
+            pub_date: None,
+            platforms: HashMap::from([(
+                platform_key.to_string(),
+                StaticUpdatePlatform {
+                    url: "https://updates.limecloud.com/lime/stable/v9.9.9/lime.app.tar.gz"
+                        .to_string(),
+                    signature: None,
+                },
+            )]),
+        };
+
+        let info = build_update_info_from_manifest(manifest);
+        assert!(info.has_update);
+        let expected_release_url =
+            release_tag_url(info.latest_version.as_deref().expect("应存在最新版本"));
+        assert_eq!(
+            info.download_url.as_deref(),
+            Some(expected_release_url.as_str())
+        );
+        assert!(info
+            .error
+            .as_deref()
+            .is_some_and(|message| message.contains("更新包地址或签名为空")));
     }
 }

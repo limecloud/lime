@@ -79,22 +79,21 @@ describe("useWorkspaceProjectSelection", () => {
     localStorage.clear();
   });
 
-  it("应在新会话请求未处理前屏蔽最近项目恢复", () => {
+  it("新会话请求应保留最近工作区上下文", () => {
     localStorage.setItem(LAST_PROJECT_ID_KEY, JSON.stringify("project-local"));
     const harness = mountHook({
       newChatAt: 123,
     });
 
     try {
-      expect(harness.getValue().projectId).toBeUndefined();
+      expect(harness.getValue().projectId).toBe("project-local");
       expect(harness.getValue().shouldDisableSessionRestore).toBe(true);
 
       act(() => {
         harness.getValue().markNewChatRequestHandled("123");
-        harness.getValue().applyProjectSelection(null);
       });
 
-      expect(harness.getValue().projectId).toBeUndefined();
+      expect(harness.getValue().projectId).toBe("project-local");
     } finally {
       harness.unmount();
     }

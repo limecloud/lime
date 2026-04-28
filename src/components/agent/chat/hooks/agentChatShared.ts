@@ -408,10 +408,7 @@ function resolveRecentTopicPriority(topic: RecentSessionLabelSource): number {
     return 0;
   }
 
-  if (
-    topic.status === "failed" &&
-    topic.statusReason === "workspace_error"
-  ) {
+  if (topic.status === "failed" && topic.statusReason === "workspace_error") {
     return 1;
   }
 

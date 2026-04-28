@@ -107,7 +107,8 @@ export function useTeamWorkspaceBoardComposer({
     useTeamWorkspaceActivityPreviews({
       activityRefreshVersionBySessionId,
       activityTimelineEntryLimit: DEFAULT_ACTIVITY_TIMELINE_ENTRY_LIMIT,
-      basePreviewableRailSessions: sessionGraphState.basePreviewableRailSessions,
+      basePreviewableRailSessions:
+        sessionGraphState.basePreviewableRailSessions,
       liveActivityBySessionId,
       selectedBaseSession: runtimeState.selectedBaseSession,
       selectedSession: runtimeState.selectedSession,

@@ -1,13 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
-import {
-  Settings2,
-  ArrowRight,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { getConfig } from "@/lib/api/appConfig";
 import type { CreationMode } from "./types";
 import { Button } from "@/components/ui/button";
-import { ProjectSelector } from "@/components/projects/ProjectSelector";
 import { toast } from "sonner";
 import {
   buildRecommendationPrompt,
@@ -114,15 +110,20 @@ const PageContainer = styled.div.attrs({
   background:
     radial-gradient(
       circle at 8% 12%,
-      rgba(132, 204, 22, 0.08),
-      rgba(132, 204, 22, 0) 28%
+      var(--lime-home-glow-primary, rgba(132, 204, 22, 0.08)),
+      transparent 28%
     ),
     radial-gradient(
       circle at 76% 16%,
-      rgba(186, 230, 253, 0.16),
-      rgba(186, 230, 253, 0) 30%
+      var(--lime-home-glow-secondary, rgba(186, 230, 253, 0.16)),
+      transparent 30%
     ),
-    linear-gradient(180deg, #f8fcf7 0%, #f9fbf8 36%, #f5faf7 100%);
+    linear-gradient(
+      180deg,
+      var(--lime-home-bg-start, #f8fcf7) 0%,
+      var(--lime-home-bg-mid, #f9fbf8) 42%,
+      var(--lime-home-bg-end, #f5faf7) 100%
+    );
 `;
 
 const ContentWrapper = styled.div.attrs({
@@ -145,10 +146,14 @@ const RecommendationShelf = styled.div`
   flex-direction: column;
   gap: 0.88rem;
   border-radius: 30px;
-  border: 1px solid rgba(226, 232, 240, 0.92);
-  background: linear-gradient(180deg, #fcfffb 0%, #f8fcfa 100%);
+  border: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.92));
+  background: linear-gradient(
+    180deg,
+    var(--lime-surface-subtle, #fcfffb) 0%,
+    var(--lime-surface-soft, #f8fcfa) 100%
+  );
   padding: 1rem 1.05rem 0.95rem;
-  box-shadow: 0 22px 42px -38px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 22px 42px -38px var(--lime-shadow-color);
 `;
 
 const RecommendationShelfHeader = styled.div`
@@ -172,45 +177,45 @@ const RecommendationShelfHeaderTitle = styled.div`
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgb(71 85 105);
+  color: var(--lime-text, rgb(71 85 105));
 `;
 
 const RecommendationShelfHeaderDescription = styled.div`
   font-size: 13px;
   line-height: 1.55;
-  color: rgb(100 116 139);
+  color: var(--lime-text-muted, rgb(100 116 139));
 `;
 
 const RecommendationShelfInlineBadge = styled.span`
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  border: 1px solid rgb(226 232 240);
-  background: rgb(248 250 252);
+  border: 1px solid var(--lime-surface-border, rgb(226 232 240));
+  background: var(--lime-surface-soft, rgb(248 250 252));
   padding: 0.1rem 0.38rem;
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
-  color: rgb(100 116 139);
+  color: var(--lime-text-muted, rgb(100 116 139));
 `;
 
 const RecommendationShelfBadge = styled.span`
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  border: 1px solid rgb(209 250 229);
-  background: rgb(236 253 245);
+  border: 1px solid var(--lime-surface-border-strong, rgb(209 250 229));
+  background: var(--lime-brand-soft, rgb(236 253 245));
   padding: 0.18rem 0.42rem;
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
-  color: rgb(5 150 105);
+  color: var(--lime-brand-strong, rgb(5 150 105));
 `;
 
 const RecommendationShelfEmptyState = styled.div`
   font-size: 12px;
   line-height: 1.5;
-  color: rgb(148 163 184);
+  color: var(--lime-text-muted, rgb(148 163 184));
   padding: 0.1rem 0;
 `;
 
@@ -219,14 +224,18 @@ const RecommendationSignalBanner = styled.div`
   flex-direction: column;
   gap: 0.45rem;
   border-radius: 18px;
-  border: 1px solid rgba(191, 219, 254, 0.95);
+  border: 1px solid var(--lime-home-card-border, rgba(191, 219, 254, 0.95));
   background:
     radial-gradient(
       circle at top right,
-      rgba(186, 230, 253, 0.26),
+      var(--lime-home-glow-secondary, rgba(186, 230, 253, 0.26)),
       rgba(255, 255, 255, 0) 48%
     ),
-    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98));
+    linear-gradient(
+      180deg,
+      var(--lime-surface-soft, rgba(248, 250, 252, 0.96)),
+      var(--lime-surface, rgba(255, 255, 255, 0.98))
+    );
   padding: 0.9rem 0.95rem;
 `;
 
@@ -241,19 +250,19 @@ const RecommendationSignalBannerTitle = styled.div`
   font-size: 12px;
   font-weight: 600;
   line-height: 1.6;
-  color: rgb(15 23 42);
+  color: var(--lime-text-strong, rgb(15 23 42));
 `;
 
 const RecommendationSignalBannerSummary = styled.div`
   font-size: 12px;
   line-height: 1.65;
-  color: rgb(71 85 105);
+  color: var(--lime-text, rgb(71 85 105));
 `;
 
 const RecommendationSignalBannerFootnote = styled.div`
   font-size: 11px;
   line-height: 1.6;
-  color: rgb(14 116 144);
+  color: var(--lime-info, rgb(14 116 144));
 `;
 
 const RecommendationLeadCard = styled.button`
@@ -264,25 +273,19 @@ const RecommendationLeadCard = styled.button`
   align-items: flex-start;
   gap: 0.72rem;
   border-radius: 30px;
-  border: 1px solid rgba(191, 219, 254, 0.92);
-  background:
-    radial-gradient(
-      circle at top right,
-      rgba(186, 230, 253, 0.48),
-      rgba(255, 255, 255, 0) 42%
-    ),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(240, 249, 255, 0.94));
+  border: 1px solid var(--lime-home-card-border, rgba(191, 219, 254, 0.92));
+  background: var(--lime-home-card-surface-strong);
   padding: 1.22rem 1.25rem 1.18rem;
   text-align: left;
-  color: rgb(51 65 85);
+  color: var(--lime-text, rgb(51 65 85));
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
     transform 180ms ease;
 
   &:hover {
-    border-color: rgb(147 197 253);
-    box-shadow: 0 18px 42px -30px rgba(59, 130, 246, 0.22);
+    border-color: var(--lime-home-card-hover-border, rgb(147 197 253));
+    box-shadow: 0 18px 42px -30px var(--lime-shadow-color);
     transform: translateY(-1px);
   }
 `;
@@ -301,26 +304,26 @@ const RecommendationLeadEyebrow = styled.span`
   font-size: 12px;
   font-weight: 600;
   line-height: 1.4;
-  color: rgb(3 105 161);
+  color: var(--lime-info, rgb(3 105 161));
 `;
 
 const RecommendationLeadTitle = styled.div`
   font-size: 18px;
   font-weight: 600;
   line-height: 1.4;
-  color: rgb(15 23 42);
+  color: var(--lime-text-strong, rgb(15 23 42));
 `;
 
 const RecommendationLeadSummary = styled.div`
   font-size: 13px;
   line-height: 1.65;
-  color: rgb(71 85 105);
+  color: var(--lime-text, rgb(71 85 105));
 `;
 
 const RecommendationLeadMeta = styled.div`
   font-size: 12px;
   line-height: 1.6;
-  color: rgb(100 116 139);
+  color: var(--lime-text-muted, rgb(100 116 139));
 `;
 
 const RecommendationLeadFooter = styled.div`
@@ -330,7 +333,7 @@ const RecommendationLeadFooter = styled.div`
   padding-top: 0.2rem;
   font-size: 12px;
   font-weight: 600;
-  color: rgb(15 23 42);
+  color: var(--lime-text-strong, rgb(15 23 42));
 `;
 
 const RecommendationAssistGroup = styled.div`
@@ -344,7 +347,7 @@ const RecommendationAssistLabel = styled.div`
   font-size: 13px;
   font-weight: 600;
   line-height: 1.45;
-  color: rgb(71 85 105);
+  color: var(--lime-text, rgb(71 85 105));
 `;
 
 const RecommendationAssistList = styled.div`
@@ -369,20 +372,20 @@ const RecommendationAssistCard = styled.button`
   align-items: flex-start;
   gap: 0.35rem;
   border-radius: 22px;
-  border: 1px solid rgba(219, 234, 254, 0.98);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.92));
+  border: 1px solid
+    var(--lime-home-card-border-muted, rgba(219, 234, 254, 0.98));
+  background: var(--lime-home-card-surface-strong);
   padding: 0.96rem 1rem;
   text-align: left;
-  color: rgb(51 65 85);
+  color: var(--lime-text, rgb(51 65 85));
   transition:
     border-color 180ms ease,
     background-color 180ms ease,
     transform 180ms ease;
 
   &:hover {
-    border-color: rgb(147 197 253);
-    background: rgb(255 255 255);
+    border-color: var(--lime-home-card-hover-border, rgb(147 197 253));
+    background: var(--lime-surface, rgb(255 255 255));
     transform: translateY(-1px);
   }
 `;
@@ -400,19 +403,19 @@ const RecommendationAssistCardTitle = styled.div`
   font-size: 15px;
   font-weight: 600;
   line-height: 1.45;
-  color: rgb(15 23 42);
+  color: var(--lime-text-strong, rgb(15 23 42));
 `;
 
 const RecommendationAssistCardSummary = styled.div`
   font-size: 12px;
   line-height: 1.55;
-  color: rgb(100 116 139);
+  color: var(--lime-text-muted, rgb(100 116 139));
 `;
 
 const RecommendationAssistFootnote = styled.div`
   font-size: 12px;
   line-height: 1.55;
-  color: rgb(148 163 184);
+  color: var(--lime-text-muted, rgb(148 163 184));
 `;
 
 const RecommendationSupplementalPanel = styled.div`
@@ -421,13 +424,13 @@ const RecommendationSupplementalPanel = styled.div`
   flex-direction: column;
   gap: 0.56rem;
   padding-top: 0.2rem;
-  border-top: 1px solid rgba(226, 232, 240, 0.88);
+  border-top: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.88));
 `;
 
 const RecommendationSupplementalLabel = styled.div`
   font-size: 12px;
   line-height: 1.5;
-  color: rgb(148 163 184);
+  color: var(--lime-text-muted, rgb(148 163 184));
 `;
 
 const RecommendationSupplementalRow = styled.div`
@@ -442,22 +445,22 @@ const RecommendationSupplementalLink = styled.button`
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  border: 1px solid rgb(226 232 240);
-  background: rgb(255 255 255);
+  border: 1px solid var(--lime-surface-border, rgb(226 232 240));
+  background: var(--lime-surface, rgb(255 255 255));
   padding: 0.42rem 0.78rem;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.2;
-  color: rgb(71 85 105);
+  color: var(--lime-text, rgb(71 85 105));
   transition:
     border-color 180ms ease,
     background-color 180ms ease,
     color 180ms ease;
 
   &:hover {
-    border-color: rgb(203 213 225);
-    background: rgb(248 250 252);
-    color: rgb(15 23 42);
+    border-color: var(--lime-surface-border-strong, rgb(203 213 225));
+    background: var(--lime-surface-soft, rgb(248 250 252));
+    color: var(--lime-text-strong, rgb(15 23 42));
   }
 `;
 
@@ -486,17 +489,21 @@ const RecommendationTabButton = styled.button<{ $active: boolean }>`
   border-radius: 9999px;
   border: 1px solid
     ${({ $active }) =>
-      $active ? "rgba(134, 239, 172, 0.72)" : "rgba(226, 232, 240, 0.94)"};
+      $active
+        ? "var(--lime-surface-border-strong, rgba(134, 239, 172, 0.72))"
+        : "var(--lime-surface-border, rgba(226, 232, 240, 0.94))"};
   background: ${({ $active }) =>
     $active
-      ? "linear-gradient(180deg, rgba(240, 253, 244, 0.98), rgba(220, 252, 231, 0.92))"
-      : "rgba(255, 255, 255, 0.94)"};
+      ? "var(--lime-brand-soft, linear-gradient(180deg, rgba(240, 253, 244, 0.98), rgba(220, 252, 231, 0.92)))"
+      : "var(--lime-surface, rgba(255, 255, 255, 0.94))"};
   padding: 0.5rem 0.85rem;
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
   color: ${({ $active }) =>
-    $active ? "rgb(22 101 52)" : "rgb(71 85 105)"};
+    $active
+      ? "var(--lime-brand-strong, rgb(22 101 52))"
+      : "var(--lime-text, rgb(71 85 105))"};
   transition:
     border-color 180ms ease,
     background-color 180ms ease,
@@ -506,13 +513,15 @@ const RecommendationTabButton = styled.button<{ $active: boolean }>`
 
   &:hover {
     border-color: ${({ $active }) =>
-      $active ? "rgba(110, 231, 183, 0.84)" : "rgba(203, 213, 225, 0.96)"};
-    color: rgb(15 23 42);
+      $active
+        ? "var(--lime-surface-border-strong, rgba(110, 231, 183, 0.84))"
+        : "var(--lime-surface-border, rgba(203, 213, 225, 0.96))"};
+    color: var(--lime-text-strong, rgb(15 23 42));
     background: ${({ $active }) =>
       $active
-        ? "linear-gradient(180deg, rgba(236, 253, 245, 1), rgba(220, 252, 231, 0.98))"
-        : "rgb(255 255 255)"};
-    box-shadow: 0 14px 28px -28px rgba(15, 23, 42, 0.16);
+        ? "var(--lime-brand-soft, linear-gradient(180deg, rgba(236, 253, 245, 1), rgba(220, 252, 231, 0.98)))"
+        : "var(--lime-surface, rgb(255 255 255))"};
+    box-shadow: 0 14px 28px -28px var(--lime-shadow-color);
     transform: translateY(-1px);
   }
 `;
@@ -525,22 +534,28 @@ const RecommendationTabCount = styled.span<{ $active: boolean }>`
   height: 1.35rem;
   border-radius: 9999px;
   background: ${({ $active }) =>
-    $active ? "rgba(255, 255, 255, 0.96)" : "rgba(248, 250, 252, 0.98)"};
+    $active
+      ? "var(--lime-surface, rgba(255, 255, 255, 0.96))"
+      : "var(--lime-surface-soft, rgba(248, 250, 252, 0.98))"};
   border: 1px solid
     ${({ $active }) =>
-      $active ? "rgba(134, 239, 172, 0.64)" : "rgba(226, 232, 240, 0.96)"};
+      $active
+        ? "var(--lime-surface-border-strong, rgba(134, 239, 172, 0.64))"
+        : "var(--lime-surface-border, rgba(226, 232, 240, 0.96))"};
   padding: 0 0.35rem;
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
   color: ${({ $active }) =>
-    $active ? "rgb(21 128 61)" : "rgb(100 116 139)"};
+    $active
+      ? "var(--lime-brand-strong, rgb(21 128 61))"
+      : "var(--lime-text-muted, rgb(100 116 139))"};
 `;
 
 const RecommendationTabCaption = styled.div`
   font-size: 12px;
   line-height: 1.6;
-  color: rgb(100 116 139);
+  color: var(--lime-text-muted, rgb(100 116 139));
 `;
 
 const RecommendationPanels = styled.div`
@@ -560,7 +575,6 @@ const RecommendationTabPanel = styled.section`
     display: none;
   }
 `;
-
 
 interface EmptyStateProps extends SkillSelectionSourceProps {
   input: string;
@@ -640,10 +654,6 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   projectId?: string | null;
   /** 当前会话 ID */
   sessionId?: string | null;
-  /** 项目切换 */
-  onProjectChange?: (projectId: string) => void;
-  /** 打开设置 */
-  onOpenSettings?: () => void;
   /** 当前 runtime tool surface */
   runtimeToolAvailability?: RuntimeToolAvailability | null;
   /** 当前执行态摘要 */
@@ -864,8 +874,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onOpenSceneAppsDirectory,
   projectId = null,
   sessionId = null,
-  onProjectChange,
-  onOpenSettings,
   isLoading = false,
   disabled = false,
   creationReplaySurface = null,
@@ -941,10 +949,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     appendSelectedTextToRecommendation,
     setAppendSelectedTextToRecommendation,
   ] = useState(true);
-  const [
-    curatedTaskTemplatesVersion,
-    setCuratedTaskTemplatesVersion,
-  ] = useState(0);
+  const [curatedTaskTemplatesVersion, setCuratedTaskTemplatesVersion] =
+    useState(0);
   const [
     curatedTaskRecommendationSignalsVersion,
     setCuratedTaskRecommendationSignalsVersion,
@@ -1060,18 +1066,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     void curatedTaskTemplatesVersion;
     void curatedTaskRecommendationSignalsVersion;
     return listCuratedTaskTemplates();
-  }, [
-    curatedTaskRecommendationSignalsVersion,
-    curatedTaskTemplatesVersion,
-  ]);
+  }, [curatedTaskRecommendationSignalsVersion, curatedTaskTemplatesVersion]);
 
   const latestReviewRecommendationSignal = useMemo(() => {
     void curatedTaskRecommendationSignalsVersion;
-    return listCuratedTaskRecommendationSignals({
-      projectId,
-    })
-      .filter((signal) => signal.source === "review_feedback")
-      .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
+    return (
+      listCuratedTaskRecommendationSignals({
+        projectId,
+      })
+        .filter((signal) => signal.source === "review_feedback")
+        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
+    );
   }, [curatedTaskRecommendationSignalsVersion, projectId]);
 
   const recentSceneUsageBySceneKey = useMemo(() => {
@@ -1236,19 +1241,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       const mergedReferenceMemoryIds =
         normalizeCuratedTaskReferenceMemoryIds([
           ...(initialReferenceMemoryIds ?? []),
-          ...(extractCuratedTaskReferenceMemoryIds(
-            mergedReferenceEntries,
-          ) ?? []),
+          ...(extractCuratedTaskReferenceMemoryIds(mergedReferenceEntries) ??
+            []),
           ...effectiveDefaultCuratedTaskReferenceMemoryIds,
         ]) ?? null;
       setCuratedTaskLauncherTask(template);
       setCuratedTaskLauncherInitialInputValues(initialInputValues ?? null);
-      setCuratedTaskLauncherInitialReferenceMemoryIds(
-        mergedReferenceMemoryIds,
-      );
-      setCuratedTaskLauncherInitialReferenceEntries(
-        mergedReferenceEntries,
-      );
+      setCuratedTaskLauncherInitialReferenceMemoryIds(mergedReferenceMemoryIds);
+      setCuratedTaskLauncherInitialReferenceEntries(mergedReferenceEntries);
       setCuratedTaskLauncherPrefillHint(prefillHint ?? null);
     },
     [
@@ -1324,7 +1324,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         void onLaunchBrowserAssist?.();
       }
 
-      const resolvedTemplate = findCuratedTaskTemplateById(template.id) ?? template;
+      const resolvedTemplate =
+        findCuratedTaskTemplateById(template.id) ?? template;
       const launchPrompt = buildCuratedTaskLaunchPrompt({
         task: resolvedTemplate,
         inputValues,
@@ -1338,7 +1339,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       const promptWithSelection = replaceCuratedTaskLaunchPromptInInput({
         currentInput: input,
         previousPrompt:
-          activeCuratedTask?.id === template.id ? activeCuratedTask.prompt : null,
+          activeCuratedTask?.id === template.id
+            ? activeCuratedTask.prompt
+            : null,
         nextPrompt,
       });
       setActiveCapability({
@@ -1378,13 +1381,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     ).map((featured) => {
       const template = featured.template;
       const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(template);
-      const reviewPrefillSnapshot = buildSceneAppExecutionReviewPrefillSnapshot({
-        referenceEntries: [
-          ...effectiveDefaultCuratedTaskReferenceEntries,
-          ...(launchPrefill?.referenceEntries ?? []),
-        ],
-        taskId: template.id,
-      });
+      const reviewPrefillSnapshot = buildSceneAppExecutionReviewPrefillSnapshot(
+        {
+          referenceEntries: [
+            ...effectiveDefaultCuratedTaskReferenceEntries,
+            ...(launchPrefill?.referenceEntries ?? []),
+          ],
+          taskId: template.id,
+        },
+      );
       const metaPrefix = featured.reasonSummary
         ? `${featured.reasonSummary} · `
         : "";
@@ -1499,7 +1504,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       recommendationSolutionItems[0] ??
       recommendationShelfItems[0] ??
       null,
-    [primaryRecommendationItems, recommendationShelfItems, recommendationSolutionItems],
+    [
+      primaryRecommendationItems,
+      recommendationShelfItems,
+      recommendationSolutionItems,
+    ],
   );
 
   const alternativeRecommendationItems = useMemo(() => {
@@ -1541,7 +1550,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           .join(" "),
         152,
       ),
-      nextSteps: highlightedRecommendations.map((item) => item.title).join(" / "),
+      nextSteps: highlightedRecommendations
+        .map((item) => item.title)
+        .join(" / "),
       actionLabel: primarySuggestedRecommendation
         ? `继续去「${primarySuggestedRecommendation.title}」`
         : null,
@@ -1713,10 +1724,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       return "methods";
     }
     return "recommended";
-  }, [continuationShelfItems.length, directMethodItems.length, leadRecommendationItem]);
+  }, [
+    continuationShelfItems.length,
+    directMethodItems.length,
+    leadRecommendationItem,
+  ]);
 
-  const [launchDeckTab, setLaunchDeckTab] =
-    useState<LaunchDeckTab>(preferredLaunchDeckTab);
+  const [launchDeckTab, setLaunchDeckTab] = useState<LaunchDeckTab>(
+    preferredLaunchDeckTab,
+  );
 
   useEffect(() => {
     const availableTabs = new Set<LaunchDeckTab>();
@@ -1956,7 +1972,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 rounded-full border-sky-200 bg-white px-3 text-xs font-medium text-slate-700 hover:border-sky-300 hover:bg-sky-50"
+                className="h-8 rounded-full border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-surface)] px-3 text-xs font-medium text-[color:var(--lime-text)] hover:border-[color:var(--lime-surface-border-strong)] hover:bg-[color:var(--lime-brand-soft)]"
                 data-testid="entry-review-feedback-banner-action"
                 onClick={() => reviewFeedbackBanner.onAction?.()}
               >
@@ -1996,7 +2012,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               onClick={() => setLaunchDeckTab("continuation")}
             >
               继续这轮
-              <RecommendationTabCount $active={launchDeckTab === "continuation"}>
+              <RecommendationTabCount
+                $active={launchDeckTab === "continuation"}
+              >
                 {continuationShelfItems.length}
               </RecommendationTabCount>
             </RecommendationTabButton>
@@ -2019,7 +2037,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           ) : null}
         </RecommendationTabsRail>
 
-        <RecommendationTabCaption>{launchDeckTabCaption}</RecommendationTabCaption>
+        <RecommendationTabCaption>
+          {launchDeckTabCaption}
+        </RecommendationTabCaption>
       </RecommendationTabsRow>
 
       <RecommendationPanels>
@@ -2028,7 +2048,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             <RecommendationLeadCard
               type="button"
               data-testid={leadRecommendationItem.testId}
-              title={[leadRecommendationItem.summary, leadRecommendationItem.meta]
+              title={[
+                leadRecommendationItem.summary,
+                leadRecommendationItem.meta,
+              ]
                 .filter((segment) => segment.trim().length > 0)
                 .join(" · ")}
               onClick={() => {
@@ -2056,7 +2079,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                   {leadRecommendationItem.contextSummary}
                 </RecommendationLeadMeta>
               ) : null}
-              <RecommendationLeadMeta>{leadRecommendationItem.meta}</RecommendationLeadMeta>
+              <RecommendationLeadMeta>
+                {leadRecommendationItem.meta}
+              </RecommendationLeadMeta>
               <RecommendationLeadFooter>
                 开始这一轮
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -2070,7 +2095,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
           {alternativeRecommendationItems.length > 0 ? (
             <RecommendationAssistGroup>
-              <RecommendationAssistLabel>其他起手结果</RecommendationAssistLabel>
+              <RecommendationAssistLabel>
+                其他起手结果
+              </RecommendationAssistLabel>
               <RecommendationAssistList>
                 {alternativeRecommendationItems.map((item) => (
                   <RecommendationAssistCard
@@ -2126,7 +2153,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                         {item.title}
                       </RecommendationAssistCardTitle>
                       {item.badge ? (
-                        <RecommendationShelfBadge>{item.badge}</RecommendationShelfBadge>
+                        <RecommendationShelfBadge>
+                          {item.badge}
+                        </RecommendationShelfBadge>
                       ) : null}
                     </RecommendationAssistCardHeader>
                     <RecommendationAssistCardSummary>
@@ -2145,7 +2174,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
         <RecommendationTabPanel hidden={launchDeckTab !== "methods"}>
           <RecommendationAssistGroup>
-            <RecommendationAssistLabel>也可以直接按做法开工</RecommendationAssistLabel>
+            <RecommendationAssistLabel>
+              也可以直接按做法开工
+            </RecommendationAssistLabel>
             {directMethodItems.length > 0 ? (
               <RecommendationAssistList>
                 {directMethodItems.map((item) => (
@@ -2163,7 +2194,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                         {item.title}
                       </RecommendationAssistCardTitle>
                       {item.badge ? (
-                        <RecommendationShelfBadge>{item.badge}</RecommendationShelfBadge>
+                        <RecommendationShelfBadge>
+                          {item.badge}
+                        </RecommendationShelfBadge>
                       ) : null}
                     </RecommendationAssistCardHeader>
                     <RecommendationAssistCardSummary>
@@ -2280,44 +2313,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     </RecommendationSupplementalPanel>
   ) : null;
 
-  const headerControls = onProjectChange ? (
-    <div className="flex w-full justify-start sm:w-auto sm:justify-end">
-      <div className="inline-flex max-w-full items-center rounded-[28px] border border-slate-200/90 bg-white/96 p-1.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.25)]">
-        <ProjectSelector
-          value={projectId ?? null}
-          onChange={onProjectChange}
-          workspaceType={activeTheme}
-          placeholder="选择项目"
-          dropdownSide="bottom"
-          dropdownAlign="end"
-          enableManagement={activeTheme === "general"}
-          density="compact"
-          chrome="embedded"
-          className="min-w-[210px] max-w-[320px]"
-        />
-        {onOpenSettings ? (
-          <>
-            <div
-              className="mx-1.5 h-7 w-px shrink-0 bg-slate-200/80"
-              aria-hidden="true"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-[20px] text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-              onClick={onOpenSettings}
-              aria-label="打开设置"
-              title="打开设置"
-            >
-              <Settings2 size={18} />
-            </Button>
-          </>
-        ) : null}
-      </div>
-    </div>
-  ) : null;
-
   return (
     <PageContainer>
       <ContentWrapper>
@@ -2339,7 +2334,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               defaultQuickActionsPanel
             )
           }
-          headerControls={headerControls}
         />
       </ContentWrapper>
       <CuratedTaskLauncherDialog

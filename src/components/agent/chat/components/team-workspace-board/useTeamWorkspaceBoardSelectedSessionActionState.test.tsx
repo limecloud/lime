@@ -4,7 +4,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useTeamWorkspaceBoardSelectedSessionActionState } from "./useTeamWorkspaceBoardSelectedSessionActionState";
 
-type HookProps = Parameters<typeof useTeamWorkspaceBoardSelectedSessionActionState>[0];
+type HookProps = Parameters<
+  typeof useTeamWorkspaceBoardSelectedSessionActionState
+>[0];
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
@@ -13,9 +15,9 @@ function renderHook(props?: Partial<HookProps>) {
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  let latestValue:
-    | ReturnType<typeof useTeamWorkspaceBoardSelectedSessionActionState>
-    | null = null;
+  let latestValue: ReturnType<
+    typeof useTeamWorkspaceBoardSelectedSessionActionState
+  > | null = null;
 
   const defaultProps: HookProps = {
     completedTeamSessionIds: [],

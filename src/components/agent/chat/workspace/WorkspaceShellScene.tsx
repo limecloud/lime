@@ -111,7 +111,11 @@ export function WorkspaceShellScene({
       : null;
 
   return (
-    <PageContainer $compact={compactChrome}>
+    <PageContainer
+      $compact={compactChrome}
+      className="lime-workbench-theme-scope"
+      data-testid="workspace-shell-scene"
+    >
       {isThemeWorkbench ? (
         generalWorkbenchSidebarNode
       ) : shouldRenderChatSidebar && chatSidebarProps ? (

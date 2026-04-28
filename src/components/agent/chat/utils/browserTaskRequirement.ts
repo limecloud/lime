@@ -68,7 +68,7 @@ const PLATFORM_HINTS: BrowserPlatformHint[] = [
 ];
 
 const REQUIRED_ACTION_PATTERN =
-  /发布|发文|发表|提交|上传|登录|登陆|扫码|验证码|授权|填写|输入|点击|勾选|切换|保存|创建草稿|提交表单|群发|发布文章|发布内容|发送/i;
+  /发布文章|发布内容|发文|发表|提交|上传|登录|登陆|扫码|验证码|授权|填写|点击|勾选|切换|保存|创建草稿|提交表单|群发/i;
 const ADMIN_SURFACE_PATTERN =
   /后台|管理台|控制台|创作中心|创作者中心|管理后台|仪表盘|设置页|草稿箱|发布页|编辑器|表单/i;
 const USER_STEP_PATTERN =

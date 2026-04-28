@@ -999,8 +999,11 @@ export const AgentThreadReliabilityPanel: React.FC<
   const oemPolicy = threadRead?.oem_policy || null;
   const fallbackChain = Array.isArray(threadRead?.fallback_chain)
     ? threadRead?.fallback_chain || []
-    : Array.isArray((runtimeSummary as { fallbackChain?: unknown } | null)?.fallbackChain)
-      ? (((runtimeSummary as { fallbackChain?: string[] | null }).fallbackChain || []) as string[])
+    : Array.isArray(
+          (runtimeSummary as { fallbackChain?: unknown } | null)?.fallbackChain,
+        )
+      ? (((runtimeSummary as { fallbackChain?: string[] | null })
+          .fallbackChain || []) as string[])
       : [];
   const runtimeDecisionReason =
     threadRead?.decision_reason ||
@@ -1405,7 +1408,9 @@ export const AgentThreadReliabilityPanel: React.FC<
 
       {runtimeDecisionReason || fallbackChain.length > 0 || oemPolicy ? (
         <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-3">
-          <div className="text-sm font-medium text-foreground">当前路由事实</div>
+          <div className="text-sm font-medium text-foreground">
+            当前路由事实
+          </div>
           <div className="mt-3 space-y-2 text-sm text-slate-700">
             {runtimeDecisionReason ? (
               <div>
@@ -1437,11 +1442,17 @@ export const AgentThreadReliabilityPanel: React.FC<
                     OEM 额度偏低
                   </Badge>
                 ) : null}
-                {((oemPolicy as { defaultModel?: string | null }).defaultModel ||
-                  (oemPolicy as { selectedModel?: string | null }).selectedModel) ? (
+                {(oemPolicy as { defaultModel?: string | null }).defaultModel ||
+                (oemPolicy as { selectedModel?: string | null })
+                  .selectedModel ? (
                   <span className="text-xs text-muted-foreground">
-                    OEM 模型 {((oemPolicy as { defaultModel?: string | null }).defaultModel ||
-                      (oemPolicy as { selectedModel?: string | null }).selectedModel)!}
+                    OEM 模型{" "}
+                    {
+                      ((oemPolicy as { defaultModel?: string | null })
+                        .defaultModel ||
+                        (oemPolicy as { selectedModel?: string | null })
+                          .selectedModel)!
+                    }
                   </span>
                 ) : null}
               </div>

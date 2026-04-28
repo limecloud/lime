@@ -76,9 +76,10 @@ export function TeamWorkspaceTeamOverviewChrome({
     "h-8 rounded-full border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-100";
   const compactViewButtonClassName =
     "h-8 rounded-full border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 hover:bg-white";
-  const compactSummaryStatusChips = boardChromeDisplay.compactToolbarChips.filter(
-    (chip) => chip.key !== "focus",
-  );
+  const compactSummaryStatusChips =
+    boardChromeDisplay.compactToolbarChips.filter(
+      (chip) => chip.key !== "focus",
+    );
   const hasCompactTaskActions =
     canWaitAnyActiveTeamSession || canCloseCompletedTeamSessions;
 

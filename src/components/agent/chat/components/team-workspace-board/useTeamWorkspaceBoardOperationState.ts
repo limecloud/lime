@@ -3,9 +3,7 @@ import type {
   TeamWorkspaceControlSummary,
   TeamWorkspaceWaitSummary,
 } from "../../teamWorkspaceRuntime";
-import {
-  buildTeamWorkspaceSessionControlState,
-} from "../../team-workspace-runtime/sessionStateSelectors";
+import { buildTeamWorkspaceSessionControlState } from "../../team-workspace-runtime/sessionStateSelectors";
 import {
   buildVisibleTeamOperationState,
   type TeamOperationDisplayEntry,

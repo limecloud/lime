@@ -24,7 +24,9 @@ interface UseTeamWorkspaceBoardSelectedInlineDetailParams {
   onSelectedSessionInputDraftChange: TeamWorkspaceCanvasSelectedInlineDetailProps["onSelectedSessionInputDraftChange"];
   onSelectedSessionSendInput: TeamWorkspaceCanvasSelectedInlineDetailProps["onSelectedSessionSendInput"];
   pendingSessionAction?: {
-    action: NonNullable<TeamWorkspaceCanvasSelectedInlineDetailProps["pendingAction"]>;
+    action: NonNullable<
+      TeamWorkspaceCanvasSelectedInlineDetailProps["pendingAction"]
+    >;
   } | null;
   selectedActionPending: TeamWorkspaceCanvasSelectedInlineDetailProps["selectedActionPending"];
   selectedSession:
@@ -77,19 +79,25 @@ export function useTeamWorkspaceBoardSelectedInlineDetail({
       inlineTimelineEntryClassName={inlineTimelineEntryClassName}
       inlineTimelineFeedClassName={inlineTimelineFeedClassName}
       isChildSession={isChildSession}
-      onOpenSelectedSession={() => void onOpenSubagentSession?.(selectedSession.id)}
+      onOpenSelectedSession={() =>
+        void onOpenSubagentSession?.(selectedSession.id)
+      }
       onSelectedSessionAction={onSelectedSessionAction}
       onSelectedSessionInputDraftChange={onSelectedSessionInputDraftChange}
       onSelectedSessionSendInput={onSelectedSessionSendInput}
       pendingAction={
-        selectedActionPending ? pendingSessionAction?.action ?? null : null
+        selectedActionPending ? (pendingSessionAction?.action ?? null) : null
       }
       selectedActionPending={selectedActionPending}
       selectedSession={selectedSession}
       selectedSessionActivityEntries={selectedSessionActivityState.entries}
       selectedSessionActivityPreview={selectedSessionActivityState.previewState}
-      selectedSessionActivityPreviewText={selectedSessionActivityState.previewText}
-      selectedSessionActivityShouldPoll={selectedSessionActivityState.shouldPoll}
+      selectedSessionActivityPreviewText={
+        selectedSessionActivityState.previewText
+      }
+      selectedSessionActivityShouldPoll={
+        selectedSessionActivityState.shouldPoll
+      }
       selectedSessionInputDraft={selectedSessionInputDraft}
       selectedSessionInputMessage={selectedSessionInputMessage}
       selectedSessionSupportsActivityPreview={

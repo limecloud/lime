@@ -23,8 +23,7 @@ const SIDEBAR_CONTAINER_CLASSNAME =
 const SIDEBAR_COLLAPSE_HANDLE_CLASSNAME =
   "absolute right-[-10px] top-1/2 z-[2] inline-flex h-[60px] w-4 -translate-y-1/2 items-center justify-center rounded-r-[10px] border border-l-0 border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900";
 
-const SIDEBAR_HEADER_CLASSNAME =
-  "border-b border-slate-200 bg-white px-4 py-4";
+const SIDEBAR_HEADER_CLASSNAME = "border-b border-slate-200 bg-white px-4 py-4";
 
 const SIDEBAR_HEADER_META_ROW_CLASSNAME =
   "flex items-center justify-between gap-2.5";
@@ -32,8 +31,7 @@ const SIDEBAR_HEADER_META_ROW_CLASSNAME =
 const SIDEBAR_HEADER_ACTION_SLOT_CLASSNAME =
   "mt-[-2px] inline-flex shrink-0 items-center justify-center";
 
-const SIDEBAR_EYEBROW_CLASSNAME =
-  "text-[10px] font-semibold text-slate-500";
+const SIDEBAR_EYEBROW_CLASSNAME = "text-[10px] font-semibold text-slate-500";
 
 const SIDEBAR_TITLE_CLASSNAME =
   "mt-2.5 text-base font-semibold leading-6 text-slate-900";

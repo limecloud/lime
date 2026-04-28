@@ -9,6 +9,8 @@
 
 import React, {
   useCallback,
+  useEffect,
+  useMemo,
   useState,
   forwardRef,
   useImperativeHandle,
@@ -17,22 +19,21 @@ import { cn } from "@/lib/utils";
 import { useApiKeyProvider } from "@/hooks/useApiKeyProvider";
 import {
   apiKeyProviderApi,
-  UpdateProviderRequest,
+  type UpdateProviderRequest,
 } from "@/lib/api/apiKeyProvider";
-import { ProviderList } from "./ProviderList";
 import { ProviderSetting } from "./ProviderSetting";
-import { DeleteProviderDialog } from "./DeleteProviderDialog";
 import { ImportExportDialog } from "./ImportExportDialog";
-import type { ConnectionTestResult } from "./ConnectionTestButton";
+import type { ConnectionTestResult } from "./connectionTestTypes";
 import { resolveProviderTestModel } from "./ApiKeyProviderSection.helpers";
+import { ModelAddPanel } from "./ModelAddPanel";
+import { ModelProviderList } from "./ModelProviderList";
+import { buildEnabledModelItems } from "./ModelProviderList.utils";
 
 // ============================================================================
 // 类型定义
 // ============================================================================
 
 export interface ApiKeyProviderSectionProps {
-  /** 添加自定义 Provider 回调 */
-  onAddCustomProvider?: () => void;
   /** 额外的 CSS 类名 */
   className?: string;
 }
@@ -57,32 +58,23 @@ export interface ApiKeyProviderSectionRef {
  *
  * @example
  * ```tsx
- * <ApiKeyProviderSection
- *   ref={apiKeyProviderRef}
- *   onAddCustomProvider={() => setShowAddModal(true)}
- * />
+ * <ApiKeyProviderSection ref={apiKeyProviderRef} />
  * ```
  */
 export const ApiKeyProviderSection = forwardRef<
   ApiKeyProviderSectionRef,
   ApiKeyProviderSectionProps
->(({ onAddCustomProvider, className }, ref) => {
+>(({ className }, ref) => {
   // 使用 Hook 管理状态
   const {
-    providersByGroup,
+    providers,
     selectedProviderId,
     selectedProvider,
     loading,
-    searchQuery,
-    collapsedGroups,
     selectProvider,
-    setSearchQuery,
-    toggleGroup,
+    addCustomProvider,
     updateProvider,
     addApiKey,
-    deleteApiKey,
-    toggleApiKey,
-    deleteCustomProvider,
     exportConfig,
     importConfig,
     refresh,
@@ -97,10 +89,34 @@ export const ApiKeyProviderSection = forwardRef<
     [refresh],
   );
 
-  // 删除对话框状态
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   // 导入导出对话框状态
   const [showImportExportDialog, setShowImportExportDialog] = useState(false);
+  const [showAddModelFlow, setShowAddModelFlow] = useState(false);
+  const enabledModelItems = useMemo(
+    () => buildEnabledModelItems(providers),
+    [providers],
+  );
+
+  useEffect(() => {
+    if (showAddModelFlow) {
+      return;
+    }
+
+    if (enabledModelItems.length === 0) {
+      if (selectedProviderId) {
+        selectProvider(null);
+      }
+      return;
+    }
+
+    if (
+      !selectedProviderId ||
+      !enabledModelItems.some((item) => item.id === selectedProviderId)
+    ) {
+      selectProvider(enabledModelItems[0].id);
+    }
+  }, [enabledModelItems, selectProvider, selectedProviderId, showAddModelFlow]);
+
   const resolveCurrentTestModel = useCallback(() => {
     const input = document.getElementById(
       "custom-models",
@@ -126,28 +142,15 @@ export const ApiKeyProviderSection = forwardRef<
       apiKey: string,
       alias?: string,
     ): Promise<void> => {
-      console.log("[ApiKeyProviderSection] handleAddApiKey 被调用:", {
-        providerId,
-        selectedProviderId,
-        alias,
-      });
       await addApiKey(providerId, apiKey, alias);
     },
-    [addApiKey, selectedProviderId],
+    [addApiKey],
   );
 
   // ===== 连接测试 =====
   const handleTestConnection = useCallback(
     async (providerId: string): Promise<ConnectionTestResult> => {
       try {
-        const provider = selectedProvider;
-        if (!provider || provider.api_keys.length === 0) {
-          return {
-            success: false,
-            error: "没有可用的 API Key",
-          };
-        }
-
         const modelName = resolveCurrentTestModel();
 
         // 调用后端连接测试 API
@@ -169,52 +172,23 @@ export const ApiKeyProviderSection = forwardRef<
         };
       }
     },
-    [resolveCurrentTestModel, selectedProvider],
+    [resolveCurrentTestModel],
   );
 
-  const handleTestChat = useCallback(
-    async (providerId: string, prompt: string) => {
-      const provider = selectedProvider;
-      if (!provider || provider.api_keys.length === 0) {
-        return {
-          success: false,
-          error: "没有可用的 API Key",
-        };
-      }
-
-      const modelName = resolveCurrentTestModel();
-
-      try {
-        return await apiKeyProviderApi.testChat(providerId, modelName, prompt);
-      } catch (e) {
-        const msg =
-          e instanceof Error
-            ? e.message
-            : typeof e === "string"
-              ? e
-              : JSON.stringify(e);
-        return {
-          success: false,
-          error: msg || "对话测试失败",
-        };
-      }
+  const handleModelActivated = useCallback(
+    (providerId: string) => {
+      selectProvider(providerId);
+      setShowAddModelFlow(false);
     },
-    [resolveCurrentTestModel, selectedProvider],
+    [selectProvider],
   );
 
-  // ===== 删除 Provider =====
-  const handleDeleteProviderClick = useCallback(() => {
-    if (selectedProvider && !selectedProvider.is_system) {
-      setShowDeleteDialog(true);
-    }
-  }, [selectedProvider]);
-
-  const handleDeleteProviderConfirm = useCallback(
-    async (providerId: string) => {
-      await deleteCustomProvider(providerId);
-      setShowDeleteDialog(false);
+  const handleSelectEnabledModel = useCallback(
+    (providerId: string) => {
+      setShowAddModelFlow(false);
+      selectProvider(providerId);
     },
-    [deleteCustomProvider],
+    [selectProvider],
   );
 
   return (
@@ -225,43 +199,39 @@ export const ApiKeyProviderSection = forwardRef<
       )}
       data-testid="api-key-provider-section"
     >
-      {/* 左侧：Provider 列表 */}
-      <ProviderList
-        providersByGroup={providersByGroup}
+      {/* 左侧：已启用模型列表 */}
+      <ModelProviderList
+        providers={providers}
         selectedProviderId={selectedProviderId}
-        onProviderSelect={selectProvider}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        collapsedGroups={collapsedGroups}
-        onToggleGroup={toggleGroup}
-        onAddCustomProvider={onAddCustomProvider}
+        onProviderSelect={handleSelectEnabledModel}
+        onAddModel={() => setShowAddModelFlow(true)}
         onImportExport={() => setShowImportExportDialog(true)}
-        className="flex-shrink-0 bg-slate-50/80"
+        className="flex-shrink-0"
       />
 
-      {/* 右侧：Provider 设置面板 */}
+      {/* 右侧：Provider 设置面板 / 添加模型流程 */}
       <div className="relative flex-1 min-w-0 overflow-hidden bg-white">
-        <ProviderSetting
-          provider={selectedProvider}
-          onUpdate={handleUpdateProvider}
-          onAddApiKey={handleAddApiKey}
-          onDeleteApiKey={deleteApiKey}
-          onToggleApiKey={toggleApiKey}
-          onTestConnection={handleTestConnection}
-          onTestChat={handleTestChat}
-          onDeleteProvider={handleDeleteProviderClick}
-          loading={loading}
-          className="h-full"
-        />
+        {showAddModelFlow ? (
+          <ModelAddPanel
+            providers={providers}
+            onAddProvider={addCustomProvider}
+            onUpdateProvider={updateProvider}
+            onAddApiKey={handleAddApiKey}
+            onActivated={handleModelActivated}
+            onCancel={() => setShowAddModelFlow(false)}
+            className="h-full"
+          />
+        ) : (
+          <ProviderSetting
+            provider={selectedProvider}
+            onUpdate={handleUpdateProvider}
+            onAddApiKey={handleAddApiKey}
+            onTestConnection={handleTestConnection}
+            loading={loading}
+            className="h-full"
+          />
+        )}
       </div>
-
-      {/* 删除 Provider 确认对话框 */}
-      <DeleteProviderDialog
-        isOpen={showDeleteDialog}
-        onClose={() => setShowDeleteDialog(false)}
-        provider={selectedProvider}
-        onConfirm={handleDeleteProviderConfirm}
-      />
 
       {/* 导入导出对话框 */}
       <ImportExportDialog

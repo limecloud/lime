@@ -23,9 +23,8 @@ vi.mock("react-i18next", () => ({
         const values = options as Record<string, unknown>;
         const template =
           typeof values.defaultValue === "string" ? values.defaultValue : key;
-        return template.replace(
-          /\{\{(\w+)\}\}/g,
-          (_, name: string) => String(values[name] ?? ""),
+        return template.replace(/\{\{(\w+)\}\}/g, (_, name: string) =>
+          String(values[name] ?? ""),
         );
       }
 
@@ -68,31 +67,6 @@ async function waitForLoad() {
   await flushEffects();
 }
 
-function getBodyText() {
-  return document.body.textContent ?? "";
-}
-
-async function hoverTip(ariaLabel: string) {
-  const trigger = document.body.querySelector(
-    `button[aria-label='${ariaLabel}']`,
-  );
-  expect(trigger).toBeInstanceOf(HTMLButtonElement);
-
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    await flushEffects();
-  });
-
-  return trigger as HTMLButtonElement;
-}
-
-async function leaveTip(trigger: HTMLButtonElement | null) {
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
-    await flushEffects();
-  });
-}
-
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   const target = Array.from(container.querySelectorAll("button")).find(
     (button) => button.textContent?.includes(text),
@@ -133,7 +107,7 @@ beforeEach(() => {
   });
   mockDownloadUpdate.mockResolvedValue({
     success: false,
-    message: "下载失败，请手动下载最新版",
+    message: "安装更新失败: signature mismatch。请前往发布页手动下载最新版",
     filePath: undefined,
   });
 });
@@ -161,34 +135,33 @@ afterEach(() => {
 });
 
 describe("AboutSection", () => {
-  it("应渲染轻量总览头部与主要信息分区", async () => {
+  it("应只渲染必要的品牌、版本与更新信息", async () => {
     const container = renderComponent();
     await waitForLoad();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("关于 Lime");
-    expect(text).toContain("了解版本、更新入口和 Lime 的工作区定位。");
-    expect(text).toContain("当前版本 1.10.0");
-    expect(text).toContain("工作区主线 4 项");
-    expect(text).toContain("相关入口 3 个");
-    expect(text).toContain("产品定位");
-    expect(text).toContain("3 步开始创作");
-    expect(text).toContain("相关链接");
+    expect(container.querySelector("img[alt='Lime']")).toBeInstanceOf(
+      HTMLImageElement,
+    );
+    expect(text).toContain("Lime");
+    expect(text).toContain("Version 1.10.0 (1.10.0)");
+    expect(text).toContain("Copyright © 2026 Lime");
+    expect(text).toContain("可更新到 1.10.1");
+    expect(text).toContain("检查更新");
+    expect(text).toContain("下载更新");
   });
 
-  it("应把关于总览说明收进 tips", async () => {
-    renderComponent();
+  it("应移除关于页里的营销与能力说明噪音", async () => {
+    const container = renderComponent();
     await waitForLoad();
 
-    expect(getBodyText()).not.toContain(
-      "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
-    );
-
-    const overviewTip = await hoverTip("关于 Lime 总览说明");
-    expect(getBodyText()).toContain(
-      "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
-    );
-    await leaveTip(overviewTip);
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("产品定位");
+    expect(text).not.toContain("3 步开始创作");
+    expect(text).not.toContain("适合谁");
+    expect(text).not.toContain("工作区主线");
+    expect(text).not.toContain("可选能力");
+    expect(text).not.toContain("Made for creators");
   });
 
   it("点击更新按钮时应重新检查并允许触发下载", async () => {
@@ -208,7 +181,10 @@ describe("AboutSection", () => {
     });
 
     expect(mockDownloadUpdate).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("下载失败，请手动下载最新版");
+    expect(container.textContent).toContain(
+      "暂时无法自动安装更新，请使用网页下载最新版。",
+    );
+    expect(container.textContent).not.toContain("signature mismatch");
   });
 
   it("Windows 关于页应只提示单一 setup 安装包", async () => {
@@ -220,5 +196,25 @@ describe("AboutSection", () => {
     );
     expect(container.textContent).not.toContain("在线安装包");
     expect(container.textContent).not.toContain("offline 安装包");
+  });
+
+  it("更新检查失败时应隐藏技术错误", async () => {
+    mockCheckForUpdates.mockResolvedValueOnce({
+      current: "1.10.0",
+      latest: "1.10.1",
+      hasUpdate: false,
+      downloadUrl: undefined,
+      releaseNotes: undefined,
+      pubDate: undefined,
+      error: "更新清单请求失败（HTTP 404 Not Found），已回退本地缓存",
+    });
+
+    const container = renderComponent();
+    await waitForLoad();
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("暂时无法检查更新，请稍后再试。");
+    expect(text).not.toContain("HTTP 404");
+    expect(text).not.toContain("已回退本地缓存");
   });
 });

@@ -48,6 +48,7 @@ glob.workspace = true
 sysinfo.workspace = true
 whoami.workspace = true
 regex.workspace = true
+semver.workspace = true
 sha2.workspace = true
 base64.workspace = true
 md5.workspace = true

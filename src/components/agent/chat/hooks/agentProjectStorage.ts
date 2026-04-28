@@ -3,6 +3,8 @@ import { normalizeProjectId } from "../utils/topicProjectResolution";
 
 export const LAST_PROJECT_ID_KEY = "agent_last_project_id";
 export const SESSION_WORKSPACE_STORAGE_KEY_PREFIX = "agent_session_workspace_";
+export const PERSISTED_PROJECT_ID_CHANGED_EVENT =
+  "agent-persisted-project-id-changed";
 
 export function getSessionWorkspaceStorageKey(
   sessionId: string,
@@ -52,6 +54,16 @@ export function savePersistedProjectId(key: string, projectId: string): void {
 
   try {
     localStorage.setItem(key, JSON.stringify(normalized));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent(PERSISTED_PROJECT_ID_CHANGED_EVENT, {
+          detail: {
+            key,
+            projectId: normalized,
+          },
+        }),
+      );
+    }
   } catch {
     // ignore write errors
   }

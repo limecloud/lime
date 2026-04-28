@@ -8,11 +8,13 @@ import { TeamWorkspaceDock } from "./TeamWorkspaceDock";
 const { mockGetAgentRuntimeSession } = vi.hoisted(() => ({
   mockGetAgentRuntimeSession: vi.fn(),
 }));
-const { mockSafeInvoke, mockSafeListen, mockParseAgentEvent } = vi.hoisted(() => ({
-  mockSafeInvoke: vi.fn(),
-  mockSafeListen: vi.fn(),
-  mockParseAgentEvent: vi.fn((payload: unknown) => payload),
-}));
+const { mockSafeInvoke, mockSafeListen, mockParseAgentEvent } = vi.hoisted(
+  () => ({
+    mockSafeInvoke: vi.fn(),
+    mockSafeListen: vi.fn(),
+    mockParseAgentEvent: vi.fn((payload: unknown) => payload),
+  }),
+);
 
 vi.mock("@/lib/api/agentRuntime", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api/agentRuntime")>(
@@ -502,6 +504,8 @@ describe("TeamWorkspaceDock", () => {
     expect(dock).toBeTruthy();
     expect(panelInContainer).toBeNull();
     expect(panelInBody).toBeTruthy();
+    expect(panelInBody?.className).toContain("lime-workbench-theme-scope");
+    expect(panelInBody?.className).toContain("lime-workbench-surface-scope");
     expect(getComputedStyle(dock as HTMLElement).position).toBe("relative");
     expect(getComputedStyle(dock as HTMLElement).zIndex).toBe("120");
     expect(getComputedStyle(panelInBody as HTMLElement).position).toBe("fixed");

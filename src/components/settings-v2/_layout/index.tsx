@@ -19,9 +19,12 @@ import { SettingsSidebar } from "./SettingsSidebar";
 import { SettingsTabs } from "@/types/settings";
 import { Page, PageParams, type SettingsProviderView } from "@/types/page";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
-import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
+import { shouldReserveMacWindowControls } from "@/lib/windowControls";
 import { SettingsHomePage } from "../home";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
+import { Home } from "lucide-react";
+
+const SETTINGS_SIDEBAR_WIDTH_PX = 240;
 
 const AppearanceSettings = lazy(() =>
   import("../general/appearance").then((module) => ({
@@ -113,22 +116,84 @@ const LayoutContainer = styled.div`
   display: flex;
   flex: 1;
   min-height: 0;
-  background: hsl(var(--background));
+  background: var(--lime-app-bg, hsl(var(--background)));
 
   @media (max-width: 1200px) {
     flex-direction: column;
   }
 `;
 
-const HeaderBar = styled.div`
-  display: flex;
+const HeaderBar = styled.div<{ $reserveWindowControls: boolean }>`
+  display: grid;
+  grid-template-columns: ${SETTINGS_SIDEBAR_WIDTH_PX}px;
   align-items: center;
-  padding: 8px 24px;
-  border-bottom: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
+  gap: 0;
+  min-height: 86px;
+  padding: ${({ $reserveWindowControls }) =>
+    $reserveWindowControls ? "34px 24px 14px 0" : "24px 24px 14px 0"};
+  border-bottom: 1px solid var(--lime-surface-border, hsl(var(--border)));
+  background: var(--lime-app-bg, hsl(var(--background)));
+
+  @media (max-width: 1200px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: ${({ $reserveWindowControls }) =>
+      $reserveWindowControls ? "34px 20px 14px" : "24px 20px 14px"};
+  }
 
   @media (max-width: 640px) {
-    padding: 8px 12px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: ${({ $reserveWindowControls }) =>
+      $reserveWindowControls ? "34px 14px 14px" : "24px 14px 14px"};
+  }
+`;
+
+const HeaderHomeButton = styled.button`
+  -webkit-app-region: no-drag;
+  justify-self: start;
+  margin-left: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--lime-surface-border, hsl(var(--border)));
+  border-radius: 999px;
+  background: var(--lime-surface, hsl(var(--card)));
+  color: var(--lime-text-muted, hsl(var(--muted-foreground)));
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+
+  &:hover {
+    border-color: var(
+      --lime-surface-border-strong,
+      hsl(var(--foreground) / 0.18)
+    );
+    background: var(--lime-surface-hover, hsl(var(--accent)));
+    color: var(--lime-text-strong, hsl(var(--foreground)));
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  @media (max-width: 1200px) {
+    justify-self: start;
+    margin-left: 0;
   }
 `;
 
@@ -139,10 +204,13 @@ const ContentContainer = styled.main`
   isolation: isolate;
   overflow-y: auto;
   padding: 24px 32px;
-  background: linear-gradient(
-    180deg,
-    rgba(248, 250, 252, 0.96) 0%,
-    rgba(244, 249, 247, 0.92) 100%
+  background: var(
+    --lime-stage-surface-soft,
+    linear-gradient(
+      180deg,
+      rgba(248, 250, 252, 0.96) 0%,
+      rgba(244, 249, 247, 0.92) 100%
+    )
   );
 
   &::-webkit-scrollbar {
@@ -183,12 +251,12 @@ const ContentAtmosphere = styled.div`
   background:
     radial-gradient(
       circle at 8% 0%,
-      rgba(16, 185, 129, 0.1) 0%,
+      var(--lime-home-glow-primary, rgba(16, 185, 129, 0.1)) 0%,
       rgba(16, 185, 129, 0) 34%
     ),
     radial-gradient(
       circle at 92% 4%,
-      rgba(56, 189, 248, 0.1) 0%,
+      var(--lime-home-glow-secondary, rgba(56, 189, 248, 0.1)) 0%,
       rgba(56, 189, 248, 0) 30%
     );
 
@@ -196,12 +264,12 @@ const ContentAtmosphere = styled.div`
     background:
       radial-gradient(
         circle at 10% 0%,
-        rgba(16, 185, 129, 0.08) 0%,
+        var(--lime-home-glow-primary, rgba(16, 185, 129, 0.08)) 0%,
         rgba(16, 185, 129, 0) 36%
       ),
       radial-gradient(
         circle at 92% 2%,
-        rgba(56, 189, 248, 0.08) 0%,
+        var(--lime-home-glow-secondary, rgba(56, 189, 248, 0.08)) 0%,
         rgba(56, 189, 248, 0) 32%
       );
   }
@@ -490,6 +558,7 @@ export function SettingsLayoutV2({
   >(initialProviderView);
   const contentContainerRef = useRef<HTMLElement | null>(null);
   const prefetchedTabsRef = useRef<Set<SettingsTabs>>(new Set());
+  const reserveWindowControls = shouldReserveMacWindowControls();
 
   const handleTabChange = useCallback((tab: SettingsTabs) => {
     const nextTab = resolveActiveSettingsTab(tab);
@@ -548,10 +617,23 @@ export function SettingsLayoutV2({
   return (
     <>
       {/* 设置内容 */}
-      <HeaderBar>
-        <CanvasBreadcrumbHeader label="设置" onBackHome={handleBackHome} />
+      <HeaderBar
+        className="lime-settings-theme-scope"
+        $reserveWindowControls={reserveWindowControls}
+        data-testid="settings-top-header"
+        data-window-controls-reserved={String(reserveWindowControls)}
+      >
+        <HeaderHomeButton
+          type="button"
+          onClick={handleBackHome}
+          aria-label="回到首页"
+          data-testid="settings-home-button"
+        >
+          <Home />
+          回到首页
+        </HeaderHomeButton>
       </HeaderBar>
-      <LayoutContainer>
+      <LayoutContainer className="lime-settings-theme-scope">
         <SettingsSidebar
           activeTab={activeTab}
           onTabChange={handleTabChange}

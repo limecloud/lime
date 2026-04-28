@@ -834,7 +834,8 @@ function renderGroupItemDetails(
 
   if (item.type === "subagent_activity") {
     const subagentSessionId = item.session_id?.trim();
-    const displayTitle = resolveInternalImageTaskDisplayName(item.title) || "子任务";
+    const displayTitle =
+      resolveInternalImageTaskDisplayName(item.title) || "子任务";
 
     return (
       <SurfaceCard

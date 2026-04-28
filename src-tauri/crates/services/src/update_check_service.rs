@@ -1,3 +1,4 @@
+use semver::{BuildMetadata, Version};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -103,27 +104,27 @@ impl UpdateCheckService {
     }
     /// 版本比较：返回 true 如果 latest > current
     pub fn version_compare(current: &str, latest: &str) -> bool {
-        let current = current.trim_start_matches('v');
-        let latest = latest.trim_start_matches('v');
+        let Some(mut current) = parse_semver(current) else {
+            return false;
+        };
+        let Some(mut latest) = parse_semver(latest) else {
+            return false;
+        };
 
-        let current_parts: Vec<u32> = current.split('.').filter_map(|s| s.parse().ok()).collect();
-        let latest_parts: Vec<u32> = latest.split('.').filter_map(|s| s.parse().ok()).collect();
-
-        let max_len = current_parts.len().max(latest_parts.len());
-
-        for i in 0..max_len {
-            let current_part = current_parts.get(i).unwrap_or(&0);
-            let latest_part = latest_parts.get(i).unwrap_or(&0);
-
-            if latest_part > current_part {
-                return true;
-            } else if latest_part < current_part {
-                return false;
-            }
+        if !latest.pre.is_empty() {
+            return false;
         }
 
-        false
+        current.build = BuildMetadata::EMPTY;
+        latest.build = BuildMetadata::EMPTY;
+
+        latest > current
     }
+}
+
+fn parse_semver(value: &str) -> Option<Version> {
+    let trimmed = value.trim().trim_start_matches('v');
+    Version::parse(trimmed).ok()
 }
 
 impl Default for UpdateCheckService {
@@ -160,6 +161,15 @@ mod tests {
         assert!(!UpdateCheckService::version_compare("0.14.1", "0.14.0"));
         assert!(!UpdateCheckService::version_compare("0.14.0", "0.14.0"));
         assert!(!UpdateCheckService::version_compare("1.0.0", "0.14.0"));
+        assert!(!UpdateCheckService::version_compare(
+            "1.0.0",
+            "1.1.0-beta.1"
+        ));
+        assert!(UpdateCheckService::version_compare("1.1.0-beta.1", "1.1.0"));
+        assert!(!UpdateCheckService::version_compare(
+            "1.0.0+build.1",
+            "1.0.0+build.2"
+        ));
     }
 
     #[test]

@@ -311,7 +311,10 @@ export function CuratedTaskLauncherDialog({
     });
   }, [latestReviewTaskSignal, task]);
   const primarySuggestedTask = useMemo(() => {
-    if (!reviewFeedbackProjection || reviewFeedbackProjection.matchedCurrentTask) {
+    if (
+      !reviewFeedbackProjection ||
+      reviewFeedbackProjection.matchedCurrentTask
+    ) {
       return null;
     }
 
@@ -415,10 +418,10 @@ export function CuratedTaskLauncherDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(640px,calc(100vw-32px))] max-w-none overflow-hidden border-slate-200 bg-white p-0">
+      <DialogContent className="lime-workbench-theme-scope lime-workbench-surface-scope w-[min(640px,calc(100vw-32px))] max-w-none overflow-hidden border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-0 text-[color:var(--lime-text)]">
         {task ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-white">
-            <DialogHeader className="shrink-0 border-b border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(255,255,255,1)_100%)] px-5 py-4">
+            <DialogHeader className="shrink-0 border-b border-[color:var(--lime-surface-border)] bg-[image:var(--lime-card-subtle)] px-5 py-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={cn(
@@ -444,11 +447,15 @@ export function CuratedTaskLauncherDialog({
                 {launcherStarterContract ? (
                   <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs leading-5 text-slate-600">
                     <div>
-                      <span className="font-medium text-slate-700">你先给：</span>
+                      <span className="font-medium text-slate-700">
+                        你先给：
+                      </span>
                       {launcherStarterContract.requiredSummary}
                     </div>
                     <div className="mt-1">
-                      <span className="font-medium text-slate-700">会拿到：</span>
+                      <span className="font-medium text-slate-700">
+                        会拿到：
+                      </span>
                       {launcherStarterContract.outputSummary}
                     </div>
                     {launcherStarterContract.followUpSummary ? (
@@ -560,9 +567,7 @@ export function CuratedTaskLauncherDialog({
                     "mt-2 rounded-[16px] border-slate-200 bg-slate-50 focus-visible:ring-emerald-300";
 
                   return (
-                    <div
-                      key={field.key}
-                    >
+                    <div key={field.key}>
                       <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <Label
@@ -651,13 +656,12 @@ export function CuratedTaskLauncherDialog({
                         !selected &&
                         selectedReferenceEntryIds.length >=
                           MAX_REFERENCE_SELECTION_COUNT;
-                      const entryReviewSnapshot =
-                        task
-                          ? buildSceneAppExecutionReviewPrefillSnapshot({
-                              referenceEntries: [entry],
-                              taskId: task.id,
-                            })
-                          : null;
+                      const entryReviewSnapshot = task
+                        ? buildSceneAppExecutionReviewPrefillSnapshot({
+                            referenceEntries: [entry],
+                            taskId: task.id,
+                          })
+                        : null;
                       const entryReviewHighlights =
                         buildSceneAppExecutionReviewPrefillHighlights(
                           entryReviewSnapshot,
@@ -707,11 +711,14 @@ export function CuratedTaskLauncherDialog({
                                 <div className="rounded-[14px] border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs leading-5 text-emerald-900">
                                   <div className="font-medium text-emerald-900">
                                     当前结果基线：
-                                    {entryReviewSnapshot?.sourceTitle || entry.title}
+                                    {entryReviewSnapshot?.sourceTitle ||
+                                      entry.title}
                                   </div>
                                   <div className="mt-1 space-y-1">
                                     {entryReviewHighlights.map((item) => (
-                                      <div key={`${entry.id}-${item}`}>{item}</div>
+                                      <div key={`${entry.id}-${item}`}>
+                                        {item}
+                                      </div>
                                     ))}
                                   </div>
                                 </div>
@@ -754,7 +761,8 @@ export function CuratedTaskLauncherDialog({
 
                 {selectedReferenceEntryIds.length > 0 ? (
                   <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    已选择 {selectedReferenceEntryIds.length} 条参考对象，本轮会一起带入生成。
+                    已选择 {selectedReferenceEntryIds.length}{" "}
+                    条参考对象，本轮会一起带入生成。
                     {missingSelectedReferenceCount > 0
                       ? ` 其中 ${missingSelectedReferenceCount} 条未出现在最近列表里，但发送时仍会保留。`
                       : ""}
@@ -787,7 +795,7 @@ export function CuratedTaskLauncherDialog({
               <Button
                 type="button"
                 data-testid="curated-task-launcher-confirm"
-                className="rounded-2xl border border-slate-900 bg-slate-900 px-4 text-white shadow-sm shadow-slate-950/10 hover:bg-slate-800"
+                className="rounded-2xl border border-[color:var(--lime-brand-strong)] bg-[color:var(--lime-brand-strong)] px-4 text-white shadow-sm shadow-slate-950/10 hover:bg-[color:var(--lime-brand)]"
                 disabled={isLaunchDisabled}
                 onClick={handleConfirm}
               >

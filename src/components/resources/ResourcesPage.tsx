@@ -22,12 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -50,7 +44,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useProjects } from "@/hooks/useProjects";
-import { openPathWithDefaultApp } from "@/lib/api/fileSystem";
+import { openResourceManager } from "@/features/resource-manager/openResourceManager";
+import { inferResourceManagerKind } from "@/features/resource-manager/resourceManagerSession";
+import type { ResourceManagerItemInput } from "@/features/resource-manager/types";
 import { listMaterials } from "@/lib/api/materials";
 import {
   getStoredResourceProjectId,
@@ -60,7 +56,7 @@ import {
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 import { cn } from "@/lib/utils";
-import type { Page, PageParams } from "@/types/page";
+import type { Page, PageParams, ResourcesPageParams } from "@/types/page";
 import { ResourcesImageWorkbench } from "./ResourcesImageWorkbench";
 import {
   canNavigateResourceFolderUp,
@@ -70,6 +66,7 @@ import {
   getCurrentFolder,
   getFolderBreadcrumbs,
   getFolderScopedResources,
+  matchResourceCategory,
   type ResourceSortDirection,
   type ResourceSortField,
   type ResourceViewCategory,
@@ -80,6 +77,7 @@ import { useResourcesStore } from "./store";
 
 interface ResourcesPageProps {
   onNavigate?: (page: Page, params?: PageParams) => void;
+  pageParams?: ResourcesPageParams;
 }
 
 const kindLabelMap: Record<ResourceItem["kind"], string> = {
@@ -152,7 +150,57 @@ const getKindIcon = (item: ResourceItem) => {
   return File;
 };
 
-export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
+function buildResourceManagerItemInput(
+  item: ResourceItem,
+  content?: string | null,
+  options?: {
+    resourceCategory?: ResourceViewCategory;
+  },
+): ResourceManagerItemInput {
+  const title = item.name || "未命名资源";
+  const mimeType = item.mimeType || null;
+  const filePath = item.filePath || null;
+  const resourceFolderId = item.parentId?.trim() || null;
+  const resourceCategory = options?.resourceCategory ?? null;
+  const resolvedKind = inferResourceManagerKind({
+    src: filePath,
+    filePath,
+    title,
+    mimeType,
+    content,
+  });
+
+  return {
+    id: item.id,
+    kind: resolvedKind,
+    src: filePath,
+    filePath,
+    title,
+    description: item.description ?? null,
+    content: content ?? null,
+    mimeType,
+    size: item.size ?? null,
+    metadata: {
+      sourceType: item.sourceType,
+      mimeType,
+      projectId: item.projectId,
+      size: item.size ?? null,
+      sourcePage: "resources",
+      resourceFolderId,
+      resourceCategory,
+    },
+    sourceContext: {
+      kind: "project_resource",
+      projectId: item.projectId,
+      contentId: item.id,
+      sourcePage: "resources",
+      resourceFolderId,
+      resourceCategory,
+    },
+  };
+}
+
+export function ResourcesPage({ onNavigate, pageParams }: ResourcesPageProps) {
   const {
     projects,
     defaultProject,
@@ -184,10 +232,6 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   const moveToRoot = useResourcesStore((state) => state.moveToRoot);
 
   const [viewCategory, setViewCategory] = useState<ResourceViewCategory>("all");
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewTitle, setPreviewTitle] = useState("");
-  const [previewContent, setPreviewContent] = useState("");
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [crossProjectMediaHint, setCrossProjectMediaHint] = useState<{
     projectId: string;
@@ -195,6 +239,12 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     count: number;
     category: "image" | "audio" | "video";
   } | null>(null);
+  const focusProjectId = pageParams?.projectId?.trim() || null;
+  const focusContentId = pageParams?.contentId?.trim() || null;
+  const focusIntentId = pageParams?.focusIntentId?.trim() || null;
+  const focusResourceTitle = pageParams?.focusResourceTitle?.trim() || null;
+  const focusResourceFolderId = pageParams?.resourceFolderId?.trim() || null;
+  const focusResourceCategory = pageParams?.resourceCategory ?? null;
 
   const availableProjects = useMemo(
     () => projects.filter((project) => !project.isArchived),
@@ -212,6 +262,14 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     () => getCurrentFolder(items, currentFolderId),
     [items, currentFolderId],
   );
+
+  const focusedItem = useMemo(() => {
+    if (!focusContentId) {
+      return null;
+    }
+
+    return items.find((item) => item.id === focusContentId) ?? null;
+  }, [focusContentId, items]);
 
   const breadcrumbs = useMemo(
     () => getFolderBreadcrumbs(items, currentFolderId),
@@ -308,6 +366,18 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   ]);
 
   useEffect(() => {
+    if (
+      !focusProjectId ||
+      focusProjectId === projectId ||
+      !availableProjects.some((project) => project.id === focusProjectId)
+    ) {
+      return;
+    }
+
+    setProjectId(focusProjectId);
+  }, [availableProjects, focusProjectId, projectId, setProjectId]);
+
+  useEffect(() => {
     setStoredResourceProjectId(projectId, {
       source: "resources",
       emitEvent: true,
@@ -359,6 +429,46 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
       setCurrentPage(safeCurrentPage);
     }
   }, [currentPage, safeCurrentPage]);
+
+  useEffect(() => {
+    if (!focusIntentId || !focusedItem) {
+      return;
+    }
+
+    const nextCategory =
+      focusResourceCategory &&
+      matchResourceCategory(focusedItem, focusResourceCategory)
+        ? focusResourceCategory
+        : "all";
+    setViewCategory(nextCategory);
+    setCurrentFolderId(focusResourceFolderId ?? focusedItem.parentId ?? null);
+    if (searchQuery.trim()) {
+      setSearchQuery("");
+    }
+  }, [
+    focusIntentId,
+    focusedItem,
+    focusResourceCategory,
+    focusResourceFolderId,
+    searchQuery,
+    setCurrentFolderId,
+    setSearchQuery,
+  ]);
+
+  useEffect(() => {
+    if (!focusIntentId || !focusContentId) {
+      return;
+    }
+
+    const focusIndex = displayItems.findIndex(
+      (item) => item.id === focusContentId,
+    );
+    if (focusIndex < 0) {
+      return;
+    }
+
+    setCurrentPage(Math.floor(focusIndex / RESOURCE_PAGE_SIZE) + 1);
+  }, [displayItems, focusContentId, focusIntentId]);
 
   useEffect(() => {
     if (
@@ -478,59 +588,115 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     [deleteById],
   );
 
-  const handleOpenFile = useCallback(async (item: ResourceItem) => {
-    if (!item.filePath) {
-      toast.error("该文件缺少本地路径，无法打开");
-      return;
-    }
-
-    try {
-      await openPathWithDefaultApp(item.filePath);
-    } catch (invokeError) {
-      toast.error(
-        invokeError instanceof Error
-          ? invokeError.message
-          : String(invokeError),
-      );
-    }
-  }, []);
-
-  const handleOpenDocument = useCallback(
+  const handleOpenFile = useCallback(
     async (item: ResourceItem) => {
-      if (onNavigate) {
-        onNavigate("agent", {
-          projectId: item.projectId,
-          contentId: item.id,
-          lockTheme: true,
-          fromResources: true,
-        });
+      if (!item.filePath) {
+        toast.error("该文件缺少本地路径，无法打开资源管理器");
         return;
       }
 
-      setPreviewOpen(true);
-      setPreviewLoading(true);
-      setPreviewTitle(item.name);
-      setPreviewContent("");
+      const candidates = displayItems.filter(
+        (candidate) => candidate.kind === "file" && candidate.filePath,
+      );
+      const sourceItems = candidates.length > 0 ? candidates : [item];
+      const initialIndex = Math.max(
+        0,
+        sourceItems.findIndex((candidate) => candidate.id === item.id),
+      );
+      const sessionId = await openResourceManager({
+        sourceLabel: resourceCategoryLabelMap[viewCategory],
+        initialIndex,
+        items: sourceItems.map((candidate) =>
+          buildResourceManagerItemInput(candidate, null, {
+            resourceCategory: viewCategory,
+          }),
+        ),
+      });
 
-      try {
-        const detail = await fetchDocumentDetail(item.id);
-        if (!detail) {
-          setPreviewContent("文档不存在或已被删除。");
-          return;
-        }
-        setPreviewTitle(detail.title);
-        setPreviewContent(detail.body || "");
-      } catch (detailError) {
-        setPreviewContent(
-          detailError instanceof Error
-            ? `读取失败：${detailError.message}`
-            : `读取失败：${String(detailError)}`,
-        );
-      } finally {
-        setPreviewLoading(false);
+      if (!sessionId) {
+        toast.error("该文件缺少可预览地址，无法打开资源管理器");
       }
     },
-    [onNavigate],
+    [displayItems, viewCategory],
+  );
+
+  const handleOpenDocument = useCallback(
+    async (item: ResourceItem) => {
+      try {
+        const documentCandidates = displayItems.filter(
+          (candidate) => candidate.kind === "document",
+        );
+        const sourceItems = documentCandidates.some(
+          (candidate) => candidate.id === item.id,
+        )
+          ? documentCandidates
+          : [item, ...documentCandidates];
+
+        const resolvedItems = (
+          await Promise.all(
+            sourceItems.map(async (candidate) => {
+              try {
+                const detail = await fetchDocumentDetail(candidate.id);
+                if (!detail) {
+                  if (candidate.id === item.id) {
+                    throw new Error("文档不存在或已被删除");
+                  }
+                  return null;
+                }
+                if (!detail.body) {
+                  return null;
+                }
+
+                return buildResourceManagerItemInput(
+                  {
+                    ...candidate,
+                    name: detail.title || candidate.name,
+                    mimeType: candidate.mimeType || "text/markdown",
+                    size: candidate.size ?? detail.word_count,
+                  },
+                  detail.body,
+                  {
+                    resourceCategory: viewCategory,
+                  },
+                );
+              } catch (detailError) {
+                if (candidate.id === item.id) {
+                  throw detailError;
+                }
+                return null;
+              }
+            }),
+          )
+        ).filter(
+          (candidate): candidate is ResourceManagerItemInput =>
+            candidate !== null,
+        );
+
+        const initialIndex = resolvedItems.findIndex(
+          (candidate) => candidate.id === item.id,
+        );
+        if (initialIndex < 0) {
+          toast.error("文档内容为空，无法打开资源管理器");
+          return;
+        }
+
+        const sessionId = await openResourceManager({
+          sourceLabel: "项目资料",
+          initialIndex,
+          items: resolvedItems,
+        });
+        if (!sessionId) {
+          toast.error("文档内容为空，无法打开资源管理器");
+        }
+      } catch (detailError) {
+        toast.error(
+          detailError instanceof Error
+            ? detailError.message
+            : String(detailError),
+        );
+      }
+    },
+    [displayItems, viewCategory],
   );
 
   const handleOpenResource = useCallback(
@@ -615,12 +781,18 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   }, [projectId, projectSummary]);
 
   const showEmptyState = projectId && !loading && displayItems.length === 0;
+  const focusStatusTitle =
+    focusResourceTitle || focusedItem?.name || focusContentId || null;
+  const showFocusStatus = Boolean(focusIntentId && focusStatusTitle);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(248,250,252,1)_0%,rgba(244,249,248,0.96)_52%,rgba(248,250,252,1)_100%)]">
       <div className="border-b border-slate-200/70 bg-white">
         <div className="mx-auto w-full max-w-[1480px] px-4 py-3 lg:px-6">
-          <CanvasBreadcrumbHeader label="项目资料" onBackHome={handleBackHome} />
+          <CanvasBreadcrumbHeader
+            label="项目资料"
+            onBackHome={handleBackHome}
+          />
         </div>
       </div>
 
@@ -666,6 +838,20 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                     {projectSummaryLabel}
                   </Badge>
                 )}
+                {showFocusStatus ? (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "rounded-full px-3 py-1",
+                      focusedItem
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-amber-200 bg-amber-50 text-amber-700",
+                    )}
+                    data-testid="resources-focus-status"
+                  >
+                    {focusedItem ? "已定位" : "正在定位"}：{focusStatusTitle}
+                  </Badge>
+                ) : null}
                 {searchQuery.trim() ? (
                   <Badge
                     variant="outline"
@@ -1110,7 +1296,16 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                             return (
                               <TableRow
                                 key={item.id}
-                                className="hover:bg-slate-50/70"
+                                data-testid={
+                                  item.id === focusContentId
+                                    ? "resources-focused-row"
+                                    : undefined
+                                }
+                                className={cn(
+                                  "hover:bg-slate-50/70",
+                                  item.id === focusContentId &&
+                                    "bg-emerald-50/70 ring-1 ring-inset ring-emerald-200/80",
+                                )}
                               >
                                 <TableCell>
                                   <button
@@ -1278,25 +1473,6 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
           </div>
         </div>
       </div>
-
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{previewTitle}</DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="max-h-[60vh] rounded border p-3">
-            {previewLoading ? (
-              <div className="text-sm text-muted-foreground">
-                加载文档内容中...
-              </div>
-            ) : (
-              <pre className="whitespace-pre-wrap break-words text-sm">
-                {previewContent || "暂无内容"}
-              </pre>
-            )}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

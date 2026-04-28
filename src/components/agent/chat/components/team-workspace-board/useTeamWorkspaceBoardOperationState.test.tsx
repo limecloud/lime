@@ -13,8 +13,9 @@ function renderHook(props?: Partial<HookProps>) {
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  let latestValue: ReturnType<typeof useTeamWorkspaceBoardOperationState> | null =
-    null;
+  let latestValue: ReturnType<
+    typeof useTeamWorkspaceBoardOperationState
+  > | null = null;
 
   const defaultProps: HookProps = {
     currentChildSession: null,

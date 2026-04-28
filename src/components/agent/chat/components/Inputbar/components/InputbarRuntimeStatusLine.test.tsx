@@ -26,7 +26,10 @@ vi.mock("@/hooks/useConfiguredProviders", () => ({
       ) ??
       null;
 
-    if ((selectedProvider?.type || "").trim().toLowerCase() === "anthropic-compatible") {
+    if (
+      (selectedProvider?.type || "").trim().toLowerCase() ===
+      "anthropic-compatible"
+    ) {
       return {
         label: "未声明自动缓存",
         detail:

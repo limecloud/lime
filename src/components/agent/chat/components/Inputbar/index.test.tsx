@@ -6,7 +6,10 @@ import { Inputbar } from "./index";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
-import type { BuiltinInputCommand, RuntimeSceneSlashCommand } from "../../skill-selection/builtinCommands";
+import type {
+  BuiltinInputCommand,
+  RuntimeSceneSlashCommand,
+} from "../../skill-selection/builtinCommands";
 import type { InputCapabilitySelection } from "../../skill-selection/inputCapabilitySelection";
 import {
   buildCuratedTaskLaunchPrompt,
@@ -14,29 +17,28 @@ import {
   resolveCuratedTaskTemplateLaunchPrefill,
 } from "../../utils/curatedTaskTemplates";
 
-const mockCharacterMention =
-  vi.fn<
-    (props: {
-      characters?: Character[];
-      skills?: Skill[];
-      serviceSkills?: ServiceSkillHomeItem[];
-      onSelectInputCapability?: (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void;
-      onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
-      defaultCuratedTaskReferenceMemoryIds?: string[];
-      defaultCuratedTaskReferenceEntries?: Array<{
-        id: string;
-        title: string;
-        summary: string;
-        category: string;
-        categoryLabel: string;
-        tags: string[];
-      }>;
-      inputCompletionEnabled?: boolean;
-    }) => React.ReactNode
-  >();
+const mockCharacterMention = vi.fn<
+  (props: {
+    characters?: Character[];
+    skills?: Skill[];
+    serviceSkills?: ServiceSkillHomeItem[];
+    onSelectInputCapability?: (
+      capability: InputCapabilitySelection,
+      options?: { replayText?: string },
+    ) => void;
+    onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+    defaultCuratedTaskReferenceMemoryIds?: string[];
+    defaultCuratedTaskReferenceEntries?: Array<{
+      id: string;
+      title: string;
+      summary: string;
+      category: string;
+      categoryLabel: string;
+      tags: string[];
+    }>;
+    inputCompletionEnabled?: boolean;
+  }) => React.ReactNode
+>();
 const mockInputbarCore = vi.fn(
   (props: {
     onToolClick?: (tool: string) => void;
@@ -108,18 +110,18 @@ vi.mock("../../skill-selection/CharacterMention", () => ({
       capability: InputCapabilitySelection,
       options?: { replayText?: string },
     ) => void;
-      onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
-      defaultCuratedTaskReferenceMemoryIds?: string[];
-      defaultCuratedTaskReferenceEntries?: Array<{
-        id: string;
-        title: string;
+    onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+    defaultCuratedTaskReferenceMemoryIds?: string[];
+    defaultCuratedTaskReferenceEntries?: Array<{
+      id: string;
+      title: string;
       summary: string;
       category: string;
-        categoryLabel: string;
-        tags: string[];
-      }>;
-      inputCompletionEnabled?: boolean;
-    }) => {
+      categoryLabel: string;
+      tags: string[];
+    }>;
+    inputCompletionEnabled?: boolean;
+  }) => {
     mockCharacterMention(props);
     return <div data-testid="character-mention-stub" />;
   },
@@ -276,12 +278,12 @@ vi.mock("../CuratedTaskLauncherDialog", () => ({
       },
     ) => void;
   }) => {
-    const [inputValues, setInputValues] = React.useState<Record<string, string>>(
-      {},
-    );
-    const [referenceMemoryIds, setReferenceMemoryIds] = React.useState<string[]>(
-      [],
-    );
+    const [inputValues, setInputValues] = React.useState<
+      Record<string, string>
+    >({});
+    const [referenceMemoryIds, setReferenceMemoryIds] = React.useState<
+      string[]
+    >([]);
 
     React.useEffect(() => {
       if (!props.open || !props.task) {
@@ -846,7 +848,8 @@ describe("Inputbar", () => {
   it("选择结果模板发送时，应透传 curated_task capability route", async () => {
     const onSend = vi.fn();
     renderInputbar({
-      input: "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
+      input:
+        "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
       onSend,
       activeTheme: "general",
     });
@@ -903,7 +906,9 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(document.querySelector('[data-testid="curated-task-badge"]')).toBeTruthy();
+    expect(
+      document.querySelector('[data-testid="curated-task-badge"]'),
+    ).toBeTruthy();
 
     const sendButton = document.querySelector(
       '[data-testid="send-btn"]',
@@ -1899,7 +1904,9 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(document.querySelector('[data-testid="runtime-scene-badge"]')).toBeTruthy();
+    expect(
+      document.querySelector('[data-testid="runtime-scene-badge"]'),
+    ).toBeTruthy();
 
     const sendButton = document.querySelector(
       '[data-testid="send-btn"]',
@@ -2159,7 +2166,9 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-testid="agent-task-strip"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-task-strip"]'),
+    ).toBeNull();
   });
 
   it("工作区输入区默认隐藏技能入口，展开高级设置后与 @ 面板共用同一技能数据源", async () => {
@@ -2656,7 +2665,9 @@ describe("Inputbar", () => {
     const latestCall =
       mockInputbarCore.mock.calls[mockInputbarCore.mock.calls.length - 1]?.[0];
     expect(latestCall).toBeTruthy();
-    expect(latestCall.placeholder).toContain("继续补充这轮生成，或回到左侧继续旧历史");
+    expect(latestCall.placeholder).toContain(
+      "继续补充这轮生成，或回到左侧继续旧历史",
+    );
   });
 
   it("工作区工作流在待启动状态下不应显示闸门条", async () => {

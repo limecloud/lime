@@ -48,8 +48,7 @@ describe("generalWorkbenchWorkflowData", () => {
       curatedTask: {
         taskId: "daily-trend-briefing",
         taskTitle: "每日趋势摘要",
-        resultDestination:
-          "趋势摘要会先写回当前内容，方便继续展开选题和主稿。",
+        resultDestination: "趋势摘要会先写回当前内容，方便继续展开选题和主稿。",
         followUpActions: ["继续展开其中一个选题", "生成首条内容主稿"],
       },
     });

@@ -46,9 +46,7 @@ function formatElapsed(ms: number): string {
   )}`;
 }
 
-function resolveStatusMeta(
-  status: InputbarRuntimeStatusLineModel["status"],
-): {
+function resolveStatusMeta(status: InputbarRuntimeStatusLineModel["status"]): {
   label: string;
   toneClassName: string;
   dotClassName: string;
@@ -115,8 +113,8 @@ export const InputbarRuntimeStatusLine: React.FC<
   );
   const shouldInspectPromptCacheNotice = Boolean(
     providerType?.trim() &&
-      runtime?.usage &&
-      resolvePromptCacheActivity(runtime.usage) <= 0,
+    runtime?.usage &&
+    resolvePromptCacheActivity(runtime.usage) <= 0,
   );
   const { providers } = useConfiguredProviders({
     autoLoad: shouldInspectPromptCacheNotice,
@@ -175,8 +173,12 @@ export const InputbarRuntimeStatusLine: React.FC<
       : null;
   const segments = [
     elapsedText,
-    runtime.batchDescriptor ? `工具 ${runtime.batchDescriptor.countLabel}` : null,
-    runtime.pendingRequestCount > 0 ? `待补 ${runtime.pendingRequestCount}` : null,
+    runtime.batchDescriptor
+      ? `工具 ${runtime.batchDescriptor.countLabel}`
+      : null,
+    runtime.pendingRequestCount > 0
+      ? `待补 ${runtime.pendingRequestCount}`
+      : null,
     runtime.queuedTurnCount > 0 ? `排队 ${runtime.queuedTurnCount}` : null,
     runtime.subtaskStats?.total
       ? `任务 ${runtime.subtaskStats.active}/${runtime.subtaskStats.total}`

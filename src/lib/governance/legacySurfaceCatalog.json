@@ -471,6 +471,37 @@
       "allowedPaths": []
     },
     {
+      "id": "provider-pool-api-key-legacy-surfaces",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 API Key Provider 分组列表、完整配置表单、Key 列表与模型兜底展示组件，当前事实源统一停留在 ModelProviderList / ModelAddPanel / ProviderSetting",
+      "targets": [
+        "src/components/provider-pool/api-key/AddCustomProviderModal.tsx",
+        "src/components/provider-pool/api-key/AddCustomProviderModal.test.ts",
+        "src/components/provider-pool/api-key/AddCustomProviderModal.ui.test.tsx",
+        "src/components/provider-pool/api-key/ApiKeyItem.tsx",
+        "src/components/provider-pool/api-key/ApiKeyList.tsx",
+        "src/components/provider-pool/api-key/ApiKeyList.ui.test.tsx",
+        "src/components/provider-pool/api-key/ConnectionTestButton.tsx",
+        "src/components/provider-pool/api-key/DeleteProviderDialog.tsx",
+        "src/components/provider-pool/api-key/DeleteProviderDialog.test.ts",
+        "src/components/provider-pool/api-key/ProviderConfigForm.tsx",
+        "src/components/provider-pool/api-key/ProviderConfigForm.test.ts",
+        "src/components/provider-pool/api-key/ProviderConfigForm.ui.test.tsx",
+        "src/components/provider-pool/api-key/ProviderConfigForm.utils.ts",
+        "src/components/provider-pool/api-key/ProviderGroup.tsx",
+        "src/components/provider-pool/api-key/ProviderList.tsx",
+        "src/components/provider-pool/api-key/ProviderList.test.ts",
+        "src/components/provider-pool/api-key/ProviderListItem.tsx",
+        "src/components/provider-pool/api-key/ProviderListItem.test.ts",
+        "src/components/provider-pool/api-key/ProviderListItem.ui.test.tsx",
+        "src/components/provider-pool/api-key/ProviderModelList.tsx",
+        "src/components/provider-pool/api-key/ProviderModelList.test.tsx",
+        "src/components/provider-pool/api-key/providerModelListCache.ts",
+        "src/components/provider-pool/api-key/SectionInfoButton.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "settings-execution-tracker-page-surface",
       "classification": "dead-candidate",
       "description": "已删除的 settings-v2 执行轨迹独立页面壳，旧 execution-tracker 标签只保留回退兼容，不再挂载独立设置页",

@@ -16,9 +16,7 @@ vi.mock("./useTeamWorkspaceBoardSelectedInlineDetail", () => ({
 }));
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
-const inlineDetailNode = (
-  <div data-testid="inline-detail">inline detail</div>
-);
+const inlineDetailNode = <div data-testid="inline-detail">inline detail</div>;
 
 function createRuntimeFormationDisplay() {
   return {
@@ -212,7 +210,9 @@ beforeEach(() => {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
-  mockUseTeamWorkspaceBoardSelectedInlineDetail.mockReturnValue(inlineDetailNode);
+  mockUseTeamWorkspaceBoardSelectedInlineDetail.mockReturnValue(
+    inlineDetailNode,
+  );
 });
 
 afterEach(async () => {
@@ -238,9 +238,7 @@ describe("useTeamWorkspaceBoardShellProps", () => {
 
     await harness.render();
 
-    expect(
-      mockUseTeamWorkspaceBoardSelectedInlineDetail,
-    ).toHaveBeenCalledWith(
+    expect(mockUseTeamWorkspaceBoardSelectedInlineDetail).toHaveBeenCalledWith(
       expect.objectContaining({
         canOpenSelectedSession: true,
         canWaitSelectedSession: true,

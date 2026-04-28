@@ -6,6 +6,7 @@ export interface VersionInfo {
   hasUpdate: boolean;
   downloadUrl?: string;
   releaseNotes?: string;
+  releaseNotesUrl?: string;
   pubDate?: string;
   error?: string;
 }

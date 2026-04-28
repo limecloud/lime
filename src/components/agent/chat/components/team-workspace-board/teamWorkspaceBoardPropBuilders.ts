@@ -5,8 +5,11 @@ import { TeamWorkspaceEmptyShellState } from "./TeamWorkspaceEmptyShellState";
 type TeamWorkspaceEmptyShellProps = ComponentProps<
   typeof TeamWorkspaceEmptyShellState
 >;
-type TeamWorkspaceBoardShellProps = ComponentProps<typeof TeamWorkspaceBoardShell>;
-type TeamWorkspaceBoardHeaderProps = TeamWorkspaceBoardShellProps["headerProps"];
+type TeamWorkspaceBoardShellProps = ComponentProps<
+  typeof TeamWorkspaceBoardShell
+>;
+type TeamWorkspaceBoardHeaderProps =
+  TeamWorkspaceBoardShellProps["headerProps"];
 type TeamWorkspaceBoardCanvasSectionProps =
   TeamWorkspaceBoardShellProps["canvasSectionProps"];
 type TeamWorkspaceBoardCanvasStageProps =
@@ -60,35 +63,31 @@ interface BuildTeamWorkspaceBoardCanvasSectionPropsParams {
   canvasStageHint: TeamWorkspaceBoardCanvasStageProps["canvasStageHint"];
   canvasViewportRef: TeamWorkspaceBoardCanvasStageProps["viewportRef"];
   canvasZoom: TeamWorkspaceBoardCanvasToolbarProps["zoom"];
-  canCloseCompletedTeamSessions:
-    TeamWorkspaceBoardOverviewChromeProps["canCloseCompletedTeamSessions"];
-  canWaitAnyActiveTeamSession:
-    TeamWorkspaceBoardOverviewChromeProps["canWaitAnyActiveTeamSession"];
+  canCloseCompletedTeamSessions: TeamWorkspaceBoardOverviewChromeProps["canCloseCompletedTeamSessions"];
+  canWaitAnyActiveTeamSession: TeamWorkspaceBoardOverviewChromeProps["canWaitAnyActiveTeamSession"];
   completedCount: TeamWorkspaceBoardOverviewChromeProps["completedCount"];
   detailCardClassName: TeamWorkspaceBoardFallbackDetailProps["detailCardClassName"];
   detailVisible: TeamWorkspaceBoardHeaderProps["detailVisible"];
   expandedSessionId?: TeamWorkspaceBoardCanvasStageProps["expandedSessionId"];
   formatUpdatedAt: TeamWorkspaceBoardOverviewChromeProps["formatUpdatedAt"];
   hasRuntimeSessions: boolean;
-  isCanvasPanModifierActive:
-    TeamWorkspaceBoardCanvasStageProps["isCanvasPanModifierActive"];
+  isCanvasPanModifierActive: TeamWorkspaceBoardCanvasStageProps["isCanvasPanModifierActive"];
   laneLayouts: TeamWorkspaceBoardCanvasStageProps["laneLayouts"];
   lanes: TeamWorkspaceBoardCanvasStageProps["lanes"];
   memberCanvasSubtitle: TeamWorkspaceBoardOverviewChromeProps["memberCanvasSubtitle"];
   memberCanvasTitle: TeamWorkspaceBoardOverviewChromeProps["memberCanvasTitle"];
-  onAutoArrangeCanvas:
-    TeamWorkspaceBoardCanvasToolbarProps["onAutoArrangeCanvas"];
+  onAutoArrangeCanvas: TeamWorkspaceBoardCanvasToolbarProps["onAutoArrangeCanvas"];
   onCanvasWheel: TeamWorkspaceBoardCanvasStageProps["onCanvasWheel"];
-  onCloseCompletedTeamSessions:
-    TeamWorkspaceBoardOverviewChromeProps["onCloseCompletedTeamSessions"];
+  onCloseCompletedTeamSessions: TeamWorkspaceBoardOverviewChromeProps["onCloseCompletedTeamSessions"];
   onFitCanvasView: TeamWorkspaceBoardCanvasToolbarProps["onFitCanvasView"];
   onResetCanvasView: TeamWorkspaceBoardCanvasToolbarProps["onResetCanvasView"];
   onSelectCanvasLane: TeamWorkspaceBoardCanvasStageProps["onSelectLane"];
-  onSelectTeamOperationEntry:
-    TeamWorkspaceBoardOverviewChromeProps["onSelectTeamOperationEntry"];
+  onSelectTeamOperationEntry: TeamWorkspaceBoardOverviewChromeProps["onSelectTeamOperationEntry"];
   onStartCanvasLaneDrag: (
     persistKey: string,
-    event: Parameters<TeamWorkspaceBoardCanvasStageProps["onStartCanvasLaneDrag"]>[1],
+    event: Parameters<
+      TeamWorkspaceBoardCanvasStageProps["onStartCanvasLaneDrag"]
+    >[1],
   ) => void;
   onStartCanvasLaneResize: (
     persistKey: string,
@@ -100,22 +99,18 @@ interface BuildTeamWorkspaceBoardCanvasSectionPropsParams {
     >[2],
   ) => void;
   onStartCanvasPan: TeamWorkspaceBoardCanvasStageProps["onStartCanvasPan"];
-  onWaitAnyActiveTeamSessions:
-    TeamWorkspaceBoardOverviewChromeProps["onWaitAnyActiveTeamSessions"];
+  onWaitAnyActiveTeamSessions: TeamWorkspaceBoardOverviewChromeProps["onWaitAnyActiveTeamSessions"];
   onZoomIn: TeamWorkspaceBoardCanvasToolbarProps["onZoomIn"];
   onZoomOut: TeamWorkspaceBoardCanvasToolbarProps["onZoomOut"];
   pendingTeamAction: TeamWorkspaceBoardOverviewChromeProps["pendingTeamAction"];
   railCardClassName: TeamWorkspaceBoardCanvasSectionProps["railCardClassName"];
   resolveStatusMeta: TeamWorkspaceBoardOverviewChromeProps["resolveStatusMeta"];
-  runtimeFormationDisplay:
-    TeamWorkspaceBoardFallbackDetailProps["runtimeFormationDisplay"];
+  runtimeFormationDisplay: TeamWorkspaceBoardFallbackDetailProps["runtimeFormationDisplay"];
   selectedInlineDetail?: TeamWorkspaceBoardCanvasStageProps["selectedInlineDetail"];
   selectedSession: TeamWorkspaceBoardOverviewChromeProps["selectedSession"];
   selectedSessionId?: TeamWorkspaceBoardCanvasStageProps["selectedSessionId"];
-  selectedTeamPlanDisplay:
-    TeamWorkspaceBoardFallbackDetailProps["selectedTeamPlanDisplay"];
-  teamOperationEntries:
-    TeamWorkspaceBoardOverviewChromeProps["teamOperationEntries"];
+  selectedTeamPlanDisplay: TeamWorkspaceBoardFallbackDetailProps["selectedTeamPlanDisplay"];
+  teamOperationEntries: TeamWorkspaceBoardOverviewChromeProps["teamOperationEntries"];
   useCompactCanvasChrome: TeamWorkspaceBoardCanvasSectionProps["useCompactCanvasChrome"];
   viewport: TeamWorkspaceBoardCanvasStageProps["viewport"];
   waitableCount: TeamWorkspaceBoardOverviewChromeProps["waitableCount"];

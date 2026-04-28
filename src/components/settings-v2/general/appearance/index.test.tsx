@@ -35,6 +35,8 @@ vi.mock("@/components/onboarding", () => ({
 }));
 
 import { AppearanceSettings } from "./index";
+import { LIME_COLOR_SCHEME_STORAGE_KEY } from "@/lib/appearance/colorSchemes";
+import { LIME_THEME_STORAGE_KEY } from "@/lib/appearance/themeMode";
 
 interface RenderResult {
   container: HTMLDivElement;
@@ -128,6 +130,11 @@ beforeEach(() => {
     })) as typeof window.matchMedia);
 
   localStorage.clear();
+  document.documentElement.classList.remove("dark");
+  document.documentElement.removeAttribute("data-lime-theme");
+  document.documentElement.removeAttribute("data-lime-theme-effective");
+  document.documentElement.removeAttribute("data-lime-color-scheme");
+  document.documentElement.removeAttribute("style");
   mockGetConfig.mockResolvedValue(createMockConfig());
   mockSaveConfig.mockResolvedValue(undefined);
 });
@@ -151,6 +158,12 @@ afterEach(() => {
     });
     target.container.remove();
   }
+
+  document.documentElement.removeAttribute("data-lime-color-scheme");
+  document.documentElement.removeAttribute("data-lime-theme");
+  document.documentElement.removeAttribute("data-lime-theme-effective");
+  document.documentElement.classList.remove("dark");
+  document.documentElement.removeAttribute("style");
 });
 
 describe("AppearanceSettings", () => {
@@ -164,10 +177,16 @@ describe("AppearanceSettings", () => {
     expect(text).toContain("外观");
     expect(text).toContain("管理主题、语言、提示音效、推荐行为和底部入口。");
     expect(text).toContain("主题：跟随系统");
+    expect(text).toContain("配色：Lime 经典");
     expect(text).toContain("语言：中文");
     expect(text).toContain("提示音效：已开启");
     expect(text).toContain("基础外观");
     expect(text).toContain("主题模式");
+    expect(text).toContain("色彩方案");
+    expect(text).toContain("Lime 经典");
+    expect(text).toContain("森林");
+    expect(text).toContain("海雾");
+    expect(text).toContain("砂岩");
     expect(text).toContain("界面语言");
     expect(text).toContain("可选系统入口");
     expect(text).not.toContain("持续流程");
@@ -223,6 +242,54 @@ describe("AppearanceSettings", () => {
         showAvatar: false,
       }),
     );
+  });
+
+  it("切换色彩方案时应持久化并立即应用到根节点", async () => {
+    const { container } = await renderPage();
+    const forestButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("森林"),
+    );
+
+    expect(forestButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      forestButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(localStorage.getItem(LIME_COLOR_SCHEME_STORAGE_KEY)).toBe(
+      "lime-forest",
+    );
+    expect(document.documentElement.dataset.limeColorScheme).toBe(
+      "lime-forest",
+    );
+    expect(
+      document.documentElement.style.getPropertyValue("--lime-chrome-rail"),
+    ).toBe("#f4f7f1");
+    expect(container.textContent ?? "").toContain("配色：森林");
+  });
+
+  it("切换主题模式时应持久化并立即应用到整个应用根节点", async () => {
+    const { container } = await renderPage();
+    const darkButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("深色"),
+    );
+
+    expect(darkButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      darkButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(localStorage.getItem(LIME_THEME_STORAGE_KEY)).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(document.documentElement.dataset.limeTheme).toBe("dark");
+    expect(document.documentElement.dataset.limeThemeEffective).toBe("dark");
+    expect(
+      document.documentElement.style.getPropertyValue("--lime-app-bg"),
+    ).toBe("#0b1120");
+    expect(container.textContent ?? "").toContain("主题：深色");
   });
 
   it("应把首屏和基础外观说明收进 tips", async () => {

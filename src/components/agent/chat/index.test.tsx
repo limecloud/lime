@@ -254,6 +254,9 @@ vi.mock("./components/ChatNavbar", () => ({
     harnessPanelVisible,
     onToggleHarnessPanel,
     harnessToggleLabel,
+    showContextCompactionAction,
+    onToggleSettings,
+    contextVariant,
   }: {
     onToggleHistory?: () => void;
     onToggleCanvas?: () => void;
@@ -264,14 +267,22 @@ vi.mock("./components/ChatNavbar", () => ({
     harnessPanelVisible?: boolean;
     onToggleHarnessPanel?: () => void;
     harnessToggleLabel?: string;
+    showContextCompactionAction?: boolean;
+    onToggleSettings?: () => void;
+    contextVariant?: string;
   }) => (
     <div
       data-testid="chat-navbar"
+      data-context-variant={contextVariant || "default"}
       data-show-harness-toggle={showHarnessToggle ? "true" : "false"}
       data-harness-panel-visible={harnessPanelVisible ? "true" : "false"}
       data-harness-toggle-label={harnessToggleLabel || "Harness"}
       data-show-canvas-toggle={showCanvasToggle ? "true" : "false"}
       data-canvas-open={isCanvasOpen ? "true" : "false"}
+      data-show-context-compaction-action={
+        showContextCompactionAction ? "true" : "false"
+      }
+      data-show-settings-button={onToggleSettings ? "true" : "false"}
     >
       <button
         type="button"
@@ -311,6 +322,22 @@ vi.mock("./components/ChatNavbar", () => ({
           }}
         >
           切换 {harnessToggleLabel || "Harness"}
+        </button>
+      ) : null}
+      {showContextCompactionAction ? (
+        <button type="button" data-testid="compact-context">
+          压缩上下文
+        </button>
+      ) : null}
+      {onToggleSettings ? (
+        <button
+          type="button"
+          data-testid="toggle-settings"
+          onClick={() => {
+            onToggleSettings?.();
+          }}
+        >
+          设置
         </button>
       ) : null}
     </div>
@@ -1376,6 +1403,16 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
     expect(
       container.querySelector('[data-testid="chat-navbar"]'),
     ).not.toBeNull();
+    const navbar = container.querySelector(
+      '[data-testid="chat-navbar"]',
+    ) as HTMLDivElement | null;
+    expect(navbar?.dataset.showHarnessToggle).toBe("false");
+    expect(navbar?.dataset.showSettingsButton).toBe("false");
+    expect(navbar?.dataset.showContextCompactionAction).toBe("false");
+    expect(container.querySelector('[data-testid="toggle-harness"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="toggle-settings"]'),
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="empty-state"]'),
     ).not.toBeNull();
@@ -1841,7 +1878,7 @@ describe("AgentChatPage 话题切换项目恢复", () => {
     );
   });
 
-  it("收到首页新会话请求时应先丢弃内部项目上下文", async () => {
+  it("收到首页新会话请求时应保留当前工作区上下文", async () => {
     const mounted = mountPage();
     await flushEffects();
 
@@ -1853,10 +1890,14 @@ describe("AgentChatPage 话题切换项目恢复", () => {
 
     mounted.rerender({ newChatAt: 2233445566 });
 
-    expect(observedWorkspaceIds[observedWorkspaceIds.length - 1]).toBe("");
+    expect(observedWorkspaceIds[observedWorkspaceIds.length - 1]).toBe(
+      "project-manual",
+    );
 
     await flushEffects();
-    expect(observedWorkspaceIds[observedWorkspaceIds.length - 1]).toBe("");
+    expect(observedWorkspaceIds[observedWorkspaceIds.length - 1]).toBe(
+      "project-manual",
+    );
   });
 });
 
@@ -2069,6 +2110,42 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     expect(
       container.querySelector('[data-testid="canvas-workbench-layout-mock"]'),
     ).toBeNull();
+  });
+
+  it("空白新建任务首页应保留浏览器式工作区顶栏与新对话标签", async () => {
+    const container = renderPage({
+      agentEntry: "new-task",
+      showChatPanel: false,
+      theme: "general",
+      projectId: "project-home",
+    });
+    await flushEffects(10);
+
+    const navbar = container.querySelector(
+      '[data-testid="chat-navbar"]',
+    ) as HTMLDivElement | null;
+
+    expect(navbar?.dataset.contextVariant).toBe("task-center");
+    expect(navbar?.dataset.showHarnessToggle).toBe("false");
+    expect(navbar?.dataset.showSettingsButton).toBe("false");
+    expect(navbar?.dataset.showContextCompactionAction).toBe("false");
+    expect(
+      container.querySelector('[data-testid="task-center-tab-strip"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="task-center-tab-new-task-home"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="task-center-tab-close-new-task-home"]',
+      ),
+    ).toBeNull();
+    expect(container.textContent).toContain("新对话");
+    expect(container.querySelector('[data-testid="toggle-harness"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="toggle-settings"]'),
+    ).toBeNull();
+    expect(container.querySelector('[data-testid="empty-state"]')).not.toBeNull();
   });
 
   it("新建任务首页即使记住了文档项目也应保留真实首页", async () => {

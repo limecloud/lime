@@ -126,7 +126,9 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
     disabled,
   });
   const hasInlineComposerContent =
-    text.trim().length > 0 || pendingImages.length > 0 || queuedTurns.length > 0;
+    text.trim().length > 0 ||
+    pendingImages.length > 0 ||
+    queuedTurns.length > 0;
   const shouldCollapseFloatingTools =
     isFloatingVariant &&
     toolMode === "attach-only" &&

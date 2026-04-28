@@ -60,7 +60,7 @@ export function GeneralWorkbenchHarnessDialogSection({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         maxWidth="max-w-7xl"
-        className="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden p-0"
+        className="lime-workbench-theme-scope lime-workbench-surface-scope flex h-[90vh] max-h-[90vh] flex-col overflow-hidden border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-0 text-[color:var(--lime-text)]"
         draggable={true}
         dragHandleSelector='[data-harness-drag-handle="true"]'
       >
@@ -127,7 +127,7 @@ export function GeneralWorkbenchDialogSection({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         maxWidth="max-w-6xl"
-        className="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden p-0"
+        className="lime-workbench-theme-scope lime-workbench-surface-scope flex h-[90vh] max-h-[90vh] flex-col overflow-hidden border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-0 text-[color:var(--lime-text)]"
         draggable={true}
         dragHandleSelector='[data-harness-drag-handle="true"]'
       >

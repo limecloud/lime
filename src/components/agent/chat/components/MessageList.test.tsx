@@ -52,11 +52,13 @@ vi.mock("@/hooks/useConfiguredProviders", () => ({
     providers: MockConfiguredProvider[],
     selection?: string | null,
   ) => {
-    const selectedProvider =
-      mockFindConfiguredProviderBySelection(providers, selection);
-    const normalizedConfiguredType = (
-      selectedProvider?.type || ""
-    ).trim().toLowerCase();
+    const selectedProvider = mockFindConfiguredProviderBySelection(
+      providers,
+      selection,
+    );
+    const normalizedConfiguredType = (selectedProvider?.type || "")
+      .trim()
+      .toLowerCase();
     const normalizedSelection = (selection || "").trim().toLowerCase();
 
     if (normalizedConfiguredType === "anthropic-compatible") {
@@ -333,9 +335,7 @@ describe("MessageList", () => {
     );
     expect(container.textContent).toContain("左侧会优先显示待继续的对话");
     expect(container.textContent).toContain("最近对话和归档会按时间自动整理");
-    expect(container.textContent).toContain(
-      "恢复中的会话会自动回到这里继续",
-    );
+    expect(container.textContent).toContain("恢复中的会话会自动回到这里继续");
     expect(container.textContent).not.toContain("开始一段新的对话吧");
   });
 
@@ -676,7 +676,9 @@ describe("MessageList", () => {
       ],
     });
 
-    expect(container.querySelector('[data-testid="agent-task-strip"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-task-strip"]'),
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="assistant-message-meta-footer"]'),
     ).not.toBeNull();
@@ -1695,8 +1697,9 @@ describe("MessageList", () => {
           status: "complete",
           imageCount: 9,
           imageUrl: "https://example.com/storyboard-primary.png",
-          previewImages: Array.from({ length: 9 }, (_, index) =>
-            `https://example.com/storyboard-${index + 1}.png`,
+          previewImages: Array.from(
+            { length: 9 },
+            (_, index) => `https://example.com/storyboard-${index + 1}.png`,
           ),
           layoutHint: "storyboard_3x3",
           projectId: "project-1",
@@ -2328,7 +2331,7 @@ describe("MessageList", () => {
           type: "file_artifact",
           path: ".lime/artifacts/thread-1/report.artifact.json",
           source: "artifact_snapshot",
-          content: "{\"schemaVersion\":\"artifact_document.v1\"}",
+          content: '{"schemaVersion":"artifact_document.v1"}',
         },
       ],
     });
@@ -3086,7 +3089,7 @@ describe("MessageList", () => {
             id: "artifact-hidden-conversation-artifact-json",
             type: "document",
             title: "report.artifact.json",
-            content: "{\"schemaVersion\":\"artifact_document.v1\"}",
+            content: '{"schemaVersion":"artifact_document.v1"}',
             status: "complete",
             meta: {
               filePath: ".lime/artifacts/thread-1/report.artifact.json",

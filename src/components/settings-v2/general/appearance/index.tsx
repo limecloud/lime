@@ -38,11 +38,30 @@ import {
   CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS,
   resolveEnabledSidebarNavItems,
 } from "@/lib/navigation/sidebarNav";
-
-type Theme = "light" | "dark" | "system";
+import {
+  LIME_COLOR_SCHEME_CHANGED_EVENT,
+  LIME_COLOR_SCHEMES,
+  LIME_COLOR_SCHEME_STORAGE_KEY,
+  applyLimeColorScheme,
+  getLimeColorScheme,
+  loadLimeColorSchemeId,
+  persistLimeColorScheme,
+  type LimeColorSchemeChangedEventDetail,
+  type LimeColorSchemeId,
+} from "@/lib/appearance/colorSchemes";
+import {
+  LIME_THEME_CHANGED_EVENT,
+  LIME_THEME_MODE_OPTIONS,
+  LIME_THEME_STORAGE_KEY,
+  applyLimeThemeMode,
+  loadLimeThemeMode,
+  persistLimeThemeMode,
+  type LimeThemeChangedEventDetail,
+  type LimeThemeMode,
+} from "@/lib/appearance/themeMode";
 
 interface ThemeOption {
-  id: Theme;
+  id: LimeThemeMode;
   label: string;
   description: string;
   icon: LucideIcon;
@@ -71,24 +90,10 @@ interface HiddenSystemEntryOption {
 }
 
 const THEME_OPTIONS: ThemeOption[] = [
-  {
-    id: "light",
-    label: "浅色",
-    description: "适合白天和高亮环境。",
-    icon: Sun,
-  },
-  {
-    id: "dark",
-    label: "深色",
-    description: "降低夜间使用时的眩光。",
-    icon: Moon,
-  },
-  {
-    id: "system",
-    label: "跟随系统",
-    description: "自动同步系统外观。",
-    icon: Monitor,
-  },
+  ...LIME_THEME_MODE_OPTIONS.map((option) => ({
+    ...option,
+    icon: option.id === "light" ? Sun : option.id === "dark" ? Moon : Monitor,
+  })),
 ];
 
 const LANGUAGE_OPTIONS: LanguageOption[] = [
@@ -126,51 +131,37 @@ const HIDDEN_SYSTEM_ENTRY_OPTIONS: HiddenSystemEntryOption[] = [
 ];
 
 const ACTIVE_OPTION_CARD_CLASS =
-  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
+  "border-[color:var(--lime-surface-border-strong)] bg-[image:var(--lime-home-card-surface-strong)] text-[color:var(--lime-text-strong)] shadow-sm shadow-slate-950/10";
 
 const INACTIVE_OPTION_CARD_CLASS =
-  "border-slate-200 bg-white text-slate-700 hover:border-sky-200 hover:bg-sky-50/70 hover:text-slate-900";
+  "border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text)] hover:border-[color:var(--lime-surface-border-strong)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)]";
 
 const PRIMARY_ACTION_BUTTON_CLASS =
-  "inline-flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#0ea5e9_0%,#10b981_100%)] px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-95 shadow-sm shadow-emerald-950/15";
+  "inline-flex w-full items-center justify-center gap-2 rounded-full bg-[image:var(--lime-primary-gradient-simple)] px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95";
 
 const HEADER_INFO_PILL_CLASS =
-  "rounded-full border border-sky-200 bg-sky-50/90 px-2.5 py-1 text-[11px] font-medium text-sky-700";
+  "rounded-full border border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--lime-info)]";
 
 const HEADER_SUCCESS_PILL_CLASS =
-  "rounded-full border border-emerald-200 bg-emerald-50/90 px-2.5 py-1 text-[11px] font-medium text-emerald-700";
+  "rounded-full border border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-brand-soft)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--lime-brand-strong)]";
 
 const HEADER_NEUTRAL_PILL_CLASS =
-  "rounded-full border border-cyan-200 bg-cyan-50/90 px-2.5 py-1 text-[11px] font-medium text-cyan-700";
+  "rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--lime-text-muted)]";
 
 const CURRENT_INFO_PILL_CLASS =
-  "rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700";
+  "rounded-full border border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)] px-3 py-1 text-xs font-medium text-[color:var(--lime-info)]";
 
 const CURRENT_SUCCESS_PILL_CLASS =
-  "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700";
+  "rounded-full border border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-brand-soft)] px-3 py-1 text-xs font-medium text-[color:var(--lime-brand-strong)]";
 
 const CONTEXT_STATUS_PILL_CLASS =
-  "rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-700";
+  "rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] px-3 py-1 text-xs font-medium text-[color:var(--lime-text-muted)]";
 
 const RECOVERY_ICON_BADGE_CLASS =
-  "inline-flex h-12 w-12 items-center justify-center rounded-[18px] border border-sky-200 bg-[linear-gradient(135deg,rgba(240,249,255,0.98)_0%,rgba(236,253,245,0.92)_100%)] text-sky-700";
+  "inline-flex h-12 w-12 items-center justify-center rounded-[18px] border border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)] text-[color:var(--lime-info)]";
 
 const RECOVERY_NOTICE_CLASS =
-  "flex items-center justify-between gap-3 rounded-[18px] border border-cyan-200/80 bg-cyan-50/70 px-4 py-3 text-xs leading-5 text-cyan-700";
-
-function applyTheme(theme: Theme) {
-  const root = document.documentElement;
-
-  if (theme === "system") {
-    const systemDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    root.classList.toggle("dark", systemDark);
-    return;
-  }
-
-  root.classList.toggle("dark", theme === "dark");
-}
+  "flex items-center justify-between gap-3 rounded-[18px] border border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)] px-4 py-3 text-xs leading-5 text-[color:var(--lime-info)]";
 
 function SurfacePanel({
   icon: Icon,
@@ -215,7 +206,7 @@ function LoadingSkeleton() {
   );
 }
 
-function resolveThemeLabel(theme: Theme) {
+function resolveThemeLabel(theme: LimeThemeMode) {
   return THEME_OPTIONS.find((option) => option.id === theme)?.label || "系统";
 }
 
@@ -225,9 +216,15 @@ function resolveLanguageLabel(language: Language) {
   );
 }
 
+function resolveColorSchemeLabel(colorSchemeId: LimeColorSchemeId) {
+  return getLimeColorScheme(colorSchemeId).label;
+}
+
 export function AppearanceSettings() {
   const [loading, setLoading] = useState(true);
-  const [theme, setTheme] = useState<Theme>("system");
+  const [theme, setTheme] = useState<LimeThemeMode>("system");
+  const [colorSchemeId, setColorSchemeId] =
+    useState<LimeColorSchemeId>("lime-classic");
   const [language, setLanguageState] = useState<Language>("zh");
   const [
     appendSelectedTextToRecommendation,
@@ -263,20 +260,63 @@ export function AppearanceSettings() {
   }, []);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as Theme | null;
-    const nextTheme = savedTheme || "system";
-    setTheme(nextTheme);
-    applyTheme(nextTheme);
+    const refreshAppearance = () => {
+      const nextTheme = loadLimeThemeMode();
+      const nextColorSchemeId = loadLimeColorSchemeId();
+      setTheme(nextTheme);
+      setColorSchemeId(nextColorSchemeId);
+      applyLimeThemeMode(nextTheme);
+      applyLimeColorScheme(nextColorSchemeId);
+    };
+
+    const handleThemeChanged = (event: Event) => {
+      const detail = (event as CustomEvent<LimeThemeChangedEventDetail>).detail;
+      setTheme(detail?.themeMode ?? loadLimeThemeMode());
+    };
+
+    const handleColorSchemeChanged = (event: Event) => {
+      const detail = (event as CustomEvent<LimeColorSchemeChangedEventDetail>)
+        .detail;
+      setColorSchemeId(detail?.colorSchemeId ?? loadLimeColorSchemeId());
+    };
+
+    const handleStorageChanged = (event: StorageEvent) => {
+      if (
+        event.key === LIME_THEME_STORAGE_KEY ||
+        event.key === LIME_COLOR_SCHEME_STORAGE_KEY
+      ) {
+        refreshAppearance();
+      }
+    };
+
+    refreshAppearance();
     void loadConfig();
+
+    window.addEventListener(LIME_THEME_CHANGED_EVENT, handleThemeChanged);
+    window.addEventListener(
+      LIME_COLOR_SCHEME_CHANGED_EVENT,
+      handleColorSchemeChanged,
+    );
+    window.addEventListener("storage", handleStorageChanged);
+
+    return () => {
+      window.removeEventListener(LIME_THEME_CHANGED_EVENT, handleThemeChanged);
+      window.removeEventListener(
+        LIME_COLOR_SCHEME_CHANGED_EVENT,
+        handleColorSchemeChanged,
+      );
+      window.removeEventListener("storage", handleStorageChanged);
+    };
   }, [loadConfig]);
 
   const workspaceSummary = useMemo(
     () => ({
       themeLabel: resolveThemeLabel(theme),
+      colorSchemeLabel: resolveColorSchemeLabel(colorSchemeId),
       languageLabel: resolveLanguageLabel(language),
       soundsLabel: soundEnabled ? "已开启" : "已关闭",
     }),
-    [language, soundEnabled, theme],
+    [colorSchemeId, language, soundEnabled, theme],
   );
 
   const enabledNavigationItems = useMemo(
@@ -286,11 +326,18 @@ export function AppearanceSettings() {
 
   const hiddenSystemEntryCount = enabledNavigationItems.length;
 
-  const handleThemeChange = useCallback((nextTheme: Theme) => {
-    setTheme(nextTheme);
-    localStorage.setItem("theme", nextTheme);
-    applyTheme(nextTheme);
+  const handleThemeChange = useCallback((nextTheme: LimeThemeMode) => {
+    const resolvedTheme = persistLimeThemeMode(nextTheme);
+    setTheme(resolvedTheme);
   }, []);
+
+  const handleColorSchemeChange = useCallback(
+    (nextColorSchemeId: LimeColorSchemeId) => {
+      const resolvedId = persistLimeColorScheme(nextColorSchemeId);
+      setColorSchemeId(resolvedId);
+    },
+    [],
+  );
 
   const handleLanguageChange = useCallback(
     async (nextLanguage: Language) => {
@@ -376,7 +423,9 @@ export function AppearanceSettings() {
       const nextEnabledItems = resolveEnabledSidebarNavItems(
         checked
           ? [...enabledNavigationItems, itemId]
-          : enabledNavigationItems.filter((currentItemId) => currentItemId !== itemId),
+          : enabledNavigationItems.filter(
+              (currentItemId) => currentItemId !== itemId,
+            ),
       ) as NavigationEnabledItemId[];
 
       const nextConfig: Config = {
@@ -448,11 +497,16 @@ export function AppearanceSettings() {
               主题：{workspaceSummary.themeLabel}
             </span>
             <span className={HEADER_SUCCESS_PILL_CLASS}>
+              配色：{workspaceSummary.colorSchemeLabel}
+            </span>
+            <span className={HEADER_SUCCESS_PILL_CLASS}>
               语言：{workspaceSummary.languageLabel}
             </span>
             <span
               className={
-                soundEnabled ? HEADER_SUCCESS_PILL_CLASS : HEADER_NEUTRAL_PILL_CLASS
+                soundEnabled
+                  ? HEADER_SUCCESS_PILL_CLASS
+                  : HEADER_NEUTRAL_PILL_CLASS
               }
             >
               提示音效：{workspaceSummary.soundsLabel}
@@ -516,6 +570,72 @@ export function AppearanceSettings() {
                         className={cn(
                           "mt-1 text-xs leading-5",
                           active ? "text-slate-600" : "text-slate-500",
+                        )}
+                      >
+                        {option.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-[color:var(--lime-text-strong)]">
+                      色彩方案
+                    </h3>
+                    <WorkbenchInfoTip
+                      ariaLabel="色彩方案说明"
+                      content="只切换品牌色、页面底色和卡片层级；明暗主题仍由主题模式控制。"
+                      tone="slate"
+                    />
+                  </div>
+                </div>
+                <span className={CURRENT_SUCCESS_PILL_CLASS}>
+                  当前：{resolveColorSchemeLabel(colorSchemeId)}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-4">
+                {LIME_COLOR_SCHEMES.map((option) => {
+                  const active = colorSchemeId === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleColorSchemeChange(option.id)}
+                      className={cn(
+                        "rounded-[20px] border px-4 py-4 text-left shadow-sm transition",
+                        active
+                          ? ACTIVE_OPTION_CARD_CLASS
+                          : INACTIVE_OPTION_CARD_CLASS,
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-1.5">
+                          {option.swatches.map((swatch) => (
+                            <span
+                              key={swatch}
+                              aria-hidden="true"
+                              className="h-5 w-5 rounded-full border border-white/80 shadow-sm shadow-slate-950/10"
+                              style={{ backgroundColor: swatch }}
+                            />
+                          ))}
+                        </div>
+                        {active ? <Check className="h-4 w-4" /> : null}
+                      </div>
+                      <p className="mt-4 text-sm font-semibold">
+                        {option.label}
+                      </p>
+                      <p
+                        className={cn(
+                          "mt-1 text-xs leading-5",
+                          active
+                            ? "text-[color:var(--lime-text)]"
+                            : "text-[color:var(--lime-text-muted)]",
                         )}
                       >
                         {option.description}
@@ -617,11 +737,7 @@ export function AppearanceSettings() {
           iconClassName="text-cyan-600"
           title="初始化与恢复"
           description="当你想重新走一遍首次启动流程，或者排查引导配置异常时，从这里恢复。"
-          aside={
-            <span className={CURRENT_INFO_PILL_CLASS}>
-              适合排障
-            </span>
-          }
+          aside={<span className={CURRENT_INFO_PILL_CLASS}>适合排障</span>}
         >
           <div className="flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.94)_0%,rgba(248,250,252,0.92)_100%)] p-4">
             <div className="space-y-3">
@@ -671,7 +787,8 @@ export function AppearanceSettings() {
         description="把扩展或低频入口按需挂到底部系统区，不影响当前主导航。"
         aside={
           <span className={CURRENT_INFO_PILL_CLASS}>
-            已开启 {hiddenSystemEntryCount} / {CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS.length}
+            已开启 {hiddenSystemEntryCount} /{" "}
+            {CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS.length}
           </span>
         }
       >

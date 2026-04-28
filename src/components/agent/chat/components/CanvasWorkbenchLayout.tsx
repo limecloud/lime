@@ -258,22 +258,22 @@ export interface CanvasWorkbenchLayoutProps {
 }
 
 const WORKBENCH_SHELL_CLASSNAME =
-  "rounded-[28px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5";
+  "rounded-[28px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] shadow-sm shadow-slate-950/5";
 
 const WORKBENCH_PANEL_CLASSNAME =
-  "rounded-[24px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5";
+  "rounded-[24px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] shadow-sm shadow-slate-950/5";
 
 const WORKBENCH_MUTED_PANEL_CLASSNAME =
-  "rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500";
+  "rounded-[24px] border border-dashed border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] px-4 py-6 text-sm text-[color:var(--lime-text-muted)]";
 
 const WORKBENCH_BUTTON_CLASSNAME =
-  "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900";
+  "border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] text-[color:var(--lime-text)] hover:border-[color:var(--lime-surface-border-strong)] hover:bg-[color:var(--lime-surface)] hover:text-[color:var(--lime-text-strong)]";
 
 const WORKBENCH_ACTIVE_BUTTON_CLASSNAME =
-  "border-slate-300 bg-white text-slate-950 shadow-sm shadow-slate-950/5";
+  "border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text-strong)] shadow-sm shadow-slate-950/5";
 
 const WORKBENCH_GHOST_BUTTON_CLASSNAME =
-  "border-slate-200/80 text-slate-500 hover:bg-slate-50 hover:text-slate-900";
+  "border-[color:var(--lime-surface-border)] text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-soft)] hover:text-[color:var(--lime-text-strong)]";
 
 const STACKED_LAYOUT_BREAKPOINT = 1040;
 
@@ -341,7 +341,10 @@ function resolveSavedContentBundleRoot(
   workspaceRoot: string | null | undefined,
   selectionPath: string | null | undefined,
 ): string | null {
-  const relativePath = resolveWorkspaceRelativePath(workspaceRoot, selectionPath);
+  const relativePath = resolveWorkspaceRelativePath(
+    workspaceRoot,
+    selectionPath,
+  );
   if (!relativePath) {
     return null;
   }
@@ -415,7 +418,10 @@ function sortWorkspaceListingEntries(
       if (entry.isDir && normalizedName === "skills") {
         return 2;
       }
-      if (entry.isDir && (normalizedName === "images" || normalizedName === "assets")) {
+      if (
+        entry.isDir &&
+        (normalizedName === "images" || normalizedName === "assets")
+      ) {
         return 3;
       }
       if (entry.isDir) {
@@ -589,10 +595,7 @@ function buildEntries(
       }),
       subtitle: taskFile.name,
       filePath: taskFile.name,
-      absolutePath: resolveAbsoluteWorkspacePath(
-        workspaceRoot,
-        taskFile.name,
-      ),
+      absolutePath: resolveAbsoluteWorkspacePath(workspaceRoot, taskFile.name),
       previewText: taskFile.content?.trim().slice(0, 180),
       createdAt: taskFile.updatedAt,
       badgeLabel: taskFile.type === "document" ? "文档" : undefined,
@@ -612,7 +615,10 @@ function buildEntries(
     .flatMap((artifact) => {
       const filePath = resolveArtifactProtocolFilePath(artifact);
       const writePhase = resolveArtifactWritePhase(artifact);
-      const absolutePath = resolveAbsoluteWorkspacePath(workspaceRoot, filePath);
+      const absolutePath = resolveAbsoluteWorkspacePath(
+        workspaceRoot,
+        filePath,
+      );
       const pathKey = normalizePath(absolutePath || filePath || "");
       if (pathKey) {
         if (taskFilePathSet.has(pathKey) || seenArtifactPaths.has(pathKey)) {
@@ -621,25 +627,27 @@ function buildEntries(
         seenArtifactPaths.add(pathKey);
       }
 
-      return [{
-        key: `artifact:${artifact.id}`,
-        source: "artifact",
-        artifact,
-        title: resolveContentPostArtifactDisplayTitle({
-          title: artifact.title,
+      return [
+        {
+          key: `artifact:${artifact.id}`,
+          source: "artifact",
+          artifact,
+          title: resolveContentPostArtifactDisplayTitle({
+            title: artifact.title,
+            filePath,
+            metadata: artifact.meta,
+          }),
+          subtitle: filePath,
           filePath,
-          metadata: artifact.meta,
-        }),
-        subtitle: filePath,
-        filePath,
-        absolutePath,
-        previewText: resolveArtifactPreviewText(artifact),
-        createdAt: artifact.updatedAt || artifact.createdAt,
-        badgeLabel: writePhase
-          ? formatArtifactWritePhaseLabel(writePhase)
-          : undefined,
-        kindLabel: "产物",
-      }];
+          absolutePath,
+          previewText: resolveArtifactPreviewText(artifact),
+          createdAt: artifact.updatedAt || artifact.createdAt,
+          badgeLabel: writePhase
+            ? formatArtifactWritePhaseLabel(writePhase)
+            : undefined,
+          kindLabel: "产物",
+        },
+      ];
     });
 
   if (isDocumentCanvasState(canvasState)) {
@@ -1403,7 +1411,9 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       resolveSavedContentBundleRoot(
         workspaceRoot,
         documentContext?.selectionPath || sessionContext?.selectionPath,
-      ) || workspaceRoot || null,
+      ) ||
+      workspaceRoot ||
+      null,
     [
       documentContext?.selectionPath,
       sessionContext?.selectionPath,
@@ -1580,9 +1590,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
             {
               key: "team" as const,
               label:
-                teamView.tabLabel?.trim() ||
-                teamView.title?.trim() ||
-                "生成",
+                teamView.tabLabel?.trim() || teamView.title?.trim() || "生成",
               badge:
                 teamView.tabBadge?.trim() ||
                 teamView.triggerState?.label?.trim() ||
@@ -1958,7 +1966,9 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
             <button
               type="button"
               aria-label="刷新工作区文件树"
-              onClick={() => void refreshDirectorySubtree(workspacePanelRootPath)}
+              onClick={() =>
+                void refreshDirectorySubtree(workspacePanelRootPath)
+              }
               className={cn(
                 "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
                 WORKBENCH_GHOST_BUTTON_CLASSNAME,
@@ -1977,7 +1987,8 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
               renderDirectoryNode(workspacePanelRootPath)
             ) : (
               <div className="px-2 py-4 text-sm text-slate-500">
-                {workspaceView?.panelCopy?.emptyDirectoryText || "暂无目录内容。"}
+                {workspaceView?.panelCopy?.emptyDirectoryText ||
+                  "暂无目录内容。"}
               </div>
             )}
           </div>
@@ -2028,8 +2039,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       return (
         <div data-testid="canvas-workbench-panel-team" className="p-5">
           <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
-            {teamView?.panelCopy?.emptyText ||
-              "当前没有可展示的生成结果。"}
+            {teamView?.panelCopy?.emptyText || "当前没有可展示的生成结果。"}
           </div>
         </div>
       );
@@ -2174,18 +2184,20 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       data-testid="canvas-workbench-shell"
       data-layout-mode={isStackedLayout ? "stacked" : "split"}
       className={cn(
+        "lime-workbench-theme-scope",
+        "lime-workbench-surface-scope",
         WORKBENCH_SHELL_CLASSNAME,
         "relative flex h-full min-h-0 flex-col overflow-hidden",
       )}
     >
-      <header className="border-b border-slate-200/80 bg-white px-4 py-3">
+      <header className="border-b border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4 py-3">
         <div
           className={cn(
             "flex items-center justify-between gap-3",
             isStackedLayout && "flex-col items-stretch",
           )}
         >
-          <div className="min-w-0 flex-1 rounded-[24px] border border-slate-200 bg-slate-100 p-1.5">
+          <div className="min-w-0 flex-1 rounded-[24px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] p-1.5">
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {primaryTabs.map((tab) =>
                 renderTopTab({
@@ -2197,7 +2209,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
               )}
 
               {documentTabs.length > 0 ? (
-                <div className="mx-1 h-6 w-px shrink-0 bg-slate-300/80" />
+                <div className="mx-1 h-6 w-px shrink-0 bg-[color:var(--lime-surface-border-strong)]" />
               ) : null}
 
               {documentTabs.map((tab) =>
@@ -2255,15 +2267,15 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       <div
         data-testid="canvas-workbench-layout"
         data-panel-placement="canvas"
-        className="min-h-0 flex-1 overflow-hidden bg-slate-50"
+        className="min-h-0 flex-1 overflow-hidden bg-[image:var(--lime-stage-surface-soft)]"
       >
         {activeTab === "workspace"
           ? renderWorkspacePanel()
           : activeTab === "team"
-              ? renderTeamPanel()
-              : activeTab === "session"
-                ? renderSessionPanel()
-                : renderDocumentPanel()}
+            ? renderTeamPanel()
+            : activeTab === "session"
+              ? renderSessionPanel()
+              : renderDocumentPanel()}
       </div>
     </section>
   );

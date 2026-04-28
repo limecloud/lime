@@ -53,9 +53,8 @@ jobs:
           NOTES_FILE="$RUNNER_TEMP/release-notes.md"
 
           if [[ "$TAG" == *-* ]]; then
-            IS_PRERELEASE="true"
-          else
-            IS_PRERELEASE="false"
+            echo "::error::Stable updater release does not accept prerelease tag: $TAG"
+            exit 1
           fi
 
           if [ -f RELEASE_NOTES.md ]; then
@@ -89,10 +88,6 @@ jobs:
             --notes-file "$NOTES_FILE"
           )
 
-          if [ "$IS_PRERELEASE" = "true" ]; then
-            create_args+=(--prerelease)
-          fi
-
           gh "${create_args[@]}" || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
 
   build:
@@ -121,6 +116,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     env:
       LIME_UPDATER_PUBLIC_KEY: ${{ secrets.LIME_UPDATER_PUBLIC_KEY }}
+      LIME_UPDATES_BASE_URL: ${{ secrets.LIME_UPDATES_BASE_URL || vars.LIME_UPDATES_BASE_URL }}
       TAURI_SIGNING_PRIVATE_KEY_RAW: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       NODE_OPTIONS: --max-old-space-size=8192
@@ -172,12 +168,8 @@ jobs:
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "LIME_ENABLE_UPDATER_ARTIFACTS=false" >> "$GITHUB_ENV"
-            echo "LIME_UPDATER_PUBLIC_KEY=" >> "$GITHUB_ENV"
-            echo "TAURI_SIGNING_PRIVATE_KEY_RAW=" >> "$GITHUB_ENV"
-            echo "TAURI_SIGNING_PRIVATE_KEY=" >> "$GITHUB_ENV"
-            echo "TAURI_SIGNING_PRIVATE_KEY_PATH=" >> "$GITHUB_ENV"
-            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=" >> "$GITHUB_ENV"
-            echo "::warning::Updater signing secrets are missing. Release will skip updater artifacts and fall back to manual-download updates."
+            echo "::error::Updater signing secrets are missing. Release must produce signed updater artifacts for Cloudflare R2 distribution."
+            exit 1
           fi
 
       - name: Sync version from tag to tauri configs
@@ -201,14 +193,23 @@ jobs:
           echo "tauri.conf.headless.json version is now: $(node -e "console.log(JSON.parse(require('fs').readFileSync('tauri.conf.headless.json','utf8')).version)")"
           echo "createUpdaterArtifacts: $(node -e "console.log(JSON.parse(require('fs').readFileSync('tauri.conf.json','utf8')).bundle.createUpdaterArtifacts)")"
 
+      - name: Resolve updater endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL="${LIME_UPDATES_BASE_URL:-https://updates.limecloud.com}"
+          BASE_URL="${BASE_URL%/}"
+          echo "LIME_UPDATER_ENDPOINT=${BASE_URL}/lime/stable/latest.json" >> "$GITHUB_ENV"
+          echo "Updater endpoint: ${BASE_URL}/lime/stable/latest.json"
+
       - name: Resolve release channel
         id: release_meta
         shell: bash
         run: |
           TAG="${{ github.event.inputs.version || github.ref_name }}"
           if [[ "$TAG" == *-* ]]; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "Release channel: prerelease"
+            echo "::error::Stable updater release does not accept prerelease tag: $TAG"
+            exit 1
           else
             echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
             echo "Release channel: stable"
@@ -392,11 +393,11 @@ jobs:
             exit 1
           fi
 
-      - name: Build Tauri app (Windows installer, direct release upload)
-        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'true'
+      - name: Build Tauri app (Windows installer, stage only)
+        id: build_windows_stage
+        if: matrix.platform == 'windows-2022'
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 禁用 LTO 加速编译（正式发布可改为 thin）
           CARGO_PROFILE_RELEASE_LTO: "off"
           # 增加并行编译单元
@@ -407,42 +408,17 @@ jobs:
         with:
           tauriScript: npx tauri
           projectPath: src-tauri
-          tagName: ${{ github.event.inputs.version || github.ref_name }}
-          releaseName: "Lime ${{ github.event.inputs.version || github.ref_name }}"
-          releaseBody: ${{ env.RELEASE_BODY }}
-          releaseDraft: false
-          prerelease: ${{ steps.release_meta.outputs.is_prerelease == 'true' }}
           includeUpdaterJson: ${{ steps.updater_mode.outputs.enabled == 'true' }}
           # tauri-action@v0 使用 assetNamePattern，Windows 只保留单一 setup 安装包
           assetNamePattern: "[name]_[version]_[arch][setup][ext]"
           # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
           args: --target ${{ matrix.target }} --config tauri.windows.conf.json
 
-      - name: Build Tauri app (Windows installer, stage only)
-        id: build_windows_stage
-        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
-        uses: tauri-apps/tauri-action@v0
-        env:
-          # 禁用 LTO 加速编译（正式发布可改为 thin）
-          CARGO_PROFILE_RELEASE_LTO: "off"
-          # 增加并行编译单元
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
-          CARGO_INCREMENTAL: 0
-          SCCACHE_GHA_ENABLED: "true"
-          RUSTC_WRAPPER: sccache
-        with:
-          tauriScript: npx tauri
-          projectPath: src-tauri
-          # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
-          args: --target ${{ matrix.target }} --config tauri.windows.conf.json
-
-      - name: Stage Windows release asset
-        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
+      - name: Stage Windows release assets
+        if: matrix.platform == 'windows-2022'
         shell: bash
         env:
           ARTIFACT_PATHS_JSON: ${{ steps.build_windows_stage.outputs.artifactPaths }}
-          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
-          TARGET_TRIPLE: ${{ matrix.target }}
           STAGING_DIR: release-assets/${{ matrix.target }}
         run: |
           set -euo pipefail
@@ -452,48 +428,36 @@ jobs:
 
           const raw = (process.env.ARTIFACT_PATHS_JSON || '').trim();
           if (!raw) {
-            throw new Error('Windows installer artifactPaths 输出为空');
+            throw new Error('Windows artifactPaths 输出为空');
           }
 
           let artifacts;
           try {
             artifacts = JSON.parse(raw);
           } catch (error) {
-            throw new Error(`Windows installer artifactPaths 不是合法 JSON: ${raw}\n${error}`);
+            throw new Error(`Windows artifactPaths 不是合法 JSON: ${raw}\n${error}`);
           }
 
           if (!Array.isArray(artifacts) || artifacts.length === 0) {
-            throw new Error(`Windows installer artifactPaths 为空数组: ${raw}`);
+            throw new Error(`Windows artifactPaths 为空数组: ${raw}`);
           }
-
-          const installerPath = artifacts.find(
-            (item) => typeof item === 'string' && item.toLowerCase().endsWith('.exe')
-          );
-          if (!installerPath) {
-            throw new Error(`Windows installer 构建未找到 .exe 安装包: ${raw}`);
-          }
-
-          const version = (process.env.RELEASE_TAG || '').replace(/^v/, '');
-          if (!version) {
-            throw new Error('RELEASE_TAG 为空，无法生成 Windows release 文件名');
-          }
-
-          const targetTriple = process.env.TARGET_TRIPLE || '';
-          const archLabel =
-            targetTriple.startsWith('x86_64-') ? 'x64' :
-            targetTriple.startsWith('aarch64-') ? 'aarch64' :
-            targetTriple.replace(/[^A-Za-z0-9._-]+/g, '-');
 
           const stagingDir = process.env.STAGING_DIR;
           fs.mkdirSync(stagingDir, { recursive: true });
 
-          const stagedPath = path.join(
-            stagingDir,
-            `Lime_${version}_${archLabel}-setup.exe`
-          );
+          for (const artifact of artifacts) {
+            if (typeof artifact !== 'string' || !fs.existsSync(artifact) || !fs.statSync(artifact).isFile()) {
+              continue;
+            }
+            const stagedPath = path.join(stagingDir, path.basename(artifact));
+            fs.copyFileSync(artifact, stagedPath);
+            console.log(`Staged Windows asset: ${artifact} -> ${stagedPath}`);
+          }
 
-          fs.copyFileSync(installerPath, stagedPath);
-          console.log(`Staged Windows installer: ${installerPath} -> ${stagedPath}`);
+          const staged = fs.readdirSync(stagingDir).filter((name) => fs.statSync(path.join(stagingDir, name)).isFile());
+          if (staged.length === 0) {
+            throw new Error(`Windows 构建未生成可发布文件: ${raw}`);
+          }
           NODE
 
       - name: Build macOS app (attempt 1, verbose)
@@ -803,6 +767,17 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.source_ref || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Download staged release assets
         uses: actions/download-artifact@v4
         with:
@@ -833,6 +808,60 @@ jobs:
           printf 'Downloaded staged release assets:\n'
           printf ' - %s\n' "${assets[@]}"
 
+      - name: Prepare updater release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body > "$NOTES_FILE" && [ -s "$NOTES_FILE" ]; then
+            echo "Loaded release notes from GitHub Release"
+            exit 0
+          fi
+
+          if [ -f RELEASE_NOTES.md ]; then
+            cp RELEASE_NOTES.md "$NOTES_FILE"
+            echo "Loaded release notes from RELEASE_NOTES.md"
+            exit 0
+          fi
+
+          PREV_TAG="$(git tag --sort=-v:refname | grep -v "^${RELEASE_TAG}$" | head -n 1)"
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG="$(git log --pretty=format:"- %s (%h)" "${RELEASE_TAG}" 2>/dev/null || git log --pretty=format:"- %s (%h)")"
+          else
+            CHANGELOG="$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..${RELEASE_TAG}" 2>/dev/null || git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD")"
+          fi
+
+          {
+            echo "## Lime ${RELEASE_TAG}"
+            echo
+            echo "### Changes"
+            echo "${CHANGELOG}"
+          } > "$NOTES_FILE"
+          echo "Generated release notes from git history"
+
+      - name: Generate stable updater manifest
+        env:
+          LIME_UPDATES_BASE_URL: ${{ secrets.LIME_UPDATES_BASE_URL || vars.LIME_UPDATES_BASE_URL }}
+          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_URL="${LIME_UPDATES_BASE_URL:-https://updates.limecloud.com}"
+          node scripts/release-updater-manifest.mjs \
+            --assets-dir release-assets \
+            --out-dir release-updater \
+            --version "$RELEASE_TAG" \
+            --base-url "$BASE_URL" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --channel stable
+
+          printf 'Generated updater manifest:\n'
+          cat release-updater/latest.json
+
       - name: Upload staged release assets to GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -845,7 +874,8 @@ jobs:
           while IFS= read -r asset; do
             [ -n "$asset" ] || continue
             assets+=("$asset")
-          done < <(find "release-assets" -type f | sort)
+          done < <(find "release-assets" -type f ! -name "latest*.json" | sort)
+          assets+=("release-updater/latest.json")
 
           if [ "${#assets[@]}" -eq 0 ]; then
             echo "No staged release assets found" >&2
@@ -858,3 +888,71 @@ jobs:
           gh release upload "$TAG" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --clobber
+
+      - name: Upload updater assets to Cloudflare R2
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          LIME_RELEASES_R2_BUCKET: ${{ secrets.LIME_RELEASES_R2_BUCKET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUCKET="${LIME_RELEASES_R2_BUCKET:-lime-releases}"
+
+          BUCKET="$BUCKET" node - <<'NODE' > "$RUNNER_TEMP/r2-upload.sh"
+          const fs = require('fs');
+          const plan = JSON.parse(fs.readFileSync('release-updater/r2-upload-plan.json', 'utf8'));
+          for (const item of plan) {
+            const args = [
+              'npx wrangler@latest r2 object put',
+              JSON.stringify(`${process.env.BUCKET}/${item.key}`),
+              '--file',
+              JSON.stringify(item.file),
+              '--content-type',
+              JSON.stringify(item.contentType),
+              '--cache-control',
+              JSON.stringify(item.cacheControl),
+            ];
+            console.log(args.join(' '));
+          }
+          NODE
+
+          bash "$RUNNER_TEMP/r2-upload.sh"
+
+      - name: Clean old updater assets from Cloudflare R2
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          LIME_MINIMUM_SUPPORTED_VERSION: ${{ secrets.LIME_MINIMUM_SUPPORTED_VERSION }}
+          LIME_R2_KEEP_RELEASES: ${{ vars.LIME_R2_KEEP_RELEASES }}
+          LIME_RELEASES_R2_BUCKET: ${{ secrets.LIME_RELEASES_R2_BUCKET }}
+          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUCKET="${LIME_RELEASES_R2_BUCKET:-lime-releases}"
+          KEEP="${LIME_R2_KEEP_RELEASES:-3}"
+
+          npx wrangler@latest r2 object list "$BUCKET" \
+            --prefix "lime/stable/v" \
+            --json > "$RUNNER_TEMP/r2-objects.json"
+
+          node scripts/plan-r2-release-cleanup.mjs \
+            --input "$RUNNER_TEMP/r2-objects.json" \
+            --output "$RUNNER_TEMP/r2-delete-keys.txt" \
+            --current "$RELEASE_TAG" \
+            --keep "$KEEP" \
+            --minimum "${LIME_MINIMUM_SUPPORTED_VERSION:-}" \
+            --channel stable
+
+          if [ ! -s "$RUNNER_TEMP/r2-delete-keys.txt" ]; then
+            echo "No old R2 updater assets to delete"
+            exit 0
+          fi
+
+          printf 'Deleting old R2 updater assets:\n'
+          cat "$RUNNER_TEMP/r2-delete-keys.txt"
+          while IFS= read -r key; do
+            [ -n "$key" ] || continue
+            npx wrangler@latest r2 object delete "${BUCKET}/${key}"
+          done < "$RUNNER_TEMP/r2-delete-keys.txt"

@@ -97,7 +97,9 @@ function DetailPanel(props: {
   children?: ReactNode;
 }) {
   return (
-    <article className={cn("rounded-xl border px-3 py-3", SLATE_PANEL_CLASS_NAME)}>
+    <article
+      className={cn("rounded-xl border px-3 py-3", SLATE_PANEL_CLASS_NAME)}
+    >
       <div className={cn("text-xs font-medium", SLATE_TITLE_CLASS_NAME)}>
         {props.title}
       </div>

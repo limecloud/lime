@@ -146,7 +146,7 @@ describe("WorkspaceMainArea", () => {
     );
 
     expect(shell).not.toBeNull();
-    expect(shell?.style.backgroundColor).toBe("rgb(242, 247, 243)");
+    expect(shell?.className).toContain("bg-[color:var(--lime-chrome-rail)]");
     expect(
       shell?.querySelector('[data-testid="workspace-navbar"]'),
     ).not.toBeNull();

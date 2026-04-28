@@ -116,6 +116,9 @@ interface WorkspaceCanvasPreviewImageWorkbenchParams {
   tasks: ImageWorkbenchCanvasProps["tasks"];
   outputs: ImageWorkbenchCanvasProps["outputs"];
   selectedOutputId: ImageWorkbenchCanvasProps["selectedOutputId"];
+  sourceProjectId: ImageWorkbenchCanvasProps["sourceProjectId"];
+  sourceContentId: ImageWorkbenchCanvasProps["sourceContentId"];
+  sourceThreadId: ImageWorkbenchCanvasProps["sourceThreadId"];
   viewport: ImageWorkbenchCanvasProps["viewport"];
   preferenceSummary: ImageWorkbenchCanvasProps["preferenceSummary"];
   preferenceWarning: ImageWorkbenchCanvasProps["preferenceWarning"];
@@ -136,7 +139,6 @@ interface WorkspaceCanvasPreviewImageWorkbenchParams {
   applySelectedOutputLabel: ImageWorkbenchCanvasProps["applySelectedOutputLabel"];
   onApplySelectedOutput?: ImageWorkbenchCanvasProps["onApplySelectedOutput"];
   onSeedFollowUpCommand: ImageWorkbenchCanvasProps["onSeedFollowUpCommand"];
-  onOpenImage: ImageWorkbenchCanvasProps["onOpenImage"];
 }
 
 interface WorkspaceCanvasPreviewGeneralCanvasParams {
@@ -597,6 +599,9 @@ function useWorkspaceCanvasPreviewRuntime({
       tasks: imageWorkbench.tasks,
       outputs: imageWorkbench.outputs,
       selectedOutputId: imageWorkbench.selectedOutputId,
+      sourceProjectId: imageWorkbench.sourceProjectId,
+      sourceContentId: imageWorkbench.sourceContentId,
+      sourceThreadId: imageWorkbench.sourceThreadId,
       viewport: imageWorkbench.viewport,
       preferenceSummary: imageWorkbench.preferenceSummary,
       preferenceWarning: imageWorkbench.preferenceWarning,
@@ -617,7 +622,6 @@ function useWorkspaceCanvasPreviewRuntime({
       applySelectedOutputLabel: imageWorkbench.applySelectedOutputLabel,
       onApplySelectedOutput: imageWorkbench.onApplySelectedOutput,
       onSeedFollowUpCommand: imageWorkbench.onSeedFollowUpCommand,
-      onOpenImage: imageWorkbench.onOpenImage,
     }),
     [
       imageWorkbench.applySelectedOutputLabel,
@@ -626,7 +630,6 @@ function useWorkspaceCanvasPreviewRuntime({
       imageWorkbench.generating,
       imageWorkbench.onApplySelectedOutput,
       imageWorkbench.onModelChange,
-      imageWorkbench.onOpenImage,
       imageWorkbench.onProviderChange,
       imageWorkbench.onSaveSelectedToLibrary,
       imageWorkbench.onSeedFollowUpCommand,
@@ -638,6 +641,9 @@ function useWorkspaceCanvasPreviewRuntime({
       imageWorkbench.preferenceSummary,
       imageWorkbench.preferenceWarning,
       imageWorkbench.savingToResource,
+      imageWorkbench.sourceContentId,
+      imageWorkbench.sourceProjectId,
+      imageWorkbench.sourceThreadId,
       imageWorkbench.selectedModelId,
       imageWorkbench.selectedOutputId,
       imageWorkbench.selectedProviderId,
@@ -1129,6 +1135,7 @@ interface UseWorkspaceCanvasSceneRuntimeParams {
   handleCanvasSelectionTextChange: CanvasFactoryParams["onSelectionTextChange"];
   projectId: CanvasFactoryParams["projectId"];
   contentId: CanvasFactoryParams["contentId"];
+  sourceThreadId?: string | null;
   projectName?: CanvasFactoryParams["autoImageTopic"];
   providerType: CanvasFactoryParams["autoContinueProviderType"];
   setProviderType: CanvasFactoryParams["onAutoContinueProviderTypeChange"];
@@ -1189,6 +1196,7 @@ export function useWorkspaceCanvasSceneRuntime({
   handleCanvasSelectionTextChange,
   projectId,
   contentId,
+  sourceThreadId,
   projectName,
   providerType,
   setProviderType,
@@ -1259,6 +1267,9 @@ export function useWorkspaceCanvasSceneRuntime({
         tasks: currentImageWorkbenchState.tasks,
         outputs: currentImageWorkbenchState.outputs,
         selectedOutputId: currentImageWorkbenchState.selectedOutputId,
+        sourceProjectId: projectId,
+        sourceContentId: contentId,
+        sourceThreadId,
         viewport: currentImageWorkbenchState.viewport,
         preferenceSummary: imageWorkbenchPreferenceSummary,
         preferenceWarning: imageWorkbenchPreferenceWarning,
@@ -1288,7 +1299,6 @@ export function useWorkspaceCanvasSceneRuntime({
             : undefined,
         onSeedFollowUpCommand:
           imageWorkbenchActionRuntime.handleSeedImageWorkbenchFollowUp,
-        onOpenImage: imageWorkbenchActionRuntime.handleOpenImageWorkbenchAsset,
       },
       generalCanvas: {
         state: generalCanvasState,

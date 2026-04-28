@@ -51,19 +51,6 @@ fn should_minimize_to_tray(window_label: &str, minimize_to_tray: bool) -> bool {
     minimize_to_tray && window_label == MAIN_WINDOW_LABEL
 }
 
-fn reveal_main_window(window: &tauri::WebviewWindow) {
-    let run_action = |action: &str, operation: &dyn Fn() -> tauri::Result<()>| {
-        if let Err(error) = operation() {
-            tracing::warn!("[启动] 主窗口{}失败: {}", action, error);
-        }
-    };
-
-    run_action("取消最小化", &|| window.unminimize());
-    run_action("最大化", &|| window.maximize());
-    run_action("显示", &|| window.show());
-    run_action("聚焦", &|| window.set_focus());
-}
-
 fn report_fatal_startup_error(stage: &str, error: &str) {
     let message = format!("Lime 启动失败（{stage}）\n\n{error}");
     tracing::error!("{message}");
@@ -209,6 +196,11 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_deep_link::init());
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.menu(super::window_chrome::build_lime_app_menu);
+    }
+
     if should_enable_single_instance() {
         builder = builder
             // 单实例插件：当第二个实例启动时，将 URL 传递给第一个实例
@@ -218,7 +210,7 @@ pub fn run() {
                 // 将窗口带到前台
                 if should_reveal_main_window_on_startup() {
                     if let Some(window) = app.get_webview_window("main") {
-                        reveal_main_window(&window);
+                        super::window_chrome::reveal_main_window(&window, "启动");
                     }
                 } else {
                     tracing::info!("[启动] 已跳过主窗口展示流程（headless smoke 模式）");
@@ -327,7 +319,7 @@ pub fn run() {
                 super::window_chrome::apply_main_window_chrome(&main_window);
 
                 if should_reveal_main_window_on_startup() {
-                    reveal_main_window(&main_window);
+                    super::window_chrome::reveal_main_window(&main_window, "启动");
                 } else {
                     tracing::info!("[启动] 已跳过主窗口展示流程（headless smoke 模式）");
                 }

@@ -177,27 +177,6 @@ function getBodyText() {
   return document.body.textContent ?? "";
 }
 
-async function hoverTip(ariaLabel: string) {
-  const trigger = document.body.querySelector(
-    `button[aria-label='${ariaLabel}']`,
-  );
-  expect(trigger).toBeInstanceOf(HTMLButtonElement);
-
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    await Promise.resolve();
-  });
-
-  return trigger as HTMLButtonElement;
-}
-
-async function leaveTip(trigger: HTMLButtonElement | null) {
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
-    await Promise.resolve();
-  });
-}
-
 function findSwitchByLabel(
   container: HTMLElement,
   ariaLabel: string,
@@ -321,13 +300,14 @@ describe("ExperimentalSettings", () => {
     );
     expect(text).not.toContain("更多实验功能即将推出");
     expect(text).toContain("实验功能");
-    expect(text).toContain("集中管理实验能力开关、诊断动作和预留入口。");
-    expect(text).toContain("Tool Calling");
-    expect(text).toContain("当前空闲");
+    expect(text).toContain("不稳定能力集中开关，用完及时关回。");
+    expect(text).toContain("Tool Calling 2.0");
+    expect(text).toContain("截图对话");
+    expect(text).not.toContain("当前空闲");
   });
 
-  it("应把实验设置补充说明收进 tips", async () => {
-    renderComponent();
+  it("应直接移除实验页冗余说明和状态噪音", async () => {
+    const container = renderComponent();
     await waitForLoad();
 
     expect(getBodyText()).not.toContain(
@@ -337,22 +317,17 @@ describe("ExperimentalSettings", () => {
     expect(getBodyText()).not.toContain(
       "控制编程式工具调用、动态过滤和 input examples 透传。",
     );
-
-    const overviewTip = await hoverTip("实验功能总览说明");
-    expect(getBodyText()).toContain(
-      "集中管理仍在验证阶段的功能开关和诊断能力，保持风险可见，同时避免说明区压过真正的配置面板。",
-    );
-    await leaveTip(overviewTip);
-
-    const statTip = await hoverTip("Tool Calling说明");
-    expect(getBodyText()).toContain("控制编程式工具调用与动态过滤链路。");
-    await leaveTip(statTip);
-
-    const panelTip = await hoverTip("Tool Calling 2.0说明");
-    expect(getBodyText()).toContain(
-      "控制编程式工具调用、动态过滤和 input examples 透传。",
-    );
-    await leaveTip(panelTip);
+    expect(getBodyText()).not.toContain("这部分更适合用于调优复杂工具调用链路");
+    expect(getBodyText()).not.toContain("诊断动作：4 项");
+    expect(getBodyText()).not.toContain("先做小范围验证");
+    expect(getBodyText()).not.toContain("排障时减少变量");
+    expect(getBodyText()).not.toContain("需要复现场景时先清理旧样本");
+    expect(
+      container.querySelector(`button[aria-label='实验功能总览说明']`),
+    ).toBeNull();
+    expect(
+      container.querySelector(`button[aria-label='Tool Calling说明']`),
+    ).toBeNull();
   });
 
   it("应继续渲染后置加载的实验辅助区块", async () => {
@@ -372,10 +347,9 @@ describe("ExperimentalSettings", () => {
     const text = getText(container);
     expect(text).toContain("WebMCP（预留）");
     expect(text).not.toContain("当前默认关闭，不参与实际执行链");
-    expect(text).toContain(
-      "当前版本开启后也不会切换执行链，只保留实验配置位，供后续小范围验证使用。",
-    );
-    expect(text).toContain("现阶段浏览器业务仍走 Bridge / CDP 主线");
+    expect(text).toContain("仅保留配置位，当前不切换执行链。");
+    expect(text).toContain("开启后只写入配置，不改变浏览器执行路径。");
+    expect(text).not.toContain("现阶段浏览器业务仍走 Bridge / CDP 主线");
 
     const switchButton = findSwitchByLabel(container, "切换 WebMCP 预留入口");
     expect(switchButton.getAttribute("aria-checked")).toBe("false");

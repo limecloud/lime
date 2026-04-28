@@ -3,7 +3,10 @@ import styled from "styled-components";
 import { LayoutTransition } from "@/lib/workspace/workbenchUi";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import type { SyncStatus } from "../hooks/useContentSync";
-import { TASK_CENTER_CHROME_SURFACE } from "./taskCenterChromeTokens";
+import {
+  LIME_STAGE_SURFACE,
+  LIME_STAGE_SURFACE_SOFT,
+} from "./taskCenterChromeTokens";
 
 export const PageContainer = styled.div<{ $compact?: boolean }>`
   display: flex;
@@ -16,7 +19,7 @@ export const PageContainer = styled.div<{ $compact?: boolean }>`
   box-sizing: border-box;
   overflow: hidden;
   isolation: isolate;
-  background: ${TASK_CENTER_CHROME_SURFACE};
+  background: ${LIME_STAGE_SURFACE};
 
   > * {
     position: relative;
@@ -36,7 +39,7 @@ export const MainArea = styled.div<{
   overflow: hidden;
   position: relative;
   background: ${({ $taskCenterSurface }) =>
-    $taskCenterSurface ? TASK_CENTER_CHROME_SURFACE : "transparent"};
+    $taskCenterSurface ? LIME_STAGE_SURFACE : "transparent"};
   border: none;
   box-shadow: none;
 `;
@@ -63,9 +66,9 @@ export const AutoHideNavbarBackdrop = styled.button<{ $visible: boolean }>`
   margin: 0;
   background: linear-gradient(
     180deg,
-    rgba(248, 250, 252, 0.34) 0%,
-    rgba(248, 250, 252, 0.52) 26%,
-    rgba(248, 250, 252, 0.6) 100%
+    color-mix(in srgb, var(--lime-surface-soft, #f8fcf9) 34%, transparent) 0%,
+    color-mix(in srgb, var(--lime-surface-soft, #f8fcf9) 52%, transparent) 26%,
+    color-mix(in srgb, var(--lime-surface-soft, #f8fcf9) 60%, transparent) 100%
   );
   backdrop-filter: blur(18px) saturate(1.04);
   opacity: ${({ $visible }) => ($visible ? 1 : 0)};
@@ -81,15 +84,14 @@ export const AutoHideNavbarHandle = styled.button<{ $visible: boolean }>`
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid var(--lime-surface-border, rgba(226, 240, 226, 0.95));
   border-radius: 999px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(248, 250, 252, 0.94) 100%
-  );
-  color: ${({ $visible }) => ($visible ? "#0f172a" : "#64748b")};
-  box-shadow: 0 10px 24px -18px rgba(15, 23, 42, 0.22);
+  background: var(--lime-home-card-surface-strong);
+  color: ${({ $visible }) =>
+    $visible
+      ? "var(--lime-text-strong, #0f172a)"
+      : "var(--lime-text-muted, #6b826b)"};
+  box-shadow: 0 10px 24px -18px var(--lime-shadow-color);
   pointer-events: auto;
   transition:
     color 0.16s ease,
@@ -98,8 +100,8 @@ export const AutoHideNavbarHandle = styled.button<{ $visible: boolean }>`
     transform 0.16s ease;
 
   &:hover {
-    color: #0f172a;
-    border-color: rgba(148, 163, 184, 0.9);
+    color: var(--lime-text-strong, #0f172a);
+    border-color: var(--lime-surface-border-strong, #bbf7d0);
     transform: translateY(-1px);
   }
 `;
@@ -128,32 +130,28 @@ function resolveContentSyncTone(status: SyncStatus): {
   switch (status) {
     case "syncing":
       return {
-        text: "#475569",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(248,250,252,0.92) 100%)",
-        border: "rgba(226, 232, 240, 0.9)",
+        text: "var(--lime-text, #1a3b2b)",
+        background: "var(--lime-home-card-surface)",
+        border: "var(--lime-surface-border, rgba(226, 240, 226, 0.9))",
       };
     case "success":
       return {
-        text: "#047857",
-        background:
-          "linear-gradient(180deg, rgba(236,253,245,0.98) 0%, rgba(220,252,231,0.92) 100%)",
-        border: "rgba(167, 243, 208, 0.95)",
+        text: "var(--lime-brand-strong, #166534)",
+        background: "var(--lime-brand-soft, #ecfdf5)",
+        border: "var(--lime-surface-border-strong, #bbf7d0)",
       };
     case "error":
       return {
-        text: "#be123c",
-        background:
-          "linear-gradient(180deg, rgba(255,241,242,0.98) 0%, rgba(255,228,230,0.92) 100%)",
-        border: "rgba(254, 205, 211, 0.95)",
+        text: "var(--lime-danger, #be123c)",
+        background: "var(--lime-danger-soft, #fff1f2)",
+        border: "var(--lime-danger-border, #fecdd3)",
       };
     case "idle":
     default:
       return {
-        text: "#475569",
-        background:
-          "linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(248,250,252,0.9) 100%)",
-        border: "rgba(226, 232, 240, 0.88)",
+        text: "var(--lime-text-muted, #6b826b)",
+        background: "var(--lime-home-card-surface)",
+        border: "var(--lime-surface-border, rgba(226, 240, 226, 0.88))",
       };
   }
 }
@@ -198,7 +196,9 @@ export const ChatContainerInner = styled.div<{ $taskCenterSurface?: boolean }>`
   height: 100%;
   overflow: hidden;
   background: ${({ $taskCenterSurface }) =>
-    $taskCenterSurface ? TASK_CENTER_CHROME_SURFACE : "var(--background, white)"};
+    $taskCenterSurface
+      ? LIME_STAGE_SURFACE
+      : "var(--lime-stage-surface, var(--lime-app-bg, #f4f7f1))"};
 `;
 
 export const EntryBanner = styled.div`
@@ -208,13 +208,9 @@ export const EntryBanner = styled.div`
   margin: 8px 12px 0;
   padding: 10px 12px;
   border-radius: 18px;
-  border: 1px solid rgba(191, 219, 254, 0.9);
-  background: linear-gradient(
-    180deg,
-    rgba(239, 246, 255, 0.96) 0%,
-    rgba(248, 250, 252, 0.92) 100%
-  );
-  color: #0f172a;
+  border: 1px solid var(--lime-surface-border, rgba(226, 240, 226, 0.9));
+  background: var(--lime-home-card-surface);
+  color: var(--lime-text, #1a3b2b);
   font-size: 13px;
   box-shadow: 0 10px 22px -20px rgba(15, 23, 42, 0.16);
 `;
@@ -223,7 +219,7 @@ export const EntryBannerClose = styled.button`
   margin-left: auto;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--lime-text-muted, #6b826b);
   cursor: pointer;
   font-size: 13px;
 `;
@@ -280,7 +276,7 @@ export const GeneralWorkbenchLayoutShell = styled.div<{
   min-height: 0;
   box-sizing: border-box;
   background: ${({ $taskCenterSurface }) =>
-    $taskCenterSurface ? TASK_CENTER_CHROME_SURFACE : "transparent"};
+    $taskCenterSurface ? LIME_STAGE_SURFACE_SOFT : "transparent"};
   padding-bottom: ${({ $bottomInset }) => $bottomInset};
   transition: padding-bottom 0.2s ease;
 `;
@@ -301,29 +297,21 @@ export const GeneralWorkbenchLeftExpandButton = styled.button`
   transform: translateY(-50%);
   width: 24px;
   height: 78px;
-  border: 1px solid rgba(226, 232, 240, 0.92);
+  border: 1px solid var(--lime-surface-border, rgba(226, 240, 226, 0.92));
   border-radius: 14px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.94) 0%,
-    rgba(248, 250, 252, 0.9) 100%
-  );
-  color: #64748b;
+  background: var(--lime-home-card-surface);
+  color: var(--lime-text-muted, #6b826b);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 30;
-  box-shadow: 0 14px 28px -24px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 14px 28px -24px var(--lime-shadow-color);
 
   &:hover {
-    color: #0f172a;
-    border-color: rgba(148, 163, 184, 0.84);
-    background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.98) 0%,
-      rgba(241, 245, 249, 0.92) 100%
-    );
+    color: var(--lime-text-strong, #0f172a);
+    border-color: var(--lime-surface-border-strong, #bbf7d0);
+    background: var(--lime-home-card-surface-strong);
   }
 `;
 

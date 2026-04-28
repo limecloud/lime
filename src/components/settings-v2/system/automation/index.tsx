@@ -1475,7 +1475,7 @@ export function AutomationSettings({
   }
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="lime-workbench-theme-scope space-y-6 pb-8">
       <section className="rounded-[28px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-1.5">

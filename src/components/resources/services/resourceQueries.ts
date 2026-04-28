@@ -90,10 +90,7 @@ export function matchResourceCategory(
   return mediaType === null;
 }
 
-export function matchResourceSearch(
-  item: ResourceItem,
-  keyword: string,
-): boolean {
+function matchResourceSearch(item: ResourceItem, keyword: string): boolean {
   if (!keyword) return true;
 
   const normalizedKeyword = keyword.toLowerCase();
@@ -112,7 +109,7 @@ export function matchResourceSearch(
   return false;
 }
 
-export function compareResourcesBySortField(
+function compareResourcesBySortField(
   a: ResourceItem,
   b: ResourceItem,
   field: ResourceSortField,
@@ -131,7 +128,7 @@ export function compareResourcesBySortField(
   return direction === "asc" ? compareValue : -compareValue;
 }
 
-export function sortResources(
+function sortResources(
   resources: ResourceItem[],
   field: ResourceSortField,
   direction: ResourceSortDirection,

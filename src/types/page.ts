@@ -184,6 +184,15 @@ export interface BrowserRuntimePageParams {
   initialSaveTitle?: string;
 }
 
+export interface ResourcesPageParams {
+  projectId?: string;
+  contentId?: string;
+  focusIntentId?: string;
+  focusResourceTitle?: string;
+  resourceFolderId?: string;
+  resourceCategory?: "all" | "document" | "image" | "audio" | "video";
+}
+
 export interface AgentSiteSkillLaunchParams {
   adapterName: string;
   args?: Record<string, unknown>;
@@ -209,6 +218,7 @@ export type PageParams =
   | AgentPageParams
   | AutomationPageParams
   | BrowserRuntimePageParams
+  | ResourcesPageParams
   | SettingsPageParams
   | OpenClawPageParams
   | SkillsPageParams

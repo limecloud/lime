@@ -40,8 +40,10 @@ export interface AgentSessionCachedSnapshotMetadata {
   historyTruncated: boolean;
 }
 
-interface AgentSessionCachedSnapshotRecord
-  extends Omit<AgentSessionCachedSnapshot, "cacheMetadata"> {
+interface AgentSessionCachedSnapshotRecord extends Omit<
+  AgentSessionCachedSnapshot,
+  "cacheMetadata"
+> {
   updatedAt: number;
   lastAccessedAt: number;
   expiresAt: number;
@@ -245,7 +247,8 @@ function normalizeCachedSnapshotRecord(
   const record = value as Record<string, unknown>;
   const updatedAt = readFiniteNumber(record.updatedAt) ?? nowMs;
   const lastAccessedAt = readFiniteNumber(record.lastAccessedAt) ?? updatedAt;
-  const expiresAt = readFiniteNumber(record.expiresAt) ?? updatedAt + policy.ttlMs;
+  const expiresAt =
+    readFiniteNumber(record.expiresAt) ?? updatedAt + policy.ttlMs;
   const staleUntil =
     readFiniteNumber(record.staleUntil) ?? expiresAt + policy.staleGraceMs;
   const sessionUpdatedAt =
@@ -324,7 +327,10 @@ function pruneSnapshotEntries(
   return Object.entries(snapshotMap)
     .map(
       ([id, value]) =>
-        [id, normalizeCachedSnapshotRecord(value, policy, nowMs, options)] as const,
+        [
+          id,
+          normalizeCachedSnapshotRecord(value, policy, nowMs, options),
+        ] as const,
     )
     .filter(
       (entry): entry is [string, AgentSessionCachedSnapshotRecord] =>
@@ -453,7 +459,10 @@ export function saveAgentSessionCachedSnapshot(
     persistedCacheKey,
     {},
   );
-  const trimmedSnapshot = trimCachedSnapshot(snapshot, TRANSIENT_SNAPSHOT_LIMITS);
+  const trimmedSnapshot = trimCachedSnapshot(
+    snapshot,
+    TRANSIENT_SNAPSHOT_LIMITS,
+  );
   const persistedSnapshot = trimCachedSnapshot(
     snapshot,
     PERSISTED_SNAPSHOT_LIMITS,

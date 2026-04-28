@@ -52,7 +52,10 @@ export function TeamWorkspaceBoardCanvasSection({
       {fallbackDetailProps ? (
         <TeamWorkspaceFallbackDetailSection
           {...fallbackDetailProps}
-          detailCardClassName={cn("mt-3", fallbackDetailProps.detailCardClassName)}
+          detailCardClassName={cn(
+            "mt-3",
+            fallbackDetailProps.detailCardClassName,
+          )}
         />
       ) : null}
     </div>

@@ -243,9 +243,9 @@ describe("useTeamWorkspaceBoardSessionGraph", () => {
       harness.getValue().visibleSessions.map((session) => session.id),
     ).toEqual(["child-verifier", "child-executor"]);
     expect(
-      harness.getValue().visibleSessions.some(
-        (session) => session.id === "ignored-root-child",
-      ),
+      harness
+        .getValue()
+        .visibleSessions.some((session) => session.id === "ignored-root-child"),
     ).toBe(false);
     expect(
       harness.getValue().railSessions.map((session) => session.id),
@@ -254,7 +254,9 @@ describe("useTeamWorkspaceBoardSessionGraph", () => {
       harness.getValue().memberCanvasSessions.map((session) => session.id),
     ).toEqual(["child-current", "child-verifier", "child-executor"]);
     expect(
-      harness.getValue().basePreviewableRailSessions.map((session) => session.id),
+      harness
+        .getValue()
+        .basePreviewableRailSessions.map((session) => session.id),
     ).toEqual(["child-current", "child-verifier", "child-executor"]);
   });
 
@@ -274,9 +276,7 @@ describe("useTeamWorkspaceBoardSessionGraph", () => {
     expect(harness.getValue().isChildSession).toBe(false);
     expect(harness.getValue().hasRealTeamGraph).toBe(false);
     expect(harness.getValue().isEmptyShellState).toBe(true);
-    expect(harness.getValue().canvasStorageScopeId).toBe(
-      "dispatch-preview-42",
-    );
+    expect(harness.getValue().canvasStorageScopeId).toBe("dispatch-preview-42");
     expect(harness.getValue().currentChildSession).toBeNull();
     expect(harness.getValue().visibleSessions).toEqual([]);
     expect(harness.getValue().baseRailSessions).toEqual([]);

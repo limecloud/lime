@@ -293,8 +293,7 @@ describe("MarkdownRenderer", () => {
 
   it("应通过同目录 meta.json 将远程图片替换为本地下载资源", async () => {
     vi.mocked(fileBrowserModule.readFilePreview).mockResolvedValue({
-      path:
-        "/Users/coso/.lime/projects/default/exports/x-article/google/meta.json",
+      path: "/Users/coso/.lime/projects/default/exports/x-article/google/meta.json",
       content: JSON.stringify({
         markdown_relative_path: "exports/x-article/google/index.md",
         images: [
@@ -334,10 +333,13 @@ describe("MarkdownRenderer", () => {
   });
 
   it("应归一化 ./ 和 ../ 相对图片路径并保留查询串", () => {
-    const container = render("![配图](./images/../images/hero.png?raw=1#preview)", {
-      baseFilePath:
-        "/Users/coso/.proxycast/projects/default/exports/x-article/google/nested/index.md",
-    });
+    const container = render(
+      "![配图](./images/../images/hero.png?raw=1#preview)",
+      {
+        baseFilePath:
+          "/Users/coso/.proxycast/projects/default/exports/x-article/google/nested/index.md",
+      },
+    );
 
     const image = container.querySelector("img");
     expect(image).not.toBeNull();
@@ -428,7 +430,9 @@ describe("MarkdownRenderer", () => {
 
     act(() => {
       root.render(
-        <MarkdownRenderer content={"## 小结\n\n这段正文应该和聊天正文保持同一字号与主色。"} />,
+        <MarkdownRenderer
+          content={"## 小结\n\n这段正文应该和聊天正文保持同一字号与主色。"}
+        />,
       );
     });
 

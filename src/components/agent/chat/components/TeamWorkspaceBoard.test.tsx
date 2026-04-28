@@ -790,6 +790,8 @@ describe("TeamWorkspaceBoard", () => {
     );
 
     expect(embeddedShell?.className).toContain("pointer-events-auto");
+    expect(embeddedShell?.className).toContain("lime-workbench-theme-scope");
+    expect(embeddedShell?.className).toContain("lime-workbench-surface-scope");
     expect(embeddedShell?.className).toContain("overflow-hidden");
     expect(embeddedShell?.className).toContain("flex-col");
     expect(embeddedShell?.className).toContain("rounded-[24px]");

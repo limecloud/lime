@@ -30,8 +30,9 @@ interface UseTeamWorkspaceBoardCanvasRuntimeParams {
   teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null;
 }
 
-interface TeamWorkspaceBoardCanvasRuntimeState
-  extends ReturnType<typeof useTeamWorkspaceCanvasController> {
+interface TeamWorkspaceBoardCanvasRuntimeState extends ReturnType<
+  typeof useTeamWorkspaceCanvasController
+> {
   canvasLanes: TeamWorkspaceCanvasLane[];
   canvasStageHint: string;
 }

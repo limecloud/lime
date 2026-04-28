@@ -371,9 +371,7 @@ describe("StreamingRenderer", () => {
 
     const markdownButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((button) =>
-      button.textContent?.includes("在下方预览导出 Markdown"),
-    );
+    ).find((button) => button.textContent?.includes("在下方预览导出 Markdown"));
     expect(
       container.querySelector('[data-testid="inline-tool-process-step"]'),
     ).toBeTruthy();
@@ -422,9 +420,7 @@ describe("StreamingRenderer", () => {
 
     const markdownButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((button) =>
-      button.textContent?.includes("在下方预览导出 Markdown"),
-    );
+    ).find((button) => button.textContent?.includes("在下方预览导出 Markdown"));
     expect(markdownButton).toBeTruthy();
 
     act(() => {
@@ -862,7 +858,9 @@ describe("StreamingRenderer", () => {
 
     expect(mockMarkdownRenderer).toHaveBeenCalled();
     const latestCall =
-      mockMarkdownRenderer.mock.calls[mockMarkdownRenderer.mock.calls.length - 1];
+      mockMarkdownRenderer.mock.calls[
+        mockMarkdownRenderer.mock.calls.length - 1
+      ];
     expect(latestCall?.[0]?.content).toBe(
       "目录也不存在。可能整个 .lime 目录都不存在。",
     );

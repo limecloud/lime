@@ -329,8 +329,12 @@ import {
 } from "@/lib/sceneapp";
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
-const BLANK_HOME_DEFERRED_LOAD_MS = 6_000;
+const BLANK_HOME_DEFERRED_LOAD_MS = 18_000;
 const SESSION_ENTRY_DEFERRED_LOAD_MS = 12_000;
+const BROWSER_WORKSPACE_HOME_HINT_STORAGE_KEY =
+  "lime.agent.browser-workspace-home-hint-shown";
+const BROWSER_WORKSPACE_HOME_HINT_MESSAGE = "在这里切换或新建工作区";
+const BROWSER_WORKSPACE_HOME_HINT_AUTO_HIDE_MS = 5_500;
 const NOOP_SET_CHAT_MESSAGES: Dispatch<SetStateAction<Message[]>> = () =>
   undefined;
 
@@ -468,7 +472,7 @@ export function AgentChatWorkspace({
   onWorkflowProgressChange,
   initialUserPrompt,
   initialUserImages,
-  initialSessionName,
+  initialSessionName: _initialSessionName,
   entryBannerMessage,
   initialPendingServiceSkillLaunch,
   initialInputCapability,
@@ -501,6 +505,8 @@ export function AgentChatWorkspace({
   const [entryBannerVisible, setEntryBannerVisible] = useState(
     Boolean(effectiveEntryBannerMessage),
   );
+  const [browserWorkspaceHintVisible, setBrowserWorkspaceHintVisible] =
+    useState(false);
   const shouldBootstrapCanvasOnEntry =
     Boolean(contentId) && isSpecializedWorkbenchTheme(normalizedEntryTheme);
 
@@ -565,7 +571,6 @@ export function AgentChatWorkspace({
     rememberProjectId,
     getRememberedProjectId,
     applyProjectSelection,
-    resetProjectSelection,
     clearProjectSelectionRuntime,
     startTopicProjectResolution,
     finishTopicProjectResolution,
@@ -588,15 +593,31 @@ export function AgentChatWorkspace({
     agentEntry === "new-task" && !contentId;
   const shouldPreserveBlankHomeSurface =
     shouldPreserveEntryThemeOnHome && normalizedEntryTheme === "general";
+  const shouldUseBrowserWorkspaceHomeChrome = shouldPreserveBlankHomeSurface;
   const shouldPrioritizeInitialSessionEntry =
     normalizedInitialSessionId !== null && !contentId;
+  const shouldPrioritizeInitialPromptEntry =
+    agentEntry === "claw" &&
+    !contentId &&
+    normalizedEntryTheme === "general" &&
+    Boolean(initialUserPrompt?.trim()) &&
+    !initialUserImages?.length &&
+    !initialSiteSkillLaunch &&
+    !initialPendingServiceSkillLaunch?.skillId?.trim() &&
+    !initialPendingServiceSkillLaunch?.skillKey?.trim() &&
+    !initialInputCapability?.capabilityRoute &&
+    !initialProjectFileOpenTarget?.relativePath?.trim();
   const shouldDeferWorkspaceAuxiliaryLoads =
-    shouldPreserveBlankHomeSurface || shouldPrioritizeInitialSessionEntry;
+    shouldPreserveBlankHomeSurface ||
+    shouldPrioritizeInitialSessionEntry ||
+    shouldPrioritizeInitialPromptEntry;
   const shouldDeferInitialTopicsLoad =
-    shouldPreserveBlankHomeSurface || shouldPrioritizeInitialSessionEntry;
+    shouldPreserveBlankHomeSurface ||
+    shouldPrioritizeInitialSessionEntry ||
+    shouldPrioritizeInitialPromptEntry;
   const deferredWorkspaceAuxiliaryLoadMs = shouldPreserveBlankHomeSurface
     ? BLANK_HOME_DEFERRED_LOAD_MS
-    : shouldPrioritizeInitialSessionEntry
+    : shouldPrioritizeInitialSessionEntry || shouldPrioritizeInitialPromptEntry
       ? SESSION_ENTRY_DEFERRED_LOAD_MS
       : undefined;
   const [isInitialContentLoading, setIsInitialContentLoading] = useState(
@@ -625,6 +646,48 @@ export function AgentChatWorkspace({
   useEffect(() => {
     setEntryBannerVisible(Boolean(effectiveEntryBannerMessage));
   }, [effectiveEntryBannerMessage]);
+
+  useEffect(() => {
+    if (
+      !shouldUseBrowserWorkspaceHomeChrome ||
+      !projectId ||
+      entryBannerMessage
+    ) {
+      return;
+    }
+
+    try {
+      if (
+        window.localStorage.getItem(BROWSER_WORKSPACE_HOME_HINT_STORAGE_KEY) ===
+        "true"
+      ) {
+        return;
+      }
+
+      window.localStorage.setItem(
+        BROWSER_WORKSPACE_HOME_HINT_STORAGE_KEY,
+        "true",
+      );
+    } catch {
+      // 本地存储不可用时仍展示一次提示，避免首开闭环静默失败。
+    }
+
+    setBrowserWorkspaceHintVisible(true);
+  }, [entryBannerMessage, projectId, shouldUseBrowserWorkspaceHomeChrome]);
+
+  useEffect(() => {
+    if (!browserWorkspaceHintVisible) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setBrowserWorkspaceHintVisible(false);
+    }, BROWSER_WORKSPACE_HOME_HINT_AUTO_HIDE_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [browserWorkspaceHintVisible]);
 
   const pageMountedAtRef = useRef(Date.now());
 
@@ -792,6 +855,76 @@ export function AgentChatWorkspace({
     externalProjectId,
     getRememberedProjectId,
     projectId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !shouldUseBrowserWorkspaceHomeChrome ||
+      projectId ||
+      externalProjectId
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const startedAt = Date.now();
+
+    logAgentDebug("AgentChatPage", "homeDefaultWorkspace.resolve.start", {
+      agentEntry,
+    });
+
+    void (async () => {
+      try {
+        const defaultProject = await getOrCreateDefaultProject();
+        if (cancelled) {
+          return;
+        }
+
+        if (!defaultProject?.id) {
+          logAgentDebug(
+            "AgentChatPage",
+            "homeDefaultWorkspace.resolve.empty",
+            {
+              durationMs: Date.now() - startedAt,
+            },
+            { level: "warn" },
+          );
+          return;
+        }
+
+        applyProjectSelection(defaultProject.id);
+        setProject(defaultProject);
+        logAgentDebug("AgentChatPage", "homeDefaultWorkspace.resolve.success", {
+          durationMs: Date.now() - startedAt,
+          projectId: defaultProject.id,
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.warn("[AgentChatPage] 准备默认工作区失败:", error);
+        logAgentDebug(
+          "AgentChatPage",
+          "homeDefaultWorkspace.resolve.error",
+          {
+            durationMs: Date.now() - startedAt,
+            error,
+          },
+          { level: "warn" },
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    agentEntry,
+    applyProjectSelection,
+    externalProjectId,
+    projectId,
+    shouldUseBrowserWorkspaceHomeChrome,
   ]);
 
   // 画布状态（支持多种画布类型）
@@ -2010,7 +2143,9 @@ export function AgentChatWorkspace({
     }
 
     setImageWorkbenchBySessionId((previous) => {
-      if (isSessionImageWorkbenchStateMeaningful(previous[normalizedSessionId])) {
+      if (
+        isSessionImageWorkbenchStateMeaningful(previous[normalizedSessionId])
+      ) {
         return previous;
       }
 
@@ -2447,6 +2582,7 @@ export function AgentChatWorkspace({
     contextWorkspace,
     isThemeWorkbench,
     harnessPanelVisible,
+    setHarnessPanelVisible,
     harnessPendingCount,
     showHarnessToggle,
     harnessAttentionLevel,
@@ -2505,6 +2641,10 @@ export function AgentChatWorkspace({
     selectedText,
     defaultToolPreferences: effectiveChatToolPreferences,
     onNavigate: _onNavigate,
+    catalogLoadMode: shouldDeferWorkspaceAuxiliaryLoads
+      ? "deferred"
+      : "immediate",
+    catalogDeferredDelayMs: deferredWorkspaceAuxiliaryLoadMs,
   });
   const handlePendingServiceSkillLaunchSubmit =
     workspaceServiceSkillEntryActions.handlePendingServiceSkillLaunchSubmit;
@@ -3142,17 +3282,13 @@ export function AgentChatWorkspace({
     clearRuntimeTeamState,
     clearProjectSelectionRuntime,
     resetRestoredSessionState,
-    resetProjectSelection,
     resetGuideState,
     hasHandledNewChatRequest,
     markNewChatRequestHandled,
-    createFreshSession,
     defaultTopicSidebarVisible,
     normalizedInitialTheme: normalizedEntryTheme,
     initialCreationMode,
     newChatAt,
-    initialSessionName,
-    projectId,
     externalProjectId,
     onNavigate: _onNavigate,
     autoCollapsedTopicSidebarRef,
@@ -3166,8 +3302,6 @@ export function AgentChatWorkspace({
     setTaskFiles,
     setSelectedFileId,
     setMentionedCharacters,
-    setProject,
-    setProjectMemory,
     setActiveTheme,
     setCreationMode,
   });
@@ -4156,6 +4290,23 @@ export function AgentChatWorkspace({
     sessionId,
     taskCenterEmbeddedHomeSessionIds,
   ]);
+  const suppressHomeNavbarUtilityActions =
+    shouldUseBrowserWorkspaceHomeChrome || shouldRenderTaskCenterEmbeddedHome;
+
+  useEffect(() => {
+    if (
+      !suppressHomeNavbarUtilityActions ||
+      !harnessPanelVisible
+    ) {
+      return;
+    }
+
+    setHarnessPanelVisible(false);
+  }, [
+    harnessPanelVisible,
+    setHarnessPanelVisible,
+    suppressHomeNavbarUtilityActions,
+  ]);
   const shouldHideDetachedTaskCenterTabs = useMemo(
     () =>
       shouldHideTaskCenterTabsForDetachedSession({
@@ -4327,6 +4478,33 @@ export function AgentChatWorkspace({
     layoutMode,
     taskCenterTabItems,
   ]);
+  const browserWorkspaceHomeTabsNode = useMemo(() => {
+    if (!shouldUseBrowserWorkspaceHomeChrome) {
+      return null;
+    }
+
+    const homeTab: TaskCenterTabItem = {
+      id: "new-task-home",
+      title: "新对话",
+      status: "draft",
+      updatedAt: new Date(newChatAt ?? pageMountedAtRef.current),
+      isActive: true,
+      hasUnread: false,
+      isPinned: false,
+      closable: false,
+    };
+
+    return (
+      <TaskCenterTabStrip
+        items={[homeTab]}
+        onSelectTask={() => undefined}
+        onCloseTask={() => undefined}
+        onCreateTask={() => {
+          handleBackHome();
+        }}
+      />
+    );
+  }, [handleBackHome, newChatAt, shouldUseBrowserWorkspaceHomeChrome]);
   const handleOpenTaskCenterSkillsPage = useCallback(() => {
     if (!_onNavigate) {
       return;
@@ -5867,7 +6045,9 @@ export function AgentChatWorkspace({
     const isWorkspaceCompactChrome = topBarChrome === "workspace-compact";
     const shouldRenderBrandedEmptyState =
       !showChatLayout && !shouldRenderTaskCenterEmbeddedHome;
-    const shouldRenderTopBar = !hideTopBar && !shouldRenderBrandedEmptyState;
+    const shouldRenderTopBar =
+      !hideTopBar &&
+      (!shouldRenderBrandedEmptyState || shouldUseBrowserWorkspaceHomeChrome);
     const shouldRenderInlineA2UI = isSpecializedThemeMode;
 
     const shouldUseTeamPrimaryChatPanelWidth =
@@ -5913,6 +6093,7 @@ export function AgentChatWorkspace({
     layoutMode,
     queuedTurns.length,
     shouldRenderTaskCenterEmbeddedHome,
+    shouldUseBrowserWorkspaceHomeChrome,
     shouldUseCompactGeneralWorkbench,
     teamDispatchPreviewState,
     teamSessionRuntime.hasRuntimeSessions,
@@ -5958,10 +6139,14 @@ export function AgentChatWorkspace({
   const generalWorkbenchHarnessDialog = (
     <GeneralWorkbenchHarnessDialogSection
       enabled={
+        !suppressHomeNavbarUtilityActions &&
         contextHarnessRuntime.workbenchEnabled &&
         contextHarnessRuntime.isThemeWorkbench
       }
-      open={contextHarnessRuntime.harnessPanelVisible}
+      open={
+        !suppressHomeNavbarUtilityActions &&
+        contextHarnessRuntime.harnessPanelVisible
+      }
       onOpenChange={contextHarnessRuntime.setHarnessPanelVisible}
       harnessState={harnessState}
       environment={contextHarnessRuntime.harnessEnvironment}
@@ -6261,8 +6446,11 @@ export function AgentChatWorkspace({
     generalWorkbenchEntryPrompt,
     handleRestartGeneralWorkbenchEntryPrompt,
     handleContinueGeneralWorkbenchEntryPrompt,
-    generalWorkbenchEnabled: generalHarnessEntryEnabled,
-    harnessPanelVisible: contextHarnessRuntime.harnessPanelVisible,
+    generalWorkbenchEnabled:
+      generalHarnessEntryEnabled && !suppressHomeNavbarUtilityActions,
+    harnessPanelVisible:
+      !suppressHomeNavbarUtilityActions &&
+      contextHarnessRuntime.harnessPanelVisible,
     setHarnessPanelVisible: contextHarnessRuntime.setHarnessPanelVisible,
     harnessState,
     harnessEnvironment: contextHarnessRuntime.harnessEnvironment,
@@ -6321,6 +6509,7 @@ export function AgentChatWorkspace({
     handleCanvasSelectionTextChange,
     projectId: projectId ?? null,
     contentId: contentId ?? null,
+    sourceThreadId: sessionId ?? null,
     projectName: project?.name || undefined,
     providerType,
     setProviderType,
@@ -6393,7 +6582,10 @@ export function AgentChatWorkspace({
   const conversationSceneRuntime = useWorkspaceConversationSceneRuntime({
     messageListEmptyStateVariant:
       agentEntry === "claw" ? "task-center" : "default",
-    navbarContextVariant: agentEntry === "claw" ? "task-center" : "default",
+    navbarContextVariant:
+      agentEntry === "claw" || shouldUseBrowserWorkspaceHomeChrome
+        ? "task-center"
+        : "default",
     navigationActions,
     inputbarScene,
     canvasScene,
@@ -6403,6 +6595,15 @@ export function AgentChatWorkspace({
     teamWorkspaceEnabled: teamSessionRuntime.teamWorkspaceEnabled,
     currentImageWorkbenchActive: currentImageWorkbenchState.active,
     projectId: projectId ?? null,
+    deferWorkspaceListLoad: shouldUseBrowserWorkspaceHomeChrome,
+    workspaceHintMessage: shouldUseBrowserWorkspaceHomeChrome
+      ? BROWSER_WORKSPACE_HOME_HINT_MESSAGE
+      : undefined,
+    workspaceHintVisible:
+      shouldUseBrowserWorkspaceHomeChrome && browserWorkspaceHintVisible,
+    onDismissWorkspaceHint: () => {
+      setBrowserWorkspaceHintVisible(false);
+    },
     projectRootPath: project?.rootPath || null,
     projectCharacters: projectMemory?.characters || [],
     generalCanvasContent: generalCanvasState.content,
@@ -6461,7 +6662,9 @@ export function AgentChatWorkspace({
     recentSessionActionLabel,
     handleResumeRecentSession,
     handleOpenSceneAppsDirectory,
-    taskCenterTabsNode,
+    taskCenterTabsNode:
+      agentEntry === "claw" ? taskCenterTabsNode : browserWorkspaceHomeTabsNode,
+    suppressNavbarUtilityActions: suppressHomeNavbarUtilityActions,
     hideHistoryToggle,
     showChatPanel: effectiveShowChatPanel,
     topBarChrome,
@@ -6469,11 +6672,19 @@ export function AgentChatWorkspace({
     fromResources,
     handleBackHome,
     handleToggleSidebar,
-    showHarnessToggle,
-    navbarHarnessPanelVisible,
-    harnessPendingCount,
-    harnessAttentionLevel,
-    harnessToggleLabel,
+    showHarnessToggle:
+      !suppressHomeNavbarUtilityActions && showHarnessToggle,
+    navbarHarnessPanelVisible:
+      !suppressHomeNavbarUtilityActions && navbarHarnessPanelVisible,
+    harnessPendingCount: suppressHomeNavbarUtilityActions
+      ? 0
+      : harnessPendingCount,
+    harnessAttentionLevel: suppressHomeNavbarUtilityActions
+      ? "idle"
+      : harnessAttentionLevel,
+    harnessToggleLabel: suppressHomeNavbarUtilityActions
+      ? undefined
+      : harnessToggleLabel,
     isAutoRestoringSession:
       isAutoRestoringSession || taskCenterSessionSwitchPending,
     sessionId,

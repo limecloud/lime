@@ -95,6 +95,23 @@ afterEach(() => {
 });
 
 describe("SettingsSidebar", () => {
+  it("侧边栏应暴露主题化容器和当前导航状态", () => {
+    const { container } = renderSidebar({
+      activeTab: SettingsTabs.Appearance,
+    });
+    const sidebar = container.querySelector('[data-testid="settings-sidebar"]');
+    const activeButton = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("外观"),
+    );
+    const inactiveButton = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("设置首页"),
+    );
+
+    expect(sidebar).not.toBeNull();
+    expect(activeButton?.getAttribute("data-active")).toBe("true");
+    expect(inactiveButton?.getAttribute("data-active")).toBe("false");
+  });
+
   it("点击导航项时应触发 tab 切换", () => {
     const onTabChange = vi.fn();
     const { container } = renderSidebar({ onTabChange });

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowUpLeft,
   BrainCircuit,
@@ -720,25 +726,26 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const hasAnyTasks = topics.length > 0;
   const hasFilteredResults = filteredTaskItems.length > 0;
   const taskHeadingLabel = isTaskCenter ? "最近对话" : "任务";
-  const taskHeadingHint =
-    isTaskCenter ? "继续最近对话，待处理会话会优先显示在前面。" : null;
-  const searchPlaceholder =
-    isTaskCenter ? "搜索对话标题或摘要" : "搜索任务标题或摘要";
+  const taskHeadingHint = isTaskCenter
+    ? "继续最近对话，待处理会话会优先显示在前面。"
+    : null;
+  const searchPlaceholder = isTaskCenter
+    ? "搜索对话标题或摘要"
+    : "搜索任务标题或摘要";
   const newChatLabel = isTaskCenter ? "新建对话" : "新建任务";
   const allTasksLabel = isTaskCenter ? "全部对话" : "全部任务";
   const activeTasksLabel = isTaskCenter ? "待继续" : "仅看进行中";
-  const emptyStateTitle =
-    isTaskCenter ? "还没有最近对话" : "还没有任务";
-  const emptyStateDescription =
-    isTaskCenter
-      ? "从“新建对话”开始后，最近对话会自动出现在这里。"
-      : "从“新建任务”开始输入需求，创建后会出现在这里。";
+  const emptyStateTitle = isTaskCenter ? "还没有最近对话" : "还没有任务";
+  const emptyStateDescription = isTaskCenter
+    ? "从“新建对话”开始后，最近对话会自动出现在这里。"
+    : "从“新建任务”开始输入需求，创建后会出现在这里。";
   const noResultsTitle = isTaskCenter ? "没有匹配的对话" : "没有匹配的任务";
   const noResultsDescription = isTaskCenter
     ? "试试搜索对话标题、摘要或状态关键词。"
     : "试试搜索标题、执行摘要或状态关键词。";
-  const olderSectionMoreLabel =
-    isTaskCenter ? "查看更多归档对话" : "查看更多历史任务";
+  const olderSectionMoreLabel = isTaskCenter
+    ? "查看更多归档对话"
+    : "查看更多历史任务";
   const taskCountLabel = searchKeyword.trim()
     ? `${filteredTaskItems.length} 个结果`
     : `${topics.length} 个${isTaskCenter ? "对话" : "任务"}`;
@@ -987,10 +994,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   };
 
   return (
-    <aside
-      className={sidebarShellClassName}
-      data-testid="chat-sidebar"
-    >
+    <aside className={sidebarShellClassName} data-testid="chat-sidebar">
       <div className="flex h-full min-h-0 flex-col gap-4 p-4">
         <div className="space-y-3">
           <div className="relative">
@@ -1094,7 +1098,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
                 <div className="mt-3 flex items-center justify-between px-0.5 text-[11px] text-slate-400 dark:text-slate-500">
                   <span>
-                    {statusFilter === "active" ? activeTasksLabel : allTasksLabel}
+                    {statusFilter === "active"
+                      ? activeTasksLabel
+                      : allTasksLabel}
                   </span>
                   <span>{taskCountLabel}</span>
                 </div>
@@ -1248,12 +1254,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
                     <div className="rounded-[20px] border border-slate-200/80 bg-white/86 px-3.5 py-3 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-white/5">
                       <div className="flex items-center gap-2">
-                          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            {resolveSidebarDisplayTitle(
-                              currentTaskItem?.title,
-                              "当前子任务",
-                            )}
-                          </div>
+                        <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {resolveSidebarDisplayTitle(
+                            currentTaskItem?.title,
+                            "当前子任务",
+                          )}
+                        </div>
                         <Badge className="border border-emerald-200 bg-white/90 text-emerald-700 shadow-sm shadow-emerald-950/10 dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
                           当前子任务
                         </Badge>

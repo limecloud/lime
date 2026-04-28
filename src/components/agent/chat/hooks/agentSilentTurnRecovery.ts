@@ -4,7 +4,9 @@ import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
 const SILENT_TURN_RECOVERY_GRACE_MS = 15_000;
 const SILENT_TURN_RECOVERY_ACTIVITY_SKEW_MS = 5_000;
 
-function normalizeTimestampMs(value: string | number | null | undefined): number {
+function normalizeTimestampMs(
+  value: string | number | null | undefined,
+): number {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value >= 1_000_000_000_000 ? value : value * 1000;
   }
@@ -28,18 +30,19 @@ function normalizeTimestampMs(value: string | number | null | undefined): number
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
-function maxTimestampMs(...values: Array<string | number | null | undefined>): number {
+function maxTimestampMs(
+  ...values: Array<string | number | null | undefined>
+): number {
   const normalizedValues = values
     .map((value) => normalizeTimestampMs(value))
     .filter((value) => Number.isFinite(value));
-  return normalizedValues.length > 0 ? Math.max(...normalizedValues) : Number.NaN;
+  return normalizedValues.length > 0
+    ? Math.max(...normalizedValues)
+    : Number.NaN;
 }
 
 export function hasRecoverableSilentTurnActivity(
-  detail: Pick<
-    AsterSessionDetail,
-    "turns" | "items" | "queued_turns"
-  >,
+  detail: Pick<AsterSessionDetail, "turns" | "items" | "queued_turns">,
   requestStartedAt: number,
   promptText: string,
 ): boolean {
@@ -51,7 +54,8 @@ export function hasRecoverableSilentTurnActivity(
 
   const hasRecentMatchingTurn = (detail.turns ?? []).some((turn) => {
     const promptMatches =
-      normalizedPrompt.length > 0 && turn.prompt_text.trim() === normalizedPrompt;
+      normalizedPrompt.length > 0 &&
+      turn.prompt_text.trim() === normalizedPrompt;
     const latestTurnTimestampMs = maxTimestampMs(
       turn.started_at,
       turn.created_at,
@@ -65,7 +69,10 @@ export function hasRecoverableSilentTurnActivity(
   }
 
   const hasRecentMatchingUserMessage = normalizedItems.some((item) => {
-    if (item.type !== "user_message" || item.content.trim() !== normalizedPrompt) {
+    if (
+      item.type !== "user_message" ||
+      item.content.trim() !== normalizedPrompt
+    ) {
       return false;
     }
     const latestItemTimestampMs = maxTimestampMs(

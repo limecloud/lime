@@ -124,12 +124,12 @@ const DockPanel = styled.div<{
 
 const dockAttentionPulse = keyframes`
   0%, 100% {
-    box-shadow: 0 16px 40px -28px rgba(15, 23, 42, 0.28);
+    box-shadow: 0 16px 40px -28px var(--lime-shadow-color, rgba(15, 23, 42, 0.18));
   }
   50% {
     box-shadow:
-      0 18px 46px -28px rgba(15, 23, 42, 0.3),
-      0 0 0 8px rgba(56, 189, 248, 0.08);
+      0 18px 46px -28px var(--lime-shadow-color, rgba(15, 23, 42, 0.2)),
+      0 0 0 8px color-mix(in srgb, var(--lime-info, #0ea5e9) 12%, transparent);
   }
 `;
 
@@ -164,21 +164,21 @@ const DockToggle = styled.button<{
   border: 1px solid
     ${({ $active, $expanded }) =>
       $expanded
-        ? "rgba(14, 116, 144, 0.24)"
+        ? "var(--lime-info-border, rgba(14, 116, 144, 0.24))"
         : $active
-          ? "rgba(186, 230, 253, 0.96)"
-          : "rgba(203, 213, 225, 0.9)"};
+          ? "var(--lime-info-border, rgba(186, 230, 253, 0.96))"
+          : "var(--lime-surface-border, rgba(203, 213, 225, 0.9))"};
   background: ${({ $launcherOnly, $expanded }) =>
     $launcherOnly
-      ? "rgba(255, 255, 255, 0.98)"
+      ? "var(--lime-surface, rgba(255, 255, 255, 0.98))"
       : $expanded
-        ? "#ffffff"
-        : "#f8fafc"};
-  color: #0f172a;
+        ? "var(--lime-surface, #ffffff)"
+        : "var(--lime-surface-soft, #f8fafc)"};
+  color: var(--lime-text-strong, #0f172a);
   box-shadow: ${({ $launcherOnly }) =>
     $launcherOnly
-      ? "0 10px 24px -18px rgba(15, 23, 42, 0.18)"
-      : "0 12px 28px -24px rgba(15, 23, 42, 0.22)"};
+      ? "0 10px 24px -18px var(--lime-shadow-color, rgba(15, 23, 42, 0.18))"
+      : "0 12px 28px -24px var(--lime-shadow-color, rgba(15, 23, 42, 0.22))"};
   transition:
     transform 0.18s ease,
     box-shadow 0.18s ease,
@@ -201,8 +201,8 @@ const DockToggle = styled.button<{
     transform: translateY(-1px);
     box-shadow: ${({ $launcherOnly }) =>
       $launcherOnly
-        ? "0 12px 28px -18px rgba(15, 23, 42, 0.22)"
-        : "0 14px 30px -24px rgba(15, 23, 42, 0.24)"};
+        ? "0 12px 28px -18px var(--lime-shadow-color, rgba(15, 23, 42, 0.22))"
+        : "0 14px 30px -24px var(--lime-shadow-color, rgba(15, 23, 42, 0.24))"};
   }
 `;
 
@@ -217,17 +217,19 @@ const DockIconShell = styled.span<{
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  border: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.9));
   background: ${({ $launcherOnly }) =>
-    $launcherOnly ? "#ffffff" : "rgba(255, 255, 255, 0.92)"};
-  color: #475569;
+    $launcherOnly
+      ? "var(--lime-surface, #ffffff)"
+      : "var(--lime-surface, rgba(255, 255, 255, 0.92))"};
+  color: var(--lime-text-muted, #475569);
 
   ${({ $attention }) =>
     $attention
       ? css`
-          color: #0369a1;
-          border-color: rgba(125, 211, 252, 0.72);
-          background: #eff6ff;
+          color: var(--lime-info, #0369a1);
+          border-color: var(--lime-info-border, rgba(125, 211, 252, 0.72));
+          background: var(--lime-info-soft, #eff6ff);
         `
       : ""}
 `;
@@ -249,7 +251,7 @@ const DockSummaryStack = styled.span`
 
 const DockSummaryEyebrow = styled.span`
   min-width: 0;
-  color: #64748b;
+  color: var(--lime-text-muted, #64748b);
   font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
@@ -269,7 +271,7 @@ const DockPrimaryText = styled.span<{ $launcherOnly: boolean }>`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #0f172a;
+  color: var(--lime-text-strong, #0f172a);
   font-size: ${({ $launcherOnly }) => ($launcherOnly ? "13px" : "14px")};
   font-weight: 700;
 `;
@@ -288,28 +290,28 @@ const DockStatusBadge = styled.span<{
   border: 1px solid
     ${({ $tone }) =>
       $tone === "success"
-        ? "rgba(167, 243, 208, 0.72)"
+        ? "var(--lime-surface-border-strong, rgba(167, 243, 208, 0.72))"
         : $tone === "error"
-          ? "rgba(254, 205, 211, 0.72)"
+          ? "var(--lime-danger-border, rgba(254, 205, 211, 0.72))"
           : $tone === "active"
-            ? "rgba(186, 230, 253, 0.72)"
-            : "rgba(226, 232, 240, 0.88)"};
+            ? "var(--lime-info-border, rgba(186, 230, 253, 0.72))"
+            : "var(--lime-surface-border, rgba(226, 232, 240, 0.88))"};
   background: ${({ $tone }) =>
     $tone === "success"
-      ? "rgba(236, 253, 245, 0.86)"
+      ? "var(--lime-brand-soft, rgba(236, 253, 245, 0.86))"
       : $tone === "error"
-        ? "rgba(255, 241, 242, 0.86)"
+        ? "var(--lime-danger-soft, rgba(255, 241, 242, 0.86))"
         : $tone === "active"
-          ? "rgba(240, 249, 255, 0.86)"
-          : "rgba(248, 250, 252, 0.92)"};
+          ? "var(--lime-info-soft, rgba(240, 249, 255, 0.86))"
+          : "var(--lime-surface-soft, rgba(248, 250, 252, 0.92))"};
   color: ${({ $tone }) =>
     $tone === "success"
-      ? "#047857"
+      ? "var(--lime-brand-strong, #047857)"
       : $tone === "error"
-        ? "#be123c"
+        ? "var(--lime-danger, #be123c)"
         : $tone === "active"
-          ? "#0369a1"
-          : "#64748b"};
+          ? "var(--lime-info, #0369a1)"
+          : "var(--lime-text-muted, #64748b)"};
 
   &::before {
     content: "";
@@ -320,12 +322,12 @@ const DockStatusBadge = styled.span<{
     border-radius: 999px;
     background: ${({ $tone }) =>
       $tone === "success"
-        ? "#10b981"
+        ? "var(--lime-brand, #10b981)"
         : $tone === "error"
-          ? "#f43f5e"
+          ? "var(--lime-danger, #f43f5e)"
           : $tone === "active"
-            ? "#0ea5e9"
-            : "#94a3b8"};
+            ? "var(--lime-info, #0ea5e9)"
+            : "var(--lime-text-muted, #94a3b8)"};
   }
 `;
 
@@ -337,15 +339,16 @@ const DockSignal = styled.span`
   height: 10px;
   width: 10px;
   border-radius: 999px;
-  background: #0ea5e9;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.12);
+  background: var(--lime-info, #0ea5e9);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--lime-info, #0ea5e9) 14%, transparent);
 
   &::after {
     content: "";
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: rgba(14, 165, 233, 0.36);
+    background: color-mix(in srgb, var(--lime-info, #0ea5e9) 36%, transparent);
     animation: ${dockSignalRipple} 1.8s ease-out infinite;
   }
 `;
@@ -353,10 +356,11 @@ const DockSignal = styled.span`
 const EmptyStateCard = styled.section`
   width: 100%;
   overflow: hidden;
-  border: 1px solid rgba(226, 232, 240, 0.96);
+  border: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.96));
   border-radius: 24px;
-  background: #ffffff;
-  box-shadow: 0 18px 52px -34px rgba(15, 23, 42, 0.24);
+  background: var(--lime-surface, #ffffff);
+  box-shadow: 0 18px 52px -34px
+    var(--lime-shadow-color, rgba(15, 23, 42, 0.24));
 `;
 
 const EmptyStateBody = styled.div`
@@ -368,7 +372,7 @@ const EmptyStateEyebrow = styled.div`
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  color: #475569;
+  color: var(--lime-text-muted, #475569);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -381,10 +385,16 @@ const EmptyStateBadge = styled.span<{ $tone?: "neutral" | "success" }>`
   border: 1px solid
     ${({ $tone }) =>
       $tone === "success"
-        ? "rgba(167, 243, 208, 0.96)"
-        : "rgba(226, 232, 240, 0.96)"};
-  background: ${({ $tone }) => ($tone === "success" ? "#ecfdf5" : "#f8fafc")};
-  color: ${({ $tone }) => ($tone === "success" ? "#047857" : "#64748b")};
+        ? "var(--lime-surface-border-strong, rgba(167, 243, 208, 0.96))"
+        : "var(--lime-surface-border, rgba(226, 232, 240, 0.96))"};
+  background: ${({ $tone }) =>
+    $tone === "success"
+      ? "var(--lime-brand-soft, #ecfdf5)"
+      : "var(--lime-surface-soft, #f8fafc)"};
+  color: ${({ $tone }) =>
+    $tone === "success"
+      ? "var(--lime-brand-strong, #047857)"
+      : "var(--lime-text-muted, #64748b)"};
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 600;
@@ -393,7 +403,7 @@ const EmptyStateBadge = styled.span<{ $tone?: "neutral" | "success" }>`
 
 const EmptyStateTitle = styled.div`
   margin-top: 12px;
-  color: #0f172a;
+  color: var(--lime-text-strong, #0f172a);
   font-size: 20px;
   font-weight: 700;
   line-height: 1.3;
@@ -401,7 +411,7 @@ const EmptyStateTitle = styled.div`
 
 const EmptyStateDescription = styled.p`
   margin-top: 8px;
-  color: #475569;
+  color: var(--lime-text, #475569);
   font-size: 13px;
   line-height: 1.6;
 `;
@@ -416,8 +426,8 @@ const EmptyStateFooter = styled.div`
 const EmptyStateDetailCard = styled.div`
   margin-top: 14px;
   border-radius: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.96);
-  background: #f8fafc;
+  border: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.96));
+  background: var(--lime-surface-soft, #f8fafc);
   overflow: hidden;
 `;
 
@@ -429,17 +439,17 @@ const EmptyStateDetailToggle = styled.button`
   gap: 12px;
   padding: 12px 14px;
   background: transparent;
-  color: #0f172a;
+  color: var(--lime-text-strong, #0f172a);
   text-align: left;
   transition: background 0.18s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.72);
+    background: var(--lime-surface-hover, rgba(255, 255, 255, 0.72));
   }
 `;
 
 const EmptyStateDetailTitle = styled.div`
-  color: #0f172a;
+  color: var(--lime-text-strong, #0f172a);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.4;
@@ -447,7 +457,7 @@ const EmptyStateDetailTitle = styled.div`
 
 const EmptyStateDetailHint = styled.div`
   margin-top: 2px;
-  color: #64748b;
+  color: var(--lime-text-muted, #64748b);
   font-size: 12px;
   line-height: 1.5;
 `;
@@ -460,13 +470,13 @@ const EmptyStateRoleList = styled.div`
 
 const EmptyStateRoleItem = styled.div`
   border-radius: 14px;
-  border: 1px solid rgba(226, 232, 240, 0.96);
-  background: #ffffff;
+  border: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.96));
+  background: var(--lime-surface, #ffffff);
   padding: 10px 12px;
 `;
 
 const EmptyStateRoleName = styled.div`
-  color: #0f172a;
+  color: var(--lime-text-strong, #0f172a);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.4;
@@ -474,7 +484,7 @@ const EmptyStateRoleName = styled.div`
 
 const EmptyStateRoleSummary = styled.div`
   margin-top: 4px;
-  color: #475569;
+  color: var(--lime-text, #475569);
   font-size: 12px;
   line-height: 1.55;
 `;
@@ -579,9 +589,8 @@ export function TeamWorkspaceDock({
   const runtimeBlueprintSummary = normalizeTeamWorkspaceDisplayValue(
     dispatchPreviewState?.blueprint?.summary,
   );
-  const normalizedSelectedTeamSummary = normalizeTeamWorkspaceDisplayValue(
-    selectedTeamSummary,
-  );
+  const normalizedSelectedTeamSummary =
+    normalizeTeamWorkspaceDisplayValue(selectedTeamSummary);
   const runtimeTeamSummary =
     normalizeTeamWorkspaceDisplayValue(dispatchPreviewState?.summary) ||
     runtimeBlueprintSummary ||
@@ -725,8 +734,7 @@ export function TeamWorkspaceDock({
       return [
         {
           label: `${executionSummary.totalSessionCount} 项任务`,
-          tone:
-            executionSummary.totalSessionCount > 0 ? "success" : "idle",
+          tone: executionSummary.totalSessionCount > 0 ? "success" : "idle",
         },
       ];
     }
@@ -1046,6 +1054,7 @@ export function TeamWorkspaceDock({
       $compact={isCompact}
       $placement={shouldPortalPanel ? "portal" : placement}
       $portalDirection={inlinePanelLayout?.direction}
+      className="lime-workbench-theme-scope lime-workbench-surface-scope"
       data-testid="team-workspace-dock-panel"
       style={
         shouldPortalPanel && inlinePanelLayout

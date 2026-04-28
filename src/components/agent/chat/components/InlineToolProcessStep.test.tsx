@@ -111,9 +111,13 @@ describe("InlineToolProcessStep", () => {
     expect(container.textContent).not.toContain("查询：");
     expect(container.textContent).not.toContain("select:Read,Write");
     expect(
-      container.querySelector('[data-testid="inline-tool-process-tool-search-result"]'),
+      container.querySelector(
+        '[data-testid="inline-tool-process-tool-search-result"]',
+      ),
     ).toBeNull();
-    expect(container.querySelector('[data-testid="markdown-renderer"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="markdown-renderer"]'),
+    ).toBeNull();
     expect(container.textContent).not.toContain('"tools"');
   });
 
@@ -135,7 +139,9 @@ describe("InlineToolProcessStep", () => {
     );
 
     expect(container.textContent).toContain("已查看 main.ts");
-    expect(container.querySelector('[data-testid="markdown-renderer"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="markdown-renderer"]'),
+    ).toBeNull();
   });
 
   it("工具详情遇到伪标签输出时应先转义再渲染", () => {
@@ -159,7 +165,9 @@ describe("InlineToolProcessStep", () => {
       toggle?.click();
     });
 
-    expect(container.textContent).toContain("&lt;text&gt;正在整理&lt;/text&gt;");
+    expect(container.textContent).toContain(
+      "&lt;text&gt;正在整理&lt;/text&gt;",
+    );
     expect(container.textContent).toContain("&lt;spinner /&gt;");
   });
 
@@ -229,13 +237,17 @@ describe("InlineToolProcessStep", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="inline-tool-process-tool-search-result"]'),
+      container.querySelector(
+        '[data-testid="inline-tool-process-tool-search-result"]',
+      ),
     ).not.toBeNull();
     expect(container.textContent).toContain("已确认可用工具 2 个");
     expect(container.textContent).toContain("找到工具：2 个");
     expect(container.textContent).toContain("查看文件");
     expect(container.textContent).toContain("保存文件");
-    expect(container.querySelector('[data-testid="markdown-renderer"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="markdown-renderer"]'),
+    ).toBeNull();
     expect(container.textContent).not.toContain('"always_visible":true');
     expect(container.textContent).not.toContain("Read a file from disk");
     expect(container.textContent).not.toContain("查询：select:Read,Write");
@@ -280,14 +292,18 @@ describe("InlineToolProcessStep", () => {
     expect(container.textContent).toContain(
       "Friday morning news: March 13, 2026 | WORLD - wng.org",
     );
-    expect(container.querySelector('[data-testid="markdown-renderer"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="markdown-renderer"]'),
+    ).toBeNull();
   });
 
   it("WebSearch 协议错误应展示可操作提示，并保留原始错误供排查", () => {
     const { container } = renderTool({
       id: "tool-search-web-failed-1",
       name: "WebSearch",
-      arguments: JSON.stringify({ query: "AI Agent trends X Twitter April 2026" }),
+      arguments: JSON.stringify({
+        query: "AI Agent trends X Twitter April 2026",
+      }),
       status: "failed",
       result: {
         success: false,
@@ -309,7 +325,9 @@ describe("InlineToolProcessStep", () => {
       toggle?.click();
     });
 
-    expect(container.textContent).toContain("原始错误：-32603: -32002: WebSearch");
+    expect(container.textContent).toContain(
+      "原始错误：-32603: -32002: WebSearch",
+    );
   });
 
   it("完成态过程卡不应重复展示执行完成与原始工具名", () => {
@@ -364,7 +382,9 @@ describe("InlineToolProcessStep", () => {
       { onOpenSavedSiteContent },
     );
 
-    expect(container.textContent).toContain("已保存到当前项目：Google Cloud 周报");
+    expect(container.textContent).toContain(
+      "已保存到当前项目：Google Cloud 周报",
+    );
     expect(container.textContent).toContain("已导出 Markdown 文稿");
     expect(container.textContent).toContain("附带图片 3 张");
 

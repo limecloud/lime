@@ -128,7 +128,8 @@ export function TeamWorkbenchSummaryPanel({
         label: normalizeTeamWorkspaceDisplayValue(role.label) || role.label,
         roleKey: role.roleKey,
         profileId: role.profileId,
-        summary: normalizeTeamWorkspaceDisplayValue(role.summary) || role.summary,
+        summary:
+          normalizeTeamWorkspaceDisplayValue(role.summary) || role.summary,
         skillIds: role.skillIds ?? [],
         statusMeta: null,
       }));

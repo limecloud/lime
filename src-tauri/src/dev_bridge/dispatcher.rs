@@ -784,6 +784,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn agent_generate_title_bridge_requires_app_handle_in_test_state() {
+        let state = make_test_state();
+
+        let error = handle_command(
+            &state,
+            "agent_generate_title",
+            Some(serde_json::json!({
+                "sessionId": "session-1",
+                "titleKind": "session"
+            })),
+        )
+        .await
+        .expect_err("agent_generate_title without app handle should fail after routing");
+
+        assert!(error.to_string().contains("Dev Bridge 未持有 AppHandle"));
+    }
+
+    #[tokio::test]
     async fn fetch_provider_models_auto_is_bridged() {
         let state = make_test_state();
 

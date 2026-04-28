@@ -771,6 +771,7 @@ describe("AutomationSettings", () => {
       onOpenSettings: vi.fn(),
     });
 
+    expect(container.querySelector(".lime-workbench-theme-scope")).not.toBeNull();
     expect(container.textContent).toContain("持续流程");
     expect(container.textContent).toContain("开始这条");
     expect(container.textContent).toContain("已在运行的持续流程");
@@ -799,6 +800,9 @@ describe("AutomationSettings", () => {
 
     await openJobDetails(container, "job-browser-1");
 
+    expect(
+      document.body.querySelector(".lime-workbench-theme-scope"),
+    ).not.toBeNull();
     expect(
       document.body.querySelector(
         "[data-testid='automation-job-details-dialog']",

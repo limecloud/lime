@@ -620,6 +620,18 @@ describe("CanvasWorkbenchLayout", () => {
         ?.getAttribute("data-layout-mode"),
     ).toBe("split");
     expect(
+      container.querySelector('[data-testid="canvas-workbench-shell"]')
+        ?.className,
+    ).toContain("lime-workbench-theme-scope");
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-shell"]')
+        ?.className,
+    ).toContain("lime-workbench-surface-scope");
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-shell"]')
+        ?.className,
+    ).toContain("bg-[color:var(--lime-surface)]");
+    expect(
       container.querySelector(
         'button[aria-label="切换画布标签-Session · Main"]',
       ),
@@ -691,7 +703,8 @@ describe("CanvasWorkbenchLayout", () => {
       workspaceRoot: "/workspace",
       workspaceUnavailable: false,
       defaultPreview: {
-        selectionKey: "default-preview:exports/x-article-export/latest/index.md",
+        selectionKey:
+          "default-preview:exports/x-article-export/latest/index.md",
         title: "index.md",
         content: "# 导出结果\n\n这是正文。",
         filePath: "exports/x-article-export/latest/index.md",
@@ -735,11 +748,13 @@ describe("CanvasWorkbenchLayout", () => {
     expect(workspaceButtons).toContain("展开目录-skills");
     expect(workspaceButtons).toContain("展开目录-images");
 
-    const indexButtonPosition = workspaceButtons.indexOf("选择工作区文件-index.md");
+    const indexButtonPosition =
+      workspaceButtons.indexOf("选择工作区文件-index.md");
     const agentsButtonPosition =
       workspaceButtons.indexOf("选择工作区文件-Agents.md");
-    const manifestButtonPosition =
-      workspaceButtons.indexOf("选择工作区文件-manifest.json");
+    const manifestButtonPosition = workspaceButtons.indexOf(
+      "选择工作区文件-manifest.json",
+    );
 
     expect(indexButtonPosition).toBeGreaterThanOrEqual(0);
     expect(agentsButtonPosition).toBeGreaterThan(indexButtonPosition);
@@ -1093,7 +1108,9 @@ describe("CanvasWorkbenchLayout", () => {
     await flushEffects();
 
     expect(
-      container.querySelector('[data-testid="canvas-workbench-panel-document"]'),
+      container.querySelector(
+        '[data-testid="canvas-workbench-panel-document"]',
+      ),
     ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="canvas-workbench-panel-session"]'),
@@ -1144,7 +1161,9 @@ describe("CanvasWorkbenchLayout", () => {
     await flushEffects();
 
     expect(
-      harness.container.querySelector('[data-testid="canvas-workbench-panel-session"]'),
+      harness.container.querySelector(
+        '[data-testid="canvas-workbench-panel-session"]',
+      ),
     ).not.toBeNull();
     expect(
       harness.container.querySelector('[data-testid="session-view-panel"]'),
@@ -1289,7 +1308,8 @@ describe("CanvasWorkbenchLayout", () => {
       workspaceRoot: "/workspace",
       workspaceUnavailable: false,
       defaultPreview: {
-        selectionKey: "default-preview:exports/x-article-export/latest/index.md",
+        selectionKey:
+          "default-preview:exports/x-article-export/latest/index.md",
         title: "index.md",
         content: "# 导出结果\n\n这是正文。",
         filePath: "exports/x-article-export/latest/index.md",
@@ -1400,9 +1420,7 @@ describe("CanvasWorkbenchLayout", () => {
       container.querySelector('[data-testid="team-panel"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector(
-        'button[aria-label="切换画布标签-生成"]',
-      ),
+      container.querySelector('button[aria-label="切换画布标签-生成"]'),
     ).not.toBeNull();
     expect(renderPreview).toHaveBeenCalled();
     expect(renderTeamPanel).toHaveBeenCalled();

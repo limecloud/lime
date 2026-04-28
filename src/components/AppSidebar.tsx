@@ -1,9 +1,8 @@
 /**
  * 全局应用侧边栏
  *
- * 当前导航收口为一级主入口 + 底部系统入口。
- * 默认只暴露主线入口；底部固定保留设置、持续流程、消息渠道，
- * 可选项只剩插件中心、OpenClaw、桌宠。
+ * 当前导航收口为一级主入口 + 底部用户菜单。
+ * 默认只暴露主线入口；系统入口统一收进左下角用户弹窗。
  */
 
 import {
@@ -17,22 +16,38 @@ import {
 import styled from "styled-components";
 import {
   ChevronDown,
-  Clock3,
-  MessageSquarePlus,
-  Archive,
+  ChevronRight,
+  Check,
+  Cloud,
+  Copy,
+  ExternalLink,
+  Gift,
+  Info,
+  KeyRound,
+  Languages,
+  LogIn,
+  LogOut,
+  Monitor,
   Moon,
+  Palette,
+  RefreshCw,
   Sun,
   Search,
   PanelLeftClose,
   PanelLeftOpen,
-  Undo2,
   Activity,
   LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import * as LucideIcons from "lucide-react";
 import { getPluginsForSurface, PluginUIInfo } from "@/lib/api/pluginUI";
 import { AgentPageParams, Page, PageParams } from "@/types/page";
-import { getConfig, subscribeAppConfigChanged } from "@/lib/api/appConfig";
+import { SettingsTabs } from "@/types/settings";
+import {
+  getConfig,
+  saveConfig,
+  subscribeAppConfigChanged,
+} from "@/lib/api/appConfig";
 import {
   buildClawAgentParams,
   buildHomeAgentParams,
@@ -56,9 +71,60 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Modal } from "@/components/Modal";
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
+import { AppSidebarConversationShelf } from "@/components/app-sidebar/AppSidebarConversationShelf";
+import { shouldReserveMacWindowControls } from "@/lib/windowControls";
+import {
+  clearStoredOemCloudSessionState,
+  clearOemCloudBootstrapSnapshot,
+  getOemCloudBootstrapSnapshot,
+  getStoredOemCloudSessionState,
+  subscribeOemCloudBootstrapChanged,
+  subscribeOemCloudSessionChanged,
+  type OemCloudStoredSessionState,
+} from "@/lib/oemCloudSession";
+import { clearSkillCatalogCache } from "@/lib/api/skillCatalog";
+import { clearServiceSkillCatalogCache } from "@/lib/api/serviceSkills";
+import {
+  getClientReferralDashboard,
+  logoutClient,
+  type OemCloudBootstrapResponse,
+  type OemCloudReferralDashboard,
+} from "@/lib/api/oemCloudControlPlane";
+import { clearSiteAdapterCatalogCache } from "@/lib/siteAdapterCatalogBootstrap";
+import {
+  LAST_PROJECT_ID_KEY,
+  loadPersistedProjectId,
+  PERSISTED_PROJECT_ID_CHANGED_EVENT,
+} from "@/components/agent/chat/hooks/agentProjectStorage";
+import {
+  LIME_COLOR_SCHEME_CHANGED_EVENT,
+  LIME_COLOR_SCHEMES,
+  LIME_COLOR_SCHEME_STORAGE_KEY,
+  applyLimeColorScheme,
+  getLimeColorScheme,
+  loadLimeColorSchemeId,
+  persistLimeColorScheme,
+  type LimeColorSchemeChangedEventDetail,
+  type LimeColorSchemeId,
+} from "@/lib/appearance/colorSchemes";
+import {
+  LIME_THEME_CHANGED_EVENT,
+  LIME_THEME_MODE_OPTIONS,
+  LIME_THEME_STORAGE_KEY,
+  applyLimeThemeMode,
+  getEffectiveLimeThemeMode,
+  loadLimeThemeMode,
+  persistLimeThemeMode,
+  type LimeEffectiveThemeMode,
+  type LimeThemeChangedEventDetail,
+  type LimeThemeMode,
+} from "@/lib/appearance/themeMode";
+import { useI18nPatch } from "@/i18n/I18nPatchProvider";
+import type { Language } from "@/i18n/text-map";
 
 interface AppSidebarProps {
   currentPage: Page;
@@ -74,9 +140,27 @@ const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
 const SIDEBAR_PLUGIN_CENTER_NAV_ITEM_ID = "plugins";
 const SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS = 1200;
 const SIDEBAR_PLUGIN_BROWSER_IDLE_TIMEOUT_MS = 6000;
-const SIDEBAR_RECENT_SESSION_PAGE_SIZE = 18;
-const SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE = 12;
+const SIDEBAR_RECENT_SESSION_PAGE_SIZE = 10;
+const SIDEBAR_RECENT_SESSION_PREFETCH_LIMIT = 37;
+const SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE = 8;
 const SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS = 12_000;
+
+const APP_SIDEBAR_LANGUAGE_OPTIONS: Array<{
+  id: Language;
+  label: string;
+  hint: string;
+}> = [
+  {
+    id: "zh",
+    label: "中文",
+    hint: "中文界面",
+  },
+  {
+    id: "en",
+    label: "English",
+    hint: "English UI",
+  },
+];
 
 function buildSidebarSessionRequestLimit(
   visibleCount: number,
@@ -175,63 +259,87 @@ function isSameSidebarNavigationTarget(
 const Container = styled.aside<{
   $collapsed?: boolean;
   $themeMode: "light" | "dark";
+  $reserveWindowControls?: boolean;
 }>`
+  --sidebar-window-control-safe-top: ${({ $reserveWindowControls }) =>
+    $reserveWindowControls ? "34px" : "0px"};
   --sidebar-surface-top: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#15202b" : "#f6fbf4"};
+    $themeMode === "dark"
+      ? "#15202b"
+      : "var(--lime-sidebar-surface-top, #f6fbf4)"};
   --sidebar-surface-middle: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#17232d" : "#f9fcf6"};
+    $themeMode === "dark"
+      ? "#17232d"
+      : "var(--lime-sidebar-surface-middle, #f9fcf6)"};
   --sidebar-surface-bottom: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#1a2530" : "#fbfff5"};
+    $themeMode === "dark"
+      ? "#1a2530"
+      : "var(--lime-sidebar-surface-bottom, #fbfff5)"};
+  --sidebar-surface: ${({ $themeMode }) =>
+    $themeMode === "dark"
+      ? "linear-gradient(180deg, #15202b 0%, #17232d 48%, #1a2530 100%)"
+      : "var(--lime-sidebar-surface, linear-gradient(180deg, var(--sidebar-surface-top) 0%, var(--sidebar-surface-middle) 46%, var(--sidebar-surface-bottom) 100%))"};
   --sidebar-foreground: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#eef4f7" : "#1a3b2b"};
+    $themeMode === "dark" ? "#eef4f7" : "var(--lime-text, #1a3b2b)"};
   --sidebar-muted: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#a1afbd" : "#6b826b"};
+    $themeMode === "dark" ? "#a1afbd" : "var(--lime-text-muted, #6b826b)"};
   --sidebar-border: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#2d3a46" : "#e2f0e2"};
+    $themeMode === "dark" ? "#2d3a46" : "var(--lime-sidebar-border, #e2f0e2)"};
+  --sidebar-card-border: ${({ $themeMode }) =>
+    $themeMode === "dark"
+      ? "rgba(55, 68, 81, 0.76)"
+      : "var(--lime-sidebar-card-border, var(--lime-sidebar-border, #e2f0e2))"};
   --sidebar-divider: ${({ $themeMode }) =>
     $themeMode === "dark"
       ? "rgba(148, 163, 184, 0.14)"
-      : "rgba(132, 204, 22, 0.15)"};
+      : "var(--lime-sidebar-divider, rgba(132, 204, 22, 0.15))"};
   --sidebar-hover: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#22303c" : "#eef7ee"};
+    $themeMode === "dark" ? "#22303c" : "var(--lime-sidebar-hover, #eef7ee)"};
   --sidebar-active: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#2a3e3b" : "#e6f8ea"};
+    $themeMode === "dark" ? "#2a3e3b" : "var(--lime-sidebar-active, #e6f8ea)"};
   --sidebar-active-foreground: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#dff4ea" : "#166534"};
+    $themeMode === "dark"
+      ? "#dff4ea"
+      : "var(--lime-sidebar-active-text, #166534)"};
   --sidebar-search-bg: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#1f2b36" : "#fcfff9"};
+    $themeMode === "dark"
+      ? "#1f2b36"
+      : "var(--lime-sidebar-search-bg, #fcfff9)"};
   --sidebar-search-hover: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#24313d" : "#f4fdf4"};
+    $themeMode === "dark"
+      ? "#24313d"
+      : "var(--lime-sidebar-search-hover, #f4fdf4)"};
   --sidebar-search-border-hover: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#3a4a57" : "#bbf7d0"};
+    $themeMode === "dark"
+      ? "#3a4a57"
+      : "var(--lime-sidebar-search-border-hover, #bbf7d0)"};
   --sidebar-card-surface: ${({ $themeMode }) =>
     $themeMode === "dark"
       ? "linear-gradient(180deg, rgba(24, 34, 44, 0.96) 0%, rgba(19, 29, 38, 0.98) 100%)"
-      : "linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0%, rgba(249, 252, 246, 0.94) 100%)"};
+      : "var(--lime-sidebar-card-surface, linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0%, rgba(249, 252, 246, 0.94) 100%))"};
   --sidebar-card-shadow: ${({ $themeMode }) =>
     $themeMode === "dark"
       ? "0 18px 34px -28px rgba(2, 8, 23, 0.7)"
-      : "0 16px 30px -28px rgba(15, 23, 42, 0.4)"};
+      : "var(--lime-sidebar-card-shadow, 0 14px 28px -26px rgba(15, 23, 42, 0.32))"};
   --sidebar-card-highlight: ${({ $themeMode }) =>
     $themeMode === "dark"
       ? "rgba(255, 255, 255, 0.08)"
-      : "rgba(255, 255, 255, 0.72)"};
+      : "var(--lime-sidebar-card-highlight, rgba(255, 255, 255, 0.72))"};
   display: flex;
   flex-direction: column;
   width: ${({ $collapsed }) => ($collapsed ? "72px" : "272px")};
   min-width: ${({ $collapsed }) => ($collapsed ? "72px" : "272px")};
   height: 100vh;
-  padding: ${({ $collapsed }) => ($collapsed ? "12px 6px" : "14px 14px 12px")};
+  padding: ${({ $collapsed }) =>
+    $collapsed
+      ? "calc(12px + var(--sidebar-window-control-safe-top)) 6px 12px"
+      : "calc(14px + var(--sidebar-window-control-safe-top)) 14px 12px"};
   position: relative;
   isolation: isolate;
-  background: linear-gradient(
-    180deg,
-    var(--sidebar-surface-top) 0%,
-    var(--sidebar-surface-middle) 38%,
-    var(--sidebar-surface-bottom) 100%
-  );
+  z-index: 30;
+  background: var(--sidebar-surface);
   border-right: 1px solid var(--sidebar-border);
-  box-shadow: 16px 0 36px -34px rgba(15, 23, 42, 0.42);
+  box-shadow: 10px 0 26px -28px rgba(15, 23, 42, 0.38);
   transition:
     width 180ms ease,
     min-width 180ms ease,
@@ -244,19 +352,20 @@ const Container = styled.aside<{
     background:
       radial-gradient(
         circle at top left,
-        rgba(132, 204, 22, 0.14) 0%,
-        rgba(132, 204, 22, 0) 46%
+        var(--lime-sidebar-glow-primary, rgba(132, 204, 22, 0.14)) 0%,
+        transparent 54%
       ),
       radial-gradient(
         circle at 18% 18%,
-        rgba(16, 185, 129, 0.12) 0%,
-        rgba(16, 185, 129, 0) 30%
+        var(--lime-sidebar-glow-secondary, rgba(16, 185, 129, 0.12)) 0%,
+        transparent 42%
       ),
       radial-gradient(
         circle at bottom left,
-        rgba(186, 230, 253, 0.12) 0%,
-        rgba(186, 230, 253, 0) 34%
+        var(--lime-sidebar-glow-tertiary, rgba(186, 230, 253, 0.12)) 0%,
+        transparent 46%
       );
+    opacity: 0.82;
     pointer-events: none;
     z-index: 0;
   }
@@ -290,7 +399,9 @@ const UserButton = styled.button<{ $collapsed?: boolean }>`
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
+  width: ${({ $collapsed }) => ($collapsed ? "38px" : "100%")};
+  min-width: 0;
+  flex: ${({ $collapsed }) => ($collapsed ? "0 0 auto" : "1 1 auto")};
   border: none;
   background: transparent;
   border-radius: 14px;
@@ -341,7 +452,7 @@ const SearchButton = styled.button<{ $collapsed?: boolean }>`
   width: 100%;
   height: 44px;
   border-radius: 16px;
-  border: 1px solid var(--sidebar-border);
+  border: 1px solid var(--sidebar-card-border);
   background: var(--sidebar-search-bg);
   color: var(--sidebar-muted);
   padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 14px")};
@@ -353,7 +464,7 @@ const SearchButton = styled.button<{ $collapsed?: boolean }>`
     background-color 0.18s ease,
     color 0.18s ease,
     box-shadow 0.18s ease;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
 
   &:hover {
     border-color: var(--sidebar-search-border-hover);
@@ -421,10 +532,9 @@ const NavButton = styled.button<{ $active?: boolean; $collapsed?: boolean }>`
   border: none;
   border-radius: 14px;
   padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 12px")};
+  position: relative;
   background: ${({ $active }) =>
-    $active
-      ? "linear-gradient(180deg, rgba(230, 248, 234, 0.98), rgba(221, 247, 230, 0.92))"
-      : "transparent"};
+    $active ? "var(--sidebar-active)" : "transparent"};
   color: ${({ $active }) =>
     $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-muted)"};
   cursor: pointer;
@@ -436,7 +546,23 @@ const NavButton = styled.button<{ $active?: boolean; $collapsed?: boolean }>`
   justify-content: ${({ $collapsed }) =>
     $collapsed ? "center" : "flex-start"};
   box-shadow: ${({ $active }) =>
-    $active ? "0 12px 24px -22px rgba(22, 101, 52, 0.34)" : "none"};
+    $active ? "inset 0 1px 0 rgba(255, 255, 255, 0.48)" : "none"};
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: ${({ $collapsed }) => ($collapsed ? "8px" : "7px")};
+    top: 50%;
+    width: 3px;
+    height: ${({ $active }) => ($active ? "18px" : "0")};
+    border-radius: 999px;
+    background: var(--sidebar-active-foreground);
+    opacity: ${({ $active }) => ($active ? 0.72 : 0)};
+    transform: translateY(-50%);
+    transition:
+      height 0.18s ease,
+      opacity 0.18s ease;
+  }
 
   &:hover {
     background: ${({ $active }) =>
@@ -466,253 +592,6 @@ const NavLabel = styled.span<{ $collapsed?: boolean }>`
   display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
 `;
 
-const ConversationShelf = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 2px 0 12px;
-`;
-
-const ConversationSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 140px;
-  max-height: 208px;
-  padding: 10px;
-  border-radius: 24px;
-  border: 1px solid var(--sidebar-border);
-  background: var(--sidebar-card-surface), var(--sidebar-search-bg);
-  box-shadow:
-    inset 0 1px 0 var(--sidebar-card-highlight),
-    var(--sidebar-card-shadow);
-  overflow: hidden;
-`;
-
-const ConversationSectionHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 4px;
-  color: var(--sidebar-muted);
-`;
-
-const ConversationSectionTitle = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  margin: 0;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-`;
-
-const ConversationActionButton = styled.button`
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 9px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--sidebar-muted);
-  cursor: pointer;
-  transition:
-    background-color 0.18s ease,
-    color 0.18s ease;
-
-  &:hover {
-    background: var(--sidebar-hover);
-    color: var(--sidebar-foreground);
-  }
-
-  svg {
-    width: 16px;
-    height: 16px;
-  }
-`;
-
-const ConversationList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-height: 0;
-  max-height: 132px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 2px;
-
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--sidebar-border);
-    border-radius: 9999px;
-  }
-`;
-
-const ConversationListMoreButton = styled.button`
-  width: 100%;
-  min-height: 34px;
-  border: 1px solid var(--sidebar-border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--sidebar-muted);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background-color 0.18s ease,
-    border-color 0.18s ease,
-    color 0.18s ease;
-
-  &:hover {
-    background: var(--sidebar-hover);
-    border-color: var(--sidebar-search-border-hover);
-    color: var(--sidebar-foreground);
-  }
-`;
-
-const ConversationItemRow = styled.div<{
-  $active?: boolean;
-}>`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-  border-radius: 12px;
-  background: ${({ $active }) =>
-    $active
-      ? "linear-gradient(180deg, rgba(230, 248, 234, 0.98), rgba(221, 247, 230, 0.92))"
-      : "transparent"};
-  transition:
-    background-color 0.18s ease,
-    color 0.18s ease;
-
-  &:hover {
-    background: ${({ $active }) =>
-      $active ? "var(--sidebar-active)" : "var(--sidebar-hover)"};
-  }
-`;
-
-const ConversationItemButton = styled.button<{
-  $active?: boolean;
-}>`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-  min-height: 38px;
-  border: none;
-  border-radius: 12px;
-  padding: 0 10px;
-  background: transparent;
-  color: ${({ $active }) =>
-    $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-foreground)"};
-  cursor: pointer;
-  transition: color 0.18s ease;
-`;
-
-const ConversationItemDot = styled.span<{ $active?: boolean }>`
-  width: 8px;
-  height: 8px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  background: ${({ $active }) =>
-    $active ? "var(--sidebar-active-foreground)" : "rgba(148, 163, 184, 0.72)"};
-`;
-
-const ConversationItemLabel = styled.span`
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 500;
-`;
-
-const ConversationItemMeta = styled.span`
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--sidebar-muted);
-`;
-
-const ConversationItemActionButton = styled.button`
-  width: 30px;
-  min-width: 30px;
-  height: 38px;
-  border: none;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--sidebar-muted);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 0.18s ease,
-    background-color 0.18s ease,
-    color 0.18s ease;
-
-  &:hover {
-    background: var(--sidebar-hover);
-    color: var(--sidebar-foreground);
-  }
-
-  &:disabled {
-    cursor: wait;
-    opacity: 0.6;
-  }
-
-  ${ConversationItemRow}:hover &,
-  ${ConversationItemRow}[data-active="true"] & {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  svg {
-    width: 15px;
-    height: 15px;
-  }
-`;
-
-const ConversationEmptyState = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-  min-height: 0;
-  border-radius: 16px;
-  padding: 12px;
-  color: var(--sidebar-muted);
-  font-size: 13px;
-  background: rgba(255, 255, 255, 0.28);
-  text-align: center;
-`;
-
 const FooterArea = styled.div<{ $collapsed?: boolean }>`
   padding-top: 10px;
   padding-bottom: 16px;
@@ -728,6 +607,12 @@ const ActionRow = styled.div<{ $collapsed?: boolean }>`
   justify-content: ${({ $collapsed }) =>
     $collapsed ? "center" : "space-between"};
   padding: 0 2px;
+`;
+
+const AppearanceActionSlot = styled.div<{ $collapsed?: boolean }>`
+  position: relative;
+  display: inline-flex;
+  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-end")};
 `;
 
 const IconActionButton = styled.button<{ $active?: boolean }>`
@@ -760,6 +645,981 @@ const IconActionButton = styled.button<{ $active?: boolean }>`
     width: 16px;
     height: 16px;
   }
+`;
+
+const HeaderInviteButton = styled.button<{
+  $collapsed?: boolean;
+  $active?: boolean;
+}>`
+  height: 30px;
+  min-width: ${({ $collapsed }) => ($collapsed ? "30px" : "88px")};
+  border: none;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${({ $collapsed }) => ($collapsed ? "0" : "6px")};
+  padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 9px")};
+  background: ${({ $active }) =>
+    $active ? "var(--sidebar-hover)" : "transparent"};
+  color: ${({ $active }) =>
+    $active ? "var(--sidebar-foreground)" : "var(--sidebar-muted)"};
+  opacity: ${({ $active }) => ($active ? 0.92 : 0.76)};
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    opacity 0.18s ease;
+
+  &:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-foreground);
+    opacity: 0.92;
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+
+  span {
+    display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+`;
+
+const InviteDialogSurface = styled.div`
+  --invite-surface: var(--lime-surface, #ffffff);
+  --invite-surface-soft: var(--lime-surface-soft, #f8fcf9);
+  --invite-surface-muted: var(--lime-surface-muted, #f2f7f3);
+  --invite-surface-hover: var(--lime-surface-hover, #f4fdf4);
+  --invite-border: var(--lime-surface-border, #e2f0e2);
+  --invite-border-strong: var(--lime-surface-border-strong, #c7e7d1);
+  --invite-text: var(--lime-text, #1a3b2b);
+  --invite-text-strong: var(--lime-text-strong, #0f172a);
+  --invite-text-muted: var(--lime-text-muted, #6b826b);
+  --invite-brand: var(--lime-brand, #10b981);
+  --invite-brand-strong: var(--lime-brand-strong, #166534);
+  --invite-brand-soft: var(--lime-brand-soft, #ecfdf5);
+  background: var(--invite-surface);
+  color: var(--invite-text);
+`;
+
+const InviteDialogHeader = styled.div`
+  display: grid;
+  gap: 8px;
+  padding: 24px 24px 18px;
+  border-bottom: 1px solid var(--invite-border);
+  background:
+    radial-gradient(
+      circle at 18% 0%,
+      color-mix(in srgb, var(--invite-brand) 12%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      135deg,
+      var(--invite-surface-soft) 0%,
+      var(--invite-surface) 58%,
+      var(--invite-surface-muted) 100%
+    );
+`;
+
+const InviteDialogEyebrow = styled.span`
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid var(--invite-border-strong);
+  background: var(--invite-brand-soft);
+  color: var(--invite-brand-strong);
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const InviteDialogTitle = styled.h2`
+  margin: 0;
+  color: var(--invite-text-strong);
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 800;
+`;
+
+const InviteDialogDescription = styled.p`
+  margin: 0;
+  color: var(--invite-text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+`;
+
+const InviteDialogBody = styled.div`
+  display: grid;
+  gap: 14px;
+  padding: 18px 24px 22px;
+`;
+
+const InviteStatusCard = styled.div<{ $tone?: "error" | "muted" }>`
+  border-radius: 16px;
+  border: 1px solid
+    ${({ $tone }) =>
+      $tone === "error"
+        ? "var(--lime-danger-border, #fecdd3)"
+        : "var(--invite-border)"};
+  background: ${({ $tone }) =>
+    $tone === "error"
+      ? "var(--lime-danger-soft, #fff1f2)"
+      : "var(--invite-surface-soft)"};
+  color: ${({ $tone }) =>
+    $tone === "error" ? "var(--lime-danger, #be123c)" : "var(--invite-text)"};
+  padding: 14px 15px;
+  font-size: 13px;
+  line-height: 1.6;
+`;
+
+const InviteShareCard = styled.div`
+  display: grid;
+  gap: 14px;
+  border-radius: 18px;
+  border: 1px solid var(--lime-card-subtle-border, var(--invite-border));
+  background: var(--invite-surface);
+  padding: 16px;
+  box-shadow: var(
+    --lime-sidebar-card-shadow,
+    0 18px 36px -32px rgba(15, 23, 42, 0.32)
+  );
+`;
+
+const InviteCodeBlock = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 16px;
+  border: 1px dashed
+    color-mix(in srgb, var(--invite-brand) 42%, var(--invite-border));
+  background: color-mix(
+    in srgb,
+    var(--invite-brand-soft) 64%,
+    var(--invite-surface) 36%
+  );
+  padding: 14px;
+`;
+
+const InviteCodeMeta = styled.span`
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+`;
+
+const InviteCodeLabel = styled.span`
+  color: var(--invite-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const InviteCodeValue = styled.strong`
+  color: var(--invite-text-strong);
+  font-size: 24px;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  word-break: break-all;
+`;
+
+const InviteMetaGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 560px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const InviteMetaItem = styled.div`
+  display: grid;
+  gap: 5px;
+  border-radius: 14px;
+  background: var(--invite-surface-soft);
+  padding: 12px;
+  min-width: 0;
+
+  span {
+    color: var(--invite-text-muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  strong {
+    color: var(--invite-text-strong);
+    font-size: 14px;
+    font-weight: 800;
+    word-break: break-word;
+  }
+`;
+
+const InviteActionBar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+`;
+
+const InviteDialogActionButton = styled.button<{ $primary?: boolean }>`
+  min-height: 38px;
+  border-radius: 12px;
+  border: 1px solid
+    ${({ $primary }) =>
+      $primary ? "var(--invite-brand-strong)" : "var(--invite-border-strong)"};
+  background: ${({ $primary }) =>
+    $primary ? "var(--invite-brand-strong)" : "var(--invite-surface)"};
+  color: ${({ $primary }) =>
+    $primary ? "var(--lime-surface, #ffffff)" : "var(--invite-text)"};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: ${({ $primary }) =>
+      $primary
+        ? "var(--invite-brand)"
+        : "var(--invite-surface-hover, var(--lime-surface-hover, #f4fdf4))"};
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+    transform: none;
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+`;
+
+const AppearancePopover = styled.div`
+  position: absolute;
+  left: calc(100% + 12px);
+  bottom: -2px;
+  z-index: 70;
+  width: 228px;
+  max-width: min(228px, calc(100vw - 24px));
+  border-radius: 18px;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.92));
+  background: var(--lime-card-subtle, var(--lime-surface, #ffffff));
+  box-shadow:
+    0 20px 40px -32px rgba(15, 23, 42, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  color: var(--lime-text, #1a3b2b);
+  padding: 9px;
+  transform-origin: left bottom;
+  animation: appearancePopoverIn 150ms ease-out both;
+
+  &::after {
+    content: "";
+    position: absolute;
+    left: -5px;
+    bottom: 15px;
+    border-left: 1px solid var(--lime-surface-border, rgba(226, 240, 226, 0.92));
+    border-bottom: 1px solid
+      var(--lime-surface-border, rgba(226, 240, 226, 0.92));
+    width: 10px;
+    height: 10px;
+    transform: rotate(45deg);
+    background: var(--lime-card-subtle, var(--lime-surface, #ffffff));
+  }
+
+  @keyframes appearancePopoverIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @media (max-width: 760px) {
+    left: auto;
+    right: 0;
+    bottom: calc(100% + 10px);
+    transform-origin: right bottom;
+
+    &::after {
+      left: auto;
+      right: 13px;
+      bottom: -5px;
+      border-left: none;
+      border-right: 1px solid
+        var(--lime-surface-border, rgba(226, 240, 226, 0.92));
+    }
+  }
+`;
+
+const AppearancePopoverHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 8px;
+`;
+
+const AppearancePopoverTitle = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lime-text-strong, #0f172a);
+
+  svg {
+    width: 15px;
+    height: 15px;
+    color: var(--lime-brand-strong, #166534);
+  }
+`;
+
+const AppearancePopoverSummary = styled.div`
+  max-width: 132px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lime-text-muted, #6b826b);
+`;
+
+const AppearanceGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 7px 0;
+  border-top: 1px solid var(--lime-divider-subtle, rgba(226, 240, 226, 0.82));
+`;
+
+const AppearanceGroupLabel = styled.div`
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lime-text-muted, #6b826b);
+`;
+
+const ThemeModeGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+`;
+
+const ThemeModeButton = styled.button<{ $active?: boolean }>`
+  min-width: 0;
+  border-radius: 13px;
+  border: 1px solid
+    ${({ $active }) =>
+      $active
+        ? "var(--lime-card-subtle-border, #bbf7d0)"
+        : "var(--lime-card-subtle-border, rgba(226, 240, 226, 0.82))"};
+  background: ${({ $active }) =>
+    $active
+      ? "var(--lime-chrome-tab-active-surface, var(--lime-surface, #ffffff))"
+      : "var(--lime-surface, #ffffff)"};
+  color: ${({ $active }) =>
+    $active
+      ? "var(--lime-text-strong, #0f172a)"
+      : "var(--lime-text-muted, #6b826b)"};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: ${({ $active }) =>
+    $active ? "0 10px 22px -20px var(--lime-shadow-color)" : "none"};
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+
+  &:hover {
+    border-color: var(--lime-card-subtle-border, #bbf7d0);
+    background: var(
+      --lime-chrome-tab-hover,
+      var(--lime-surface-hover, #f4fdf4)
+    );
+    color: var(--lime-text-strong, #0f172a);
+  }
+
+  svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+  }
+`;
+
+const ColorSchemeList = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+`;
+
+const ColorSchemeButton = styled.button<{ $active?: boolean }>`
+  display: flex;
+  position: relative;
+  min-height: 58px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  border-radius: 13px;
+  border: 1px solid
+    ${({ $active }) =>
+      $active
+        ? "var(--lime-card-subtle-border, #bbf7d0)"
+        : "var(--lime-card-subtle-border, rgba(226, 240, 226, 0.82))"};
+  background: ${({ $active }) =>
+    $active
+      ? "var(--lime-chrome-tab-active-surface, var(--lime-surface, #ffffff))"
+      : "var(--lime-surface, #ffffff)"};
+  color: var(--lime-text, #1a3b2b);
+  cursor: pointer;
+  padding: 7px;
+  text-align: left;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+
+  &:hover {
+    border-color: var(--lime-card-subtle-border, #bbf7d0);
+    background: var(
+      --lime-chrome-tab-hover,
+      var(--lime-surface-hover, #f4fdf4)
+    );
+  }
+`;
+
+const ColorSchemeSwatches = styled.span`
+  display: inline-flex;
+  flex-shrink: 0;
+  overflow: hidden;
+  width: 42px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 1px var(--lime-surface-border, rgba(226, 240, 226, 0.82));
+
+  span {
+    flex: 1;
+  }
+`;
+
+const ColorSchemeText = styled.span`
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+`;
+
+const ColorSchemeLabel = styled.span`
+  min-width: 0;
+  max-width: calc(100% - 22px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lime-text-strong, #0f172a);
+`;
+
+const ColorSchemeCheck = styled.span<{ $active?: boolean }>`
+  display: inline-flex;
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--lime-brand-strong, #166534);
+  opacity: ${({ $active }) => ($active ? 1 : 0)};
+
+  svg {
+    width: 13px;
+    height: 13px;
+  }
+`;
+
+const AccountActionSlot = styled.div<{ $collapsed?: boolean }>`
+  position: relative;
+  margin-top: 4px;
+  display: flex;
+  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "stretch")};
+`;
+
+const AccountButton = styled.button<{
+  $collapsed?: boolean;
+  $active?: boolean;
+}>`
+  width: 100%;
+  min-height: ${({ $collapsed }) => ($collapsed ? "38px" : "42px")};
+  border: none;
+  border-radius: 15px;
+  background: ${({ $active }) =>
+    $active ? "var(--sidebar-active)" : "transparent"};
+  color: var(--sidebar-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: ${({ $collapsed }) =>
+    $collapsed ? "center" : "space-between"};
+  gap: 8px;
+  padding: ${({ $collapsed }) => ($collapsed ? "0" : "5px 8px")};
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+
+  &:hover {
+    background: var(--sidebar-hover);
+  }
+`;
+
+const AccountIdentity = styled.span<{ $collapsed?: boolean }>`
+  min-width: 0;
+  display: ${({ $collapsed }) => ($collapsed ? "none" : "inline-flex")};
+  align-items: center;
+  gap: 9px;
+`;
+
+const AccountAvatar = styled.span`
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lime-brand, #10b981);
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+`;
+
+const AccountName = styled.span`
+  min-width: 0;
+  max-width: 116px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+`;
+
+const AccountTrailing = styled.span<{ $collapsed?: boolean }>`
+  display: ${({ $collapsed }) => ($collapsed ? "none" : "inline-flex")};
+  align-items: center;
+  gap: 7px;
+  color: var(--sidebar-muted);
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+`;
+
+const AccountStateBadge = styled.span<{ $connected?: boolean }>`
+  border-radius: 999px;
+  padding: 4px 9px;
+  border: 1px solid
+    ${({ $connected }) =>
+      $connected
+        ? "var(--lime-brand-soft-border, #bbf7d0)"
+        : "var(--lime-card-subtle-border, #d9eadf)"};
+  background: ${({ $connected }) =>
+    $connected
+      ? "var(--lime-brand-soft, #ecfdf5)"
+      : "var(--lime-surface-soft, #f8fcf9)"};
+  color: ${({ $connected }) =>
+    $connected
+      ? "var(--lime-brand-strong, #166534)"
+      : "var(--lime-text-muted, #6b826b)"};
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+`;
+
+const AccountMenuPopover = styled.div<{ $collapsed?: boolean }>`
+  position: absolute;
+  left: ${({ $collapsed }) => ($collapsed ? "calc(100% + 12px)" : "0")};
+  bottom: ${({ $collapsed }) => ($collapsed ? "0" : "calc(100% + 12px)")};
+  z-index: 80;
+  width: ${({ $collapsed }) => ($collapsed ? "284px" : "304px")};
+  max-width: min(304px, calc(100vw - 24px));
+  border-radius: 18px;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.92));
+  background: var(--lime-card-subtle, var(--lime-surface, #ffffff));
+  box-shadow:
+    0 24px 52px -32px rgba(15, 23, 42, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  color: var(--lime-text, #1a3b2b);
+  padding: 10px;
+  transform-origin: ${({ $collapsed }) =>
+    $collapsed ? "left bottom" : "left bottom"};
+  animation: accountMenuPopoverIn 150ms ease-out both;
+
+  @keyframes accountMenuPopoverIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+`;
+
+const AccountPlanCard = styled.div`
+  width: 100%;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.92));
+  border-radius: 15px;
+  background: var(--lime-surface-soft, #f8fcf9);
+  color: var(--lime-text, #1a3b2b);
+  padding: 11px 12px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+`;
+
+const AccountPlanActions = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 8px;
+`;
+
+const AccountPlanActionButton = styled.button<{ $primary?: boolean }>`
+  min-height: 36px;
+  border-radius: 12px;
+  border: 1px solid
+    ${({ $primary }) =>
+      $primary
+        ? "var(--lime-brand-strong, #166534)"
+        : "var(--lime-card-subtle-border, #d9eadf)"};
+  background: ${({ $primary }) =>
+    $primary ? "var(--lime-brand-strong, #166534)" : "var(--lime-surface)"};
+  color: ${({ $primary }) =>
+    $primary ? "#ffffff" : "var(--lime-text, #1a3b2b)"};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.16s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    background: ${({ $primary }) =>
+      $primary
+        ? "var(--lime-brand, #10b981)"
+        : "var(--lime-surface-hover, #f4fdf4)"};
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+`;
+
+const AccountPlanHeader = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--lime-text-strong, #0f172a);
+`;
+
+const AccountPlanBadge = styled.span<{ $connected?: boolean }>`
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid
+    ${({ $connected }) =>
+      $connected
+        ? "var(--lime-brand-soft-border, #bbf7d0)"
+        : "var(--lime-card-subtle-border, #d9eadf)"};
+  background: ${({ $connected }) =>
+    $connected ? "var(--lime-brand-soft, #ecfdf5)" : "var(--lime-surface)"};
+  color: ${({ $connected }) =>
+    $connected
+      ? "var(--lime-brand-strong, #166534)"
+      : "var(--lime-text-muted, #6b826b)"};
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+`;
+
+const AccountCloudIdentity = styled.span`
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+`;
+
+const AccountCloudIdentityText = styled.span`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const AccountCloudName = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--lime-text-strong, #0f172a);
+`;
+
+const AccountCloudEmail = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--lime-text-muted, #6b826b);
+`;
+
+const AccountPlanDetail = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lime-text-muted, #6b826b);
+`;
+
+const AccountPlanDescription = styled.span`
+  display: block;
+  border-radius: 12px;
+  background: var(--lime-surface, #ffffff);
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--lime-text-muted, #6b826b);
+`;
+
+const AccountMenuList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 9px;
+`;
+
+const AccountMenuItemGroup = styled.div`
+  position: relative;
+`;
+
+const AccountMenuItem = styled.button<{ $danger?: boolean; $active?: boolean }>`
+  width: 100%;
+  min-height: 40px;
+  border: none;
+  border-radius: 13px;
+  background: ${({ $active }) =>
+    $active ? "var(--sidebar-active)" : "transparent"};
+  color: ${({ $danger }) =>
+    $danger ? "var(--lime-danger, #ef4444)" : "var(--lime-text, #1a3b2b)"};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+
+  &:hover {
+    background: ${({ $danger }) =>
+      $danger
+        ? "var(--lime-danger-soft, #fff1f2)"
+        : "var(--lime-surface-hover, #f4fdf4)"};
+  }
+
+  &:disabled {
+    cursor: progress;
+    opacity: 0.62;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+`;
+
+const AccountMenuItemLeading = styled.span`
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const AccountMenuItemTrailing = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lime-text-muted, #6b826b);
+  font-size: 12px;
+  font-weight: 700;
+`;
+
+const AccountSubmenuPopover = styled.div`
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 0;
+  z-index: 90;
+  width: 188px;
+  border-radius: 16px;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.92));
+  background: var(--lime-card-subtle, var(--lime-surface, #ffffff));
+  box-shadow:
+    0 20px 44px -30px rgba(15, 23, 42, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  color: var(--lime-text, #1a3b2b);
+  padding: 7px;
+  animation: accountSubmenuPopoverIn 140ms ease-out both;
+
+  @keyframes accountSubmenuPopoverIn {
+    from {
+      opacity: 0;
+      transform: translateX(-4px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+
+  @media (max-width: 760px) {
+    left: 0;
+    top: calc(100% + 6px);
+  }
+`;
+
+const AccountSubmenuTitle = styled.div`
+  padding: 5px 8px 7px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--lime-text-muted, #6b826b);
+`;
+
+const AccountSubmenuItem = styled.button<{ $active?: boolean }>`
+  width: 100%;
+  min-height: 38px;
+  border: none;
+  border-radius: 12px;
+  background: ${({ $active }) =>
+    $active ? "var(--sidebar-active)" : "transparent"};
+  color: ${({ $active }) =>
+    $active ? "var(--sidebar-active-foreground)" : "var(--lime-text, #1a3b2b)"};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 9px;
+  font-size: 13px;
+  font-weight: 750;
+  text-align: left;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+
+  &:hover {
+    background: var(--lime-surface-hover, #f4fdf4);
+    color: var(--lime-text-strong, #0f172a);
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+`;
+
+const AccountSubmenuItemText = styled.span`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+`;
+
+const AccountSubmenuItemLabel = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const AccountSubmenuItemHint = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--lime-text-muted, #6b826b);
+`;
+
+const AccountMenuDivider = styled.div`
+  height: 1px;
+  margin: 5px 0;
+  background: var(--lime-divider-subtle, rgba(226, 240, 226, 0.82));
 `;
 
 function getIconByName(iconName: string): LucideIcon {
@@ -818,40 +1678,92 @@ function buildVisibleSidebarSessions(params: {
   return [...visibleSessions.slice(0, Math.max(limit - 1, 0)), currentSession];
 }
 
-function formatSidebarSessionTime(updatedAt: number): string {
-  const diffMs = Date.now() - updatedAt * 1000;
-  const diffMinutes = Math.max(1, Math.floor(diffMs / (1000 * 60)));
-
-  if (diffMinutes < 60) {
-    return `${diffMinutes}分`;
-  }
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) {
-    return `${diffHours}时`;
-  }
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 30) {
-    return `${diffDays}天`;
-  }
-
-  return new Date(updatedAt * 1000).toLocaleDateString("zh-CN", {
-    month: "numeric",
-    day: "numeric",
-  });
+function resolveAccountDisplayName(
+  sessionState: OemCloudStoredSessionState | null,
+): string {
+  const user = sessionState?.session.user;
+  const fallbackEmailName = user?.email?.split("@")[0]?.trim();
+  return (
+    user?.displayName?.trim() ||
+    user?.username?.trim() ||
+    fallbackEmailName ||
+    "开源使用"
+  );
 }
 
-function formatSidebarSessionMeta(session: AsterSessionInfo): string {
-  if (typeof session.archived_at === "number" && session.archived_at > 0) {
-    return `归档 ${formatSidebarSessionTime(session.archived_at)}`;
-  }
-
-  return formatSidebarSessionTime(session.updated_at);
+function resolveAccountEmail(
+  sessionState: OemCloudStoredSessionState | null,
+): string | null {
+  return sessionState?.session.user.email?.trim() || null;
 }
 
-function resolveSidebarSessionTitle(session: AsterSessionInfo): string {
-  return session.name?.trim() || "未命名对话";
+function resolveAccountTenantLabel(
+  sessionState: OemCloudStoredSessionState | null,
+): string | null {
+  const tenant = sessionState?.session.tenant;
+  return (
+    tenant?.name?.trim() || tenant?.slug?.trim() || tenant?.id?.trim() || null
+  );
+}
+
+function resolveAccountProviderLabel(
+  sessionState: OemCloudStoredSessionState | null,
+): string {
+  const provider = sessionState?.session.session.provider?.trim();
+  if (!provider) {
+    return "系统账号";
+  }
+
+  return provider.toLowerCase() === "google" ? "Google" : provider;
+}
+
+function resolveBootstrapDefaultProviderSummary(
+  bootstrap: OemCloudBootstrapResponse | null,
+): string | null {
+  const preference = bootstrap?.providerPreference;
+  if (!preference) {
+    return null;
+  }
+
+  const modelSuffix = preference.defaultModel
+    ? ` · ${preference.defaultModel}`
+    : "";
+  if (preference.providerSource === "local") {
+    return `本地 Key${modelSuffix}`;
+  }
+
+  const matchedOffer = bootstrap.providerOffersSummary.find(
+    (offer) => offer.providerKey === preference.providerKey,
+  );
+  return `${matchedOffer?.displayName?.trim() || "OEM 云端"}${modelSuffix}`;
+}
+
+function resolveAccountInitial(name: string): string {
+  const normalized = name.trim();
+  if (!normalized) {
+    return "L";
+  }
+
+  return normalized.slice(0, 1).toUpperCase();
+}
+
+function formatReferralCredits(value: number | undefined): string {
+  if (typeof value !== "number" || value <= 0) {
+    return "按当前策略发放";
+  }
+
+  return `${value.toLocaleString("zh-CN")} 积分`;
+}
+
+function normalizeSidebarLanguage(language?: string): Language {
+  return language === "en" ? "en" : "zh";
+}
+
+function resolveSidebarLanguageLabel(language: Language): string {
+  return (
+    APP_SIDEBAR_LANGUAGE_OPTIONS.find((option) => option.id === language)
+      ?.label ?? "中文"
+  );
 }
 
 export function AppSidebar({
@@ -876,7 +1788,14 @@ export function AppSidebar({
   const activeAgentPageParams = activePageParams as AgentPageParams | undefined;
   const isClawTaskCenter = activePage === "agent" && agentEntry === "claw";
   const isNewTaskHome = activePage === "agent" && agentEntry === "new-task";
-  const currentProjectId = activeAgentPageParams?.projectId?.trim() || null;
+  const [rememberedProjectId, setRememberedProjectId] = useState<string | null>(
+    () =>
+      typeof window === "undefined"
+        ? null
+        : loadPersistedProjectId(LAST_PROJECT_ID_KEY),
+  );
+  const currentProjectId =
+    activeAgentPageParams?.projectId?.trim() || rememberedProjectId;
   const currentSessionId =
     activeAgentPageParams?.initialSessionId?.trim() || null;
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -888,14 +1807,42 @@ export function AppSidebar({
       window.localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY) === "true"
     );
   });
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window !== "undefined") {
-      return document.documentElement.classList.contains("dark")
-        ? "dark"
-        : "light";
-    }
-    return "light";
+  const [themeState, setThemeState] = useState<{
+    themeMode: LimeThemeMode;
+    effectiveThemeMode: LimeEffectiveThemeMode;
+  }>(() => {
+    const themeMode =
+      typeof window === "undefined" ? "system" : loadLimeThemeMode();
+    return {
+      themeMode,
+      effectiveThemeMode: getEffectiveLimeThemeMode(themeMode),
+    };
   });
+  const [colorSchemeId, setColorSchemeId] = useState<LimeColorSchemeId>(() =>
+    typeof window === "undefined" ? "lime-classic" : loadLimeColorSchemeId(),
+  );
+  const [appearancePopoverOpen, setAppearancePopoverOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+  const [language, setLanguageState] = useState<Language>("zh");
+  const [cloudSessionState, setCloudSessionState] =
+    useState<OemCloudStoredSessionState | null>(() =>
+      typeof window === "undefined" ? null : getStoredOemCloudSessionState(),
+    );
+  const [cloudBootstrapState, setCloudBootstrapState] =
+    useState<OemCloudBootstrapResponse | null>(() =>
+      typeof window === "undefined"
+        ? null
+        : getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>(),
+    );
+  const [accountLogoutPending, setAccountLogoutPending] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteDashboard, setInviteDashboard] =
+    useState<OemCloudReferralDashboard | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteReloadKey, setInviteReloadKey] = useState(0);
+  const { setLanguage: setI18nLanguage } = useI18nPatch();
 
   const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
     DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
@@ -919,16 +1866,21 @@ export function AppSidebar({
   const [sidebarSessionActionId, setSidebarSessionActionId] = useState<
     string | null
   >(null);
-  const [recentSessionsCollapsed, setRecentSessionsCollapsed] = useState(false);
-  const [archivedSessionsCollapsed, setArchivedSessionsCollapsed] =
-    useState(true);
   const [recentSessionsVisibleCount, setRecentSessionsVisibleCount] = useState(
     SIDEBAR_RECENT_SESSION_PAGE_SIZE,
   );
   const [archivedSessionsVisibleCount, setArchivedSessionsVisibleCount] =
     useState(SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE);
+  const [archivedSessionsCollapsed, setArchivedSessionsCollapsed] =
+    useState(true);
+  const appearanceControlRef = useRef<HTMLDivElement | null>(null);
+  const accountControlRef = useRef<HTMLDivElement | null>(null);
+  const reserveWindowControls = shouldReserveMacWindowControls();
   const hasCachedCurrentSessionSidebarEntry =
-    hasCachedSidebarSessionEntry(sidebarSessionsRef.current, currentSessionId) ||
+    hasCachedSidebarSessionEntry(
+      sidebarSessionsRef.current,
+      currentSessionId,
+    ) ||
     hasCachedSidebarSessionEntry(
       archivedSidebarSessionsRef.current,
       currentSessionId,
@@ -942,6 +1894,7 @@ export function AppSidebar({
           config.navigation?.enabled_items,
         );
         setEnabledNavItems(resolvedItems);
+        setLanguageState(normalizeSidebarLanguage(config.language));
       } catch (error) {
         console.error("加载配置失败:", error);
       }
@@ -1027,13 +1980,277 @@ export function AppSidebar({
   }, []);
 
   useEffect(() => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
+    if (typeof window === "undefined") {
+      return;
     }
-    localStorage.setItem("theme", theme);
-  }, [theme]);
+
+    setCloudSessionState(getStoredOemCloudSessionState());
+    return subscribeOemCloudSessionChanged(setCloudSessionState);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    setCloudBootstrapState(
+      getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>(),
+    );
+    return subscribeOemCloudBootstrapChanged((payload) => {
+      setCloudBootstrapState((payload as OemCloudBootstrapResponse) ?? null);
+    });
+  }, []);
+
+  const inviteTenantId = cloudSessionState?.session.tenant.id;
+  const canLoadReferralDashboard =
+    Boolean(cloudSessionState) &&
+    cloudBootstrapState?.features.referralEnabled !== false;
+
+  useEffect(() => {
+    if (!inviteDialogOpen || !inviteTenantId || !canLoadReferralDashboard) {
+      return;
+    }
+
+    let cancelled = false;
+    setInviteLoading(true);
+    setInviteError(null);
+
+    getClientReferralDashboard(inviteTenantId)
+      .then((dashboard) => {
+        if (!cancelled) {
+          setInviteDashboard(dashboard);
+        }
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message.trim()
+            : "加载邀请信息失败";
+        setInviteError(message);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setInviteLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    inviteDialogOpen,
+    inviteReloadKey,
+    inviteTenantId,
+    canLoadReferralDashboard,
+  ]);
+
+  useEffect(() => {
+    if (
+      cloudSessionState &&
+      cloudBootstrapState?.features.referralEnabled === false &&
+      inviteDialogOpen
+    ) {
+      setInviteDialogOpen(false);
+    }
+  }, [
+    cloudBootstrapState?.features.referralEnabled,
+    cloudSessionState,
+    inviteDialogOpen,
+  ]);
+
+  useEffect(() => {
+    if (!accountMenuOpen || typeof window === "undefined") {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        accountControlRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setAccountMenuOpen(false);
+      setLanguageMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAccountMenuOpen(false);
+        setLanguageMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [accountMenuOpen]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) {
+      setLanguageMenuOpen(false);
+    }
+  }, [accountMenuOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncThemeFromStorage = () => {
+      const themeMode = loadLimeThemeMode();
+      const effectiveThemeMode = applyLimeThemeMode(themeMode);
+      setThemeState({ themeMode, effectiveThemeMode });
+    };
+
+    const syncColorSchemeFromStorage = () => {
+      const nextColorSchemeId = loadLimeColorSchemeId();
+      applyLimeColorScheme(nextColorSchemeId);
+      setColorSchemeId(nextColorSchemeId);
+    };
+
+    const handleThemeChanged = (event: Event) => {
+      const detail = (event as CustomEvent<LimeThemeChangedEventDetail>).detail;
+      const themeMode = detail?.themeMode ?? loadLimeThemeMode();
+      const effectiveThemeMode =
+        detail?.effectiveThemeMode ?? getEffectiveLimeThemeMode(themeMode);
+      setThemeState({ themeMode, effectiveThemeMode });
+    };
+
+    const handleColorSchemeChanged = (event: Event) => {
+      const detail = (event as CustomEvent<LimeColorSchemeChangedEventDetail>)
+        .detail;
+      setColorSchemeId(detail?.colorSchemeId ?? loadLimeColorSchemeId());
+    };
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === null || event.key === LIME_THEME_STORAGE_KEY) {
+        syncThemeFromStorage();
+      }
+      if (event.key === null || event.key === LIME_COLOR_SCHEME_STORAGE_KEY) {
+        syncColorSchemeFromStorage();
+      }
+    };
+
+    const systemThemeQuery = window.matchMedia?.(
+      "(prefers-color-scheme: dark)",
+    );
+    const handleSystemThemeChange = () => {
+      setThemeState((current) => {
+        if (current.themeMode !== "system") {
+          return current;
+        }
+
+        const effectiveThemeMode = applyLimeThemeMode("system");
+        return {
+          themeMode: "system",
+          effectiveThemeMode,
+        };
+      });
+    };
+
+    syncThemeFromStorage();
+    syncColorSchemeFromStorage();
+
+    window.addEventListener(LIME_THEME_CHANGED_EVENT, handleThemeChanged);
+    window.addEventListener(
+      LIME_COLOR_SCHEME_CHANGED_EVENT,
+      handleColorSchemeChanged,
+    );
+    window.addEventListener("storage", handleStorageChange);
+    systemThemeQuery?.addEventListener("change", handleSystemThemeChange);
+
+    return () => {
+      window.removeEventListener(LIME_THEME_CHANGED_EVENT, handleThemeChanged);
+      window.removeEventListener(
+        LIME_COLOR_SCHEME_CHANGED_EVENT,
+        handleColorSchemeChanged,
+      );
+      window.removeEventListener("storage", handleStorageChange);
+      systemThemeQuery?.removeEventListener("change", handleSystemThemeChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!appearancePopoverOpen || typeof window === "undefined") {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        appearanceControlRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setAppearancePopoverOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAppearancePopoverOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [appearancePopoverOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const refreshRememberedProjectId = () => {
+      setRememberedProjectId(loadPersistedProjectId(LAST_PROJECT_ID_KEY));
+    };
+
+    const handlePersistedProjectChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ key?: string }>).detail;
+      if (detail?.key && detail.key !== LAST_PROJECT_ID_KEY) {
+        return;
+      }
+      refreshRememberedProjectId();
+    };
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key !== LAST_PROJECT_ID_KEY) {
+        return;
+      }
+      refreshRememberedProjectId();
+    };
+
+    window.addEventListener(
+      PERSISTED_PROJECT_ID_CHANGED_EVENT,
+      handlePersistedProjectChanged,
+    );
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener(
+        PERSISTED_PROJECT_ID_CHANGED_EVENT,
+        handlePersistedProjectChanged,
+      );
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
 
   useEffect(() => {
     requestedNavigationTargetRef.current = activeNavigationTarget;
@@ -1066,6 +2283,8 @@ export function AppSidebar({
   const shouldShowConversationList =
     !collapsed &&
     !(activePage === "agent" && activeAgentPageParams?.immersiveHome);
+  const shouldLoadWorkspaceScopedConversations =
+    shouldShowConversationList && Boolean(currentProjectId);
   const shouldShowSessionLoadingState =
     sidebarSessionsLoading && sidebarSessions.length === 0;
   const shouldShowArchivedSessionLoadingState =
@@ -1084,16 +2303,17 @@ export function AppSidebar({
 
   useEffect(() => {
     setArchivedSessionsVisibleCount(SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE);
+    setArchivedSessionsCollapsed(true);
   }, [currentProjectId]);
 
-  const recentSessionRequestLimit = useMemo(
-    () =>
-      buildSidebarSessionRequestLimit(
-        recentSessionsVisibleCount,
-        SIDEBAR_RECENT_SESSION_PAGE_SIZE,
-      ),
-    [recentSessionsVisibleCount],
-  );
+  const recentSessionRequestLimit = useMemo(() => {
+    const requestLimit = buildSidebarSessionRequestLimit(
+      recentSessionsVisibleCount,
+      SIDEBAR_RECENT_SESSION_PAGE_SIZE,
+    );
+
+    return Math.max(requestLimit, SIDEBAR_RECENT_SESSION_PREFETCH_LIMIT);
+  }, [recentSessionsVisibleCount]);
   const archivedSessionRequestLimit = useMemo(
     () =>
       buildSidebarSessionRequestLimit(
@@ -1104,7 +2324,10 @@ export function AppSidebar({
   );
 
   const loadRecentSidebarSessions = useCallback(async () => {
-    if (!shouldShowConversationList) {
+    if (!shouldLoadWorkspaceScopedConversations) {
+      setSidebarSessions([]);
+      setSidebarSessionsHasMore(false);
+      setSidebarSessionsLoading(false);
       return;
     }
 
@@ -1114,15 +2337,15 @@ export function AppSidebar({
     try {
       const sessions = await listAgentRuntimeSessions({
         limit: recentSessionRequestLimit,
-        workspaceId: currentProjectId ?? undefined,
+        workspaceId: currentProjectId ?? "",
       });
       const sortedSessions = sortSidebarSessions(sessions);
-      const { sessions: nextSessions, hasMore } = splitSidebarSessionResult({
+      const { hasMore } = splitSidebarSessionResult({
         sessions: sortedSessions,
         visibleCount: recentSessionsVisibleCount,
         pageSize: SIDEBAR_RECENT_SESSION_PAGE_SIZE,
       });
-      setSidebarSessions(nextSessions);
+      setSidebarSessions(sortedSessions);
       setSidebarSessionsHasMore(hasMore);
     } catch (error) {
       console.error("加载导航任务列表失败:", error);
@@ -1135,7 +2358,7 @@ export function AppSidebar({
     currentProjectId,
     recentSessionRequestLimit,
     recentSessionsVisibleCount,
-    shouldShowConversationList,
+    shouldLoadWorkspaceScopedConversations,
   ]);
   const loadRecentSidebarSessionsRef = useRef(loadRecentSidebarSessions);
   useEffect(() => {
@@ -1143,7 +2366,10 @@ export function AppSidebar({
   }, [loadRecentSidebarSessions]);
 
   const loadArchivedSidebarSessions = useCallback(async () => {
-    if (!shouldShowConversationList || archivedSessionsCollapsed) {
+    if (!shouldLoadWorkspaceScopedConversations || archivedSessionsCollapsed) {
+      setArchivedSessionEntries([]);
+      setArchivedSessionEntriesHasMore(false);
+      setArchivedSidebarSessionsLoading(false);
       return;
     }
 
@@ -1154,17 +2380,17 @@ export function AppSidebar({
       const sessions = await listAgentRuntimeSessions({
         archivedOnly: true,
         limit: archivedSessionRequestLimit,
-        workspaceId: currentProjectId ?? undefined,
+        workspaceId: currentProjectId ?? "",
       });
       const sortedSessions = sortSidebarSessions(
         sessions.filter((session) => Boolean(session.archived_at)),
       );
-      const { sessions: nextSessions, hasMore } = splitSidebarSessionResult({
+      const { hasMore } = splitSidebarSessionResult({
         sessions: sortedSessions,
         visibleCount: archivedSessionsVisibleCount,
         pageSize: SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE,
       });
-      setArchivedSessionEntries(nextSessions);
+      setArchivedSessionEntries(sortedSessions);
       setArchivedSessionEntriesHasMore(hasMore);
     } catch (error) {
       console.error("加载归档任务列表失败:", error);
@@ -1178,7 +2404,7 @@ export function AppSidebar({
     archivedSessionsCollapsed,
     archivedSessionsVisibleCount,
     currentProjectId,
-    shouldShowConversationList,
+    shouldLoadWorkspaceScopedConversations,
   ]);
   const loadArchivedSidebarSessionsRef = useRef(loadArchivedSidebarSessions);
   useEffect(() => {
@@ -1197,7 +2423,7 @@ export function AppSidebar({
   ]);
 
   useEffect(() => {
-    if (!shouldShowConversationList) {
+    if (!shouldLoadWorkspaceScopedConversations) {
       return;
     }
 
@@ -1218,11 +2444,11 @@ export function AppSidebar({
     currentProjectId,
     hasCachedCurrentSessionSidebarEntry,
     isClawTaskCenter,
-    shouldShowConversationList,
+    shouldLoadWorkspaceScopedConversations,
   ]);
 
   useEffect(() => {
-    if (!shouldShowConversationList) {
+    if (!shouldLoadWorkspaceScopedConversations) {
       return;
     }
 
@@ -1235,18 +2461,22 @@ export function AppSidebar({
     return () => {
       window.removeEventListener("focus", handleFocus);
     };
-  }, [refreshSidebarSessions, shouldShowConversationList]);
+  }, [refreshSidebarSessions, shouldLoadWorkspaceScopedConversations]);
 
   useEffect(() => {
-    if (!shouldShowConversationList || archivedSessionsCollapsed) {
+    if (!shouldLoadWorkspaceScopedConversations || archivedSessionsCollapsed) {
       return;
     }
 
     void loadArchivedSidebarSessionsRef.current();
-  }, [archivedSessionsCollapsed, currentProjectId, shouldShowConversationList]);
+  }, [
+    archivedSessionsCollapsed,
+    currentProjectId,
+    shouldLoadWorkspaceScopedConversations,
+  ]);
 
   useEffect(() => {
-    if (!shouldShowConversationList || !sidebarSessionsHasMore) {
+    if (!shouldLoadWorkspaceScopedConversations || !sidebarSessionsHasMore) {
       return;
     }
 
@@ -1258,14 +2488,14 @@ export function AppSidebar({
   }, [
     loadRecentSidebarSessions,
     recentSessionsVisibleCount,
-    shouldShowConversationList,
+    shouldLoadWorkspaceScopedConversations,
     sidebarSessions.length,
     sidebarSessionsHasMore,
   ]);
 
   useEffect(() => {
     if (
-      !shouldShowConversationList ||
+      !shouldLoadWorkspaceScopedConversations ||
       archivedSessionsCollapsed ||
       !archivedSessionEntriesHasMore
     ) {
@@ -1283,7 +2513,7 @@ export function AppSidebar({
     archivedSessionsCollapsed,
     archivedSessionsVisibleCount,
     loadArchivedSidebarSessions,
-    shouldShowConversationList,
+    shouldLoadWorkspaceScopedConversations,
   ]);
 
   const assistantItems = useMemo<SidebarNavItem[]>(() => {
@@ -1301,22 +2531,30 @@ export function AppSidebar({
     enabledNavItems.includes(SIDEBAR_PLUGIN_CENTER_NAV_ITEM_ID) &&
     assistantItems.length > 0;
   const recentSidebarSessions = useMemo(() => {
+    if (!currentProjectId) {
+      return [];
+    }
+
     const filteredSessions = currentProjectId
       ? sidebarSessions.filter(
           (session) =>
             !session.workspace_id || session.workspace_id === currentProjectId,
         )
-      : sidebarSessions;
+      : [];
 
     return filteredSessions.filter((session) => !session.archived_at);
   }, [currentProjectId, sidebarSessions]);
   const archivedSidebarSessions = useMemo(() => {
+    if (!currentProjectId) {
+      return [];
+    }
+
     const filteredSessions = currentProjectId
       ? archivedSessionEntries.filter(
           (session) =>
             !session.workspace_id || session.workspace_id === currentProjectId,
         )
-      : archivedSessionEntries;
+      : [];
 
     return filteredSessions.filter((session) => Boolean(session.archived_at));
   }, [archivedSessionEntries, currentProjectId]);
@@ -1358,6 +2596,31 @@ export function AppSidebar({
   };
 
   const handleNavigate = (item: SidebarNavItem) => {
+    if (item.id === "home-general") {
+      const targetParams = buildHomeAgentParams({
+        projectId: currentProjectId ?? undefined,
+      });
+      const target = {
+        page: "agent" as Page,
+        rawParams: targetParams,
+        paramsKey: serializeNavigationParams(targetParams),
+      } satisfies SidebarNavigationTarget;
+
+      if (
+        isSameSidebarNavigationTarget(
+          target,
+          requestedNavigationTargetRef.current.page,
+          requestedNavigationTargetRef.current.rawParams,
+        )
+      ) {
+        return;
+      }
+
+      requestedNavigationTargetRef.current = target;
+      onNavigate(target.page, target.rawParams);
+      return;
+    }
+
     if (item.id === "workbench") {
       const fallbackSessionId =
         currentSessionId ??
@@ -1535,15 +2798,161 @@ export function AppSidebar({
     [refreshSidebarSessions],
   );
 
+  const currentColorScheme = getLimeColorScheme(colorSchemeId);
+  const currentThemeLabel =
+    LIME_THEME_MODE_OPTIONS.find((option) => option.id === themeState.themeMode)
+      ?.label ?? "跟随系统";
+  const currentLanguageLabel = resolveSidebarLanguageLabel(language);
+  const accountDisplayName = resolveAccountDisplayName(cloudSessionState);
+  const accountEmail = resolveAccountEmail(cloudSessionState);
+  const accountTenantLabel = resolveAccountTenantLabel(cloudSessionState);
+  const accountProviderLabel = resolveAccountProviderLabel(cloudSessionState);
+  const accountDefaultProviderSummary =
+    resolveBootstrapDefaultProviderSummary(cloudBootstrapState);
+  const accountAvatarUrl = cloudSessionState?.session.user.avatarUrl?.trim();
+  const accountInitial = resolveAccountInitial(accountDisplayName);
+  const hasCloudAccount = Boolean(cloudSessionState);
+  const inviteEntryVisible =
+    !hasCloudAccount || cloudBootstrapState?.features.referralEnabled !== false;
+  const accountButtonTooltip = hasCloudAccount
+    ? `${accountDisplayName}${accountEmail ? ` · ${accountEmail}` : ""}`
+    : "开源使用 · 本地可用";
+  const inviteShare = inviteDashboard?.share;
+  const invitePolicy = inviteDashboard?.policy;
+  const inviteHeadline = inviteShare?.headline?.trim() || "邀请好友加入内测";
+  const inviteRules =
+    inviteShare?.rules?.trim() ||
+    "通过云端邀请策略自动发放奖励，具体到账以当前 OEM 租户配置为准。";
+
+  const handleThemeModeChange = useCallback((nextThemeMode: LimeThemeMode) => {
+    const themeMode = persistLimeThemeMode(nextThemeMode);
+    setThemeState({
+      themeMode,
+      effectiveThemeMode: getEffectiveLimeThemeMode(themeMode),
+    });
+  }, []);
+
+  const handleColorSchemeChange = useCallback(
+    (nextColorSchemeId: LimeColorSchemeId) => {
+      const resolvedColorSchemeId = persistLimeColorScheme(nextColorSchemeId);
+      setColorSchemeId(resolvedColorSchemeId);
+    },
+    [],
+  );
+
+  const handleAccountMenuNavigate = useCallback(
+    (params: PageParams) => {
+      setAccountMenuOpen(false);
+      setLanguageMenuOpen(false);
+      onNavigate("settings", params);
+    },
+    [onNavigate],
+  );
+
+  const handleAccountLogout = useCallback(async () => {
+    const tenantId = cloudSessionState?.session.tenant.id;
+    setAccountLogoutPending(true);
+    try {
+      if (tenantId) {
+        await logoutClient(tenantId);
+      }
+    } catch (error) {
+      console.error("OEM 云端退出登录失败，已清理本地会话:", error);
+    } finally {
+      clearStoredOemCloudSessionState();
+      clearOemCloudBootstrapSnapshot();
+      clearSkillCatalogCache();
+      clearServiceSkillCatalogCache();
+      void clearSiteAdapterCatalogCache();
+      setAccountMenuOpen(false);
+      setLanguageMenuOpen(false);
+      setAccountLogoutPending(false);
+    }
+  }, [cloudSessionState?.session.tenant.id]);
+
+  const handleCopyInviteText = useCallback(
+    async (value: string | undefined, successMessage: string) => {
+      const text = value?.trim();
+      if (!text) {
+        toast.info("暂无可复制内容");
+        return;
+      }
+
+      try {
+        if (!navigator.clipboard?.writeText) {
+          throw new Error("clipboard unavailable");
+        }
+        await navigator.clipboard.writeText(text);
+        toast.success(successMessage);
+      } catch {
+        toast.error("复制失败，请检查剪贴板权限");
+      }
+    },
+    [],
+  );
+
+  const handleLanguageChange = useCallback(
+    async (nextLanguage: Language) => {
+      const previousLanguage = language;
+      if (nextLanguage === previousLanguage) {
+        setLanguageMenuOpen(false);
+        return;
+      }
+
+      setLanguageState(nextLanguage);
+      setI18nLanguage(nextLanguage);
+      setLanguageMenuOpen(false);
+
+      try {
+        const config = await getConfig();
+        await saveConfig({
+          ...config,
+          language: nextLanguage,
+        });
+      } catch (error) {
+        console.error("保存语言设置失败:", error);
+        setLanguageState(previousLanguage);
+        setI18nLanguage(previousLanguage);
+      }
+    },
+    [language, setI18nLanguage],
+  );
+
+  const renderThemeModeIcon = (themeMode: LimeThemeMode) => {
+    if (themeMode === "dark") {
+      return <Moon />;
+    }
+
+    if (themeMode === "system") {
+      return <Monitor />;
+    }
+
+    return <Sun />;
+  };
+
   return (
     <TooltipProvider>
-      <Container $collapsed={collapsed} $themeMode={theme}>
-        <HeaderArea $collapsed={collapsed}>
+      <Container
+        $collapsed={collapsed}
+        $themeMode={themeState.effectiveThemeMode}
+        $reserveWindowControls={reserveWindowControls}
+        data-testid="app-sidebar"
+        data-window-controls-reserved={String(reserveWindowControls)}
+      >
+        <HeaderArea $collapsed={collapsed} data-testid="app-sidebar-header">
           <HeaderTopRow $collapsed={collapsed}>
             {maybeWrapWithTooltip(
               <UserButton
                 $collapsed={collapsed}
-                onClick={() => onNavigate("agent", buildHomeAgentParams())}
+                onClick={() =>
+                  onNavigate(
+                    "agent",
+                    buildHomeAgentParams({
+                      projectId: currentProjectId ?? undefined,
+                    }),
+                  )
+                }
+                aria-label="返回 Lime 首页"
                 title="返回 Lime 首页"
               >
                 <Avatar>
@@ -1553,6 +2962,26 @@ export function AppSidebar({
               </UserButton>,
               "Lime 首页",
             )}
+
+            {inviteEntryVisible
+              ? maybeWrapWithTooltip(
+                  <HeaderInviteButton
+                    $collapsed={collapsed}
+                    $active={inviteDialogOpen}
+                    onClick={() => {
+                      setInviteDashboard(null);
+                      setInviteDialogOpen(true);
+                    }}
+                    title="邀请好友"
+                    aria-label="邀请好友"
+                    data-testid="app-sidebar-invite-button"
+                  >
+                    <Gift />
+                    <span>邀请好友</span>
+                  </HeaderInviteButton>,
+                  "邀请好友",
+                )
+              : null}
 
             {maybeWrapWithTooltip(
               <IconActionButton
@@ -1569,7 +2998,14 @@ export function AppSidebar({
           {maybeWrapWithTooltip(
             <SearchButton
               $collapsed={collapsed}
-              onClick={() => onNavigate("agent", buildHomeAgentParams())}
+              onClick={() =>
+                onNavigate(
+                  "agent",
+                  buildHomeAgentParams({
+                    projectId: currentProjectId ?? undefined,
+                  }),
+                )
+              }
               title="搜索任务"
               aria-label="搜索任务"
             >
@@ -1586,199 +3022,35 @@ export function AppSidebar({
           </MainNavList>
 
           {shouldShowConversationList ? (
-            <ConversationShelf data-testid="app-sidebar-conversation-shelf">
-              <ConversationSection>
-                <ConversationSectionHeader>
-                  <ConversationSectionTitle
-                    type="button"
-                    onClick={() =>
-                      setRecentSessionsCollapsed((value) => !value)
-                    }
-                    aria-expanded={!recentSessionsCollapsed}
-                  >
-                    <ChevronDown
-                      className={recentSessionsCollapsed ? "-rotate-90" : ""}
-                    />
-                    最近对话
-                  </ConversationSectionTitle>
-                  <ConversationActionButton
-                    type="button"
-                    onClick={handleNavigateToNewTask}
-                    aria-label="新建对话"
-                    title="新建对话"
-                  >
-                    <MessageSquarePlus />
-                  </ConversationActionButton>
-                </ConversationSectionHeader>
-                {!recentSessionsCollapsed ? (
-                  <ConversationList data-testid="app-sidebar-recent-conversations">
-                    {shouldShowSessionLoadingState ? (
-                      <ConversationEmptyState>
-                        <Clock3 size={14} />
-                        正在加载对话
-                      </ConversationEmptyState>
-                    ) : recentSidebarSessions.length > 0 ? (
-                      visibleRecentSidebarSessions.map((session) => {
-                        const isCurrentConversation =
-                          currentSessionId === session.id;
-                        return (
-                          <ConversationItemRow
-                            key={session.id}
-                            $active={isCurrentConversation}
-                            data-active={
-                              isCurrentConversation ? "true" : "false"
-                            }
-                          >
-                            <ConversationItemButton
-                              type="button"
-                              $active={isCurrentConversation}
-                              aria-current={
-                                isCurrentConversation ? "page" : undefined
-                              }
-                              onClick={() =>
-                                handleNavigateToConversation(session)
-                              }
-                              title={resolveSidebarSessionTitle(session)}
-                            >
-                              <ConversationItemDot
-                                $active={isCurrentConversation}
-                              />
-                              <ConversationItemLabel>
-                                {resolveSidebarSessionTitle(session)}
-                              </ConversationItemLabel>
-                              <ConversationItemMeta>
-                                {formatSidebarSessionMeta(session)}
-                              </ConversationItemMeta>
-                            </ConversationItemButton>
-                            <ConversationItemActionButton
-                              type="button"
-                              aria-label={`归档 ${resolveSidebarSessionTitle(session)}`}
-                              title="归档对话"
-                              disabled={sidebarSessionActionId === session.id}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handleToggleSessionArchive(session, true);
-                              }}
-                            >
-                              <Archive />
-                            </ConversationItemActionButton>
-                          </ConversationItemRow>
-                        );
-                      })
-                    ) : (
-                      <ConversationEmptyState>
-                        <Clock3 size={14} />
-                        还没有开始对话
-                      </ConversationEmptyState>
-                    )}
-                    {hasMoreRecentSidebarSessions ? (
-                      <ConversationListMoreButton
-                        type="button"
-                        onClick={() =>
-                          setRecentSessionsVisibleCount(
-                            (current) =>
-                              current + SIDEBAR_RECENT_SESSION_PAGE_SIZE,
-                          )
-                        }
-                      >
-                        查看更多对话
-                      </ConversationListMoreButton>
-                    ) : null}
-                  </ConversationList>
-                ) : null}
-              </ConversationSection>
-
-              <ConversationSection>
-                <ConversationSectionHeader>
-                  <ConversationSectionTitle
-                    type="button"
-                    onClick={() =>
-                      setArchivedSessionsCollapsed((value) => !value)
-                    }
-                    aria-expanded={!archivedSessionsCollapsed}
-                  >
-                    <ChevronDown
-                      className={archivedSessionsCollapsed ? "-rotate-90" : ""}
-                    />
-                    归档
-                  </ConversationSectionTitle>
-                </ConversationSectionHeader>
-                {!archivedSessionsCollapsed ? (
-                  <ConversationList data-testid="app-sidebar-archived-conversations">
-                    {shouldShowArchivedSessionLoadingState ? (
-                      <ConversationEmptyState>
-                        <Clock3 size={14} />
-                        正在加载归档
-                      </ConversationEmptyState>
-                    ) : archivedSidebarSessions.length > 0 ? (
-                      visibleArchivedSidebarSessions.map((session) => (
-                        <ConversationItemRow
-                          key={session.id}
-                          $active={currentSessionId === session.id}
-                          data-active={
-                            currentSessionId === session.id ? "true" : "false"
-                          }
-                        >
-                          <ConversationItemButton
-                            type="button"
-                            $active={currentSessionId === session.id}
-                            aria-current={
-                              currentSessionId === session.id
-                                ? "page"
-                                : undefined
-                            }
-                            onClick={() =>
-                              handleNavigateToConversation(session)
-                            }
-                            title={resolveSidebarSessionTitle(session)}
-                          >
-                            <ConversationItemDot
-                              $active={currentSessionId === session.id}
-                            />
-                            <ConversationItemLabel>
-                              {resolveSidebarSessionTitle(session)}
-                            </ConversationItemLabel>
-                            <ConversationItemMeta>
-                              {formatSidebarSessionMeta(session)}
-                            </ConversationItemMeta>
-                          </ConversationItemButton>
-                          <ConversationItemActionButton
-                            type="button"
-                            aria-label={`恢复 ${resolveSidebarSessionTitle(session)}`}
-                            title="恢复对话"
-                            disabled={sidebarSessionActionId === session.id}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handleToggleSessionArchive(session, false);
-                            }}
-                          >
-                            <Undo2 />
-                          </ConversationItemActionButton>
-                        </ConversationItemRow>
-                      ))
-                    ) : (
-                      <ConversationEmptyState>
-                        <Clock3 size={14} />
-                        暂无归档内容
-                      </ConversationEmptyState>
-                    )}
-                    {hasMoreArchivedSidebarSessions ? (
-                      <ConversationListMoreButton
-                        type="button"
-                        onClick={() =>
-                          setArchivedSessionsVisibleCount(
-                            (current) =>
-                              current + SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE,
-                          )
-                        }
-                      >
-                        查看更多归档
-                      </ConversationListMoreButton>
-                    ) : null}
-                  </ConversationList>
-                ) : null}
-              </ConversationSection>
-            </ConversationShelf>
+            <AppSidebarConversationShelf
+              recentSessions={visibleRecentSidebarSessions}
+              archivedSessions={visibleArchivedSidebarSessions}
+              currentSessionId={currentSessionId}
+              recentLoading={shouldShowSessionLoadingState}
+              archivedLoading={shouldShowArchivedSessionLoadingState}
+              archivedCollapsed={archivedSessionsCollapsed}
+              hasMoreRecent={hasMoreRecentSidebarSessions}
+              hasMoreArchived={hasMoreArchivedSidebarSessions}
+              actionSessionId={sidebarSessionActionId}
+              onCreateConversation={handleNavigateToNewTask}
+              onNavigateToConversation={handleNavigateToConversation}
+              onToggleArchive={(session, archived) => {
+                void handleToggleSessionArchive(session, archived);
+              }}
+              onShowMoreRecent={() =>
+                setRecentSessionsVisibleCount(
+                  (current) => current + SIDEBAR_RECENT_SESSION_PAGE_SIZE,
+                )
+              }
+              onShowMoreArchived={() =>
+                setArchivedSessionsVisibleCount(
+                  (current) => current + SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE,
+                )
+              }
+              onToggleArchivedCollapsed={() =>
+                setArchivedSessionsCollapsed((current) => !current)
+              }
+            />
           ) : null}
 
           {shouldShowPluginExtensionsSection && (
@@ -1787,36 +3059,591 @@ export function AppSidebar({
               {assistantItems.map((item) => renderNavItem(item))}
             </Section>
           )}
-
-          <FooterArea
-            $collapsed={collapsed}
-            data-testid="app-sidebar-footer-area"
-          >
-            <Section
-              $collapsed={collapsed}
-              data-testid="app-sidebar-footer-nav"
-            >
-              {filteredFooterNavItems.map((item) => renderNavItem(item))}
-            </Section>
-
-            <ActionRow $collapsed={collapsed}>
-              {!collapsed ? <div /> : null}
-              {maybeWrapWithTooltip(
-                <IconActionButton
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  title={theme === "dark" ? "深色模式" : "浅色模式"}
-                  aria-label={
-                    theme === "dark" ? "切换到浅色模式" : "切换到深色模式"
-                  }
-                >
-                  {theme === "dark" ? <Moon /> : <Sun />}
-                </IconActionButton>,
-                theme === "dark" ? "切换到浅色模式" : "切换到深色模式",
-              )}
-            </ActionRow>
-          </FooterArea>
         </MenuScroll>
+
+        <FooterArea
+          $collapsed={collapsed}
+          data-testid="app-sidebar-footer-area"
+        >
+          <ActionRow $collapsed={collapsed}>
+            {!collapsed ? <div /> : null}
+            <AppearanceActionSlot
+              $collapsed={collapsed}
+              ref={appearanceControlRef}
+            >
+              {collapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <IconActionButton
+                      $active={appearancePopoverOpen}
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        setLanguageMenuOpen(false);
+                        setAppearancePopoverOpen((current) => !current);
+                      }}
+                      title="快速切换外观"
+                      aria-label="快速切换外观"
+                      aria-expanded={appearancePopoverOpen}
+                      aria-haspopup="dialog"
+                    >
+                      {themeState.effectiveThemeMode === "dark" ? (
+                        <Moon />
+                      ) : (
+                        <Sun />
+                      )}
+                    </IconActionButton>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">快速切换外观</TooltipContent>
+                </Tooltip>
+              ) : (
+                <IconActionButton
+                  $active={appearancePopoverOpen}
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setLanguageMenuOpen(false);
+                    setAppearancePopoverOpen((current) => !current);
+                  }}
+                  title="快速切换外观"
+                  aria-label="快速切换外观"
+                  aria-expanded={appearancePopoverOpen}
+                  aria-haspopup="dialog"
+                >
+                  {themeState.effectiveThemeMode === "dark" ? (
+                    <Moon />
+                  ) : (
+                    <Sun />
+                  )}
+                </IconActionButton>
+              )}
+
+              {appearancePopoverOpen ? (
+                <AppearancePopover
+                  data-testid="app-sidebar-appearance-popover"
+                  role="dialog"
+                  aria-label="快速切换外观"
+                >
+                  <AppearancePopoverHeader>
+                    <AppearancePopoverTitle>
+                      <Palette />
+                      外观
+                    </AppearancePopoverTitle>
+                    <AppearancePopoverSummary>
+                      {currentThemeLabel} · {currentColorScheme.label}
+                    </AppearancePopoverSummary>
+                  </AppearancePopoverHeader>
+
+                  <AppearanceGroup>
+                    <AppearanceGroupLabel>主题</AppearanceGroupLabel>
+                    <ThemeModeGrid>
+                      {LIME_THEME_MODE_OPTIONS.map((option) => {
+                        const active = option.id === themeState.themeMode;
+                        return (
+                          <ThemeModeButton
+                            key={option.id}
+                            $active={active}
+                            type="button"
+                            aria-pressed={active}
+                            aria-label={`切换主题为${option.label}`}
+                            title={option.description}
+                            onClick={() => handleThemeModeChange(option.id)}
+                          >
+                            {renderThemeModeIcon(option.id)}
+                            <span>{option.label}</span>
+                          </ThemeModeButton>
+                        );
+                      })}
+                    </ThemeModeGrid>
+                  </AppearanceGroup>
+
+                  <AppearanceGroup>
+                    <AppearanceGroupLabel>配色</AppearanceGroupLabel>
+                    <ColorSchemeList>
+                      {LIME_COLOR_SCHEMES.map((scheme) => {
+                        const active = scheme.id === colorSchemeId;
+                        return (
+                          <ColorSchemeButton
+                            key={scheme.id}
+                            $active={active}
+                            type="button"
+                            aria-pressed={active}
+                            aria-label={`切换配色为${scheme.label}`}
+                            title={scheme.description}
+                            onClick={() => handleColorSchemeChange(scheme.id)}
+                          >
+                            <ColorSchemeSwatches aria-hidden="true">
+                              {scheme.swatches.map((swatch) => (
+                                <span
+                                  key={swatch}
+                                  style={{ backgroundColor: swatch }}
+                                />
+                              ))}
+                            </ColorSchemeSwatches>
+                            <ColorSchemeText>
+                              <ColorSchemeLabel>
+                                {scheme.label}
+                              </ColorSchemeLabel>
+                            </ColorSchemeText>
+                            <ColorSchemeCheck $active={active}>
+                              <Check />
+                            </ColorSchemeCheck>
+                          </ColorSchemeButton>
+                        );
+                      })}
+                    </ColorSchemeList>
+                  </AppearanceGroup>
+                </AppearancePopover>
+              ) : null}
+            </AppearanceActionSlot>
+          </ActionRow>
+
+          <AccountActionSlot
+            $collapsed={collapsed}
+            ref={accountControlRef}
+            data-testid="app-sidebar-account-slot"
+          >
+            {maybeWrapWithTooltip(
+              <AccountButton
+                type="button"
+                $collapsed={collapsed}
+                $active={accountMenuOpen}
+                onClick={() => {
+                  setAppearancePopoverOpen(false);
+                  setLanguageMenuOpen(false);
+                  setAccountMenuOpen((current) => !current);
+                }}
+                aria-label="打开用户菜单"
+                aria-expanded={accountMenuOpen}
+                aria-haspopup="dialog"
+                data-testid="app-sidebar-account-button"
+              >
+                <AccountIdentity $collapsed={collapsed}>
+                  <AccountAvatar>
+                    {accountAvatarUrl ? (
+                      <img src={accountAvatarUrl} alt={accountDisplayName} />
+                    ) : (
+                      accountInitial
+                    )}
+                  </AccountAvatar>
+                  <AccountName>{accountDisplayName}</AccountName>
+                </AccountIdentity>
+                {collapsed ? (
+                  <AccountAvatar>
+                    {accountAvatarUrl ? (
+                      <img src={accountAvatarUrl} alt={accountDisplayName} />
+                    ) : (
+                      accountInitial
+                    )}
+                  </AccountAvatar>
+                ) : null}
+                <AccountTrailing $collapsed={collapsed}>
+                  <AccountStateBadge $connected={hasCloudAccount}>
+                    {hasCloudAccount ? "OEM" : "本地可用"}
+                  </AccountStateBadge>
+                  <ChevronDown />
+                </AccountTrailing>
+              </AccountButton>,
+              accountButtonTooltip,
+            )}
+
+            {accountMenuOpen ? (
+              <AccountMenuPopover
+                $collapsed={collapsed}
+                role="dialog"
+                aria-label="用户菜单"
+                data-testid="app-sidebar-account-menu"
+              >
+                {hasCloudAccount ? (
+                  <AccountPlanCard data-testid="app-sidebar-cloud-account-card">
+                    <AccountPlanHeader>
+                      <AccountCloudIdentity>
+                        <AccountAvatar>
+                          {accountAvatarUrl ? (
+                            <img
+                              src={accountAvatarUrl}
+                              alt={accountDisplayName}
+                            />
+                          ) : (
+                            accountInitial
+                          )}
+                        </AccountAvatar>
+                        <AccountCloudIdentityText>
+                          <AccountCloudName>
+                            {accountDisplayName}
+                          </AccountCloudName>
+                          <AccountCloudEmail>
+                            {accountEmail ?? "OEM 云端账号"}
+                          </AccountCloudEmail>
+                        </AccountCloudIdentityText>
+                      </AccountCloudIdentity>
+                      <AccountPlanBadge $connected>OEM 已连接</AccountPlanBadge>
+                    </AccountPlanHeader>
+                    <AccountPlanDescription>
+                      已连接
+                      {accountTenantLabel ? ` ${accountTenantLabel} ` : " OEM "}
+                      云端；套餐、积分和模型目录以云端实时状态为准。
+                    </AccountPlanDescription>
+                    <AccountPlanDetail>
+                      <span>登录方式：{accountProviderLabel}</span>
+                      <span>
+                        默认服务：{accountDefaultProviderSummary ?? "云端同步"}
+                      </span>
+                    </AccountPlanDetail>
+                  </AccountPlanCard>
+                ) : (
+                  <AccountPlanCard data-testid="app-sidebar-open-source-card">
+                    <AccountPlanHeader>
+                      <span>开源版</span>
+                      <AccountPlanBadge>本地可用</AccountPlanBadge>
+                    </AccountPlanHeader>
+                    <AccountPlanDescription>
+                      本地开源功能可直接使用；你可以先进入模型设置配置本地渠道，也可以按需连接
+                      OEM 云端同步账号、积分、套餐和商业化能力。
+                    </AccountPlanDescription>
+                    <AccountPlanDetail>
+                      <span>不登录也可用</span>
+                      <span>OEM 云端可选</span>
+                    </AccountPlanDetail>
+                    <AccountPlanActions>
+                      <AccountPlanActionButton
+                        type="button"
+                        $primary
+                        aria-label="连接 OEM 云端"
+                        onClick={() =>
+                          handleAccountMenuNavigate({
+                            tab: SettingsTabs.Providers,
+                            providerView: "cloud",
+                          })
+                        }
+                      >
+                        <LogIn />
+                        连接 OEM 云端
+                      </AccountPlanActionButton>
+                      <AccountPlanActionButton
+                        type="button"
+                        aria-label="模型设置"
+                        onClick={() =>
+                          handleAccountMenuNavigate({
+                            tab: SettingsTabs.Providers,
+                            providerView: "settings",
+                          })
+                        }
+                      >
+                        <KeyRound />
+                        模型设置
+                      </AccountPlanActionButton>
+                    </AccountPlanActions>
+                  </AccountPlanCard>
+                )}
+
+                <AccountMenuList>
+                  {filteredFooterNavItems.map((item) => {
+                    const AccountNavIcon = item.icon;
+                    const active = isActive(item);
+
+                    return (
+                      <AccountMenuItem
+                        key={item.id}
+                        type="button"
+                        $active={active}
+                        aria-label={item.label}
+                        aria-current={active ? "page" : undefined}
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          handleNavigate(item);
+                        }}
+                      >
+                        <AccountMenuItemLeading>
+                          <AccountNavIcon />
+                          {item.label}
+                        </AccountMenuItemLeading>
+                        <ChevronRight />
+                      </AccountMenuItem>
+                    );
+                  })}
+                  <AccountMenuItemGroup>
+                    <AccountMenuItem
+                      type="button"
+                      $active={languageMenuOpen}
+                      aria-label="语言"
+                      aria-expanded={languageMenuOpen}
+                      aria-haspopup="menu"
+                      onClick={() => setLanguageMenuOpen((current) => !current)}
+                    >
+                      <AccountMenuItemLeading>
+                        <Languages />
+                        语言
+                      </AccountMenuItemLeading>
+                      <AccountMenuItemTrailing>
+                        {currentLanguageLabel}
+                        <ChevronRight />
+                      </AccountMenuItemTrailing>
+                    </AccountMenuItem>
+                    {languageMenuOpen ? (
+                      <AccountSubmenuPopover
+                        role="menu"
+                        aria-label="选择语言"
+                        data-testid="app-sidebar-language-menu"
+                      >
+                        <AccountSubmenuTitle>界面语言</AccountSubmenuTitle>
+                        {APP_SIDEBAR_LANGUAGE_OPTIONS.map((option) => {
+                          const active = option.id === language;
+
+                          return (
+                            <AccountSubmenuItem
+                              key={option.id}
+                              type="button"
+                              $active={active}
+                              role="menuitemradio"
+                              aria-checked={active}
+                              aria-label={`切换语言为${option.label}`}
+                              onClick={() =>
+                                void handleLanguageChange(option.id)
+                              }
+                            >
+                              <AccountSubmenuItemText>
+                                <AccountSubmenuItemLabel>
+                                  {option.label}
+                                </AccountSubmenuItemLabel>
+                                <AccountSubmenuItemHint>
+                                  {option.hint}
+                                </AccountSubmenuItemHint>
+                              </AccountSubmenuItemText>
+                              {active ? <Check /> : null}
+                            </AccountSubmenuItem>
+                          );
+                        })}
+                      </AccountSubmenuPopover>
+                    ) : null}
+                  </AccountMenuItemGroup>
+                  {hasCloudAccount ? (
+                    <AccountMenuItem
+                      type="button"
+                      aria-label="用户中心"
+                      onClick={() =>
+                        handleAccountMenuNavigate({
+                          tab: SettingsTabs.Profile,
+                        })
+                      }
+                    >
+                      <AccountMenuItemLeading>
+                        <ExternalLink />
+                        用户中心
+                      </AccountMenuItemLeading>
+                      <ChevronRight />
+                    </AccountMenuItem>
+                  ) : null}
+                  <AccountMenuItem
+                    type="button"
+                    aria-label="模型设置"
+                    onClick={() =>
+                      handleAccountMenuNavigate({
+                        tab: SettingsTabs.Providers,
+                        providerView: "settings",
+                      })
+                    }
+                  >
+                    <AccountMenuItemLeading>
+                      <KeyRound />
+                      模型设置
+                    </AccountMenuItemLeading>
+                    <ChevronRight />
+                  </AccountMenuItem>
+                  <AccountMenuItem
+                    type="button"
+                    aria-label="OEM 云端"
+                    onClick={() =>
+                      handleAccountMenuNavigate({
+                        tab: SettingsTabs.Providers,
+                        providerView: "cloud",
+                      })
+                    }
+                  >
+                    <AccountMenuItemLeading>
+                      <Cloud />
+                      OEM 云端
+                    </AccountMenuItemLeading>
+                    <ChevronRight />
+                  </AccountMenuItem>
+                  <AccountMenuItem
+                    type="button"
+                    aria-label="关于"
+                    onClick={() =>
+                      handleAccountMenuNavigate({ tab: SettingsTabs.About })
+                    }
+                  >
+                    <AccountMenuItemLeading>
+                      <Info />
+                      关于
+                    </AccountMenuItemLeading>
+                    <ChevronRight />
+                  </AccountMenuItem>
+                  {hasCloudAccount ? (
+                    <>
+                      <AccountMenuDivider />
+                      <AccountMenuItem
+                        type="button"
+                        $danger
+                        disabled={accountLogoutPending}
+                        aria-label="退出登录"
+                        onClick={() => void handleAccountLogout()}
+                      >
+                        <AccountMenuItemLeading>
+                          <LogOut />
+                          {accountLogoutPending ? "退出中..." : "退出登录"}
+                        </AccountMenuItemLeading>
+                      </AccountMenuItem>
+                    </>
+                  ) : null}
+                </AccountMenuList>
+              </AccountMenuPopover>
+            ) : null}
+          </AccountActionSlot>
+        </FooterArea>
       </Container>
+      <Modal
+        isOpen={inviteDialogOpen}
+        onClose={() => setInviteDialogOpen(false)}
+        className="p-0"
+        maxWidth="max-w-xl"
+      >
+        <InviteDialogSurface data-testid="app-sidebar-invite-dialog">
+          <InviteDialogHeader>
+            <InviteDialogEyebrow>
+              {inviteShare?.brandName ?? accountTenantLabel ?? "Lime"} 邀请
+            </InviteDialogEyebrow>
+            <InviteDialogTitle>邀请好友</InviteDialogTitle>
+            <InviteDialogDescription>
+              {inviteHeadline}
+              {!inviteLoading && !inviteError ? `。${inviteRules}` : ""}
+            </InviteDialogDescription>
+          </InviteDialogHeader>
+
+          <InviteDialogBody>
+            {!hasCloudAccount ? (
+              <InviteStatusCard>
+                登录 Lime 云端后会生成专属邀请码，并自动读取当前 OEM
+                租户的品牌、域名和奖励策略。
+                <InviteActionBar style={{ marginTop: 10 }}>
+                  <InviteDialogActionButton
+                    type="button"
+                    $primary
+                    onClick={() => {
+                      setInviteDialogOpen(false);
+                      onNavigate("settings", {
+                        tab: SettingsTabs.Providers,
+                        providerView: "cloud",
+                      });
+                    }}
+                  >
+                    <Cloud />
+                    连接云端账号
+                  </InviteDialogActionButton>
+                </InviteActionBar>
+              </InviteStatusCard>
+            ) : null}
+
+            {hasCloudAccount && inviteLoading ? (
+              <InviteStatusCard>正在从云端同步邀请信息...</InviteStatusCard>
+            ) : null}
+
+            {hasCloudAccount && inviteError ? (
+              <InviteStatusCard $tone="error">
+                {inviteError}
+                <InviteActionBar style={{ marginTop: 10 }}>
+                  <InviteDialogActionButton
+                    type="button"
+                    onClick={() => setInviteReloadKey((value) => value + 1)}
+                  >
+                    <RefreshCw />
+                    重试
+                  </InviteDialogActionButton>
+                </InviteActionBar>
+              </InviteStatusCard>
+            ) : null}
+
+            {hasCloudAccount &&
+            !inviteLoading &&
+            !inviteError &&
+            inviteDashboard ? (
+              <InviteShareCard>
+                <InviteCodeBlock>
+                  <InviteCodeMeta>
+                    <InviteCodeLabel>邀请码</InviteCodeLabel>
+                    <InviteCodeValue>{inviteShare?.code}</InviteCodeValue>
+                  </InviteCodeMeta>
+                  <InviteDialogActionButton
+                    type="button"
+                    onClick={() =>
+                      void handleCopyInviteText(
+                        inviteShare?.code,
+                        "已复制邀请码",
+                      )
+                    }
+                  >
+                    <Copy />
+                    复制
+                  </InviteDialogActionButton>
+                </InviteCodeBlock>
+
+                <InviteMetaGrid>
+                  <InviteMetaItem>
+                    <span>下载地址</span>
+                    <strong>{inviteShare?.downloadUrl}</strong>
+                  </InviteMetaItem>
+                  <InviteMetaItem>
+                    <span>邀请链接</span>
+                    <strong>{inviteShare?.landingUrl}</strong>
+                  </InviteMetaItem>
+                  <InviteMetaItem>
+                    <span>邀请人奖励</span>
+                    <strong>
+                      {formatReferralCredits(
+                        invitePolicy?.referrerRewardCredits,
+                      )}
+                    </strong>
+                  </InviteMetaItem>
+                  <InviteMetaItem>
+                    <span>被邀请人奖励</span>
+                    <strong>
+                      {formatReferralCredits(
+                        invitePolicy?.inviteeRewardCredits,
+                      )}
+                    </strong>
+                  </InviteMetaItem>
+                </InviteMetaGrid>
+
+                <InviteActionBar>
+                  <InviteDialogActionButton
+                    type="button"
+                    $primary
+                    onClick={() =>
+                      void handleCopyInviteText(
+                        inviteShare?.shareText,
+                        "已复制邀请文案",
+                      )
+                    }
+                  >
+                    <Copy />
+                    复制邀请文案
+                  </InviteDialogActionButton>
+                  <InviteDialogActionButton
+                    type="button"
+                    onClick={() =>
+                      void handleCopyInviteText(
+                        inviteShare?.landingUrl,
+                        "已复制邀请链接",
+                      )
+                    }
+                  >
+                    <ExternalLink />
+                    复制邀请链接
+                  </InviteDialogActionButton>
+                </InviteActionBar>
+              </InviteShareCard>
+            ) : null}
+          </InviteDialogBody>
+        </InviteDialogSurface>
+      </Modal>
     </TooltipProvider>
   );
 }

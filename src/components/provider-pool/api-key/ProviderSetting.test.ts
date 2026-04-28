@@ -109,7 +109,7 @@ describe("Property 6: Provider 设置面板字段完整性", () => {
   /**
    * Property 6: Provider 设置面板字段完整性
    *
-   * *对于任意* Provider，设置面板应显示名称、图标、启用开关、API Key 输入框、API Host 输入框和连接测试按钮
+   * *对于任意* Provider，设置面板应显示名称、图标、API Key 输入框、模型优先级、接口获取模型和连接测试按钮
    *
    * **Validates: Requirements 4.1**
    */
@@ -127,14 +127,14 @@ describe("Property 6: Provider 设置面板字段完整性", () => {
       // 验证名称存在
       expect(info.hasName).toBe(true);
 
-      // 验证启用开关存在
-      expect(info.hasEnabledSwitch).toBe(true);
+      // 验证 API Key 输入框存在
+      expect(info.hasApiKeyInput).toBe(true);
 
-      // 验证 API Key 区域存在
-      expect(info.hasApiKeySection).toBe(true);
+      // 验证模型优先级存在
+      expect(info.hasModelPriority).toBe(true);
 
-      // 验证配置区域存在（包含 API Host 输入框）
-      expect(info.hasConfigSection).toBe(true);
+      // 验证接口获取模型入口存在
+      expect(info.hasApiModelFetch).toBe(true);
 
       // 验证连接测试按钮存在
       expect(info.hasConnectionTest).toBe(true);
@@ -180,9 +180,9 @@ describe("Property 6: Provider 设置面板字段完整性", () => {
       expect(info.hasProvider).toBe(false);
       expect(info.hasIcon).toBe(false);
       expect(info.hasName).toBe(false);
-      expect(info.hasEnabledSwitch).toBe(false);
-      expect(info.hasApiKeySection).toBe(false);
-      expect(info.hasConfigSection).toBe(false);
+      expect(info.hasApiKeyInput).toBe(false);
+      expect(info.hasModelPriority).toBe(false);
+      expect(info.hasApiModelFetch).toBe(false);
       expect(info.hasConnectionTest).toBe(false);
     });
   });

@@ -1945,7 +1945,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
   );
 
   return (
-    <div className="min-h-full bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.08),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(148,163,184,0.12),_transparent_24%),linear-gradient(180deg,_#f8fafc_0%,_#f4f8f5_58%,_#eef5ef_100%)] px-6 py-6">
+    <div className="lime-workbench-theme-scope min-h-full bg-[image:var(--lime-stage-surface)] px-6 py-6">
       <div className="mx-auto grid max-w-[1480px] gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className={cn(PANEL_CLASS_NAME, "h-fit")}>
           <div className="mb-4">
@@ -1998,7 +1998,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
         <main className="space-y-6">
           <section
-            className="rounded-[26px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(239,246,255,0.96)_0%,rgba(255,255,255,0.98)_100%)] p-5 shadow-sm shadow-slate-950/5"
+            className="rounded-[26px] border border-sky-200/80 bg-[color:var(--lime-info-soft)] p-5 shadow-sm shadow-slate-950/5"
             data-testid="memory-project-resources-callout"
           >
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -3351,7 +3351,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                           : ""}
                       </p>
                       {source.preview ? (
-                        <pre className="mt-3 overflow-x-auto rounded-2xl border border-sky-100 bg-[linear-gradient(180deg,rgba(248,255,254,0.98)_0%,rgba(255,255,255,0.98)_55%,rgba(240,249,255,0.96)_100%)] p-3 text-xs leading-6 text-slate-700 shadow-sm shadow-sky-950/5">
+                        <pre className="mt-3 overflow-x-auto rounded-2xl border border-sky-100 bg-[image:var(--lime-card-subtle)] p-3 text-xs leading-6 text-slate-700 shadow-sm shadow-sky-950/5">
                           {source.preview}
                         </pre>
                       ) : null}

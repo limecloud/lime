@@ -40,8 +40,9 @@ function createPreparedSend(
   };
 }
 
-type SlashSkillPreflightTestEnv =
-  Parameters<typeof maybeHandleSlashSkillBeforeSend>[0]["env"];
+type SlashSkillPreflightTestEnv = Parameters<
+  typeof maybeHandleSlashSkillBeforeSend
+>[0]["env"];
 
 function createEnv(): SlashSkillPreflightTestEnv {
   return {

@@ -2,6 +2,15 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockOpenResourceManager } = vi.hoisted(() => ({
+  mockOpenResourceManager: vi.fn(),
+}));
+
+vi.mock("@/features/resource-manager", () => ({
+  openResourceManager: mockOpenResourceManager,
+}));
+
 import { ImageTaskViewer } from "./ImageTaskViewer";
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
@@ -56,7 +65,6 @@ function createProps(
     savingToResource: false,
     onViewportChange: vi.fn(),
     onSelectOutput: vi.fn(),
-    onOpenImage: vi.fn(),
     onClose: vi.fn(),
     ...overrides,
   };
@@ -120,9 +128,12 @@ describe("ImageTaskViewer", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("点击大图应打开应用内逐张预览，而不是直接外跳", () => {
-    const onOpenImage = vi.fn();
-    const { container } = renderComponent({ onOpenImage });
+  it("点击大图应打开独立资源管理器并透传图片任务上下文", () => {
+    const { container } = renderComponent({
+      sourceProjectId: "project-1",
+      sourceContentId: "content-1",
+      sourceThreadId: "thread-1",
+    });
 
     const openButton = container.querySelector(
       '[data-testid="image-task-viewer-open-image"]',
@@ -133,38 +144,51 @@ describe("ImageTaskViewer", () => {
       openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(onOpenImage).not.toHaveBeenCalled();
-    expect(
-      document.body.querySelector('[data-testid="image-task-viewer-open-external"]'),
-    ).toBeTruthy();
-    expect(document.body.textContent).toContain("在新窗口打开");
-  });
-
-  it("预览弹窗里的外链按钮应复用 onOpenImage 打开当前图片", () => {
-    const onOpenImage = vi.fn();
-    const { container } = renderComponent({ onOpenImage });
-
-    const openButton = container.querySelector(
-      '[data-testid="image-task-viewer-open-image"]',
+    expect(mockOpenResourceManager).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceLabel: "Image Generation",
+        sourceContext: expect.objectContaining({
+          kind: "image_task",
+          projectId: "project-1",
+          contentId: "content-1",
+          taskId: "task-1",
+          outputId: "output-1",
+          threadId: "thread-1",
+          sourcePage: "image-task-viewer",
+        }),
+        initialIndex: 0,
+        items: [
+          expect.objectContaining({
+            id: "output-1",
+            kind: "image",
+            src: "https://example.com/image-1.png",
+            title: "广州塔主视觉",
+            sourceContext: expect.objectContaining({
+              kind: "image_task",
+              projectId: "project-1",
+              contentId: "content-1",
+              taskId: "task-1",
+              outputId: "output-1",
+              threadId: "thread-1",
+            }),
+          }),
+          expect.objectContaining({
+            id: "output-2",
+            kind: "image",
+            src: "https://example.com/image-2.png",
+            title: "广州塔夜景",
+            sourceContext: expect.objectContaining({
+              kind: "image_task",
+              projectId: "project-1",
+              contentId: "content-1",
+              taskId: "task-1",
+              outputId: "output-2",
+              threadId: "thread-1",
+            }),
+          }),
+        ],
+      }),
     );
-    expect(openButton).toBeTruthy();
-
-    act(() => {
-      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    const externalButton = document.body.querySelector(
-      '[data-testid="image-task-viewer-open-external"]',
-    );
-    expect(externalButton).toBeTruthy();
-
-    act(() => {
-      externalButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
-    expect(onOpenImage).toHaveBeenCalledWith("https://example.com/image-1.png");
   });
 
   it("大图舞台应保留稳定内边距，避免图片贴近上下边线", () => {
@@ -288,7 +312,7 @@ describe("ImageTaskViewer", () => {
     expect(container.textContent).toContain("第 1 格");
   });
 
-  it("3x3 分镜应支持逐张预览与缩略带切换", () => {
+  it("3x3 分镜应把分镜元信息传给独立资源管理器", () => {
     const onSelectOutput = vi.fn();
     const outputs = Array.from({ length: 3 }, (_, index) => ({
       id: `output-storyboard-preview-${index + 1}`,
@@ -336,21 +360,31 @@ describe("ImageTaskViewer", () => {
       openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(
-      document.body.querySelector('[data-testid="image-task-viewer-open-external"]'),
-    ).toBeTruthy();
-    expect(document.body.textContent).toContain("刘备亮相");
-
-    const nextButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.getAttribute("aria-label") === "查看下一张图片");
-    expect(nextButton).toBeTruthy();
-
-    act(() => {
-      nextButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(onSelectOutput).toHaveBeenCalledWith("output-storyboard-preview-2");
+    expect(mockOpenResourceManager).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialIndex: 0,
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            id: "output-storyboard-preview-1",
+            title: "刘备亮相",
+            metadata: expect.objectContaining({
+              slotLabel: "刘备亮相",
+              prompt: "第 1 格完整提示词",
+            }),
+            sourceContext: expect.objectContaining({
+              kind: "image_task",
+              taskId: "task-storyboard-preview-1",
+              outputId: "output-storyboard-preview-1",
+            }),
+          }),
+          expect.objectContaining({
+            id: "output-storyboard-preview-2",
+            title: "曹操压迫感",
+          }),
+        ]),
+      }),
+    );
+    expect(onSelectOutput).not.toHaveBeenCalled();
   });
 
   it("运行中的 3x3 分镜任务应先渲染 9 个固定槽位", () => {

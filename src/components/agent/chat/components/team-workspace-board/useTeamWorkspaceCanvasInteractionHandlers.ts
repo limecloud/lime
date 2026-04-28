@@ -42,7 +42,9 @@ interface UseTeamWorkspaceCanvasInteractionHandlersParams {
   canvasViewportRef: RefObject<HTMLDivElement | null>;
   expandedSessionId?: string | null;
   onSelectSession: (sessionId: string) => void;
-  setCanvasLayoutState: Dispatch<SetStateAction<TeamWorkspaceCanvasLayoutState>>;
+  setCanvasLayoutState: Dispatch<
+    SetStateAction<TeamWorkspaceCanvasLayoutState>
+  >;
   updateCanvasLaneLayout: (
     persistKey: string,
     updater: (
@@ -336,7 +338,12 @@ export function useTeamWorkspaceCanvasInteractionHandlers({
         viewportHeight: viewportRect.height,
       }),
     );
-  }, [canvasBounds, canvasLanes.length, canvasViewportRef, updateCanvasViewport]);
+  }, [
+    canvasBounds,
+    canvasLanes.length,
+    canvasViewportRef,
+    updateCanvasViewport,
+  ]);
 
   useTeamWorkspaceCanvasKeyboardShortcuts({
     canvasLaneCount: canvasLanes.length,

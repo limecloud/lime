@@ -148,9 +148,13 @@ export function AgentThreadFileCheckpointDialog({
     }
 
     let cancelled = false;
-    setListState(createAsyncState<AgentRuntimeFileCheckpointListResult>("loading"));
+    setListState(
+      createAsyncState<AgentRuntimeFileCheckpointListResult>("loading"),
+    );
     setDetailState(createAsyncState<AgentRuntimeFileCheckpointDetail>("idle"));
-    setDiffState(createAsyncState<AgentRuntimeFileCheckpointDiffResult>("idle"));
+    setDiffState(
+      createAsyncState<AgentRuntimeFileCheckpointDiffResult>("idle"),
+    );
     setSelectedCheckpointId("");
 
     void listAgentRuntimeFileCheckpoints({
@@ -165,7 +169,9 @@ export function AgentThreadFileCheckpointDialog({
         const defaultCheckpoint =
           checkpoints.find(
             (checkpoint) => checkpoint.checkpoint_id === defaultCheckpointId,
-          ) || checkpoints[0] || null;
+          ) ||
+          checkpoints[0] ||
+          null;
 
         setListState(
           createAsyncState<AgentRuntimeFileCheckpointListResult>(
@@ -202,8 +208,12 @@ export function AgentThreadFileCheckpointDialog({
     }
 
     let cancelled = false;
-    setDetailState(createAsyncState<AgentRuntimeFileCheckpointDetail>("loading"));
-    setDiffState(createAsyncState<AgentRuntimeFileCheckpointDiffResult>("loading"));
+    setDetailState(
+      createAsyncState<AgentRuntimeFileCheckpointDetail>("loading"),
+    );
+    setDiffState(
+      createAsyncState<AgentRuntimeFileCheckpointDiffResult>("loading"),
+    );
 
     void Promise.allSettled([
       getAgentRuntimeFileCheckpoint({
@@ -291,8 +301,8 @@ export function AgentThreadFileCheckpointDialog({
           <DialogTitle className="pr-8">文件快照详情</DialogTitle>
           <DialogDescription className="space-y-1 text-xs leading-5">
             <span className="block">
-              当前弹窗直接消费 runtime file checkpoint 的 current 主链：
-              `list / detail / diff`。
+              当前弹窗直接消费 runtime file checkpoint 的 current 主链： `list /
+              detail / diff`。
             </span>
             <span className="block font-mono text-[11px] text-muted-foreground">
               session={sessionId}
@@ -617,7 +627,11 @@ export function AgentThreadFileCheckpointDialog({
         </div>
 
         <DialogFooter className="border-t px-6 py-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
             关闭
           </Button>
         </DialogFooter>

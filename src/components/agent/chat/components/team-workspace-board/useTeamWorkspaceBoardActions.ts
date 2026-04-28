@@ -1,8 +1,6 @@
 import { useCallback } from "react";
 import type { TeamSessionCard } from "../../utils/teamWorkspaceSessions";
-import {
-  useTeamWorkspaceBoardActionUiState,
-} from "./useTeamWorkspaceBoardActionUiState";
+import { useTeamWorkspaceBoardActionUiState } from "./useTeamWorkspaceBoardActionUiState";
 
 interface UseTeamWorkspaceBoardActionsParams {
   completedTeamSessionIds: string[];

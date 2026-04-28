@@ -3,11 +3,23 @@ import { clearSkillCatalogCache } from "@/lib/api/skillCatalog";
 import { clearServiceSkillCatalogCache } from "@/lib/api/serviceSkills";
 import {
   type ClientPasswordLoginPayload,
-  type CreateClientDesktopAuthSessionPayload,
+  type CreateClientAccessTokenPayload,
+  type CreateClientCreditTopupOrderPayload,
+  type CreateClientOrderPayload,
+  type OemCloudAccessToken,
+  type OemCloudActivationResponse,
+  type OemCloudActiveAccessTokenResponse,
+  type OemCloudBillingDashboard,
   type OemCloudBootstrapResponse,
+  type OemCloudCreditAccount,
+  type OemCloudCreditTopupOrder,
+  type OemCloudCreditsDashboard,
+  type OemCloudOrder,
+  type OemCloudPaymentAction,
+  type OemCloudReadiness,
   type OemCloudCurrentSession,
-  type OemCloudDesktopAuthSessionStartResponse,
-  type OemCloudDesktopAuthSessionStatus,
+  type OemCloudEntitlementPlan,
+  type OemCloudPaymentConfig,
   type OemCloudPartnerHubAccessMode,
   type OemCloudPartnerHubConfigMode,
   type OemCloudPartnerHubModelsSource,
@@ -16,28 +28,48 @@ import {
   type OemCloudProviderOfferState,
   type OemCloudProviderOfferSummary,
   type OemCloudProviderPreference,
+  type OemCloudSubscription,
+  type OemCloudTopupPackage,
+  type OemCloudUsageDashboard,
   type SendAuthEmailCodeResponse,
   type VerifyClientAuthEmailCodePayload,
   OemCloudControlPlaneError,
-  createClientDesktopAuthSession,
+  createClientAccessToken,
+  createClientCreditTopupOrder,
+  createClientCreditTopupOrderCheckout,
+  createClientOrder,
+  createClientOrderCheckout,
   getClientBootstrap,
+  getClientCloudActivation,
+  getClientCreditTopupOrder,
+  getClientOrder,
   getClientProviderOffer,
-  getClientProviderPreference,
   listClientProviderOfferModels,
-  listClientProviderOffers,
   loginClientByPassword,
   logoutClient,
-  pollClientDesktopAuthSession,
+  revokeClientAccessToken,
+  rotateClientAccessToken,
   sendClientAuthEmailCode,
   updateClientProviderPreference,
   verifyClientAuthEmailCode,
 } from "@/lib/api/oemCloudControlPlane";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import {
-  completeOemCloudDesktopOAuthLogin,
   OEM_CLOUD_OAUTH_COMPLETED_EVENT,
   type OemCloudDesktopOAuthCompletedDetail,
 } from "@/lib/oemCloudDesktopAuth";
+import {
+  buildOemCloudUserCenterUrl,
+  openExternalUrl,
+  startOemCloudLogin,
+} from "@/lib/oemCloudLoginLauncher";
+import {
+  buildOemCloudPaymentReturnBridgeUrl,
+  clearStoredOemCloudPaymentReturn,
+  consumeStoredOemCloudPaymentReturn,
+  OEM_CLOUD_PAYMENT_RETURN_EVENT,
+  type OemCloudPaymentReturnDetail,
+} from "@/lib/oemCloudPaymentReturn";
 import {
   applyStoredOemCloudSessionToWindow,
   clearOemCloudBootstrapSnapshot,
@@ -56,37 +88,6 @@ import {
 import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
 
 export type OemCloudLoginMode = "password" | "email_code";
-
-const DESKTOP_AUTH_LEGACY_CLIENT_IDS: Record<string, string[]> = {
-  "limehub-desktop": ["lobehub-desktop"],
-};
-
-async function openExternalUrl(url: string): Promise<void> {
-  try {
-    const { open } = await import("@tauri-apps/plugin-shell");
-    await open(url);
-    return;
-  } catch {
-    if (typeof window === "undefined") {
-      throw new Error("当前环境不支持打开外部浏览器");
-    }
-  }
-
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
-function buildUserCenterUrl(baseUrl: string, path = "") {
-  const targetPath = path.trim();
-  if (!targetPath) {
-    return baseUrl;
-  }
-
-  if (/^https?:\/\//i.test(targetPath)) {
-    return targetPath;
-  }
-
-  return `${baseUrl}${targetPath.startsWith("/") ? targetPath : `/${targetPath}`}`;
-}
 
 function buildErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim()) {
@@ -107,147 +108,14 @@ function isAuthExpired(error: unknown) {
   );
 }
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
-function isDesktopClientNotFound(error: unknown) {
-  return (
-    error instanceof OemCloudControlPlaneError &&
-    error.status === 404 &&
-    /desktop client not found/i.test(error.message)
-  );
-}
-
-function resolveDesktopClientIdCandidates(clientId: string) {
-  const primaryClientId = clientId.trim();
-  const fallbackClientIds =
-    DESKTOP_AUTH_LEGACY_CLIENT_IDS[primaryClientId] ?? [];
-  return [primaryClientId, ...fallbackClientIds];
-}
-
-async function createGoogleDesktopAuthSession(
-  runtime: ReturnType<typeof resolveOemCloudRuntimeContext>,
-): Promise<OemCloudDesktopAuthSessionStartResponse> {
-  if (!runtime) {
-    throw new Error("缺少 OEM 云端配置，请先配置域名与租户。");
+async function openPaymentReferenceIfUrl(reference?: string) {
+  const target = reference?.trim();
+  if (!target || !/^https?:\/\//i.test(target)) {
+    return false;
   }
 
-  const payload: CreateClientDesktopAuthSessionPayload = {
-    clientId: runtime.desktopClientId,
-    provider: "google",
-    desktopRedirectUri: runtime.desktopOauthRedirectUrl,
-  };
-
-  const clientIdCandidates = resolveDesktopClientIdCandidates(
-    runtime.desktopClientId,
-  );
-
-  let lastError: unknown = null;
-  for (const clientId of clientIdCandidates) {
-    try {
-      return await createClientDesktopAuthSession(runtime.tenantId, {
-        ...payload,
-        clientId,
-      });
-    } catch (error) {
-      lastError = error;
-      if (
-        clientId !== clientIdCandidates[clientIdCandidates.length - 1] &&
-        isDesktopClientNotFound(error)
-      ) {
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  throw lastError ?? new Error("创建 Google 桌面授权会话失败");
-}
-
-function buildGoogleDesktopAuthTerminalMessage(
-  status: OemCloudDesktopAuthSessionStatus,
-) {
-  switch (status) {
-    case "denied":
-      return "Google 授权已被拒绝，请重新发起登录。";
-    case "cancelled":
-      return "Google 授权已取消，请重新发起登录。";
-    case "expired":
-      return "Google 授权已过期，请重新发起登录。";
-    case "consumed":
-      return "当前登录结果已被消费，请重新发起 Google 登录。";
-    default:
-      return `Google 授权返回了未识别状态：${status}`;
-  }
-}
-
-async function waitForGoogleOauthCompletion(
-  isCompleted: () => boolean,
-  timeoutMs: number,
-) {
-  const deadline = Date.now() + Math.max(0, timeoutMs);
-  while (!isCompleted() && Date.now() < deadline) {
-    await sleep(150);
-  }
-
-  return isCompleted();
-}
-
-async function pollGoogleDesktopAuthSession(
-  runtime: NonNullable<ReturnType<typeof resolveOemCloudRuntimeContext>>,
-  authSession: OemCloudDesktopAuthSessionStartResponse,
-  isCompleted: () => boolean,
-) {
-  let pollIntervalSeconds = Math.max(1, authSession.pollIntervalSeconds);
-
-  while (!isCompleted()) {
-    const status = await pollClientDesktopAuthSession(authSession.deviceCode);
-    if (isCompleted()) {
-      return;
-    }
-
-    pollIntervalSeconds = Math.max(1, status.pollIntervalSeconds);
-
-    switch (status.status) {
-      case "pending_login":
-      case "pending_consent": {
-        await sleep(pollIntervalSeconds * 1000);
-        continue;
-      }
-      case "approved": {
-        if (!status.sessionToken) {
-          throw new Error("Google 授权已完成，但服务端未返回会话 Token。");
-        }
-
-        await completeOemCloudDesktopOAuthLogin({
-          tenantId: status.tenantId || authSession.tenantId,
-          token: status.sessionToken,
-          nextPath: runtime.desktopOauthNextPath,
-          error: null,
-        });
-        return;
-      }
-      case "consumed": {
-        if (
-          await waitForGoogleOauthCompletion(
-            isCompleted,
-            Math.min(2000, pollIntervalSeconds * 1000),
-          )
-        ) {
-          return;
-        }
-        throw new Error(buildGoogleDesktopAuthTerminalMessage(status.status));
-      }
-      case "denied":
-      case "cancelled":
-      case "expired":
-      default:
-        throw new Error(buildGoogleDesktopAuthTerminalMessage(status.status));
-    }
-  }
+  await openExternalUrl(target);
+  return true;
 }
 
 export function formatOemCloudDateTime(value?: string) {
@@ -331,6 +199,109 @@ export function formatOemCloudOfferStateLabel(
 }
 
 const LOCAL_PROVIDER_SUMMARY = "本地开发者 Provider";
+const PAYMENT_STATUS_WATCH_INTERVAL_MS = 2500;
+const PAYMENT_STATUS_WATCH_MAX_ATTEMPTS = 72;
+
+type OemCloudPaymentWatchKind = "plan_order" | "credit_topup_order";
+
+export interface OemCloudPaymentWatcher {
+  kind: OemCloudPaymentWatchKind;
+  orderId: string;
+  title: string;
+  status: "waiting" | "confirmed" | "stopped";
+  attempts: number;
+  message?: string;
+}
+
+function normalizePaymentStatus(value?: string) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function isPaidPaymentStatus(value?: string) {
+  return [
+    "paid",
+    "completed",
+    "complete",
+    "succeeded",
+    "success",
+    "active",
+  ].includes(normalizePaymentStatus(value));
+}
+
+function isTerminalUnpaidPaymentStatus(value?: string) {
+  return [
+    "cancelled",
+    "canceled",
+    "closed",
+    "expired",
+    "failed",
+    "failure",
+    "refunded",
+  ].includes(normalizePaymentStatus(value));
+}
+
+function resolveOrderTitle(
+  kind: OemCloudPaymentWatchKind,
+  order: OemCloudOrder | OemCloudCreditTopupOrder,
+) {
+  if (kind === "plan_order") {
+    return (order as OemCloudOrder).planName || "套餐订单";
+  }
+  return (order as OemCloudCreditTopupOrder).packageName || "充值订单";
+}
+
+function normalizePaymentWatchKind(
+  value?: string,
+): OemCloudPaymentWatchKind | null {
+  if (value === "plan_order" || value === "credit_topup_order") {
+    return value;
+  }
+  return null;
+}
+
+function resolvePaymentReturnTitle(kind: OemCloudPaymentWatchKind) {
+  return kind === "plan_order" ? "套餐订单" : "充值订单";
+}
+
+interface OemCloudCommerceSnapshot {
+  cloudActivation: OemCloudActivationResponse | null;
+  cloudReadiness: OemCloudReadiness | null;
+  pendingPayment: OemCloudPaymentAction | null;
+  paymentConfigs: OemCloudPaymentConfig[];
+  plans: OemCloudEntitlementPlan[];
+  subscription: OemCloudSubscription | null;
+  creditAccount: OemCloudCreditAccount | null;
+  creditsDashboard: OemCloudCreditsDashboard | null;
+  topupPackages: OemCloudTopupPackage[];
+  usageDashboard: OemCloudUsageDashboard | null;
+  billingDashboard: OemCloudBillingDashboard | null;
+  orders: OemCloudOrder[];
+  creditTopupOrders: OemCloudCreditTopupOrder[];
+  accessTokens: OemCloudAccessToken[];
+  activeAccessToken: OemCloudActiveAccessTokenResponse | null;
+}
+
+function buildEmptyCommerceSnapshot(): OemCloudCommerceSnapshot {
+  return {
+    cloudActivation: null,
+    cloudReadiness: null,
+    pendingPayment: null,
+    paymentConfigs: [],
+    plans: [],
+    subscription: null,
+    creditAccount: null,
+    creditsDashboard: null,
+    topupPackages: [],
+    usageDashboard: null,
+    billingDashboard: null,
+    orders: [],
+    creditTopupOrders: [],
+    accessTokens: [],
+    activeAccessToken: null,
+  };
+}
 
 export function useOemCloudAccess() {
   const runtime = resolveOemCloudRuntimeContext();
@@ -363,14 +334,58 @@ export function useOemCloudAccess() {
   const [selectedModels, setSelectedModels] = useState<
     OemCloudProviderModelItem[]
   >([]);
+  const [cloudActivation, setCloudActivation] =
+    useState<OemCloudActivationResponse | null>(null);
+  const [cloudReadiness, setCloudReadiness] =
+    useState<OemCloudReadiness | null>(null);
+  const [pendingPayment, setPendingPayment] =
+    useState<OemCloudPaymentAction | null>(null);
+  const [paymentConfigs, setPaymentConfigs] = useState<OemCloudPaymentConfig[]>(
+    [],
+  );
+  const [plans, setPlans] = useState<OemCloudEntitlementPlan[]>([]);
+  const [subscription, setSubscription] = useState<OemCloudSubscription | null>(
+    null,
+  );
+  const [creditAccount, setCreditAccount] =
+    useState<OemCloudCreditAccount | null>(null);
+  const [creditsDashboard, setCreditsDashboard] =
+    useState<OemCloudCreditsDashboard | null>(null);
+  const [topupPackages, setTopupPackages] = useState<OemCloudTopupPackage[]>(
+    [],
+  );
+  const [usageDashboard, setUsageDashboard] =
+    useState<OemCloudUsageDashboard | null>(null);
+  const [billingDashboard, setBillingDashboard] =
+    useState<OemCloudBillingDashboard | null>(null);
+  const [orders, setOrders] = useState<OemCloudOrder[]>([]);
+  const [creditTopupOrders, setCreditTopupOrders] = useState<
+    OemCloudCreditTopupOrder[]
+  >([]);
+  const [accessTokens, setAccessTokens] = useState<OemCloudAccessToken[]>([]);
+  const [activeAccessToken, setActiveAccessToken] =
+    useState<OemCloudActiveAccessTokenResponse | null>(null);
+  const [lastIssuedRawToken, setLastIssuedRawToken] = useState<string | null>(
+    null,
+  );
+  const [paymentWatcher, setPaymentWatcher] =
+    useState<OemCloudPaymentWatcher | null>(null);
+  const [commerceErrorMessage, setCommerceErrorMessage] = useState<
+    string | null
+  >(null);
   const [initializing, setInitializing] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingCommerce, setLoadingCommerce] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [openingGoogleLogin, setOpeningGoogleLogin] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [savingDefault, setSavingDefault] = useState<string>("");
+  const [orderingPlanId, setOrderingPlanId] = useState<string>("");
+  const [creatingTopupPackageId, setCreatingTopupPackageId] =
+    useState<string>("");
+  const [managingToken, setManagingToken] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
@@ -385,23 +400,50 @@ export function useOemCloudAccess() {
     [runtime],
   );
 
-  const clearCloudState = useCallback((message?: string) => {
-    clearStoredOemCloudSessionState();
-    clearOemCloudBootstrapSnapshot();
-    clearSkillCatalogCache();
-    clearServiceSkillCatalogCache();
-    void clearSiteAdapterCatalogCache();
-    setSession(null);
-    setBootstrap(null);
-    setOffers([]);
-    setPreference(null);
-    setSelectedOffer(null);
-    setSelectedModels([]);
-    setCodeDelivery(null);
-    if (message) {
-      setInfoMessage(message);
-    }
-  }, []);
+  const applyCommerceSnapshot = useCallback(
+    (snapshot: OemCloudCommerceSnapshot) => {
+      setCloudActivation(snapshot.cloudActivation);
+      setCloudReadiness(snapshot.cloudReadiness);
+      setPendingPayment(snapshot.pendingPayment);
+      setPaymentConfigs(snapshot.paymentConfigs);
+      setPlans(snapshot.plans);
+      setSubscription(snapshot.subscription);
+      setCreditAccount(snapshot.creditAccount);
+      setCreditsDashboard(snapshot.creditsDashboard);
+      setTopupPackages(snapshot.topupPackages);
+      setUsageDashboard(snapshot.usageDashboard);
+      setBillingDashboard(snapshot.billingDashboard);
+      setOrders(snapshot.orders);
+      setCreditTopupOrders(snapshot.creditTopupOrders);
+      setAccessTokens(snapshot.accessTokens);
+      setActiveAccessToken(snapshot.activeAccessToken);
+    },
+    [],
+  );
+
+  const clearCloudState = useCallback(
+    (message?: string) => {
+      clearStoredOemCloudSessionState();
+      clearOemCloudBootstrapSnapshot();
+      clearSkillCatalogCache();
+      clearServiceSkillCatalogCache();
+      void clearSiteAdapterCatalogCache();
+      setSession(null);
+      setBootstrap(null);
+      setOffers([]);
+      setPreference(null);
+      setSelectedOffer(null);
+      setSelectedModels([]);
+      applyCommerceSnapshot(buildEmptyCommerceSnapshot());
+      setLastIssuedRawToken(null);
+      setCommerceErrorMessage(null);
+      setCodeDelivery(null);
+      if (message) {
+        setInfoMessage(message);
+      }
+    },
+    [applyCommerceSnapshot],
+  );
 
   const applyBootstrap = useCallback(
     (
@@ -445,6 +487,95 @@ export function useOemCloudAccess() {
     [session?.token],
   );
 
+  const loadCommerceState = useCallback(
+    async (tenantId: string) => {
+      setLoadingCommerce(true);
+      const currentSnapshot: OemCloudCommerceSnapshot = {
+        cloudActivation,
+        cloudReadiness,
+        pendingPayment,
+        paymentConfigs,
+        plans,
+        subscription,
+        creditAccount,
+        creditsDashboard,
+        topupPackages,
+        usageDashboard,
+        billingDashboard,
+        orders,
+        creditTopupOrders,
+        accessTokens,
+        activeAccessToken,
+      };
+
+      try {
+        const activation = await getClientCloudActivation(tenantId);
+        const snapshot: OemCloudCommerceSnapshot = {
+          cloudActivation: activation,
+          cloudReadiness: activation.readiness,
+          pendingPayment: activation.pendingPayment,
+          paymentConfigs: activation.paymentConfigs.filter(
+            (item) => item.enabled,
+          ),
+          plans: activation.plans,
+          subscription:
+            activation.subscription ??
+            activation.creditsDashboard?.subscription ??
+            activation.billingDashboard?.subscription ??
+            null,
+          creditAccount:
+            activation.creditAccount ??
+            activation.creditsDashboard?.creditAccount ??
+            null,
+          creditsDashboard: activation.creditsDashboard,
+          topupPackages:
+            activation.topupPackages.length > 0
+              ? activation.topupPackages
+              : (activation.creditsDashboard?.topupPackages ?? []),
+          usageDashboard: activation.usageDashboard,
+          billingDashboard: activation.billingDashboard,
+          orders: activation.orders,
+          creditTopupOrders: activation.creditTopupOrders,
+          accessTokens: activation.accessTokens,
+          activeAccessToken: activation.activeAccessToken,
+        };
+
+        applyCommerceSnapshot(snapshot);
+        setOffers(activation.providerOffers);
+        setPreference(activation.providerPreference);
+        setSelectedOffer(activation.selectedOffer);
+        setSelectedModels(activation.providerModels);
+        setCommerceErrorMessage(null);
+        return snapshot;
+      } catch (error) {
+        const message = buildErrorMessage(error, "同步云端激活状态失败");
+        setCommerceErrorMessage(message);
+        applyCommerceSnapshot(currentSnapshot);
+        return currentSnapshot;
+      } finally {
+        setLoadingCommerce(false);
+      }
+    },
+    [
+      accessTokens,
+      activeAccessToken,
+      applyCommerceSnapshot,
+      billingDashboard,
+      cloudActivation,
+      cloudReadiness,
+      creditAccount,
+      creditTopupOrders,
+      creditsDashboard,
+      orders,
+      paymentConfigs,
+      pendingPayment,
+      plans,
+      subscription,
+      topupPackages,
+      usageDashboard,
+    ],
+  );
+
   const refreshAuthenticatedState = useCallback(
     async (tenantIdOverride?: string, fallbackToken?: string) => {
       const targetTenantId =
@@ -454,23 +585,32 @@ export function useOemCloudAccess() {
       }
 
       const nextBootstrap = await getClientBootstrap(targetTenantId);
-      const [nextOffers, nextPreference] = await Promise.all([
-        listClientProviderOffers(targetTenantId),
-        getClientProviderPreference(targetTenantId),
-      ]);
-      applyBootstrap(nextBootstrap, fallbackToken, nextOffers, nextPreference);
+      applyBootstrap(nextBootstrap, fallbackToken);
+      await loadCommerceState(targetTenantId);
       return nextBootstrap;
     },
-    [applyBootstrap, runtime, session?.tenant.id],
+    [applyBootstrap, loadCommerceState, runtime, session?.tenant.id],
   );
 
   const runtimeRef = useRef(runtime);
+  const sessionRef = useRef(session);
   const clearCloudStateRef = useRef(clearCloudState);
   const refreshAuthenticatedStateRef = useRef(refreshAuthenticatedState);
+  const paymentWatchRef = useRef<{
+    runId: number;
+    timer: number | null;
+  }>({
+    runId: 0,
+    timer: null,
+  });
 
   useEffect(() => {
     runtimeRef.current = runtime;
   }, [runtime]);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   useEffect(() => {
     clearCloudStateRef.current = clearCloudState;
@@ -479,6 +619,23 @@ export function useOemCloudAccess() {
   useEffect(() => {
     refreshAuthenticatedStateRef.current = refreshAuthenticatedState;
   }, [refreshAuthenticatedState]);
+
+  const cancelPaymentWatcher = useCallback((clearState = true) => {
+    paymentWatchRef.current.runId += 1;
+    if (paymentWatchRef.current.timer !== null) {
+      window.clearTimeout(paymentWatchRef.current.timer);
+      paymentWatchRef.current.timer = null;
+    }
+    if (clearState) {
+      setPaymentWatcher(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cancelPaymentWatcher(false);
+    };
+  }, [cancelPaymentWatcher]);
 
   useEffect(() => {
     let cancelled = false;
@@ -559,6 +716,7 @@ export function useOemCloudAccess() {
 
       if (snapshot) {
         applyBootstrap(snapshot, storedState.token);
+        void loadCommerceState(storedState.session.tenant.id);
         setInfoMessage(
           detail?.provider === "google"
             ? "Google 登录成功，已同步云端目录。"
@@ -605,7 +763,12 @@ export function useOemCloudAccess() {
         handleOauthCompleted,
       );
     };
-  }, [applyBootstrap, clearCloudState, refreshAuthenticatedState]);
+  }, [
+    applyBootstrap,
+    clearCloudState,
+    loadCommerceState,
+    refreshAuthenticatedState,
+  ]);
 
   const handleRefresh = useCallback(async () => {
     if (!runtime || !session?.tenant.id) {
@@ -618,6 +781,7 @@ export function useOemCloudAccess() {
       setInfoMessage("已同步最新云端会话、服务目录与服务技能快照。");
       setSelectedOffer(null);
       setSelectedModels([]);
+      setLastIssuedRawToken(null);
     } catch (error) {
       if (isAuthExpired(error)) {
         clearCloudState("云端会话已失效，请重新登录。");
@@ -628,6 +792,270 @@ export function useOemCloudAccess() {
       setRefreshing(false);
     }
   }, [clearCloudState, refreshAuthenticatedState, runtime, session]);
+
+  const startPaymentStatusWatcher = useCallback(
+    (target: {
+      kind: OemCloudPaymentWatchKind;
+      orderId: string;
+      title: string;
+    }) => {
+      if (
+        !session?.tenant.id ||
+        !target.orderId ||
+        typeof window === "undefined"
+      ) {
+        return;
+      }
+
+      cancelPaymentWatcher(false);
+
+      const tenantId = session.tenant.id;
+      const fallbackToken = session.token;
+      const runId = paymentWatchRef.current.runId + 1;
+      paymentWatchRef.current.runId = runId;
+      paymentWatchRef.current.timer = null;
+
+      const baseWatcher: OemCloudPaymentWatcher = {
+        kind: target.kind,
+        orderId: target.orderId,
+        title: target.title,
+        status: "waiting",
+        attempts: 0,
+        message: "已打开支付页，正在等待支付渠道回调。",
+      };
+      setPaymentWatcher(baseWatcher);
+
+      const schedule = (attempt: number) => {
+        if (paymentWatchRef.current.runId !== runId) {
+          return;
+        }
+
+        paymentWatchRef.current.timer = window.setTimeout(() => {
+          void tick(attempt);
+        }, PAYMENT_STATUS_WATCH_INTERVAL_MS);
+      };
+
+      const tick = async (attempt: number) => {
+        if (paymentWatchRef.current.runId !== runId) {
+          return;
+        }
+
+        setPaymentWatcher({
+          ...baseWatcher,
+          attempts: attempt,
+        });
+
+        try {
+          const order =
+            target.kind === "plan_order"
+              ? await getClientOrder(tenantId, target.orderId)
+              : await getClientCreditTopupOrder(tenantId, target.orderId);
+          const status = normalizePaymentStatus(order.status);
+          const title = resolveOrderTitle(target.kind, order) || target.title;
+
+          if (isPaidPaymentStatus(status)) {
+            await refreshAuthenticatedState(tenantId, fallbackToken);
+            if (paymentWatchRef.current.runId !== runId) {
+              return;
+            }
+            setPaymentWatcher({
+              ...baseWatcher,
+              title,
+              status: "confirmed",
+              attempts: attempt,
+              message:
+                target.kind === "plan_order"
+                  ? "支付已确认，套餐权益已同步到客户端。"
+                  : "支付已确认，Token 积分余额已同步到客户端。",
+            });
+            setInfoMessage(
+              target.kind === "plan_order"
+                ? "支付已确认，套餐权益已同步，可以继续使用云端模型。"
+                : "支付已确认，Token 积分余额已同步。",
+            );
+            return;
+          }
+
+          if (isTerminalUnpaidPaymentStatus(status)) {
+            await refreshAuthenticatedState(tenantId, fallbackToken);
+            if (paymentWatchRef.current.runId !== runId) {
+              return;
+            }
+            setPaymentWatcher({
+              ...baseWatcher,
+              title,
+              status: "stopped",
+              attempts: attempt,
+              message: "支付渠道返回未完成终态，请重新发起支付或刷新状态。",
+            });
+            setErrorMessage("支付未完成，请重新发起支付或刷新云端状态。");
+            return;
+          }
+
+          if (attempt >= PAYMENT_STATUS_WATCH_MAX_ATTEMPTS) {
+            await refreshAuthenticatedState(tenantId, fallbackToken);
+            if (paymentWatchRef.current.runId !== runId) {
+              return;
+            }
+            setPaymentWatcher({
+              ...baseWatcher,
+              title,
+              status: "stopped",
+              attempts: attempt,
+              message: "仍未收到支付回调，请稍后手动刷新云端状态。",
+            });
+            setInfoMessage("仍在等待支付渠道回调，请稍后点击“刷新云端状态”。");
+            return;
+          }
+
+          schedule(attempt + 1);
+        } catch (error) {
+          if (paymentWatchRef.current.runId !== runId) {
+            return;
+          }
+
+          if (isAuthExpired(error)) {
+            clearCloudState("云端会话已失效，请重新登录。");
+            return;
+          }
+
+          if (attempt >= PAYMENT_STATUS_WATCH_MAX_ATTEMPTS) {
+            setPaymentWatcher({
+              ...baseWatcher,
+              status: "stopped",
+              attempts: attempt,
+              message: buildErrorMessage(error, "确认支付结果失败"),
+            });
+            return;
+          }
+
+          schedule(attempt + 1);
+        }
+      };
+
+      schedule(1);
+    },
+    [
+      cancelPaymentWatcher,
+      clearCloudState,
+      refreshAuthenticatedState,
+      session?.tenant.id,
+      session?.token,
+    ],
+  );
+  const startPaymentStatusWatcherRef = useRef(startPaymentStatusWatcher);
+
+  useEffect(() => {
+    startPaymentStatusWatcherRef.current = startPaymentStatusWatcher;
+  }, [startPaymentStatusWatcher]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return () => undefined;
+    }
+
+    let cancelled = false;
+
+    const handlePaymentReturn = async (
+      detail: OemCloudPaymentReturnDetail,
+    ) => {
+      const currentSession = sessionRef.current;
+      if (cancelled || !currentSession?.tenant.id) {
+        return;
+      }
+
+      if (
+        detail.tenantId &&
+        detail.tenantId !== currentSession.tenant.id
+      ) {
+        return;
+      }
+
+      clearStoredOemCloudPaymentReturn(detail.sourceUrl);
+      setInfoMessage("已回到 Lime，正在同步支付状态、权益与账本。");
+      setErrorMessage(null);
+
+      try {
+        await refreshAuthenticatedStateRef.current(
+          currentSession.tenant.id,
+          currentSession.token,
+        );
+        if (cancelled) {
+          return;
+        }
+
+        const kind = normalizePaymentWatchKind(detail.kind);
+        if (!kind || !detail.orderId) {
+          setInfoMessage("已同步最新云端权益、积分余额与账本状态。");
+          return;
+        }
+
+        if (isTerminalUnpaidPaymentStatus(detail.status)) {
+          cancelPaymentWatcher(false);
+          setPaymentWatcher({
+            kind,
+            orderId: detail.orderId,
+            title: resolvePaymentReturnTitle(kind),
+            status: "stopped",
+            attempts: 0,
+            message: "支付页已返回未完成状态，请重新发起支付或刷新云端状态。",
+          });
+          setInfoMessage("支付页已返回未完成状态，云端状态已同步。");
+          return;
+        }
+
+        startPaymentStatusWatcherRef.current({
+          kind,
+          orderId: detail.orderId,
+          title: resolvePaymentReturnTitle(kind),
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        if (isAuthExpired(error)) {
+          clearCloudStateRef.current("云端会话已失效，请重新登录。");
+          return;
+        }
+        setErrorMessage(buildErrorMessage(error, "同步支付回跳结果失败"));
+      }
+    };
+
+    const handlePaymentReturnEvent = (event: Event) => {
+      const detail =
+        event instanceof CustomEvent
+          ? (event.detail as OemCloudPaymentReturnDetail)
+          : null;
+      if (!detail) {
+        return;
+      }
+      void handlePaymentReturn(detail);
+    };
+
+    window.addEventListener(
+      OEM_CLOUD_PAYMENT_RETURN_EVENT,
+      handlePaymentReturnEvent,
+    );
+
+    const pendingReturn = session?.tenant.id
+      ? consumeStoredOemCloudPaymentReturn(session.tenant.id)
+      : null;
+    if (pendingReturn) {
+      void handlePaymentReturn(pendingReturn);
+    }
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(
+        OEM_CLOUD_PAYMENT_RETURN_EVENT,
+        handlePaymentReturnEvent,
+      );
+    };
+  }, [
+    cancelPaymentWatcher,
+    session?.tenant.id,
+  ]);
 
   const handleSendEmailCode = useCallback(async () => {
     if (!runtime) {
@@ -895,6 +1323,239 @@ export function useOemCloudAccess() {
     [clearCloudState, refreshAuthenticatedState, session],
   );
 
+  const handlePurchasePlan = useCallback(
+    async (payload: CreateClientOrderPayload) => {
+      if (!runtime || !session?.tenant.id) {
+        return;
+      }
+
+      setOrderingPlanId(payload.planId);
+      setErrorMessage(null);
+      setInfoMessage(null);
+      try {
+        const order = await createClientOrder(session.tenant.id, payload);
+        const successUrl = buildOemCloudPaymentReturnBridgeUrl({
+          controlPlaneBaseUrl: runtime.controlPlaneBaseUrl,
+          tenantId: session.tenant.id,
+          provider: payload.paymentChannel,
+          orderId: order.id,
+          kind: "plan_order",
+          status: "success",
+        });
+        const cancelUrl = buildOemCloudPaymentReturnBridgeUrl({
+          controlPlaneBaseUrl: runtime.controlPlaneBaseUrl,
+          tenantId: session.tenant.id,
+          provider: payload.paymentChannel,
+          orderId: order.id,
+          kind: "plan_order",
+          status: "cancelled",
+        });
+        const checkout = await createClientOrderCheckout(
+          session.tenant.id,
+          order.id,
+          {
+            paymentMethod: payload.paymentMethod,
+            successUrl,
+            cancelUrl,
+          },
+        );
+        const openedPayment = await openPaymentReferenceIfUrl(
+          checkout.checkoutUrl || checkout.paymentReference,
+        );
+        await refreshAuthenticatedState(session.tenant.id, session.token);
+        startPaymentStatusWatcher({
+          kind: "plan_order",
+          orderId: order.id,
+          title: order.planName || "套餐订单",
+        });
+        setInfoMessage(
+          openedPayment
+            ? "已创建套餐订单并打开真实支付页，Lime 会等待支付回调并自动同步权益。"
+            : "已创建套餐订单，但支付渠道没有返回可打开的 checkoutUrl；Lime 会继续等待服务端回调。",
+        );
+      } catch (error) {
+        if (isAuthExpired(error)) {
+          clearCloudState("云端会话已失效，请重新登录。");
+          return;
+        }
+        setErrorMessage(buildErrorMessage(error, "购买套餐失败"));
+      } finally {
+        setOrderingPlanId("");
+      }
+    },
+    [
+      clearCloudState,
+      refreshAuthenticatedState,
+      runtime,
+      session,
+      startPaymentStatusWatcher,
+    ],
+  );
+
+  const handleTopupCredits = useCallback(
+    async (payload: CreateClientCreditTopupOrderPayload) => {
+      if (!runtime || !session?.tenant.id) {
+        return;
+      }
+
+      setCreatingTopupPackageId(payload.packageId || "custom");
+      setErrorMessage(null);
+      setInfoMessage(null);
+      try {
+        const order = await createClientCreditTopupOrder(
+          session.tenant.id,
+          payload,
+        );
+        const successUrl = buildOemCloudPaymentReturnBridgeUrl({
+          controlPlaneBaseUrl: runtime.controlPlaneBaseUrl,
+          tenantId: session.tenant.id,
+          provider: payload.paymentChannel,
+          orderId: order.id,
+          kind: "credit_topup_order",
+          status: "success",
+        });
+        const cancelUrl = buildOemCloudPaymentReturnBridgeUrl({
+          controlPlaneBaseUrl: runtime.controlPlaneBaseUrl,
+          tenantId: session.tenant.id,
+          provider: payload.paymentChannel,
+          orderId: order.id,
+          kind: "credit_topup_order",
+          status: "cancelled",
+        });
+        const checkout = await createClientCreditTopupOrderCheckout(
+          session.tenant.id,
+          order.id,
+          {
+            paymentMethod: payload.paymentMethod,
+            successUrl,
+            cancelUrl,
+          },
+        );
+        const openedPayment = await openPaymentReferenceIfUrl(
+          checkout.checkoutUrl || checkout.paymentReference,
+        );
+        await refreshAuthenticatedState(session.tenant.id, session.token);
+        startPaymentStatusWatcher({
+          kind: "credit_topup_order",
+          orderId: order.id,
+          title: order.packageName || "充值订单",
+        });
+        setInfoMessage(
+          openedPayment
+            ? "已创建充值订单并打开真实支付页，Lime 会等待支付回调并自动同步余额。"
+            : "已创建充值订单，但支付渠道没有返回可打开的 checkoutUrl；Lime 会继续等待服务端回调。",
+        );
+      } catch (error) {
+        if (isAuthExpired(error)) {
+          clearCloudState("云端会话已失效，请重新登录。");
+          return;
+        }
+        setErrorMessage(buildErrorMessage(error, "充值积分失败"));
+      } finally {
+        setCreatingTopupPackageId("");
+      }
+    },
+    [
+      clearCloudState,
+      refreshAuthenticatedState,
+      runtime,
+      session,
+      startPaymentStatusWatcher,
+    ],
+  );
+
+  const handleCreateAccessToken = useCallback(
+    async (payload?: Partial<CreateClientAccessTokenPayload>) => {
+      if (!session?.tenant.id) {
+        return;
+      }
+
+      setManagingToken("create");
+      setErrorMessage(null);
+      setInfoMessage(null);
+      try {
+        const response = await createClientAccessToken(session.tenant.id, {
+          name: payload?.name?.trim() || "Lime Desktop API Key",
+          scopes: payload?.scopes ?? ["llm:invoke"],
+          allowedModels: payload?.allowedModels,
+          maxTokensPerRequest: payload?.maxTokensPerRequest,
+          requestsPerMinute: payload?.requestsPerMinute,
+          tokensPerMinute: payload?.tokensPerMinute,
+          monthlyCreditLimit: payload?.monthlyCreditLimit,
+        });
+        setLastIssuedRawToken(response.apiKey || response.rawToken || null);
+        await loadCommerceState(session.tenant.id);
+        setInfoMessage("已创建 Lime API Key，明文只会在当前页面显示一次。");
+      } catch (error) {
+        if (isAuthExpired(error)) {
+          clearCloudState("云端会话已失效，请重新登录。");
+          return;
+        }
+        setErrorMessage(buildErrorMessage(error, "创建 API Key 失败"));
+      } finally {
+        setManagingToken("");
+      }
+    },
+    [clearCloudState, loadCommerceState, session?.tenant.id],
+  );
+
+  const handleRotateAccessToken = useCallback(
+    async (tokenId: string) => {
+      if (!session?.tenant.id) {
+        return;
+      }
+
+      setManagingToken(tokenId);
+      setErrorMessage(null);
+      setInfoMessage(null);
+      try {
+        const response = await rotateClientAccessToken(
+          session.tenant.id,
+          tokenId,
+        );
+        setLastIssuedRawToken(response.apiKey || response.rawToken || null);
+        await loadCommerceState(session.tenant.id);
+        setInfoMessage("已轮换 Lime API Key，旧 Key 已撤销。");
+      } catch (error) {
+        if (isAuthExpired(error)) {
+          clearCloudState("云端会话已失效，请重新登录。");
+          return;
+        }
+        setErrorMessage(buildErrorMessage(error, "轮换 API Key 失败"));
+      } finally {
+        setManagingToken("");
+      }
+    },
+    [clearCloudState, loadCommerceState, session?.tenant.id],
+  );
+
+  const handleRevokeAccessToken = useCallback(
+    async (tokenId: string) => {
+      if (!session?.tenant.id) {
+        return;
+      }
+
+      setManagingToken(tokenId);
+      setErrorMessage(null);
+      setInfoMessage(null);
+      try {
+        await revokeClientAccessToken(session.tenant.id, tokenId);
+        setLastIssuedRawToken(null);
+        await loadCommerceState(session.tenant.id);
+        setInfoMessage("已撤销 Lime API Key。");
+      } catch (error) {
+        if (isAuthExpired(error)) {
+          clearCloudState("云端会话已失效，请重新登录。");
+          return;
+        }
+        setErrorMessage(buildErrorMessage(error, "撤销 API Key 失败"));
+      } finally {
+        setManagingToken("");
+      }
+    },
+    [clearCloudState, loadCommerceState, session?.tenant.id],
+  );
+
   const openUserCenter = useCallback(
     async (path = "") => {
       if (!configuredTarget) {
@@ -1012,18 +1673,40 @@ export function useOemCloudAccess() {
     bootstrap,
     offers,
     preference,
+    cloudActivation,
+    cloudReadiness,
+    pendingPayment,
+    paymentConfigs,
+    plans,
+    subscription,
+    creditAccount,
+    creditsDashboard,
+    topupPackages,
+    usageDashboard,
+    billingDashboard,
+    orders,
+    creditTopupOrders,
+    accessTokens,
+    activeAccessToken,
+    lastIssuedRawToken,
+    paymentWatcher,
+    commerceErrorMessage,
     defaultCloudOffer,
     activeCloudOffer,
     selectedOffer,
     selectedModels,
     initializing,
     refreshing,
+    loadingCommerce,
     sendingCode,
     loggingIn,
     loggingOut,
     openingGoogleLogin,
     loadingDetail,
     savingDefault,
+    orderingPlanId,
+    creatingTopupPackageId,
+    managingToken,
     errorMessage,
     setErrorMessage,
     infoMessage,
@@ -1044,6 +1727,12 @@ export function useOemCloudAccess() {
     handleLogout,
     openOfferDetail,
     handleSetDefault,
+    handlePurchasePlan,
+    handleTopupCredits,
+    handleCreateAccessToken,
+    handleRotateAccessToken,
+    handleRevokeAccessToken,
+    handleDismissIssuedToken: () => setLastIssuedRawToken(null),
     openUserCenter,
   };
 }

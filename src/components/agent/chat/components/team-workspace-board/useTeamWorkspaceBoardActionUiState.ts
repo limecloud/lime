@@ -8,9 +8,7 @@ export type TeamWorkspacePendingSessionAction =
   | "send"
   | "wait";
 
-export type TeamWorkspacePendingTeamAction =
-  | "close_completed"
-  | "wait_any";
+export type TeamWorkspacePendingTeamAction = "close_completed" | "wait_any";
 
 interface UseTeamWorkspaceBoardActionUiStateParams {
   selectedSession?: Pick<TeamSessionCard, "id"> | null;

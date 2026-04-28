@@ -469,11 +469,14 @@ describe("SkillsWorkspacePage", () => {
   it("应在我的方法首屏显式展示创作场景迁移入口", () => {
     const { container } = renderPage();
 
+    expect(container.querySelector(".lime-workbench-theme-scope")).toBeTruthy();
+
     const banner = container.querySelector(
       '[data-testid="skills-workspace-sceneapps-migration-banner"]',
     ) as HTMLDivElement | null;
 
     expect(banner).toBeTruthy();
+    expect(banner?.className).toContain("var(--lime-info-soft)");
     expect(banner?.textContent).toContain("完整做法都在这里");
     expect(banner?.textContent).toContain("查看全部做法");
   });

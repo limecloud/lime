@@ -11,9 +11,7 @@ import {
   GeneralWorkbenchInputOverlay,
   GeneralWorkbenchLayoutShell,
 } from "./WorkspaceStyles";
-import {
-  TASK_CENTER_CHROME_RAIL,
-} from "./taskCenterChromeTokens";
+import { TASK_CENTER_CHROME_RAIL_SURFACE } from "./taskCenterChromeTokens";
 
 interface WorkspaceMainAreaProps {
   compactChrome: boolean;
@@ -61,16 +59,18 @@ export function WorkspaceMainArea({
       ? "canvas"
       : layoutMode;
   const shouldAutoHideNavbar =
-    autoHideTaskCenterNavbar && Boolean(navbarNode) && Boolean(taskCenterTabsNode);
+    autoHideTaskCenterNavbar &&
+    Boolean(navbarNode) &&
+    Boolean(taskCenterTabsNode);
   const isAutoHideNavbarVisible = shouldAutoHideNavbar && navbarOpen;
   const shouldRenderRevealHandle =
     shouldAutoHideNavbar && !isAutoHideNavbarVisible;
   const taskCenterChromeNode =
     !shouldAutoHideNavbar && taskCenterTabsNode ? (
       <div
-        className="relative z-20 shrink-0 overflow-visible dark:bg-slate-900"
+        className="relative z-20 shrink-0 overflow-visible bg-[color:var(--lime-chrome-rail)] dark:bg-slate-900"
         data-testid="task-center-chrome-shell"
-        style={{ backgroundColor: TASK_CENTER_CHROME_RAIL }}
+        style={{ background: TASK_CENTER_CHROME_RAIL_SURFACE }}
       >
         {navbarNode}
         {taskCenterTabsNode}
@@ -78,7 +78,10 @@ export function WorkspaceMainArea({
     ) : null;
 
   return (
-    <MainArea $compact={compactChrome} $taskCenterSurface={Boolean(taskCenterChromeNode)}>
+    <MainArea
+      $compact={compactChrome}
+      $taskCenterSurface={Boolean(taskCenterChromeNode)}
+    >
       {shouldAutoHideNavbar ? (
         <AutoHideNavbarBackdrop
           type="button"

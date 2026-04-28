@@ -211,7 +211,10 @@ describe("agentChatHistory", () => {
           role: "assistant",
           timestamp: 1710000302,
           content: [
-            { type: "output_text", text: "## 阶段结论\n\n已经找到关键线索。" } as never,
+            {
+              type: "output_text",
+              text: "## 阶段结论\n\n已经找到关键线索。",
+            } as never,
           ],
           usage: {
             input_tokens: 38483,
@@ -547,7 +550,7 @@ describe("agentChatHistory", () => {
             toolCall: {
               id: "tool-site-1",
               name: "site_run_adapter",
-              arguments: "{\"url\":\"https://x.com/example/article/1\"}",
+              arguments: '{"url":"https://x.com/example/article/1"}',
               status: "completed" as const,
               startTime: now,
               endTime: now,
@@ -566,7 +569,7 @@ describe("agentChatHistory", () => {
           {
             id: "tool-site-1",
             name: "site_run_adapter",
-            arguments: "{\"url\":\"https://x.com/example/article/1\"}",
+            arguments: '{"url":"https://x.com/example/article/1"}',
             status: "completed" as const,
             startTime: now,
             endTime: now,
@@ -636,7 +639,7 @@ describe("agentChatHistory", () => {
             toolCall: {
               id: "tool-site-2",
               name: "site_run_adapter",
-              arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+              arguments: '{"url":"https://x.com/example/article/2"}',
               status: "completed" as const,
               startTime: new Date("2026-04-08T10:00:01.000Z"),
               endTime: new Date("2026-04-08T10:00:02.000Z"),
@@ -655,7 +658,7 @@ describe("agentChatHistory", () => {
           {
             id: "tool-site-2",
             name: "site_run_adapter",
-            arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+            arguments: '{"url":"https://x.com/example/article/2"}',
             status: "completed" as const,
             startTime: new Date("2026-04-08T10:00:01.000Z"),
             endTime: new Date("2026-04-08T10:00:02.000Z"),
@@ -710,7 +713,7 @@ describe("agentChatHistory", () => {
             toolCall: {
               id: "tool-site-early",
               name: "site_run_adapter",
-              arguments: "{\"url\":\"https://x.com/example/article/early\"}",
+              arguments: '{"url":"https://x.com/example/article/early"}',
               status: "completed" as const,
               startTime: new Date("2026-04-08T10:00:00.100Z"),
               endTime: new Date("2026-04-08T10:00:00.500Z"),
@@ -725,7 +728,7 @@ describe("agentChatHistory", () => {
           {
             id: "tool-site-early",
             name: "site_run_adapter",
-            arguments: "{\"url\":\"https://x.com/example/article/early\"}",
+            arguments: '{"url":"https://x.com/example/article/early"}',
             status: "completed" as const,
             startTime: new Date("2026-04-08T10:00:00.100Z"),
             endTime: new Date("2026-04-08T10:00:00.500Z"),

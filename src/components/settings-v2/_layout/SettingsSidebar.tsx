@@ -18,7 +18,11 @@ const SidebarContainer = styled.aside`
   width: 240px;
   min-width: 240px;
   height: 100%;
-  background: hsl(var(--card));
+  border-right: 1px solid var(--lime-sidebar-border, hsl(var(--border)));
+  background: var(
+    --lime-sidebar-surface,
+    var(--lime-surface-subtle, hsl(var(--card)))
+  );
   overflow-y: auto;
   padding: 16px 8px;
 
@@ -31,7 +35,7 @@ const SidebarContainer = styled.aside`
   }
 
   &::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
+    background: var(--lime-sidebar-border, hsl(var(--border)));
     border-radius: 2px;
   }
 
@@ -41,7 +45,7 @@ const SidebarContainer = styled.aside`
     height: auto;
     max-height: min(40vh, 360px);
     border-right: none;
-    border-bottom: 1px solid hsl(var(--border));
+    border-bottom: 1px solid var(--lime-sidebar-border, hsl(var(--border)));
     padding: 12px;
   }
 
@@ -66,7 +70,7 @@ const GroupHeader = styled.button<{ $expanded: boolean }>`
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  color: hsl(var(--muted-foreground));
+  color: var(--lime-text-muted, hsl(var(--muted-foreground)));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 
@@ -78,7 +82,7 @@ const GroupHeader = styled.button<{ $expanded: boolean }>`
   }
 
   &:hover {
-    color: hsl(var(--foreground));
+    color: var(--lime-text-strong, hsl(var(--foreground)));
   }
 `;
 
@@ -98,17 +102,19 @@ const NavItem = styled.button<{ $active: boolean }>`
   border: none;
   border-radius: 8px;
   background: ${({ $active }) =>
-    $active ? "hsl(var(--accent))" : "transparent"};
+    $active ? "var(--lime-sidebar-active, hsl(var(--accent)))" : "transparent"};
   cursor: pointer;
   font-size: 14px;
   color: ${({ $active }) =>
-    $active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"};
+    $active
+      ? "var(--lime-sidebar-active-text, var(--lime-text-strong, hsl(var(--foreground))))"
+      : "var(--lime-text-muted, hsl(var(--muted-foreground)))"};
   transition: all 0.15s;
   text-align: left;
 
   &:hover {
-    background: hsl(var(--accent));
-    color: hsl(var(--foreground));
+    background: var(--lime-sidebar-hover, hsl(var(--accent)));
+    color: var(--lime-text-strong, hsl(var(--foreground)));
   }
 
   svg {
@@ -128,8 +134,9 @@ const ItemLabel = styled.span`
 const ExperimentalBadge = styled.span`
   font-size: 10px;
   padding: 2px 6px;
-  background: hsl(var(--destructive) / 0.1);
-  color: hsl(var(--destructive));
+  border: 1px solid var(--lime-warning-border, hsl(var(--destructive) / 0.16));
+  background: var(--lime-warning-soft, hsl(var(--destructive) / 0.1));
+  color: var(--lime-warning, hsl(var(--destructive)));
   border-radius: 4px;
   flex-shrink: 0;
 `;
@@ -166,7 +173,7 @@ export function SettingsSidebar({
   };
 
   return (
-    <SidebarContainer>
+    <SidebarContainer data-testid="settings-sidebar">
       {categoryGroups.map((group) => (
         <GroupContainer key={group.key}>
           <GroupHeader
@@ -181,6 +188,7 @@ export function SettingsSidebar({
               <NavItem
                 key={item.key}
                 $active={activeTab === item.key}
+                data-active={String(activeTab === item.key)}
                 onMouseEnter={() => onTabPrefetch?.(item.key)}
                 onMouseDown={() => onTabPrefetch?.(item.key)}
                 onFocus={() => onTabPrefetch?.(item.key)}

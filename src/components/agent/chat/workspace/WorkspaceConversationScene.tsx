@@ -352,7 +352,19 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   >["onOpenSceneAppsDirectory"];
   projectId: string | null;
   sessionId?: ComponentProps<typeof EmptyState>["sessionId"];
-  onProjectChange?: ComponentProps<typeof EmptyState>["onProjectChange"];
+  onProjectChange?: ComponentProps<typeof ChatNavbar>["onProjectChange"];
+  deferWorkspaceListLoad?: ComponentProps<
+    typeof ChatNavbar
+  >["deferWorkspaceListLoad"];
+  workspaceHintMessage?: ComponentProps<
+    typeof ChatNavbar
+  >["workspaceHintMessage"];
+  workspaceHintVisible?: ComponentProps<
+    typeof ChatNavbar
+  >["workspaceHintVisible"];
+  onDismissWorkspaceHint?: ComponentProps<
+    typeof ChatNavbar
+  >["onDismissWorkspaceHint"];
   onOpenSettings?: () => void;
   runtimeToolAvailability?: ComponentProps<
     typeof EmptyState
@@ -485,6 +497,10 @@ export function WorkspaceConversationScene({
   projectId,
   sessionId,
   onProjectChange,
+  deferWorkspaceListLoad,
+  workspaceHintMessage,
+  workspaceHintVisible,
+  onDismissWorkspaceHint,
   onOpenSettings,
   runtimeToolAvailability,
   runtimeTaskCard,
@@ -584,8 +600,6 @@ export function WorkspaceConversationScene({
     onOpenSceneAppsDirectory,
     projectId,
     sessionId,
-    onProjectChange,
-    onOpenSettings,
     runtimeToolAvailability,
     runtimeTaskCard,
     onOpenMemoryWorkbench,
@@ -637,6 +651,10 @@ export function WorkspaceConversationScene({
     onToggleCanvas,
     projectId,
     onProjectChange,
+    deferWorkspaceListLoad,
+    workspaceHintMessage,
+    workspaceHintVisible,
+    onDismissWorkspaceHint,
     workspaceType: activeTheme,
     onBackHome,
     showHarnessToggle,

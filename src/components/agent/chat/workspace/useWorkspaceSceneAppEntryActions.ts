@@ -4,6 +4,7 @@ import {
   listSceneAppCatalog,
   type SceneAppCatalog,
 } from "@/lib/api/sceneapp";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import {
   buildSceneAppEntryCard,
   FEATURED_SCENEAPP_IDS,
@@ -25,7 +26,11 @@ interface UseWorkspaceSceneAppEntryActionsParams {
   selectedText?: string;
   defaultToolPreferences: ChatToolPreferences;
   onNavigate?: (page: Page, params?: PageParams) => void;
+  catalogLoadMode?: "immediate" | "deferred";
+  catalogDeferredDelayMs?: number;
 }
+
+const SCENEAPP_CATALOG_IDLE_TIMEOUT_MS = 1_500;
 
 export function useWorkspaceSceneAppEntryActions({
   activeTheme,
@@ -35,6 +40,8 @@ export function useWorkspaceSceneAppEntryActions({
   selectedText,
   defaultToolPreferences,
   onNavigate,
+  catalogLoadMode = "immediate",
+  catalogDeferredDelayMs,
 }: UseWorkspaceSceneAppEntryActionsParams) {
   const [catalog, setCatalog] = useState<SceneAppCatalog | null>(null);
   const [sceneAppsLoading, setSceneAppsLoading] = useState(false);
@@ -54,39 +61,59 @@ export function useWorkspaceSceneAppEntryActions({
     }
 
     let cancelled = false;
-    setSceneAppsLoading(true);
+    const loadCatalog = () => {
+      if (cancelled) {
+        return;
+      }
 
-    void listSceneAppCatalog()
-      .then((nextCatalog) => {
-        if (cancelled) {
-          return;
-        }
-        setCatalog(nextCatalog);
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
+      setSceneAppsLoading(true);
+      void listSceneAppCatalog()
+        .then((nextCatalog) => {
+          if (cancelled) {
+            return;
+          }
+          setCatalog(nextCatalog);
+        })
+        .catch((error) => {
+          if (cancelled) {
+            return;
+          }
 
-        const storedCatalog = readStoredSceneAppCatalog();
-        if (storedCatalog) {
-          setCatalog(storedCatalog);
-          return;
-        }
+          const storedCatalog = readStoredSceneAppCatalog();
+          if (storedCatalog) {
+            setCatalog(storedCatalog);
+            return;
+          }
 
-        console.warn("[SceneApp] 加载目录失败:", error);
-        setCatalog(null);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setSceneAppsLoading(false);
-        }
-      });
+          console.warn("[SceneApp] 加载目录失败:", error);
+          setCatalog(null);
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setSceneAppsLoading(false);
+          }
+        });
+    };
+
+    const cancelDeferredLoad =
+      catalogLoadMode === "deferred"
+        ? scheduleMinimumDelayIdleTask(loadCatalog, {
+            minimumDelayMs: catalogDeferredDelayMs,
+            idleTimeoutMs: SCENEAPP_CATALOG_IDLE_TIMEOUT_MS,
+          })
+        : null;
+
+    if (!cancelDeferredLoad) {
+      loadCatalog();
+    } else {
+      setSceneAppsLoading(false);
+    }
 
     return () => {
       cancelled = true;
+      cancelDeferredLoad?.();
     };
-  }, [activeTheme]);
+  }, [activeTheme, catalogDeferredDelayMs, catalogLoadMode]);
 
   const descriptorMap = useMemo(
     () =>

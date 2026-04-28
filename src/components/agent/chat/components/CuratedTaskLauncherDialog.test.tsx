@@ -115,6 +115,50 @@ describe("CuratedTaskLauncherDialog", () => {
     );
   });
 
+  it("共享启动弹层应接入工作台主题变量，而不是固定白绿底色", async () => {
+    const task = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(task).not.toBeNull();
+
+    await act(async () => {
+      root.render(
+        <CuratedTaskLauncherDialog
+          open
+          task={task}
+          onOpenChange={() => undefined}
+          onConfirm={() => undefined}
+        />,
+      );
+    });
+
+    const dialog = document.body.querySelector('[role="dialog"]');
+    expect(dialog?.className).toContain("lime-workbench-theme-scope");
+    expect(dialog?.className).toContain("lime-workbench-surface-scope");
+    expect(dialog?.className).toContain("bg-[color:var(--lime-surface)]");
+    expect(dialog?.className).toContain(
+      "border-[color:var(--lime-surface-border)]",
+    );
+
+    const header = Array.from(dialog?.querySelectorAll("div") ?? []).find(
+      (element) =>
+        (element as HTMLElement).className.includes(
+          "bg-[image:var(--lime-card-subtle)]",
+        ),
+    ) as HTMLElement | undefined;
+    expect(header?.className).toContain(
+      "border-[color:var(--lime-surface-border)]",
+    );
+
+    const confirmButton = document.body.querySelector(
+      '[data-testid="curated-task-launcher-confirm"]',
+    ) as HTMLButtonElement | null;
+    expect(confirmButton?.className).toContain(
+      "bg-[color:var(--lime-brand-strong)]",
+    );
+    expect(confirmButton?.className).toContain(
+      "hover:bg-[color:var(--lime-brand)]",
+    );
+  });
+
   it("应把参考对象来源收成轻量元信息，而不是标签墙", async () => {
     const task = findCuratedTaskTemplateById("account-project-review");
     expect(task).not.toBeNull();
@@ -180,7 +224,8 @@ describe("CuratedTaskLauncherDialog", () => {
       {
         session_id: "session-review-needs-evidence",
         decision_status: "needs_more_evidence",
-        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        decision_summary:
+          "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
         chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
         risk_level: "medium",
         risk_tags: ["证据不足", "需要复盘"],
@@ -208,7 +253,9 @@ describe("CuratedTaskLauncherDialog", () => {
       '[data-testid="curated-task-launcher-review-feedback-banner"]',
     );
     expect(banner?.textContent).toContain("围绕最近判断");
-    expect(banner?.textContent).toContain("最近判断已更新：短视频编排 · 补证据");
+    expect(banner?.textContent).toContain(
+      "最近判断已更新：短视频编排 · 补证据",
+    );
     expect(banner?.textContent).toContain("这轮结果还缺证据");
   });
 
@@ -221,7 +268,8 @@ describe("CuratedTaskLauncherDialog", () => {
       {
         session_id: "session-review-switch",
         decision_status: "needs_more_evidence",
-        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        decision_summary:
+          "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
         chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
         risk_level: "medium",
         risk_tags: ["证据不足", "需要复盘"],
@@ -239,9 +287,7 @@ describe("CuratedTaskLauncherDialog", () => {
           open
           task={task}
           projectId="project-review-switch"
-          initialReferenceEntries={[
-            buildExperienceMemoryReferenceEntry(),
-          ]}
+          initialReferenceEntries={[buildExperienceMemoryReferenceEntry()]}
           onOpenChange={() => undefined}
           onApplyReviewSuggestion={onApplyReviewSuggestion}
           onConfirm={() => undefined}
@@ -257,8 +303,12 @@ describe("CuratedTaskLauncherDialog", () => {
       '[data-testid="curated-task-launcher-review-feedback-banner-action"]',
     ) as HTMLButtonElement | null;
 
-    expect(banner?.textContent).toContain("最近判断已更新：短视频编排 · 补证据");
-    expect(banner?.textContent).toContain("这轮判断更建议优先回到「复盘这个账号/项目」");
+    expect(banner?.textContent).toContain(
+      "最近判断已更新：短视频编排 · 补证据",
+    );
+    expect(banner?.textContent).toContain(
+      "这轮判断更建议优先回到「复盘这个账号/项目」",
+    );
     expect(actionButton?.textContent).toContain("改用「复盘这个账号/项目」");
 
     await act(async () => {
@@ -384,7 +434,9 @@ describe("CuratedTaskLauncherDialog", () => {
         <CuratedTaskLauncherDialog
           open
           task={task}
-          initialReferenceEntries={memoryReferenceEntry ? [memoryReferenceEntry] : []}
+          initialReferenceEntries={
+            memoryReferenceEntry ? [memoryReferenceEntry] : []
+          }
           onOpenChange={() => undefined}
           onConfirm={() => undefined}
         />,
@@ -396,10 +448,10 @@ describe("CuratedTaskLauncherDialog", () => {
       '[data-testid="curated-task-launcher-sceneapp-baseline-card"]',
     );
     const themeField = document.body.querySelector(
-      '#curated-task-daily-trend-briefing-theme_target',
+      "#curated-task-daily-trend-briefing-theme_target",
     ) as HTMLInputElement | null;
     const platformField = document.body.querySelector(
-      '#curated-task-daily-trend-briefing-platform_region',
+      "#curated-task-daily-trend-briefing-platform_region",
     ) as HTMLInputElement | null;
 
     expect(baselineCard?.textContent).toContain("当前结果基线");
@@ -424,7 +476,9 @@ describe("CuratedTaskLauncherDialog", () => {
         <CuratedTaskLauncherDialog
           open
           task={task}
-          initialReferenceEntries={memoryReferenceEntry ? [memoryReferenceEntry] : []}
+          initialReferenceEntries={
+            memoryReferenceEntry ? [memoryReferenceEntry] : []
+          }
           onOpenChange={() => undefined}
           onConfirm={() => undefined}
         />,
@@ -433,10 +487,10 @@ describe("CuratedTaskLauncherDialog", () => {
     });
 
     const subjectField = document.body.querySelector(
-      '#curated-task-social-post-starter-subject_or_product',
+      "#curated-task-social-post-starter-subject_or_product",
     ) as HTMLTextAreaElement | null;
     const audienceField = document.body.querySelector(
-      '#curated-task-social-post-starter-target_audience',
+      "#curated-task-social-post-starter-target_audience",
     ) as HTMLInputElement | null;
 
     expect(subjectField?.value).toContain("当前主题：短视频编排");
@@ -538,7 +592,8 @@ describe("CuratedTaskLauncherDialog", () => {
               taskPrefillByTaskId: {
                 "account-project-review": {
                   project_goal: "AI 内容周报",
-                  existing_results: "当前已有一轮项目结果，可直接作为复盘基线。",
+                  existing_results:
+                    "当前已有一轮项目结果，可直接作为复盘基线。",
                 },
               },
             },
@@ -574,9 +629,7 @@ describe("CuratedTaskLauncherDialog", () => {
     expect(confirmButton?.getAttribute("disabled")).toBeNull();
 
     await act(async () => {
-      confirmButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
+      confirmButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 
@@ -709,7 +762,8 @@ describe("CuratedTaskLauncherDialog", () => {
               taskPrefillByTaskId: {
                 "account-project-review": {
                   project_goal: "AI 内容周报",
-                  existing_results: "当前已有一轮项目结果，可直接作为复盘基线。",
+                  existing_results:
+                    "当前已有一轮项目结果，可直接作为复盘基线。",
                 },
               },
             },
@@ -756,9 +810,7 @@ describe("CuratedTaskLauncherDialog", () => {
     expect(confirmButton).toBeTruthy();
 
     await act(async () => {
-      confirmButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
+      confirmButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 

@@ -655,7 +655,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
           return "";
         }
         const normalizedSrc = src.trim();
-        const overriddenSrc = bundleImageOverrides[normalizedSrc] || normalizedSrc;
+        const overriddenSrc =
+          bundleImageOverrides[normalizedSrc] || normalizedSrc;
         return resolveMarkdownImageSrc(overriddenSrc, baseFilePath);
       },
       [baseFilePath, bundleImageOverrides],

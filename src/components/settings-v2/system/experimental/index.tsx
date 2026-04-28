@@ -27,7 +27,6 @@ import {
   FolderOpen,
   type LucideIcon,
 } from "lucide-react";
-import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import {
   getConfig,
@@ -94,36 +93,36 @@ const WorkspaceRepairHistoryCard = lazy(() =>
 // 组件
 // ============================================================
 
-interface ExperimentalPanelProps {
+interface SurfacePanelProps {
   icon: LucideIcon;
   title: string;
-  description: string;
+  description?: string;
   children: ReactNode;
   aside?: ReactNode;
 }
 
-function ExperimentalPanel({
+function SurfacePanel({
   icon: Icon,
   title,
   description,
   children,
   aside,
-}: ExperimentalPanelProps) {
+}: SurfacePanelProps) {
   return (
     <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="space-y-1">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
-            <WorkbenchInfoTip
-              ariaLabel={`${title}说明`}
-              content={description}
-              tone="slate"
-            />
           </div>
+          {description ? (
+            <p className="text-sm leading-6 text-slate-500">{description}</p>
+          ) : null}
         </div>
-        {aside ? <div className="flex items-center gap-2">{aside}</div> : null}
+        {aside ? (
+          <div className="flex flex-wrap items-center gap-2">{aside}</div>
+        ) : null}
       </div>
 
       <div className="mt-5">{children}</div>
@@ -131,40 +130,84 @@ function ExperimentalPanel({
   );
 }
 
-function StatusPill({
-  active,
-  activeLabel,
-  inactiveLabel,
+function CompactSwitchRow({
+  title,
+  description,
+  checked,
+  disabled,
+  ariaLabel,
+  onCheckedChange,
 }: {
-  active: boolean;
-  activeLabel: string;
-  inactiveLabel: string;
+  title: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  ariaLabel: string;
+  onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <span
-      className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium",
-        active
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-slate-200 bg-slate-100 text-slate-500",
-      )}
-    >
-      {active ? activeLabel : inactiveLabel}
-    </span>
+    <div className="flex flex-col gap-4 rounded-[22px] border border-slate-200/80 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="text-sm leading-6 text-slate-500">{description}</p>
+      </div>
+      <Switch
+        aria-label={ariaLabel}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={(value) => onCheckedChange(Boolean(value))}
+      />
+    </div>
+  );
+}
+
+function AdvancedDetails({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="group rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-sky-100 bg-sky-50 text-sky-700">
+            <Icon className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-slate-900">
+              {title}
+            </span>
+            <span className="block truncate text-sm text-slate-500">
+              {description}
+            </span>
+          </span>
+        </span>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 transition group-open:bg-slate-950 group-open:text-white">
+          展开
+        </span>
+      </summary>
+      <div className="mt-4 space-y-4">{children}</div>
+    </details>
   );
 }
 
 const SECONDARY_BUTTON_CLASS_NAME =
   "inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50";
 const PRIMARY_BUTTON_CLASS_NAME =
-  "inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center gap-2 rounded-full border border-slate-950 bg-slate-950 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-slate-950/15 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
 const FIELD_CLASS_NAME =
   "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm shadow-slate-950/5 outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-200";
 
 function DeferredPanelFallback({ label }: { label: string }) {
   return (
-    <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
-      正在加载{label}...
+    <div className="rounded-[20px] border border-dashed border-slate-300 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+      正在准备{label}...
     </div>
   );
 }
@@ -603,8 +646,10 @@ export function ExperimentalSettings() {
     );
   }
 
+  const busyLabel = saving ? "保存中" : diagnosticBusy ? "诊断执行中" : null;
+
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-5 pb-8">
       {message && (
         <div
           className={cn(
@@ -620,172 +665,82 @@ export function ExperimentalSettings() {
       )}
 
       <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
-                  实验功能
-                </h1>
-                <WorkbenchInfoTip
-                  ariaLabel="实验功能总览说明"
-                  content="集中管理仍在验证阶段的功能开关和诊断能力，保持风险可见，同时避免说明区压过真正的配置面板。"
-                  tone="mint"
-                />
-              </div>
-              <p className="text-sm text-slate-500">
-                集中管理实验能力开关、诊断动作和预留入口。
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <StatusPill
-                active={toolCallingConfig.enabled}
-                activeLabel="Tool Calling 已启用"
-                inactiveLabel="Tool Calling 未启用"
-              />
-              <WorkbenchInfoTip
-                ariaLabel="Tool Calling说明"
-                content="控制编程式工具调用与动态过滤链路。"
-                tone="slate"
-              />
-              <StatusPill
-                active={Boolean(config?.screenshot_chat.enabled)}
-                activeLabel="截图对话已启用"
-                inactiveLabel="截图对话未启用"
-              />
-              <StatusPill
-                active={Boolean(config?.webmcp?.enabled)}
-                activeLabel="WebMCP 预留已启用"
-                inactiveLabel="WebMCP 预留未启用"
-              />
-              <StatusPill
-                active={Boolean(crashConfig.enabled)}
-                activeLabel="崩溃上报已启用"
-                inactiveLabel="崩溃上报未启用"
-              />
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                诊断动作：4 项
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                {saving ? "保存中" : diagnosticBusy ? "诊断执行中" : "当前空闲"}
-              </span>
-            </div>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1.5">
+            <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+              实验功能
+            </h1>
+            <p className="text-sm text-slate-500">
+              不稳定能力集中开关，用完及时关回。
+            </p>
           </div>
+
+          {busyLabel ? (
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                {busyLabel}
+              </span>
+            </div>
+          ) : null}
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
-        <div className="space-y-6">
-          <ExperimentalPanel
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.96fr)_minmax(360px,1.04fr)]">
+        <div className="space-y-5">
+          <SurfacePanel
             icon={Wrench}
             title="Tool Calling 2.0"
-            description="控制编程式工具调用、动态过滤和 input examples 透传。"
-            aside={
-              <StatusPill
-                active={toolCallingConfig.enabled}
-                activeLabel="已启用"
-                inactiveLabel="未启用"
-              />
-            }
+            description="控制工具调用、动态过滤和 input examples。"
           >
-            <div className="space-y-4">
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
-                这部分更适合用于调优复杂工具调用链路。若当前主要排查 UI 或
-                Provider 问题，不建议先改这里。
-              </div>
-
-              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    启用 Tool Calling 2.0
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    开启后才会使用新的工具调用策略与相关优化。
-                  </p>
-                </div>
-                <Switch
-                  checked={toolCallingConfig.enabled}
-                  onCheckedChange={handleToggleToolCallingEnabled}
-                  disabled={saving}
-                  aria-label="切换 Tool Calling 2.0"
-                />
-              </div>
+            <div className="space-y-3">
+              <CompactSwitchRow
+                title="启用 Tool Calling 2.0"
+                description="使用新的工具调用策略。"
+                checked={toolCallingConfig.enabled}
+                onCheckedChange={handleToggleToolCallingEnabled}
+                disabled={saving}
+                ariaLabel="切换 Tool Calling 2.0"
+              />
 
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        动态过滤
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        自动过滤网页抓取中的 HTML 噪音，减少上下文无关内容。
-                      </p>
-                    </div>
-                    <Switch
-                      checked={toolCallingConfig.dynamic_filtering}
-                      onCheckedChange={handleToggleDynamicFiltering}
-                      disabled={saving || !toolCallingConfig.enabled}
-                      aria-label="切换动态过滤"
-                    />
-                  </div>
-                </div>
+                <CompactSwitchRow
+                  title="动态过滤"
+                  description="过滤网页抓取噪音。"
+                  checked={toolCallingConfig.dynamic_filtering}
+                  onCheckedChange={handleToggleDynamicFiltering}
+                  disabled={saving || !toolCallingConfig.enabled}
+                  ariaLabel="切换动态过滤"
+                />
 
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        原生 input examples 透传
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        在支持的模型协议中直接携带工具调用示例，提升复杂参数准确率。
-                      </p>
-                    </div>
-                    <Switch
-                      checked={toolCallingConfig.native_input_examples}
-                      onCheckedChange={handleToggleNativeInputExamples}
-                      disabled={saving || !toolCallingConfig.enabled}
-                      aria-label="切换原生 input examples 透传"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </ExperimentalPanel>
-
-          <ExperimentalPanel
-            icon={Camera}
-            title="截图对话"
-            description="用全局快捷键截取屏幕区域，并直接进入问答或上下文分析。"
-            aside={
-              <StatusPill
-                active={Boolean(config?.screenshot_chat.enabled)}
-                activeLabel="已启用"
-                inactiveLabel="未启用"
-              />
-            }
-          >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    启用截图对话
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    开启后可使用全局快捷键唤起截图交互。
-                  </p>
-                </div>
-                <Switch
-                  checked={config?.screenshot_chat.enabled ?? false}
-                  onCheckedChange={handleToggleSmartInput}
-                  disabled={saving}
-                  aria-label="切换截图对话"
+                <CompactSwitchRow
+                  title="原生 input examples"
+                  description="向支持的协议透传示例。"
+                  checked={toolCallingConfig.native_input_examples}
+                  onCheckedChange={handleToggleNativeInputExamples}
+                  disabled={saving || !toolCallingConfig.enabled}
+                  ariaLabel="切换原生 input examples 透传"
                 />
               </div>
+            </div>
+          </SurfacePanel>
+
+          <SurfacePanel
+            icon={Camera}
+            title="截图对话"
+            description="用快捷键截图后进入对话。"
+          >
+            <div className="space-y-3">
+              <CompactSwitchRow
+                title="启用截图对话"
+                description="开启后可用全局快捷键唤起截图。"
+                checked={config?.screenshot_chat.enabled ?? false}
+                onCheckedChange={handleToggleSmartInput}
+                disabled={saving}
+                ariaLabel="切换截图对话"
+              />
 
               {config?.screenshot_chat.enabled ? (
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
+                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50 p-4">
                   <Suspense
                     fallback={<DeferredPanelFallback label="截图快捷键设置" />}
                   >
@@ -832,80 +787,39 @@ export function ExperimentalSettings() {
                 </div>
               ) : null}
             </div>
-          </ExperimentalPanel>
+          </SurfacePanel>
+        </div>
 
-          <ExperimentalPanel
+        <div className="space-y-5">
+          <AdvancedDetails
             icon={Globe}
             title="WebMCP（预留）"
-            description="面向未来浏览器原生结构化工具协议的预留入口，当前默认关闭，不参与实际执行链。"
-            aside={
-              <StatusPill
-                active={Boolean(config?.webmcp?.enabled)}
-                activeLabel="已启用"
-                inactiveLabel="未启用"
-              />
-            }
+            description="仅保留配置位，当前不切换执行链。"
           >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    允许未来接入 WebMCP
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    当前版本开启后也不会切换执行链，只保留实验配置位，供后续小范围验证使用。
-                  </p>
-                </div>
-                <Switch
-                  checked={config?.webmcp?.enabled ?? false}
-                  onCheckedChange={handleToggleWebMcp}
-                  disabled={saving}
-                  aria-label="切换 WebMCP 预留入口"
-                />
-              </div>
+            <CompactSwitchRow
+              title="允许未来接入 WebMCP"
+              description="开启后只写入配置，不改变浏览器执行路径。"
+              checked={config?.webmcp?.enabled ?? false}
+              onCheckedChange={handleToggleWebMcp}
+              disabled={saving}
+              ariaLabel="切换 WebMCP 预留入口"
+            />
+          </AdvancedDetails>
 
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
-                现阶段浏览器业务仍走 Bridge / CDP
-                主线。这里不做运行时检测，也不接入任何 WebMCP
-                执行能力，避免把当前主线做散。
-              </div>
-            </div>
-          </ExperimentalPanel>
-
-          <ExperimentalPanel
+          <AdvancedDetails
             icon={Bug}
             title="崩溃上报与诊断"
-            description="收集前端错误、崩溃信息与运行态诊断，用于定位闪退和异常启动问题。"
-            aside={
-              <StatusPill
-                active={Boolean(crashConfig.enabled)}
-                activeLabel="已启用"
-                inactiveLabel="未启用"
-              />
-            }
+            description="复制诊断包，或配置远端崩溃上报。"
           >
-            <div className="space-y-4">
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
-                DSN
-                为空时会自动退化为仅本地记录。导出诊断包前建议先完成复现，减少历史噪音。
-              </div>
-
-              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-white p-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    启用崩溃上报
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    控制远端上报与本地诊断采集策略。
-                  </p>
-                </div>
-                <Switch
-                  checked={Boolean(crashConfig.enabled)}
-                  onCheckedChange={handleCrashEnabledToggle}
-                  disabled={saving}
-                  aria-label="切换崩溃上报"
-                />
-              </div>
+            <div className="space-y-3">
+              <CompactSwitchRow
+                title="启用崩溃上报"
+                description="DSN 为空时仅保留本地诊断。"
+                checked={Boolean(crashConfig.enabled)}
+                onCheckedChange={handleCrashEnabledToggle}
+                disabled={saving}
+                ariaLabel="切换崩溃上报"
+              />
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
@@ -959,149 +873,104 @@ export function ExperimentalSettings() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between rounded-[22px] border border-slate-200/80 bg-slate-50/60 px-4 py-4">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    发送默认 PII 字段
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    默认关闭，仅在明确需要时再打开。
-                  </p>
-                </div>
-                <Switch
-                  checked={Boolean(crashConfig.send_pii)}
-                  onCheckedChange={(checked) =>
-                    handleCrashFieldChange("send_pii", checked)
-                  }
-                  disabled={saving}
-                  aria-label="切换发送默认 PII 字段"
-                />
-              </div>
+              <CompactSwitchRow
+                title="发送默认 PII 字段"
+                description="默认关闭，仅排障需要时打开。"
+                checked={Boolean(crashConfig.send_pii)}
+                onCheckedChange={(checked) =>
+                  handleCrashFieldChange("send_pii", checked)
+                }
+                disabled={saving}
+                ariaLabel="切换发送默认 PII 字段"
+              />
 
-              <div className="space-y-3">
-                <p className="text-xs leading-5 text-slate-500">
-                  复制、导出与打开目录的用途不同。直接发给开发者时优先“复制诊断信息”；需要归档或程序化比对时再选
-                  JSON。
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void copyCrashDiagnostic()}
-                    disabled={saving || diagnosticBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <Bug className="h-4 w-4" />
-                    复制诊断信息
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void copyCrashDiagnosticJson()}
-                    disabled={saving || diagnosticBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    复制纯 JSON
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void exportCrashDiagnostic()}
-                    disabled={saving || diagnosticBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                    导出诊断 JSON
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void openCrashDownloadDirectory()}
-                    disabled={saving || diagnosticBusy}
-                    className={SECONDARY_BUTTON_CLASS_NAME}
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                    打开下载目录
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveCrashConfig}
-                    disabled={saving || diagnosticBusy}
-                    className={PRIMARY_BUTTON_CLASS_NAME}
-                  >
-                    保存配置
-                  </button>
-                </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void copyCrashDiagnostic()}
+                  disabled={saving || diagnosticBusy}
+                  className={SECONDARY_BUTTON_CLASS_NAME}
+                >
+                  <Bug className="h-4 w-4" />
+                  复制诊断信息
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyCrashDiagnosticJson()}
+                  disabled={saving || diagnosticBusy}
+                  className={SECONDARY_BUTTON_CLASS_NAME}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  复制纯 JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void exportCrashDiagnostic()}
+                  disabled={saving || diagnosticBusy}
+                  className={SECONDARY_BUTTON_CLASS_NAME}
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  导出诊断 JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void openCrashDownloadDirectory()}
+                  disabled={saving || diagnosticBusy}
+                  className={SECONDARY_BUTTON_CLASS_NAME}
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  打开下载目录
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCrashConfig}
+                  disabled={saving || diagnosticBusy}
+                  className={PRIMARY_BUTTON_CLASS_NAME}
+                >
+                  保存配置
+                </button>
               </div>
             </div>
-          </ExperimentalPanel>
-        </div>
-
-        <div className="space-y-6">
-          <ExperimentalPanel
-            icon={Sparkles}
-            title="实验提醒"
-            description="先判断当前问题类型，再决定应该动哪个实验开关，避免盲目联调。"
-          >
-            <div className="space-y-3">
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  先做小范围验证
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  实验功能优先在个人环境或少量账号上验证，不建议直接推给全部工作流。
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  排障时减少变量
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  如果问题和工具链无关，不要同时改 Tool
-                  Calling、截图和语音配置。
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  需要复现场景时先清理旧样本
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  导出前优先确认刚刚复现的问题是否已覆盖旧诊断历史，避免误导。
-                </p>
-              </div>
-            </div>
-          </ExperimentalPanel>
+          </AdvancedDetails>
 
           {showClipboardGuide ? (
-            <ExperimentalPanel
+            <SurfacePanel
               icon={ShieldAlert}
               title="剪贴板权限指引"
-              description="复制诊断失败且属于权限问题时，可按下面的系统提示恢复。"
+              description="复制诊断失败时按系统提示恢复。"
             >
               <Suspense
                 fallback={<DeferredPanelFallback label="剪贴板权限指引" />}
               >
                 <ClipboardPermissionGuideCard />
               </Suspense>
-            </ExperimentalPanel>
+            </SurfacePanel>
           ) : null}
 
-          <ExperimentalPanel
+          <AdvancedDetails
             icon={RefreshCw}
-            title="更新提醒实验"
-            description="管理自动更新检查和提醒验证，便于排查更新链路。"
+            title="更新提醒"
+            description="检查自动更新与提醒配置。"
           >
             <Suspense fallback={<DeferredPanelFallback label="更新提醒设置" />}>
               <UpdateCheckSettings />
             </Suspense>
-          </ExperimentalPanel>
+          </AdvancedDetails>
 
-          <Suspense
-            fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}
+          <AdvancedDetails
+            icon={ShieldAlert}
+            title="Workspace 自愈记录"
+            description="查看最近自动修复和迁移动作。"
           >
-            <WorkspaceRepairHistoryCard
-              className="rounded-[26px] border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
-              title="Workspace 自愈记录（实验室）"
-              description="用于排查路径不存在、自动迁移和修复事件。"
-            />
-          </Suspense>
+            <Suspense
+              fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}
+            >
+              <WorkspaceRepairHistoryCard
+                className="rounded-[22px] border-slate-200/80 bg-white p-4"
+                description="最近自动修复/迁移记录"
+              />
+            </Suspense>
+          </AdvancedDetails>
         </div>
       </div>
     </div>

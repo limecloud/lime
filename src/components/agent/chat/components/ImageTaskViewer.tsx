@@ -1,19 +1,7 @@
-import { useMemo, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  LoaderCircle,
-  Sparkles,
-  X,
-} from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { useMemo } from "react";
+import { LoaderCircle, Sparkles, X } from "lucide-react";
+import { openResourceManager } from "@/features/resource-manager";
+import type { ResourceManagerSourceContext } from "@/features/resource-manager";
 import { cn } from "@/lib/utils";
 import { RenderableTaskImage } from "./RenderableTaskImage";
 import type { ImageTaskViewerProps } from "./imageWorkbenchTypes";
@@ -270,20 +258,44 @@ function resolveSourcePlaceholderLabel(
     : "来源图待同步";
 }
 
+function normalizeSourceContextText(value?: string | null): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function buildImageTaskResourceSourceContext(params: {
+  taskId?: string | null;
+  outputId?: string | null;
+  projectId?: string | null;
+  contentId?: string | null;
+  threadId?: string | null;
+}): ResourceManagerSourceContext {
+  return {
+    kind: "image_task",
+    projectId: normalizeSourceContextText(params.projectId),
+    contentId: normalizeSourceContextText(params.contentId),
+    taskId: normalizeSourceContextText(params.taskId),
+    outputId: normalizeSourceContextText(params.outputId),
+    threadId: normalizeSourceContextText(params.threadId),
+    sourcePage: "image-task-viewer",
+  };
+}
+
 export function ImageTaskViewer({
   tasks,
   outputs,
   selectedOutputId,
+  sourceProjectId,
+  sourceContentId,
+  sourceThreadId,
   savingToResource,
   onSaveSelectedToLibrary,
   applySelectedOutputLabel,
   onApplySelectedOutput,
   onSeedFollowUpCommand,
   onSelectOutput,
-  onOpenImage,
   onClose,
 }: ImageTaskViewerProps) {
-  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const selectedOutput =
     outputs.find((item) => item.id === selectedOutputId) ?? outputs[0] ?? null;
   const selectedTask =
@@ -389,32 +401,54 @@ export function ImageTaskViewer({
     if (!selectedOutput) {
       return;
     }
-    setPreviewDialogOpen(true);
-  };
-  const handleOpenSelectedImageInNewTab = () => {
-    if (!selectedOutput) {
-      return;
-    }
-    if (onOpenImage) {
-      onOpenImage(selectedOutput.url);
-      return;
-    }
-    window.open(selectedOutput.url, "_blank", "noopener,noreferrer");
-  };
-  const handlePreviewStep = (direction: -1 | 1) => {
-    if (selectedOutputIndex < 0 || selectedTaskOutputs.length <= 1) {
-      return;
-    }
 
-    const nextIndex =
-      (selectedOutputIndex + direction + selectedTaskOutputs.length) %
-      selectedTaskOutputs.length;
-    const nextOutput = selectedTaskOutputs[nextIndex];
-    if (!nextOutput) {
-      return;
-    }
+    void openResourceManager({
+      sourceLabel: resolveModeEyebrow(selectedTask?.mode),
+      sourceContext: buildImageTaskResourceSourceContext({
+        taskId: selectedTask?.id ?? selectedOutput.taskId,
+        outputId: selectedOutput.id,
+        projectId: sourceProjectId,
+        contentId: sourceContentId,
+        threadId: sourceThreadId,
+      }),
+      initialIndex: selectedOutputIndex >= 0 ? selectedOutputIndex : 0,
+      items: selectedTaskOutputs.map((output, index) => {
+        const taskSlotLabel = selectedTask?.storyboardSlots?.find(
+          (slot) =>
+            slot.slotIndex ===
+            resolveOutputDisplayIndex(index, output.slotIndex),
+        )?.label;
+        const slotLabel = resolveStoryboardSlotLabel({
+          layoutHint: selectedTask?.layoutHint,
+          outputIndex: index,
+          slotIndex: output.slotIndex,
+          slotLabel: output.slotLabel,
+          taskSlotLabel,
+        });
 
-    onSelectOutput(nextOutput.id);
+        return {
+          id: output.id,
+          kind: "image" as const,
+          src: output.url,
+          title: slotLabel || output.prompt || prompt,
+          description: output.slotPrompt || output.prompt || prompt,
+          metadata: {
+            prompt: output.slotPrompt || output.prompt || prompt,
+            slotLabel,
+            size: output.size,
+            providerName: output.providerName,
+            modelName: output.modelName,
+          },
+          sourceContext: buildImageTaskResourceSourceContext({
+            taskId: output.taskId || selectedTask?.id,
+            outputId: output.id,
+            projectId: sourceProjectId,
+            contentId: sourceContentId,
+            threadId: sourceThreadId,
+          }),
+        };
+      }),
+    });
   };
 
   return (
@@ -754,7 +788,9 @@ export function ImageTaskViewer({
                         alt={output.prompt || "图片结果缩略图"}
                         className={cn(
                           "w-full object-cover",
-                          resolveOutputTileAspectClass(selectedTask?.layoutHint),
+                          resolveOutputTileAspectClass(
+                            selectedTask?.layoutHint,
+                          ),
                         )}
                         renderFallback={() => (
                           <div
@@ -773,7 +809,9 @@ export function ImageTaskViewer({
                       <div
                         className={cn(
                           "flex w-full flex-col items-center justify-center gap-2 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98))] px-3 text-center",
-                          resolveOutputTileAspectClass(selectedTask?.layoutHint),
+                          resolveOutputTileAspectClass(
+                            selectedTask?.layoutHint,
+                          ),
                         )}
                       >
                         {selectedTask?.status === "queued" ||
@@ -821,157 +859,6 @@ export function ImageTaskViewer({
           </div>
         ) : null}
       </div>
-      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
-        <DialogContent
-          maxWidth="max-w-6xl"
-          className="overflow-hidden border-slate-200 bg-white p-0"
-        >
-          <DialogHeader className="border-b border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,1))] px-6 py-4">
-            <DialogTitle className="pr-10 text-xl font-semibold leading-8 text-slate-950">
-              {selectedStoryboardSlot?.label || prompt}
-            </DialogTitle>
-            <DialogDescription className="space-y-1 text-sm leading-6 text-slate-600">
-              <span className="block">{prompt}</span>
-              {selectedStoryboardSlot?.prompt ? (
-                <span className="block text-slate-500">
-                  {selectedStoryboardSlot.prompt}
-                </span>
-              ) : null}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col px-6 py-5">
-            <div className="relative min-h-[min(68vh,640px)] flex-1 overflow-hidden rounded-[24px] border border-slate-200 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.10),transparent_40%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98))]">
-              {selectedOutput ? (
-                <RenderableTaskImage
-                  src={selectedOutput.url}
-                  alt={selectedOutput.prompt || "图片任务结果"}
-                  className="h-full w-full object-contain"
-                  renderFallback={(reason) => (
-                    <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center">
-                      <div className="max-w-sm space-y-3">
-                        <Sparkles className="mx-auto h-8 w-8 text-slate-400" />
-                        <div className="text-sm font-semibold text-slate-900">
-                          {reason === "error" ? "预览加载失败" : "暂无可预览图片"}
-                        </div>
-                        <div className="text-sm leading-6 text-slate-500">
-                          {reason === "error"
-                            ? "这张图片暂时无法在预览窗口中展示，请稍后重试或在新窗口打开。"
-                            : "当前没有可展示的图片结果。"}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                />
-              ) : null}
-              {selectedTaskOutputs.length > 1 ? (
-                <>
-                  <button
-                    type="button"
-                    aria-label="查看上一张图片"
-                    onClick={() => handlePreviewStep(-1)}
-                    className="absolute left-4 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/92 text-slate-700 shadow-sm shadow-slate-950/10 transition hover:border-slate-300 hover:text-slate-950"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="查看下一张图片"
-                    onClick={() => handlePreviewStep(1)}
-                    className="absolute right-4 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/92 text-slate-700 shadow-sm shadow-slate-950/10 transition hover:border-slate-300 hover:text-slate-950"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                </>
-              ) : null}
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600">
-                {selectedOutputLabel || `${selectedTaskOutputs.length} 张结果`}
-              </span>
-              {selectedOutput?.size ? (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600">
-                  {selectedOutput.size}
-                </span>
-              ) : null}
-              <button
-                type="button"
-                onClick={handleOpenSelectedImageInNewTab}
-                data-testid="image-task-viewer-open-external"
-                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                在新窗口打开
-              </button>
-            </div>
-            {selectedTaskOutputs.length > 1 ? (
-              <div className="mt-4 max-h-[min(24vh,220px)] overflow-y-auto pr-1 [scrollbar-gutter:stable] [scrollbar-width:thin]">
-                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-                  {selectedTaskOutputs.map((output, index) => {
-                    const active = output.id === selectedOutput?.id;
-                    const taskSlotLabel = selectedTask?.storyboardSlots?.find(
-                      (slot) =>
-                        slot.slotIndex ===
-                        resolveOutputDisplayIndex(index, output.slotIndex),
-                    )?.label;
-                    const storyboardSlotLabel = resolveStoryboardSlotLabel({
-                      layoutHint: selectedTask?.layoutHint,
-                      outputIndex: index,
-                      slotIndex: output.slotIndex,
-                      slotLabel: output.slotLabel,
-                      taskSlotLabel,
-                    });
-
-                    return (
-                      <button
-                        key={output.id}
-                        type="button"
-                        onClick={() => onSelectOutput(output.id)}
-                        className={cn(
-                          "overflow-hidden rounded-[18px] border bg-white text-left transition",
-                          active
-                            ? "border-sky-300 shadow-sm shadow-sky-500/10"
-                            : "border-slate-200 hover:border-slate-300",
-                        )}
-                      >
-                        <div className="relative">
-                          <RenderableTaskImage
-                            src={output.url}
-                            alt={output.prompt || "图片结果缩略图"}
-                            className={cn(
-                              "w-full object-cover",
-                              resolveOutputTileAspectClass(selectedTask?.layoutHint),
-                            )}
-                            renderFallback={() => (
-                              <div
-                                className={cn(
-                                  "flex w-full items-center justify-center bg-slate-50 px-3 text-center text-[11px] font-medium text-slate-400",
-                                  resolveOutputTileAspectClass(
-                                    selectedTask?.layoutHint,
-                                  ),
-                                )}
-                              >
-                                预览失败
-                              </div>
-                            )}
-                          />
-                          <span className="absolute left-2 top-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 px-1.5 text-[11px] font-semibold text-slate-700 shadow-sm shadow-slate-950/5">
-                            {resolveOutputDisplayIndex(index, output.slotIndex)}
-                          </span>
-                        </div>
-                        {storyboardSlotLabel ? (
-                          <div className="line-clamp-2 px-2.5 py-2 text-[11px] font-medium leading-4 text-slate-700">
-                            {storyboardSlotLabel}
-                          </div>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

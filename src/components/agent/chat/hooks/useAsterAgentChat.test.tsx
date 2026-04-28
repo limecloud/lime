@@ -633,6 +633,16 @@ describe("useAsterAgentChat 首页新会话", () => {
 
       await flushEffects();
       await flushEffects();
+      expect(mockGetAgentRuntimeSession).not.toHaveBeenCalledWith(
+        "session-live-missing",
+        undefined,
+      );
+
+      await act(async () => {
+        await harness.getValue().loadTopics();
+      });
+      await flushEffects();
+      await flushEffects();
 
       expect(harness.getValue().sessionId).toBe("session-live-missing");
       expect(harness.getValue().messages.length).toBeGreaterThan(0);
@@ -711,6 +721,14 @@ describe("useAsterAgentChat 首页新会话", () => {
 
       await flushEffects();
       await flushEffects();
+      expect(mockGetAgentRuntimeSession).not.toHaveBeenCalledWith(
+        missingSessionId,
+        undefined,
+      );
+
+      await act(async () => {
+        await harness.getValue().loadTopics();
+      });
       await flushEffects();
       await flushEffects();
 
@@ -3570,6 +3588,7 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
         session_id: "session-first-send",
         recent_access_mode: harness.getValue().accessMode,
       });
+      expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
     } finally {
       harness.unmount();
     }

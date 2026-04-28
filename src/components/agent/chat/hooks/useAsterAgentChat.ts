@@ -40,6 +40,9 @@ type UseAsterAgentChatRuntimeOptions = UseAsterAgentChatOptions & {
   preserveRestoredMessages?: boolean;
 };
 
+const AUTO_TITLE_DEFERRED_LOAD_MS = 10_000;
+const AUTO_TITLE_IDLE_TIMEOUT_MS = 2_000;
+
 export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
   const {
     systemPrompt,
@@ -317,46 +320,58 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     let cancelled = false;
     let titleApplied = false;
 
-    void (async () => {
-      try {
-        const generatedTitle = (
-          await runtime.generateSessionTitle?.(activeSessionId)
-        )?.trim();
-        if (
-          cancelled ||
-          !generatedTitle ||
-          generatedTitle === "新任务" ||
-          generatedTitle === "新话题"
-        ) {
-          return;
-        }
+    const cancelDeferredTitle = scheduleMinimumDelayIdleTask(
+      () => {
+        void (async () => {
+          try {
+            const generatedTitle = (
+              await runtime.generateSessionTitle?.(activeSessionId)
+            )?.trim();
+            if (
+              cancelled ||
+              !generatedTitle ||
+              generatedTitle === "新任务" ||
+              generatedTitle === "新话题"
+            ) {
+              return;
+            }
 
-        await runtime.renameSession(activeSessionId, generatedTitle);
-        sessionSetTopics((previous) =>
-          previous.map((topic) =>
-            topic.id === activeSessionId
-              ? {
-                  ...topic,
-                  title: generatedTitle,
-                }
-              : topic,
-          ),
-        );
-        titleApplied = true;
-      } catch (error) {
-        console.warn("[AsterChat] 自动生成会话标题失败:", error);
-      } finally {
-        if (!cancelled && titleApplied) {
-          autoTitleCompletedSessionIdsRef.current.add(activeSessionId);
-        }
-        if (autoTitleInFlightSessionIdRef.current === activeSessionId) {
-          autoTitleInFlightSessionIdRef.current = null;
-        }
-      }
-    })();
+            await runtime.renameSession(activeSessionId, generatedTitle);
+            sessionSetTopics((previous) =>
+              previous.map((topic) =>
+                topic.id === activeSessionId
+                  ? {
+                      ...topic,
+                      title: generatedTitle,
+                    }
+                  : topic,
+              ),
+            );
+            titleApplied = true;
+          } catch (error) {
+            console.warn("[AsterChat] 自动生成会话标题失败:", error);
+          } finally {
+            if (!cancelled && titleApplied) {
+              autoTitleCompletedSessionIdsRef.current.add(activeSessionId);
+            }
+            if (autoTitleInFlightSessionIdRef.current === activeSessionId) {
+              autoTitleInFlightSessionIdRef.current = null;
+            }
+          }
+        })();
+      },
+      {
+        minimumDelayMs: AUTO_TITLE_DEFERRED_LOAD_MS,
+        idleTimeoutMs: AUTO_TITLE_IDLE_TIMEOUT_MS,
+      },
+    );
 
     return () => {
       cancelled = true;
+      cancelDeferredTitle();
+      if (autoTitleInFlightSessionIdRef.current === activeSessionId) {
+        autoTitleInFlightSessionIdRef.current = null;
+      }
     };
   }, [
     currentSessionId,

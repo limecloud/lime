@@ -1381,6 +1381,19 @@ describe("SceneAppsPage", () => {
     window.localStorage.clear();
   });
 
+  it("全部做法页面应接入 Lime 工作台主题作用域", async () => {
+    const { container } = renderSceneAppsPage({
+      pageParams: { view: "catalog" },
+    });
+    await flushEffects();
+
+    expect(container.querySelector(".lime-workbench-theme-scope")).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="sceneapps-view-catalog"]')
+        ?.className,
+    ).toContain("var(--lime-home-card-surface-strong)");
+  });
+
   it("应按分页方式拆开展示全部做法、补这轮信息与最近结果", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();

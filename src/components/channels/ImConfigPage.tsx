@@ -333,7 +333,7 @@ function ActionButton({
       className={cn(
         "inline-flex items-center justify-center rounded-xl px-3.5 py-2 text-sm font-medium transition",
         kind === "primary"
-          ? "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
+          ? "border border-emerald-200 bg-[image:var(--lime-primary-gradient)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
         disabled && "cursor-not-allowed opacity-50",
       )}
@@ -880,7 +880,12 @@ function TelegramConfigDialog({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="max-w-2xl"
+      className="lime-workbench-theme-scope border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text)]"
+    >
       <ModalHeader>Telegram 配置</ModalHeader>
       <ModalBody className="space-y-5">
         <SwitchField
@@ -1080,7 +1085,12 @@ function FeishuConfigDialog({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="max-w-2xl"
+      className="lime-workbench-theme-scope border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text)]"
+    >
       <ModalHeader>配置飞书</ModalHeader>
       <ModalBody className="space-y-4">
         <div
@@ -1238,7 +1248,7 @@ function FeishuConfigDialog({
                   className={cn(
                     "rounded-2xl border px-4 py-4 text-left transition",
                     selected
-                      ? "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10"
+                      ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] text-slate-800 shadow-sm shadow-emerald-950/10"
                       : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white",
                   )}
                 >
@@ -1839,7 +1849,12 @@ function WechatConfigDialog({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="max-w-4xl">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="max-w-4xl"
+      className="lime-workbench-theme-scope border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-text)]"
+    >
       <ModalHeader>微信扫码配置</ModalHeader>
       <ModalBody className="space-y-5">
         <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -2519,9 +2534,9 @@ export function ImConfigPage() {
     return (
       <div
         data-testid="im-config-page"
-        className="mx-auto flex w-full max-w-[1260px] flex-col gap-6 pb-10"
+        className="lime-workbench-theme-scope mx-auto flex w-full max-w-[1260px] flex-col gap-6 pb-10"
       >
-        <div className="h-36 animate-pulse rounded-[30px] border border-slate-200 bg-[linear-gradient(135deg,rgba(245,249,247,1)_0%,rgba(248,250,252,1)_55%,rgba(243,247,252,1)_100%)]" />
+        <div className="h-36 animate-pulse rounded-[30px] border border-slate-200 bg-[image:var(--lime-card-subtle)]" />
         <div className="grid gap-5 lg:grid-cols-3">
           <div className="h-[280px] animate-pulse rounded-[28px] border border-slate-200 bg-white" />
           <div className="h-[280px] animate-pulse rounded-[28px] border border-slate-200 bg-white" />
@@ -2533,8 +2548,8 @@ export function ImConfigPage() {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-[1260px] flex-col gap-6 pb-10">
-        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[linear-gradient(135deg,rgba(245,249,247,1)_0%,rgba(249,250,252,1)_52%,rgba(243,247,252,1)_100%)] px-7 py-7 shadow-sm shadow-slate-950/5">
+      <div className="lime-workbench-theme-scope mx-auto flex w-full max-w-[1260px] flex-col gap-6 pb-10">
+        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[image:var(--lime-card-subtle)] px-7 py-7 shadow-sm shadow-slate-950/5">
           <div className="max-w-3xl space-y-4">
             <div className="max-w-2xl space-y-3">
               <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">

@@ -12,7 +12,6 @@ import {
   useEffect,
   forwardRef,
   useImperativeHandle,
-  useCallback,
   useRef,
 } from "react";
 import {
@@ -32,11 +31,10 @@ import { EditCredentialModal } from "./EditCredentialModal";
 import { ErrorDisplay, useErrorDisplay } from "./ErrorDisplay";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ProviderIcon } from "@/icons/providers";
-import { ApiKeyProviderSection, AddCustomProviderModal } from "./api-key";
+import { ApiKeyProviderSection } from "./api-key";
 import type { ApiKeyProviderSectionRef } from "./api-key";
 import { RelayProvidersSection } from "./RelayProvidersSection";
 import { AsrProviderSection } from "@/components/voice";
-import type { AddCustomProviderRequest } from "@/lib/api/apiKeyProvider";
 import {
   getLocalKiroCredentialUuid,
   type PoolProviderType,
@@ -102,10 +100,6 @@ export const ProviderPoolPage = forwardRef<
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const { errors, showError, showSuccess, dismissError } = useErrorDisplay();
 
-  // 添加自定义 Provider 模态框状态
-  const [addCustomProviderModalOpen, setAddCustomProviderModalOpen] =
-    useState(false);
-
   // ApiKeyProviderSection 的 ref
   const apiKeyProviderSectionRef = useRef<ApiKeyProviderSectionRef>(null);
 
@@ -127,11 +121,7 @@ export const ProviderPoolPage = forwardRef<
   } = useProviderPool();
 
   // API Key Provider Hook
-  const {
-    addCustomProvider,
-    addApiKey,
-    refresh: refreshApiKeyProviders,
-  } = useApiKeyProvider();
+  const { refresh: refreshApiKeyProviders } = useApiKeyProvider();
 
   const [_migrating, setMigrating] = useState(false);
 
@@ -321,25 +311,6 @@ export const ProviderPoolPage = forwardRef<
     return pool?.credentials?.length || 0;
   };
 
-  // 添加自定义 Provider 处理
-  const handleAddCustomProvider = useCallback(
-    async (request: AddCustomProviderRequest) => {
-      const result = await addCustomProvider(request);
-      return result; // 返回包含 id 的结果
-    },
-    [addCustomProvider],
-  );
-
-  // 添加 API Key 处理
-  const handleAddApiKey = useCallback(
-    async (providerId: string, apiKey: string) => {
-      await addApiKey(providerId, apiKey);
-      // 刷新 ApiKeyProviderSection 的数据
-      await apiKeyProviderSectionRef.current?.refresh();
-    },
-    [addApiKey],
-  );
-
   // Current tab data (仅用于 OAuth 凭证 tab)
   const currentPool =
     !isConfigTab(activeTab) && activeCategory === "oauth"
@@ -347,6 +318,17 @@ export const ProviderPoolPage = forwardRef<
       : null;
   const currentStats = currentPool?.stats;
   const currentCredentials = currentPool?.credentials || [];
+
+  if (hideHeader) {
+    return (
+      <div
+        className="h-[calc(100vh-220px)] min-h-[620px]"
+        data-testid="apikey-section"
+      >
+        <ApiKeyProviderSection ref={apiKeyProviderSectionRef} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -484,7 +466,6 @@ export const ProviderPoolPage = forwardRef<
         >
           <ApiKeyProviderSection
             ref={apiKeyProviderSectionRef}
-            onAddCustomProvider={() => setAddCustomProviderModalOpen(true)}
           />
         </div>
       )}
@@ -672,14 +653,6 @@ export const ProviderPoolPage = forwardRef<
             }}
           />
         )}
-
-      {/* Add Custom Provider Modal (API Key 分类) */}
-      <AddCustomProviderModal
-        isOpen={addCustomProviderModalOpen}
-        onClose={() => setAddCustomProviderModalOpen(false)}
-        onAdd={handleAddCustomProvider}
-        onAddApiKey={handleAddApiKey}
-      />
 
       {/* Edit Credential Modal */}
       <EditCredentialModal

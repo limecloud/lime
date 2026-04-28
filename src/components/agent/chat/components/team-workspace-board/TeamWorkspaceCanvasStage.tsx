@@ -96,7 +96,9 @@ export function TeamWorkspaceCanvasStage({
         <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-slate-500">
           当前进展
         </span>
-        <span className="truncate">拖拽调整任务布局 · Space 平移 · A 整理 · F 聚焦</span>
+        <span className="truncate">
+          拖拽调整任务布局 · Space 平移 · A 整理 · F 聚焦
+        </span>
       </div>
       {lanes.length > 0 ? (
         <div
@@ -124,7 +126,8 @@ export function TeamWorkspaceCanvasStage({
               {lanes.map((lane) => {
                 const layout = laneLayouts[lane.persistKey];
                 const selected =
-                  lane.session?.id != null && selectedSessionId === lane.session.id;
+                  lane.session?.id != null &&
+                  selectedSessionId === lane.session.id;
                 const expanded =
                   selected &&
                   lane.session?.id != null &&
@@ -142,7 +145,9 @@ export function TeamWorkspaceCanvasStage({
                       onStartCanvasLaneResize(lane, direction, event)
                     }
                     selected={selected}
-                    selectedInlineDetail={expanded ? selectedInlineDetail : null}
+                    selectedInlineDetail={
+                      expanded ? selectedInlineDetail : null
+                    }
                   />
                 );
               })}

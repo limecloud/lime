@@ -359,6 +359,36 @@ afterEach(() => {
 });
 
 describe("useWorkspaceSceneAppEntryActions", () => {
+  it("支持延后加载 SceneApp 目录，避免空白完整首页阻塞首屏", async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = renderHook({
+        catalogLoadMode: "deferred",
+        catalogDeferredDelayMs: 12_000,
+      });
+      await harness.render();
+
+      expect(mockListSceneAppCatalog).not.toHaveBeenCalled();
+      expect(harness.getValue().sceneAppsLoading).toBe(false);
+
+      await act(async () => {
+        vi.advanceTimersByTime(11_999);
+        await Promise.resolve();
+      });
+      expect(mockListSceneAppCatalog).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockListSceneAppCatalog).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("应按业务入口构建 featured SceneApp 卡片，并在出现 URL 时显示网页导出", async () => {
     const harness = renderHook({
       input: "给我一条新品发布短视频方案",

@@ -12,7 +12,7 @@ export function AutomationPage({
   pageParams,
 }: AutomationPageProps) {
   return (
-    <div className="flex-1 overflow-auto px-6 py-6">
+    <div className="lime-workbench-theme-scope flex-1 overflow-auto bg-[image:var(--lime-stage-surface)] px-6 py-6">
       <div className="mx-auto w-full max-w-[1440px]">
         <AutomationSettings
           mode="workspace"

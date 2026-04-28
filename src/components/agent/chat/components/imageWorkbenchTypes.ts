@@ -59,6 +59,9 @@ export interface ImageTaskViewerProps {
   tasks: ImageWorkbenchTaskView[];
   outputs: ImageWorkbenchOutputView[];
   selectedOutputId: string | null;
+  sourceProjectId?: string | null;
+  sourceContentId?: string | null;
+  sourceThreadId?: string | null;
   viewport: ImageWorkbenchViewport;
   preferenceSummary?: string | null;
   preferenceWarning?: string | null;
@@ -83,6 +86,5 @@ export interface ImageTaskViewerProps {
   applySelectedOutputLabel?: string;
   onApplySelectedOutput?: () => void;
   onSeedFollowUpCommand?: (command: string) => void;
-  onOpenImage?: (url: string) => void;
   onClose?: () => void;
 }

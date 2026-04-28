@@ -622,9 +622,9 @@ describe("ToolCallDisplay", () => {
 
     const overlayButton = Array.from(
       document.body.querySelectorAll("button"),
-    ).find((button) =>
-      button.querySelector('img[alt="工具结果图片大图"]'),
-    ) as HTMLButtonElement | undefined;
+    ).find((button) => button.querySelector('img[alt="工具结果图片大图"]')) as
+      | HTMLButtonElement
+      | undefined;
 
     expect(overlayButton).toBeTruthy();
     expect(overlayButton?.className).toContain("backdrop-blur-[2px]");

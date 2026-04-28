@@ -57,15 +57,8 @@ export function useWorkspaceProjectSelection(
     typeof initialSessionId === "string" && initialSessionId.trim().length > 0;
   const shouldDisableSessionRestore =
     incomingNewChatRequestKey !== null || hasExplicitInitialSession;
-  const shouldResetToFreshHomeContext =
-    !normalizedExternalProjectId &&
-    incomingNewChatRequestKey !== null &&
-    handledNewChatRequestRef.current !== incomingNewChatRequestKey;
-
   const projectId =
-    normalizedExternalProjectId ??
-    (shouldResetToFreshHomeContext ? undefined : internalProjectId) ??
-    undefined;
+    normalizedExternalProjectId ?? internalProjectId ?? undefined;
 
   const hasHandledNewChatRequest = useCallback(
     (requestKey: string) => handledNewChatRequestRef.current === requestKey,

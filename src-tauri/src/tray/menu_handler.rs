@@ -128,26 +128,7 @@ fn handle_open_window<R: Runtime>(app: &AppHandle<R>) {
     info!("[托盘] 用户请求打开主窗口");
 
     if let Some(window) = app.get_webview_window("main") {
-        // 取消最小化
-        if let Err(e) = window.unminimize() {
-            error!("[托盘] 取消最小化窗口失败: {}", e);
-        }
-
-        // 保持与主窗口默认行为一致：显示时尽量最大化
-        if let Err(e) = window.maximize() {
-            error!("[托盘] 最大化主窗口失败: {}", e);
-        }
-
-        // 显示窗口
-        if let Err(e) = window.show() {
-            error!("[托盘] 显示主窗口失败: {}", e);
-        }
-
-        // 聚焦窗口
-        if let Err(e) = window.set_focus() {
-            error!("[托盘] 聚焦主窗口失败: {}", e);
-        }
-
+        crate::app::window_chrome::reveal_main_window(&window, "托盘");
         info!("[托盘] 主窗口已显示并聚焦");
     } else {
         warn!("[托盘] 未找到主窗口");

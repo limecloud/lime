@@ -26,10 +26,7 @@ export function EmptyStateSceneAppsPanel({
           正在整理可直接续上的整套做法…
         </span>
       ) : hasLaunchableEntries ? (
-        <div
-          data-testid="sceneapps-home-directory"
-          className="contents"
-        >
+        <div data-testid="sceneapps-home-directory" className="contents">
           {items.map((item) => {
             const isLaunching = launchingSceneAppId === item.id;
             const disabled =
@@ -40,7 +37,7 @@ export function EmptyStateSceneAppsPanel({
                 key={item.id}
                 type="button"
                 data-testid={`sceneapp-launch-${item.id}`}
-                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 py-1.5 text-[11px] font-medium text-[color:var(--lime-text-muted)] transition-colors hover:border-[color:var(--lime-surface-border-strong)] hover:bg-[color:var(--lime-surface-soft)] hover:text-[color:var(--lime-text-strong)] disabled:cursor-not-allowed disabled:opacity-60"
                 title={`${item.businessLabel} · ${item.summary}`}
                 disabled={disabled}
                 onClick={() => {

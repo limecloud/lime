@@ -73,7 +73,7 @@ function FilterPill(props: {
       className={cn(
         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
         props.active
-          ? "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10"
+          ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] text-slate-800 shadow-sm shadow-emerald-950/10"
           : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
       )}
       onClick={props.onClick}
@@ -249,7 +249,7 @@ export function SceneAppsCatalogPanel({
                 className={cn(
                   "rounded-[24px] border p-4 transition-colors",
                   isSelected
-                    ? "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10"
+                    ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] text-slate-800 shadow-sm shadow-emerald-950/10"
                     : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
                 )}
               >

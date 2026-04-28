@@ -232,10 +232,8 @@ function StatusBadge({
         "inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
         $status === "merged" &&
           "border-emerald-200 bg-emerald-50 text-emerald-700",
-        $status === "in_progress" &&
-          "border-sky-200 bg-sky-50 text-sky-700",
-        $status === "pending" &&
-          "border-amber-200 bg-amber-50 text-amber-700",
+        $status === "in_progress" && "border-sky-200 bg-sky-50 text-sky-700",
+        $status === "pending" && "border-amber-200 bg-amber-50 text-amber-700",
         $status !== "merged" &&
           $status !== "in_progress" &&
           $status !== "pending" &&
@@ -325,7 +323,9 @@ const ActivityLogTitle = createDiv(
   "truncate text-[12px] font-medium leading-5 text-slate-900",
 );
 
-const ActivityLogMetaRow = createDiv("mt-1 flex flex-wrap items-center gap-1.5");
+const ActivityLogMetaRow = createDiv(
+  "mt-1 flex flex-wrap items-center gap-1.5",
+);
 
 const ActivityLogBadge = createDiv(
   "inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500",
@@ -419,7 +419,8 @@ function getStepIcon(status: StepStatus) {
 function getStatusBadgeClassName(status: StepStatus) {
   return cn(
     "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-    status === "completed" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+    status === "completed" &&
+      "border-emerald-200 bg-emerald-50 text-emerald-700",
     status === "error" && "border-rose-200 bg-rose-50 text-rose-700",
     status === "active" && "border-sky-200 bg-sky-50 text-sky-700",
     status === "pending" && "border-amber-200 bg-amber-50 text-amber-700",
@@ -844,7 +845,8 @@ function buildCuratedTaskFollowUpActionPayload(params: {
   }
 
   const capabilityRoute =
-    (targetTask?.id && targetTask.title.trim()) || (currentTaskId && currentTaskTitle)
+    (targetTask?.id && targetTask.title.trim()) ||
+    (currentTaskId && currentTaskTitle)
       ? {
           kind: "curated_task" as const,
           taskId: targetTask?.id ?? currentTaskId!,
@@ -952,7 +954,8 @@ function getActivityStatusBadgeClassName(
     "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium",
     status === "running" && "border-sky-200 bg-sky-50 text-sky-700",
     status === "failed" && "border-rose-200 bg-rose-50 text-rose-700",
-    status === "completed" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+    status === "completed" &&
+      "border-emerald-200 bg-emerald-50 text-emerald-700",
   );
 }
 
@@ -1103,8 +1106,12 @@ function renderActivityLogItem(
         <ActivityLogTitleBlock>
           <ActivityLogTitle>{primaryLog?.name || "执行经过"}</ActivityLogTitle>
           <ActivityLogMetaRow>
-            {sourceLabel ? <ActivityLogBadge>{sourceLabel}</ActivityLogBadge> : null}
-            {gateLabel ? <ActivityLogBadge>{gateLabel}</ActivityLogBadge> : null}
+            {sourceLabel ? (
+              <ActivityLogBadge>{sourceLabel}</ActivityLogBadge>
+            ) : null}
+            {gateLabel ? (
+              <ActivityLogBadge>{gateLabel}</ActivityLogBadge>
+            ) : null}
             {group.logs.length > 1 ? (
               <ActivityLogBadge>{`${group.logs.length} 步`}</ActivityLogBadge>
             ) : null}
@@ -1316,7 +1323,8 @@ function GeneralWorkbenchWorkflowPanelComponent({
   const workflowSummaryText = buildWorkflowSummaryText({
     leadingStep: currentWorkflowStep,
     remainingCount: remainingSteps,
-    emptyLabel: workflowSteps.length > 0 ? "当前流程已完成" : "等待创建第一条任务",
+    emptyLabel:
+      workflowSteps.length > 0 ? "当前流程已完成" : "等待创建第一条任务",
   });
   const workflowProgressLabel = formatWorkflowProgressLabel({
     completedCount: completedSteps,
@@ -1325,9 +1333,12 @@ function GeneralWorkbenchWorkflowPanelComponent({
   const branchSectionTitle = getBranchSectionTitle(isVersionMode);
   const branchCreateLabel = getBranchCreateLabel(isVersionMode);
   const branchPrimaryActionLabel = getBranchPrimaryActionLabel(isVersionMode);
-  const branchSecondaryActionLabel = getBranchSecondaryActionLabel(isVersionMode);
+  const branchSecondaryActionLabel =
+    getBranchSecondaryActionLabel(isVersionMode);
   const currentBranchItem =
-    sortedBranchItems.find((item) => item.isCurrent) ?? sortedBranchItems[0] ?? null;
+    sortedBranchItems.find((item) => item.isCurrent) ??
+    sortedBranchItems[0] ??
+    null;
   const secondaryBranchCount = Math.max(
     sortedBranchItems.length - (currentBranchItem ? 1 : 0),
     0,
@@ -1404,8 +1415,8 @@ function GeneralWorkbenchWorkflowPanelComponent({
   );
   const shouldShowFollowUpHint = Boolean(
     reviewFeedbackProjection ||
-      curatedTaskFollowUpHintText ||
-      sceneAppReviewBaselineSnapshot,
+    curatedTaskFollowUpHintText ||
+    sceneAppReviewBaselineSnapshot,
   );
   const activitySectionSummary = buildActivitySectionSummary({
     groups: groupedActivityLogs,
@@ -1663,9 +1674,7 @@ function GeneralWorkbenchWorkflowPanelComponent({
           <ActivityMeta>{getEmptyBranchText(isVersionMode)}</ActivityMeta>
         ) : (
           <>
-            <BranchSectionSummary
-              data-testid="workflow-sidebar-branch-summary"
-            >
+            <BranchSectionSummary data-testid="workflow-sidebar-branch-summary">
               {branchSectionSummaryText}
             </BranchSectionSummary>
             {showBranchRecords ? (
@@ -1682,7 +1691,9 @@ function GeneralWorkbenchWorkflowPanelComponent({
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start gap-2">
-                          <BranchTitleButton onClick={() => onSwitchTopic(item.id)}>
+                          <BranchTitleButton
+                            onClick={() => onSwitchTopic(item.id)}
+                          >
                             {item.title}
                           </BranchTitleButton>
                           <StatusBadge $status={item.status}>
@@ -1699,22 +1710,30 @@ function GeneralWorkbenchWorkflowPanelComponent({
                             </DeleteButton>
                           ) : null}
                         </div>
-                        <BranchMeta>{getBranchMetaText(item, isVersionMode)}</BranchMeta>
+                        <BranchMeta>
+                          {getBranchMetaText(item, isVersionMode)}
+                        </BranchMeta>
                         {item.isCurrent ? (
                           <ActionRow>
                             <TinyButton
-                              onClick={() => onSetBranchStatus(item.id, "merged")}
+                              onClick={() =>
+                                onSetBranchStatus(item.id, "merged")
+                              }
                             >
                               {branchPrimaryActionLabel}
                             </TinyButton>
                             <TinyButton
-                              onClick={() => onSetBranchStatus(item.id, "pending")}
+                              onClick={() =>
+                                onSetBranchStatus(item.id, "pending")
+                              }
                             >
                               {branchSecondaryActionLabel}
                             </TinyButton>
                           </ActionRow>
                         ) : (
-                          <BranchHint>切到当前焦点后再继续处理这一条记录</BranchHint>
+                          <BranchHint>
+                            切到当前焦点后再继续处理这一条记录
+                          </BranchHint>
                         )}
                       </div>
                     </BranchHead>
@@ -1779,7 +1798,9 @@ function GeneralWorkbenchWorkflowPanelComponent({
                             <CreationTaskTitle>
                               {getCreationTaskTitle(task.path)}
                             </CreationTaskTitle>
-                            <CreationTaskTime>{task.timeLabel}</CreationTaskTime>
+                            <CreationTaskTime>
+                              {task.timeLabel}
+                            </CreationTaskTime>
                           </CreationTaskTitleRow>
                           <CreationTaskPath>{task.path}</CreationTaskPath>
                         </CreationTaskContent>
@@ -1921,7 +1942,9 @@ function GeneralWorkbenchWorkflowPanelComponent({
                 ) : null}
                 {curatedTaskFollowUpHintText ? (
                   <>
-                    <RunDetailSummary>{curatedTaskFollowUpHintText}</RunDetailSummary>
+                    <RunDetailSummary>
+                      {curatedTaskFollowUpHintText}
+                    </RunDetailSummary>
                     <CuratedTaskFollowUpActions
                       curatedTask={runMetadataSummary.curatedTask}
                       onApplyFollowUpAction={onApplyFollowUpAction}

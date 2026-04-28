@@ -414,14 +414,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
     [setInput],
   );
 
-  const handleOpenImageWorkbenchAsset = useCallback((url: string) => {
-    if (!url.trim()) {
-      return;
-    }
-
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, []);
-
   const handleRetryImageWorkbenchTask = useCallback(
     async (taskId: string) => {
       const normalizedTaskId = taskId.trim();
@@ -879,7 +871,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
     handleCancelImageWorkbenchTask,
     handleImageWorkbenchCommand,
     handleImageWorkbenchViewportChange,
-    handleOpenImageWorkbenchAsset,
     handleRetryImageWorkbenchTask,
     handleSaveSelectedImageWorkbenchOutput,
     handleSeedImageWorkbenchFollowUp,

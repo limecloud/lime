@@ -111,10 +111,7 @@ export function TeamWorkspaceBoard({
     teamDispatchPreviewState,
   });
   const { isEmptyShellState } = sessionGraphState;
-  const {
-    emptyShellProps,
-    shellProps,
-  } = useTeamWorkspaceBoardComposer({
+  const { emptyShellProps, shellProps } = useTeamWorkspaceBoardComposer({
     activityRefreshVersionBySessionId,
     canvasViewportFallbackHeight,
     className,

@@ -567,9 +567,7 @@ describe("AgentThreadReliabilityPanel", () => {
     });
     expect(document.body.textContent).toContain("文件快照详情");
     expect(document.body.textContent).toContain("缺少 reviewer 字段");
-    expect(document.body.textContent).toContain(
-      "新增可靠性面板快照详情入口",
-    );
+    expect(document.body.textContent).toContain("新增可靠性面板快照详情入口");
     expect(document.body.textContent).toContain("artifact-document:req-2:v7");
     expect(document.body.textContent).toContain(
       ".lime/artifacts/thread-file/persistence-map.artifact.json",

@@ -88,7 +88,7 @@ async function flushEffects(times = 8) {
 }
 
 describe("AgentChatPage 工作区路由", () => {
-  it("标准 new-task 空白入口应保留当前首页语义", async () => {
+  it("标准 new-task 空白入口应渲染完整工作区首页", async () => {
     const container = renderPage({
       agentEntry: "new-task",
       projectId: "project-standard",
@@ -104,9 +104,14 @@ describe("AgentChatPage 工作区路由", () => {
     expect(workspace).not.toBeNull();
     expect(workspace?.dataset.agentEntry).toBe("new-task");
     expect(workspace?.dataset.showChatPanel).toBe("false");
+    expect(latestWorkspaceProps.value).toMatchObject({
+      agentEntry: "new-task",
+      projectId: "project-standard",
+      showChatPanel: false,
+    });
   });
 
-  it("immersiveHome 模式同样应保留当前首页语义", async () => {
+  it("immersiveHome 模式同样应保留完整工作区首页", async () => {
     const container = renderPage({
       agentEntry: "new-task",
       immersiveHome: true,
@@ -122,6 +127,11 @@ describe("AgentChatPage 工作区路由", () => {
     expect(workspace).not.toBeNull();
     expect(workspace?.dataset.agentEntry).toBe("new-task");
     expect(workspace?.dataset.showChatPanel).toBe("false");
+    expect(latestWorkspaceProps.value).toMatchObject({
+      agentEntry: "new-task",
+      immersiveHome: true,
+      showChatPanel: false,
+    });
   });
 
   it("new-task 携带首条上下文时应继续按当前工作区语义渲染", async () => {

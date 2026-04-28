@@ -875,7 +875,6 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           saveTransient(scopedKeys.itemsKey, []);
           saveTransient(scopedKeys.currentTurnKey, null);
 
-          void loadTopics();
           logAgentDebug("useAgentSession", "createFreshSession.success", {
             newSessionId,
             sessionName: sessionName?.trim() || null,
@@ -916,7 +915,6 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       accessMode,
       executionStrategy,
       invalidatePendingSessionSwitches,
-      loadTopics,
       modelRef,
       markSessionExecutionStrategySynced,
       persistSessionModelPreference,

@@ -58,49 +58,49 @@ function renderChrome(
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  const defaultProps: ComponentProps<typeof TeamWorkspaceTeamOverviewChrome> =
-    {
-      boardChromeDisplay: {
-        boardHeadline: "任务进行中 · 1 项处理中 / 1 项稍后开始",
-        boardHint: "这里只展示当前有哪些任务在处理、状态如何，以及最近更新到了哪里。",
-        compactBoardHeadline: "任务进行中 · 1 项处理中 / 1 项稍后开始",
-        compactToolbarChips: [
-          { key: "focus", text: "当前焦点 研究员", tone: "summary" },
-          { key: "status", text: "处理中", tone: "status", status: "running" },
-          { key: "updated-at", text: "更新于 刚刚", tone: "muted" },
-          { key: "current", text: "当前任务", tone: "muted" },
-          { key: "waitable", text: "2 项处理中", tone: "muted" },
-        ],
-        statusSummaryBadges: [],
-      },
-      canCloseCompletedTeamSessions: true,
-      canWaitAnyActiveTeamSession: true,
-      completedCount: 1,
-      embedded: true,
-      formatUpdatedAt: () => "刚刚",
-      memberCanvasSubtitle:
-        "2 条当前进展已接入，当前焦点会优先落在正在处理的分工上。",
-      memberCanvasTitle: "当前进展",
-      onAutoArrangeCanvas: vi.fn(),
-      onCloseCompletedTeamSessions: vi.fn(),
-      onFitCanvasView: vi.fn(),
-      onSelectTeamOperationEntry: vi.fn(),
-      onWaitAnyActiveTeamSessions: vi.fn(),
-      onZoomIn: vi.fn(),
-      onZoomOut: vi.fn(),
-      pendingTeamAction: null,
-      resolveStatusMeta: () => ({
-        badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
-      }),
-      selectedSession: {
-        name: "研究员",
-        isCurrent: true,
-        updatedAt: 1710000000,
-      },
-      teamOperationEntries: [],
-      useCompactCanvasChrome: true,
-      waitableCount: 2,
-    };
+  const defaultProps: ComponentProps<typeof TeamWorkspaceTeamOverviewChrome> = {
+    boardChromeDisplay: {
+      boardHeadline: "任务进行中 · 1 项处理中 / 1 项稍后开始",
+      boardHint:
+        "这里只展示当前有哪些任务在处理、状态如何，以及最近更新到了哪里。",
+      compactBoardHeadline: "任务进行中 · 1 项处理中 / 1 项稍后开始",
+      compactToolbarChips: [
+        { key: "focus", text: "当前焦点 研究员", tone: "summary" },
+        { key: "status", text: "处理中", tone: "status", status: "running" },
+        { key: "updated-at", text: "更新于 刚刚", tone: "muted" },
+        { key: "current", text: "当前任务", tone: "muted" },
+        { key: "waitable", text: "2 项处理中", tone: "muted" },
+      ],
+      statusSummaryBadges: [],
+    },
+    canCloseCompletedTeamSessions: true,
+    canWaitAnyActiveTeamSession: true,
+    completedCount: 1,
+    embedded: true,
+    formatUpdatedAt: () => "刚刚",
+    memberCanvasSubtitle:
+      "2 条当前进展已接入，当前焦点会优先落在正在处理的分工上。",
+    memberCanvasTitle: "当前进展",
+    onAutoArrangeCanvas: vi.fn(),
+    onCloseCompletedTeamSessions: vi.fn(),
+    onFitCanvasView: vi.fn(),
+    onSelectTeamOperationEntry: vi.fn(),
+    onWaitAnyActiveTeamSessions: vi.fn(),
+    onZoomIn: vi.fn(),
+    onZoomOut: vi.fn(),
+    pendingTeamAction: null,
+    resolveStatusMeta: () => ({
+      badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
+    }),
+    selectedSession: {
+      name: "研究员",
+      isCurrent: true,
+      updatedAt: 1710000000,
+    },
+    teamOperationEntries: [],
+    useCompactCanvasChrome: true,
+    waitableCount: 2,
+  };
 
   act(() => {
     root.render(
@@ -156,7 +156,8 @@ describe("TeamWorkspaceTeamOverviewChrome", () => {
           id: "wait-1",
           title: "收到结果",
           detail: "刚才等到 执行器 返回了新结果，当前状态为已完成。",
-          badgeClassName: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+          badgeClassName:
+            "border border-emerald-200 bg-emerald-50 text-emerald-700",
           updatedAt: 1710000000,
           targetSessionId: "child-1",
         },
@@ -180,8 +181,6 @@ describe("TeamWorkspaceTeamOverviewChrome", () => {
         ? operations.compareDocumentPosition(controls) &
           Node.DOCUMENT_POSITION_FOLLOWING
         : 0;
-    expect(
-      operationsOrder,
-    ).toBeTruthy();
+    expect(operationsOrder).toBeTruthy();
   });
 });

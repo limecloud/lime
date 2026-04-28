@@ -41,7 +41,8 @@ pub(super) async fn try_handle(
 ) -> Result<Option<JsonValue>, DynError> {
     if !matches!(
         cmd,
-        "agent_runtime_submit_turn"
+        "agent_generate_title"
+            | "agent_runtime_submit_turn"
             | "agent_runtime_interrupt_turn"
             | "agent_runtime_compact_session"
             | "agent_runtime_resume_thread"
@@ -65,6 +66,40 @@ pub(super) async fn try_handle(
 
     let app_handle = require_app_handle(state)?;
     let result = match cmd {
+        "agent_generate_title" => {
+            let args = args_or_default(args);
+            let session_id = args
+                .get("sessionId")
+                .or_else(|| args.get("session_id"))
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let preview_text = args
+                .get("previewText")
+                .or_else(|| args.get("preview_text"))
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let title_kind = args
+                .get("titleKind")
+                .or_else(|| args.get("title_kind"))
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
+            let db = app_handle.state::<crate::database::DbConnection>();
+            let config_manager = app_handle.state::<crate::config::GlobalConfigManagerState>();
+
+            serde_json::to_value(
+                crate::commands::agent_cmd::agent_generate_title(
+                    app_handle.clone(),
+                    aster_state,
+                    db,
+                    config_manager,
+                    session_id,
+                    preview_text,
+                    title_kind,
+                )
+                .await?,
+            )?
+        }
         "agent_runtime_submit_turn" => {
             let request = parse_request::<
                 crate::commands::aster_agent_cmd::AgentRuntimeSubmitTurnRequest,

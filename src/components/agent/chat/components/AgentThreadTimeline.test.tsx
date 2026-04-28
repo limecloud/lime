@@ -905,7 +905,9 @@ describe("AgentThreadTimeline", () => {
       summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const markdownBlocks = container.querySelectorAll('[data-testid="markdown-renderer"]');
+    const markdownBlocks = container.querySelectorAll(
+      '[data-testid="markdown-renderer"]',
+    );
     expect(markdownBlocks[0]?.textContent).toBe(
       "目录也不存在。可能整个 .lime 目录都不存在。",
     );

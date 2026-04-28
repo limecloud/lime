@@ -37,10 +37,7 @@ export async function loadModuleWithRetry<TModule>(
     } catch (error) {
       lastError = error;
       const nextDelayMs = retryDelaysMs[attempt];
-      if (
-        nextDelayMs === undefined ||
-        !isRetryableModuleImportFailure(error)
-      ) {
+      if (nextDelayMs === undefined || !isRetryableModuleImportFailure(error)) {
         throw error;
       }
 
@@ -48,9 +45,7 @@ export async function loadModuleWithRetry<TModule>(
     }
   }
 
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("模块加载失败");
+  throw lastError instanceof Error ? lastError : new Error("模块加载失败");
 }
 
 export function loadAgentChatWorkspaceModule() {

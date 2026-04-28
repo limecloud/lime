@@ -211,14 +211,15 @@ function readCuratedTaskReferenceEntries(
                   record.task_prefill_by_task_id ?? record.taskPrefillByTaskId,
                 ) ?? {},
               )
-                .map(([taskId, inputValues]) => [
-                  taskId,
-                  readCuratedTaskLaunchInputValues(inputValues),
-                ] as const)
+                .map(
+                  ([taskId, inputValues]) =>
+                    [
+                      taskId,
+                      readCuratedTaskLaunchInputValues(inputValues),
+                    ] as const,
+                )
                 .filter(
-                  (
-                    item,
-                  ): item is [string, CuratedTaskInputValues] =>
+                  (item): item is [string, CuratedTaskInputValues] =>
                     Boolean(item[0]) && Boolean(item[1]),
                 ),
             )
@@ -301,13 +302,16 @@ export function parseGeneralWorkbenchRunMetadataSummary(
       curatedTaskRecord?.task_title ?? curatedTaskRecord?.taskTitle,
     );
     const curatedTaskResultDestination = readString(
-      curatedTaskRecord?.result_destination ?? curatedTaskRecord?.resultDestination,
+      curatedTaskRecord?.result_destination ??
+        curatedTaskRecord?.resultDestination,
     );
     const curatedTaskFollowUpActions = readStringArray(
-      curatedTaskRecord?.follow_up_actions ?? curatedTaskRecord?.followUpActions,
+      curatedTaskRecord?.follow_up_actions ??
+        curatedTaskRecord?.followUpActions,
     );
     const launchInputValues = readCuratedTaskLaunchInputValues(
-      curatedTaskRecord?.launch_input_values ?? curatedTaskRecord?.launchInputValues,
+      curatedTaskRecord?.launch_input_values ??
+        curatedTaskRecord?.launchInputValues,
     );
     const referenceEntries = readCuratedTaskReferenceEntries(
       curatedTaskRecord?.reference_entries ??
@@ -326,9 +330,7 @@ export function parseGeneralWorkbenchRunMetadataSummary(
       ? findCuratedTaskTemplateById(curatedTaskId)
       : null;
     const curatedTask =
-      curatedTaskTemplate ||
-      curatedTaskId ||
-      curatedTaskTitle
+      curatedTaskTemplate || curatedTaskId || curatedTaskTitle
         ? {
             taskId: curatedTaskTemplate?.id ?? curatedTaskId,
             taskTitle: curatedTaskTemplate?.title ?? curatedTaskTitle,

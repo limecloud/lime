@@ -204,7 +204,9 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     expect(container.textContent).toContain("生成侧栏");
-    expect(container.textContent).toContain("聚焦当前结果、下一步与可继续的版本。");
+    expect(container.textContent).toContain(
+      "聚焦当前结果、下一步与可继续的版本。",
+    );
     expect(container.textContent).toContain("当前进展");
     expect(container.textContent).toContain("当前焦点");
     expect(container.textContent).toContain("撰写主稿");
@@ -245,9 +247,7 @@ describe("GeneralWorkbenchSidebar", () => {
         ? taskSection.compareDocumentPosition(branchSection) &
           Node.DOCUMENT_POSITION_FOLLOWING
         : 0;
-    expect(
-      taskSectionOrder,
-    ).toBeTruthy();
+    expect(taskSectionOrder).toBeTruthy();
   });
 
   it("传入折叠回调时应显示折叠按钮并可触发", () => {
@@ -781,7 +781,9 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.querySelector("button[aria-label='切换可继续记录']")).toBeTruthy();
+    expect(
+      container.querySelector("button[aria-label='切换可继续记录']"),
+    ).toBeTruthy();
     expect(container.querySelector("button[aria-label='删除分支']")).toBeNull();
     expect(container.textContent).toContain("当前焦点落在");
 
@@ -859,7 +861,9 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("最近一组：content_post_with_cover");
+    expect(container.textContent).toContain(
+      "最近一组：content_post_with_cover",
+    );
 
     const activityToggle = container.querySelector(
       "button[aria-label='切换执行经过']",
@@ -1125,9 +1129,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(baselineCard?.textContent).toContain("当前结果基线");
     expect(baselineCard?.textContent).toContain("AI 内容周报");
     expect(baselineCard?.textContent).toContain("当前判断：适合继续放量");
-    expect(baselineCard?.textContent).toContain(
-      "经营动作：保留品牌联名方向",
-    );
+    expect(baselineCard?.textContent).toContain("经营动作：保留品牌联名方向");
     expect(baselineCard?.textContent).toContain(
       "更适合去向：内容主稿生成 / 渠道改写",
     );
@@ -1192,9 +1194,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(baselineCard?.textContent).toContain("当前结果基线");
     expect(baselineCard?.textContent).toContain("AI 内容周报");
     expect(baselineCard?.textContent).toContain("当前判断：适合继续放量");
-    expect(baselineCard?.textContent).toContain(
-      "经营动作：保留品牌联名方向",
-    );
+    expect(baselineCard?.textContent).toContain("经营动作：保留品牌联名方向");
   });
 
   it("命中最近判断偏好模板时，应在当前进展里显影判断建议", () => {
@@ -1202,7 +1202,8 @@ describe("GeneralWorkbenchSidebar", () => {
       {
         session_id: "session-review-workflow",
         decision_status: "needs_more_evidence",
-        decision_summary: "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
+        decision_summary:
+          "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
         chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
         risk_level: "medium",
         risk_tags: ["证据不足", "需要复盘"],
@@ -1258,7 +1259,9 @@ describe("GeneralWorkbenchSidebar", () => {
       "最近判断已更新：短视频编排 · 补证据",
     );
     expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
-    expect(reviewBanner?.textContent).toContain("围绕「复盘这个账号/项目」继续推进");
+    expect(reviewBanner?.textContent).toContain(
+      "围绕「复盘这个账号/项目」继续推进",
+    );
   });
 
   it("复盘结果带着 sceneapp 基线时，应在当前查看运行里继续显影当前结果基线", () => {
@@ -1329,9 +1332,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(baselineCard?.textContent).toContain("当前结果基线");
     expect(baselineCard?.textContent).toContain("AI 内容周报");
     expect(baselineCard?.textContent).toContain("当前判断：适合继续放量");
-    expect(baselineCard?.textContent).toContain(
-      "经营动作：保留品牌联名方向",
-    );
+    expect(baselineCard?.textContent).toContain("经营动作：保留品牌联名方向");
     expect(baselineCard?.textContent).toContain(
       "更适合去向：内容主稿生成 / 渠道改写",
     );
@@ -1342,7 +1343,8 @@ describe("GeneralWorkbenchSidebar", () => {
       {
         session_id: "session-review-run-detail",
         decision_status: "needs_more_evidence",
-        decision_summary: "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
+        decision_summary:
+          "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
         chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
         risk_level: "medium",
         risk_tags: ["证据不足", "需要复盘"],
@@ -1407,7 +1409,9 @@ describe("GeneralWorkbenchSidebar", () => {
       "最近判断已更新：短视频编排 · 补证据",
     );
     expect(reviewBanner?.textContent).toContain("这轮结果还缺证据");
-    expect(reviewBanner?.textContent).toContain("围绕「复盘这个账号/项目」继续推进");
+    expect(reviewBanner?.textContent).toContain(
+      "围绕「复盘这个账号/项目」继续推进",
+    );
   });
 
   it("点击当前进展里的复盘建议时，应把结果基线 continuation 回传给工作区", () => {
@@ -1671,35 +1675,33 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(onApplyFollowUpAction).toHaveBeenCalledWith(
-      {
+    expect(onApplyFollowUpAction).toHaveBeenCalledWith({
+      prompt: "请基于「每日趋势摘要」这轮结果继续：继续展开其中一个选题",
+      bannerMessage:
+        "已按“继续展开其中一个选题”接着推进「每日趋势摘要」，可继续改写后发送。",
+      capabilityRoute: {
+        kind: "curated_task",
+        taskId: "daily-trend-briefing",
+        taskTitle: "每日趋势摘要",
         prompt: "请基于「每日趋势摘要」这轮结果继续：继续展开其中一个选题",
-        bannerMessage:
-          "已按“继续展开其中一个选题”接着推进「每日趋势摘要」，可继续改写后发送。",
-        capabilityRoute: {
-          kind: "curated_task",
-          taskId: "daily-trend-briefing",
-          taskTitle: "每日趋势摘要",
-          prompt: "请基于「每日趋势摘要」这轮结果继续：继续展开其中一个选题",
-          launchInputValues: {
-            theme_target: "AI 内容创作",
-            platform_region: "X 与 TikTok 北美区",
-          },
-          referenceMemoryIds: ["memory-1"],
-          referenceEntries: [
-            {
-              id: "memory-1",
-              sourceKind: "memory",
-              title: "品牌风格样本",
-              summary: "保留轻盈但专业的表达。",
-              category: "context",
-              categoryLabel: "参考",
-              tags: ["品牌", "语气"],
-            },
-          ],
+        launchInputValues: {
+          theme_target: "AI 内容创作",
+          platform_region: "X 与 TikTok 北美区",
         },
+        referenceMemoryIds: ["memory-1"],
+        referenceEntries: [
+          {
+            id: "memory-1",
+            sourceKind: "memory",
+            title: "品牌风格样本",
+            summary: "保留轻盈但专业的表达。",
+            category: "context",
+            categoryLabel: "参考",
+            tags: ["品牌", "语气"],
+          },
+        ],
       },
-    );
+    });
   });
 
   it("复盘结果点击建议下一步时，应切到下游结果模板而不是继续停在复盘模板", () => {
@@ -1819,7 +1821,8 @@ describe("GeneralWorkbenchSidebar", () => {
                   tags: ["复盘", "增长"],
                   task_prefill_by_task_id: {
                     "social-post-starter": {
-                      subject_or_product: "基于本周账号复盘，整理下一轮内容方向与重点动作。",
+                      subject_or_product:
+                        "基于本周账号复盘，整理下一轮内容方向与重点动作。",
                     },
                   },
                 },
@@ -1986,9 +1989,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain(
       "工作流 social_content_pipeline_v1",
     );
-    expect(container.textContent).toContain(
-      "选题闸门 → 写作闸门 → 发布闸门",
-    );
+    expect(container.textContent).toContain("选题闸门 → 写作闸门 → 发布闸门");
     expect(container.textContent).toContain("content-posts/demo.md");
     expect(container.textContent).toContain(
       "content-posts/demo.publish-pack.json",

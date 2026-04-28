@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useMemo,
-} from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   buildInitializedTeamWorkspaceCanvasItems,
   buildTeamWorkspaceCanvasLaneLayouts,
@@ -130,14 +124,11 @@ export function useTeamWorkspaceCanvasController({
     [],
   );
 
-  const bringCanvasLaneToFront = useCallback(
-    (persistKey: string) => {
-      setCanvasLayoutState((previous) =>
-        bringTeamWorkspaceCanvasLaneToFront(previous, persistKey),
-      );
-    },
-    [],
-  );
+  const bringCanvasLaneToFront = useCallback((persistKey: string) => {
+    setCanvasLayoutState((previous) =>
+      bringTeamWorkspaceCanvasLaneToFront(previous, persistKey),
+    );
+  }, []);
 
   useEffect(() => {
     if (canvasLanes.length === 0) {

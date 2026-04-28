@@ -547,12 +547,12 @@ export function ProjectSelector({
             size="sm"
             className={cn(
               workspaceTab
-                ? "h-5 min-w-[128px] max-w-[196px] justify-start gap-1.5 rounded-none border-transparent bg-transparent px-0 py-0 text-left shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 dark:hover:bg-transparent"
+                ? "h-7 min-w-[128px] max-w-[196px] justify-start gap-2 rounded-none border-transparent bg-transparent px-0.5 py-0 text-left shadow-none transition-colors hover:bg-transparent focus-visible:ring-0 dark:hover:bg-transparent"
                 : embedded
                   ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-transparent bg-transparent px-1.5 py-0 text-left shadow-none hover:bg-slate-50/80 focus-visible:ring-1 focus-visible:ring-slate-300 focus-visible:ring-offset-0"
-                : compact
-                  ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-slate-200/80 bg-white/94 px-2.5 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white"
-                  : "h-11 min-w-[220px] max-w-[320px] justify-between gap-3 rounded-2xl border-slate-200/80 bg-white/92 px-3 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white hover:shadow-md hover:shadow-slate-950/8",
+                  : compact
+                    ? "h-10 min-w-[180px] max-w-[280px] justify-between gap-2 rounded-full border-slate-200/80 bg-white/94 px-2.5 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white"
+                    : "h-11 min-w-[220px] max-w-[320px] justify-between gap-3 rounded-2xl border-slate-200/80 bg-white/92 px-3 py-0 text-left shadow-sm shadow-slate-950/5 transition-[border-color,box-shadow,background-color] hover:border-slate-300/80 hover:bg-white hover:shadow-md hover:shadow-slate-950/8",
               className,
               passiveTrigger &&
                 "pointer-events-none cursor-default select-none focus-visible:ring-0",
@@ -573,9 +573,11 @@ export function ProjectSelector({
             >
               {workspaceTab ? (
                 <>
-                  <FolderIcon className="h-3.5 w-3.5 shrink-0 text-slate-900 dark:text-slate-100" />
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center text-[color:var(--lime-chrome-text)] dark:text-slate-100">
+                    <FolderIcon className="h-4 w-4 shrink-0" />
+                  </span>
                   <span className="min-w-0 flex flex-1 items-center gap-1.5">
-                    <span className="truncate text-[12px] font-semibold leading-none text-slate-950 dark:text-slate-100">
+                    <span className="truncate text-[12px] font-semibold leading-none text-[color:var(--lime-chrome-text)] dark:text-slate-100">
                       {selectedProject?.name || placeholder}
                     </span>
                   </span>
@@ -589,7 +591,9 @@ export function ProjectSelector({
                     )}
                   >
                     {selectedProject?.icon ? (
-                      <span className={compactLikeTrigger ? "text-sm" : "text-base"}>
+                      <span
+                        className={compactLikeTrigger ? "text-sm" : "text-base"}
+                      >
                         {selectedProject.icon}
                       </span>
                     ) : (
@@ -641,7 +645,7 @@ export function ProjectSelector({
           align={dropdownAlign}
           className={cn(
             popoverWidthClass,
-            "overflow-hidden rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(255,255,255,0.98)_36%,rgba(240,249,255,0.94)_100%)] p-0 shadow-lg shadow-slate-950/10",
+            "overflow-hidden rounded-[28px] border border-[color:var(--lime-surface-border)] bg-[image:var(--lime-home-card-surface-strong)] p-0 shadow-lg shadow-slate-950/10",
           )}
         >
           <div className="flex flex-col">
@@ -651,8 +655,8 @@ export function ProjectSelector({
                 headerPaddingClass,
               )}
             >
-              <div className="pointer-events-none absolute -left-10 top-[-24px] h-24 w-24 rounded-full bg-sky-200/20 blur-3xl" />
-              <div className="pointer-events-none absolute right-[-20px] top-0 h-20 w-20 rounded-full bg-emerald-200/20 blur-3xl" />
+              <div className="pointer-events-none absolute -left-10 top-[-24px] h-24 w-24 rounded-full bg-[color:var(--lime-home-glow-secondary)] blur-3xl" />
+              <div className="pointer-events-none absolute right-[-20px] top-0 h-20 w-20 rounded-full bg-[color:var(--lime-home-glow-primary)] blur-3xl" />
               <div
                 className={cn(
                   "relative",
@@ -665,7 +669,8 @@ export function ProjectSelector({
                       选择{entityLabel}
                     </div>
                     <div className="mt-1 text-xs leading-5 text-slate-500">
-                      在这里切换{entityLabel}、搜索{entityLabel}，并管理当前可见{entityLabel}列表。
+                      在这里切换{entityLabel}、搜索{entityLabel}，并管理当前可见
+                      {entityLabel}列表。
                     </div>
                   </div>
                   <Badge
@@ -705,7 +710,10 @@ export function ProjectSelector({
                 className={cn(compactPanel ? "max-h-[280px]" : "max-h-[320px]")}
               >
                 <div
-                  className={cn("pr-2", compactPanel ? "space-y-2" : "space-y-3")}
+                  className={cn(
+                    "pr-2",
+                    compactPanel ? "space-y-2" : "space-y-3",
+                  )}
                 >
                   {displayLoading ? (
                     <div className="rounded-[22px] border border-dashed border-slate-300/80 bg-white/80 px-4 py-8 text-center text-sm text-slate-500">
@@ -837,7 +845,7 @@ export function ProjectSelector({
                     size="sm"
                     className={cn(
                       compact ? "h-8 px-3 text-xs" : "h-9",
-                      "gap-1.5 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95",
+                      "gap-1.5 rounded-full border border-[color:var(--lime-surface-border-strong)] bg-[image:var(--lime-primary-gradient)] text-white shadow-sm shadow-slate-950/10 hover:opacity-95",
                     )}
                     onClick={() => {
                       handleOpenChange(false);

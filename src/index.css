@@ -238,3 +238,420 @@
 .animate-streaming-progress {
   animation: streaming-progress 1.5s ease-in-out infinite;
 }
+
+/* 设置页和工作台仍有存量 Tailwind 静态色；用单一作用域接入 Lime 主题变量，避免每页散落补丁。 */
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) {
+  background: var(--lime-stage-surface, var(--lime-app-bg, #f4f7f1));
+  color: var(--lime-text, #1a3b2b);
+}
+
+:where(
+    .lime-settings-theme-scope,
+    .lime-workbench-theme-scope
+  ).lime-workbench-surface-scope {
+  background: var(--lime-surface, #ffffff) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/70"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/72"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/75"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/78"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/82"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/84"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/85"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/86"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/88"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/92"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/95"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-white/98"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-background"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-background/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-background/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-card"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-card/95"] {
+  background: var(--lime-surface, #ffffff) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-50"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-50/60"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-50/70"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-50/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-50/88"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-50/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-50/92"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-50/95"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-100/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-100/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-muted"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-muted/20"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-muted/30"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-muted/35"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-muted/40"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-muted/50"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-muted/60"] {
+  background: var(--lime-surface-soft, #f8fcf9) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-200"] {
+  background: var(--lime-surface-muted, #f2f7f3) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-300"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-slate-300/80"] {
+  background: var(--lime-surface-border-strong, #c7e7d1) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-gradient-to-br"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope)
+  [class*="bg-[linear-gradient(135deg,rgba"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope)
+  [class*="bg-[linear-gradient(180deg,rgba"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope)
+  [class*="bg-[linear-gradient(180deg,#"] {
+  background: var(--lime-card-subtle, var(--lime-surface-soft, #f8fcf9))
+    !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope)
+  [class*="bg-[linear-gradient(135deg,#"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope)
+  [class*="bg-[linear-gradient(90deg,#"] {
+  background: var(--lime-primary-gradient-simple, #10b981) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-50"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-50/30"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-50/40"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-50/60"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-50/70"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-50/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-50/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-100/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-green-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-teal-100/24"] {
+  background: var(--lime-brand-soft, #ecfdf5) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-200"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-200/30"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-300"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-400"] {
+  background: color-mix(in srgb, var(--lime-brand, #10b981) 36%, transparent)
+    !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-500"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-emerald-700"] {
+  background: var(--lime-brand, #10b981) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-primary/10"] {
+  background: var(--lime-brand-soft, #ecfdf5) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-sky-50"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-sky-50/50"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-sky-50/70"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-sky-50/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-sky-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-sky-200/28"] {
+  background: var(--lime-info-soft, #f0f9ff) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-amber-50"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-amber-50/70"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-amber-50/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-amber-50/85"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-amber-50/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-amber-100"] {
+  background: var(--lime-warning-soft, #fffbeb) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-rose-50"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-rose-50/70"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-rose-50/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-rose-50/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-rose-100"] {
+  background: var(--lime-danger-soft, #fff1f2) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-red-50"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-red-50/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-red-100"] {
+  background: var(--lime-danger-soft, #fff1f2) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-orange-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-orange-100/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-stone-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="bg-violet-50"] {
+  background: var(--lime-surface-muted, #f2f7f3) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-slate-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-slate-200"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-slate-200/70"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-slate-200/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-slate-200/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-white"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-white/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-white/85"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-white/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-border"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-border/60"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-border/70"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-border/80"] {
+  border-color: var(--lime-surface-border, #e2f0e2) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-slate-300"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-slate-700"] {
+  border-color: var(--lime-surface-border-strong, #c7e7d1) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-emerald-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-emerald-200"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-emerald-200/40"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-emerald-200/60"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-emerald-200/70"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-emerald-200/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-emerald-300"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-emerald-300/60"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-emerald-700"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-primary"] {
+  border-color: var(--lime-surface-border-strong, #c7e7d1) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-sky-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-sky-200"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-sky-200/80"] {
+  border-color: var(--lime-info-border, #bfdbfe) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-amber-200"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-amber-200/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-amber-300"] {
+  border-color: var(--lime-warning-border, #fde68a) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-rose-100"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-rose-200"] {
+  border-color: var(--lime-danger-border, #fecdd3) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-red-200"] {
+  border-color: var(--lime-danger-border, #fecdd3) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-orange-200"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="border-violet-200"] {
+  border-color: var(--lime-surface-border-strong, #c7e7d1) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-slate-950"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-slate-900"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-slate-800"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-foreground"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-card-foreground"] {
+  color: var(--lime-text-strong, #0f172a) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-slate-700"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-slate-600"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-primary"] {
+  color: var(--lime-text, #1a3b2b) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-slate-500"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-slate-400"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-slate-300"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-muted-foreground"] {
+  color: var(--lime-text-muted, #6b826b) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-emerald-700"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-emerald-700/80"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-emerald-500"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-emerald-600"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-emerald-800"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-emerald-800/90"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-emerald-900"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-green-700"] {
+  color: var(--lime-brand-strong, #166534) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-sky-600"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-sky-700"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-sky-900"] {
+  color: var(--lime-info, #0284c7) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-amber-600"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-amber-700"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-amber-800"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-amber-900"] {
+  color: var(--lime-warning, #b45309) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-rose-600"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-rose-700"] {
+  color: var(--lime-danger, #be123c) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-red-700"] {
+  color: var(--lime-danger, #be123c) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-orange-700"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-orange-800"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-stone-800"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="text-violet-700"] {
+  color: var(--lime-text, #1a3b2b) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="ring-slate-200"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="ring-slate-400"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="focus-visible:ring-slate-300"],
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="focus-visible:ring-emerald-300"] {
+  --tw-ring-color: var(--lime-surface-border, #e2f0e2) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="ring-emerald-200"] {
+  --tw-ring-color: var(--lime-surface-border-strong, #c7e7d1) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="focus:ring-emerald-100"]:focus,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="focus-visible:ring-emerald-300"]:focus-visible {
+  --tw-ring-color: var(--lime-focus-ring, rgba(52, 171, 103, 0.18)) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="ring-amber-200"] {
+  --tw-ring-color: var(--lime-warning-border, #fde68a) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-white"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-white/78"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-white/90"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-white/92"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="focus:bg-white"]:focus {
+  background: var(--lime-surface, #ffffff) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-slate-50"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-slate-100"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-slate-200"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-muted/60"]:hover {
+  background: var(--lime-surface-hover, #f4fdf4) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-emerald-50"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-emerald-50/40"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-emerald-100"]:hover {
+  background: var(--lime-brand-soft, #ecfdf5) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-emerald-800"]:hover {
+  background: var(--lime-brand-strong, #166534) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-sky-50"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-sky-100"]:hover {
+  background: var(--lime-info-soft, #f0f9ff) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-amber-100"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-amber-100/40"]:hover {
+  background: var(--lime-warning-soft, #fffbeb) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-rose-50"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-rose-100"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:bg-rose-100/70"]:hover {
+  background: var(--lime-danger-soft, #fff1f2) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:border-slate-300"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:border-slate-400"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="focus:border-slate-300"]:focus,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="focus:border-slate-400"]:focus {
+  border-color: var(--lime-surface-border-strong, #c7e7d1) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:border-emerald-200"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:border-emerald-300"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="focus:border-emerald-300"]:focus {
+  border-color: var(--lime-surface-border-strong, #c7e7d1) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:border-sky-300"]:hover {
+  border-color: var(--lime-info-border, #bfdbfe) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:border-amber-300"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:border-amber-400"]:hover {
+  border-color: var(--lime-warning-border, #fde68a) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:border-rose-300"]:hover {
+  border-color: var(--lime-danger-border, #fecdd3) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:text-slate-700"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:text-slate-900"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:text-slate-950"]:hover,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:text-foreground"]:hover {
+  color: var(--lime-text-strong, #0f172a) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:text-emerald-900"]:hover {
+  color: var(--lime-brand-strong, #166534) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:text-emerald-800"]:hover {
+  color: var(--lime-brand-strong, #166534) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:text-sky-800"]:hover {
+  color: var(--lime-info, #0284c7) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="hover:text-rose-600"]:hover {
+  color: var(--lime-danger, #be123c) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) [class~="focus:ring-slate-200"]:focus {
+  --tw-ring-color: var(--lime-focus-ring, rgba(52, 171, 103, 0.18)) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope)
+  [class~="data-[state=active]:bg-white"][data-state="active"] {
+  background: var(--lime-surface, #ffffff) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope)
+  [class~="data-[state=active]:text-slate-900"][data-state="active"] {
+  color: var(--lime-text-strong, #0f172a) !important;
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) input,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) textarea,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) select {
+  background: var(--lime-surface, #ffffff);
+  border-color: var(--lime-surface-border, #e2f0e2);
+  color: var(--lime-text-strong, #0f172a);
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) input::placeholder,
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope) textarea::placeholder {
+  color: var(--lime-text-muted, #6b826b);
+}
+
+:where(.lime-settings-theme-scope, .lime-workbench-theme-scope)
+  [class~="placeholder:text-slate-400"]::placeholder {
+  color: var(--lime-text-muted, #6b826b) !important;
+}

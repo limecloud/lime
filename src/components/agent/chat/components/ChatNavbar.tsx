@@ -14,7 +14,10 @@ import { Button } from "@/components/ui/button";
 import { ProjectSelector } from "@/components/projects/ProjectSelector";
 import { cn } from "@/lib/utils";
 import { Navbar } from "../styles";
-import { TASK_CENTER_CHROME_SURFACE } from "../workspace/taskCenterChromeTokens";
+import {
+  TASK_CENTER_CHROME_ACTIVE_TAB,
+  TASK_CENTER_CHROME_RAIL_SURFACE,
+} from "../workspace/taskCenterChromeTokens";
 
 interface ChatNavbarProps {
   isRunning: boolean;
@@ -36,6 +39,10 @@ interface ChatNavbarProps {
   projectId?: string | null;
   onProjectChange?: (projectId: string) => void;
   workspaceType?: string;
+  deferWorkspaceListLoad?: boolean;
+  workspaceHintMessage?: string;
+  workspaceHintVisible?: boolean;
+  onDismissWorkspaceHint?: () => void;
   showHarnessToggle?: boolean;
   harnessPanelVisible?: boolean;
   onToggleHarnessPanel?: () => void;
@@ -48,33 +55,34 @@ interface ChatNavbarProps {
 }
 
 const toolbarGroupClassName =
-  "flex items-center rounded-[20px] border border-slate-200/80 bg-white/90 p-1.5 shadow-sm shadow-slate-950/5 backdrop-blur-sm";
+  "flex items-center rounded-[20px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-subtle)] p-1.5 shadow-sm shadow-slate-950/5 backdrop-blur-sm";
 
-const toolbarDividerClassName = "mx-1.5 h-6 w-px shrink-0 bg-slate-200/80";
+const toolbarDividerClassName =
+  "mx-1.5 h-6 w-px shrink-0 bg-[color:var(--lime-surface-border)]";
 
 const toolbarEmbeddedButtonClassName =
   "h-9 rounded-2xl border border-transparent px-3.5 text-xs shadow-none";
 
 const toolbarGhostIconButtonClassName =
-  "h-9 w-9 rounded-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900";
+  "h-9 w-9 rounded-2xl text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text)]";
 
 const toolbarTextButtonClassName =
-  "gap-1.5 text-slate-700 hover:bg-white hover:text-slate-900";
+  "gap-1.5 text-[color:var(--lime-text)] hover:bg-[color:var(--lime-surface)] hover:text-[color:var(--lime-text-strong)]";
 
 const taskCenterTopRailClassName =
-  "relative flex h-7 w-full items-start overflow-visible bg-transparent pl-5 pr-3 pt-[3px]";
+  "relative flex h-[42px] w-full items-end overflow-visible bg-[color:var(--lime-chrome-rail)] px-4 pt-1";
 
 const taskCenterWorkspaceTabClassName =
-  "relative z-20 flex h-6 min-w-[132px] max-w-[196px] items-start rounded-t-[10px] border border-b-0 border-slate-200/70 px-2 pt-px text-sm font-medium text-slate-700 shadow-[0_-1px_0_rgba(255,255,255,0.86)] dark:border-white/10 dark:bg-slate-900 dark:text-slate-300";
+  "relative z-20 flex h-9 min-w-[148px] max-w-[224px] items-center rounded-t-[18px] rounded-b-none border border-b-0 border-[color:var(--lime-chrome-border)] bg-[color:var(--lime-chrome-tab-active-surface)] px-2 text-sm font-medium text-[color:var(--lime-chrome-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-white/10 dark:bg-slate-900 dark:text-slate-300";
 
 const taskCenterWorkspaceTabCurveClassName =
-  "pointer-events-none absolute bottom-0 h-3.5 w-3.5 bg-transparent";
+  "pointer-events-none absolute bottom-0 h-[18px] w-[18px] bg-transparent";
 
 const taskCenterIconButtonClassName =
-  "h-7 w-7 rounded-[10px] border border-transparent bg-transparent text-slate-500 shadow-none transition-[background-color,color] hover:bg-white/70 hover:text-slate-900";
+  "h-7 w-7 rounded-[12px] border border-transparent bg-transparent text-[color:var(--lime-chrome-muted)] shadow-none transition-[background-color,color] hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-chrome-text)]";
 
 const taskCenterPillButtonClassName =
-  "h-7 rounded-[10px] border border-transparent bg-transparent px-2 text-[11px] font-medium text-slate-700 shadow-none transition-[background-color,color] hover:bg-white/70 hover:text-slate-900";
+  "h-7 rounded-[12px] border border-transparent bg-transparent px-2 text-[11px] font-medium text-[color:var(--lime-chrome-text)] shadow-none transition-[background-color,color] hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-text-strong)]";
 
 export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   isRunning: _isRunning,
@@ -96,6 +104,10 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   projectId = null,
   onProjectChange,
   workspaceType,
+  deferWorkspaceListLoad,
+  workspaceHintMessage,
+  workspaceHintVisible = false,
+  onDismissWorkspaceHint,
   showHarnessToggle = false,
   harnessPanelVisible = false,
   onToggleHarnessPanel,
@@ -106,7 +118,8 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   contextCompactionRunning = false,
   onCompactContext,
 }) => {
-  const [workspaceSelectorOpen, setWorkspaceSelectorOpen] = React.useState(false);
+  const [workspaceSelectorOpen, setWorkspaceSelectorOpen] =
+    React.useState(false);
   const isTaskCenterChrome = contextVariant === "task-center";
   const isWorkspaceCompact = chrome === "workspace-compact";
   const effectiveCollapseChrome = collapseChrome && !isTaskCenterChrome;
@@ -114,7 +127,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
     toolbarGroupClassName,
     (isWorkspaceCompact || effectiveCollapseChrome) && "rounded-[18px] p-1",
     effectiveCollapseChrome &&
-      "border-slate-200/70 bg-white shadow-sm shadow-slate-950/4 backdrop-blur-0",
+      "border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] shadow-sm shadow-slate-950/5 backdrop-blur-0",
   );
   const dividerClassName = cn(
     toolbarDividerClassName,
@@ -122,7 +135,8 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   );
   const embeddedButtonClassName = cn(
     toolbarEmbeddedButtonClassName,
-    (isWorkspaceCompact || effectiveCollapseChrome) && "h-8 rounded-[18px] px-3",
+    (isWorkspaceCompact || effectiveCollapseChrome) &&
+      "h-8 rounded-[18px] px-3",
   );
   const ghostIconButtonClassName = cn(
     toolbarGhostIconButtonClassName,
@@ -145,6 +159,8 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
       ? "min-w-[184px] max-w-[248px]"
       : "min-w-[196px] max-w-[280px]";
   const showEntryContext = Boolean(entryContextLabel);
+  const shouldDeferWorkspaceListLoad =
+    deferWorkspaceListLoad ?? isTaskCenterChrome;
 
   if (isTaskCenterChrome) {
     return (
@@ -161,33 +177,29 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
           zIndex: 8,
         }}
       >
-        <div className={taskCenterTopRailClassName}>
+        <div
+          className={taskCenterTopRailClassName}
+          style={{ background: TASK_CENTER_CHROME_RAIL_SURFACE }}
+        >
           <div className="flex items-center">
             <div
               className={taskCenterWorkspaceTabClassName}
               data-testid="task-center-workspace-shell"
-              style={{ backgroundColor: TASK_CENTER_CHROME_SURFACE }}
             >
               <span
                 aria-hidden="true"
-                className={cn(
-                  taskCenterWorkspaceTabCurveClassName,
-                  "-left-3.5",
-                )}
+                className={cn(taskCenterWorkspaceTabCurveClassName, "-left-4")}
                 style={{
-                  borderBottomRightRadius: 14,
-                  boxShadow: `5px 5px 0 5px ${TASK_CENTER_CHROME_SURFACE}`,
+                  borderBottomRightRadius: 18,
+                  boxShadow: `5px 5px 0 5px ${TASK_CENTER_CHROME_ACTIVE_TAB}`,
                 }}
               />
               <span
                 aria-hidden="true"
-                className={cn(
-                  taskCenterWorkspaceTabCurveClassName,
-                  "-right-3.5",
-                )}
+                className={cn(taskCenterWorkspaceTabCurveClassName, "-right-4")}
                 style={{
-                  borderBottomLeftRadius: 14,
-                  boxShadow: `-5px 5px 0 5px ${TASK_CENTER_CHROME_SURFACE}`,
+                  borderBottomLeftRadius: 18,
+                  boxShadow: `-5px 5px 0 5px ${TASK_CENTER_CHROME_ACTIVE_TAB}`,
                 }}
               />
               <ProjectSelector
@@ -203,21 +215,49 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 enableManagement={workspaceType === "general"}
                 density="compact"
                 chrome="workspace-tab"
-                className="w-auto max-w-[196px]"
+                deferProjectListLoad={shouldDeferWorkspaceListLoad}
+                skipDefaultWorkspaceReadyCheck={isTaskCenterChrome}
+                className="w-auto max-w-[224px]"
               />
             </div>
-            <div className="ml-3 mt-[1px] flex items-center">
+            <div className="relative ml-2 flex h-9 items-center pb-1">
+              {workspaceHintVisible && workspaceHintMessage ? (
+                <div
+                  className="absolute bottom-full left-1/2 z-40 mb-2 flex w-max max-w-[220px] -translate-x-1/2 items-center gap-2 rounded-2xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-3 py-2 text-xs font-medium text-[color:var(--lime-text)] shadow-lg shadow-slate-950/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  data-testid="task-center-workspace-hint"
+                  role="status"
+                >
+                  <span>{workspaceHintMessage}</span>
+                  <button
+                    type="button"
+                    className="rounded-full px-1 text-[color:var(--lime-text-muted)] transition hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text)] dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    aria-label="关闭工作区提示"
+                    onClick={onDismissWorkspaceHint}
+                  >
+                    ×
+                  </button>
+                  <span
+                    aria-hidden="true"
+                    className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] dark:border-slate-700 dark:bg-slate-900"
+                  />
+                </div>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 rounded-none bg-transparent text-slate-500 shadow-none hover:bg-transparent hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+                className="h-8 w-8 rounded-[14px] bg-transparent text-[color:var(--lime-chrome-muted)] shadow-none hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-chrome-text)] dark:text-slate-300 dark:hover:text-white"
                 onClick={() => {
+                  onDismissWorkspaceHint?.();
                   setWorkspaceSelectorOpen((current) => !current);
                 }}
-                aria-label={workspaceSelectorOpen ? "收起工作区菜单" : "展开工作区菜单"}
+                aria-label={
+                  workspaceSelectorOpen ? "收起工作区菜单" : "展开工作区菜单"
+                }
                 aria-expanded={workspaceSelectorOpen}
-                title={workspaceSelectorOpen ? "收起工作区菜单" : "展开工作区菜单"}
+                title={
+                  workspaceSelectorOpen ? "收起工作区菜单" : "展开工作区菜单"
+                }
                 data-testid="task-center-workspace-menu-trigger"
               >
                 <Plus size={17} strokeWidth={1.7} />
@@ -225,7 +265,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
             </div>
           </div>
 
-          <div className="ml-auto mt-[2px] flex shrink-0 items-center gap-1">
+          <div className="ml-auto flex h-9 shrink-0 items-center gap-1 pb-1">
             {showContextCompactionAction ? (
               <Button
                 type="button"
@@ -237,7 +277,9 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 aria-label={
                   contextCompactionRunning ? "正在压缩上下文" : "压缩上下文"
                 }
-                title={contextCompactionRunning ? "正在压缩上下文" : "压缩上下文"}
+                title={
+                  contextCompactionRunning ? "正在压缩上下文" : "压缩上下文"
+                }
               >
                 <Box size={15} />
               </Button>
@@ -251,10 +293,11 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 className={cn(
                   taskCenterPillButtonClassName,
                   "gap-1 px-2.5",
-                  harnessPanelVisible && "bg-white text-slate-900",
+                  harnessPanelVisible &&
+                    "bg-[color:var(--lime-chrome-tab-active-surface)] text-[color:var(--lime-text)]",
                   harnessAttentionLevel === "warning" &&
                     !harnessPanelVisible &&
-                    "bg-amber-50/90 text-amber-800 hover:bg-amber-100 hover:text-amber-900",
+                    "bg-[color:var(--lime-warning-soft)] text-[color:var(--lime-warning)] hover:bg-[color:var(--lime-warning-soft)] hover:text-[color:var(--lime-warning)]",
                 )}
                 onClick={onToggleHarnessPanel}
                 aria-label={
@@ -268,7 +311,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 <Sparkles size={12} />
                 <span>{harnessToggleLabel}</span>
                 {harnessPendingCount > 0 ? (
-                  <span className="rounded-full border border-emerald-200 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none text-emerald-700">
+                  <span className="rounded-full border border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-surface)] px-1.5 py-0.5 text-[10px] font-medium leading-none text-[color:var(--lime-brand-strong)]">
                     {harnessPendingCount > 99 ? "99+" : harnessPendingCount}
                   </span>
                 ) : null}
@@ -396,7 +439,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
             )}
           >
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="inline-flex w-fit items-center rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
+              <span className="inline-flex w-fit items-center rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-muted)] px-3 py-1 text-[11px] font-medium text-[color:var(--lime-text-muted)]">
                 {entryContextLabel}
               </span>
               {!isWorkspaceCompact && entryContextHint ? (
@@ -424,6 +467,8 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
               enableManagement={workspaceType === "general"}
               density="compact"
               chrome="embedded"
+              deferProjectListLoad={shouldDeferWorkspaceListLoad}
+              skipDefaultWorkspaceReadyCheck={shouldDeferWorkspaceListLoad}
               className={compactProjectSelectorClassName}
             />
             {onToggleSettings ? (
@@ -494,10 +539,11 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 className={cn(
                   embeddedButtonClassName,
                   toolbarTextButtonClassName,
-                  harnessPanelVisible && "bg-slate-100 text-slate-900",
+                  harnessPanelVisible &&
+                    "bg-[color:var(--lime-surface-hover)] text-[color:var(--lime-text)]",
                   harnessAttentionLevel === "warning" &&
                     !harnessPanelVisible &&
-                    "border-amber-300 bg-amber-50/75 text-amber-800 hover:bg-amber-100 hover:text-amber-900",
+                    "border-[color:var(--lime-warning-border)] bg-[color:var(--lime-warning-soft)] text-[color:var(--lime-warning)] hover:bg-[color:var(--lime-warning-soft)] hover:text-[color:var(--lime-warning)]",
                 )}
                 onClick={onToggleHarnessPanel}
                 aria-label={
@@ -511,7 +557,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 <Sparkles size={14} />
                 <span>{harnessToggleLabel}</span>
                 {harnessPendingCount > 0 ? (
-                  <span className="rounded-full border border-emerald-200 bg-white/90 px-1.5 py-0.5 text-[10px] font-medium leading-none text-emerald-700 shadow-sm shadow-emerald-950/10">
+                  <span className="rounded-full border border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-surface)] px-1.5 py-0.5 text-[10px] font-medium leading-none text-[color:var(--lime-brand-strong)] shadow-sm shadow-slate-950/10">
                     {harnessPendingCount > 99 ? "99+" : harnessPendingCount}
                   </span>
                 ) : null}

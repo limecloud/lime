@@ -85,7 +85,8 @@ function renderHook(props?: Partial<HookProps>) {
     currentSessionId: "child-2",
     detailExpanded: true,
     embedded: false,
-    formationState: createFormationState() as unknown as HookProps["formationState"],
+    formationState:
+      createFormationState() as unknown as HookProps["formationState"],
     onCloseCompletedTeamSessions: vi.fn(),
     onCloseSubagentSession: vi.fn(),
     onExpandEmptyShell: vi.fn(),
@@ -96,7 +97,8 @@ function renderHook(props?: Partial<HookProps>) {
     onToggleDetail: vi.fn(),
     onWaitActiveTeamSessions: vi.fn(),
     onWaitSubagentSession: vi.fn(),
-    sessionGraphState: createSessionGraphState() as unknown as HookProps["sessionGraphState"],
+    sessionGraphState:
+      createSessionGraphState() as unknown as HookProps["sessionGraphState"],
     shellExpanded: true,
     subagentParentContext: {
       parent_session_name: "主线程",

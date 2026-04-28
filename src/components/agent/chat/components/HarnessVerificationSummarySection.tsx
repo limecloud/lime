@@ -39,9 +39,11 @@ export function HarnessVerificationSummarySection({
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/80 p-3">
           <div className="text-sm font-medium text-amber-900">验证失败焦点</div>
           <div className="mt-2 space-y-1 text-xs text-amber-800">
-            {summary.focus_verification_failure_outcomes.map((outcome, index) => (
-              <div key={`${outcome}-${index}`}>{outcome}</div>
-            ))}
+            {summary.focus_verification_failure_outcomes.map(
+              (outcome, index) => (
+                <div key={`${outcome}-${index}`}>{outcome}</div>
+              ),
+            )}
           </div>
         </div>
       ) : null}

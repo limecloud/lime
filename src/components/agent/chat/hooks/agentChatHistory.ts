@@ -887,12 +887,15 @@ export const mergeHydratedMessagesWithLocalState = (
   const lastHydratedTimestampMs = lastHydratedMessage
     ? resolveMessageTimestampMs(lastHydratedMessage)
     : null;
-  const lastMatchedLocalIndex = localMessages.reduce((latest, message, index) => {
-    if (!matchedLocalMessageIds.has(message.id)) {
-      return latest;
-    }
-    return index;
-  }, -1);
+  const lastMatchedLocalIndex = localMessages.reduce(
+    (latest, message, index) => {
+      if (!matchedLocalMessageIds.has(message.id)) {
+        return latest;
+      }
+      return index;
+    },
+    -1,
+  );
   const lastMatchedLocalMessage =
     lastMatchedLocalIndex >= 0 ? localMessages[lastMatchedLocalIndex] : null;
   const retainedLocalTail = localMessages.filter((message, index) => {

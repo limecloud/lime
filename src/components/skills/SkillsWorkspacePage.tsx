@@ -103,7 +103,7 @@ const TONE_BADGE_CLASSNAMES: Record<ServiceSkillTone, string> = {
 };
 
 const SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME =
-  "rounded-2xl border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
+  "rounded-2xl border border-emerald-200 bg-[image:var(--lime-primary-gradient)] px-4 text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
 const SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME =
   "rounded-2xl border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900";
 
@@ -912,7 +912,7 @@ export function SkillsWorkspacePage({
 
   return (
     <>
-      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.08),transparent_30%),linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(244,247,250,0.98)_100%)]">
+      <div className="lime-workbench-theme-scope flex h-full min-h-0 flex-col overflow-hidden bg-[image:var(--lime-stage-surface)]">
         <div className="mx-auto flex h-full w-full max-w-[1440px] flex-col gap-6 overflow-auto px-6 py-6">
           <header className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
             <div className="flex flex-col gap-4">
@@ -952,7 +952,7 @@ export function SkillsWorkspacePage({
               </div>
 
               <section
-                className="rounded-[24px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(239,246,255,0.96)_0%,rgba(255,255,255,0.98)_100%)] p-4 shadow-sm shadow-slate-950/5"
+                className="rounded-[24px] border border-sky-200/80 bg-[color:var(--lime-info-soft)] p-4 shadow-sm shadow-slate-950/5"
                 data-testid="skills-workspace-sceneapps-migration-banner"
               >
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1158,7 +1158,7 @@ export function SkillsWorkspacePage({
                           className={cn(
                             "flex h-full flex-col rounded-[24px] border px-4 py-4 transition hover:border-slate-300 hover:shadow-sm hover:shadow-slate-950/5",
                             isPrimaryRecommendation
-                              ? "border-emerald-200 bg-[linear-gradient(135deg,rgba(236,253,245,0.92),rgba(255,255,255,0.98))] md:col-span-2"
+                              ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] md:col-span-2"
                               : "border-slate-200 bg-white",
                           )}
                         >
@@ -1392,7 +1392,7 @@ export function SkillsWorkspacePage({
 
             <aside className="space-y-4">
               <section
-                className="rounded-[28px] border border-emerald-200/80 bg-[linear-gradient(180deg,rgba(236,253,245,0.84),rgba(255,255,255,0.98))] p-5 shadow-sm shadow-emerald-950/5"
+                className="rounded-[28px] border border-emerald-200/80 bg-[image:var(--lime-home-card-surface-strong)] p-5 shadow-sm shadow-emerald-950/5"
                 data-testid="skills-workspace-sidebar-section-continuation"
               >
                 <div className="space-y-1.5">
@@ -1641,7 +1641,7 @@ export function SkillsWorkspacePage({
       </div>
 
       <Dialog open={advancedManagerOpen} onOpenChange={setAdvancedManagerOpen}>
-        <DialogContent className="max-h-[calc(100vh-40px)] w-[min(1240px,calc(100vw-32px))] max-w-none overflow-hidden border-slate-200 p-0">
+        <DialogContent className="lime-workbench-theme-scope max-h-[calc(100vh-40px)] w-[min(1240px,calc(100vw-32px))] max-w-none overflow-hidden border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-0">
           <div className="flex h-[calc(100vh-88px)] min-h-[680px] flex-col bg-white">
             <DialogHeader className="border-b border-slate-200 px-6 py-5">
               <div className="flex flex-wrap items-center gap-2">

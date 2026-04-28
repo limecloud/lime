@@ -673,6 +673,12 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("上下文");
     expect(document.body.textContent).not.toContain("展开详情");
     expect(document.body.textContent).not.toContain("收起详情");
+    expect(panel?.className).toContain("lime-workbench-theme-scope");
+    expect(panel?.className).toContain("lime-workbench-surface-scope");
+    expect(panel?.className).toContain("bg-[color:var(--lime-surface)]");
+    expect(panel?.className).toContain(
+      "border-[color:var(--lime-surface-border)]",
+    );
     expect(panel?.className).toContain("flex");
     expect(panel?.className).toContain("h-full");
     expect(panel?.children.length).toBe(2);
@@ -787,7 +793,8 @@ describe("HarnessStatusPanel", () => {
       threadRead: {
         thread_id: "thread-1",
         status: "running",
-        decision_reason: "当前 provider 候选池共有 3 个兼容候选，已按连续性、能力与成本优选。",
+        decision_reason:
+          "当前 provider 候选池共有 3 个兼容候选，已按连续性、能力与成本优选。",
         fallback_chain: ["openai:gpt-5.4", "openai:gpt-5.4-mini"],
         oem_policy: {
           locked: true,
@@ -2516,7 +2523,9 @@ describe("HarnessStatusPanel", () => {
     expect(summary?.textContent).toContain("Team current tools 缺 3 项");
     expect(summary?.textContent).toContain("Task current tools 缺 6 项");
     expect(summary?.textContent).toContain("SendMessage");
-    expect(summary?.textContent).toContain("TeamCreate / TeamDelete / ListPeers");
+    expect(summary?.textContent).toContain(
+      "TeamCreate / TeamDelete / ListPeers",
+    );
     expect(summary?.textContent).toContain(
       "TaskCreate / TaskGet / TaskList / TaskUpdate / TaskOutput / TaskStop",
     );

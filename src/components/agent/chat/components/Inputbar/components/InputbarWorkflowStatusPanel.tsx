@@ -1,10 +1,5 @@
 import { useState } from "react";
-import {
-  AlertCircle,
-  ChevronDown,
-  Clock3,
-  Loader2,
-} from "lucide-react";
+import { AlertCircle, ChevronDown, Clock3, Loader2 } from "lucide-react";
 import styled from "styled-components";
 import type {
   WorkflowGateState,
@@ -363,11 +358,11 @@ export function InputbarWorkflowStatusPanel({
     <PanelWrap>
       <StatusCard data-testid="workflow-status-card">
         <SummaryRow>
-          <SummaryIcon $tone={summaryTone}>{renderToneIcon(summaryTone)}</SummaryIcon>
+          <SummaryIcon $tone={summaryTone}>
+            {renderToneIcon(summaryTone)}
+          </SummaryIcon>
           <SummaryBody>
-            <SummaryEyebrow>
-              当前进展
-            </SummaryEyebrow>
+            <SummaryEyebrow>当前进展</SummaryEyebrow>
             <SummaryTitle data-testid="workflow-current-title">
               {summaryTitle}
             </SummaryTitle>
@@ -436,7 +431,9 @@ export function InputbarWorkflowStatusPanel({
                           <TaskTitle>{item.title}</TaskTitle>
                           <TaskMeta>
                             {getStatusLabel(tone)}
-                            {totalCount > 0 ? ` · ${completedCount}/${totalCount}` : ""}
+                            {totalCount > 0
+                              ? ` · ${completedCount}/${totalCount}`
+                              : ""}
                           </TaskMeta>
                         </TaskBody>
                       </TaskRow>

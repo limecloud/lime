@@ -5,6 +5,14 @@
       "contains": "bigmodel.cn/api/anthropic"
     },
     {
+      "provider": "zhipuai",
+      "contains": "bigmodel.cn/api/coding/paas/v4"
+    },
+    {
+      "provider": "zhipuai",
+      "contains": "api.z.ai/api/anthropic"
+    },
+    {
       "provider": "moonshotai",
       "contains": "moonshot.cn/anthropic"
     },

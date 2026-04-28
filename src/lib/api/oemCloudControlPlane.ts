@@ -148,6 +148,17 @@ export interface OemCloudProviderModelItem {
   updatedAt: string;
 }
 
+export interface OemCloudGatewayConfig {
+  basePath?: string;
+  llmBaseUrl?: string;
+  openAIBaseUrl?: string;
+  anthropicBaseUrl?: string;
+  chatCompletionsPath?: string;
+  authorizationHeader?: string;
+  authorizationScheme?: string;
+  tenantHeader?: string;
+}
+
 export interface OemCloudBootstrapResponse {
   session: OemCloudCurrentSession;
   app: {
@@ -167,10 +178,7 @@ export interface OemCloudBootstrapResponse {
   siteAdapterCatalog?: unknown;
   sceneCatalog?: Array<{ id: string }>;
   features: OemCloudFeatureFlags;
-  gateway?: {
-    basePath?: string;
-    chatCompletionsPath?: string;
-  };
+  gateway?: OemCloudGatewayConfig;
 }
 
 export interface SendClientAuthEmailCodePayload {
@@ -244,6 +252,476 @@ export interface UpdateClientProviderPreferencePayload {
   defaultModel?: string;
 }
 
+export type OemCloudBillingCycle =
+  | "monthly"
+  | "yearly"
+  | "one_time"
+  | (string & {});
+
+export interface OemCloudPlanBillingCycle {
+  key: OemCloudBillingCycle;
+  label: string;
+  priceCents: number;
+  credits: number;
+  autoRenew: boolean;
+  originalPriceCents?: number;
+  discountPercent?: number;
+}
+
+export interface OemCloudPlanQuotaSummary {
+  key: string;
+  label: string;
+  value: string;
+  hint?: string;
+}
+
+export interface OemCloudPlanFeatureSection {
+  key: string;
+  title: string;
+  description?: string;
+  items: string[];
+}
+
+export interface OemCloudEntitlementPlan {
+  id: string;
+  tenantId: string;
+  templateId?: string;
+  key: string;
+  name: string;
+  description?: string;
+  tagline?: string;
+  badge?: string;
+  priceMonthly: number;
+  creditsMonthly: number;
+  features: string[];
+  status: string;
+  recommended: boolean;
+  sortOrder?: number;
+  yearlyDiscountPercent?: number;
+  oneTimeDiscountPercent?: number;
+  billingCycles: OemCloudPlanBillingCycle[];
+  quotaSummaries: OemCloudPlanQuotaSummary[];
+  featureSections: OemCloudPlanFeatureSection[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OemCloudSubscription {
+  id: string;
+  tenantId: string;
+  userId?: string;
+  planId: string;
+  planKey: string;
+  planName?: string;
+  status: string;
+  billingCycle?: OemCloudBillingCycle;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  renewalAt?: string;
+  autoRenew: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OemCloudCreditAccount {
+  tenantId: string;
+  userId?: string;
+  balance: number;
+  reserved: number;
+  currency: string;
+  updatedAt: string;
+  lastTopUp?: string;
+  lastSource?: string;
+}
+
+export interface OemCloudPaymentConfig {
+  id: string;
+  tenantId: string;
+  provider: string;
+  displayName: string;
+  merchantIdMasked?: string;
+  currency?: string;
+  environment?: string;
+  notifyUrl: string;
+  returnUrl: string;
+  enabled: boolean;
+  methods: OemCloudPaymentMethodConfig[];
+  providerOptions: Record<string, string>;
+  credentialMasks: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OemCloudPaymentMethodConfig {
+  key: string;
+  displayName: string;
+  paymentType?: string;
+  paymentName?: string;
+  icon?: string;
+  enabled: boolean;
+}
+
+export interface OemCloudTopupPackage {
+  id: string;
+  tenantId: string;
+  key: string;
+  name: string;
+  credits: number;
+  priceCents: number;
+  bonusCredits?: number;
+  validDays: number;
+  recommended: boolean;
+  sortOrder?: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OemCloudCreditWallet {
+  id: string;
+  tenantId: string;
+  userId: string;
+  packageId?: string;
+  packageName?: string;
+  sourceType: string;
+  sourceId?: string;
+  grantedCredits: number;
+  usedCredits: number;
+  remainingCredits: number;
+  status: string;
+  effectiveAt: string;
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OemCloudCreditTopupOrder {
+  id: string;
+  tenantId: string;
+  userId: string;
+  packageId?: string;
+  packageName: string;
+  creditsGranted: number;
+  amountCents: number;
+  paymentChannel: string;
+  paymentMethod?: string;
+  paymentReference?: string;
+  checkoutUrl?: string;
+  providerOrderId?: string;
+  providerSessionId?: string;
+  providerStatus?: string;
+  status: string;
+  paidAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OemCloudUsageRecord {
+  id: string;
+  tenantId: string;
+  userId: string;
+  createdAt: string;
+  usageType: string;
+  triggerType: string;
+  usageTag?: string;
+  model: string;
+  tokens: number;
+  credits: number;
+  durationMs: number;
+  status: string;
+}
+
+export interface OemCloudMonthlyUsageSummary {
+  freeCreditsUsed: number;
+  freeCreditsLimit: number;
+  topupCreditsUsed: number;
+  topupCreditsLimit: number;
+  subscriptionCreditsUsed: number;
+  subscriptionCreditsLimit: number;
+}
+
+export interface OemCloudBillingSummary {
+  currency: string;
+  nextPaymentAmountCents: number;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  renewalAt?: string;
+  autoRenew: boolean;
+  lastPaidAt?: string;
+  totalSpentCents: number;
+}
+
+export interface OemCloudOrder {
+  id: string;
+  tenantId: string;
+  userId: string;
+  planId: string;
+  planKey: string;
+  planName: string;
+  amountCents: number;
+  creditsGranted: number;
+  paymentChannel: string;
+  paymentMethod?: string;
+  billingCycle?: OemCloudBillingCycle;
+  paymentReference?: string;
+  checkoutUrl?: string;
+  providerOrderId?: string;
+  providerSessionId?: string;
+  providerStatus?: string;
+  status: string;
+  paidAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OemCloudCreditsDashboard {
+  creditAccount: OemCloudCreditAccount;
+  subscription: OemCloudSubscription | null;
+  topupPackages: OemCloudTopupPackage[];
+  creditWallets: OemCloudCreditWallet[];
+  creditOrders: OemCloudCreditTopupOrder[];
+}
+
+export interface OemCloudUsageDashboard {
+  usageRecords: OemCloudUsageRecord[];
+  monthlySummary: OemCloudMonthlyUsageSummary;
+}
+
+export interface OemCloudBillingDashboard {
+  billingSummary: OemCloudBillingSummary;
+  subscription: OemCloudSubscription | null;
+  currentPlan: OemCloudEntitlementPlan | null;
+  orders: OemCloudOrder[];
+}
+
+export interface OemCloudAccessToken {
+  id: string;
+  tenantId: string;
+  userId: string;
+  name: string;
+  tokenMasked: string;
+  tokenPrefix?: string;
+  scopes: string[];
+  allowedModels: string[];
+  maxTokensPerRequest?: number;
+  requestsPerMinute?: number;
+  tokensPerMinute?: number;
+  monthlyCreditLimit?: number;
+  status: string;
+  lastUsedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
+export interface OemCloudActiveAccessTokenResponse {
+  hasActive: boolean;
+  token: OemCloudAccessToken | null;
+}
+
+export interface CreateClientAccessTokenPayload {
+  name: string;
+  scopes?: string[];
+  allowedModels?: string[];
+  maxTokensPerRequest?: number;
+  requestsPerMinute?: number;
+  tokensPerMinute?: number;
+  monthlyCreditLimit?: number;
+}
+
+export interface OemCloudCreateAccessTokenResponse {
+  token: OemCloudAccessToken;
+  rawToken?: string;
+  apiKey?: string;
+}
+
+export interface OemCloudRotateAccessTokenResponse {
+  previousToken: OemCloudAccessToken;
+  newToken: OemCloudAccessToken;
+  rawToken?: string;
+  apiKey?: string;
+}
+
+export interface CreateClientOrderPayload {
+  planId: string;
+  paymentChannel: string;
+  paymentMethod?: string;
+  billingCycle?: OemCloudBillingCycle;
+}
+
+export interface CreatePaymentCheckoutPayload {
+  paymentMethod?: string;
+  successUrl?: string;
+  cancelUrl?: string;
+}
+
+export interface OemCloudPaymentCheckoutResponse {
+  orderKind: string;
+  orderId: string;
+  paymentChannel: string;
+  paymentMethod?: string;
+  paymentReference?: string;
+  checkoutUrl?: string;
+  status: string;
+}
+
+export interface CreateClientCreditTopupOrderPayload {
+  packageId?: string;
+  customCredits?: number;
+  paymentChannel: string;
+  paymentMethod?: string;
+}
+
+export type OemCloudReadinessStatus =
+  | "no_payment_channel"
+  | "no_plan_or_credits"
+  | "payment_pending"
+  | "no_api_key"
+  | "no_models"
+  | "ready"
+  | "quota_low"
+  | "subscription_expired"
+  | "blocked";
+
+export interface OemCloudReadinessStep {
+  key: string;
+  label: string;
+  description?: string;
+  done: boolean;
+  action?: string;
+}
+
+export interface OemCloudReadiness {
+  status: OemCloudReadinessStatus;
+  title: string;
+  description?: string;
+  nextAction?: string;
+  canInvoke: boolean;
+  blockers: string[];
+  steps: OemCloudReadinessStep[];
+}
+
+export interface OemCloudPaymentAction {
+  kind: "plan_order" | "credit_topup_order" | (string & {});
+  orderId: string;
+  title: string;
+  paymentChannel: string;
+  paymentReference?: string;
+  amountCents: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OemCloudActivationResponse {
+  gateway: OemCloudGatewayConfig;
+  llmBaseUrl: string;
+  openAIBaseUrl: string;
+  anthropicBaseUrl: string;
+  readiness: OemCloudReadiness;
+  pendingPayment: OemCloudPaymentAction | null;
+  paymentConfigs: OemCloudPaymentConfig[];
+  plans: OemCloudEntitlementPlan[];
+  subscription: OemCloudSubscription | null;
+  creditAccount: OemCloudCreditAccount | null;
+  creditsDashboard: OemCloudCreditsDashboard | null;
+  topupPackages: OemCloudTopupPackage[];
+  usageDashboard: OemCloudUsageDashboard | null;
+  billingDashboard: OemCloudBillingDashboard | null;
+  providerOffers: OemCloudProviderOfferSummary[];
+  selectedOffer: OemCloudProviderOfferDetail | null;
+  providerModels: OemCloudProviderModelItem[];
+  providerPreference: OemCloudProviderPreference | null;
+  accessTokens: OemCloudAccessToken[];
+  activeAccessToken: OemCloudActiveAccessTokenResponse | null;
+  orders: OemCloudOrder[];
+  creditTopupOrders: OemCloudCreditTopupOrder[];
+}
+
+export interface OemCloudReferralCode {
+  id: string;
+  tenantId: string;
+  userId: string;
+  code: string;
+  landingUrl: string;
+  channel?: string;
+  status: string;
+  disabledReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OemCloudReferralPolicy {
+  tenantId?: string;
+  enabled: boolean;
+  rewardCredits: number;
+  referrerRewardCredits: number;
+  inviteeRewardCredits: number;
+  claimWindowDays: number;
+  autoClaimEnabled: boolean;
+  allowManualClaimFallback: boolean;
+  landingPageHeadline?: string;
+  landingPageRules?: string;
+  riskReviewEnabled: boolean;
+  updatedAt?: string;
+}
+
+export interface OemCloudReferralSummary {
+  totalInvites: number;
+  successfulInvites: number;
+  totalRewardCredits: number;
+  referrerRewardCreditsTotal: number;
+  inviteeRewardCreditsTotal: number;
+}
+
+export interface OemCloudReferralInviteRelation {
+  eventId?: string;
+  code?: string;
+  referrerUserId?: string;
+  referrerEmail?: string;
+  referrerName?: string;
+  inviteeRewardCredits?: number;
+  claimedAt?: string;
+}
+
+export interface OemCloudReferralShare {
+  brandName: string;
+  code: string;
+  landingUrl: string;
+  downloadUrl: string;
+  shareText: string;
+  headline?: string;
+  rules?: string;
+}
+
+export interface OemCloudReferralDashboard {
+  code: OemCloudReferralCode;
+  policy: OemCloudReferralPolicy;
+  summary: OemCloudReferralSummary;
+  events: unknown[];
+  rewards: unknown[];
+  invitedBy: OemCloudReferralInviteRelation;
+  share: OemCloudReferralShare;
+}
+
+export interface ClaimClientReferralPayload {
+  code: string;
+  inviteeEmail?: string;
+  inviteeName?: string;
+  claimMethod?: "auto" | "manual" | (string & {});
+  entrySource?: "link" | "code_input" | (string & {});
+  landingPath?: string;
+  capturedAt?: string;
+}
+
+export interface OemCloudReferralClaimResponse {
+  event?: unknown;
+  reward?: unknown;
+  rewards: unknown[];
+  creditAccount: OemCloudCreditAccount | null;
+  accountLedgers: unknown[];
+}
+
 interface OemCloudEnvelope<T> {
   code?: number;
   message?: string;
@@ -285,6 +763,19 @@ function normalizeStringArray(value: unknown): string[] {
     .filter((item): item is string => Boolean(item));
 }
 
+function normalizeStringMap(value: unknown): Record<string, string> {
+  if (!isRecord(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, item]) => [key.trim(), normalizeText(item)] as const)
+      .filter((entry): entry is readonly [string, string] =>
+        Boolean(entry[0] && entry[1]),
+      ),
+  );
+}
+
 function normalizeTypedStringArray<T extends string>(
   value: unknown,
   acceptedValues: Set<T>,
@@ -307,6 +798,9 @@ function normalizeNumber(value: unknown): number | undefined {
     ? value
     : undefined;
 }
+
+const COMPAT_REFERRAL_BRAND_NAME = "Lime";
+const COMPAT_REFERRAL_DOWNLOAD_URL = "https://limeai.run";
 
 const PARTNER_HUB_ACCESS_MODE_SET = new Set<OemCloudPartnerHubAccessMode>([
   "session",
@@ -495,7 +989,7 @@ function ensureRuntime() {
 async function requestControlPlane<T>(
   path: string,
   options?: {
-    method?: "GET" | "POST" | "PUT";
+    method?: "GET" | "POST" | "PUT" | "DELETE";
     payload?: unknown;
     auth?: boolean;
   },
@@ -736,9 +1230,7 @@ function parseProviderModelItem(value: unknown): OemCloudProviderModelItem {
     deployment_source: parseOptionalModelDeploymentSource(
       value.deployment_source,
     ),
-    management_plane: parseOptionalModelManagementPlane(
-      value.management_plane,
-    ),
+    management_plane: parseOptionalModelManagementPlane(value.management_plane),
     canonical_model_id: normalizeText(value.canonical_model_id),
     provider_model_id: normalizeText(value.provider_model_id),
     alias_source: parseOptionalModelAliasSource(value.alias_source) ?? null,
@@ -908,6 +1400,23 @@ function parseDesktopAuthSessionStatusResponse(
   };
 }
 
+function parseGatewayConfig(value: unknown): OemCloudGatewayConfig {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return {
+    basePath: normalizeText(value.basePath),
+    llmBaseUrl: normalizeText(value.llmBaseUrl),
+    openAIBaseUrl: normalizeText(value.openAIBaseUrl),
+    anthropicBaseUrl: normalizeText(value.anthropicBaseUrl),
+    chatCompletionsPath: normalizeText(value.chatCompletionsPath),
+    authorizationHeader: normalizeText(value.authorizationHeader),
+    authorizationScheme: normalizeText(value.authorizationScheme),
+    tenantHeader: normalizeText(value.tenantHeader),
+  };
+}
+
 function parseBootstrap(value: unknown): OemCloudBootstrapResponse {
   if (!isRecord(value)) {
     throw new OemCloudControlPlaneError("bootstrap 格式非法");
@@ -959,15 +1468,884 @@ function parseBootstrap(value: unknown): OemCloudBootstrapResponse {
           }))
       : [],
     features: parseFeatureFlags(value.features),
-    gateway:
-      value.gateway && isRecord(value.gateway)
-        ? {
-            basePath: normalizeText(value.gateway.basePath),
-            chatCompletionsPath: normalizeText(
-              value.gateway.chatCompletionsPath,
-            ),
-          }
-        : undefined,
+    gateway: isRecord(value.gateway)
+      ? parseGatewayConfig(value.gateway)
+      : undefined,
+  };
+}
+
+function normalizeNumberOrZero(value: unknown): number {
+  return normalizeNumber(value) ?? 0;
+}
+
+function normalizeOptionalNumber(value: unknown): number | undefined {
+  return normalizeNumber(value);
+}
+
+function parseBillingCycle(value: unknown): OemCloudBillingCycle | undefined {
+  return normalizeText(value) as OemCloudBillingCycle | undefined;
+}
+
+function parsePlanBillingCycle(value: unknown): OemCloudPlanBillingCycle {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("套餐周期格式非法");
+  }
+
+  const key = parseBillingCycle(value.key);
+  const label = normalizeText(value.label);
+  if (!key || !label) {
+    throw new OemCloudControlPlaneError("套餐周期格式非法");
+  }
+
+  return {
+    key,
+    label,
+    priceCents: normalizeNumberOrZero(value.priceCents),
+    credits: normalizeNumberOrZero(value.credits),
+    autoRenew: normalizeBoolean(value.autoRenew),
+    originalPriceCents: normalizeOptionalNumber(value.originalPriceCents),
+    discountPercent: normalizeOptionalNumber(value.discountPercent),
+  };
+}
+
+function parsePlanQuotaSummary(value: unknown): OemCloudPlanQuotaSummary {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("套餐额度摘要格式非法");
+  }
+
+  const key = normalizeText(value.key);
+  const label = normalizeText(value.label);
+  const summaryValue = normalizeText(value.value);
+  if (!key || !label || !summaryValue) {
+    throw new OemCloudControlPlaneError("套餐额度摘要格式非法");
+  }
+
+  return {
+    key,
+    label,
+    value: summaryValue,
+    hint: normalizeText(value.hint),
+  };
+}
+
+function parsePlanFeatureSection(value: unknown): OemCloudPlanFeatureSection {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("套餐能力分组格式非法");
+  }
+
+  const key = normalizeText(value.key);
+  const title = normalizeText(value.title);
+  if (!key || !title) {
+    throw new OemCloudControlPlaneError("套餐能力分组格式非法");
+  }
+
+  return {
+    key,
+    title,
+    description: normalizeText(value.description),
+    items: normalizeStringArray(value.items),
+  };
+}
+
+function parseEntitlementPlan(value: unknown): OemCloudEntitlementPlan {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("套餐格式非法");
+  }
+
+  const id = normalizeText(value.id);
+  const tenantId = normalizeText(value.tenantId);
+  const key = normalizeText(value.key);
+  const name = normalizeText(value.name);
+  if (!id || !tenantId || !key || !name) {
+    throw new OemCloudControlPlaneError("套餐格式非法");
+  }
+
+  return {
+    id,
+    tenantId,
+    templateId: normalizeText(value.templateId),
+    key,
+    name,
+    description: normalizeText(value.description),
+    tagline: normalizeText(value.tagline),
+    badge: normalizeText(value.badge),
+    priceMonthly: normalizeNumberOrZero(value.priceMonthly),
+    creditsMonthly: normalizeNumberOrZero(value.creditsMonthly),
+    features: normalizeStringArray(value.features),
+    status: normalizeText(value.status) ?? "inactive",
+    recommended: normalizeBoolean(value.recommended),
+    sortOrder: normalizeOptionalNumber(value.sortOrder),
+    yearlyDiscountPercent: normalizeOptionalNumber(value.yearlyDiscountPercent),
+    oneTimeDiscountPercent: normalizeOptionalNumber(
+      value.oneTimeDiscountPercent,
+    ),
+    billingCycles: Array.isArray(value.billingCycles)
+      ? value.billingCycles.map(parsePlanBillingCycle)
+      : [],
+    quotaSummaries: Array.isArray(value.quotaSummaries)
+      ? value.quotaSummaries.map(parsePlanQuotaSummary)
+      : [],
+    featureSections: Array.isArray(value.featureSections)
+      ? value.featureSections.map(parsePlanFeatureSection)
+      : [],
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+  };
+}
+
+function parseSubscription(value: unknown): OemCloudSubscription {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("订阅格式非法");
+  }
+
+  const id = normalizeText(value.id);
+  const tenantId = normalizeText(value.tenantId);
+  const planId = normalizeText(value.planId);
+  const planKey = normalizeText(value.planKey);
+  if (!id || !tenantId || !planId || !planKey) {
+    throw new OemCloudControlPlaneError("订阅格式非法");
+  }
+
+  return {
+    id,
+    tenantId,
+    userId: normalizeText(value.userId),
+    planId,
+    planKey,
+    planName: normalizeText(value.planName),
+    status: normalizeText(value.status) ?? "unknown",
+    billingCycle: parseBillingCycle(value.billingCycle),
+    currentPeriodStart: normalizeText(value.currentPeriodStart) ?? "",
+    currentPeriodEnd: normalizeText(value.currentPeriodEnd) ?? "",
+    renewalAt: normalizeText(value.renewalAt),
+    autoRenew: normalizeBoolean(value.autoRenew),
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+  };
+}
+
+function parseOptionalSubscription(
+  value: unknown,
+): OemCloudSubscription | null {
+  return isRecord(value) && normalizeText(value.id)
+    ? parseSubscription(value)
+    : null;
+}
+
+function parseCreditAccount(value: unknown): OemCloudCreditAccount {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("积分账户格式非法");
+  }
+
+  const tenantId = normalizeText(value.tenantId);
+  if (!tenantId) {
+    throw new OemCloudControlPlaneError("积分账户格式非法");
+  }
+
+  return {
+    tenantId,
+    userId: normalizeText(value.userId),
+    balance: normalizeNumberOrZero(value.balance),
+    reserved: normalizeNumberOrZero(value.reserved),
+    currency: normalizeText(value.currency) ?? "credits",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+    lastTopUp: normalizeText(value.lastTopUp),
+    lastSource: normalizeText(value.lastSource),
+  };
+}
+
+function parsePaymentConfig(value: unknown): OemCloudPaymentConfig {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("支付配置格式非法");
+  }
+
+  const id = normalizeText(value.id);
+  const tenantId = normalizeText(value.tenantId);
+  const provider = normalizeText(value.provider);
+  const displayName = normalizeText(value.displayName);
+  if (!id || !tenantId || !provider || !displayName) {
+    throw new OemCloudControlPlaneError("支付配置格式非法");
+  }
+
+  return {
+    id,
+    tenantId,
+    provider,
+    displayName,
+    merchantIdMasked: normalizeText(value.merchantIdMasked),
+    currency: normalizeText(value.currency),
+    environment: normalizeText(value.environment),
+    notifyUrl: normalizeText(value.notifyUrl) ?? "",
+    returnUrl: normalizeText(value.returnUrl) ?? "",
+    enabled: normalizeBoolean(value.enabled),
+    methods: Array.isArray(value.methods)
+      ? value.methods.map(parsePaymentMethodConfig)
+      : [],
+    providerOptions: normalizeStringMap(value.providerOptions),
+    credentialMasks: normalizeStringMap(value.credentialMasks),
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+  };
+}
+
+function parsePaymentMethodConfig(value: unknown): OemCloudPaymentMethodConfig {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("支付方式格式非法");
+  }
+  const key = normalizeText(value.key);
+  const displayName = normalizeText(value.displayName);
+  if (!key || !displayName) {
+    throw new OemCloudControlPlaneError("支付方式格式非法");
+  }
+  return {
+    key,
+    displayName,
+    paymentType: normalizeText(value.paymentType),
+    paymentName: normalizeText(value.paymentName),
+    icon: normalizeText(value.icon),
+    enabled: normalizeBoolean(value.enabled),
+  };
+}
+
+function parseTopupPackage(value: unknown): OemCloudTopupPackage {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("充值包格式非法");
+  }
+
+  const id = normalizeText(value.id);
+  const tenantId = normalizeText(value.tenantId);
+  const key = normalizeText(value.key);
+  const name = normalizeText(value.name);
+  if (!id || !tenantId || !key || !name) {
+    throw new OemCloudControlPlaneError("充值包格式非法");
+  }
+
+  return {
+    id,
+    tenantId,
+    key,
+    name,
+    credits: normalizeNumberOrZero(value.credits),
+    priceCents: normalizeNumberOrZero(value.priceCents),
+    bonusCredits: normalizeOptionalNumber(value.bonusCredits),
+    validDays: normalizeNumberOrZero(value.validDays),
+    recommended: normalizeBoolean(value.recommended),
+    sortOrder: normalizeOptionalNumber(value.sortOrder),
+    status: normalizeText(value.status) ?? "inactive",
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+  };
+}
+
+function parseCreditWallet(value: unknown): OemCloudCreditWallet {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("积分钱包格式非法");
+  }
+
+  const id = normalizeText(value.id);
+  const tenantId = normalizeText(value.tenantId);
+  const userId = normalizeText(value.userId);
+  if (!id || !tenantId || !userId) {
+    throw new OemCloudControlPlaneError("积分钱包格式非法");
+  }
+
+  return {
+    id,
+    tenantId,
+    userId,
+    packageId: normalizeText(value.packageId),
+    packageName: normalizeText(value.packageName),
+    sourceType: normalizeText(value.sourceType) ?? "unknown",
+    sourceId: normalizeText(value.sourceId),
+    grantedCredits: normalizeNumberOrZero(value.grantedCredits),
+    usedCredits: normalizeNumberOrZero(value.usedCredits),
+    remainingCredits: normalizeNumberOrZero(value.remainingCredits),
+    status: normalizeText(value.status) ?? "unknown",
+    effectiveAt: normalizeText(value.effectiveAt) ?? "",
+    expiresAt: normalizeText(value.expiresAt),
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+  };
+}
+
+function parseCreditTopupOrder(value: unknown): OemCloudCreditTopupOrder {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("充值订单格式非法");
+  }
+
+  const id = normalizeText(value.id);
+  const tenantId = normalizeText(value.tenantId);
+  const userId = normalizeText(value.userId);
+  const packageName = normalizeText(value.packageName);
+  if (!id || !tenantId || !userId || !packageName) {
+    throw new OemCloudControlPlaneError("充值订单格式非法");
+  }
+
+  return {
+    id,
+    tenantId,
+    userId,
+    packageId: normalizeText(value.packageId),
+    packageName,
+    creditsGranted: normalizeNumberOrZero(value.creditsGranted),
+    amountCents: normalizeNumberOrZero(value.amountCents),
+    paymentChannel: normalizeText(value.paymentChannel) ?? "",
+    paymentMethod: normalizeText(value.paymentMethod),
+    paymentReference: normalizeText(value.paymentReference),
+    checkoutUrl: normalizeText(value.checkoutUrl),
+    providerOrderId: normalizeText(value.providerOrderId),
+    providerSessionId: normalizeText(value.providerSessionId),
+    providerStatus: normalizeText(value.providerStatus),
+    status: normalizeText(value.status) ?? "unknown",
+    paidAt: normalizeText(value.paidAt),
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+  };
+}
+
+function parseMonthlyUsageSummary(value: unknown): OemCloudMonthlyUsageSummary {
+  const record = isRecord(value) ? value : {};
+  return {
+    freeCreditsUsed: normalizeNumberOrZero(record.freeCreditsUsed),
+    freeCreditsLimit: normalizeNumberOrZero(record.freeCreditsLimit),
+    topupCreditsUsed: normalizeNumberOrZero(record.topupCreditsUsed),
+    topupCreditsLimit: normalizeNumberOrZero(record.topupCreditsLimit),
+    subscriptionCreditsUsed: normalizeNumberOrZero(
+      record.subscriptionCreditsUsed,
+    ),
+    subscriptionCreditsLimit: normalizeNumberOrZero(
+      record.subscriptionCreditsLimit,
+    ),
+  };
+}
+
+function parseUsageRecord(value: unknown): OemCloudUsageRecord {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("用量记录格式非法");
+  }
+
+  const id = normalizeText(value.id);
+  const tenantId = normalizeText(value.tenantId);
+  const userId = normalizeText(value.userId);
+  if (!id || !tenantId || !userId) {
+    throw new OemCloudControlPlaneError("用量记录格式非法");
+  }
+
+  return {
+    id,
+    tenantId,
+    userId,
+    createdAt: normalizeText(value.createdAt) ?? "",
+    usageType: normalizeText(value.usageType) ?? "llm",
+    triggerType: normalizeText(value.triggerType) ?? "request",
+    usageTag: normalizeText(value.usageTag),
+    model: normalizeText(value.model) ?? "",
+    tokens: normalizeNumberOrZero(value.tokens),
+    credits: normalizeNumberOrZero(value.credits),
+    durationMs: normalizeNumberOrZero(value.durationMs),
+    status: normalizeText(value.status) ?? "unknown",
+  };
+}
+
+function parseBillingSummary(value: unknown): OemCloudBillingSummary {
+  const record = isRecord(value) ? value : {};
+  return {
+    currency: normalizeText(record.currency) ?? "CNY",
+    nextPaymentAmountCents: normalizeNumberOrZero(
+      record.nextPaymentAmountCents,
+    ),
+    currentPeriodStart: normalizeText(record.currentPeriodStart),
+    currentPeriodEnd: normalizeText(record.currentPeriodEnd),
+    renewalAt: normalizeText(record.renewalAt),
+    autoRenew: normalizeBoolean(record.autoRenew),
+    lastPaidAt: normalizeText(record.lastPaidAt),
+    totalSpentCents: normalizeNumberOrZero(record.totalSpentCents),
+  };
+}
+
+function parseOrder(value: unknown): OemCloudOrder {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("套餐订单格式非法");
+  }
+
+  const id = normalizeText(value.id);
+  const tenantId = normalizeText(value.tenantId);
+  const userId = normalizeText(value.userId);
+  const planId = normalizeText(value.planId);
+  const planKey = normalizeText(value.planKey);
+  const planName = normalizeText(value.planName);
+  if (!id || !tenantId || !userId || !planId || !planKey || !planName) {
+    throw new OemCloudControlPlaneError("套餐订单格式非法");
+  }
+
+  return {
+    id,
+    tenantId,
+    userId,
+    planId,
+    planKey,
+    planName,
+    amountCents: normalizeNumberOrZero(value.amountCents),
+    creditsGranted: normalizeNumberOrZero(value.creditsGranted),
+    paymentChannel: normalizeText(value.paymentChannel) ?? "",
+    paymentMethod: normalizeText(value.paymentMethod),
+    billingCycle: parseBillingCycle(value.billingCycle),
+    paymentReference: normalizeText(value.paymentReference),
+    checkoutUrl: normalizeText(value.checkoutUrl),
+    providerOrderId: normalizeText(value.providerOrderId),
+    providerSessionId: normalizeText(value.providerSessionId),
+    providerStatus: normalizeText(value.providerStatus),
+    status: normalizeText(value.status) ?? "unknown",
+    paidAt: normalizeText(value.paidAt),
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+  };
+}
+
+function parseCreditsDashboard(value: unknown): OemCloudCreditsDashboard {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("积分看板格式非法");
+  }
+
+  return {
+    creditAccount: parseCreditAccount(value.creditAccount),
+    subscription: parseOptionalSubscription(value.subscription),
+    topupPackages: Array.isArray(value.topupPackages)
+      ? value.topupPackages.map(parseTopupPackage)
+      : [],
+    creditWallets: Array.isArray(value.creditWallets)
+      ? value.creditWallets.map(parseCreditWallet)
+      : [],
+    creditOrders: Array.isArray(value.creditOrders)
+      ? value.creditOrders.map(parseCreditTopupOrder)
+      : [],
+  };
+}
+
+function parseUsageDashboard(value: unknown): OemCloudUsageDashboard {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("用量看板格式非法");
+  }
+
+  return {
+    usageRecords: Array.isArray(value.usageRecords)
+      ? value.usageRecords.map(parseUsageRecord)
+      : [],
+    monthlySummary: parseMonthlyUsageSummary(value.monthlySummary),
+  };
+}
+
+function parseBillingDashboard(value: unknown): OemCloudBillingDashboard {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("账单看板格式非法");
+  }
+
+  return {
+    billingSummary: parseBillingSummary(value.billingSummary),
+    subscription: parseOptionalSubscription(value.subscription),
+    currentPlan: parseOptionalPlan(value.currentPlan),
+    orders: Array.isArray(value.orders) ? value.orders.map(parseOrder) : [],
+  };
+}
+
+function parseAccessToken(value: unknown): OemCloudAccessToken {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("API Key 格式非法");
+  }
+
+  const id = normalizeText(value.id);
+  const tenantId = normalizeText(value.tenantId);
+  const userId = normalizeText(value.userId);
+  const name = normalizeText(value.name);
+  const tokenMasked = normalizeText(value.tokenMasked);
+  if (!id || !tenantId || !userId || !name || !tokenMasked) {
+    throw new OemCloudControlPlaneError("API Key 格式非法");
+  }
+
+  return {
+    id,
+    tenantId,
+    userId,
+    name,
+    tokenMasked,
+    tokenPrefix: normalizeText(value.tokenPrefix),
+    scopes: normalizeStringArray(value.scopes),
+    allowedModels: normalizeStringArray(value.allowedModels),
+    maxTokensPerRequest: normalizeOptionalNumber(value.maxTokensPerRequest),
+    requestsPerMinute: normalizeOptionalNumber(value.requestsPerMinute),
+    tokensPerMinute: normalizeOptionalNumber(value.tokensPerMinute),
+    monthlyCreditLimit: normalizeOptionalNumber(value.monthlyCreditLimit),
+    status: normalizeText(value.status) ?? "unknown",
+    lastUsedAt: normalizeText(value.lastUsedAt),
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+    expiresAt: normalizeText(value.expiresAt) ?? "",
+  };
+}
+
+function parseActiveAccessTokenResponse(
+  value: unknown,
+): OemCloudActiveAccessTokenResponse {
+  const record = isRecord(value) ? value : {};
+  return {
+    hasActive: normalizeBoolean(record.hasActive),
+    token: isRecord(record.token) ? parseAccessToken(record.token) : null,
+  };
+}
+
+function parseCreateAccessTokenResponse(
+  value: unknown,
+): OemCloudCreateAccessTokenResponse {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("创建 API Key 结果格式非法");
+  }
+
+  return {
+    token: parseAccessToken(value.token),
+    rawToken: normalizeText(value.rawToken),
+    apiKey: normalizeText(value.apiKey),
+  };
+}
+
+function parseRotateAccessTokenResponse(
+  value: unknown,
+): OemCloudRotateAccessTokenResponse {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("轮换 API Key 结果格式非法");
+  }
+
+  return {
+    previousToken: parseAccessToken(value.previousToken),
+    newToken: parseAccessToken(value.newToken),
+    rawToken: normalizeText(value.rawToken),
+    apiKey: normalizeText(value.apiKey),
+  };
+}
+
+function parsePaymentCheckoutResponse(
+  value: unknown,
+): OemCloudPaymentCheckoutResponse {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("支付链接格式非法");
+  }
+  const orderKind = normalizeText(value.orderKind);
+  const orderId = normalizeText(value.orderId);
+  const paymentChannel = normalizeText(value.paymentChannel);
+  if (!orderKind || !orderId || !paymentChannel) {
+    throw new OemCloudControlPlaneError("支付链接格式非法");
+  }
+  return {
+    orderKind,
+    orderId,
+    paymentChannel,
+    paymentMethod: normalizeText(value.paymentMethod),
+    paymentReference: normalizeText(value.paymentReference),
+    checkoutUrl: normalizeText(value.checkoutUrl),
+    status: normalizeText(value.status) ?? "pending",
+  };
+}
+
+function parseReadinessStatus(value: unknown): OemCloudReadinessStatus {
+  const status = normalizeText(value);
+  switch (status) {
+    case "no_payment_channel":
+    case "no_plan_or_credits":
+    case "payment_pending":
+    case "no_api_key":
+    case "no_models":
+    case "ready":
+    case "quota_low":
+    case "subscription_expired":
+    case "blocked":
+      return status;
+    default:
+      return "blocked";
+  }
+}
+
+function parseReadinessStep(value: unknown): OemCloudReadinessStep {
+  const record = isRecord(value) ? value : {};
+  return {
+    key: normalizeText(record.key) ?? "unknown",
+    label: normalizeText(record.label) ?? "未命名步骤",
+    description: normalizeText(record.description),
+    done: normalizeBoolean(record.done),
+    action: normalizeText(record.action),
+  };
+}
+
+function parseReadiness(value: unknown): OemCloudReadiness {
+  const record = isRecord(value) ? value : {};
+  return {
+    status: parseReadinessStatus(record.status),
+    title: normalizeText(record.title) ?? "云端状态未知",
+    description: normalizeText(record.description),
+    nextAction: normalizeText(record.nextAction),
+    canInvoke: normalizeBoolean(record.canInvoke),
+    blockers: normalizeStringArray(record.blockers),
+    steps: Array.isArray(record.steps)
+      ? record.steps.map(parseReadinessStep)
+      : [],
+  };
+}
+
+function parsePaymentAction(value: unknown): OemCloudPaymentAction | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const orderId = normalizeText(value.orderId);
+  const kind = normalizeText(value.kind);
+  if (!orderId || !kind) {
+    return null;
+  }
+
+  return {
+    kind,
+    orderId,
+    title: normalizeText(value.title) ?? orderId,
+    paymentChannel: normalizeText(value.paymentChannel) ?? "",
+    paymentReference: normalizeText(value.paymentReference),
+    amountCents: normalizeNumberOrZero(value.amountCents),
+    status: normalizeText(value.status) ?? "unknown",
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+  };
+}
+
+function parseOptionalPlan(value: unknown): OemCloudEntitlementPlan | null {
+  if (!isRecord(value) || !normalizeText(value.id)) {
+    return null;
+  }
+  return parseEntitlementPlan(value);
+}
+
+function parseCloudActivation(value: unknown): OemCloudActivationResponse {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("云端激活状态格式非法");
+  }
+
+  const creditsDashboard = isRecord(value.creditsDashboard)
+    ? parseCreditsDashboard(value.creditsDashboard)
+    : null;
+  const usageDashboard = isRecord(value.usageDashboard)
+    ? parseUsageDashboard(value.usageDashboard)
+    : null;
+  const billingDashboard = isRecord(value.billingDashboard)
+    ? parseBillingDashboard(value.billingDashboard)
+    : null;
+
+  return {
+    gateway: parseGatewayConfig(value.gateway),
+    llmBaseUrl: normalizeText(value.llmBaseUrl) ?? "",
+    openAIBaseUrl: normalizeText(value.openAIBaseUrl) ?? "",
+    anthropicBaseUrl: normalizeText(value.anthropicBaseUrl) ?? "",
+    readiness: parseReadiness(value.readiness),
+    pendingPayment: parsePaymentAction(value.pendingPayment),
+    paymentConfigs: Array.isArray(value.paymentConfigs)
+      ? value.paymentConfigs.map(parsePaymentConfig)
+      : [],
+    plans: Array.isArray(value.plans)
+      ? value.plans.map(parseEntitlementPlan)
+      : [],
+    subscription: parseOptionalSubscription(value.subscription),
+    creditAccount: isRecord(value.creditAccount)
+      ? parseCreditAccount(value.creditAccount)
+      : null,
+    creditsDashboard,
+    topupPackages: Array.isArray(value.topupPackages)
+      ? value.topupPackages.map(parseTopupPackage)
+      : (creditsDashboard?.topupPackages ?? []),
+    usageDashboard,
+    billingDashboard,
+    providerOffers: Array.isArray(value.providerOffers)
+      ? value.providerOffers.map(parseProviderOfferSummary)
+      : [],
+    selectedOffer: isRecord(value.selectedOffer)
+      ? parseProviderOfferDetail(value.selectedOffer)
+      : null,
+    providerModels: Array.isArray(value.providerModels)
+      ? value.providerModels.map(parseProviderModelItem)
+      : [],
+    providerPreference: isRecord(value.providerPreference)
+      ? parseProviderPreference(value.providerPreference)
+      : null,
+    accessTokens: Array.isArray(value.accessTokens)
+      ? value.accessTokens.map(parseAccessToken)
+      : [],
+    activeAccessToken: isRecord(value.activeAccessToken)
+      ? parseActiveAccessTokenResponse(value.activeAccessToken)
+      : null,
+    orders: Array.isArray(value.orders) ? value.orders.map(parseOrder) : [],
+    creditTopupOrders: Array.isArray(value.creditTopupOrders)
+      ? value.creditTopupOrders.map(parseCreditTopupOrder)
+      : [],
+  };
+}
+
+function parseReferralCode(value: unknown): OemCloudReferralCode {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("邀请代码格式非法");
+  }
+
+  const code = normalizeText(value.code);
+  if (!code) {
+    throw new OemCloudControlPlaneError("邀请代码格式非法");
+  }
+
+  return {
+    id: normalizeText(value.id) ?? "",
+    tenantId: normalizeText(value.tenantId) ?? "",
+    userId: normalizeText(value.userId) ?? "",
+    code,
+    landingUrl: normalizeText(value.landingUrl) ?? "",
+    channel: normalizeText(value.channel),
+    status: normalizeText(value.status) ?? "active",
+    disabledReason: normalizeText(value.disabledReason),
+    createdAt: normalizeText(value.createdAt) ?? "",
+    updatedAt: normalizeText(value.updatedAt) ?? "",
+  };
+}
+
+function parseReferralPolicy(value: unknown): OemCloudReferralPolicy {
+  const record = isRecord(value) ? value : {};
+  return {
+    tenantId: normalizeText(record.tenantId),
+    enabled: normalizeBoolean(record.enabled, true),
+    rewardCredits: normalizeNumberOrZero(record.rewardCredits),
+    referrerRewardCredits: normalizeNumberOrZero(record.referrerRewardCredits),
+    inviteeRewardCredits: normalizeNumberOrZero(record.inviteeRewardCredits),
+    claimWindowDays: normalizeNumberOrZero(record.claimWindowDays),
+    autoClaimEnabled: normalizeBoolean(record.autoClaimEnabled),
+    allowManualClaimFallback: normalizeBoolean(
+      record.allowManualClaimFallback,
+      true,
+    ),
+    landingPageHeadline: normalizeText(record.landingPageHeadline),
+    landingPageRules: normalizeText(record.landingPageRules),
+    riskReviewEnabled: normalizeBoolean(record.riskReviewEnabled),
+    updatedAt: normalizeText(record.updatedAt),
+  };
+}
+
+function parseReferralSummary(value: unknown): OemCloudReferralSummary {
+  const record = isRecord(value) ? value : {};
+  return {
+    totalInvites: normalizeNumberOrZero(record.totalInvites),
+    successfulInvites: normalizeNumberOrZero(record.successfulInvites),
+    totalRewardCredits: normalizeNumberOrZero(record.totalRewardCredits),
+    referrerRewardCreditsTotal: normalizeNumberOrZero(
+      record.referrerRewardCreditsTotal,
+    ),
+    inviteeRewardCreditsTotal: normalizeNumberOrZero(
+      record.inviteeRewardCreditsTotal,
+    ),
+  };
+}
+
+function parseReferralInviteRelation(
+  value: unknown,
+): OemCloudReferralInviteRelation {
+  const record = isRecord(value) ? value : {};
+  return {
+    eventId: normalizeText(record.eventId),
+    code: normalizeText(record.code),
+    referrerUserId: normalizeText(record.referrerUserId),
+    referrerEmail: normalizeText(record.referrerEmail),
+    referrerName: normalizeText(record.referrerName),
+    inviteeRewardCredits: normalizeOptionalNumber(record.inviteeRewardCredits),
+    claimedAt: normalizeText(record.claimedAt),
+  };
+}
+
+function resolveReferralDownloadUrl(landingUrl: string): string {
+  try {
+    return new URL(landingUrl).origin;
+  } catch {
+    return COMPAT_REFERRAL_DOWNLOAD_URL;
+  }
+}
+
+function buildCompatReferralShareText(params: {
+  brandName: string;
+  downloadUrl: string;
+  code: string;
+}): string {
+  return `邀请你体验${params.brandName}，让AI做牛做马，我们来做牛人！前往 ${params.downloadUrl} 下载客户端，复制邀请码 ${params.code} 激活并注册账号参与内测`;
+}
+
+function parseReferralShare(
+  value: unknown,
+  code: OemCloudReferralCode,
+  policy: OemCloudReferralPolicy,
+): OemCloudReferralShare {
+  const record = isRecord(value) ? value : {};
+  const shareCode = normalizeText(record.code) ?? code.code;
+  let landingUrl = normalizeText(record.landingUrl) ?? code.landingUrl;
+  const brandName =
+    normalizeText(record.brandName) ?? COMPAT_REFERRAL_BRAND_NAME;
+  const downloadUrl =
+    normalizeText(record.downloadUrl) ?? resolveReferralDownloadUrl(landingUrl);
+  if (!landingUrl) {
+    landingUrl = `${downloadUrl}/invite?code=${encodeURIComponent(shareCode)}`;
+  }
+
+  return {
+    brandName,
+    code: shareCode,
+    landingUrl,
+    downloadUrl,
+    shareText:
+      normalizeText(record.shareText) ??
+      buildCompatReferralShareText({
+        brandName,
+        downloadUrl,
+        code: shareCode,
+      }),
+    headline:
+      normalizeText(record.headline) ??
+      normalizeText(policy.landingPageHeadline),
+    rules:
+      normalizeText(record.rules) ?? normalizeText(policy.landingPageRules),
+  };
+}
+
+function parseReferralDashboard(value: unknown): OemCloudReferralDashboard {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("邀请看板格式非法");
+  }
+
+  const code = parseReferralCode(value.code);
+  const policy = parseReferralPolicy(value.policy);
+
+  return {
+    code,
+    policy,
+    summary: parseReferralSummary(value.summary),
+    events: Array.isArray(value.events) ? value.events : [],
+    rewards: Array.isArray(value.rewards) ? value.rewards : [],
+    invitedBy: parseReferralInviteRelation(value.invitedBy),
+    share: parseReferralShare(value.share, code, policy),
+  };
+}
+
+function parseReferralClaimResponse(
+  value: unknown,
+): OemCloudReferralClaimResponse {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("邀请领取结果格式非法");
+  }
+
+  return {
+    event: value.event,
+    reward: value.reward,
+    rewards: Array.isArray(value.rewards) ? value.rewards : [],
+    creditAccount: isRecord(value.creditAccount)
+      ? parseCreditAccount(value.creditAccount)
+      : null,
+    accountLedgers: Array.isArray(value.accountLedgers)
+      ? value.accountLedgers
+      : [],
   };
 }
 
@@ -1141,6 +2519,334 @@ export async function updateClientProviderPreference(
       `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/provider-preferences`,
       {
         method: "PUT",
+        payload,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function getClientCloudActivation(
+  tenantId: string,
+): Promise<OemCloudActivationResponse> {
+  return parseCloudActivation(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/cloud-activation`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function listClientPaymentConfigs(
+  tenantId: string,
+): Promise<OemCloudPaymentConfig[]> {
+  const payload = await requestControlPlane<{ items?: unknown[] }>(
+    `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/payment-configs`,
+    {
+      auth: true,
+    },
+  );
+  return Array.isArray(payload.items)
+    ? payload.items.map(parsePaymentConfig)
+    : [];
+}
+
+export async function listClientPlans(
+  tenantId: string,
+): Promise<OemCloudEntitlementPlan[]> {
+  const payload = await requestControlPlane<{ items?: unknown[] }>(
+    `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/plans`,
+    {
+      auth: true,
+    },
+  );
+  return Array.isArray(payload.items)
+    ? payload.items.map(parseEntitlementPlan)
+    : [];
+}
+
+export async function getClientSubscription(
+  tenantId: string,
+): Promise<OemCloudSubscription> {
+  return parseSubscription(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/subscription`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function getClientCreditAccount(
+  tenantId: string,
+): Promise<OemCloudCreditAccount> {
+  return parseCreditAccount(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/credits`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function getClientCreditsDashboard(
+  tenantId: string,
+): Promise<OemCloudCreditsDashboard> {
+  return parseCreditsDashboard(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/credits/dashboard`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function listClientTopupPackages(
+  tenantId: string,
+): Promise<OemCloudTopupPackage[]> {
+  const payload = await requestControlPlane<{ items?: unknown[] }>(
+    `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/topup-packages`,
+    {
+      auth: true,
+    },
+  );
+  return Array.isArray(payload.items)
+    ? payload.items.map(parseTopupPackage)
+    : [];
+}
+
+export async function getClientUsageDashboard(
+  tenantId: string,
+): Promise<OemCloudUsageDashboard> {
+  return parseUsageDashboard(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/usage/dashboard`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function getClientBillingDashboard(
+  tenantId: string,
+): Promise<OemCloudBillingDashboard> {
+  return parseBillingDashboard(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/billing/dashboard`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function getClientReferralDashboard(
+  tenantId: string,
+): Promise<OemCloudReferralDashboard> {
+  return parseReferralDashboard(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/referral`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function claimClientReferral(
+  tenantId: string,
+  payload: ClaimClientReferralPayload,
+): Promise<OemCloudReferralClaimResponse> {
+  return parseReferralClaimResponse(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/referrals/claim`,
+      {
+        method: "POST",
+        payload,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function getClientActiveAccessToken(
+  tenantId: string,
+): Promise<OemCloudActiveAccessTokenResponse> {
+  return parseActiveAccessTokenResponse(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/access-tokens/active`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function listClientAccessTokens(
+  tenantId: string,
+): Promise<OemCloudAccessToken[]> {
+  const payload = await requestControlPlane<{ items?: unknown[] }>(
+    `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/access-tokens`,
+    {
+      auth: true,
+    },
+  );
+  return Array.isArray(payload.items)
+    ? payload.items.map(parseAccessToken)
+    : [];
+}
+
+export async function createClientAccessToken(
+  tenantId: string,
+  payload: CreateClientAccessTokenPayload,
+): Promise<OemCloudCreateAccessTokenResponse> {
+  return parseCreateAccessTokenResponse(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/access-tokens`,
+      {
+        method: "POST",
+        payload,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function rotateClientAccessToken(
+  tenantId: string,
+  tokenId: string,
+): Promise<OemCloudRotateAccessTokenResponse> {
+  return parseRotateAccessTokenResponse(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/access-tokens/${encodeURIComponent(tokenId)}/rotate`,
+      {
+        method: "POST",
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function revokeClientAccessToken(
+  tenantId: string,
+  tokenId: string,
+): Promise<OemCloudAccessToken> {
+  return parseAccessToken(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/access-tokens/${encodeURIComponent(tokenId)}/revoke`,
+      {
+        method: "POST",
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function listClientOrders(
+  tenantId: string,
+): Promise<OemCloudOrder[]> {
+  const payload = await requestControlPlane<{ items?: unknown[] }>(
+    `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/orders`,
+    {
+      auth: true,
+    },
+  );
+  return Array.isArray(payload.items) ? payload.items.map(parseOrder) : [];
+}
+
+export async function getClientOrder(
+  tenantId: string,
+  orderId: string,
+): Promise<OemCloudOrder> {
+  return parseOrder(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/orders/${encodeURIComponent(orderId)}`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function createClientOrder(
+  tenantId: string,
+  payload: CreateClientOrderPayload,
+): Promise<OemCloudOrder> {
+  return parseOrder(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/orders`,
+      {
+        method: "POST",
+        payload,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function createClientOrderCheckout(
+  tenantId: string,
+  orderId: string,
+  payload: CreatePaymentCheckoutPayload = {},
+): Promise<OemCloudPaymentCheckoutResponse> {
+  return parsePaymentCheckoutResponse(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/orders/${encodeURIComponent(orderId)}/checkout`,
+      {
+        method: "POST",
+        payload,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function getClientCreditTopupOrder(
+  tenantId: string,
+  orderId: string,
+): Promise<OemCloudCreditTopupOrder> {
+  return parseCreditTopupOrder(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/credit-topup-orders/${encodeURIComponent(orderId)}`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function createClientCreditTopupOrder(
+  tenantId: string,
+  payload: CreateClientCreditTopupOrderPayload,
+): Promise<OemCloudCreditTopupOrder> {
+  return parseCreditTopupOrder(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/credit-topup-orders`,
+      {
+        method: "POST",
+        payload,
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function createClientCreditTopupOrderCheckout(
+  tenantId: string,
+  orderId: string,
+  payload: CreatePaymentCheckoutPayload = {},
+): Promise<OemCloudPaymentCheckoutResponse> {
+  return parsePaymentCheckoutResponse(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/credit-topup-orders/${encodeURIComponent(orderId)}/checkout`,
+      {
+        method: "POST",
         payload,
         auth: true,
       },

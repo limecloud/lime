@@ -10,7 +10,9 @@ function createMessage(index: number): Message {
     id: `message-${index}`,
     role: index % 2 === 0 ? "assistant" : "user",
     content: `message-${index}`,
-    timestamp: new Date(`2026-04-24T00:${String(index % 60).padStart(2, "0")}:00.000Z`),
+    timestamp: new Date(
+      `2026-04-24T00:${String(index % 60).padStart(2, "0")}:00.000Z`,
+    ),
   };
 }
 

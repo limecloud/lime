@@ -18,6 +18,7 @@ import type {
   OpenClawPageParams,
   Page,
   PageParams,
+  ResourcesPageParams,
   SceneAppsPageParams,
   SettingsPageParams,
   SkillsPageParams,
@@ -262,7 +263,10 @@ export function AppPageContent({
   if (activePage === "resources") {
     const content = (
       <div style={columnPageStyle}>
-        <ResourcesPage onNavigate={onNavigate} />
+        <ResourcesPage
+          onNavigate={onNavigate}
+          pageParams={activePageParams as ResourcesPageParams}
+        />
       </div>
     );
 

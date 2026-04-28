@@ -10,6 +10,7 @@
 
 import React, { Suspense, lazy, useState, useCallback } from "react";
 import styled from "styled-components";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { withI18nPatch } from "./i18n/withI18nPatch";
 import { AppPageContent } from "./components/AppPageContent";
 import { SplashScreen } from "./components/SplashScreen";
@@ -35,6 +36,11 @@ import { useOemLimeHubProviderSync } from "./hooks/useOemLimeHubProviderSync";
 import { ComponentDebugProvider } from "./contexts/ComponentDebugContext";
 import { SoundProvider } from "./contexts/SoundProvider";
 import { ComponentDebugOverlay } from "./components/dev";
+import {
+  useResourceManagerNavigationIntents,
+  type ResourceManagerNavigationDestination,
+  type ResourceManagerNavigationIntent,
+} from "./features/resource-manager";
 import type { OpenDeepLinkPayload } from "./hooks/useDeepLink";
 import { buildClawAgentParams } from "./lib/workspace/navigation";
 import { resolveWebsiteOpenNavigation } from "./lib/deepLink/websiteLaunch";
@@ -46,7 +52,7 @@ const AppContainer = styled.div`
   display: flex;
   height: 100vh;
   width: 100vw;
-  background-color: hsl(var(--background));
+  background: var(--lime-app-bg, hsl(var(--background)));
   overflow: hidden;
 `;
 
@@ -57,6 +63,19 @@ const MainContent = styled.main<{ $withSidebarGap?: boolean }>`
   flex-direction: column;
   min-height: 0;
   padding-left: ${(props) => (props.$withSidebarGap ? "10px" : "0")};
+  background: var(--lime-app-bg, hsl(var(--background)));
+`;
+
+const WindowDragRegion = styled.div`
+  position: fixed;
+  top: 0;
+  left: 160px;
+  right: 0;
+  height: 28px;
+  z-index: 1000;
+  background: transparent;
+  user-select: none;
+  -webkit-app-region: drag;
 `;
 
 const RecentImageInsertFloating = lazy(() =>
@@ -121,6 +140,29 @@ function AppContent() {
   useServiceSkillCatalogBootstrap();
   useSiteAdapterCatalogBootstrap();
   useOemLimeHubProviderSync();
+  const handleResourceManagerNavigationHandled = useCallback(
+    ({
+      destination,
+    }: {
+      intent: ResourceManagerNavigationIntent;
+      destination: ResourceManagerNavigationDestination;
+    }) => {
+      toast.success(destination.noticeTitle, {
+        description: destination.noticeDescription,
+      });
+    },
+    [],
+  );
+  const handleResourceManagerNavigationUnsupported = useCallback(() => {
+    toast.info("当前资源暂时不能自动回跳", {
+      description: "已记录来源信息，但主窗口还没有对应的业务入口。",
+    });
+  }, []);
+  useResourceManagerNavigationIntents({
+    onNavigate: handleNavigate,
+    onHandled: handleResourceManagerNavigationHandled,
+    onUnsupported: handleResourceManagerNavigationUnsupported,
+  });
   useGlobalTrayModelSync({
     currentPage,
     pageParams,
@@ -208,7 +250,8 @@ function AppContent() {
 
       if (!resolved) {
         toast.error("无法打开这个官网入口", {
-          description: "当前 slug 没有对应到桌面端可用能力，请同步官网与客户端目录。",
+          description:
+            "当前 slug 没有对应到桌面端可用能力，请同步官网与客户端目录。",
         });
         return;
       }
@@ -253,6 +296,24 @@ function AppContent() {
     completeOnboarding();
   }, [completeOnboarding]);
 
+  const handleWindowDragStart = useCallback(
+    async (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!hasTauriDesktopRuntime || event.button !== 0) {
+        return;
+      }
+
+      event.preventDefault();
+
+      try {
+        const currentWindow = getCurrentWindow();
+        await currentWindow.startDragging();
+      } catch (error) {
+        console.warn("[窗口] 主窗口拖拽启动失败:", error);
+      }
+    },
+    [hasTauriDesktopRuntime],
+  );
+
   if (showSplash) {
     return <SplashScreen onComplete={handleSplashComplete} />;
   }
@@ -273,6 +334,12 @@ function AppContent() {
     <SoundProvider>
       <ComponentDebugProvider>
         <AppContainer>
+          {hasTauriDesktopRuntime ? (
+            <WindowDragRegion
+              data-tauri-drag-region
+              onMouseDown={handleWindowDragStart}
+            />
+          ) : null}
           {shouldShowAppSidebar && (
             <AppSidebar
               currentPage={currentPage}

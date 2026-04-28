@@ -192,8 +192,7 @@ export function useTeamWorkspaceBoardSessionGraph({
     ],
   );
   const basePreviewableRailSessions = useMemo<ActivityPreviewSession[]>(
-    () =>
-      baseRailSessions.filter((session) => session.sessionType !== "user"),
+    () => baseRailSessions.filter((session) => session.sessionType !== "user"),
     [baseRailSessions],
   );
 

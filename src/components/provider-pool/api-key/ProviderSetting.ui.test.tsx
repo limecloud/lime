@@ -4,37 +4,28 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
 
-const { mockGetConfig, mockSaveConfig } = vi.hoisted(() => ({
-  mockGetConfig: vi.fn(),
-  mockSaveConfig: vi.fn(),
+const { mockFetchProviderModelsAuto } = vi.hoisted(() => ({
+  mockFetchProviderModelsAuto: vi.fn(),
 }));
 
-vi.mock("@/lib/api/appConfig", () => ({
-  getConfig: (...args: unknown[]) => mockGetConfig(...args),
-  saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
-}));
+vi.mock("@/lib/api/modelRegistry", () => ({
+  fetchProviderModelsAuto: (...args: unknown[]) =>
+    mockFetchProviderModelsAuto(...args),
+  normalizeFetchProviderModelsSource: (result: {
+    source: "Api" | "Catalog" | "CustomModels" | "LocalFallback";
+    models: unknown[];
+    error: string | null;
+  }) => {
+    if (
+      result.source === "LocalFallback" &&
+      typeof result.error === "string" &&
+      result.error.includes("已保留当前 Provider 的自定义模型")
+    ) {
+      return "CustomModels";
+    }
 
-vi.mock("./ProviderConfigForm", () => ({
-  ProviderConfigForm: React.forwardRef((_props, _ref) => (
-    <div data-testid="provider-config-form-stub">协议配置表单</div>
-  )),
-}));
-
-vi.mock("./ProviderModelList", () => ({
-  ProviderModelList: () => (
-    <div data-testid="provider-model-list-stub">模型列表</div>
-  ),
-}));
-
-vi.mock("./ConnectionTestButton", () => ({
-  ConnectionTestButton: (props: { disabled?: boolean }) => (
-    <div
-      data-testid="connection-test-button-stub"
-      data-disabled={String(Boolean(props.disabled))}
-    >
-      连接测试按钮
-    </div>
-  ),
+    return result.source;
+  },
 }));
 
 import { ProviderSetting } from "./ProviderSetting";
@@ -79,15 +70,16 @@ function createProvider(
   };
 }
 
-function renderSetting(provider: ProviderWithKeysDisplay | null) {
+function renderSetting(
+  provider: ProviderWithKeysDisplay | null,
+  props: Partial<React.ComponentProps<typeof ProviderSetting>> = {},
+) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
 
   act(() => {
-    root.render(
-      <ProviderSetting provider={provider} onDeleteProvider={vi.fn()} />,
-    );
+    root.render(<ProviderSetting provider={provider} {...props} />);
   });
 
   mountedRoots.push({ container, root });
@@ -102,6 +94,15 @@ async function flushEffects(times = 2) {
   });
 }
 
+function changeInput(input: HTMLInputElement, value: string) {
+  const valueSetter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )?.set;
+  valueSetter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -109,17 +110,11 @@ beforeEach(() => {
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
-  mockGetConfig.mockResolvedValue({
-    workspace_preferences: {
-      media_defaults: {
-        image: {
-          preferredProviderId: "airgate-openai-images",
-          allowFallback: false,
-        },
-      },
-    },
+  mockFetchProviderModelsAuto.mockResolvedValue({
+    source: "Api",
+    models: [{ id: "deepseek-chat" }],
+    error: null,
   });
-  mockSaveConfig.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -139,207 +134,178 @@ afterEach(() => {
 });
 
 describe("ProviderSetting", () => {
-  it("空状态应提示进入服务商配置工作台", async () => {
+  it("空状态应提示选择或添加模型", async () => {
     const container = renderSetting(null);
     await flushEffects();
 
-    expect(container.textContent ?? "").toContain("服务商配置工作台");
-    expect(container.textContent ?? "").toContain("模型、密钥和必要配置");
+    expect(container.textContent ?? "").toContain("选择或添加模型");
+    expect(container.textContent ?? "").toContain("密钥、模型优先级和测试连接");
   });
 
-  it("应展示新的分区式编辑工作台", async () => {
+  it("详情页应只保留密钥、模型优先级和测试连接", async () => {
     const container = renderSetting(createProvider());
     await flushEffects();
     const text = container.textContent ?? "";
 
-    expect(text).toContain("模型设置");
-    expect(text).toContain("API Key");
-    expect(text).toContain("协议配置表单");
-    expect(text).toContain("连接验证");
-    expect(text).toContain("读取真实模型目录前，不展示旧模型");
-    expect(text).toContain("默认：待读取");
+    expect(text).toContain("DeepSeek");
+    expect(text).toContain("API 密钥");
+    expect(text).toContain("模型优先级");
+    expect(text).toContain("从接口获取");
+    expect(text).toContain("测试连接");
+    expect(text).toContain("主模型");
+    expect(text).toContain("deepseek-chat");
+    expect(text).not.toContain("协议配置表单");
+    expect(text).not.toContain("连接验证");
+    expect(text).not.toContain("支持的模型");
     expect(
-      container.querySelector('[data-testid="provider-models-info-button"]'),
+      container.querySelector('[data-testid="provider-simple-card"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector(
-        '[data-testid="provider-connection-info-button"]',
-      ),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="delete-provider-button"]'),
+      container.querySelector('[data-testid="provider-test-connection-button"]'),
     ).not.toBeNull();
   });
 
-  it("anthropic-compatible Provider 不应误显示必须等待真实模型目录", async () => {
-    const container = renderSetting(
-      createProvider({
-        id: "mimo-anthropic-no-model",
-        name: "MiMo Anthropic",
-        type: "anthropic-compatible",
-        api_host: "https://token-plan-cn.xiaomimimo.com/anthropic",
-        custom_models: [],
-      }),
-    );
+  it("手动添加模型应直接更新 custom_models", async () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const container = renderSetting(createProvider({ custom_models: [] }), {
+      onUpdate,
+    });
     await flushEffects();
 
-    const text = container.textContent ?? "";
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="model-draft-input"]',
+    );
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="model-draft-add-button"]',
+    );
 
-    expect(text).toContain("默认：未设置");
-    expect(text).not.toContain("读取真实模型目录前，不展示旧模型");
-    expect(text).not.toContain("模型待同步");
+    expect(input).not.toBeNull();
+    expect(button).not.toBeNull();
+
+    await act(async () => {
+      changeInput(input!, "deepseek-reasoner");
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+
+    expect(onUpdate).toHaveBeenCalledWith("deepseek", {
+      custom_models: ["deepseek-reasoner"],
+    });
+    expect(container.textContent ?? "").toContain("deepseek-reasoner");
   });
 
-  it("服务商工作台应保留原分栏，并允许模型区头部自然换行", async () => {
-    const container = renderSetting(createProvider());
+  it("接口获取只接受 Api 来源，不展示本地兜底模型", async () => {
+    mockFetchProviderModelsAuto.mockResolvedValueOnce({
+      source: "LocalFallback",
+      models: [{ id: "wrong-fallback-model" }],
+      error: "API 获取失败，已使用本地数据",
+    });
+    const container = renderSetting(createProvider({ custom_models: [] }));
     await flushEffects();
-    const workbenchGrid = container.querySelector<HTMLElement>(
-      '[data-testid="provider-setting-workbench-grid"]',
-    );
-    const modelsHeader = container.querySelector<HTMLElement>(
-      '[data-testid="supported-models-header"]',
-    );
-
-    expect(workbenchGrid?.className).toContain(
-      "xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,340px)]",
-    );
-    expect(modelsHeader?.className).toContain("flex-wrap");
-    expect(modelsHeader?.className).toContain("justify-between");
-  });
-
-  it("anthropic-compatible Provider 应在头部展示显式缓存标签", async () => {
-    const container = renderSetting(
-      createProvider({
-        id: "anthropic-proxy",
-        name: "Anthropic Proxy",
-        type: "anthropic-compatible",
-      }),
-    );
-    await flushEffects();
-
-    const badge = container.querySelector(
-      '[data-testid="provider-prompt-cache-badge"]',
-    );
-
-    expect(badge).not.toBeNull();
-    expect(badge?.textContent ?? "").toContain("显式缓存");
-  });
-
-  it("显式声明 automatic 的 anthropic-compatible Provider 不应在头部展示显式缓存标签", async () => {
-    const container = renderSetting(
-      createProvider({
-        id: "anthropic-proxy-automatic",
-        name: "Anthropic Proxy Automatic",
-        type: "anthropic-compatible",
-        prompt_cache_mode: "automatic",
-      }),
-    );
-    await flushEffects();
-
-    expect(
-      container.querySelector('[data-testid="provider-prompt-cache-badge"]'),
-    ).toBeNull();
-  });
-
-  it.each([
-    {
-      id: "glm-anthropic",
-      name: "GLM Anthropic",
-      apiHost: "https://open.bigmodel.cn/api/anthropic",
-    },
-    {
-      id: "kimi-anthropic",
-      name: "Kimi Anthropic",
-      apiHost: "https://api.moonshot.cn/anthropic",
-    },
-    {
-      id: "minimax-anthropic",
-      name: "MiniMax Anthropic",
-      apiHost: "https://api.minimaxi.com/anthropic",
-    },
-    {
-      id: "mimo-anthropic",
-      name: "MiMo Anthropic",
-      apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
-    },
-  ])("$name 官方 Host 不应在头部展示显式缓存标签", async ({ id, name, apiHost }) => {
-    const container = renderSetting(
-      createProvider({
-        id,
-        name,
-        type: "anthropic-compatible",
-        api_host: apiHost,
-      }),
-    );
-    await flushEffects();
-
-    expect(
-      container.querySelector('[data-testid="provider-prompt-cache-badge"]'),
-    ).toBeNull();
-  });
-
-  it("已保存默认模型的 anthropic-compatible Provider 在真实目录未返回时仍应允许连接测试", async () => {
-    const container = renderSetting(
-      createProvider({
-        id: "minimax-anthropic-saved-default",
-        name: "MiniMax Anthropic",
-        type: "anthropic-compatible",
-        api_host: "https://api.minimaxi.com/anthropic",
-        custom_models: ["MiniMax-M2.7"],
-      }),
-    );
-    await flushEffects();
-
-    expect(container.textContent ?? "").toContain("MiniMax-M2.7");
-    expect(container.textContent ?? "").toContain("可测试");
-    expect(container.textContent ?? "").not.toContain(
-      "已保存默认模型，可先用于连接验证",
-    );
-    expect(container.textContent ?? "").not.toContain("模型待同步");
-    expect(
-      container
-        .querySelector('[data-testid="connection-test-button-stub"]')
-        ?.getAttribute("data-disabled"),
-    ).toBe("false");
-  });
-
-  it("图片 Provider 应允许一键设为默认图片服务", async () => {
-    const container = renderSetting(
-      createProvider({
-        id: "custom-gpt-images",
-        name: "OpenAI GPT Images",
-        type: "openai",
-        api_host: "https://example.com/codex",
-        custom_models: ["gpt-images-2"],
-      }),
-    );
-    await flushEffects(3);
-
-    expect(
-      container.querySelector('[data-testid="provider-image-default-card"]'),
-    ).not.toBeNull();
-    expect(container.textContent ?? "").toContain(
-      "当前默认仍是 airgate-openai-images",
-    );
 
     const button = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-set-default-image-button"]',
+      '[data-testid="fetch-models-button"]',
     );
-    expect(button).not.toBeNull();
 
     await act(async () => {
       button?.click();
       await Promise.resolve();
       await Promise.resolve();
+    });
+
+    expect(mockFetchProviderModelsAuto).toHaveBeenCalledWith("deepseek");
+    expect(container.textContent ?? "").toContain("已忽略本地目录或兜底结果");
+    expect(container.textContent ?? "").not.toContain("wrong-fallback-model");
+    expect(
+      container.querySelector('[data-testid="api-model-suggestions"]'),
+    ).toBeNull();
+  });
+
+  it("接口获取成功后点击模型建议才加入优先级", async () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    mockFetchProviderModelsAuto.mockResolvedValueOnce({
+      source: "Api",
+      models: [{ id: "deepseek-chat" }, { id: "deepseek-reasoner" }],
+      error: null,
+    });
+    const container = renderSetting(createProvider({ custom_models: [] }), {
+      onUpdate,
+    });
+    await flushEffects();
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="fetch-models-button"]')
+        ?.click();
+      await Promise.resolve();
       await Promise.resolve();
     });
 
-    expect(mockSaveConfig).toHaveBeenCalledTimes(1);
-    const savedConfig = mockSaveConfig.mock.calls[0][0];
-    expect(savedConfig.workspace_preferences.media_defaults.image).toEqual({
-      preferredProviderId: "custom-gpt-images",
-      preferredModelId: "gpt-images-2",
-      allowFallback: false,
+    expect(container.textContent ?? "").toContain("接口返回 2 个模型");
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    const suggestions = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(
+        '[data-testid="api-model-suggestion"]',
+      ),
+    );
+    expect(suggestions.map((button) => button.textContent?.trim())).toContain(
+      "deepseek-chat",
+    );
+
+    await act(async () => {
+      suggestions[0]?.click();
+      await Promise.resolve();
     });
+
+    expect(onUpdate).toHaveBeenCalledWith("deepseek", {
+      custom_models: ["deepseek-chat"],
+    });
+  });
+
+  it("测试连接应先保存新密钥，并只显示简洁状态", async () => {
+    const onAddApiKey = vi.fn().mockResolvedValue(undefined);
+    const onTestConnection = vi.fn().mockResolvedValue({
+      success: true,
+      latencyMs: 128,
+    });
+    const container = renderSetting(
+      createProvider({ api_key_count: 0, api_keys: [] }),
+      {
+        onAddApiKey,
+        onTestConnection,
+      },
+    );
+    await flushEffects();
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="provider-api-key-input"]',
+    );
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-test-connection-button"]',
+    );
+
+    await act(async () => {
+      changeInput(input!, "sk-new-key");
+      await Promise.resolve();
+    });
+
+    expect(button?.disabled).toBe(false);
+
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(onAddApiKey).toHaveBeenCalledWith("deepseek", "sk-new-key");
+    expect(onTestConnection).toHaveBeenCalledWith("deepseek");
+    expect(container.textContent ?? "").toContain("连接成功 · 128ms");
+    expect(container.textContent ?? "").not.toContain("错误详情");
+    expect(container.textContent ?? "").not.toContain("对话测试");
   });
 });

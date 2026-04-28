@@ -6455,6 +6455,27 @@ const defaultMocks: Record<string, any> = {
   close_screenshot_chat_window: () => ({}),
 
   // Update 相关
+  check_update: () => ({
+    current_version: "1.21.0",
+    latest_version: null,
+    has_update: false,
+    download_url: "https://github.com/limecloud/lime/releases",
+    release_notes_url: "https://github.com/limecloud/lime/releases",
+    release_notes: null,
+    pub_date: null,
+    checked_at: Math.floor(Date.now() / 1000),
+    error: null,
+  }),
+  check_for_updates: () => ({
+    current: "1.21.0",
+    latest: null,
+    hasUpdate: false,
+    downloadUrl: "https://github.com/limecloud/lime/releases",
+    releaseNotesUrl: "https://github.com/limecloud/lime/releases",
+    releaseNotes: null,
+    pubDate: null,
+    error: null,
+  }),
   get_update_check_settings: () => ({
     enabled: true,
     check_interval_hours: 24,
@@ -6475,7 +6496,11 @@ const defaultMocks: Record<string, any> = {
     dismiss_rate: 0,
   }),
   record_update_notification_action: () => ({}),
-  download_update: () => ({ success: true }),
+  download_update: () => ({
+    success: false,
+    message: "当前已是最新版本",
+    filePath: null,
+  }),
   skip_update_version: () => ({}),
   remind_update_later: () => Math.floor(Date.now() / 1000) + 24 * 3600,
   dismiss_update_notification: () => Math.floor(Date.now() / 1000) + 24 * 3600,

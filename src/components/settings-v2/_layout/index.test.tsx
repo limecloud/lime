@@ -151,6 +151,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   mockSettingsSidebar.mockReset();
   mockPreloadDeveloperDefaultSections.mockReset();
   mockCloudProviderSettings.mockReset();
@@ -214,6 +215,45 @@ describe("SettingsLayoutV2 Experimental Tab", () => {
 });
 
 describe("SettingsLayoutV2 Developer Tab", () => {
+  it("设置页顶栏应只保留左侧回到首页入口，避免重复标题突兀", async () => {
+    vi.stubGlobal("navigator", {
+      platform: "MacIntel",
+      userAgent: "Mac OS X",
+    });
+
+    const onNavigate = vi.fn();
+    const container = renderComponent(SettingsTabs.Home, onNavigate);
+    await flushEffects();
+
+    const header = container.querySelector(
+      '[data-testid="settings-top-header"]',
+    );
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="settings-home-button"]',
+    );
+
+    expect(header).not.toBeNull();
+    expect(header?.textContent ?? "").not.toContain("设置中心");
+    expect(header?.textContent ?? "").not.toContain("设置");
+    expect(header?.classList.contains("lime-settings-theme-scope")).toBe(true);
+    expect(header?.getAttribute("data-window-controls-reserved")).toBe("true");
+    expect(button).not.toBeNull();
+    expect(button?.textContent ?? "").toContain("回到首页");
+    expect(getComputedStyle(header as Element).paddingLeft).toBe("0px");
+    expect(getComputedStyle(button as Element).marginLeft).toBe("24px");
+    expect(
+      container.querySelector('[data-testid="settings-title-group"]'),
+    ).toBe(null);
+
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    expect(onNavigate.mock.calls[0]?.[0]).toBe("agent");
+  });
+
   it("开发者页应直接展示内容，不再复用壳层设置页标题", async () => {
     const container = renderComponent(SettingsTabs.Developer);
     await flushEffects();
@@ -229,6 +269,9 @@ describe("SettingsLayoutV2 Developer Tab", () => {
 
     expect(
       container.querySelector('[data-testid="settings-content-atmosphere"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(".lime-settings-theme-scope"),
     ).not.toBeNull();
   });
 

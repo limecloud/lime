@@ -7,11 +7,7 @@
 
 import React, { memo, useMemo, useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import {
-  ChevronDown,
-  ExternalLink,
-  FileText,
-} from "lucide-react";
+import { ChevronDown, ExternalLink, FileText } from "lucide-react";
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
@@ -699,9 +695,7 @@ type StreamingProcessEntry =
       actionRequired: ActionRequired;
     };
 
-function buildStreamingProcessSummary(
-  entries: StreamingProcessEntry[],
-): {
+function buildStreamingProcessSummary(entries: StreamingProcessEntry[]): {
   summaryText: string;
   descriptor: ToolBatchSummaryDescriptor | null;
   metaText: string | null;
@@ -744,7 +738,9 @@ function buildStreamingProcessSummary(
 
       const prompt = entry.actionRequired.prompt?.trim();
       if (prompt) {
-        return prompt.length <= 72 ? prompt : `${prompt.slice(0, 71).trimEnd()}…`;
+        return prompt.length <= 72
+          ? prompt
+          : `${prompt.slice(0, 71).trimEnd()}…`;
       }
     }
 
@@ -1272,16 +1268,17 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
           (entry) => entry.kind === "tool",
         ).length;
         if (toolCount > 0 && entries.length > 1) {
-          const batchDescriptor =
-            entries.every((entry) => entry.kind === "tool")
-              ? summarizeStreamingToolBatch(
-                  entries.map(
-                    (entry) =>
-                      (entry as Extract<StreamingProcessEntry, { kind: "tool" }>)
-                        .toolCall,
-                  ),
-                )
-              : null;
+          const batchDescriptor = entries.every(
+            (entry) => entry.kind === "tool",
+          )
+            ? summarizeStreamingToolBatch(
+                entries.map(
+                  (entry) =>
+                    (entry as Extract<StreamingProcessEntry, { kind: "tool" }>)
+                      .toolCall,
+                ),
+              )
+            : null;
           return (
             <StreamingProcessGroup
               key={key}

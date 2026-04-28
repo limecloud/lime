@@ -312,6 +312,8 @@ describe("MemoryPage", () => {
     renderPage();
     await flushPageEffects();
 
+    expect(document.body.querySelector(".lime-workbench-theme-scope")).not.toBeNull();
+
     const bodyText = document.body.textContent ?? "";
     expect(bodyText).toContain("灵感库");
     expect(bodyText).toContain("灵感总览");
@@ -351,6 +353,11 @@ describe("MemoryPage", () => {
     const onNavigate = vi.fn();
     renderPage({ onNavigate });
     await flushPageEffects();
+
+    const callout = document.body.querySelector(
+      '[data-testid="memory-project-resources-callout"]',
+    ) as HTMLElement | null;
+    expect(callout?.className).toContain("var(--lime-info-soft)");
 
     const bodyText = document.body.textContent ?? "";
     expect(bodyText).toContain("项目资料作为辅助页保留在这里");

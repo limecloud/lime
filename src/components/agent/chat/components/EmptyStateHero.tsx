@@ -139,7 +139,7 @@ const EyebrowText = styled.div`
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.08em;
-  color: rgb(5 150 105 / 0.82);
+  color: rgb(47 111 70 / 0.86);
 `;
 
 const LeadBody = styled.div`
@@ -169,8 +169,13 @@ const SloganGlow = styled.div`
   inset: 52% -6% -4% -6%;
   border-radius: 999px;
   background:
-    radial-gradient(circle, rgba(132, 204, 22, 0.18) 0%, rgba(34, 197, 94, 0.1) 22%, transparent 58%),
-    linear-gradient(90deg, rgba(16, 185, 129, 0) 0%, rgba(16, 185, 129, 0.12) 50%, rgba(16, 185, 129, 0) 100%);
+    radial-gradient(
+      circle,
+      var(--lime-home-glow-primary, rgba(132, 204, 22, 0.08)) 0%,
+      var(--lime-home-glow-secondary, rgba(186, 230, 253, 0.16)) 22%,
+      transparent 58%
+    ),
+    var(--lime-home-beam-gradient);
   filter: blur(14px);
   opacity: 0.82;
   animation: ${sloganHaloPulse} 3.8s ease-in-out infinite;
@@ -181,14 +186,7 @@ const SloganBeam = styled.div`
   position: absolute;
   inset: 8% 0 2%;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgba(16, 185, 129, 0) 0%,
-    rgba(16, 185, 129, 0.05) 40%,
-    rgba(255, 255, 255, 0.42) 50%,
-    rgba(16, 185, 129, 0.05) 60%,
-    rgba(16, 185, 129, 0) 100%
-  );
+  background: var(--lime-home-beam-gradient);
   mix-blend-mode: screen;
   filter: blur(2px);
   animation: ${sloganSweep} 2.9s linear infinite;
@@ -204,14 +202,7 @@ const SloganLine = styled.p`
   gap: 1.05rem;
   isolation: isolate;
 
-  background: linear-gradient(
-    90deg,
-    hsl(160 96% 28%) 0%,
-    hsl(142 68% 27%) 22%,
-    hsl(86 58% 58%) 50%,
-    hsl(142 68% 27%) 78%,
-    hsl(160 96% 28%) 100%
-  );
+  background: var(--lime-home-title-gradient);
   background-size: 220% auto;
   color: transparent;
   -webkit-background-clip: text;
@@ -222,10 +213,7 @@ const SloganLine = styled.p`
   line-height: 0.92;
   font-weight: 800;
   letter-spacing: -0.05em;
-  text-shadow:
-    0 0 8px rgba(132, 204, 22, 0.16),
-    0 12px 26px rgba(101, 163, 13, 0.12),
-    0 0 24px rgba(250, 204, 21, 0.08);
+  text-shadow: var(--lime-home-title-shadow);
 
   &::before {
     content: "";
@@ -233,14 +221,8 @@ const SloganLine = styled.p`
     height: 1.05rem;
     flex-shrink: 0;
     border-radius: 9999px;
-    background: linear-gradient(
-      135deg,
-      rgba(132, 204, 22, 0.94),
-      rgba(16, 185, 129, 0.8)
-    );
-    box-shadow:
-      0 0 0 12px rgba(132, 204, 22, 0.1),
-      0 0 20px rgba(132, 204, 22, 0.26);
+    background: var(--lime-home-dot-gradient);
+    box-shadow: var(--lime-home-dot-shadow);
   }
 
   &::after {
@@ -249,14 +231,7 @@ const SloganLine = styled.p`
     inset: auto 10% -10% 10%;
     height: 12px;
     border-radius: 999px;
-    background: linear-gradient(
-      90deg,
-      rgba(132, 204, 22, 0) 0%,
-      rgba(132, 204, 22, 0.12) 22%,
-      rgba(255, 255, 255, 0.34) 50%,
-      rgba(250, 204, 21, 0.16) 78%,
-      rgba(132, 204, 22, 0) 100%
-    );
+    background: var(--lime-home-beam-gradient);
     filter: blur(8px);
     opacity: 0.62;
     z-index: -1;
@@ -269,7 +244,7 @@ const LeadDescriptionText = styled.p`
   font-size: 16px;
   font-weight: 600;
   line-height: 1.72;
-  color: rgb(51 65 85);
+  color: var(--lime-text, #1a3b2b);
 
   @media (min-width: 768px) {
     font-size: 17px;
@@ -281,7 +256,7 @@ const LeadSupportingText = styled.p`
   max-width: 48rem;
   font-size: 13px;
   line-height: 1.7;
-  color: rgb(100 116 139);
+  color: var(--lime-text-muted, #6b826b);
 `;
 
 const PriorityShell = styled.div<{ $delay: number }>`
@@ -341,8 +316,8 @@ const HeroCard = styled.article.attrs({
 
   &:hover {
     transform: translateY(-2px);
-    border-color: rgba(203, 213, 225, 0.96);
-    box-shadow: 0 14px 28px -24px rgba(15, 23, 42, 0.14);
+    border-color: var(--lime-home-card-hover-border, #93c5fd);
+    box-shadow: 0 14px 28px -24px var(--lime-shadow-color);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -388,19 +363,19 @@ const CardValueText = styled.div`
   font-size: 11.5px;
   font-weight: 600;
   line-height: 1.5;
-  color: rgb(100 116 139);
+  color: var(--lime-text-muted, #6b826b);
 `;
 
 const CardEyebrow = styled.span`
   border-radius: 9999px;
-  border: 1px solid rgba(226, 232, 240, 0.88);
-  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.88));
+  background: var(--lime-surface, rgba(255, 255, 255, 0.92));
   padding: 0.18rem 0.5rem;
   font-size: 9px;
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.02em;
-  color: rgb(148 163 184);
+  color: var(--lime-text-muted, #6b826b);
 `;
 
 export interface EmptyStateHeroCard {
@@ -463,13 +438,18 @@ export function EmptyStateHero({
                     </SloganWrap>
                   ) : null}
                   {title ? (
-                    <h1 className="max-w-[18ch] text-[28px] font-semibold leading-[1.04] tracking-tight text-slate-900 drop-shadow-[0_1px_0_rgba(255,255,255,0.9),0_12px_26px_rgba(132,204,22,0.16)] md:text-[38px]">
+                    <h1
+                      className="max-w-[18ch] text-[28px] font-semibold leading-[1.04] tracking-tight text-[color:var(--lime-text-strong)] md:text-[38px]"
+                      style={{ textShadow: "var(--lime-home-title-shadow)" }}
+                    >
                       {title}
                     </h1>
                   ) : null}
                   <LeadDescriptionText>{description}</LeadDescriptionText>
                   {supportingDescription ? (
-                    <LeadSupportingText>{supportingDescription}</LeadSupportingText>
+                    <LeadSupportingText>
+                      {supportingDescription}
+                    </LeadSupportingText>
                   ) : null}
                 </LeadTextGroup>
               </LeadBody>
@@ -506,7 +486,7 @@ export function EmptyStateHero({
 
                 <div className="card-content mt-2.5">
                   <CardTitleRow>
-                    <div className="card-title text-sm font-semibold text-slate-900">
+                    <div className="card-title text-sm font-semibold text-[color:var(--lime-text-strong)]">
                       {card.title}
                     </div>
                     <WorkbenchInfoTip
@@ -535,7 +515,7 @@ export function EmptyStateHero({
                           onClick={card.onMediaAction}
                           disabled={card.mediaActionDisabled}
                           aria-label={card.mediaActionLabel || card.title}
-                          className="card-preview block overflow-hidden rounded-[16px] border border-slate-200/70 bg-slate-50/88 text-left transition hover:border-slate-300/90 disabled:cursor-default disabled:opacity-70"
+                          className="card-preview block overflow-hidden rounded-[16px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] text-left transition hover:border-[color:var(--lime-surface-border-strong)] disabled:cursor-default disabled:opacity-70"
                         >
                           <img
                             src={card.imageSrc}
@@ -544,7 +524,7 @@ export function EmptyStateHero({
                           />
                         </button>
                       ) : (
-                        <div className="card-preview overflow-hidden rounded-[16px] border border-slate-200/70 bg-slate-50/88">
+                        <div className="card-preview overflow-hidden rounded-[16px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)]">
                           <img
                             src={card.imageSrc}
                             alt={card.imageAlt || card.title}

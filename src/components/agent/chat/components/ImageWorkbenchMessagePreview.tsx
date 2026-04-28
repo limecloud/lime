@@ -283,8 +283,10 @@ function resolveStoryboardSlotLabel(
   preview: MessageImageWorkbenchPreview,
   index: number,
 ): string | null {
-  return preview.storyboardSlots?.find((slot) => slot.slotIndex === index + 1)
-    ?.label || null;
+  return (
+    preview.storyboardSlots?.find((slot) => slot.slotIndex === index + 1)
+      ?.label || null
+  );
 }
 
 function resolvePreviewMetaLabels(
@@ -352,8 +354,7 @@ function renderPreviewMedia(preview: MessageImageWorkbenchPreview) {
     >
       {Array.from({ length: visibleCount }, (_, index) => {
         const url = previewImages[index];
-        const isLastWithOverflow =
-          extraCount > 0 && index === visibleCount - 1;
+        const isLastWithOverflow = extraCount > 0 && index === visibleCount - 1;
         const storyboardSlotLabel = isStoryboardGrid
           ? resolveStoryboardSlotLabel(preview, index)
           : null;

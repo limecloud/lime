@@ -75,9 +75,7 @@ interface EmptyStateComposerPanelProps {
   onSelectInputCapability?: SelectInputCapabilityHandler;
   onClearInputCapability?: () => void;
   onEditCuratedTask?: () => void;
-  onApplyCuratedTaskReviewSuggestion?: (
-    task: CuratedTaskTemplateItem,
-  ) => void;
+  onApplyCuratedTaskReviewSuggestion?: (task: CuratedTaskTemplateItem) => void;
   creationReplaySurface?: CreationReplaySurfaceModel | null;
   projectId?: string | null;
   sessionId?: string | null;
@@ -178,7 +176,7 @@ export function EmptyStateComposerPanel({
   const activeSkill =
     activeCapability?.kind === "installed_skill"
       ? activeCapability.skill
-      : skillSelection.activeSkill ?? null;
+      : (skillSelection.activeSkill ?? null);
   const clearActiveSkill = skillSelection.onClearSkill;
   const { mentionProps: mentionSkillProps, selectorProps: skillSelectorProps } =
     buildSkillSelectionBindings(skillSelection);
@@ -287,7 +285,7 @@ export function EmptyStateComposerPanel({
             className={`${EMPTY_STATE_PASSIVE_BADGE_CLASSNAME} max-w-[320px] justify-start gap-1.5`}
             title={`${creationReplaySurface.eyebrow} · ${creationReplaySurface.title} · ${creationReplaySurface.summary}`}
           >
-            <span className="shrink-0 text-emerald-700">
+            <span className="shrink-0 text-[color:var(--lime-brand-strong)]">
               {creationReplaySurface.badgeLabel}
             </span>
             <span className="truncate">{creationReplaySurface.title}</span>

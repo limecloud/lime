@@ -5,7 +5,6 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import { toast } from "sonner";
 import { DEFAULT_CANVAS_STATE } from "@/components/general-chat/bridge";
 import type {
   CreationMode,
@@ -15,8 +14,7 @@ import type {
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import type { TaskFile } from "../components/TaskFiles";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
-import type { Project } from "@/lib/api/project";
-import type { Character, ProjectMemory } from "@/lib/api/memory";
+import type { Character } from "@/lib/api/memory";
 import type { Page, PageParams } from "@/types/page";
 
 type SetStringState = Dispatch<SetStateAction<string>>;
@@ -30,17 +28,13 @@ interface UseWorkspaceResetRuntimeParams {
   clearRuntimeTeamState: () => void;
   clearProjectSelectionRuntime: () => void;
   resetRestoredSessionState: () => void;
-  resetProjectSelection: () => void;
   resetGuideState: () => void;
   hasHandledNewChatRequest: (requestKey: string) => boolean;
   markNewChatRequestHandled: (requestKey: string) => void;
-  createFreshSession: (sessionName?: string) => Promise<string | null>;
   defaultTopicSidebarVisible: boolean;
   normalizedInitialTheme: ThemeType;
   initialCreationMode?: CreationMode;
   newChatAt?: number;
-  initialSessionName?: string;
-  projectId?: string;
   externalProjectId?: string | null;
   onNavigate?: (page: Page, params?: PageParams) => void;
   autoCollapsedTopicSidebarRef: MutableRefObject<boolean>;
@@ -54,8 +48,6 @@ interface UseWorkspaceResetRuntimeParams {
   setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
   setSelectedFileId: Dispatch<SetStateAction<string | undefined>>;
   setMentionedCharacters: Dispatch<SetStateAction<Character[]>>;
-  setProject: Dispatch<SetStateAction<Project | null>>;
-  setProjectMemory: Dispatch<SetStateAction<ProjectMemory | null>>;
   setActiveTheme: Dispatch<SetStateAction<string>>;
   setCreationMode: Dispatch<SetStateAction<CreationMode>>;
 }
@@ -65,17 +57,13 @@ export function useWorkspaceResetRuntime({
   clearRuntimeTeamState,
   clearProjectSelectionRuntime,
   resetRestoredSessionState,
-  resetProjectSelection,
   resetGuideState,
   hasHandledNewChatRequest,
   markNewChatRequestHandled,
-  createFreshSession,
   defaultTopicSidebarVisible,
   normalizedInitialTheme,
   initialCreationMode,
   newChatAt,
-  initialSessionName,
-  projectId,
   externalProjectId,
   onNavigate,
   autoCollapsedTopicSidebarRef,
@@ -89,8 +77,6 @@ export function useWorkspaceResetRuntime({
   setTaskFiles,
   setSelectedFileId,
   setMentionedCharacters,
-  setProject,
-  setProjectMemory,
   setActiveTheme,
   setCreationMode,
 }: UseWorkspaceResetRuntimeParams) {
@@ -130,22 +116,16 @@ export function useWorkspaceResetRuntime({
     setSelectedText("");
     setShowSidebar(true);
     resetWorkbenchSurface();
-    resetProjectSelection();
-    setProject(null);
-    setProjectMemory(null);
     setActiveTheme("general");
     setCreationMode("guided");
     onNavigate?.("agent", buildHomeAgentParams());
   }, [
     clearMessages,
     onNavigate,
-    resetProjectSelection,
     resetWorkbenchSurface,
     setActiveTheme,
     setCreationMode,
     setInput,
-    setProject,
-    setProjectMemory,
     setSelectedText,
     setShowSidebar,
   ]);
@@ -175,60 +155,27 @@ export function useWorkspaceResetRuntime({
     resetGuideState();
 
     if (!externalProjectId) {
-      resetProjectSelection();
-      setProject(null);
-      setProjectMemory(null);
       setActiveTheme(normalizedInitialTheme);
       setCreationMode(initialCreationMode ?? "guided");
     }
-
-    const canCreateFreshSession = Boolean(projectId?.trim());
-    if (!canCreateFreshSession) {
-      return;
-    }
-
-    let disposed = false;
-
-    void (async () => {
-      const newSessionId = await createFreshSession(initialSessionName);
-      if (disposed) {
-        return;
-      }
-
-      if (newSessionId) {
-        return;
-      }
-
-      toast.error("创建新任务失败，请重试。");
-    })();
-
-    return () => {
-      disposed = true;
-    };
   }, [
     autoCollapsedTopicSidebarRef,
     clearMessages,
     clearProjectSelectionRuntime,
-    createFreshSession,
     defaultTopicSidebarVisible,
     externalProjectId,
     hasHandledNewChatRequest,
     initialCreationMode,
-    initialSessionName,
     markNewChatRequestHandled,
     newChatAt,
     normalizedInitialTheme,
-    projectId,
     resetGuideState,
-    resetProjectSelection,
     resetRestoredSessionState,
     resetWorkbenchSurface,
     setActiveTheme,
     setCreationMode,
     setInput,
     setMentionedCharacters,
-    setProject,
-    setProjectMemory,
     setSelectedText,
     setShowSidebar,
   ]);

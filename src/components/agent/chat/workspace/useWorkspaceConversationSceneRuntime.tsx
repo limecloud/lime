@@ -284,7 +284,12 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleResumeRecentSession?: ConversationScenePresentationParams["scene"]["onResumeRecentSession"];
   handleOpenSceneAppsDirectory?: ConversationScenePresentationParams["scene"]["onOpenSceneAppsDirectory"];
   projectId: string | null;
+  deferWorkspaceListLoad?: ConversationScenePresentationParams["scene"]["deferWorkspaceListLoad"];
+  workspaceHintMessage?: ConversationScenePresentationParams["scene"]["workspaceHintMessage"];
+  workspaceHintVisible?: ConversationScenePresentationParams["scene"]["workspaceHintVisible"];
+  onDismissWorkspaceHint?: ConversationScenePresentationParams["scene"]["onDismissWorkspaceHint"];
   taskCenterTabsNode?: ConversationScenePresentationParams["scene"]["taskCenterTabsNode"];
+  suppressNavbarUtilityActions?: boolean;
   hideHistoryToggle: boolean;
   showChatPanel: boolean;
   topBarChrome: ConversationScenePresentationParams["scene"]["navbarChrome"];
@@ -434,7 +439,12 @@ export function useWorkspaceConversationSceneRuntime({
   handleResumeRecentSession,
   handleOpenSceneAppsDirectory,
   projectId,
+  deferWorkspaceListLoad,
+  workspaceHintMessage,
+  workspaceHintVisible,
+  onDismissWorkspaceHint,
   taskCenterTabsNode,
+  suppressNavbarUtilityActions = false,
   hideHistoryToggle,
   showChatPanel,
   topBarChrome,
@@ -533,6 +543,7 @@ export function useWorkspaceConversationSceneRuntime({
 
   const teamWorkspaceDockLayoutMode =
     layoutMode === "chat" ? "chat" : "chat-canvas";
+  const navbarUtilityActionsVisible = !suppressNavbarUtilityActions;
   const shouldSyncCanvasWorkbenchLayoutMode =
     !isThemeWorkbench &&
     activeTheme === "general" &&
@@ -850,9 +861,15 @@ export function useWorkspaceConversationSceneRuntime({
           : handleResumeRecentSession,
       onOpenSceneAppsDirectory: handleOpenSceneAppsDirectory,
       projectId,
+      deferWorkspaceListLoad,
+      workspaceHintMessage,
+      workspaceHintVisible,
+      onDismissWorkspaceHint,
       sessionId,
       onProjectChange: navigationActions.handleProjectChange,
-      onOpenSettings: navigationActions.handleOpenAppearanceSettings,
+      onOpenSettings: navbarUtilityActionsVisible
+        ? navigationActions.handleOpenAppearanceSettings
+        : undefined,
       runtimeToolAvailability: inputbarScene.runtimeToolAvailability,
       runtimeTaskCard,
       taskCenterTabsNode,
@@ -879,15 +896,27 @@ export function useWorkspaceConversationSceneRuntime({
       layoutMode,
       onToggleCanvas: handleToggleCanvas,
       onBackHome: handleBackHome,
-      showHarnessToggle,
-      harnessPanelVisible: navbarHarnessPanelVisible,
-      onToggleHarnessPanel: handleToggleHarnessPanel,
-      harnessPendingCount,
-      harnessAttentionLevel,
-      harnessToggleLabel,
-      showContextCompactionAction: Boolean(sessionId),
-      contextCompactionRunning: isSending,
-      onCompactContext: navigationActions.handleCompactContext,
+      showHarnessToggle: navbarUtilityActionsVisible && showHarnessToggle,
+      harnessPanelVisible:
+        navbarUtilityActionsVisible && navbarHarnessPanelVisible,
+      onToggleHarnessPanel: navbarUtilityActionsVisible
+        ? handleToggleHarnessPanel
+        : undefined,
+      harnessPendingCount: navbarUtilityActionsVisible
+        ? harnessPendingCount
+        : 0,
+      harnessAttentionLevel: navbarUtilityActionsVisible
+        ? harnessAttentionLevel
+        : "idle",
+      harnessToggleLabel: navbarUtilityActionsVisible
+        ? harnessToggleLabel
+        : undefined,
+      showContextCompactionAction:
+        navbarUtilityActionsVisible && Boolean(sessionId),
+      contextCompactionRunning: navbarUtilityActionsVisible && isSending,
+      onCompactContext: navbarUtilityActionsVisible
+        ? navigationActions.handleCompactContext
+        : undefined,
       syncStatus,
       pendingA2UIForm,
       onPendingA2UISubmit: handlePendingA2UISubmit,

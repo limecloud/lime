@@ -1,10 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createClientAccessToken,
+  createClientCreditTopupOrder,
+  createClientCreditTopupOrderCheckout,
+  createClientOrder,
+  createClientOrderCheckout,
   createClientDesktopAuthSession,
+  claimClientReferral,
+  getClientActiveAccessToken,
+  getClientCloudActivation,
+  getClientCreditTopupOrder,
+  getClientOrder,
+  getClientCreditsDashboard,
   getClientProviderOffer,
+  getClientReferralDashboard,
+  listClientPaymentConfigs,
+  listClientPlans,
   listClientProviderOfferModels,
   listClientProviderOffers,
+  listClientTopupPackages,
   pollClientDesktopAuthSession,
+  rotateClientAccessToken,
 } from "./oemCloudControlPlane";
 
 describe("oemCloudControlPlane desktop auth", () => {
@@ -297,5 +313,678 @@ describe("oemCloudControlPlane desktop auth", () => {
         alias_source: "oem",
       }),
     ]);
+  });
+
+  it("应读取客户端邀请看板并以云端 share 作为事实源", async () => {
+    window.__LIME_SESSION_TOKEN__ = "session-token-001";
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        code: 200,
+        message: "success",
+        data: {
+          code: {
+            id: "refcode-001",
+            tenantId: "tenant-0001",
+            userId: "user-001",
+            code: "LIME-2026",
+            landingUrl: "https://limeai.run/invite?code=LIME-2026",
+            status: "active",
+            createdAt: "2026-04-28T00:00:00.000Z",
+            updatedAt: "2026-04-28T00:00:00.000Z",
+          },
+          policy: {
+            enabled: true,
+            rewardCredits: 600,
+            referrerRewardCredits: 480,
+            inviteeRewardCredits: 120,
+            claimWindowDays: 30,
+            autoClaimEnabled: true,
+            allowManualClaimFallback: true,
+          },
+          summary: {
+            totalInvites: 2,
+            successfulInvites: 1,
+            totalRewardCredits: 480,
+            referrerRewardCreditsTotal: 480,
+            inviteeRewardCreditsTotal: 0,
+          },
+          events: [],
+          rewards: [],
+          invitedBy: {},
+          share: {
+            brandName: "Lime",
+            code: "LIME-2026",
+            landingUrl: "https://limeai.run/invite?code=LIME-2026",
+            downloadUrl: "https://limeai.run",
+            shareText:
+              "邀请你体验Lime，让AI做牛做马，我们来做牛人！前往 https://limeai.run 下载客户端，复制邀请码 LIME-2026 激活并注册账号参与内测",
+            headline: "登录后自动领取奖励",
+            rules: "复制邀请码后完成注册即可参与内测。",
+          },
+        },
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const dashboard = await getClientReferralDashboard("tenant-0001");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/client/referral",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Accept: "application/json",
+          Authorization: "Bearer session-token-001",
+        }),
+      }),
+    );
+    expect(dashboard.share).toEqual(
+      expect.objectContaining({
+        brandName: "Lime",
+        code: "LIME-2026",
+        downloadUrl: "https://limeai.run",
+      }),
+    );
+    expect(dashboard.policy.referrerRewardCredits).toBe(480);
+    expect(dashboard.policy.inviteeRewardCredits).toBe(120);
+  });
+
+  it("应调用客户端邀请码领取接口", async () => {
+    window.__LIME_SESSION_TOKEN__ = "session-token-001";
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 201,
+      json: async () => ({
+        code: 201,
+        message: "success",
+        data: {
+          event: { id: "refevent-001", code: "LIME-2026" },
+          reward: { id: "refreward-001", rewardCredits: 120 },
+          rewards: [{ id: "refreward-001" }],
+          creditAccount: {
+            tenantId: "tenant-0001",
+            userId: "user-001",
+            balance: 120,
+            reserved: 0,
+            currency: "credits",
+            updatedAt: "2026-04-28T00:00:00.000Z",
+          },
+          accountLedgers: [{ id: "account-ledger-001" }],
+        },
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await claimClientReferral("tenant-0001", {
+      code: "LIME-2026",
+      claimMethod: "manual",
+      entrySource: "code_input",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/client/referrals/claim",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer session-token-001",
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({
+          code: "LIME-2026",
+          claimMethod: "manual",
+          entrySource: "code_input",
+        }),
+      }),
+    );
+    expect(result.creditAccount?.balance).toBe(120);
+    expect(result.accountLedgers).toHaveLength(1);
+  });
+
+  it("应接入套餐、积分、订单和 API Key 控制面接口", async () => {
+    window.__LIME_SESSION_TOKEN__ = "session-token-001";
+
+    const accessToken = {
+      id: "token-001",
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      name: "Desktop Key",
+      tokenMasked: "sk-lime-***abcd",
+      tokenPrefix: "sk-lime-abcd",
+      scopes: ["llm:invoke"],
+      allowedModels: ["glm-4.6"],
+      status: "active",
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+      expiresAt: "2026-05-27T00:00:00.000Z",
+    };
+    const plan = {
+      id: "plan-pro",
+      tenantId: "tenant-0001",
+      key: "pro",
+      name: "Pro",
+      priceMonthly: 9900,
+      creditsMonthly: 1000000,
+      features: ["Anthropic-compatible coding"],
+      status: "active",
+      recommended: true,
+      billingCycles: [
+        {
+          key: "monthly",
+          label: "月付",
+          priceCents: 9900,
+          credits: 1000000,
+          autoRenew: true,
+        },
+      ],
+      quotaSummaries: [],
+      featureSections: [],
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const creditAccount = {
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      balance: 120000,
+      reserved: 1000,
+      currency: "credits",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const subscription = {
+      id: "sub-001",
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      planId: "plan-pro",
+      planKey: "pro",
+      planName: "Pro",
+      status: "active",
+      billingCycle: "monthly",
+      currentPeriodStart: "2026-04-01T00:00:00.000Z",
+      currentPeriodEnd: "2026-05-01T00:00:00.000Z",
+      autoRenew: true,
+      createdAt: "2026-04-01T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const topupPackage = {
+      id: "topup-100k",
+      tenantId: "tenant-0001",
+      key: "100k",
+      name: "10 万积分包",
+      credits: 100000,
+      priceCents: 1900,
+      validDays: 365,
+      recommended: true,
+      status: "active",
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const order = {
+      id: "order-001",
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      planId: "plan-pro",
+      planKey: "pro",
+      planName: "Pro",
+      amountCents: 9900,
+      creditsGranted: 1000000,
+      paymentChannel: "epay",
+      paymentMethod: "alipay",
+      billingCycle: "monthly",
+      status: "pending",
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const topupOrder = {
+      id: "topup-order-001",
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      packageId: "topup-100k",
+      packageName: "10 万积分包",
+      creditsGranted: 100000,
+      amountCents: 1900,
+      paymentChannel: "epay",
+      paymentMethod: "alipay",
+      status: "pending",
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const response = (data: unknown, status = 200) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => ({
+        code: status,
+        message: "success",
+        data,
+      }),
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          items: [
+            {
+              id: "pay-alipay",
+              tenantId: "tenant-0001",
+              provider: "epay",
+              displayName: "易支付",
+              notifyUrl: "https://user.limeai.run/pay/notify",
+              returnUrl: "https://user.limeai.run/pay/return",
+              enabled: true,
+              methods: [
+                {
+                  key: "alipay",
+                  displayName: "支付宝",
+                  enabled: true,
+                },
+              ],
+              providerOptions: {
+                payAddress: "https://pay.example.com",
+              },
+              credentialMasks: {
+                partnerId: "2088***0001",
+              },
+              createdAt: "2026-04-27T00:00:00.000Z",
+              updatedAt: "2026-04-27T00:00:00.000Z",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(response({ items: [plan] }))
+      .mockResolvedValueOnce(
+        response({
+          creditAccount,
+          subscription,
+          topupPackages: [topupPackage],
+          creditWallets: [],
+          creditOrders: [topupOrder],
+        }),
+      )
+      .mockResolvedValueOnce(response({ items: [topupPackage] }))
+      .mockResolvedValueOnce(response({ hasActive: true, token: accessToken }))
+      .mockResolvedValueOnce(
+        response({ token: accessToken, apiKey: "sk-lime-new" }, 201),
+      )
+      .mockResolvedValueOnce(
+        response(
+          {
+            previousToken: { ...accessToken, status: "revoked" },
+            newToken: { ...accessToken, id: "token-002" },
+            apiKey: "sk-lime-rotated",
+          },
+          200,
+        ),
+      )
+      .mockResolvedValueOnce(response(order, 201))
+      .mockResolvedValueOnce(
+        response({
+          orderKind: "plan_order",
+          orderId: "order-001",
+          paymentChannel: "epay",
+          paymentMethod: "alipay",
+          checkoutUrl:
+            "https://pay.example.com/submit.php?out_trade_no=order-001",
+          paymentReference:
+            "https://pay.example.com/submit.php?out_trade_no=order-001",
+          status: "pending",
+        }),
+      )
+      .mockResolvedValueOnce(response(topupOrder, 201))
+      .mockResolvedValueOnce(
+        response({
+          orderKind: "credit_topup_order",
+          orderId: "topup-order-001",
+          paymentChannel: "epay",
+          paymentMethod: "alipay",
+          checkoutUrl:
+            "https://pay.example.com/submit.php?out_trade_no=topup-order-001",
+          paymentReference:
+            "https://pay.example.com/submit.php?out_trade_no=topup-order-001",
+          status: "pending",
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(listClientPaymentConfigs("tenant-0001")).resolves.toEqual([
+      expect.objectContaining({
+        provider: "epay",
+        enabled: true,
+        methods: [expect.objectContaining({ key: "alipay" })],
+        providerOptions: { payAddress: "https://pay.example.com" },
+        credentialMasks: { partnerId: "2088***0001" },
+      }),
+    ]);
+    await expect(listClientPlans("tenant-0001")).resolves.toEqual([
+      expect.objectContaining({
+        name: "Pro",
+        billingCycles: expect.any(Array),
+      }),
+    ]);
+    await expect(
+      getClientCreditsDashboard("tenant-0001"),
+    ).resolves.toMatchObject({
+      creditAccount: { balance: 120000 },
+      subscription: { planName: "Pro" },
+      topupPackages: [{ name: "10 万积分包" }],
+    });
+    await expect(listClientTopupPackages("tenant-0001")).resolves.toEqual([
+      expect.objectContaining({ id: "topup-100k" }),
+    ]);
+    await expect(
+      getClientActiveAccessToken("tenant-0001"),
+    ).resolves.toMatchObject({
+      hasActive: true,
+      token: { tokenMasked: "sk-lime-***abcd" },
+    });
+    await expect(
+      createClientAccessToken("tenant-0001", {
+        name: "Desktop Key",
+        scopes: ["llm:invoke"],
+      }),
+    ).resolves.toMatchObject({ apiKey: "sk-lime-new" });
+    await expect(
+      rotateClientAccessToken("tenant-0001", "token-001"),
+    ).resolves.toMatchObject({ apiKey: "sk-lime-rotated" });
+    await expect(
+      createClientOrder("tenant-0001", {
+        planId: "plan-pro",
+        paymentChannel: "epay",
+        paymentMethod: "alipay",
+        billingCycle: "monthly",
+      }),
+    ).resolves.toMatchObject({ id: "order-001" });
+    await expect(
+      createClientOrderCheckout("tenant-0001", "order-001", {
+        paymentMethod: "alipay",
+      }),
+    ).resolves.toMatchObject({
+      orderKind: "plan_order",
+      checkoutUrl: "https://pay.example.com/submit.php?out_trade_no=order-001",
+    });
+    await expect(
+      createClientCreditTopupOrder("tenant-0001", {
+        packageId: "topup-100k",
+        paymentChannel: "epay",
+        paymentMethod: "alipay",
+      }),
+    ).resolves.toMatchObject({ id: "topup-order-001" });
+    await expect(
+      createClientCreditTopupOrderCheckout("tenant-0001", "topup-order-001", {
+        paymentMethod: "alipay",
+      }),
+    ).resolves.toMatchObject({
+      orderKind: "credit_topup_order",
+      checkoutUrl:
+        "https://pay.example.com/submit.php?out_trade_no=topup-order-001",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/client/orders",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          planId: "plan-pro",
+          paymentChannel: "epay",
+          paymentMethod: "alipay",
+          billingCycle: "monthly",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/client/orders/order-001/checkout",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ paymentMethod: "alipay" }),
+      }),
+    );
+  });
+
+  it("应解析云端激活聚合状态和订单详情", async () => {
+    window.__LIME_SESSION_TOKEN__ = "session-token-001";
+
+    const paymentConfig = {
+      id: "pay-alipay",
+      tenantId: "tenant-0001",
+      provider: "epay",
+      displayName: "易支付",
+      notifyUrl: "https://user.limeai.run/pay/notify",
+      returnUrl: "https://user.limeai.run/pay/return",
+      enabled: true,
+      methods: [{ key: "alipay", displayName: "支付宝", enabled: true }],
+      providerOptions: { payAddress: "https://pay.example.com" },
+      credentialMasks: { partnerId: "2088***0001" },
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const plan = {
+      id: "plan-pro",
+      tenantId: "tenant-0001",
+      key: "pro",
+      name: "Pro",
+      priceMonthly: 9900,
+      creditsMonthly: 1000000,
+      features: ["Anthropic-compatible coding"],
+      status: "active",
+      recommended: true,
+      billingCycles: [],
+      quotaSummaries: [],
+      featureSections: [],
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const creditAccount = {
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      balance: 120000,
+      reserved: 0,
+      currency: "credits",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const subscription = {
+      id: "sub-001",
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      planId: "plan-pro",
+      planKey: "pro",
+      planName: "Pro",
+      status: "active",
+      currentPeriodStart: "2026-04-01T00:00:00.000Z",
+      currentPeriodEnd: "2026-05-01T00:00:00.000Z",
+      autoRenew: true,
+      createdAt: "2026-04-01T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const order = {
+      id: "order-001",
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      planId: "plan-pro",
+      planKey: "pro",
+      planName: "Pro",
+      amountCents: 9900,
+      creditsGranted: 1000000,
+      paymentChannel: "epay",
+      paymentMethod: "alipay",
+      checkoutUrl: "https://pay.example.com/submit.php?out_trade_no=order-001",
+      status: "pending",
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const topupOrder = {
+      id: "topup-order-001",
+      tenantId: "tenant-0001",
+      userId: "user-001",
+      packageId: "topup-100k",
+      packageName: "10 万积分包",
+      creditsGranted: 100000,
+      amountCents: 1900,
+      paymentChannel: "epay",
+      paymentMethod: "alipay",
+      checkoutUrl:
+        "https://pay.example.com/submit.php?out_trade_no=topup-order-001",
+      status: "pending",
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const model = {
+      id: "model-kimi-coding",
+      offerId: "offer-limehub",
+      modelId: "kimi-coding-plan",
+      displayName: "Kimi Coding Plan",
+      abilities: ["Coding", "Anthropic 协议"],
+      recommended: true,
+      status: "active",
+      sort: 10,
+      createdAt: "2026-04-27T00:00:00.000Z",
+      updatedAt: "2026-04-27T00:00:00.000Z",
+    };
+    const response = (data: unknown) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ code: 200, message: "success", data }),
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          gateway: {
+            basePath: "https://llm.limeai.run",
+            openAIBaseUrl: "https://llm.limeai.run/v1",
+            anthropicBaseUrl: "https://llm.limeai.run",
+            chatCompletionsPath: "/v1/chat/completions",
+            authorizationHeader: "Authorization",
+            authorizationScheme: "Bearer",
+            tenantHeader: "X-Lime-Tenant-ID",
+          },
+          llmBaseUrl: "https://llm.limeai.run",
+          openAIBaseUrl: "https://llm.limeai.run/v1",
+          anthropicBaseUrl: "https://llm.limeai.run",
+          readiness: {
+            status: "payment_pending",
+            title: "存在待支付订单",
+            canInvoke: false,
+            blockers: ["payment"],
+            steps: [{ key: "payment", label: "支付确认", done: false }],
+          },
+          pendingPayment: {
+            kind: "plan_order",
+            orderId: "order-001",
+            title: "Pro",
+            paymentChannel: "epay",
+            paymentReference:
+              "https://pay.example.com/submit.php?out_trade_no=order-001",
+            amountCents: 9900,
+            status: "pending",
+            createdAt: "2026-04-27T00:00:00.000Z",
+            updatedAt: "2026-04-27T00:00:00.000Z",
+          },
+          paymentConfigs: [paymentConfig],
+          plans: [plan],
+          subscription,
+          creditAccount,
+          creditsDashboard: {
+            creditAccount,
+            subscription,
+            topupPackages: [],
+            creditWallets: [],
+            creditOrders: [topupOrder],
+          },
+          topupPackages: [],
+          usageDashboard: {
+            usageRecords: [],
+            monthlySummary: {},
+          },
+          billingDashboard: {
+            billingSummary: { currency: "CNY" },
+            subscription,
+            currentPlan: {},
+            orders: [order],
+          },
+          providerOffers: [
+            {
+              providerKey: "limehub",
+              displayName: "LimeHub",
+              source: "oem_cloud",
+              state: "available_ready",
+              visible: true,
+              loggedIn: true,
+              accountStatus: "logged_in",
+              subscriptionStatus: "active",
+              quotaStatus: "ok",
+              canInvoke: true,
+              effectiveAccessMode: "session",
+              apiKeyModeEnabled: true,
+              tenantOverrideApplied: false,
+              configMode: "managed",
+              modelsSource: "hub_catalog",
+              developerAccessVisible: true,
+              availableModelCount: 1,
+              fallbackToLocalAllowed: false,
+            },
+          ],
+          selectedOffer: {
+            providerKey: "limehub",
+            displayName: "LimeHub",
+            source: "oem_cloud",
+            state: "available_ready",
+            visible: true,
+            loggedIn: true,
+            accountStatus: "logged_in",
+            subscriptionStatus: "active",
+            quotaStatus: "ok",
+            canInvoke: true,
+            effectiveAccessMode: "session",
+            apiKeyModeEnabled: true,
+            tenantOverrideApplied: false,
+            configMode: "managed",
+            modelsSource: "hub_catalog",
+            developerAccessVisible: true,
+            availableModelCount: 1,
+            fallbackToLocalAllowed: false,
+            access: {
+              offerId: "offer-limehub",
+              accessMode: "session",
+              hubTokenEnabled: true,
+            },
+          },
+          providerModels: [model],
+          providerPreference: {
+            tenantId: "tenant-0001",
+            userId: "user-001",
+            providerSource: "oem_cloud",
+            providerKey: "limehub",
+            needsValidation: false,
+            updatedAt: "2026-04-27T00:00:00.000Z",
+          },
+          accessTokens: [],
+          activeAccessToken: { hasActive: false },
+          orders: [order],
+          creditTopupOrders: [topupOrder],
+        }),
+      )
+      .mockResolvedValueOnce(response(order))
+      .mockResolvedValueOnce(response(topupOrder));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      getClientCloudActivation("tenant-0001"),
+    ).resolves.toMatchObject({
+      openAIBaseUrl: "https://llm.limeai.run/v1",
+      gateway: { tenantHeader: "X-Lime-Tenant-ID" },
+      readiness: { status: "payment_pending" },
+      pendingPayment: { orderId: "order-001" },
+      providerModels: [{ modelId: "kimi-coding-plan" }],
+      billingDashboard: { currentPlan: null },
+    });
+    await expect(
+      getClientOrder("tenant-0001", "order-001"),
+    ).resolves.toMatchObject({
+      id: "order-001",
+    });
+    await expect(
+      getClientCreditTopupOrder("tenant-0001", "topup-order-001"),
+    ).resolves.toMatchObject({ id: "topup-order-001" });
   });
 });

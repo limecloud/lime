@@ -66,7 +66,7 @@ export function resolveTeamWorkspaceBoardCopyState({
         ? "正在准备当前任务分工，任务拆出后会在这里独立更新进展。"
         : dispatchPreviewStatus === "formed"
           ? "当前任务分工已经就绪，任务拆出后会在各自进展面板里开始处理。"
-        : dispatchPreviewStatus === "failed"
+          : dispatchPreviewStatus === "failed"
             ? "这次任务分工准备失败，暂时无法生成当前进展面板。"
             : "任务拆出后，这里会展开为独立的当前进展。",
   };
@@ -103,6 +103,7 @@ export function buildTeamWorkspaceBoardSurfaceClassNames({
           ),
     ),
     boardShellClassName: cn(
+      "lime-workbench-theme-scope lime-workbench-surface-scope",
       embedded
         ? "pointer-events-auto flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5"
         : "overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-[0_18px_64px_-42px_rgba(15,23,42,0.24)]",

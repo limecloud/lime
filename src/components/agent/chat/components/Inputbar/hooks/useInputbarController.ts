@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { BuiltinCommandBadge } from "../components/BuiltinCommandBadge";
 import { RuntimeSceneBadge } from "../components/RuntimeSceneBadge";
 import { CuratedTaskBadge } from "../../../skill-selection/CuratedTaskBadge";
@@ -113,9 +119,10 @@ export function useInputbarController({
   const [activeCapability, setActiveCapability] =
     useState<InputCapabilitySelection | null>(null);
   const [editingCuratedTaskCapability, setEditingCuratedTaskCapability] =
-    useState<Extract<InputCapabilitySelection, { kind: "curated_task" }> | null>(
-      null,
-    );
+    useState<Extract<
+      InputCapabilitySelection,
+      { kind: "curated_task" }
+    > | null>(null);
   const [curatedTaskEditorPrefillHint, setCuratedTaskEditorPrefillHint] =
     useState<string | null>(null);
   const handledInitialInputCapabilitySignatureRef = useRef("");

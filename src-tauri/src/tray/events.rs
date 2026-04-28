@@ -110,27 +110,8 @@ fn show_and_focus_main_window<R: Runtime>(app: &AppHandle<R>) {
 
 /// 显示并聚焦窗口的辅助函数
 fn show_and_focus_window<R: Runtime>(window: &tauri::WebviewWindow<R>) {
-    // 取消最小化
-    if let Err(e) = window.unminimize() {
-        tracing::error!("取消最小化窗口失败: {}", e);
-    }
-
-    // 保持与主窗口默认行为一致：显示时尽量最大化
-    if let Err(e) = window.maximize() {
-        tracing::error!("最大化主窗口失败: {}", e);
-    }
-
-    // 显示窗口
-    if let Err(e) = window.show() {
-        tracing::error!("显示主窗口失败: {}", e);
-    } else {
-        info!("主窗口已显示");
-    }
-
-    // 聚焦窗口
-    if let Err(e) = window.set_focus() {
-        tracing::error!("聚焦主窗口失败: {}", e);
-    }
+    crate::app::window_chrome::reveal_main_window(window, "托盘");
+    info!("主窗口已显示");
 }
 
 #[cfg(test)]

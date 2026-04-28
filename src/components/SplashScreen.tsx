@@ -274,8 +274,8 @@ interface SplashScreenProps {
 
 export function SplashScreen({
   onComplete,
-  duration = 1200,
-  exitDuration = 320,
+  duration = 420,
+  exitDuration = 160,
 }: SplashScreenProps) {
   const [isExiting, setIsExiting] = useState(false);
 

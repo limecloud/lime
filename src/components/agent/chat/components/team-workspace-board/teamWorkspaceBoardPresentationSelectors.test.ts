@@ -66,6 +66,12 @@ describe("teamWorkspaceBoardPresentationSelectors", () => {
     });
 
     expect(copyState.memberCanvasSubtitle).toContain("3 条当前进展已接入");
+    expect(classNames.boardShellClassName).toContain(
+      "lime-workbench-theme-scope",
+    );
+    expect(classNames.boardShellClassName).toContain(
+      "lime-workbench-surface-scope",
+    );
     expect(classNames.boardShellClassName).toContain("rounded-[24px]");
     expect(classNames.boardShellClassName).toContain("border-slate-200");
     expect(classNames.boardShellClassName).toContain("bg-white");

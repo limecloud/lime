@@ -836,6 +836,41 @@ describe("legacySurfaceCatalog", () => {
     ]);
   });
 
+  it("应记录已删除的 API Key Provider 旧分组列表与完整表单组件簇", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "provider-pool-api-key-legacy-surfaces",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/provider-pool/api-key/AddCustomProviderModal.tsx",
+      "src/components/provider-pool/api-key/AddCustomProviderModal.test.ts",
+      "src/components/provider-pool/api-key/AddCustomProviderModal.ui.test.tsx",
+      "src/components/provider-pool/api-key/ApiKeyItem.tsx",
+      "src/components/provider-pool/api-key/ApiKeyList.tsx",
+      "src/components/provider-pool/api-key/ApiKeyList.ui.test.tsx",
+      "src/components/provider-pool/api-key/ConnectionTestButton.tsx",
+      "src/components/provider-pool/api-key/DeleteProviderDialog.tsx",
+      "src/components/provider-pool/api-key/DeleteProviderDialog.test.ts",
+      "src/components/provider-pool/api-key/ProviderConfigForm.tsx",
+      "src/components/provider-pool/api-key/ProviderConfigForm.test.ts",
+      "src/components/provider-pool/api-key/ProviderConfigForm.ui.test.tsx",
+      "src/components/provider-pool/api-key/ProviderConfigForm.utils.ts",
+      "src/components/provider-pool/api-key/ProviderGroup.tsx",
+      "src/components/provider-pool/api-key/ProviderList.tsx",
+      "src/components/provider-pool/api-key/ProviderList.test.ts",
+      "src/components/provider-pool/api-key/ProviderListItem.tsx",
+      "src/components/provider-pool/api-key/ProviderListItem.test.ts",
+      "src/components/provider-pool/api-key/ProviderListItem.ui.test.tsx",
+      "src/components/provider-pool/api-key/ProviderModelList.tsx",
+      "src/components/provider-pool/api-key/ProviderModelList.test.tsx",
+      "src/components/provider-pool/api-key/providerModelListCache.ts",
+      "src/components/provider-pool/api-key/SectionInfoButton.tsx",
+    ]);
+  });
+
   it("应记录已删除的 settings-v2 执行轨迹独立页面壳", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "settings-execution-tracker-page-surface",

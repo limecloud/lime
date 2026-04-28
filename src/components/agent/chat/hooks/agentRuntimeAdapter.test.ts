@@ -79,16 +79,8 @@ describe("defaultAgentRuntimeAdapter", () => {
     await adapter.listenToTurnEvents("turn-event-2", handler);
     await adapter.listenToTeamEvents("team-event-2", handler);
 
-    expect(injectedListen).toHaveBeenNthCalledWith(
-      1,
-      "turn-event-2",
-      handler,
-    );
-    expect(injectedListen).toHaveBeenNthCalledWith(
-      2,
-      "team-event-2",
-      handler,
-    );
+    expect(injectedListen).toHaveBeenNthCalledWith(1, "turn-event-2", handler);
+    expect(injectedListen).toHaveBeenNthCalledWith(2, "team-event-2", handler);
   });
 
   it("应允许注入自定义 runtime client", async () => {

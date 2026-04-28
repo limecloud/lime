@@ -8,6 +8,18 @@
  */
 
 import { useState } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  Loader2,
+  MessageSquareText,
+  Settings2,
+  Server,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMcp } from "@/hooks/useMcp";
 import { McpPage } from "./McpPage";
@@ -16,16 +28,22 @@ import { McpToolsBrowser } from "./McpToolsBrowser";
 import { McpToolCaller } from "./McpToolCaller";
 import { McpPromptsBrowser } from "./McpPromptsBrowser";
 import { McpResourcesBrowser } from "./McpResourcesBrowser";
-import { McpToolDefinition } from "@/lib/api/mcp";
+import type { McpToolDefinition } from "@/lib/api/mcp";
 
 type McpTab = "runtime" | "tools" | "prompts" | "resources" | "config";
 
-const tabs: { id: McpTab; label: string }[] = [
-  { id: "runtime", label: "运行状态" },
-  { id: "tools", label: "工具" },
-  { id: "prompts", label: "提示词" },
-  { id: "resources", label: "资源" },
-  { id: "config", label: "配置管理" },
+interface McpTabDefinition {
+  id: McpTab;
+  label: string;
+  icon: LucideIcon;
+}
+
+const tabs: McpTabDefinition[] = [
+  { id: "runtime", label: "运行状态", icon: Server },
+  { id: "tools", label: "工具", icon: Wrench },
+  { id: "prompts", label: "提示词", icon: MessageSquareText },
+  { id: "resources", label: "资源", icon: FileText },
+  { id: "config", label: "配置管理", icon: Settings2 },
 ];
 
 interface McpPanelProps {
@@ -58,6 +76,47 @@ export function McpPanel({ hideHeader = false }: McpPanelProps) {
     readResource,
   } = useMcp();
 
+  const runningServerCount = servers.filter(
+    (server) => server.is_running,
+  ).length;
+  const activeTabDefinition =
+    tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+  const statusMeta = error
+    ? {
+        label: "异常",
+        detail: "连接状态需要处理",
+        className: "border-rose-200 bg-rose-50 text-rose-700",
+        icon: AlertTriangle,
+      }
+    : loading
+      ? {
+          label: "同步中",
+          detail: "正在刷新 MCP 状态",
+          className: "border-sky-200 bg-sky-50 text-sky-700",
+          icon: Loader2,
+        }
+      : {
+          label: "已同步",
+          detail: "本机配置已载入",
+          className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+          icon: CheckCircle2,
+        };
+
+  const getTabCount = (tab: McpTab) => {
+    switch (tab) {
+      case "runtime":
+        return servers.length;
+      case "tools":
+        return tools.length;
+      case "prompts":
+        return prompts.length;
+      case "resources":
+        return resources.length;
+      case "config":
+        return servers.length;
+    }
+  };
+
   // 工具调用处理
   const handleCallTool = async (
     toolName: string,
@@ -78,134 +137,193 @@ export function McpPanel({ hideHeader = false }: McpPanelProps) {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div
+      data-settings-embedded={hideHeader ? "true" : "false"}
+      className="space-y-6 pb-20 text-slate-900"
+    >
       {/* 页面标题 */}
-      {!hideHeader && (
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold">MCP 服务器</h2>
-          <p className="text-muted-foreground">
-            管理 Model Context Protocol 服务器，浏览工具、提示词和资源
-          </p>
+      <section className="rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] p-6 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-2xl space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm shadow-emerald-950/5">
+              <Activity className="h-3.5 w-3.5" />
+              Model Context Protocol
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-semibold tracking-[-0.02em] text-slate-950">
+                MCP 服务器
+              </h2>
+              <p className="text-sm leading-6 text-slate-600">
+                管理本机 MCP 服务器，统一查看运行状态、工具、提示词和资源。
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-3 xl:min-w-[420px]">
+            <div className="rounded-[20px] border border-slate-200/80 bg-white px-4 py-3 shadow-sm shadow-slate-950/5">
+              <p className="text-xs font-medium text-slate-500">服务器</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-950">
+                {servers.length}
+              </p>
+              <p className="mt-1 text-xs text-emerald-700">
+                {runningServerCount} 个运行中
+              </p>
+            </div>
+            <div className="rounded-[20px] border border-slate-200/80 bg-white px-4 py-3 shadow-sm shadow-slate-950/5">
+              <p className="text-xs font-medium text-slate-500">能力</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-950">
+                {tools.length + prompts.length + resources.length}
+              </p>
+              <p className="mt-1 text-xs text-sky-700">工具 / 提示词 / 资源</p>
+            </div>
+            <div
+              className={cn(
+                "rounded-[20px] border px-4 py-3 shadow-sm shadow-slate-950/5",
+                statusMeta.className,
+              )}
+            >
+              <p className="text-xs font-medium opacity-80">状态</p>
+              <div className="mt-1 flex items-center gap-2">
+                <statusMeta.icon
+                  className={cn("h-4 w-4", loading && "animate-spin")}
+                />
+                <p className="text-lg font-semibold">{statusMeta.label}</p>
+              </div>
+              <p className="mt-1 text-xs opacity-80">{statusMeta.detail}</p>
+            </div>
+          </div>
         </div>
-      )}
+      </section>
 
       {/* Tab 导航 */}
-      <div className="flex items-center gap-1 mb-4 border-b">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
-              activeTab === tab.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground/30",
-            )}
-          >
-            {tab.label}
-            {/* 数量标记 */}
-            {tab.id === "tools" && tools.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700">
-                {tools.length}
+      <div className="rounded-[26px] border border-slate-200/80 bg-white p-1.5 shadow-sm shadow-slate-950/5">
+        <div className="grid gap-1 sm:grid-cols-2 xl:grid-cols-5">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center justify-between gap-3 rounded-[20px] px-4 py-3 text-left text-sm font-medium transition",
+                activeTab === tab.id
+                  ? "bg-slate-950 text-white shadow-sm shadow-slate-950/15"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-950",
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <tab.icon className="h-4 w-4" />
+                {tab.label}
               </span>
-            )}
-            {tab.id === "prompts" && prompts.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-sky-50 px-1.5 py-0.5 text-xs text-sky-700 dark:bg-sky-950/30 dark:text-sky-300">
-                {prompts.length}
-              </span>
-            )}
-            {tab.id === "resources" && resources.length > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-orange-500/10 text-orange-600">
-                {resources.length}
-              </span>
-            )}
-          </button>
-        ))}
+              {getTabCount(tab.id) > 0 && (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-xs",
+                    activeTab === tab.id
+                      ? "bg-white/15 text-white"
+                      : "bg-slate-100 text-slate-500",
+                  )}
+                >
+                  {getTabCount(tab.id)}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab 内容 */}
-      <div className="flex-1 min-h-0">
-        {/* 运行状态 Tab */}
-        {activeTab === "runtime" && (
-          <div className="h-full border rounded-lg">
-            <McpServerList
-              servers={servers}
-              loading={loading}
-              error={error}
-              serverConnectionStates={serverConnectionStates}
-              onStartServer={startServer}
-              onStopServer={stopServer}
-              onReconnectServer={reconnectServer}
-              onRefresh={refreshServers}
-            />
+      <section className="min-h-[520px] overflow-hidden rounded-[26px] border border-slate-200/80 bg-white shadow-sm shadow-slate-950/5">
+        <div className="border-b border-slate-200/80 bg-slate-50/80 px-5 py-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <activeTabDefinition.icon className="h-4 w-4 text-sky-600" />
+            {activeTabDefinition.label}
           </div>
-        )}
-
-        {/* 工具 Tab */}
-        {activeTab === "tools" && (
-          <div className="h-full flex gap-4">
-            <div
-              className={cn(
-                "border rounded-lg",
-                callingTool ? "w-1/2" : "w-full",
-              )}
-            >
-              <McpToolsBrowser
-                tools={tools}
+        </div>
+        <div className="min-h-[464px]">
+          {/* 运行状态 Tab */}
+          {activeTab === "runtime" && (
+            <div className="min-h-[464px]">
+              <McpServerList
+                servers={servers}
                 loading={loading}
-                onRefresh={refreshTools}
-                serverCount={servers.length}
-                runningServerCount={
-                  servers.filter((server) => server.is_running).length
-                }
-                onOpenRuntimeTab={() => setActiveTab("runtime")}
-                onOpenConfigTab={() => setActiveTab("config")}
-                onCallTool={handleOpenToolCaller}
+                error={error}
+                serverConnectionStates={serverConnectionStates}
+                onStartServer={startServer}
+                onStopServer={stopServer}
+                onReconnectServer={reconnectServer}
+                onRefresh={refreshServers}
               />
             </div>
-            {callingTool && (
-              <div className="w-1/2 overflow-auto">
-                <McpToolCaller
-                  tool={callingTool}
-                  onCallTool={handleCallTool}
-                  onClose={() => setCallingTool(null)}
+          )}
+
+          {/* 工具 Tab */}
+          {activeTab === "tools" && (
+            <div className="flex min-h-[464px] flex-col gap-4 p-4 xl:flex-row">
+              <div
+                className={cn(
+                  "min-h-[420px] overflow-hidden rounded-[22px] border border-slate-200/80 bg-white",
+                  callingTool ? "xl:w-1/2" : "w-full",
+                )}
+              >
+                <McpToolsBrowser
+                  tools={tools}
+                  loading={loading}
+                  onRefresh={refreshTools}
+                  serverCount={servers.length}
+                  runningServerCount={runningServerCount}
+                  onOpenRuntimeTab={() => setActiveTab("runtime")}
+                  onOpenConfigTab={() => setActiveTab("config")}
+                  onCallTool={handleOpenToolCaller}
                 />
               </div>
-            )}
-          </div>
-        )}
+              {callingTool && (
+                <div className="min-h-[420px] overflow-auto rounded-[22px] border border-slate-200/80 bg-white xl:w-1/2">
+                  <McpToolCaller
+                    tool={callingTool}
+                    onCallTool={handleCallTool}
+                    onClose={() => setCallingTool(null)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* 提示词 Tab */}
-        {activeTab === "prompts" && (
-          <div className="h-full border rounded-lg">
-            <McpPromptsBrowser
-              prompts={prompts}
-              loading={loading}
-              onRefresh={refreshPrompts}
-              onGetPrompt={getPrompt}
-            />
-          </div>
-        )}
+          {/* 提示词 Tab */}
+          {activeTab === "prompts" && (
+            <div className="min-h-[464px] p-4">
+              <div className="min-h-[420px] overflow-hidden rounded-[22px] border border-slate-200/80 bg-white">
+                <McpPromptsBrowser
+                  prompts={prompts}
+                  loading={loading}
+                  onRefresh={refreshPrompts}
+                  onGetPrompt={getPrompt}
+                />
+              </div>
+            </div>
+          )}
 
-        {/* 资源 Tab */}
-        {activeTab === "resources" && (
-          <div className="h-full border rounded-lg">
-            <McpResourcesBrowser
-              resources={resources}
-              loading={loading}
-              onRefresh={refreshResources}
-              onReadResource={readResource}
-            />
-          </div>
-        )}
+          {/* 资源 Tab */}
+          {activeTab === "resources" && (
+            <div className="min-h-[464px] p-4">
+              <div className="min-h-[420px] overflow-hidden rounded-[22px] border border-slate-200/80 bg-white">
+                <McpResourcesBrowser
+                  resources={resources}
+                  loading={loading}
+                  onRefresh={refreshResources}
+                  onReadResource={readResource}
+                />
+              </div>
+            </div>
+          )}
 
-        {/* 配置管理 Tab */}
-        {activeTab === "config" && (
-          <div className="h-full overflow-auto">
-            <McpPage hideHeader />
-          </div>
-        )}
-      </div>
+          {/* 配置管理 Tab */}
+          {activeTab === "config" && (
+            <div className="min-h-[464px] overflow-auto p-4">
+              <McpPage hideHeader />
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

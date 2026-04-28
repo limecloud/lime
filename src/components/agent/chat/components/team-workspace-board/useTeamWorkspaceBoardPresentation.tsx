@@ -41,7 +41,9 @@ interface UseTeamWorkspaceBoardPresentationParams {
 
 interface TeamWorkspaceBoardPresentationState {
   boardBodyClassName: string;
-  boardChromeDisplay: ReturnType<typeof buildTeamWorkspaceBoardChromeDisplayState>;
+  boardChromeDisplay: ReturnType<
+    typeof buildTeamWorkspaceBoardChromeDisplayState
+  >;
   boardHeaderClassName: string;
   boardShellClassName: string;
   canvasStageHeight: string;

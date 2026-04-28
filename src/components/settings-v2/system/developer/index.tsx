@@ -11,7 +11,6 @@ import {
   Bug,
   DatabaseZap,
   Code2,
-  Eye,
   Globe,
   ScrollText,
   ShieldAlert,
@@ -19,7 +18,6 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Switch } from "@/components/ui/switch";
 import { useComponentDebug } from "@/contexts/ComponentDebugContext";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
@@ -76,7 +74,7 @@ const SiteAdapterCatalogTools = lazy(() =>
 interface SurfacePanelProps {
   icon: LucideIcon;
   title: string;
-  description: string;
+  description?: string;
   aside?: ReactNode;
   children: ReactNode;
 }
@@ -95,12 +93,10 @@ function SurfacePanel({
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Icon className="h-4 w-4 text-sky-600" />
             {title}
-            <WorkbenchInfoTip
-              ariaLabel={`${title}说明`}
-              content={description}
-              tone="slate"
-            />
           </div>
+          {description ? (
+            <p className="text-sm leading-6 text-slate-500">{description}</p>
+          ) : null}
         </div>
         {aside ? (
           <div className="flex flex-wrap items-center gap-2">{aside}</div>
@@ -137,9 +133,76 @@ function StatusPill({
 
 function DeferredPanelFallback({ label }: { label: string }) {
   return (
-    <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
+    <div className="rounded-[20px] border border-dashed border-slate-300 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
       正在准备{label}...
     </div>
+  );
+}
+
+function CompactSwitchRow({
+  title,
+  description,
+  checked,
+  disabled,
+  ariaLabel,
+  onCheckedChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  ariaLabel: string;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-[22px] border border-slate-200/80 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="text-sm leading-6 text-slate-500">{description}</p>
+      </div>
+      <Switch
+        aria-label={ariaLabel}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={(value) => onCheckedChange(Boolean(value))}
+      />
+    </div>
+  );
+}
+
+function AdvancedDetails({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="group rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-sky-100 bg-sky-50 text-sky-700">
+            <Icon className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-slate-900">
+              {title}
+            </span>
+            <span className="block truncate text-sm text-slate-500">
+              {description}
+            </span>
+          </span>
+        </span>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 transition group-open:bg-slate-950 group-open:text-white">
+          展开
+        </span>
+      </summary>
+      <div className="mt-4 space-y-4">{children}</div>
+    </details>
   );
 }
 
@@ -383,14 +446,14 @@ export function DeveloperSettings() {
   const workspaceHarnessEnabled = isWorkspaceHarnessEnabled(appConfig);
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-5 pb-8">
       {message ? (
         <div
           className={cn(
             "flex items-center gap-2 rounded-[20px] border px-4 py-3 text-sm shadow-sm shadow-slate-950/5",
             message.type === "success"
-              ? "border-emerald-200 bg-emerald-50/90 text-emerald-700"
-              : "border-rose-200 bg-rose-50/90 text-rose-700",
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-rose-200 bg-rose-50 text-rose-700",
           )}
         >
           <AlertCircle className="h-4 w-4" />
@@ -399,353 +462,172 @@ export function DeveloperSettings() {
       ) : null}
 
       <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
-                  开发者
-                </h1>
-                <WorkbenchInfoTip
-                  ariaLabel="开发者设置首屏说明"
-                  content="首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。"
-                  tone="mint"
-                />
-              </div>
-              <p className="text-sm text-slate-500">
-                管理处理工作台、组件调试和诊断动作。
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <StatusPill
-                active={workspaceHarnessEnabled}
-                activeLabel="工作台调试信息已启用"
-                inactiveLabel="工作台调试信息已关闭"
-              />
-              <StatusPill
-                active={enabled}
-                activeLabel="组件调试已启用"
-                inactiveLabel="组件调试未启用"
-              />
-              <StatusPill
-                active={!showClipboardGuide}
-                activeLabel="剪贴板权限正常"
-                inactiveLabel="需检查剪贴板权限"
-              />
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                诊断动作：5 项
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                技能目录联调：按需加载
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                站点脚本联调：按需加载
-              </span>
-            </div>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1.5">
+            <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+              开发者
+            </h1>
+            <p className="text-sm text-slate-500">
+              排查问题时打开，用完关回去。
+            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 rounded-[22px] border border-slate-200/80 bg-slate-50/60 px-4 py-3 text-sm text-slate-500">
-            <span>{diagnosticBusy ? "诊断任务执行中" : "当前空闲"}</span>
-            <span className="text-slate-300">/</span>
-            <span>首屏说明已收纳</span>
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            <StatusPill
+              active={workspaceHarnessEnabled}
+              activeLabel="工作台调试已开"
+              inactiveLabel="工作台调试已关"
+            />
+            <StatusPill
+              active={enabled}
+              activeLabel="组件调试已开"
+              inactiveLabel="组件调试已关"
+            />
+            {diagnosticBusy ? (
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+                诊断执行中
+              </span>
+            ) : null}
           </div>
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.14fr)_minmax(320px,0.86fr)]">
-        <div className="space-y-6">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)]">
+        <div className="space-y-5">
           <SurfacePanel
             icon={Sparkles}
-            title="处理工作台调试信息"
-            description="控制通用对话里运行态摘要、工具库存、环境摘要等开发调试信息收集链路。Harness 入口会常驻保留。"
-            aside={
-              <StatusPill
-                active={workspaceHarnessEnabled}
-                activeLabel="已启用"
-                inactiveLabel="已关闭"
-              />
-            }
+            title="调试开关"
+            description="默认保持关闭，只在排查页面结构或运行态问题时开启。"
           >
-            <div className="space-y-4">
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900">
-                        允许收集处理工作台调试信息
-                      </p>
-                      <WorkbenchInfoTip
-                        ariaLabel="处理工作台调试信息说明"
-                        content="关闭时仍保留 Harness 入口，但不会继续读取工具库存或整理额外环境摘要。"
-                        tone="slate"
-                      />
-                    </div>
-                  </div>
-                  <Switch
-                    aria-label="切换处理工作台调试信息"
-                    checked={workspaceHarnessEnabled}
-                    disabled={workspaceHarnessSaving}
-                    onCheckedChange={(checked) => {
-                      void handleWorkspaceHarnessEnabledChange(
-                        Boolean(checked),
-                      );
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-[22px] border border-slate-200/80 bg-white p-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[18px] border border-slate-200/80 bg-slate-50/60 p-4">
-                    <p className="text-sm font-semibold text-slate-900">
-                      关闭时
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      通用对话仍保留 Harness 入口，额外工具库存读取与调试信息收集会短路。
-                    </p>
-                  </div>
-                  <div className="rounded-[18px] border border-slate-200/80 bg-slate-50/60 p-4">
-                    <p className="text-sm font-semibold text-slate-900">
-                      开启时
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      仅用于开发排查，可查看运行态摘要、待处理事项、工具库存和协作成员状态。
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-3 text-xs leading-6 text-slate-500">
-                  {workspaceHarnessSaving
-                    ? "正在保存处理工作台调试信息开关..."
-                    : "建议默认保持关闭，排查完成后再关回去，避免给普通使用路径增加运行时噪音。"}
-                </p>
-              </div>
+            <div className="space-y-3">
+              <CompactSwitchRow
+                title="工作台调试信息"
+                description={
+                  workspaceHarnessSaving
+                    ? "正在保存..."
+                    : "收集运行态摘要、工具库存和环境摘要。"
+                }
+                checked={workspaceHarnessEnabled}
+                disabled={workspaceHarnessSaving}
+                ariaLabel="切换处理工作台调试信息"
+                onCheckedChange={(checked) => {
+                  void handleWorkspaceHarnessEnabledChange(checked);
+                }}
+              />
+              <CompactSwitchRow
+                title="组件视图调试"
+                description="Alt 悬浮看组件轮廓，Alt 点击看组件来源。"
+                checked={enabled}
+                ariaLabel="切换组件视图调试"
+                onCheckedChange={setEnabled}
+              />
             </div>
           </SurfacePanel>
 
           <SurfacePanel
-            icon={Eye}
-            title="组件视图调试"
-            description="显示组件轮廓并支持 Alt 点击查看组件信息，适合开发模式下定位复杂界面。"
-            aside={
-              <StatusPill
-                active={enabled}
-                activeLabel="已启用"
-                inactiveLabel="未启用"
-              />
-            }
+            icon={Bug}
+            title="诊断日志"
+            description="复制或导出当前诊断包；复现前可先清空旧记录。"
           >
-            <div className="space-y-4">
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      开启组件轮廓与信息查看
-                    </p>
-                    <p className="text-sm leading-6 text-slate-500">
-                      不影响业务行为，只在调试时提供轮廓高亮和组件来源查看能力。
-                    </p>
-                  </div>
-                  <Switch
-                    aria-label="切换组件视图调试"
-                    checked={enabled}
-                    onCheckedChange={setEnabled}
-                  />
-                </div>
-              </div>
-
-              {enabled ? (
-                <div className="rounded-[22px] border border-slate-200/80 bg-white p-4">
-                  <p className="text-sm font-semibold text-slate-900">
-                    使用说明
-                  </p>
-                  <div className="mt-3 space-y-2 text-sm leading-6 text-slate-500">
-                    <p>1. 按住 Alt 键并悬浮，可查看组件轮廓。</p>
-                    <p>2. Alt + 点击组件，可查看名称和文件路径。</p>
-                    <p>3. 文件路径仅在开发模式 `npm run tauri dev` 下可用。</p>
-                  </div>
-                </div>
-              ) : null}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleClearDiagnosticHistory()}
+                disabled={diagnosticBusy}
+                className={DANGER_BUTTON_CLASS_NAME}
+              >
+                <Trash2 className="h-4 w-4" />
+                清空旧诊断信息
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCopyDiagnostic()}
+                disabled={diagnosticBusy}
+                className={SECONDARY_BUTTON_CLASS_NAME}
+              >
+                <Bug className="h-4 w-4" />
+                复制诊断信息
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCopyDiagnosticJson()}
+                disabled={diagnosticBusy}
+                className={SECONDARY_BUTTON_CLASS_NAME}
+              >
+                <Code2 className="h-4 w-4" />
+                复制纯 JSON
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExportDiagnostic()}
+                disabled={diagnosticBusy}
+                className={SECONDARY_BUTTON_CLASS_NAME}
+              >
+                <ScrollText className="h-4 w-4" />
+                导出诊断 JSON
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleOpenDownloadDirectory()}
+                disabled={diagnosticBusy}
+                className={SECONDARY_BUTTON_CLASS_NAME}
+              >
+                <Sparkles className="h-4 w-4" />
+                打开下载目录
+              </button>
             </div>
-          </SurfacePanel>
 
-          <SurfacePanel
+            {showClipboardGuide ? (
+              <div className="mt-4">
+                <Suspense
+                  fallback={<DeferredPanelFallback label="剪贴板权限指引" />}
+                >
+                  <ClipboardPermissionGuideCard />
+                </Suspense>
+              </div>
+            ) : null}
+          </SurfacePanel>
+        </div>
+
+        <div className="space-y-5">
+          <AdvancedDetails
             icon={DatabaseZap}
             title="服务型技能目录联调"
-            description="仅用于客户端联调 serviceSkillCatalog。支持查看当前目录、手工注入 bootstrap payload，以及清缓存回退 seeded 目录。"
+            description="查看、注入或清空 service skill 目录。"
           >
             <Suspense
               fallback={<DeferredPanelFallback label="服务型技能目录联调" />}
             >
               <ServiceSkillCatalogTools />
             </Suspense>
-          </SurfacePanel>
+          </AdvancedDetails>
 
-          <SurfacePanel
+          <AdvancedDetails
             icon={Globe}
             title="站点脚本目录联调"
-            description="用于验证站点适配器目录的服务端下发、外部来源导入和本地缓存回退。重点看真正生效的适配器列表，而不是只看缓存元数据。"
+            description="验证站点适配器目录与外部 YAML 导入。"
           >
             <Suspense
               fallback={<DeferredPanelFallback label="站点脚本目录联调" />}
             >
               <SiteAdapterCatalogTools />
             </Suspense>
-          </SurfacePanel>
+          </AdvancedDetails>
 
-          <SurfacePanel
-            icon={Bug}
-            title="崩溃诊断日志（开发协作）"
-            description="用于定位 Windows 闪退与初装异常，汇总前端崩溃、调用轨迹、服务器/日志诊断和启动自检信息。"
+          <AdvancedDetails
+            icon={ShieldAlert}
+            title="Workspace 自愈记录"
+            description="查看最近自动修复和迁移动作。"
           >
-            <div className="space-y-4">
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 text-sm leading-6 text-slate-500">
-                导出的内容会自动对 DSN
-                做脱敏处理。适合在复现问题后立刻复制或导出，减少信息丢失。
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleClearDiagnosticHistory()}
-                  disabled={diagnosticBusy}
-                  className={DANGER_BUTTON_CLASS_NAME}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  清空旧诊断信息
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleCopyDiagnostic()}
-                  disabled={diagnosticBusy}
-                  className={SECONDARY_BUTTON_CLASS_NAME}
-                >
-                  <Bug className="h-4 w-4" />
-                  复制诊断信息
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleCopyDiagnosticJson()}
-                  disabled={diagnosticBusy}
-                  className={SECONDARY_BUTTON_CLASS_NAME}
-                >
-                  <Code2 className="h-4 w-4" />
-                  复制纯 JSON
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleExportDiagnostic()}
-                  disabled={diagnosticBusy}
-                  className={SECONDARY_BUTTON_CLASS_NAME}
-                >
-                  <ScrollText className="h-4 w-4" />
-                  导出诊断 JSON
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleOpenDownloadDirectory()}
-                  disabled={diagnosticBusy}
-                  className={SECONDARY_BUTTON_CLASS_NAME}
-                >
-                  <Sparkles className="h-4 w-4" />
-                  打开下载目录
-                </button>
-              </div>
-            </div>
-          </SurfacePanel>
-
-          <Suspense
-            fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}
-          >
-            <WorkspaceRepairHistoryCard
-              className="rounded-[26px] border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
-              description="仅用于开发排查，记录最近自动修复/迁移（不打断用户操作）"
-            />
-          </Suspense>
-        </div>
-
-        <div className="space-y-6">
-          {showClipboardGuide ? (
-            <SurfacePanel
-              icon={ShieldAlert}
-              title="剪贴板权限指引"
-              description="如果复制诊断失败且属于权限问题，可按下面的系统指引恢复。"
+            <Suspense
+              fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}
             >
-              <Suspense
-                fallback={<DeferredPanelFallback label="剪贴板权限指引" />}
-              >
-                <ClipboardPermissionGuideCard />
-              </Suspense>
-            </SurfacePanel>
-          ) : null}
-
-          <SurfacePanel
-            icon={Sparkles}
-            title="诊断建议"
-            description="先缩小问题范围，再决定要收集哪种信息，避免一次性导出过多噪音。"
-          >
-            <div className="space-y-3">
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  页面结构问题
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  先打开组件调试，确认具体组件边界和来源文件，再回到对应页面修。
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  闪退或启动异常
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  优先复制或导出完整诊断信息，这类问题更依赖启动自检和运行态快照。
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  自愈链路核对
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  在 Workspace
-                  自动修复记录里看最近动作，再决定是否需要清理旧诊断历史。
-                </p>
-              </div>
-            </div>
-          </SurfacePanel>
-
-          <SurfacePanel
-            icon={Code2}
-            title="动作清单"
-            description="不同诊断动作解决的问题不同，不建议每次都盲目全导出。"
-          >
-            <div className="space-y-3">
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  复制诊断信息
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  适合直接发给开发者或贴到 issue
-                  中，包含结构化摘要和关键上下文。
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  复制纯 JSON / 导出 JSON
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  更适合程序化比对和归档，内容完整，但阅读成本更高。
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  清空旧诊断信息
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  用于复现场景前清理历史噪音。执行后不可恢复，只保留新的问题样本。
-                </p>
-              </div>
-            </div>
-          </SurfacePanel>
+              <WorkspaceRepairHistoryCard
+                className="rounded-[22px] border-slate-200/80 bg-white p-4"
+                description="最近自动修复/迁移记录"
+              />
+            </Suspense>
+          </AdvancedDetails>
         </div>
       </div>
     </div>

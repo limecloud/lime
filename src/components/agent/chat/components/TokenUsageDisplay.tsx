@@ -83,7 +83,9 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
     >
       <UsageIcon />
       <UsageText>{formatCompactTokenCount(total)} tokens</UsageText>
-      {promptCacheMetaText ? <UsageMeta>{`· ${promptCacheMetaText}`}</UsageMeta> : null}
+      {promptCacheMetaText ? (
+        <UsageMeta>{`· ${promptCacheMetaText}`}</UsageMeta>
+      ) : null}
       {missingPromptCacheNotice ? (
         <UsageMeta data-testid="token-usage-prompt-cache-notice">
           {`· ${missingPromptCacheNotice.label}`}

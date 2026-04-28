@@ -202,7 +202,7 @@ describe("teamWorkspaceBoardPropBuilders", () => {
         } as never,
       ],
       memberCanvasSubtitle: "子任务会持续更新任务进展。",
-          memberCanvasTitle: "当前进展",
+      memberCanvasTitle: "当前进展",
       onAutoArrangeCanvas: vi.fn(),
       onCanvasWheel: vi.fn(),
       onCloseCompletedTeamSessions: vi.fn(),
@@ -277,7 +277,11 @@ describe("teamWorkspaceBoardPropBuilders", () => {
     });
     expect(props.canvasToolbarProps.zoom).toBe(1.2);
     expect(props.canvasStageProps.selectedInlineDetail).toBe("inline-detail");
-    expect(props.canvasStageProps.viewport).toEqual({ x: 12, y: 24, zoom: 1.2 });
+    expect(props.canvasStageProps.viewport).toEqual({
+      x: 12,
+      y: 24,
+      zoom: 1.2,
+    });
 
     props.canvasStageProps.onStartCanvasLaneDrag?.(
       { persistKey: "lane-alpha" } as never,

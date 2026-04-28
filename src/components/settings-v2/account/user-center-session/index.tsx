@@ -406,11 +406,12 @@ export function UserCenterSessionSettings() {
                   <div className="flex flex-wrap gap-3">
                     <button
                       type="button"
-                      onClick={() => void openUserCenter(runtime.loginPath)}
+                      onClick={() => void handleGoogleLogin()}
+                      disabled={openingGoogleLogin}
                       className="inline-flex items-center justify-center gap-2 rounded-[18px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                     >
                       <ExternalLink className="h-4 w-4" />
-                      打开登录页
+                      {openingGoogleLogin ? "等待授权中..." : "重新打开授权页"}
                     </button>
                     <button
                       type="button"
@@ -442,8 +443,12 @@ export function UserCenterSessionSettings() {
                         ariaLabel="登录后自动完成说明"
                         content={
                           <div className="space-y-1">
-                            <p>Google 登录成功后，桌面端会自动同步当前账户会话。</p>
-                            <p>如果浏览器出现确认页，需要再确认一次当前桌面请求。</p>
+                            <p>
+                              Google 登录成功后，桌面端会自动同步当前账户会话。
+                            </p>
+                            <p>
+                              如果浏览器出现确认页，需要再确认一次当前桌面请求。
+                            </p>
                             <p>同步当前账户资料与头像、昵称显示。</p>
                             <p>同步默认 AI 服务、模型目录与已开通能力。</p>
                             <p>

@@ -88,9 +88,9 @@ function sanitizeToolResultDetailMarkdown(value: string): string {
   return value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function summarizeToolSearchPreview(value: ReturnType<
-  typeof normalizeToolSearchResultSummary
->): string | null {
+function summarizeToolSearchPreview(
+  value: ReturnType<typeof normalizeToolSearchResultSummary>,
+): string | null {
   if (!value) {
     return null;
   }
@@ -224,7 +224,9 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
       return rawResultText;
     }
 
-    return resolveToolErrorDetailText(toolCall.name, rawResultText) || rawResultText;
+    return (
+      resolveToolErrorDetailText(toolCall.name, rawResultText) || rawResultText
+    );
   }, [rawResultText, toolCall.name, toolCall.status]);
   const resultDetailMarkdown = useMemo(
     () => sanitizeToolResultDetailMarkdown(resultText),
@@ -235,7 +237,8 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
     [resultText],
   );
   const resultImages = useMemo(
-    () => normalizeToolResultImages(toolCall.result?.images, rawResultText) || [],
+    () =>
+      normalizeToolResultImages(toolCall.result?.images, rawResultText) || [],
     [rawResultText, toolCall.result?.images],
   );
   const isToolSearch = useMemo(
@@ -472,7 +475,8 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-medium leading-5 text-emerald-900">
-                        {savedSiteContentTarget.preferredTarget === "project_file"
+                        {savedSiteContentTarget.preferredTarget ===
+                        "project_file"
                           ? "在下方预览导出 Markdown"
                           : "打开已保存内容"}
                       </span>
@@ -504,7 +508,9 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
                 />
               ) : null}
 
-              {!toolSearchSummary && searchResultItems.length === 0 && resultText ? (
+              {!toolSearchSummary &&
+              searchResultItems.length === 0 &&
+              resultText ? (
                 <div className="text-sm leading-6 text-slate-700">
                   <MarkdownRenderer content={resultDetailMarkdown} />
                 </div>

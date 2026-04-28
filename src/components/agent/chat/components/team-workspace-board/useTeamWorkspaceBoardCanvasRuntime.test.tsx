@@ -67,8 +67,9 @@ function renderHook(props?: Partial<HookProps>) {
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  let latestValue: ReturnType<typeof useTeamWorkspaceBoardCanvasRuntime> | null =
-    null;
+  let latestValue: ReturnType<
+    typeof useTeamWorkspaceBoardCanvasRuntime
+  > | null = null;
 
   const defaultProps: HookProps = {
     activityTimelineEntryLimit: 4,

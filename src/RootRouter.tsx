@@ -8,6 +8,7 @@ import App from "./App";
 import { SmartInputPage } from "./pages/smart-input";
 import { UpdateNotificationPage } from "./pages/update-notification";
 import { BrowserRuntimeDebuggerPage } from "./pages";
+import { ResourceManagerPage } from "./features/resource-manager";
 import { Toaster } from "./components/ui/sonner";
 import { AppCrashBoundary } from "./components/layout/AppCrashBoundary";
 import { finalizeModuleImportAutoReload } from "./components/layout/CrashRecoveryPanel.helpers";
@@ -19,6 +20,7 @@ import { getRuntimeAppVersion } from "./lib/appVersion";
  * - /smart-input: 截图对话悬浮窗口（独立 Tauri 窗口，支持语音模式）
  * - /update-notification: 更新提醒悬浮窗口（独立 Tauri 窗口）
  * - /browser-runtime-debugger: 浏览器运行时独立调试窗口
+ * - /resource-manager: 独立资源管理器窗口
  * - 其他: 主应用
  */
 export function RootRouter() {
@@ -59,6 +61,15 @@ export function RootRouter() {
     return (
       <AppCrashBoundary>
         <BrowserRuntimeDebuggerPage />
+        <Toaster />
+      </AppCrashBoundary>
+    );
+  }
+
+  if (pathname === "/resource-manager") {
+    return (
+      <AppCrashBoundary>
+        <ResourceManagerPage />
         <Toaster />
       </AppCrashBoundary>
     );

@@ -15,6 +15,10 @@ import {
   completeOemCloudDesktopOAuthLogin,
   parseOemCloudDesktopOAuthCallbackUrl,
 } from "@/lib/oemCloudDesktopAuth";
+import {
+  dispatchOemCloudPaymentReturn,
+  parseOemCloudPaymentReturnUrl,
+} from "@/lib/oemCloudPaymentReturn";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
 import {
@@ -388,6 +392,15 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
       }
 
       if (await handleOauthCallbackUrl(normalizedUrl)) {
+        return;
+      }
+
+      const paymentReturn = parseOemCloudPaymentReturnUrl(normalizedUrl);
+      if (paymentReturn) {
+        dispatchOemCloudPaymentReturn(paymentReturn);
+        toast.success("支付结果已返回", {
+          description: "正在同步云端权益、积分余额与账本状态。",
+        });
         return;
       }
 

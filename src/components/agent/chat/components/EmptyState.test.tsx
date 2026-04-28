@@ -40,31 +40,30 @@ const mockListUnifiedMemories = vi.hoisted(() =>
   vi.fn<() => Promise<UnifiedMemory[]>>(async () => []),
 );
 
-const mockCharacterMention =
-  vi.fn<
-    (props: {
-      characters?: Character[];
-      skills?: Skill[];
-      serviceSkills?: ServiceSkillHomeItem[];
-      onSelectSkill?: (skill: Skill) => void;
-      onSelectInputCapability?: (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void;
-      onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
-      defaultCuratedTaskReferenceMemoryIds?: string[];
-      defaultCuratedTaskReferenceEntries?: Array<{
-        id: string;
-        title: string;
-        summary: string;
-        category: string;
-        categoryLabel: string;
-        tags: string[];
-      }>;
-      value: string;
-      onChange: (value: string) => void;
-    }) => React.ReactNode
-  >();
+const mockCharacterMention = vi.fn<
+  (props: {
+    characters?: Character[];
+    skills?: Skill[];
+    serviceSkills?: ServiceSkillHomeItem[];
+    onSelectSkill?: (skill: Skill) => void;
+    onSelectInputCapability?: (
+      capability: InputCapabilitySelection,
+      options?: { replayText?: string },
+    ) => void;
+    onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+    defaultCuratedTaskReferenceMemoryIds?: string[];
+    defaultCuratedTaskReferenceEntries?: Array<{
+      id: string;
+      title: string;
+      summary: string;
+      category: string;
+      categoryLabel: string;
+      tags: string[];
+    }>;
+    value: string;
+    onChange: (value: string) => void;
+  }) => React.ReactNode
+>();
 
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: mockGetConfig,
@@ -187,13 +186,8 @@ vi.mock("@/components/ui/textarea", () => {
 });
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({
-    open,
-    children,
-  }: {
-    open: boolean;
-    children: React.ReactNode;
-  }) => (open ? <div>{children}</div> : null),
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div>{children}</div> : null,
   DialogContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -203,7 +197,9 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogFooter: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   DialogDescription: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -486,9 +482,7 @@ describe("EmptyState", () => {
     );
     expect(container.textContent).toContain("先从这个开始");
     expect(container.textContent).toContain("其他起手结果");
-    expect(container.textContent).toContain(
-      "也可以直接按做法开工",
-    );
+    expect(container.textContent).toContain("也可以直接按做法开工");
     expect(container.textContent).toContain(
       "本轮产出会先写回当前任务，后续继续也会优先从这里接回。",
     );
@@ -555,7 +549,8 @@ describe("EmptyState", () => {
         {
           session_id: "session-review-needs-evidence",
           decision_status: "needs_more_evidence",
-          decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+          decision_summary:
+            "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
           chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
           risk_level: "medium",
           risk_tags: ["证据不足", "需要复盘"],
@@ -614,7 +609,9 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("开始这一步前，我先确认几件事。");
+    expect(document.body.textContent).toContain(
+      "开始这一步前，我先确认几件事。",
+    );
     expect(document.body.textContent).toContain("复盘这个账号/项目");
   });
 
@@ -734,12 +731,12 @@ describe("EmptyState", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="empty-state-runtime-tool-warning"]'),
+      container.querySelector(
+        '[data-testid="empty-state-runtime-tool-warning"]',
+      ),
     ).toBeNull();
     expect(container.textContent).not.toContain("当前 runtime tool surface");
-    expect(container.textContent).not.toContain(
-      "联网搜索偏好本轮可能不会生效",
-    );
+    expect(container.textContent).not.toContain("联网搜索偏好本轮可能不会生效");
     expect(container.textContent).not.toContain(
       "任务拆分偏好本轮可能不会完全生效",
     );
@@ -1084,11 +1081,10 @@ describe("EmptyState", () => {
     );
   });
 
-  it("传入项目切换能力时应继续保留项目选择器入口", async () => {
+  it("首页主体不再重复展示项目选择器入口", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       projectId: "project-brand",
-      onProjectChange: vi.fn(),
     });
 
     await act(async () => {
@@ -1097,7 +1093,8 @@ describe("EmptyState", () => {
 
     expect(
       container.querySelector('[data-testid="project-selector-stub"]'),
-    ).toBeTruthy();
+    ).toBeNull();
+    expect(mockProjectSelector).not.toHaveBeenCalled();
     expect(container.textContent).toContain("本轮产出会沉淀到当前项目");
     expect(
       container.querySelector('[data-testid^="entry-project-continuation-"]'),
@@ -1187,7 +1184,9 @@ describe("EmptyState", () => {
     expect(container.textContent).not.toContain("Runtime Tool Surface");
     expect(container.textContent).not.toContain("Thread Runtime");
     expect(container.textContent).not.toContain("消息渠道 + 浏览器连接器");
-    expect(container.textContent).not.toContain("当前回合 / 长期 / Team / 压缩");
+    expect(container.textContent).not.toContain(
+      "当前回合 / 长期 / Team / 压缩",
+    );
     expect(container.textContent).not.toContain("频道入口");
     expect(container.textContent).not.toContain("浏览器连接器");
     expect(container.textContent).not.toContain("OpenClaw 兼容入口");
@@ -1686,19 +1685,14 @@ describe("EmptyState", () => {
     act(() => {
       sendButton?.click();
     });
-    expect(onSend).toHaveBeenCalledWith(
-      "帮我设计封面",
-      "react",
-      undefined,
-      {
-        capabilityRoute: {
-          kind: "installed_skill",
-          skillKey: "canvas-design",
-          skillName: "canvas-design",
-        },
-        displayContent: "帮我设计封面",
+    expect(onSend).toHaveBeenCalledWith("帮我设计封面", "react", undefined, {
+      capabilityRoute: {
+        kind: "installed_skill",
+        skillKey: "canvas-design",
+        skillName: "canvas-design",
       },
-    );
+      displayContent: "帮我设计封面",
+    });
 
     act(() => {
       sendButton?.click();
@@ -2210,7 +2204,8 @@ describe("EmptyState", () => {
         memory_type: "project",
         category: "experience",
         title: "账号复盘结论",
-        summary: "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
+        summary:
+          "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
         content:
           "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
         tags: ["复盘", "反馈", "增长"],
@@ -2290,7 +2285,10 @@ describe("EmptyState", () => {
 
     await act(async () => {
       updateFieldValue(initialThemeInput, initialInputValues.theme_target);
-      updateFieldValue(initialPlatformInput, initialInputValues.platform_region);
+      updateFieldValue(
+        initialPlatformInput,
+        initialInputValues.platform_region,
+      );
       await Promise.resolve();
     });
 
@@ -2415,9 +2413,7 @@ describe("EmptyState", () => {
     });
 
     const textarea = container.querySelector("textarea");
-    expect(textarea?.getAttribute("placeholder")).toContain(
-      "先说这轮要做什么",
-    );
+    expect(textarea?.getAttribute("placeholder")).toContain("先说这轮要做什么");
   });
 
   it("点击高级设置中的地球按钮应切换联网搜索开关", async () => {
@@ -2772,11 +2768,7 @@ describe("EmptyState", () => {
       sendButton?.click();
     });
 
-    expect(onSend).toHaveBeenCalledWith(
-      "整理最近发布计划",
-      "react",
-      undefined,
-    );
+    expect(onSend).toHaveBeenCalledWith("整理最近发布计划", "react", undefined);
   });
 
   it("通用主题应提供浏览器协助入口并触发启动回调", async () => {

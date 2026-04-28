@@ -762,7 +762,7 @@ export function SceneAppDetailPanel({
                 data-testid="sceneapp-page-launch"
                 className={cn(
                   "rounded-full px-5",
-                  "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95",
+                  "border border-emerald-200 bg-[image:var(--lime-primary-gradient)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95",
                 )}
                 disabled={Boolean(launchDisabledReason) || launching}
                 onClick={onLaunch}

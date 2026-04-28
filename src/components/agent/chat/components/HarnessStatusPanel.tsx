@@ -2078,33 +2078,35 @@ export function HarnessStatusPanel({
   const runtimeFactSummary = useMemo(() => {
     const decisionReason =
       threadRead?.decision_reason ||
-      ((threadRead?.runtime_summary as { decisionReason?: string | null } | null)
-        ?.decisionReason ??
+      ((
+        threadRead?.runtime_summary as { decisionReason?: string | null } | null
+      )?.decisionReason ??
         null);
     const fallbackChain = Array.isArray(threadRead?.fallback_chain)
       ? threadRead?.fallback_chain || []
       : Array.isArray(
-            (threadRead?.runtime_summary as { fallbackChain?: string[] | null } | null)
-              ?.fallbackChain,
+            (
+              threadRead?.runtime_summary as {
+                fallbackChain?: string[] | null;
+              } | null
+            )?.fallbackChain,
           )
-        ? ((threadRead?.runtime_summary as { fallbackChain?: string[] | null })
-            .fallbackChain || [])
+        ? (threadRead?.runtime_summary as { fallbackChain?: string[] | null })
+            .fallbackChain || []
         : [];
-    const oemPolicy = threadRead?.oem_policy as
-      | {
-          locked?: boolean | null;
-          quotaLow?: boolean | null;
-          defaultModel?: string | null;
-          selectedModel?: string | null;
-          quotaStatus?: string | null;
-          offerState?: string | null;
-          providerSource?: string | null;
-          providerKey?: string | null;
-          fallbackToLocalAllowed?: boolean | null;
-          canInvoke?: boolean | null;
-          tenantId?: string | null;
-        }
-      | null;
+    const oemPolicy = threadRead?.oem_policy as {
+      locked?: boolean | null;
+      quotaLow?: boolean | null;
+      defaultModel?: string | null;
+      selectedModel?: string | null;
+      quotaStatus?: string | null;
+      offerState?: string | null;
+      providerSource?: string | null;
+      providerKey?: string | null;
+      fallbackToLocalAllowed?: boolean | null;
+      canInvoke?: boolean | null;
+      tenantId?: string | null;
+    } | null;
 
     if (!decisionReason && fallbackChain.length === 0 && !oemPolicy) {
       return null;
@@ -2694,12 +2696,12 @@ export function HarnessStatusPanel({
         data-testid="harness-status-panel"
         data-layout={layout}
         className={cn(
-          "bg-muted/30",
+          "lime-workbench-theme-scope lime-workbench-surface-scope text-[color:var(--lime-text)]",
           layout === "sidebar"
-            ? "rounded-xl border border-border"
+            ? "rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)]"
             : layout === "dialog"
-              ? "flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-background"
-              : "mx-3 mt-2 rounded-2xl border border-border",
+              ? "flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)]"
+              : "mx-3 mt-2 rounded-2xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)]",
         )}
       >
         <div
@@ -4649,7 +4651,8 @@ export function HarnessStatusPanel({
                               OEM 当前不可调用
                             </Badge>
                           ) : null}
-                          {runtimeFactSummary.oemPolicy.fallbackToLocalAllowed === true ? (
+                          {runtimeFactSummary.oemPolicy
+                            .fallbackToLocalAllowed === true ? (
                             <Badge
                               variant="outline"
                               className="border-emerald-300 bg-white text-emerald-700"
@@ -4662,23 +4665,37 @@ export function HarnessStatusPanel({
                           {runtimeFactSummary.oemPolicy.defaultModel ||
                           runtimeFactSummary.oemPolicy.selectedModel ? (
                             <span>
-                              OEM 模型 {runtimeFactSummary.oemPolicy.defaultModel || runtimeFactSummary.oemPolicy.selectedModel}
+                              OEM 模型{" "}
+                              {runtimeFactSummary.oemPolicy.defaultModel ||
+                                runtimeFactSummary.oemPolicy.selectedModel}
                             </span>
                           ) : null}
                           {runtimeFactSummary.oemPolicy.quotaStatus ? (
-                            <span>额度状态 {runtimeFactSummary.oemPolicy.quotaStatus}</span>
+                            <span>
+                              额度状态{" "}
+                              {runtimeFactSummary.oemPolicy.quotaStatus}
+                            </span>
                           ) : null}
                           {runtimeFactSummary.oemPolicy.offerState ? (
-                            <span>策略状态 {runtimeFactSummary.oemPolicy.offerState}</span>
+                            <span>
+                              策略状态 {runtimeFactSummary.oemPolicy.offerState}
+                            </span>
                           ) : null}
                           {runtimeFactSummary.oemPolicy.providerSource ? (
-                            <span>来源 {runtimeFactSummary.oemPolicy.providerSource}</span>
+                            <span>
+                              来源 {runtimeFactSummary.oemPolicy.providerSource}
+                            </span>
                           ) : null}
                           {runtimeFactSummary.oemPolicy.providerKey ? (
-                            <span>Provider Key {runtimeFactSummary.oemPolicy.providerKey}</span>
+                            <span>
+                              Provider Key{" "}
+                              {runtimeFactSummary.oemPolicy.providerKey}
+                            </span>
                           ) : null}
                           {runtimeFactSummary.oemPolicy.tenantId ? (
-                            <span>租户 {runtimeFactSummary.oemPolicy.tenantId}</span>
+                            <span>
+                              租户 {runtimeFactSummary.oemPolicy.tenantId}
+                            </span>
                           ) : null}
                         </div>
                       </div>

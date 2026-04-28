@@ -90,9 +90,7 @@ export function useInputbarToolState({
             thinking: thinkingEnabled,
             subagent: nextSubagent,
           });
-          toast.info(
-            `任务拆分${nextSubagent ? "偏好已开启" : "偏好已关闭"}`,
-          );
+          toast.info(`任务拆分${nextSubagent ? "偏好已开启" : "偏好已关闭"}`);
           break;
         }
         case "attach":

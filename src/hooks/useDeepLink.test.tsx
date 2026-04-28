@@ -6,6 +6,10 @@ import { useDeepLink } from "./useDeepLink";
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";
 import { getCurrent } from "@tauri-apps/plugin-deep-link";
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
+import {
+  OEM_CLOUD_PAYMENT_RETURN_EVENT,
+  readStoredOemCloudPaymentReturn,
+} from "@/lib/oemCloudPaymentReturn";
 
 vi.mock("@/lib/dev-bridge", () => ({
   safeInvoke: vi.fn(),
@@ -46,6 +50,13 @@ vi.mock("@/lib/oemLimeHubProvider", () => ({
   resolveOemLimeHubProviderName: vi.fn(() => "Lime Hub"),
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+    success: vi.fn(),
+  },
+}));
+
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 function renderHook(
@@ -81,6 +92,7 @@ describe("useDeepLink", () => {
     vi.mocked(safeListen).mockResolvedValue(vi.fn());
     vi.mocked(safeInvoke).mockResolvedValue({});
     vi.mocked(getCurrent).mockResolvedValue([]);
+    window.localStorage.clear();
   });
 
   afterEach(() => {
@@ -137,6 +149,34 @@ describe("useDeepLink", () => {
       slug: "gemini-longform-master",
       source: "website",
       version: "1",
+    });
+  });
+
+  it("应解析支付回跳 deep link 并分发给云端购买状态刷新链路", async () => {
+    const received: unknown[] = [];
+    const listener = (event: Event) => {
+      received.push(event instanceof CustomEvent ? event.detail : null);
+    };
+    window.addEventListener(OEM_CLOUD_PAYMENT_RETURN_EVENT, listener);
+    vi.mocked(getCurrent).mockResolvedValue([
+      "lime://payment/return?tenantId=tenant-0001&orderId=order-001&kind=plan_order&status=success",
+    ]);
+
+    await renderHook();
+
+    window.removeEventListener(OEM_CLOUD_PAYMENT_RETURN_EVENT, listener);
+    expect(safeInvoke).not.toHaveBeenCalled();
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({
+      tenantId: "tenant-0001",
+      orderId: "order-001",
+      kind: "plan_order",
+      status: "success",
+    });
+    expect(readStoredOemCloudPaymentReturn()).toMatchObject({
+      tenantId: "tenant-0001",
+      orderId: "order-001",
+      kind: "plan_order",
     });
   });
 });

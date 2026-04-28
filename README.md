@@ -153,7 +153,7 @@ brew install --cask lime
 
 #### 手动下载
 
-从 [Releases](https://github.com/aiclientproxy/lime/releases) 下载对应平台安装包。
+从 [Releases](https://github.com/limecloud/lime/releases) 下载对应平台安装包。
 
 - 当前仅提供 macOS 与 Windows 发布包，Linux 桌面端已暂停支持
 - Windows 用户下载 `Lime_*_x64-setup.exe`（NSIS 安装器，内置 WebView2）

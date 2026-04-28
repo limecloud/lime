@@ -40,9 +40,7 @@ export function TeamWorkspaceTeamActionButtons({
           {pendingTeamAction === "wait_any" ? (
             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
           ) : null}
-          {pendingTeamAction === "wait_any"
-            ? "等待中..."
-            : "等待任一任务结果"}
+          {pendingTeamAction === "wait_any" ? "等待中..." : "等待任一任务结果"}
         </Button>
       ) : null}
       {canCloseCompletedTeamSessions ? (

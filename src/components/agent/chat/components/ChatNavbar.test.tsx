@@ -236,10 +236,48 @@ describe("ChatNavbar", () => {
     ) as HTMLElement | null;
 
     expect(workspaceBar?.style.zIndex).toBe("8");
-    expect(workspaceShell?.className).toContain("h-6");
-    expect(workspaceShell?.className).toContain("min-w-[132px]");
-    expect(workspaceShell?.className).toContain("max-w-[196px]");
-    expect(workspaceShell?.style.backgroundColor).toBe("rgb(248, 252, 249)");
+    expect(workspaceShell?.className).toContain("h-9");
+    expect(workspaceShell?.className).toContain("min-w-[148px]");
+    expect(workspaceShell?.className).toContain("max-w-[224px]");
+    expect(workspaceShell?.className).toContain(
+      "bg-[color:var(--lime-chrome-tab-active-surface)]",
+    );
+    expect(workspaceShell?.querySelectorAll("span[aria-hidden]")).toHaveLength(
+      2,
+    );
+  });
+
+  it("任务中心工作区提示应浮在加号上方，并在点击加号时关闭", () => {
+    const onDismissWorkspaceHint = vi.fn();
+    const container = renderChatNavbar({
+      contextVariant: "task-center",
+      projectId: "project-1",
+      workspaceType: "general",
+      workspaceHintVisible: true,
+      workspaceHintMessage: "在这里切换或新建工作区",
+      onDismissWorkspaceHint,
+    });
+
+    const hint = container.querySelector(
+      '[data-testid="task-center-workspace-hint"]',
+    ) as HTMLElement | null;
+    const menuTrigger = container.querySelector(
+      'button[aria-label="展开工作区菜单"]',
+    ) as HTMLButtonElement | null;
+
+    expect(hint).not.toBeNull();
+    expect(hint?.textContent).toContain("在这里切换或新建工作区");
+    expect(hint?.className).toContain("bottom-full");
+    expect(hint?.className).toContain(
+      "border-[color:var(--lime-surface-border)]",
+    );
+    expect(hint?.className).not.toContain("sky");
+
+    act(() => {
+      menuTrigger?.click();
+    });
+
+    expect(onDismissWorkspaceHint).toHaveBeenCalledTimes(1);
   });
 
   it("任务中心顶栏应保留 Harness 状态入口", () => {
@@ -317,8 +355,11 @@ describe("ChatNavbar", () => {
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();
-    expect(button?.className).toContain("border-amber-300");
-    expect(button?.className).toContain("text-amber-800");
+    expect(button?.className).toContain(
+      "border-[color:var(--lime-warning-border)]",
+    );
+    expect(button?.className).toContain("text-[color:var(--lime-warning)]");
+    expect(button?.className).not.toContain("amber-300");
   });
 
   it("压缩上下文运行中时应禁用顶栏操作", () => {

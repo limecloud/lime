@@ -73,11 +73,11 @@ export function SceneAppsPage({
       : "先选一套能直接起手的做法，后面只围绕这轮信息和最近结果继续。";
 
   return (
-    <div className="flex-1 overflow-auto px-6 py-6">
+    <div className="lime-workbench-theme-scope flex-1 overflow-auto px-6 py-6">
       <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6">
         <section className="relative overflow-hidden rounded-[32px] border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-950/5">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(163,230,53,0.16),transparent_28%),radial-gradient(circle_at_82%_12%,rgba(250,204,21,0.12),transparent_24%),radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.9),transparent_36%)]" />
-          <div className="pointer-events-none absolute left-1/2 top-12 h-32 w-[min(760px,92%)] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(163,230,53,0.22)_0%,rgba(250,204,21,0.14)_42%,transparent_74%)] blur-3xl" />
+          <div className="pointer-events-none absolute inset-0 bg-[image:var(--lime-card-subtle)]" />
+          <div className="pointer-events-none absolute left-1/2 top-12 h-32 w-[min(760px,92%)] -translate-x-1/2 rounded-full bg-[color:var(--lime-home-glow-primary)] blur-3xl" />
           <div className="relative flex flex-col gap-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="max-w-[900px] space-y-3">
@@ -85,7 +85,7 @@ export function SceneAppsPage({
                   青柠一下，灵感即来
                 </div>
                 <div className="relative inline-block">
-                  <div className="pointer-events-none absolute inset-x-[-10%] top-1/2 h-14 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(163,230,53,0.28)_0%,rgba(250,204,21,0.18)_40%,transparent_75%)] blur-2xl" />
+                  <div className="pointer-events-none absolute inset-x-[-10%] top-1/2 h-14 -translate-y-1/2 rounded-full bg-[color:var(--lime-home-glow-primary)] blur-2xl" />
                   <h1 className="relative text-3xl font-semibold tracking-tight text-slate-900 drop-shadow-[0_1px_0_rgba(255,255,255,0.9),0_12px_26px_rgba(163,230,53,0.18)]">
                     全部做法
                   </h1>
@@ -192,7 +192,7 @@ export function SceneAppsPage({
                       data-testid={`sceneapps-view-${option.key}`}
                       className={
                         active
-                          ? "rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] px-4 py-4 text-left shadow-sm shadow-emerald-950/10"
+                          ? "rounded-[24px] border border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] px-4 py-4 text-left shadow-sm shadow-emerald-950/10"
                           : "rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-left transition-colors hover:border-slate-300 hover:bg-white"
                       }
                       onClick={() => runtime.handleViewModeChange(option.key)}

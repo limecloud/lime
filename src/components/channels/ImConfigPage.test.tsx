@@ -300,6 +300,8 @@ describe("ImConfigPage", () => {
     renderPage();
     await flushEffects();
 
+    expect(document.body.querySelector(".lime-workbench-theme-scope")).not.toBeNull();
+
     const text = document.body.textContent ?? "";
     expect(text).toContain("消息渠道");
     expect(text).toContain("系统入口");
@@ -344,6 +346,9 @@ describe("ImConfigPage", () => {
     await clickButton(findButtonByTestId("telegram-config-button"));
     await flushEffects();
 
+    expect(
+      document.body.querySelector('[role="dialog"].lime-workbench-theme-scope'),
+    ).not.toBeNull();
     expect(document.body.textContent).toContain("Telegram 配置");
     expect(document.body.textContent).toContain("机器人 Token");
     expect(document.body.textContent).toContain("接入检查");

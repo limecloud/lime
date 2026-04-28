@@ -45,7 +45,8 @@ function render(text: string): HTMLDivElement {
 
 describe("RuntimePeerMessageCards", () => {
   it("应把计划审批请求渲染为专门卡片", () => {
-    const container = render(`<teammate-message teammate_id="team-lead" summary="等待审批">
+    const container =
+      render(`<teammate-message teammate_id="team-lead" summary="等待审批">
 {"type":"plan_approval_request","from":"researcher","plan_file_path":"plans/alpha.md","plan_content":"# 计划\\n- 第一步"}
 </teammate-message>`);
 
@@ -71,7 +72,8 @@ describe("RuntimePeerMessageCards", () => {
   });
 
   it("应在任务分配卡片里显示 assignedBy", () => {
-    const container = render(`<teammate-message teammate_id="worker-1" summary="等待执行">
+    const container =
+      render(`<teammate-message teammate_id="worker-1" summary="等待执行">
 {"type":"task_assignment","taskId":"task-7","subject":"对齐 current surface","description":"补齐 display 语义","assignedBy":"team-lead"}
 </teammate-message>`);
 
@@ -84,20 +86,25 @@ describe("RuntimePeerMessageCards", () => {
   });
 
   it("应静默 shutdown approved 和 idle lifecycle 消息", () => {
-    const approvedContainer = render(`<teammate-message teammate_id="researcher">
+    const approvedContainer =
+      render(`<teammate-message teammate_id="researcher">
 {"type":"shutdown_approved","request_id":"req-1","from":"researcher"}
 </teammate-message>`);
-    const mixedContainer = render([
-      `<teammate-message teammate_id="researcher">
+    const mixedContainer = render(
+      [
+        `<teammate-message teammate_id="researcher">
 {"type":"idle_notification","completedTaskId":"task-1","completedStatus":"completed","summary":"等待新任务"}
 </teammate-message>`,
-      `<teammate-message teammate_id="researcher">
+        `<teammate-message teammate_id="researcher">
 {"type":"task_completed","taskId":"task-2","taskSubject":"收口 peer message"}
 </teammate-message>`,
-    ].join("\n"));
+      ].join("\n"),
+    );
 
     expect(
-      approvedContainer.querySelector('[data-testid="runtime-peer-message-cards"]'),
+      approvedContainer.querySelector(
+        '[data-testid="runtime-peer-message-cards"]',
+      ),
     ).toBeNull();
     expect(approvedContainer.textContent).toBe("");
     expect(mixedContainer.textContent).toContain("任务完成");

@@ -54,6 +54,21 @@ describe("browserAssistIntent", () => {
     ).toBe(false);
   });
 
+  it("把 Browser Assist 当回归项描述时不应触发浏览器协助", () => {
+    const prompt =
+      "请生成 Browser Assist 禁用回归、DevBridge 超时策略和发布门禁。";
+
+    expect(hasBrowserAssistIntent(prompt)).toBe(false);
+    expect(shouldAutoOpenBrowserAssistForPrompt(prompt)).toBe(false);
+  });
+
+  it("否定打开浏览器协助时不应触发预热", () => {
+    const prompt = "不打开浏览器协助，只在对话内输出修复方案。";
+
+    expect(hasBrowserAssistIntent(prompt)).toBe(false);
+    expect(shouldAutoOpenBrowserAssistForPrompt(prompt)).toBe(false);
+  });
+
   it("只有链接总结诉求但没有浏览器意图时不应自动占用浏览器画布", () => {
     expect(
       shouldAutoOpenBrowserAssistForPrompt(

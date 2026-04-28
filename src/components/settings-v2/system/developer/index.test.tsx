@@ -321,27 +321,6 @@ function getBodyText() {
   return document.body.textContent ?? "";
 }
 
-async function hoverTip(ariaLabel: string) {
-  const trigger = document.body.querySelector(
-    `button[aria-label='${ariaLabel}']`,
-  );
-  expect(trigger).toBeInstanceOf(HTMLButtonElement);
-
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    await Promise.resolve();
-  });
-
-  return trigger as HTMLButtonElement;
-}
-
-async function leaveTip(trigger: HTMLButtonElement | null) {
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
-    await Promise.resolve();
-  });
-}
-
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -444,48 +423,46 @@ afterEach(() => {
 });
 
 describe("DeveloperSettings", () => {
-  it("应渲染新的开发者工作台与主要分区", async () => {
+  it("应渲染清理后的开发者页和必要分区", async () => {
     const container = renderComponent();
     await flushEffects();
 
     const text = container.textContent ?? "";
     expect(text).toContain("开发者");
-    expect(text).toContain("管理处理工作台、组件调试和诊断动作。");
-    expect(text).toContain("处理工作台调试信息");
+    expect(text).toContain("排查问题时打开，用完关回去。");
+    expect(text).toContain("调试开关");
+    expect(text).toContain("工作台调试信息");
     expect(text).toContain("服务型技能目录联调");
     expect(text).toContain("站点脚本目录联调");
     expect(text).toContain("正在准备站点脚本目录联调");
     expect(text).toContain("组件视图调试");
-    expect(text).toContain("崩溃诊断日志（开发协作）");
-    expect(text).toContain("诊断建议");
-    expect(text).toContain("动作清单");
+    expect(text).toContain("诊断日志");
+    expect(text).toContain("Workspace 自愈记录");
     expect(text).toContain("自愈记录卡片占位");
   });
 
-  it("应把开发页补充说明收进 tips", async () => {
+  it("应移除开发页冗余说明卡片和提示噪音", async () => {
     renderComponent();
     await flushEffects();
 
-    expect(getBodyText()).not.toContain(
+    const text = getBodyText();
+    expect(text).not.toContain("诊断建议");
+    expect(text).not.toContain("动作清单");
+    expect(text).not.toContain("首屏说明已收纳");
+    expect(text).not.toContain("页面结构问题");
+    expect(text).not.toContain("闪退或启动异常");
+    expect(text).not.toContain("自愈链路核对");
+    expect(text).not.toContain(
       "首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。",
     );
-    expect(getBodyText()).not.toContain(
-      "关闭时仍保留 Harness 入口，但不会继续读取工具库存或整理额外环境摘要。",
-    );
-
-    const heroTip = await hoverTip("开发者设置首屏说明");
-    expect(getBodyText()).toContain(
-      "首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。",
-    );
-    await leaveTip(heroTip);
-
-    const harnessTip = document.body.querySelector(
-      "button[aria-label='处理工作台调试信息说明']",
-    );
-    expect(harnessTip).toBeInstanceOf(HTMLButtonElement);
-    expect(getBodyText()).toContain(
-      "关闭时通用对话仍保留 Harness 入口，额外工具库存读取与调试信息收集会短路。",
-    );
+    expect(
+      document.body.querySelector("button[aria-label='开发者设置首屏说明']"),
+    ).toBeNull();
+    expect(
+      document.body.querySelector(
+        "button[aria-label='处理工作台调试信息说明']",
+      ),
+    ).toBeNull();
   });
 
   it("切换组件调试开关后应调用 setEnabled", async () => {

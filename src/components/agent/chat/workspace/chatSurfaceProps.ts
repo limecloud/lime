@@ -170,8 +170,6 @@ interface BuildWorkspaceEmptyStatePropsParams {
   >["onOpenSceneAppsDirectory"];
   projectId: string | null;
   sessionId?: string | null;
-  onProjectChange?: ComponentProps<typeof EmptyState>["onProjectChange"];
-  onOpenSettings?: ComponentProps<typeof EmptyState>["onOpenSettings"];
   runtimeToolAvailability?: ComponentProps<
     typeof EmptyState
   >["runtimeToolAvailability"];
@@ -243,8 +241,6 @@ export function buildWorkspaceEmptyStateProps({
   onOpenSceneAppsDirectory,
   projectId,
   sessionId,
-  onProjectChange,
-  onOpenSettings,
   runtimeToolAvailability,
   runtimeTaskCard,
   onOpenMemoryWorkbench,
@@ -317,8 +313,6 @@ export function buildWorkspaceEmptyStateProps({
     onOpenSceneAppsDirectory,
     projectId,
     sessionId,
-    onProjectChange,
-    onOpenSettings,
     runtimeToolAvailability,
     runtimeTaskCard,
     onOpenMemoryWorkbench,
@@ -352,6 +346,18 @@ interface BuildWorkspaceNavbarPropsParams {
   projectId: string | null;
   onProjectChange?: ComponentProps<typeof ChatNavbar>["onProjectChange"];
   workspaceType?: ComponentProps<typeof ChatNavbar>["workspaceType"];
+  deferWorkspaceListLoad?: ComponentProps<
+    typeof ChatNavbar
+  >["deferWorkspaceListLoad"];
+  workspaceHintMessage?: ComponentProps<
+    typeof ChatNavbar
+  >["workspaceHintMessage"];
+  workspaceHintVisible?: ComponentProps<
+    typeof ChatNavbar
+  >["workspaceHintVisible"];
+  onDismissWorkspaceHint?: ComponentProps<
+    typeof ChatNavbar
+  >["onDismissWorkspaceHint"];
   onBackHome?: ComponentProps<typeof ChatNavbar>["onBackHome"];
   showHarnessToggle: boolean;
   harnessPanelVisible: boolean;
@@ -390,6 +396,10 @@ export function buildWorkspaceNavbarProps({
   projectId,
   onProjectChange,
   workspaceType,
+  deferWorkspaceListLoad,
+  workspaceHintMessage,
+  workspaceHintVisible,
+  onDismissWorkspaceHint,
   onBackHome,
   showHarnessToggle,
   harnessPanelVisible,
@@ -425,6 +435,10 @@ export function buildWorkspaceNavbarProps({
     projectId,
     onProjectChange,
     workspaceType,
+    deferWorkspaceListLoad,
+    workspaceHintMessage,
+    workspaceHintVisible,
+    onDismissWorkspaceHint,
     onBackHome,
     showHarnessToggle,
     harnessPanelVisible,

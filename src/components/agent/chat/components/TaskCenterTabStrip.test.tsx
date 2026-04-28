@@ -81,8 +81,16 @@ describe("TaskCenterTabStrip", () => {
     ) as HTMLElement | null;
     expect(strip).toBeTruthy();
     expect(strip?.className).toContain("z-10");
-    expect(strip?.className).toContain("min-h-[34px]");
-    expect(strip?.style.backgroundColor).toBe("rgb(248, 252, 249)");
+    expect(strip?.className).toContain("min-h-[42px]");
+    expect(strip?.className).toContain(
+      "bg-[color:var(--lime-chrome-tab-active-surface)]",
+    );
+    expect(
+      strip?.style.getPropertyValue("--task-center-tab-strip-background"),
+    ).toContain("--lime-chrome-stage-blend");
+    expect(
+      strip?.style.getPropertyValue("--task-center-tab-strip-seam"),
+    ).toContain("--lime-chrome-stage-seam");
     expect(strip?.className).not.toContain("bg-[#fbfdfb]");
     expect(strip?.className).not.toContain("ml-[");
     expect(container.textContent).toContain("任务 A");
@@ -95,14 +103,17 @@ describe("TaskCenterTabStrip", () => {
       '[data-testid="task-center-tab-topic-a"]',
     ) as HTMLElement | null;
     expect(activeTab?.getAttribute("data-active")).toBe("true");
-    expect(activeTab?.style.backgroundColor).toBe("rgb(238, 243, 239)");
-    expect(activeTab?.className).toContain("border-slate-200/80");
+    expect(activeTab?.className).toContain(
+      "bg-[color:var(--lime-chrome-tab-hover)]",
+    );
+    expect(activeTab?.className).toContain(
+      "border-[color:var(--lime-chrome-divider)]",
+    );
     expect(
       container.querySelector('[data-testid="task-center-tab-unread-topic-a"]'),
     ).toBeTruthy();
     expect(
-      container
-        .querySelector('[data-testid="task-center-tab-close-topic-b"]')
+      container.querySelector('[data-testid="task-center-tab-close-topic-b"]')
         ?.className,
     ).toContain("group-hover:opacity-100");
   });
@@ -137,6 +148,32 @@ describe("TaskCenterTabStrip", () => {
 
     expect(onCloseTask).toHaveBeenCalledWith("topic-b");
     expect(onSelectTask).not.toHaveBeenCalled();
+  });
+
+  it("不可关闭标签不应渲染关闭按钮", () => {
+    const { container } = renderTabStrip({
+      items: [
+        {
+          id: "new-task-home",
+          title: "新对话",
+          status: "draft",
+          updatedAt: new Date("2026-04-24T10:00:00.000Z"),
+          isActive: true,
+          hasUnread: false,
+          isPinned: false,
+          closable: false,
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="task-center-tab-new-task-home"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="task-center-tab-close-new-task-home"]',
+      ),
+    ).toBeNull();
   });
 
   it("点击加号应触发新建对话回调", () => {

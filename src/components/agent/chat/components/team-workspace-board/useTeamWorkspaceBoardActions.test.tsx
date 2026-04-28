@@ -25,7 +25,8 @@ function renderHook(props?: Partial<HookProps>) {
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  let latestValue: ReturnType<typeof useTeamWorkspaceBoardActions> | null = null;
+  let latestValue: ReturnType<typeof useTeamWorkspaceBoardActions> | null =
+    null;
 
   const defaultProps: HookProps = {
     completedTeamSessionIds: [],
@@ -93,20 +94,28 @@ describe("useTeamWorkspaceBoardActions", () => {
     await harness.render();
 
     await act(async () => {
-      harness.getValue().handleSelectedSessionInputDraftChange("继续推进下一步");
+      harness
+        .getValue()
+        .handleSelectedSessionInputDraftChange("继续推进下一步");
       await Promise.resolve();
     });
 
     expect(harness.getValue().selectedSessionInputDraft).toBe("继续推进下一步");
-    expect(harness.getValue().selectedSessionInputMessage).toBe("继续推进下一步");
+    expect(harness.getValue().selectedSessionInputMessage).toBe(
+      "继续推进下一步",
+    );
 
     await act(async () => {
       await harness.getValue().handleSelectedSessionSendInput(false);
     });
 
-    expect(onSendSubagentInput).toHaveBeenCalledWith("child-1", "继续推进下一步", {
-      interrupt: false,
-    });
+    expect(onSendSubagentInput).toHaveBeenCalledWith(
+      "child-1",
+      "继续推进下一步",
+      {
+        interrupt: false,
+      },
+    );
     expect(harness.getValue().selectedSessionInputDraft).toBe("");
     expect(harness.getValue().selectedSessionInputMessage).toBe("");
     expect(harness.getValue().selectedActionPending).toBe(false);

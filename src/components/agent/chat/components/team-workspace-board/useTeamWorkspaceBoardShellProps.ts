@@ -13,29 +13,19 @@ import {
 import { useTeamWorkspaceBoardSelectedInlineDetail } from "./useTeamWorkspaceBoardSelectedInlineDetail";
 
 type TeamWorkspaceBoardCanvasRuntimeState = ReturnType<
-  (
-    typeof import("./useTeamWorkspaceBoardCanvasRuntime")
-  )["useTeamWorkspaceBoardCanvasRuntime"]
+  (typeof import("./useTeamWorkspaceBoardCanvasRuntime"))["useTeamWorkspaceBoardCanvasRuntime"]
 >;
 type TeamWorkspaceBoardFormationState = ReturnType<
-  (
-    typeof import("./useTeamWorkspaceBoardFormationState")
-  )["useTeamWorkspaceBoardFormationState"]
+  (typeof import("./useTeamWorkspaceBoardFormationState"))["useTeamWorkspaceBoardFormationState"]
 >;
 type TeamWorkspaceBoardPresentationState = ReturnType<
-  (
-    typeof import("./useTeamWorkspaceBoardPresentation")
-  )["useTeamWorkspaceBoardPresentation"]
+  (typeof import("./useTeamWorkspaceBoardPresentation"))["useTeamWorkspaceBoardPresentation"]
 >;
 type TeamWorkspaceBoardRuntimeState = ReturnType<
-  (
-    typeof import("./useTeamWorkspaceBoardRuntimeState")
-  )["useTeamWorkspaceBoardRuntimeState"]
+  (typeof import("./useTeamWorkspaceBoardRuntimeState"))["useTeamWorkspaceBoardRuntimeState"]
 >;
 type TeamWorkspaceBoardSessionGraphState = ReturnType<
-  (
-    typeof import("./useTeamWorkspaceBoardSessionGraph")
-  )["useTeamWorkspaceBoardSessionGraph"]
+  (typeof import("./useTeamWorkspaceBoardSessionGraph"))["useTeamWorkspaceBoardSessionGraph"]
 >;
 type TeamWorkspaceBoardEmptyShellProps = ReturnType<
   typeof buildTeamWorkspaceBoardEmptyShellProps
@@ -149,11 +139,8 @@ export function useTeamWorkspaceBoardShellProps({
     viewport: canvasViewport,
     zoom: canvasZoom,
   } = canvasRuntimeState;
-  const {
-    isChildSession,
-    isEmptyShellState,
-    totalTeamSessions,
-  } = sessionGraphState;
+  const { isChildSession, isEmptyShellState, totalTeamSessions } =
+    sessionGraphState;
   const hasRuntimeSessions = isChildSession || totalTeamSessions > 0;
 
   const selectedInlineDetail = useTeamWorkspaceBoardSelectedInlineDetail({

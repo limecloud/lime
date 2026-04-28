@@ -379,6 +379,9 @@ describe("ProjectSelector 组件", () => {
     });
 
     expect(container.textContent).toContain("选择工作区");
+    expect(
+      container.querySelector(".lucide-folder")?.getAttribute("class"),
+    ).toContain("h-4");
     expect(container.textContent).toContain("工作区管理");
     expect(findButton(container, "新建工作区")).not.toBeNull();
     expect(findButton(container, "新建项目")).toBeNull();

@@ -122,7 +122,9 @@ function resolveEnvelopeTone(
 function renderEnvelopeDetail(body: RuntimePeerMessageBody): React.ReactNode {
   switch (body.kind) {
     case "plain":
-      return body.markdown ? <MarkdownRenderer content={body.markdown} /> : null;
+      return body.markdown ? (
+        <MarkdownRenderer content={body.markdown} />
+      ) : null;
     case "shutdown_request":
       return body.reason ? (
         <div className="text-sm leading-6 text-slate-700 dark:text-slate-200">
@@ -259,7 +261,9 @@ function RuntimePeerMessageCard({
             <span>来自 {envelope.sender}</span>
             {envelope.summary ? <span>{envelope.summary}</span> : null}
           </div>
-          <div className="mt-3 min-w-0">{renderEnvelopeDetail(envelope.body)}</div>
+          <div className="mt-3 min-w-0">
+            {renderEnvelopeDetail(envelope.body)}
+          </div>
         </div>
       </div>
     </div>

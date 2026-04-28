@@ -42,11 +42,7 @@ const QuickActionsPanel = styled.section<{ $embedded: boolean }>`
     inset: 0 auto auto 1.1rem;
     width: 8rem;
     height: 1px;
-    background: linear-gradient(
-      90deg,
-      rgba(16, 185, 129, 0.55) 0%,
-      rgba(56, 189, 248, 0.24) 100%
-    );
+    background: var(--lime-home-dot-gradient);
     opacity: 0.55;
   }
 
@@ -88,7 +84,7 @@ const RecommendationCard = styled.div.attrs({
 
   &:hover {
     transform: translateY(-3px);
-    border-color: rgba(203, 213, 225, 0.98);
+    border-color: var(--lime-home-card-hover-border, #93c5fd);
     box-shadow: 0 16px 28px -22px rgba(15, 23, 42, 0.18);
   }
 
@@ -198,10 +194,13 @@ interface EmptyStateQuickActionsProps {
 }
 
 const STATUS_TONE_CLASSNAMES = {
-  slate: "border-slate-200 bg-slate-50 text-slate-600",
-  sky: "border-sky-200 bg-sky-50 text-sky-700",
-  emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  amber: "border-amber-200 bg-amber-50 text-amber-700",
+  slate:
+    "border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-soft)] text-[color:var(--lime-text-muted)]",
+  sky: "border-[color:var(--lime-info-border)] bg-[color:var(--lime-info-soft)] text-[color:var(--lime-info)]",
+  emerald:
+    "border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-brand-soft)] text-[color:var(--lime-brand-strong)]",
+  amber:
+    "border-[color:var(--lime-warning-border)] bg-[color:var(--lime-warning-soft)] text-[color:var(--lime-warning)]",
 } as const;
 
 export function EmptyStateQuickActions({
@@ -234,8 +233,10 @@ export function EmptyStateQuickActions({
     >
       <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
-          <p className="mt-1 text-xs leading-5 text-slate-500 md:text-sm">
+          <div className="text-sm font-semibold text-[color:var(--lime-text-strong)]">
+            {title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-[color:var(--lime-text-muted)] md:text-sm">
             {description}
           </p>
           {headerAddon ? <div className="mt-2.5">{headerAddon}</div> : null}
@@ -263,20 +264,20 @@ export function EmptyStateQuickActions({
       ) : null}
 
       {selectedTextPreview ? (
-        <div className="mt-2.5 rounded-2xl border border-sky-200/70 bg-sky-50/85 px-3.5 py-2.5 text-xs leading-5 text-slate-600">
+        <div className="mt-2.5 rounded-2xl border border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-brand-soft)] px-3.5 py-2.5 text-xs leading-5 text-[color:var(--lime-text-muted)]">
           已检测到当前选中内容，点击推荐动作时会自动携带上下文：
-          <span className="ml-1 font-medium text-slate-900">
+          <span className="ml-1 font-medium text-[color:var(--lime-text-strong)]">
             “{selectedTextPreview}”
           </span>
         </div>
       ) : null}
 
       {loading && items.length === 0 ? (
-        <div className="mt-3 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs leading-5 text-slate-500">
+        <div className="mt-3 rounded-2xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4 py-3 text-xs leading-5 text-[color:var(--lime-text-muted)]">
           正在加载推荐方案…
         </div>
       ) : items.length === 0 ? (
-        <div className="mt-3 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-xs leading-5 text-slate-500">
+        <div className="mt-3 rounded-2xl border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] px-4 py-3 text-xs leading-5 text-[color:var(--lime-text-muted)]">
           当前目录暂无可用项。
         </div>
       ) : (
@@ -301,19 +302,19 @@ export function EmptyStateQuickActions({
                 <span className={EMPTY_STATE_META_PILL_CLASSNAME}>
                   {item.badge}
                 </span>
-                <span className="text-[11px] font-medium text-slate-400 transition-colors group-hover:text-slate-500">
+                <span className="text-[11px] font-medium text-[color:var(--lime-text-muted)] transition-colors group-hover:text-[color:var(--lime-text)]">
                   {item.actionLabel || "立即开始"}
                 </span>
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-slate-900">
+                <div className="text-sm font-semibold text-[color:var(--lime-text-strong)]">
                   {item.title}
                 </div>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--lime-text-muted)]">
                   {item.description}
                 </p>
                 {item.outputHint ? (
-                  <p className="mt-2 text-[11px] leading-5 text-slate-400">
+                  <p className="mt-2 text-[11px] leading-5 text-[color:var(--lime-text-muted)]">
                     产出：{item.outputHint}
                   </p>
                 ) : null}
@@ -348,7 +349,7 @@ export function EmptyStateQuickActions({
                       </span>
                     )}
                     {item.secondaryStatusDescription ? (
-                      <span className="text-[11px] leading-5 text-slate-400">
+                      <span className="text-[11px] leading-5 text-[color:var(--lime-text-muted)]">
                         {item.secondaryStatusDescription}
                       </span>
                     ) : null}

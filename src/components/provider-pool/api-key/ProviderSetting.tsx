@@ -1,50 +1,42 @@
 /**
  * @file ProviderSetting 组件
- * @description Provider 设置面板组件，集成所有子组件，显示 Provider 头部信息和配置
+ * @description Provider 的简洁配置页，只保留密钥、模型优先级和连接测试。
  * @module components/provider-pool/api-key/ProviderSetting
- *
- * **Feature: provider-ui-refactor**
- * **Validates: Requirements 4.1, 6.3, 6.4**
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Bot, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  Eye,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Star,
+  X,
+} from "lucide-react";
 import { ProviderIcon } from "@/icons/providers";
-import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
-import { buildPersistedMediaGenerationPreference } from "@/lib/mediaGeneration";
-import { isImageProvider } from "@/lib/imageGeneration";
-import { ApiKeyList } from "./ApiKeyList";
 import {
-  ProviderConfigForm,
-  type ProviderConfigFormRef,
-} from "./ProviderConfigForm";
+  apiKeyProviderApi,
+  type ProviderWithKeysDisplay,
+  type UpdateProviderRequest,
+} from "@/lib/api/apiKeyProvider";
 import {
-  ConnectionTestButton,
-  ConnectionTestResult,
-} from "./ConnectionTestButton";
-import { ProviderModelList } from "./ProviderModelList";
-import { getProviderTypeLabel } from "./ProviderConfigForm.utils";
+  fetchProviderModelsAuto,
+  normalizeFetchProviderModelsSource,
+} from "@/lib/api/modelRegistry";
 import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
 import { getProviderPromptCacheMode } from "@/lib/model/providerPromptCacheSupport";
-import { SectionInfoButton } from "./SectionInfoButton";
-import type {
-  ChatTestResult,
-  ProviderWithKeysDisplay,
-  UpdateProviderRequest,
-} from "@/lib/api/apiKeyProvider";
+import { getProviderAccessHelp } from "@/lib/provider/providerAccessHelp";
+import { dedupeModelIds, getProviderTypeLabel } from "./providerConfigUtils";
+import type { ConnectionTestResult } from "./connectionTestTypes";
 
 // ============================================================================
 // 类型定义
@@ -61,20 +53,89 @@ export interface ProviderSettingProps {
     apiKey: string,
     alias?: string,
   ) => Promise<void>;
-  /** 删除 API Key 回调 */
-  onDeleteApiKey?: (keyId: string) => void;
-  /** 切换 API Key 启用状态回调 */
-  onToggleApiKey?: (keyId: string, enabled: boolean) => void;
   /** 测试连接回调 */
   onTestConnection?: (providerId: string) => Promise<ConnectionTestResult>;
-  /** 对话测试回调 */
-  onTestChat?: (providerId: string, prompt: string) => Promise<ChatTestResult>;
-  /** 删除自定义 Provider 回调 */
-  onDeleteProvider?: (providerId: string) => void;
   /** 是否正在加载 */
   loading?: boolean;
   /** 额外的 CSS 类名 */
   className?: string;
+}
+
+interface ProviderSettingBodyProps extends ProviderSettingProps {
+  provider: ProviderWithKeysDisplay;
+}
+
+type InlineStatusTone = "success" | "error" | "info";
+
+interface InlineStatus {
+  tone: InlineStatusTone;
+  message: string;
+}
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+function formatProviderHost(apiHost: string): string {
+  try {
+    const url = new URL(apiHost);
+    return `${url.host}${url.pathname === "/" ? "" : url.pathname}`;
+  } catch {
+    return apiHost;
+  }
+}
+
+function getFirstVisibleApiKey(provider: ProviderWithKeysDisplay): string {
+  const key =
+    provider.api_keys?.find((apiKey) => apiKey.enabled) ?? provider.api_keys?.[0];
+  return key?.api_key_masked ?? "";
+}
+
+function hasConfiguredApiKey(provider: ProviderWithKeysDisplay): boolean {
+  if (provider.api_keys && provider.api_keys.length > 0) {
+    return provider.api_keys.some((apiKey) => apiKey.enabled);
+  }
+
+  return provider.api_key_count > 0;
+}
+
+function parseModelDraft(value: string): string[] {
+  return dedupeModelIds(
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+}
+
+function buildStatusClass(tone: InlineStatusTone): string {
+  switch (tone) {
+    case "success":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "error":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    case "info":
+    default:
+      return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+}
+
+function getStatusIcon(tone: InlineStatusTone) {
+  if (tone === "success") {
+    return <CheckCircle2 className="h-4 w-4" />;
+  }
+  if (tone === "error") {
+    return <AlertCircle className="h-4 w-4" />;
+  }
+  return <Sparkles className="h-4 w-4" />;
+}
+
+function extractApiModelIds(models: Array<{ id?: string | null }>): string[] {
+  return dedupeModelIds(
+    models
+      .map((model) => model.id?.trim() ?? "")
+      .filter((modelId) => modelId.length > 0),
+  );
 }
 
 // ============================================================================
@@ -84,665 +145,646 @@ export interface ProviderSettingProps {
 /**
  * Provider 设置面板组件
  *
- * 显示选中 Provider 的完整配置界面，包括：
- * - Provider 头部信息（图标、名称、启用开关）
- * - API Key 列表
- * - Provider 配置表单
- * - 连接测试按钮
- *
- * @example
- * ```tsx
- * <ProviderSetting
- *   provider={selectedProvider}
- *   onUpdate={updateProvider}
- *   onAddApiKey={addApiKey}
- *   onDeleteApiKey={deleteApiKey}
- *   onToggleApiKey={toggleApiKey}
- *   onTestConnection={testConnection}
- * />
- * ```
+ * 只保留最常用路径：API Key、模型优先级、接口获取模型、手动添加模型、测试连接。
  */
-export const ProviderSetting: React.FC<ProviderSettingProps> = ({
-  provider,
-  onUpdate,
-  onAddApiKey,
-  onDeleteApiKey,
-  onToggleApiKey,
-  onTestConnection,
-  onTestChat,
-  onDeleteProvider,
-  loading = false,
-  className,
-}) => {
-  const providerConfigFormRef = useRef<ProviderConfigFormRef>(null);
-  const [chatDialogOpen, setChatDialogOpen] = useState(false);
-  const [chatPrompt, setChatPrompt] = useState("hello");
-  const [chatTesting, setChatTesting] = useState(false);
-  const [chatResult, setChatResult] = useState<ChatTestResult | null>(null);
-  const [draftCustomModels, setDraftCustomModels] = useState<string[]>(
-    provider?.custom_models ?? [],
-  );
-  const [currentConfig, setCurrentConfig] = useState<Config | null>(null);
-  const [imageDefaultSaving, setImageDefaultSaving] = useState(false);
-  const [imageDefaultError, setImageDefaultError] = useState<string | null>(
-    null,
-  );
-  const [recommendedLatestModelId, setRecommendedLatestModelId] = useState<
-    string | null
-  >(null);
-  const enabledApiKeyCount =
-    provider?.api_keys?.filter((apiKey) => apiKey.enabled).length ?? 0;
-  const providerId = provider?.id ?? null;
-
-  useEffect(() => {
-    setDraftCustomModels(provider?.custom_models ?? []);
-    setRecommendedLatestModelId(null);
-  }, [provider?.id, provider?.custom_models]);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!providerId) {
-      setCurrentConfig(null);
-      setImageDefaultError(null);
-      return () => {
-        active = false;
-      };
-    }
-
-    void (async () => {
-      try {
-        const config = await getConfig({ forceRefresh: true });
-        if (!active) {
-          return;
-        }
-        setCurrentConfig(config);
-        setImageDefaultError(null);
-      } catch (error) {
-        if (!active) {
-          return;
-        }
-        setCurrentConfig(null);
-        setImageDefaultError(
-          error instanceof Error ? error.message : "读取图片服务默认配置失败",
-        );
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [providerId]);
-
-  const handleModelsChange = useCallback((models: string[]) => {
-    setDraftCustomModels(models);
-  }, []);
-
-  const handleRecommendedLatestModelChange = useCallback(
-    (modelId: string | null) => {
-      setRecommendedLatestModelId(modelId);
-    },
-    [],
-  );
-
-  const handleSelectDefaultModel = useCallback((modelId: string) => {
-    providerConfigFormRef.current?.setDefaultModel(modelId);
-  }, []);
-
-  useEffect(() => {
-    if (draftCustomModels.length > 0 || !recommendedLatestModelId) {
-      return;
-    }
-
-    providerConfigFormRef.current?.setDefaultModel(recommendedLatestModelId);
-  }, [draftCustomModels.length, recommendedLatestModelId]);
-
-  const handleChatTest = async () => {
-    if (!onTestChat || chatTesting || !provider) return;
-    setChatTesting(true);
-    setChatResult(null);
-    try {
-      const res = await onTestChat(provider.id, chatPrompt);
-      setChatResult(res);
-    } catch (e) {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : typeof e === "string"
-            ? e
-            : JSON.stringify(e);
-      setChatResult({
-        success: false,
-        error: msg || "对话测试失败",
-      });
-    } finally {
-      setChatTesting(false);
-    }
-  };
-
-  // 空状态
-  if (!provider) {
+export const ProviderSetting: React.FC<ProviderSettingProps> = (props) => {
+  if (!props.provider) {
     return (
       <div
         className={cn(
-          "flex h-full items-center justify-center bg-slate-50/60 px-6",
-          className,
+          "flex h-full items-center justify-center bg-slate-50 px-6",
+          props.className,
         )}
         data-testid="provider-setting-empty"
       >
-        <div className="w-full max-w-2xl rounded-[28px] border border-slate-200/80 bg-white p-8 shadow-sm shadow-slate-950/5">
+        <div className="w-full max-w-[720px] rounded-[28px] border border-slate-200/80 bg-white p-8 shadow-sm shadow-slate-950/5">
           <div className="flex items-center gap-3 text-slate-900">
             <Sparkles className="h-5 w-5" />
-            <p className="text-lg font-semibold">服务商配置工作台</p>
+            <p className="text-lg font-semibold">选择或添加模型</p>
           </div>
           <p className="mt-3 text-sm leading-6 text-slate-500">
-            选择一个服务商后，这里只保留模型、密钥和必要配置，不再铺满整页说明。
+            左侧选择一个已启用模型后，这里只展示密钥、模型优先级和测试连接。
           </p>
         </div>
       </div>
     );
   }
 
-  const providerHostLabel = (() => {
-    try {
-      const url = new URL(provider.api_host);
-      return `${url.host}${url.pathname === "/" ? "" : url.pathname}`;
-    } catch {
-      return provider.api_host;
-    }
-  })();
+  return <ProviderSettingBody {...props} provider={props.provider} />;
+};
+
+const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
+  provider,
+  onUpdate,
+  onAddApiKey,
+  onTestConnection,
+  loading = false,
+  className,
+}) => {
+  const [modelList, setModelList] = useState<string[]>(
+    provider?.custom_models ?? [],
+  );
+  const [modelDraft, setModelDraft] = useState("");
+  const [apiModelIds, setApiModelIds] = useState<string[]>([]);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [modelFetchStatus, setModelFetchStatus] =
+    useState<InlineStatus | null>(null);
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [apiKeyDirty, setApiKeyDirty] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] =
+    useState<InlineStatus | null>(null);
+
+  useEffect(() => {
+    setModelList(provider?.custom_models ?? []);
+    setModelDraft("");
+    setApiModelIds([]);
+    setModelFetchStatus(null);
+    setConnectionStatus(null);
+    setApiKeyDraft("");
+    setApiKeyDirty(false);
+    setShowApiKey(false);
+  }, [provider?.id, provider?.custom_models]);
+
+  const providerHostLabel = formatProviderHost(provider.api_host);
+  const apiKeyMask = getFirstVisibleApiKey(provider);
+  const hasApiKey = hasConfiguredApiKey(provider);
+  const accessHelp = getProviderAccessHelp({
+    providerId: provider.id,
+    providerName: provider.name,
+    apiHost: provider.api_host,
+  });
   const modelAutoFetchCapability = getProviderModelAutoFetchCapability({
     providerId: provider.id,
     providerType: provider.type,
     apiHost: provider.api_host,
   });
-  const requiresLiveModelTruth =
-    modelAutoFetchCapability.requiresLiveModelTruth;
-  const hasRequiredApiAccess =
-    !modelAutoFetchCapability.requiresApiKey || enabledApiKeyCount > 0;
-  const usesAnthropicProtocol = ["anthropic", "anthropic-compatible"].includes(
-    (provider.type || "").trim().toLowerCase(),
+  const apiKeyRequired = modelAutoFetchCapability.requiresApiKey;
+  const canUseDraftApiKey = apiKeyDirty && apiKeyDraft.trim().length > 0;
+  const canReadModelsFromApi =
+    modelAutoFetchCapability.supported &&
+    (!apiKeyRequired || hasApiKey || canUseDraftApiKey);
+  const apiKeyInputValue = apiKeyDirty ? apiKeyDraft : apiKeyMask;
+  const primaryModel = modelList[0] ?? null;
+  const normalizedModelSet = useMemo(
+    () => new Set(modelList.map((model) => model.toLowerCase())),
+    [modelList],
   );
-  const savedDefaultModelId =
-    draftCustomModels.find((model) => model.trim().length > 0)?.trim() ?? null;
-  const hasResolvedLiveModelDirectory =
-    !requiresLiveModelTruth || Boolean(recommendedLatestModelId);
-  const canTestWithSavedDefaultModel =
-    requiresLiveModelTruth &&
-    usesAnthropicProtocol &&
-    Boolean(savedDefaultModelId);
-  const showVerifiedModelState =
-    !requiresLiveModelTruth ||
-    hasResolvedLiveModelDirectory ||
-    canTestWithSavedDefaultModel;
-  const defaultModel = showVerifiedModelState
-    ? (savedDefaultModelId ?? recommendedLatestModelId ?? null)
-    : null;
-  const connectionReady =
-    provider.enabled &&
-    hasRequiredApiAccess &&
-    (hasResolvedLiveModelDirectory || canTestWithSavedDefaultModel);
-  const connectionBlockHint = !provider.enabled
-    ? "请先启用当前 Provider，再进行连通性验证。"
-    : !hasRequiredApiAccess
-      ? "先添加并启用至少一把 API Key，再进行连通性验证。"
-      : !hasResolvedLiveModelDirectory && !canTestWithSavedDefaultModel
-        ? "先读取真实模型目录，再进行连接测试与默认模型验证。"
-        : null;
-  const modelStatusNotice = !hasRequiredApiAccess
-    ? "先添加并启用 API Key，才能读取真实模型目录。"
-    : !hasResolvedLiveModelDirectory && canTestWithSavedDefaultModel
-      ? "已保存默认模型，可先用于连接验证；读取真实模型目录后，页面会继续校正推荐模型。"
-      : !hasResolvedLiveModelDirectory
-      ? "读取真实模型目录前，不展示旧模型，避免把历史缓存误认为当前可用模型。"
-      : null;
-  const supportsImageGeneration =
-    isImageProvider(provider.id, provider.type, draftCustomModels) ||
-    isImageProvider(provider.id, provider.type, provider.custom_models);
-  const currentImagePreference =
-    currentConfig?.workspace_preferences?.media_defaults?.image;
-  const currentImageDefaultProviderId =
-    currentImagePreference?.preferredProviderId?.trim() || "";
-  const currentProviderOwnsImageDefault =
-    currentImageDefaultProviderId.toLowerCase() === provider.id.toLowerCase();
-  const imageDefaultDisplayModel = savedDefaultModelId ?? recommendedLatestModelId;
+  const suggestedApiModels = useMemo(
+    () =>
+      apiModelIds
+        .filter((modelId) => !normalizedModelSet.has(modelId.toLowerCase()))
+        .slice(0, 8),
+    [apiModelIds, normalizedModelSet],
+  );
   const showExplicitPromptCacheBadge =
     getProviderPromptCacheMode(
       provider.type,
       provider.prompt_cache_mode,
       provider.api_host,
     ) === "explicit_only";
+  const canTestConnection =
+    !loading &&
+    !testingConnection &&
+    modelList.length > 0 &&
+    (!apiKeyRequired || hasApiKey || canUseDraftApiKey);
 
-  // 处理启用/禁用切换
-  const handleToggleEnabled = async (enabled: boolean) => {
-    if (onUpdate) {
-      await onUpdate(provider.id, { enabled });
+  const persistDraftApiKey = useCallback(async () => {
+    const nextApiKey = apiKeyDraft.trim();
+    if (!apiKeyDirty || !nextApiKey) {
+      return;
     }
-  };
 
-  const handleSetAsDefaultImageProvider = async () => {
-    setImageDefaultSaving(true);
-    setImageDefaultError(null);
+    if (!onAddApiKey) {
+      throw new Error("当前页面缺少添加 API Key 的能力。");
+    }
+
+    await onAddApiKey(provider.id, nextApiKey);
+    setApiKeyDraft("");
+    setApiKeyDirty(false);
+  }, [apiKeyDirty, apiKeyDraft, onAddApiKey, provider.id]);
+
+  const applyModels = useCallback(
+    async (nextModels: string[]) => {
+      const dedupedModels = dedupeModelIds(nextModels);
+      setModelList(dedupedModels);
+      setConnectionStatus(null);
+
+      if (onUpdate) {
+        await onUpdate(provider.id, { custom_models: dedupedModels });
+      }
+    },
+    [onUpdate, provider.id],
+  );
+
+  const addModels = useCallback(
+    async (models: string[]) => {
+      const nextModels = dedupeModelIds([...modelList, ...models]);
+      await applyModels(nextModels);
+    },
+    [applyModels, modelList],
+  );
+
+  const handleAddModelDraft = useCallback(async () => {
+    const nextModels = parseModelDraft(modelDraft);
+    if (nextModels.length === 0) {
+      return;
+    }
+
+    await addModels(nextModels);
+    setModelDraft("");
+  }, [addModels, modelDraft]);
+
+  const handleRemoveModel = useCallback(
+    async (modelId: string) => {
+      await applyModels(
+        modelList.filter(
+          (currentModel) =>
+            currentModel.toLowerCase() !== modelId.toLowerCase(),
+        ),
+      );
+    },
+    [applyModels, modelList],
+  );
+
+  const handleSetMainModel = useCallback(
+    async (modelId: string) => {
+      await applyModels([
+        modelId,
+        ...modelList.filter(
+          (currentModel) =>
+            currentModel.toLowerCase() !== modelId.toLowerCase(),
+        ),
+      ]);
+    },
+    [applyModels, modelList],
+  );
+
+  const handleFetchModelsFromApi = useCallback(async () => {
+    if (!modelAutoFetchCapability.supported) {
+      setModelFetchStatus({
+        tone: "info",
+        message:
+          modelAutoFetchCapability.unsupportedReason ??
+          "当前协议不支持接口获取模型，请手动添加模型 ID。",
+      });
+      return;
+    }
+
+    if (!canReadModelsFromApi) {
+      setModelFetchStatus({
+        tone: "error",
+        message: "请先填写并保存 API 密钥，再从接口获取模型。",
+      });
+      return;
+    }
+
+    setFetchingModels(true);
+    setModelFetchStatus(null);
 
     try {
-      const latestConfig = await getConfig({ forceRefresh: true });
-      const currentImageConfig =
-        latestConfig.workspace_preferences?.media_defaults?.image;
-      const nextImagePreference = buildPersistedMediaGenerationPreference({
-        preferredProviderId: provider.id,
-        preferredModelId: imageDefaultDisplayModel ?? undefined,
-        allowFallback: currentImageConfig?.allowFallback ?? true,
-      });
-      const nextConfig: Config = {
-        ...latestConfig,
-        workspace_preferences: {
-          ...latestConfig.workspace_preferences,
-          media_defaults: {
-            ...latestConfig.workspace_preferences?.media_defaults,
-            image: nextImagePreference,
-          },
-        },
-      };
+      await persistDraftApiKey();
+      const result = await fetchProviderModelsAuto(provider.id);
+      const source = normalizeFetchProviderModelsSource(result);
+      const fetchedModelIds = extractApiModelIds(result.models ?? []);
 
-      await saveConfig(nextConfig);
-      setCurrentConfig(nextConfig);
+      if (source !== "Api") {
+        setApiModelIds([]);
+        setModelFetchStatus({
+          tone: "info",
+          message:
+            "接口没有返回模型列表，已忽略本地目录或兜底结果。请手动添加模型 ID。",
+        });
+        return;
+      }
+
+      if (fetchedModelIds.length === 0) {
+        setApiModelIds([]);
+        setModelFetchStatus({
+          tone: "info",
+          message: "接口已响应，但没有返回可添加的模型 ID。请手动添加模型。",
+        });
+        return;
+      }
+
+      setApiModelIds(fetchedModelIds);
+      setModelFetchStatus({
+        tone: "success",
+        message: `接口返回 ${fetchedModelIds.length} 个模型，点击下方模型即可加入优先级。`,
+      });
     } catch (error) {
-      setImageDefaultError(
-        error instanceof Error ? error.message : "写入默认图片服务失败",
-      );
+      setModelFetchStatus({
+        tone: "error",
+        message: error instanceof Error ? error.message : "接口获取模型失败",
+      });
     } finally {
-      setImageDefaultSaving(false);
+      setFetchingModels(false);
     }
-  };
+  }, [
+    canReadModelsFromApi,
+    modelAutoFetchCapability.supported,
+    modelAutoFetchCapability.unsupportedReason,
+    persistDraftApiKey,
+    provider.id,
+  ]);
+
+  const handleTestConnection = useCallback(async () => {
+    if (modelList.length === 0) {
+      setConnectionStatus({
+        tone: "error",
+        message: "请先添加至少一个模型，再测试连接。",
+      });
+      return;
+    }
+
+    if (apiKeyRequired && !hasApiKey && !canUseDraftApiKey) {
+      setConnectionStatus({
+        tone: "error",
+        message: "请先填写 API 密钥，再测试连接。",
+      });
+      return;
+    }
+
+    setTestingConnection(true);
+    setConnectionStatus(null);
+
+    try {
+      await persistDraftApiKey();
+      const result = onTestConnection
+        ? await onTestConnection(provider.id)
+        : await apiKeyProviderApi
+            .testConnection(provider.id, primaryModel ?? undefined)
+            .then((response) => ({
+              success: response.success,
+              latencyMs: response.latency_ms,
+              error: response.error,
+              models: response.models,
+            }));
+
+      if (result.success) {
+        setConnectionStatus({
+          tone: "success",
+          message:
+            result.latencyMs !== undefined
+              ? `连接成功 · ${result.latencyMs}ms`
+              : "连接成功",
+        });
+      } else {
+        setConnectionStatus({
+          tone: "error",
+          message: result.error || "连接测试未通过，请检查密钥或模型 ID。",
+        });
+      }
+    } catch (error) {
+      setConnectionStatus({
+        tone: "error",
+        message: error instanceof Error ? error.message : "连接测试失败",
+      });
+    } finally {
+      setTestingConnection(false);
+    }
+  }, [
+    apiKeyRequired,
+    canUseDraftApiKey,
+    hasApiKey,
+    modelList.length,
+    onTestConnection,
+    persistDraftApiKey,
+    primaryModel,
+    provider.id,
+  ]);
 
   return (
     <div
-      className={cn("flex h-full flex-col", className)}
+      className={cn("flex h-full flex-col bg-slate-50", className)}
       data-testid="provider-setting"
       data-provider-id={provider.id}
     >
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 p-4 lg:p-6">
-          <section
-            className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-5 shadow-sm shadow-slate-950/5"
-            data-testid="provider-header"
-          >
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 items-center gap-4">
-                <ProviderIcon
-                  providerType={provider.id}
-                  fallbackText={provider.name}
-                  size={52}
-                  className="flex-shrink-0"
-                  data-testid="provider-icon"
-                />
-
-                <div className="min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3
-                      className="min-w-0 truncate text-2xl font-semibold tracking-tight text-slate-900"
-                      data-testid="provider-name"
-                    >
-                      {provider.name}
-                    </h3>
-                    <Badge
-                      variant="outline"
-                      className="border-slate-200 bg-slate-50 text-slate-600"
-                    >
-                      {provider.is_system ? "系统预设" : "自定义 Provider"}
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "border",
-                        provider.enabled
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-slate-200 bg-slate-50 text-slate-500",
-                      )}
-                    >
-                      {provider.enabled ? "运行中" : "已停用"}
-                    </Badge>
-                    {showExplicitPromptCacheBadge ? (
-                      <Badge
-                        variant="outline"
-                        className="border-amber-200 bg-amber-50 text-amber-700"
-                        data-testid="provider-prompt-cache-badge"
-                      >
-                        显式缓存
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <div
-                    className="flex flex-wrap items-center gap-2 text-sm text-slate-500"
-                    data-testid="provider-type"
+      <div className="flex-1 overflow-y-auto px-4 py-5 lg:px-6">
+        <section
+          className="mx-auto w-full max-w-[820px] rounded-[30px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 lg:p-6"
+          data-testid="provider-simple-card"
+        >
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <ProviderIcon
+                providerType={provider.id}
+                fallbackText={provider.name}
+                size={48}
+                className="flex-shrink-0"
+                data-testid="provider-icon"
+              />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3
+                    className="min-w-0 truncate text-xl font-semibold tracking-tight text-slate-900"
+                    data-testid="provider-name"
                   >
-                    <span>{getProviderTypeLabel(provider.type)}</span>
-                    <span className="text-slate-300">/</span>
-                    <span className="break-all">{providerHostLabel}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <Badge
-                  variant="outline"
-                  className="border-slate-200 bg-slate-50 text-slate-600"
-                >
-                  密钥 {enabledApiKeyCount}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="max-w-[240px] truncate border-slate-200 bg-slate-50 text-slate-600"
-                >
-                  默认
-                  {defaultModel ??
-                    (requiresLiveModelTruth ? "模型待同步" : "未设置")}
-                </Badge>
-                <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-4 py-2">
-                  <span className="text-sm text-slate-600">
-                    {provider.enabled ? "已启用" : "已停用"}
-                  </span>
-                  <Switch
-                    checked={provider.enabled}
-                    onCheckedChange={handleToggleEnabled}
-                    disabled={loading}
-                    data-testid="provider-enabled-switch"
-                  />
-                </div>
-
-                {!provider.is_system && onDeleteProvider && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDeleteProvider(provider.id)}
-                    disabled={loading}
-                    className="border-red-200 bg-white text-red-600 hover:bg-red-50 hover:text-red-700"
-                    title="删除此 Provider"
-                    data-testid="delete-provider-button"
-                  >
-                    <Trash2 className="mr-1.5 h-4 w-4" />
-                    删除 Provider
-                  </Button>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <div
-            className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,340px)]"
-            data-testid="provider-setting-workbench-grid"
-          >
-            <section
-              className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
-              data-testid="supported-models-section"
-            >
-              <div
-                className="mb-4 flex flex-wrap items-start justify-between gap-3"
-                data-testid="supported-models-header"
-              >
-                <div className="flex min-w-0 items-center gap-2 text-slate-900">
-                  <Bot className="h-4 w-4" />
-                  <h4 className="text-base font-semibold">模型设置</h4>
-                  <SectionInfoButton
-                    label="查看模型设置说明"
-                    triggerTestId="provider-models-info-button"
-                  >
-                    <p>
-                      模型区只展示当前真实可用的目录。支持自动拉取的渠道会优先读取最新模型；读取失败前不会继续展示旧模型。
-                    </p>
-                  </SectionInfoButton>
-                </div>
-                <div className="flex flex-wrap gap-2">
+                    {provider.name}
+                  </h3>
                   <Badge
                     variant="outline"
                     className="border-slate-200 bg-slate-50 text-slate-600"
                   >
-                    默认：
-                    {defaultModel ??
-                      (requiresLiveModelTruth ? "待读取" : "未设置")}
+                    {getProviderTypeLabel(provider.type)}
                   </Badge>
-                  {showVerifiedModelState && recommendedLatestModelId ? (
+                  {showExplicitPromptCacheBadge ? (
                     <Badge
                       variant="outline"
-                      className="border-sky-200 bg-sky-50 text-sky-700"
+                      className="border-amber-200 bg-amber-50 text-amber-700"
+                      data-testid="provider-prompt-cache-badge"
                     >
-                      推荐最新：{recommendedLatestModelId}
+                      显式缓存
                     </Badge>
                   ) : null}
                 </div>
+                <p className="mt-1 break-all text-sm text-slate-500">
+                  {providerHostLabel}
+                </p>
               </div>
+            </div>
 
-              {modelStatusNotice ? (
-                <div className="mb-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  {modelStatusNotice}
-                </div>
-              ) : null}
-
-              {supportsImageGeneration ? (
-                <div
-                  className="mb-4 rounded-[20px] border border-slate-200/80 bg-slate-50/80 px-4 py-4"
-                  data-testid="provider-image-default-card"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-slate-900">
-                        `@配图` 默认图片服务
-                      </p>
-                      <p
-                        className="text-xs leading-5 text-slate-500"
-                        data-testid="provider-image-default-summary"
-                      >
-                        {currentProviderOwnsImageDefault
-                          ? "当前 Provider 已接管 `@配图` 与图片工作台默认出图。"
-                          : `当前默认仍是 ${currentImageDefaultProviderId || "自动匹配"}，如需让 \`@配图\` 立即走当前图片链，请把这个 Provider 设为默认图片服务。`}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant={
-                        currentProviderOwnsImageDefault
-                          ? "secondary"
-                          : "outline"
-                      }
-                      size="sm"
-                      onClick={() => {
-                        void handleSetAsDefaultImageProvider();
-                      }}
-                      disabled={imageDefaultSaving || currentProviderOwnsImageDefault}
-                      data-testid="provider-set-default-image-button"
-                    >
-                      {currentProviderOwnsImageDefault
-                        ? "已是默认图片服务"
-                        : imageDefaultSaving
-                          ? "写入中..."
-                          : "设为默认图片服务"}
-                    </Button>
-                  </div>
-                  {imageDefaultDisplayModel ? (
-                    <p className="mt-2 text-xs text-slate-500">
-                      写入时会同步默认模型：{imageDefaultDisplayModel}
-                    </p>
-                  ) : null}
-                  {imageDefaultError ? (
-                    <p className="mt-2 text-xs text-rose-600">
-                      {imageDefaultError}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <ProviderModelList
-                  providerId={provider.id}
-                  providerType={provider.type}
-                  selectedModelId={draftCustomModels[0] ?? null}
-                  latestModelId={recommendedLatestModelId}
-                  onSelectModel={handleSelectDefaultModel}
-                  onLatestModelResolved={handleRecommendedLatestModelChange}
-                  hasApiKey={enabledApiKeyCount > 0}
-                  apiHost={provider.api_host}
-                />
-              </div>
-            </section>
-
-            <div className="space-y-5">
-              <section data-testid="api-key-section">
-                <ApiKeyList
-                  key={`${provider.id}-${provider.api_keys?.length || 0}`}
-                  apiKeys={provider.api_keys || []}
-                  providerId={provider.id}
-                  providerName={provider.name}
-                  apiHost={provider.api_host}
-                  onAdd={onAddApiKey}
-                  onToggle={onToggleApiKey}
-                  onDelete={onDeleteApiKey}
-                  loading={loading}
-                />
-              </section>
-
-              <section data-testid="config-section">
-                <ProviderConfigForm
-                  ref={providerConfigFormRef}
-                  provider={provider}
-                  onUpdate={onUpdate}
-                  onModelsChange={handleModelsChange}
-                  onRecommendedLatestModelChange={
-                    handleRecommendedLatestModelChange
-                  }
-                  loading={loading}
-                />
-              </section>
-
-              <section
-                className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5"
-                data-testid="connection-test-section"
+            {accessHelp.url ? (
+              <a
+                href={accessHelp.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                data-testid="provider-api-key-link"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-slate-900">
-                    <ShieldCheck className="h-4 w-4" />
-                    <h4 className="text-base font-semibold">连接验证</h4>
-                    <SectionInfoButton
-                      label="查看连接验证说明"
-                      triggerTestId="provider-connection-info-button"
-                    >
-                      <p>
-                        连接验证会用当前默认模型检查鉴权、路由和最小对话是否可用。未启用
-                        Provider、缺少可用 Key
-                        或模型目录尚未同步时不会放行测试。
-                      </p>
-                    </SectionInfoButton>
+                去获取 API 密钥
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ) : null}
+          </header>
+
+          <div className="mt-6 space-y-6">
+            <div className="space-y-2" data-testid="api-key-section">
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="provider-api-key" className="text-sm text-slate-600">
+                  API 密钥{apiKeyRequired ? "" : "（可选）"}
+                </Label>
+                {hasApiKey ? (
+                  <span className="text-xs text-emerald-600">已配置</span>
+                ) : null}
+              </div>
+              <div className="relative">
+                <Input
+                  id="provider-api-key"
+                  type={showApiKey ? "text" : "password"}
+                  value={apiKeyInputValue}
+                  onFocus={() => {
+                    if (!apiKeyDirty && apiKeyMask) {
+                      setApiKeyDraft("");
+                      setApiKeyDirty(true);
+                    }
+                  }}
+                  onChange={(event) => {
+                    setApiKeyDirty(true);
+                    setApiKeyDraft(event.target.value);
+                  }}
+                  placeholder={
+                    apiKeyRequired ? "输入 API 密钥" : "本地服务可留空"
+                  }
+                  className="h-12 rounded-[18px] border-slate-200 bg-white px-4 pr-11"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  disabled={loading || testingConnection || fetchingModels}
+                  data-testid="provider-api-key-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey((previous) => !previous)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                  aria-label="显示或隐藏 API 密钥"
+                  data-testid="provider-api-key-eye-button"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+              </div>
+              {accessHelp.keylessHint ? (
+                <p className="text-xs leading-5 text-slate-500">
+                  {accessHelp.keylessHint}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-3" data-testid="model-priority-section">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <Label className="text-sm text-slate-600">模型优先级</Label>
+                  <p className="mt-1 text-xs text-slate-500">
+                    只使用接口返回或你手动添加的模型，不再显示本地兜底模型。
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-full border-slate-200 bg-white"
+                  onClick={() => {
+                    void handleFetchModelsFromApi();
+                  }}
+                  disabled={loading || fetchingModels || !canReadModelsFromApi}
+                  data-testid="fetch-models-button"
+                >
+                  {fetchingModels ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  从接口获取
+                </Button>
+              </div>
+
+              {!modelAutoFetchCapability.supported &&
+              modelAutoFetchCapability.unsupportedReason ? (
+                <p className="rounded-[16px] border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                  {modelAutoFetchCapability.unsupportedReason}
+                </p>
+              ) : null}
+
+              {modelFetchStatus ? (
+                <div
+                  className={cn(
+                    "flex items-start gap-2 rounded-[16px] border px-3 py-2 text-sm",
+                    buildStatusClass(modelFetchStatus.tone),
+                  )}
+                  data-testid="model-fetch-status"
+                >
+                  {getStatusIcon(modelFetchStatus.tone)}
+                  <span className="leading-5">{modelFetchStatus.message}</span>
+                </div>
+              ) : null}
+
+              {suggestedApiModels.length > 0 ? (
+                <div
+                  className="rounded-[18px] border border-slate-200/80 bg-slate-50 p-3"
+                  data-testid="api-model-suggestions"
+                >
+                  <div className="mb-2 text-xs font-medium text-slate-500">
+                    接口模型（点击添加）
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "border",
-                      connectionReady
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-slate-200 bg-slate-50 text-slate-500",
-                    )}
-                  >
-                    {connectionReady ? "可测试" : "待就绪"}
-                  </Badge>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedApiModels.map((modelId) => (
+                      <button
+                        key={modelId}
+                        type="button"
+                        onClick={() => {
+                          void addModels([modelId]);
+                        }}
+                        className="max-w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                        data-testid="api-model-suggestion"
+                      >
+                        <span className="block max-w-[220px] truncate normal-case">
+                          {modelId}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              ) : null}
 
-                <div className="mt-4 rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  默认模型：
-                  <span className="ml-1 font-semibold text-slate-900">
-                    {defaultModel ??
-                      (requiresLiveModelTruth ? "待读取真实目录" : "未设置")}
-                  </span>
-                </div>
+              <div
+                className="rounded-[22px] bg-slate-100 p-3"
+                data-testid="model-priority-list"
+              >
+                <input
+                  id="custom-models"
+                  type="hidden"
+                  value={modelList.join(", ")}
+                  readOnly
+                />
 
-                <div className="mt-4 flex flex-col gap-3">
-                  <ConnectionTestButton
-                    providerId={provider.id}
-                    onTest={onTestConnection}
-                    disabled={loading || !connectionReady}
-                    className="w-full"
+                {modelList.length > 0 ? (
+                  <div className="space-y-2">
+                    {modelList.map((modelId, index) => (
+                      <div
+                        key={modelId}
+                        className="flex items-center gap-3 rounded-[16px] bg-white px-3 py-2 text-sm text-slate-800"
+                        data-testid="model-priority-item"
+                      >
+                        <span className="text-slate-400">::</span>
+                        {index === 0 ? (
+                          <Badge className="border border-amber-200 bg-amber-50 px-2 py-0 text-[11px] text-amber-700 hover:bg-amber-50">
+                            主模型
+                          </Badge>
+                        ) : null}
+                        <span className="min-w-0 flex-1 truncate normal-case">
+                          {modelId}
+                        </span>
+                        {index > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleSetMainModel(modelId);
+                            }}
+                            className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                          >
+                            <Star className="mr-1 inline h-3 w-3" />
+                            设为主模型
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handleRemoveModel(modelId);
+                          }}
+                          className="text-slate-400 hover:text-rose-600"
+                          aria-label={`移除模型 ${modelId}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-slate-500">
+                    暂无模型。请从接口获取后选择，或手动添加模型 ID。
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    value={modelDraft}
+                    onChange={(event) => setModelDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === ",") {
+                        event.preventDefault();
+                        void handleAddModelDraft();
+                      }
+                    }}
+                    placeholder="输入模型 ID，按 Enter 添加"
+                    className="h-11 rounded-[16px] border-slate-200 bg-white px-4 normal-case"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    disabled={loading}
+                    data-testid="model-draft-input"
                   />
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-slate-200 bg-white"
-                    disabled={loading || !connectionReady || !onTestChat}
-                    onClick={() => setChatDialogOpen(true)}
+                    type="button"
+                    variant="secondary"
+                    className="h-11 rounded-[16px] px-4"
+                    onClick={() => {
+                      void handleAddModelDraft();
+                    }}
+                    disabled={loading || !modelDraft.trim()}
+                    data-testid="model-draft-add-button"
                   >
-                    对话测试
+                    <Plus className="mr-1 h-4 w-4" />
+                    添加模型
                   </Button>
                 </div>
+              </div>
+            </div>
 
-                {connectionBlockHint ? (
-                  <p className="mt-3 text-xs text-slate-500">
-                    {connectionBlockHint}
-                  </p>
-                ) : null}
-              </section>
+            <div className="space-y-3" data-testid="connection-test-section">
+              <Button
+                type="button"
+                onClick={() => {
+                  void handleTestConnection();
+                }}
+                disabled={!canTestConnection}
+                className="h-12 w-full rounded-full bg-slate-950 text-sm font-semibold text-white hover:bg-slate-800"
+                data-testid="provider-test-connection-button"
+              >
+                {testingConnection ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                )}
+                {testingConnection ? "测试中..." : "测试连接"}
+              </Button>
+
+              {!canTestConnection && !testingConnection ? (
+                <p className="text-center text-xs text-slate-500">
+                  {modelList.length === 0
+                    ? "先添加一个模型，再测试连接。"
+                    : apiKeyRequired && !hasApiKey && !canUseDraftApiKey
+                      ? "先填写 API 密钥，再测试连接。"
+                      : "当前暂不可测试。"}
+                </p>
+              ) : null}
+
+              {connectionStatus ? (
+                <div
+                  className={cn(
+                    "flex items-start gap-2 rounded-[16px] border px-3 py-2 text-sm",
+                    buildStatusClass(connectionStatus.tone),
+                  )}
+                  data-testid="connection-status"
+                >
+                  {getStatusIcon(connectionStatus.tone)}
+                  <span className="leading-5">{connectionStatus.message}</span>
+                </div>
+              ) : null}
             </div>
           </div>
-        </div>
+        </section>
       </div>
-
-      <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] p-6">
-          <DialogHeader className="mb-4">
-            <DialogTitle>对话测试</DialogTitle>
-            <DialogDescription>
-              发送一条最小对话请求，直接查看返回内容或原始错误，便于排查模型、权限或路由问题。
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <Textarea
-              value={chatPrompt}
-              onChange={(e) => setChatPrompt(e.target.value)}
-              className="h-[120px]"
-            />
-            {chatResult?.error && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-600">
-                <p className="font-medium">错误详情：</p>
-                <p className="mt-1 break-all">{chatResult.error}</p>
-              </div>
-            )}
-            {chatResult?.success && (
-              <div className="rounded-md border border-green-200 bg-green-50 p-2 text-xs text-green-700">
-                <p className="font-medium">
-                  返回内容
-                  {chatResult.latency_ms !== undefined
-                    ? ` (${chatResult.latency_ms}ms)`
-                    : ""}
-                  ：
-                </p>
-                <p className="mt-1 whitespace-pre-wrap break-words">
-                  {chatResult.content || ""}
-                </p>
-              </div>
-            )}
-            {chatResult?.raw && (
-              <Textarea
-                value={chatResult.raw}
-                readOnly
-                className="h-[180px] font-mono text-xs"
-              />
-            )}
-          </div>
-
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setChatDialogOpen(false)}
-              disabled={chatTesting}
-            >
-              关闭
-            </Button>
-            <Button
-              onClick={handleChatTest}
-              disabled={chatTesting || !chatPrompt.trim()}
-            >
-              {chatTesting ? "发送中..." : "发送"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
@@ -752,8 +794,7 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
 // ============================================================================
 
 /**
- * 从 Provider 数据中提取设置面板显示所需的信息
- * 用于属性测试验证设置面板字段完整性
+ * 从 Provider 数据中提取简洁设置页所需的信息。
  */
 export function extractProviderSettingInfo(
   provider: ProviderWithKeysDisplay | null,
@@ -761,9 +802,9 @@ export function extractProviderSettingInfo(
   hasProvider: boolean;
   hasIcon: boolean;
   hasName: boolean;
-  hasEnabledSwitch: boolean;
-  hasApiKeySection: boolean;
-  hasConfigSection: boolean;
+  hasApiKeyInput: boolean;
+  hasModelPriority: boolean;
+  hasApiModelFetch: boolean;
   hasConnectionTest: boolean;
 } {
   if (!provider) {
@@ -771,9 +812,9 @@ export function extractProviderSettingInfo(
       hasProvider: false,
       hasIcon: false,
       hasName: false,
-      hasEnabledSwitch: false,
-      hasApiKeySection: false,
-      hasConfigSection: false,
+      hasApiKeyInput: false,
+      hasModelPriority: false,
+      hasApiModelFetch: false,
       hasConnectionTest: false,
     };
   }
@@ -782,9 +823,9 @@ export function extractProviderSettingInfo(
     hasProvider: true,
     hasIcon: typeof provider.id === "string" && provider.id.length > 0,
     hasName: typeof provider.name === "string" && provider.name.length > 0,
-    hasEnabledSwitch: typeof provider.enabled === "boolean",
-    hasApiKeySection: true,
-    hasConfigSection: true,
+    hasApiKeyInput: true,
+    hasModelPriority: true,
+    hasApiModelFetch: true,
     hasConnectionTest: true,
   };
 }
