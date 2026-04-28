@@ -40,6 +40,7 @@ describe("oemCloudStartupLogin", () => {
     delete window.__LIME_BOOTSTRAP__;
     delete window.__LIME_OEM_CLOUD__;
     delete window.__LIME_SESSION_TOKEN__;
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
     mockListPublicOAuthProviders.mockResolvedValue([
       {
         provider: "google",
@@ -118,6 +119,19 @@ describe("oemCloudStartupLogin", () => {
     const result = await startOemCloudStartupLoginIfRequired();
 
     expect(result.status).toBe("no_google_provider");
+    expect(mockStartOemCloudLogin).not.toHaveBeenCalled();
+  });
+
+  it("读取后端登录策略失败时不应阻塞主应用启动", async () => {
+    configureRuntime();
+    mockListPublicOAuthProviders.mockRejectedValue(new Error("network down"));
+
+    const result = await startOemCloudStartupLoginIfRequired();
+
+    expect(result).toEqual({
+      status: "failed",
+      reason: "network down",
+    });
     expect(mockStartOemCloudLogin).not.toHaveBeenCalled();
   });
 });

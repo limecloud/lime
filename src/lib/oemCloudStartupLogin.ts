@@ -83,7 +83,18 @@ export async function startOemCloudStartupLoginIfRequired(
     return { status: "already_attempted" };
   }
 
-  const providers = await listPublicOAuthProviders(runtime.tenantId);
+  let providers: OemCloudPublicOAuthProvider[];
+  try {
+    providers = await listPublicOAuthProviders(runtime.tenantId);
+  } catch (error) {
+    const reason =
+      error instanceof Error && error.message.trim()
+        ? error.message.trim()
+        : "读取云端登录配置失败";
+    console.warn("读取启动期云端登录配置失败:", error);
+    return { status: "failed", reason };
+  }
+
   if (!hasGoogleOAuthProvider(providers)) {
     return { status: "no_google_provider" };
   }
