@@ -465,10 +465,13 @@ describe("AppSidebar", () => {
       '[data-testid="app-sidebar-account-menu"]',
     );
     expect(accountMenu).not.toBeNull();
-    expect(accountMenu?.textContent).toContain("zhong feng shan");
     expect(accountMenu?.textContent).toContain("user@example.com");
-    expect(accountMenu?.textContent).toContain("云端已连接");
-    expect(accountMenu?.textContent).toContain("套餐、积分和模型目录");
+    expect(accountMenu?.textContent).toContain("免费版");
+    expect(accountMenu?.textContent).toContain("查看详情");
+    expect(accountMenu?.textContent).not.toContain("云端已连接");
+    expect(accountMenu?.textContent).not.toContain("套餐、积分和模型目录");
+    expect(accountMenu?.textContent).not.toContain("登录方式：");
+    expect(accountMenu?.textContent).not.toContain("默认服务：");
     expect(accountMenu?.textContent).toContain("语言");
     expect(accountMenu?.textContent).toContain("持续流程");
     expect(accountMenu?.textContent).toContain("消息渠道");
@@ -492,6 +495,69 @@ describe("AppSidebar", () => {
 
     expect(onNavigate).toHaveBeenCalledWith("settings", {
       tab: SettingsTabs.Home,
+    });
+  });
+
+  it("已登录账号弹框应展示真实套餐摘要并可直达详情", async () => {
+    const onNavigate = vi.fn();
+    setStoredOemCloudSessionState({
+      token: "session-token",
+      tenant: { id: "tenant-0001", name: "Lime Cloud" },
+      user: {
+        id: "user-001",
+        displayName: "晚风",
+        email: "wanfeng@example.com",
+      },
+      session: { id: "session-001", provider: "google" },
+    });
+    setOemCloudBootstrapSnapshot({
+      features: {
+        referralEnabled: false,
+      },
+      providerPreference: {
+        providerKey: "lime-hub",
+      },
+      providerOffersSummary: [
+        {
+          providerKey: "lime-hub",
+          currentPlan: "免费版",
+          creditsSummary: "0 / 20 积分 已用0%",
+        },
+      ],
+    });
+
+    const container = mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+      onNavigate,
+    });
+    await flushEffects(2);
+    await openAccountMenu(container);
+
+    const accountMenu = container.querySelector(
+      '[data-testid="app-sidebar-account-menu"]',
+    );
+    expect(accountMenu?.textContent).toContain("免费版");
+    expect(accountMenu?.textContent).toContain("0 / 20 积分 已用0%");
+    expect(accountMenu?.textContent).toContain("查看详情");
+    expect(accountMenu?.textContent).toContain("wanfeng@example.com");
+    expect(accountMenu?.textContent).toContain("Lime Cloud");
+    expect(accountMenu?.textContent).not.toContain("登录方式：Google");
+
+    await act(async () => {
+      accountMenu
+        ?.querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-cloud-account-card"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("settings", {
+      tab: SettingsTabs.Providers,
+      providerView: "cloud",
     });
   });
 
@@ -628,8 +694,9 @@ describe("AppSidebar", () => {
     const accountMenu = container.querySelector(
       '[data-testid="app-sidebar-account-menu"]',
     );
-    expect(accountMenu?.textContent).toContain("开源版");
-    expect(accountMenu?.textContent).toContain("云端可选");
+    expect(accountMenu?.textContent).toContain("开源使用");
+    expect(accountMenu?.textContent).toContain("免费版");
+    expect(accountMenu?.textContent).toContain("本地模型可配置");
     expect(accountMenu?.textContent).toContain("模型设置");
     expect(accountMenu?.textContent).toContain("连接 Lime 云端");
     expect(accountMenu?.textContent).not.toContain("退出登录");
@@ -650,7 +717,7 @@ describe("AppSidebar", () => {
     );
   });
 
-  it("开源版说明应折叠到信息图标中", async () => {
+  it("开源使用说明应折叠到信息图标中", async () => {
     const container = mountSidebarContainer({
       currentPage: "agent",
       currentPageParams: {
@@ -667,7 +734,7 @@ describe("AppSidebar", () => {
       "本地开源功能可直接使用",
     );
     expect(
-      accountMenu?.querySelector('button[aria-label="开源版说明"]'),
+      accountMenu?.querySelector('button[aria-label="开源使用说明"]'),
     ).not.toBeNull();
   });
 
@@ -713,7 +780,8 @@ describe("AppSidebar", () => {
     );
     expect(accountMenu?.textContent).toContain("wanfeng@example.com");
     expect(accountMenu?.textContent).toContain("Lime Cloud");
-    expect(accountMenu?.textContent).toContain("登录方式：Google");
+    expect(accountMenu?.textContent).toContain("免费版");
+    expect(accountMenu?.textContent).not.toContain("登录方式：Google");
   });
 
   it("用户弹框的语言入口应使用二级弹框并保存真实语言设置", async () => {

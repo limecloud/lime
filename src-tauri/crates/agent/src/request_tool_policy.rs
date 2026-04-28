@@ -59,6 +59,7 @@ const ASTER_AUTO_COMPACTION_COMPLETE_TEXT: &str = "Compaction complete";
 const ASTER_AUTO_COMPACTION_THINKING_TEXT: &str = "aster is compacting the conversation...";
 const ASTER_AUTO_COMPACTION_ERROR_PREFIX: &str = "Ran into this error trying to compact:";
 const ASTER_AUTO_COMPACTION_DISABLED_TEXT: &str = "Automatic compaction is disabled for this turn. The conversation reached the context limit. Compact the session manually or start a new session before retrying.";
+const OPTIONAL_WEB_SEARCH_PREFLIGHT_TIMEOUT_MS: u64 = 1_500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -157,6 +158,19 @@ impl WebSearchExecutionTracker {
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .map(|value| value.to_string());
+        }
+    }
+
+    fn absorb(&mut self, mut other: Self) {
+        for tool_id in other.ordered_tool_ids.drain(..) {
+            if self.attempts_by_id.contains_key(&tool_id) {
+                continue;
+            }
+
+            if let Some(record) = other.attempts_by_id.remove(&tool_id) {
+                self.ordered_tool_ids.push(tool_id.clone());
+                self.attempts_by_id.insert(tool_id, record);
+            }
         }
     }
 
@@ -1801,16 +1815,49 @@ where
 {
     let message_text = user_message.as_concat_text();
     let mut web_search_tracker = WebSearchExecutionTracker::default();
-    let preflight = execute_web_search_preflight_if_needed(
-        agent,
-        &session_config.id,
-        &message_text,
-        working_directory,
-        cancel_token.clone(),
-        request_tool_policy,
-        &mut web_search_tracker,
-    )
-    .await;
+
+    // 对于 Required 模式，preflight 是必须的，必须等待完成
+    // 对于 Allowed 模式，preflight 是可选优化，设置超时避免阻塞首字
+    let preflight = if request_tool_policy.requires_web_search() {
+        execute_web_search_preflight_if_needed(
+            agent,
+            &session_config.id,
+            &message_text,
+            working_directory,
+            cancel_token.clone(),
+            request_tool_policy,
+            &mut web_search_tracker,
+        )
+        .await
+    } else {
+        let mut optional_preflight_tracker = WebSearchExecutionTracker::default();
+        match tokio::time::timeout(
+            std::time::Duration::from_millis(OPTIONAL_WEB_SEARCH_PREFLIGHT_TIMEOUT_MS),
+            execute_web_search_preflight_if_needed(
+                agent,
+                &session_config.id,
+                &message_text,
+                working_directory,
+                cancel_token.clone(),
+                request_tool_policy,
+                &mut optional_preflight_tracker,
+            ),
+        )
+        .await
+        {
+            Ok(result) => {
+                web_search_tracker.absorb(optional_preflight_tracker);
+                result
+            }
+            Err(_) => {
+                tracing::warn!(
+                    "[AsterAgent][TTFT] optional web search preflight timed out ({}ms), proceeding without preflight context",
+                    OPTIONAL_WEB_SEARCH_PREFLIGHT_TIMEOUT_MS
+                );
+                Ok(PreflightToolExecution::none())
+            }
+        }
+    };
     let preflight_execution = match preflight {
         Ok(preflight_execution) => {
             session_config.system_prompt = merge_system_prompt_with_web_search_preflight_context(
@@ -2464,6 +2511,41 @@ mod tests {
             .expect_err("failed required tool should fail");
         assert!(err.contains("network timeout"));
         assert!(err.contains("尝试记录"));
+    }
+
+    #[test]
+    fn tracker_absorb_preserves_completed_optional_preflight_attempts() {
+        let policy = resolve_request_tool_policy(Some(true), false);
+        let mut target = WebSearchExecutionTracker::default();
+        let mut optional_tracker = WebSearchExecutionTracker::default();
+        optional_tracker.record_tool_start(&policy, "tool-1", "WebSearch");
+        optional_tracker.record_tool_end(&policy, "tool-1", true, None);
+
+        target.absorb(optional_tracker);
+
+        assert_eq!(target.ordered_tool_ids, vec!["tool-1".to_string()]);
+        assert_eq!(
+            target
+                .attempts_by_id
+                .get("tool-1")
+                .and_then(|record| record.success),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn discarded_optional_preflight_attempt_should_not_force_synthesis_retry() {
+        let diagnostics = StreamEventDiagnostics::default();
+
+        let mode = resolve_reply_retry_mode(
+            &PreflightToolExecution::none(),
+            "",
+            &WebSearchExecutionTracker::default(),
+            &diagnostics,
+            &[],
+        );
+
+        assert_eq!(mode, ReplyRetryMode::DirectAnswer);
     }
 
     #[test]

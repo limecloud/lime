@@ -598,16 +598,16 @@ describe("CloudProviderSettings", () => {
     });
 
     await act(async () => {
-      findButton(container, "刷新云端状态").dispatchEvent(
+      findButton(container, "刷新").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
     });
 
     const text = container.textContent ?? "";
     expect(text).toContain("Demo Operator");
-    expect(text).toContain("云端模型调用已就绪");
-    expect(text).toContain("购买套餐");
-    expect(text).toContain("Token 积分");
+    expect(text).toContain("使用详情");
+    expect(text).toContain("查看套餐");
+    expect(text).toContain("可用积分");
     expect(text).toContain("API Key");
     expect(text).toContain("SDK 调用");
     expect(text).toContain("OpenAI SDK");
@@ -615,8 +615,8 @@ describe("CloudProviderSettings", () => {
     expect(text).toContain("https://llm.limeai.run/v1");
     expect(text).toContain("X-Lime-Tenant-ID");
     expect(text).toContain("最小 curl 测试");
-    expect(text).toContain("云端额度");
-    expect(text).toContain("账本记录");
+    expect(text).toContain("近 14 天消耗");
+    expect(text).toContain("用量记录");
     expect(text).toContain("Lime Hub 主服务");
     expect(text).toContain("GPT-5.2 Pro");
     expect(text).toContain("Lime 云端");
@@ -894,29 +894,41 @@ describe("CloudProviderSettings", () => {
 
     const text = container.textContent ?? "";
     expect(
-      container.querySelector(
-        '[data-testid="oem-cloud-commerce-compact-panel"]',
-      ),
+      container.querySelector('[data-testid="cloud-commerce-dashboard"]'),
     ).not.toBeNull();
-    expect(text).toContain("购买套餐");
+    expect(text).toContain("查看套餐");
     expect(text).toContain("Pro");
-    expect(text).toContain("存在待支付订单");
+    expect(text).toContain("待支付：Pro");
     expect(text).toContain("继续支付");
-    expect(text).toContain("Anthropic-compatible coding");
-    expect(text).toContain("积分充值");
-    expect(text).toContain("10 万积分包");
     expect(text).toContain("sk-lime-once");
     expect(text).toContain("glm-4.6");
-    expect(text).toContain("账本记录");
-    expect(text).toContain("最近用量");
-    expect(text).toContain("已支付");
-    expect(text).not.toContain("套餐订单");
-    expect(text).not.toContain("充值订单");
-    expect(text).not.toContain("积分钱包");
+    expect(text).toContain("近 14 天消耗");
+    expect(text).toContain("用量记录");
     expect(text).not.toContain("支付后台配置");
 
     await act(async () => {
-      findButton(container, "购买套餐").dispatchEvent(
+      findButton(container, "账单").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+    expect(container.textContent ?? "").toContain("已支付");
+
+    await act(async () => {
+      findButton(container, "查看套餐").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(
+      container.querySelector('[data-testid="cloud-plan-upgrade-page"]'),
+    ).not.toBeNull();
+    const upgradeText = container.textContent ?? "";
+    expect(upgradeText).toContain("Anthropic-compatible coding");
+    expect(upgradeText).toContain("补充积分");
+    expect(upgradeText).toContain("10 万积分包");
+
+    await act(async () => {
+      findButton(container, "选择套餐").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
     });
@@ -928,7 +940,7 @@ describe("CloudProviderSettings", () => {
     });
 
     await act(async () => {
-      findButton(container, "立即充值").dispatchEvent(
+      findButton(container, "充值").dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
     });

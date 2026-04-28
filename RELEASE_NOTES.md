@@ -13,6 +13,7 @@
 #### 1. 稳定版更新与 R2 发布链路
 
 - `.github/workflows/release.yml` 补齐稳定版 updater 发布门禁，要求签名密钥与更新地址就绪后再生成 updater artifacts。
+- 发布流程会规范化 Tauri updater 公钥，并在仅产出 sidecar `.sig` 时由发布脚本生成稳定版 `latest.json`。
 - 新增 `scripts/release-updater-manifest.mjs`，聚合各平台 `latest.json`，生成统一 `latest.json`、版本化清单、R2 上传计划与 manifest metadata。
 - 新增 `scripts/plan-r2-release-cleanup.mjs`，按稳定版本窗口规划旧 R2 updater 产物清理，避免发布桶无限增长。
 - `scripts/release-updater-manifest.test.mjs` 覆盖平台缺失、版本不匹配、同名跨平台 artifact 与旧版本清理保护逻辑。
@@ -86,7 +87,7 @@
 - 已通过：
   - `npm run verify:app-version`
   - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
-  - `cargo test --manifest-path "src-tauri/Cargo.toml"` — 1109 passed / 0 failed / 2 ignored
+  - `cargo test --manifest-path "src-tauri/Cargo.toml"` — 1112 passed / 0 failed / 2 ignored
   - `cargo clippy --manifest-path "src-tauri/Cargo.toml" --all-targets --all-features`
   - `npm run lint`
   - `npm test` — 44 个 Vitest smart 批次通过

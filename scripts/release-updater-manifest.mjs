@@ -11,6 +11,12 @@ const DEFAULT_REQUIRED_PLATFORMS = [
   "windows-x86_64",
 ];
 
+const PLATFORM_BY_TARGET_TRIPLE = {
+  "aarch64-apple-darwin": "darwin-aarch64",
+  "x86_64-apple-darwin": "darwin-x86_64",
+  "x86_64-pc-windows-msvc": "windows-x86_64",
+};
+
 function parseArgs(argv) {
   const args = {};
   for (let index = 0; index < argv.length; index += 1) {
@@ -139,6 +145,70 @@ function buildPlatformAssetPath(platformKey, assetName) {
   return `${encodePathSegment(platformKey)}/${encodePathSegment(assetName)}`;
 }
 
+function normalizeSignatureContent(content) {
+  const trimmed = String(content || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const compact = trimmed.replace(/\s+/g, "");
+  if (/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) {
+    try {
+      const decoded = Buffer.from(compact, "base64").toString("utf8");
+      if (decoded.includes("untrusted comment: signature")) {
+        return compact;
+      }
+    } catch {
+      // fall through and treat it as raw minisign content below
+    }
+  }
+
+  if (trimmed.includes("untrusted comment: signature")) {
+    return Buffer.from(`${trimmed}\n`, "utf8").toString("base64");
+  }
+
+  return trimmed;
+}
+
+function platformKeyFromAssetFile(assetsDir, assetFile) {
+  const relativeDir = path.relative(assetsDir, path.dirname(assetFile));
+  const targetTriple = relativeDir.split(path.sep).find(Boolean);
+  return PLATFORM_BY_TARGET_TRIPLE[targetTriple] || "";
+}
+
+function collectSignedUpdaterArtifacts(files, assetsDir) {
+  const fileSet = new Set(files);
+  return files
+    .filter((file) => {
+      const name = path.basename(file);
+      return (
+        !name.endsWith(".sig") &&
+        !/^latest.*\.json$/i.test(name) &&
+        fileSet.has(`${file}.sig`)
+      );
+    })
+    .map((assetFile) => {
+      const platformKey = platformKeyFromAssetFile(assetsDir, assetFile);
+      if (!platformKey) {
+        return null;
+      }
+      const signatureFile = `${assetFile}.sig`;
+      const signature = normalizeSignatureContent(
+        fs.readFileSync(signatureFile, "utf8"),
+      );
+      if (!signature) {
+        throw new Error(`${signatureFile} has empty updater signature`);
+      }
+      return {
+        assetFile,
+        assetName: path.basename(assetFile),
+        platformKey,
+        signature,
+      };
+    })
+    .filter(Boolean);
+}
+
 function collectUpdaterManifest(options) {
   const assetsDir = path.resolve(options.assetsDir);
   const baseUrl = normalizeBaseUrl(options.baseUrl);
@@ -154,66 +224,92 @@ function collectUpdaterManifest(options) {
     .map((value) => String(value).trim())
     .filter(Boolean);
 
-  if (latestFiles.length === 0) {
-    throw new Error(`no latest*.json files found under ${assetsDir}`);
-  }
-
   const platforms = {};
   const referencedFiles = new Map();
   let notes = options.notes || "";
   let pubDate = options.pubDate || "";
 
-  for (const manifestFile of latestFiles) {
-    const manifest = readJson(manifestFile);
-    const manifestVersion = normalizeStableVersion(manifest.version);
-    if (manifestVersion !== version) {
-      throw new Error(
-        `${manifestFile} version ${manifest.version} does not match release ${versionTag}`,
+  if (latestFiles.length > 0) {
+    for (const manifestFile of latestFiles) {
+      const manifest = readJson(manifestFile);
+      const manifestVersion = normalizeStableVersion(manifest.version);
+      if (manifestVersion !== version) {
+        throw new Error(
+          `${manifestFile} version ${manifest.version} does not match release ${versionTag}`,
+        );
+      }
+
+      if (!notes && typeof manifest.notes === "string") {
+        notes = manifest.notes;
+      }
+      if (!pubDate && typeof manifest.pub_date === "string") {
+        pubDate = manifest.pub_date;
+      }
+
+      for (const [platformKey, platform] of Object.entries(
+        manifest.platforms || {},
+      )) {
+        const sourceUrl = String(platform?.url || "").trim();
+        const signature = String(platform?.signature || "").trim();
+        if (!sourceUrl || !signature) {
+          throw new Error(
+            `${manifestFile} platform ${platformKey} has empty url or signature`,
+          );
+        }
+        if (platforms[platformKey]) {
+          throw new Error(
+            `${manifestFile} duplicates updater platform ${platformKey}`,
+          );
+        }
+
+        const assetName = basenameFromUrl(sourceUrl);
+        const candidates = filesByBasename.get(assetName) || [];
+        const assetFile = resolveReferencedAssetFile(manifestFile, candidates);
+        if (!assetFile) {
+          throw new Error(
+            `${manifestFile} platform ${platformKey} references missing asset: ${assetName}`,
+          );
+        }
+
+        const platformAssetPath = buildPlatformAssetPath(platformKey, assetName);
+        const targetUrl = `${baseUrl}/lime/${channel}/${versionTag}/${platformAssetPath}`;
+        platforms[platformKey] = {
+          signature,
+          url: targetUrl,
+        };
+        referencedFiles.set(platformAssetPath, {
+          assetName,
+          file: assetFile,
+          platformKey,
+          targetPath: platformAssetPath,
+        });
+      }
+    }
+  } else {
+    const signedArtifacts = collectSignedUpdaterArtifacts(files, assetsDir);
+    if (signedArtifacts.length === 0) {
+      throw new Error(`no latest*.json files found under ${assetsDir}`);
+    }
+
+    for (const artifact of signedArtifacts) {
+      if (platforms[artifact.platformKey]) {
+        throw new Error(
+          `${artifact.assetFile} duplicates updater platform ${artifact.platformKey}`,
+        );
+      }
+      const platformAssetPath = buildPlatformAssetPath(
+        artifact.platformKey,
+        artifact.assetName,
       );
-    }
-
-    if (!notes && typeof manifest.notes === "string") {
-      notes = manifest.notes;
-    }
-    if (!pubDate && typeof manifest.pub_date === "string") {
-      pubDate = manifest.pub_date;
-    }
-
-    for (const [platformKey, platform] of Object.entries(
-      manifest.platforms || {},
-    )) {
-      const sourceUrl = String(platform?.url || "").trim();
-      const signature = String(platform?.signature || "").trim();
-      if (!sourceUrl || !signature) {
-        throw new Error(
-          `${manifestFile} platform ${platformKey} has empty url or signature`,
-        );
-      }
-      if (platforms[platformKey]) {
-        throw new Error(
-          `${manifestFile} duplicates updater platform ${platformKey}`,
-        );
-      }
-
-      const assetName = basenameFromUrl(sourceUrl);
-      const candidates = filesByBasename.get(assetName) || [];
-      const assetFile = resolveReferencedAssetFile(manifestFile, candidates);
-      if (!assetFile) {
-        throw new Error(
-          `${manifestFile} platform ${platformKey} references missing asset: ${assetName}`,
-        );
-      }
-
-      const platformAssetPath = buildPlatformAssetPath(platformKey, assetName);
       const targetUrl = `${baseUrl}/lime/${channel}/${versionTag}/${platformAssetPath}`;
-      platforms[platformKey] = {
-        signature,
+      platforms[artifact.platformKey] = {
+        signature: artifact.signature,
         url: targetUrl,
       };
       referencedFiles.set(platformAssetPath, {
-        assetName,
-        file: assetFile,
-        platformKey,
+        assetName: artifact.assetName,
+        file: artifact.assetFile,
+        platformKey: artifact.platformKey,
         targetPath: platformAssetPath,
       });
     }

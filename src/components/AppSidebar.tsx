@@ -1353,14 +1353,38 @@ const AccountMenuPopover = styled.div<{ $collapsed?: boolean }>`
 const AccountPlanCard = styled.div`
   width: 100%;
   border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.92));
-  border-radius: 15px;
-  background: var(--lime-surface-soft, #f8fcf9);
+  border-radius: 14px;
+  background: var(--lime-surface, #ffffff);
   color: var(--lime-text, #1a3b2b);
-  padding: 11px 12px;
+  padding: 10px 11px;
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 8px;
+`;
+
+const AccountPlanButton = styled.button`
+  width: 100%;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.92));
+  border-radius: 14px;
+  background: var(--lime-surface, #ffffff);
+  color: var(--lime-text, #1a3b2b);
+  padding: 10px 11px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    transform 0.16s ease;
+
+  &:hover {
+    border-color: var(--lime-brand-soft-border, #bbf7d0);
+    background: var(--lime-surface-soft, #f8fcf9);
+    transform: translateY(-1px);
+  }
 `;
 
 const AccountPlanActions = styled.div`
@@ -1447,6 +1471,27 @@ const AccountPlanTitle = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const AccountPlanDetailsPill = styled.span`
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--lime-surface-soft, #f8fcf9);
+  color: var(--lime-text-muted, #6b826b);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 7px;
+  font-size: 10px;
+  font-weight: 800;
+
+  svg {
+    width: 11px;
+    height: 11px;
+  }
 `;
 
 const AccountInfoIconButton = styled.button`
@@ -1496,31 +1541,35 @@ const AccountPlanBadge = styled.span<{ $connected?: boolean }>`
   font-weight: 800;
 `;
 
-const AccountCloudIdentity = styled.span`
+const AccountPlanUsage = styled.span`
   min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-`;
-
-const AccountCloudIdentityText = styled.span`
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`;
-
-const AccountCloudName = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--lime-text-strong, #0f172a);
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--lime-text-muted, #6b826b);
 `;
 
-const AccountCloudEmail = styled.span`
+const AccountPlanProgressTrack = styled.span`
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--lime-card-subtle-border, #e5e7eb);
+  overflow: hidden;
+`;
+
+const AccountPlanProgressFill = styled.span<{ $percent: number | null }>`
+  display: block;
+  width: ${({ $percent }) => ($percent === null ? "0%" : `${$percent}%`)};
+  height: 100%;
+  border-radius: inherit;
+  background: var(--lime-brand-strong, #166534);
+`;
+
+const AccountPlanMeta = styled.span`
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1536,17 +1585,6 @@ const AccountPlanDetail = styled.span`
   gap: 10px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--lime-text-muted, #6b826b);
-`;
-
-const AccountPlanDescription = styled.span`
-  display: block;
-  border-radius: 12px;
-  background: var(--lime-surface, #ffffff);
-  padding: 9px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.5;
   color: var(--lime-text-muted, #6b826b);
 `;
 
@@ -1804,36 +1842,61 @@ function resolveAccountTenantLabel(
   );
 }
 
-function resolveAccountProviderLabel(
-  sessionState: OemCloudStoredSessionState | null,
-): string {
-  const provider = sessionState?.session.session.provider?.trim();
-  if (!provider) {
-    return "系统账号";
-  }
-
-  return provider.toLowerCase() === "google" ? "Google" : provider;
-}
-
-function resolveBootstrapDefaultProviderSummary(
-  bootstrap: OemCloudBootstrapResponse | null,
-): string | null {
-  const preference = bootstrap?.providerPreference;
-  if (!preference) {
+function parseAccountUsagePercent(value: string | undefined): number | null {
+  if (!value) {
     return null;
   }
 
-  const modelSuffix = preference.defaultModel
-    ? ` · ${preference.defaultModel}`
-    : "";
-  if (preference.providerSource === "local") {
-    return `本地 Key${modelSuffix}`;
+  const percentMatch = value.match(/(?:已用\s*)?(\d+(?:\.\d+)?)\s*%/);
+  if (percentMatch) {
+    return Math.min(100, Math.max(0, Number(percentMatch[1])));
   }
 
-  const matchedOffer = bootstrap.providerOffersSummary.find(
+  const ratioMatch = value.match(
+    /([\d,]+(?:\.\d+)?)\s*\/\s*([\d,]+(?:\.\d+)?)/,
+  );
+  if (!ratioMatch) {
+    return null;
+  }
+
+  const used = Number(ratioMatch[1].replace(/,/g, ""));
+  const total = Number(ratioMatch[2].replace(/,/g, ""));
+  if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+
+  return Math.min(100, Math.max(0, (used / total) * 100));
+}
+
+function resolveAccountPlanSummary(
+  bootstrap: OemCloudBootstrapResponse | null,
+): {
+  planLabel: string;
+  usageLabel: string | null;
+  usagePercent: number | null;
+} {
+  const preference = bootstrap?.providerPreference;
+  if (!preference) {
+    return {
+      planLabel: "免费版",
+      usageLabel: null,
+      usagePercent: null,
+    };
+  }
+
+  const providerOffers = Array.isArray(bootstrap.providerOffersSummary)
+    ? bootstrap.providerOffersSummary
+    : [];
+  const matchedOffer = providerOffers.find(
     (offer) => offer.providerKey === preference.providerKey,
   );
-  return `${matchedOffer?.displayName?.trim() || "Lime 云端"}${modelSuffix}`;
+  const usageLabel = matchedOffer?.creditsSummary?.trim() || null;
+
+  return {
+    planLabel: matchedOffer?.currentPlan?.trim() || "免费版",
+    usageLabel,
+    usagePercent: parseAccountUsagePercent(usageLabel ?? undefined),
+  };
 }
 
 function resolveAccountInitial(name: string): string {
@@ -2123,13 +2186,13 @@ export function AppSidebar({
       getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>();
     setCloudBootstrapState(currentBootstrap);
     setCachedReferralState(
-      readCachedOemCloudReferralState(currentBootstrap?.session.tenant.id),
+      readCachedOemCloudReferralState(currentBootstrap?.session?.tenant.id),
     );
     return subscribeOemCloudBootstrapChanged((payload) => {
       const nextBootstrap = (payload as OemCloudBootstrapResponse) ?? null;
       setCloudBootstrapState(nextBootstrap);
       setCachedReferralState(
-        readCachedOemCloudReferralState(nextBootstrap?.session.tenant.id),
+        readCachedOemCloudReferralState(nextBootstrap?.session?.tenant.id),
       );
     });
   }, []);
@@ -2138,7 +2201,7 @@ export function AppSidebar({
   const cachedInviteDashboard =
     cloudBootstrapState?.referral ?? cachedReferralState?.dashboard ?? null;
   const inviteFeatureEnabled =
-    cloudBootstrapState?.features.referralEnabled ??
+    cloudBootstrapState?.features?.referralEnabled ??
     cachedReferralState?.referralEnabled ??
     true;
   const canLoadReferralDashboard =
@@ -2947,14 +3010,15 @@ export function AppSidebar({
   const accountDisplayName = resolveAccountDisplayName(cloudSessionState);
   const accountEmail = resolveAccountEmail(cloudSessionState);
   const accountTenantLabel = resolveAccountTenantLabel(cloudSessionState);
-  const accountProviderLabel = resolveAccountProviderLabel(cloudSessionState);
-  const accountDefaultProviderSummary =
-    resolveBootstrapDefaultProviderSummary(cloudBootstrapState);
+  const accountPlanSummary = resolveAccountPlanSummary(cloudBootstrapState);
   const cloudBrandLabel = resolveCloudBrandLabel(cloudBootstrapState);
   const connectCloudLabel = `连接 ${cloudBrandLabel}`;
   const accountAvatarUrl = cloudSessionState?.session.user.avatarUrl?.trim();
   const accountInitial = resolveAccountInitial(accountDisplayName);
   const hasCloudAccount = Boolean(cloudSessionState);
+  const accountMetaLine =
+    [accountEmail, accountTenantLabel].filter(Boolean).join(" · ") ||
+    accountDisplayName;
   const inviteEntryVisible = inviteFeatureEnabled;
   const accountButtonTooltip = hasCloudAccount
     ? `${accountDisplayName}${accountEmail ? ` · ${accountEmail}` : ""}`
@@ -3420,54 +3484,50 @@ export function AppSidebar({
                 data-testid="app-sidebar-account-menu"
               >
                 {hasCloudAccount ? (
-                  <AccountPlanCard data-testid="app-sidebar-cloud-account-card">
+                  <AccountPlanButton
+                    type="button"
+                    aria-label="查看套餐详情"
+                    data-testid="app-sidebar-cloud-account-card"
+                    onClick={() =>
+                      handleAccountMenuNavigate({
+                        tab: SettingsTabs.Providers,
+                        providerView: "cloud",
+                      })
+                    }
+                  >
                     <AccountPlanHeader>
-                      <AccountCloudIdentity>
-                        <AccountAvatar>
-                          {accountAvatarUrl ? (
-                            <img
-                              src={accountAvatarUrl}
-                              alt={accountDisplayName}
-                            />
-                          ) : (
-                            accountInitial
-                          )}
-                        </AccountAvatar>
-                        <AccountCloudIdentityText>
-                          <AccountCloudName>
-                            {accountDisplayName}
-                          </AccountCloudName>
-                          <AccountCloudEmail>
-                            {accountEmail ?? "云端账号"}
-                          </AccountCloudEmail>
-                        </AccountCloudIdentityText>
-                      </AccountCloudIdentity>
-                      <AccountPlanBadge $connected>云端已连接</AccountPlanBadge>
+                      <AccountPlanTitle>
+                        {accountPlanSummary.planLabel}
+                      </AccountPlanTitle>
+                      <AccountPlanDetailsPill>
+                        查看详情
+                        <ChevronRight />
+                      </AccountPlanDetailsPill>
                     </AccountPlanHeader>
-                    <AccountPlanDescription>
-                      已连接
-                      {accountTenantLabel
-                        ? ` ${accountTenantLabel} `
-                        : ` ${cloudBrandLabel} `}
-                      ；套餐、积分和模型目录以云端实时状态为准。
-                    </AccountPlanDescription>
-                    <AccountPlanDetail>
-                      <span>登录方式：{accountProviderLabel}</span>
-                      <span>
-                        默认服务：{accountDefaultProviderSummary ?? "云端同步"}
-                      </span>
-                    </AccountPlanDetail>
-                  </AccountPlanCard>
+                    {accountPlanSummary.usageLabel ? (
+                      <>
+                        <AccountPlanUsage>
+                          {accountPlanSummary.usageLabel}
+                        </AccountPlanUsage>
+                        <AccountPlanProgressTrack aria-hidden="true">
+                          <AccountPlanProgressFill
+                            $percent={accountPlanSummary.usagePercent}
+                          />
+                        </AccountPlanProgressTrack>
+                      </>
+                    ) : null}
+                    <AccountPlanMeta>{accountMetaLine}</AccountPlanMeta>
+                  </AccountPlanButton>
                 ) : (
                   <AccountPlanCard data-testid="app-sidebar-open-source-card">
                     <AccountPlanHeader>
                       <AccountPlanTitle>
-                        <span>开源版</span>
+                        <span>开源使用</span>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <AccountInfoIconButton
                               type="button"
-                              aria-label="开源版说明"
+                              aria-label="开源使用说明"
                               onClick={(event) => event.stopPropagation()}
                             >
                               <Info />
@@ -3478,11 +3538,11 @@ export function AppSidebar({
                           </TooltipContent>
                         </Tooltip>
                       </AccountPlanTitle>
-                      <AccountPlanBadge>本地可用</AccountPlanBadge>
+                      <AccountPlanBadge>免费版</AccountPlanBadge>
                     </AccountPlanHeader>
                     <AccountPlanDetail>
                       <span>不登录也可用</span>
-                      <span>云端可选</span>
+                      <span>本地模型可配置</span>
                     </AccountPlanDetail>
                     <AccountPlanActions>
                       <AccountPlanActionButton

@@ -14,8 +14,6 @@ import {
   ReceiptText,
   RefreshCw,
   Search,
-  ShieldCheck,
-  Sparkles,
   WalletCards,
 } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
@@ -41,7 +39,7 @@ import type {
   OemCloudProviderOfferState,
   OemCloudProviderOfferSummary,
   OemCloudPaymentConfig,
-  OemCloudTopupPackage,
+  OemCloudUsageRecord,
 } from "@/lib/api/oemCloudControlPlane";
 import {
   getCompanionPetStatus,
@@ -119,7 +117,7 @@ function NoticeBar(props: { tone: "error" | "success"; message: string }) {
   );
 }
 
-function CloudReadinessPanel(props: {
+function CloudCommerceStatusBar(props: {
   readiness: ReturnType<typeof useOemCloudAccess>["cloudReadiness"];
   pendingPayment: ReturnType<typeof useOemCloudAccess>["pendingPayment"];
   paymentWatcher: ReturnType<typeof useOemCloudAccess>["paymentWatcher"];
@@ -127,157 +125,90 @@ function CloudReadinessPanel(props: {
   onCreateKey: () => void;
   onOpenPayment?: () => void;
   creatingKey: boolean;
+  refreshing: boolean;
 }) {
-  const { readiness, pendingPayment } = props;
-  if (!readiness) {
+  const { readiness, pendingPayment, paymentWatcher } = props;
+  const needsAttention = Boolean(
+    readiness &&
+    (readiness.status !== "ready" || pendingPayment || paymentWatcher),
+  );
+
+  if (!needsAttention) {
     return null;
   }
 
-  const ready = readiness.status === "ready";
-  const warning =
-    readiness.status === "quota_low" || readiness.status === "payment_pending";
-  const primaryLabel =
-    readiness.status === "no_api_key"
-      ? "创建 API Key"
-      : readiness.status === "payment_pending"
-        ? "刷新支付状态"
-        : readiness.nextAction || "刷新云端状态";
-  const primaryAction =
-    readiness.status === "no_api_key" ? props.onCreateKey : props.onRefresh;
+  const isPendingPayment = readiness?.status === "payment_pending";
+  const isMissingKey = readiness?.status === "no_api_key";
   const canOpenPayment = Boolean(
-    readiness.status === "payment_pending" &&
     pendingPayment?.paymentReference?.trim() &&
     /^https?:\/\//i.test(pendingPayment.paymentReference),
   );
+  const title = pendingPayment
+    ? `待支付：${pendingPayment.title || pendingPayment.orderId}`
+    : readiness?.title || "云端状态需要处理";
+  const description = pendingPayment
+    ? `${formatMoneyCents(pendingPayment.amountCents)} · ${pendingPayment.paymentChannel || "支付渠道"}`
+    : readiness?.description || readiness?.nextAction || "刷新后同步最新状态。";
+  const actionLabel = canOpenPayment
+    ? "继续支付"
+    : isMissingKey
+      ? "创建 API Key"
+      : isPendingPayment
+        ? "刷新支付状态"
+        : "刷新状态";
+  const action = canOpenPayment
+    ? props.onOpenPayment
+    : isMissingKey
+      ? props.onCreateKey
+      : props.onRefresh;
 
   return (
     <article
       className={cn(
-        SURFACE_CLASS_NAME,
-        ready
-          ? "border-emerald-200 bg-emerald-50/60"
-          : warning
-            ? "border-amber-200 bg-amber-50/70"
-            : "border-slate-200 bg-white",
+        "rounded-[22px] border px-4 py-3 shadow-sm shadow-slate-950/5",
+        isPendingPayment || pendingPayment
+          ? "border-amber-200 bg-amber-50 text-amber-800"
+          : "border-slate-200 bg-white text-slate-700",
       )}
-      data-testid="oem-cloud-activation-journey"
+      data-testid="cloud-commerce-status-bar"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="space-y-3">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <InfoPill
-              label={ready ? "READY" : warning ? "PENDING" : "SETUP"}
-              tone={ready ? "emerald" : warning ? "amber" : "slate"}
+              label={isPendingPayment || pendingPayment ? "待确认" : "需要处理"}
+              tone={isPendingPayment || pendingPayment ? "amber" : "slate"}
             />
-            <h3 className="text-lg font-semibold text-slate-900">
-              {readiness.title}
-            </h3>
+            <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
           </div>
-          {readiness.description ? (
-            <p className="max-w-3xl text-sm leading-6 text-slate-600">
-              {readiness.description}
-            </p>
-          ) : null}
-          {pendingPayment ? (
-            <div className="rounded-[18px] border border-amber-200 bg-white px-4 py-3 text-sm text-amber-800">
-              待支付：{pendingPayment.title || pendingPayment.orderId} ·{" "}
-              {formatMoneyCents(pendingPayment.amountCents)} ·{" "}
-              {pendingPayment.paymentChannel || "未配置渠道"}
-            </div>
-          ) : null}
-          {props.paymentWatcher ? (
-            <div
-              className={cn(
-                "flex items-start gap-2 rounded-[18px] border bg-white px-4 py-3 text-sm leading-6",
-                props.paymentWatcher.status === "confirmed"
-                  ? "border-emerald-200 text-emerald-700"
-                  : props.paymentWatcher.status === "stopped"
-                    ? "border-amber-200 text-amber-800"
-                    : "border-sky-200 text-sky-700",
-              )}
-            >
-              {props.paymentWatcher.status === "waiting" ? (
-                <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
-              ) : props.paymentWatcher.status === "confirmed" ? (
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              ) : (
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              )}
-              <span>
-                {props.paymentWatcher.title} ·{" "}
-                {props.paymentWatcher.message || "正在确认支付状态"}
-                {props.paymentWatcher.status === "waiting"
-                  ? `（第 ${props.paymentWatcher.attempts} 次）`
-                  : ""}
-              </span>
-            </div>
-          ) : null}
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            {paymentWatcher
+              ? `${paymentWatcher.title} · ${paymentWatcher.message || "正在确认支付状态"}`
+              : description}
+          </p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
-          {canOpenPayment ? (
-            <button
-              type="button"
-              onClick={props.onOpenPayment}
-              className={PRIMARY_ACTION_BUTTON_CLASS}
-            >
-              <ExternalLink className="h-4 w-4" />
-              继续支付
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={primaryAction}
-            disabled={props.creatingKey}
-            className={cn(
-              ready || canOpenPayment
-                ? "border-emerald-200 bg-white text-emerald-700"
-                : PRIMARY_ACTION_BUTTON_CLASS,
-              ready || canOpenPayment
-                ? "inline-flex items-center justify-center gap-2 rounded-[16px] border px-4 py-2.5 text-sm font-medium transition hover:bg-emerald-50 disabled:opacity-60"
-                : "",
-            )}
-          >
-            {props.creatingKey ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : ready || canOpenPayment ? (
-              <RefreshCw className="h-4 w-4" />
-            ) : (
-              <CheckCircle2 className="h-4 w-4" />
-            )}
-            {ready ? "刷新状态" : primaryLabel}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={action}
+          disabled={props.creatingKey || props.refreshing || !action}
+          className={cn(
+            canOpenPayment || isMissingKey
+              ? PRIMARY_ACTION_BUTTON_CLASS
+              : "inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60",
+          )}
+        >
+          {props.creatingKey || props.refreshing ? (
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+          ) : canOpenPayment ? (
+            <ExternalLink className="h-4 w-4" />
+          ) : isMissingKey ? (
+            <KeyRound className="h-4 w-4" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          {actionLabel}
+        </button>
       </div>
-
-      {readiness.steps.length > 0 ? (
-        <div className="mt-4 grid gap-2 md:grid-cols-5">
-          {readiness.steps.map((step) => (
-            <div
-              key={step.key}
-              className={cn(
-                "rounded-[16px] border px-3 py-3",
-                step.done
-                  ? "border-emerald-200 bg-white text-emerald-700"
-                  : "border-slate-200 bg-white text-slate-500",
-              )}
-            >
-              <div className="flex items-center gap-2 text-xs font-medium">
-                {step.done ? (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                ) : (
-                  <AlertCircle className="h-3.5 w-3.5" />
-                )}
-                {step.label}
-              </div>
-              {step.description ? (
-                <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-slate-500">
-                  {step.description}
-                </p>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
     </article>
   );
 }
@@ -452,49 +383,14 @@ function formatWalletStatusLabel(value?: string): string {
   }
 }
 
-type CompactCommerceRecord = {
-  id: string;
-  kind: string;
-  title: string;
-  statusLabel: string;
-  statusTone: "slate" | "emerald" | "amber";
-  detail: string;
-};
+type CommerceTone = "slate" | "emerald" | "amber";
 
-function resolvePaidCommerceTone(
-  value?: string,
-): CompactCommerceRecord["statusTone"] {
+function resolvePaidCommerceTone(value?: string): CommerceTone {
   return String(value).toLowerCase() === "paid" ? "emerald" : "amber";
 }
 
-function resolveActiveCommerceTone(
-  value?: string,
-): CompactCommerceRecord["statusTone"] {
+function resolveActiveCommerceTone(value?: string): CommerceTone {
   return String(value).toLowerCase() === "active" ? "emerald" : "slate";
-}
-
-function CommerceRecordRow(props: { record: CompactCommerceRecord }) {
-  return (
-    <div className="rounded-[16px] border border-slate-200/80 bg-white px-3 py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-            {props.record.kind}
-          </span>
-          <span className="truncate text-sm font-medium text-slate-900">
-            {props.record.title}
-          </span>
-        </div>
-        <InfoPill
-          label={props.record.statusLabel}
-          tone={props.record.statusTone}
-        />
-      </div>
-      <p className="mt-1 text-xs leading-5 text-slate-500">
-        {props.record.detail}
-      </p>
-    </div>
-  );
 }
 
 function resolveInitialPlanCycle(
@@ -506,17 +402,136 @@ function resolveInitialPlanCycle(
   )?.key;
 }
 
-function resolvePlanCycle(
+function resolvePlanCycleByKey(
   plan: OemCloudEntitlementPlan,
-  selectedCycles: Record<string, OemCloudBillingCycle>,
+  selectedCycle: OemCloudBillingCycle,
 ) {
-  const selected = selectedCycles[plan.id];
   return (
-    plan.billingCycles.find((item) => item.key === selected) ??
+    plan.billingCycles.find((item) => item.key === selectedCycle) ??
     plan.billingCycles.find(
       (item) => item.key === resolveInitialPlanCycle(plan),
-    )
+    ) ??
+    plan.billingCycles[0]
   );
+}
+
+function buildUsagePercent(used: number, limit: number): number {
+  if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Math.round((used / limit) * 100)));
+}
+
+function formatUsageRatio(used: number, limit: number): string {
+  if (limit <= 0) {
+    return formatCreditAmount(used);
+  }
+
+  return `${formatCreditAmount(used)} / ${formatCreditAmount(limit)}`;
+}
+
+type DailyUsageBucket = {
+  key: string;
+  label: string;
+  credits: number;
+  tokens: number;
+  count: number;
+};
+
+function formatDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDayLabel(dateKey: string): string {
+  const [, month = "", day = ""] = dateKey.split("-");
+  if (!month || !day) {
+    return dateKey;
+  }
+
+  return `${Number(month)}/${Number(day)}`;
+}
+
+function buildDailyUsageBuckets(
+  records: OemCloudUsageRecord[],
+  days = 14,
+): DailyUsageBucket[] {
+  const parsedDates = records
+    .map((record) => new Date(record.createdAt))
+    .filter((date) => Number.isFinite(date.getTime()));
+  const endDate = parsedDates.length
+    ? new Date(Math.max(...parsedDates.map((date) => date.getTime())))
+    : new Date();
+  endDate.setHours(0, 0, 0, 0);
+
+  const buckets = new Map<string, DailyUsageBucket>();
+  for (let index = days - 1; index >= 0; index -= 1) {
+    const date = new Date(endDate);
+    date.setDate(endDate.getDate() - index);
+    const key = formatDateKey(date);
+    buckets.set(key, {
+      key,
+      label: formatDayLabel(key),
+      credits: 0,
+      tokens: 0,
+      count: 0,
+    });
+  }
+
+  records.forEach((record) => {
+    const date = new Date(record.createdAt);
+    if (!Number.isFinite(date.getTime())) {
+      return;
+    }
+    date.setHours(0, 0, 0, 0);
+    const key = formatDateKey(date);
+    const bucket = buckets.get(key);
+    if (!bucket) {
+      return;
+    }
+    bucket.credits += record.credits;
+    bucket.tokens += record.tokens;
+    bucket.count += 1;
+  });
+
+  return Array.from(buckets.values());
+}
+
+function formatUsageStatusLabel(value?: string): string {
+  switch (String(value || "").toLowerCase()) {
+    case "charged":
+    case "success":
+    case "succeeded":
+      return "已结算";
+    case "reserved":
+      return "预占中";
+    case "released":
+      return "已释放";
+    case "failed":
+      return "失败";
+    default:
+      return value || "未知";
+  }
+}
+
+function formatSubscriptionPeriod(
+  start?: string,
+  end?: string,
+  fallback?: string,
+): string {
+  if (start && end) {
+    return `${formatOemCloudDateTime(start)} - ${formatOemCloudDateTime(end)}`;
+  }
+  if (end) {
+    return `有效至 ${formatOemCloudDateTime(end)}`;
+  }
+  if (fallback) {
+    return fallback;
+  }
+  return "以服务端权益为准";
 }
 
 function copyTextToClipboard(value: string) {
@@ -1695,9 +1710,11 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     useState<ProviderWorkspaceView>(defaultView);
   const [selectedPaymentOptionId, setSelectedPaymentOptionId] =
     useState<string>("");
-  const [selectedPlanCycles, setSelectedPlanCycles] = useState<
-    Record<string, OemCloudBillingCycle>
-  >({});
+  const [selectedPlanBillingCycle, setSelectedPlanBillingCycle] =
+    useState<OemCloudBillingCycle>("monthly");
+  const [cloudCommerceView, setCloudCommerceView] = useState<
+    "usage" | "billing" | "plans"
+  >("usage");
   const [modelSearch, setModelSearch] = useState("");
   const cloudLoginAutoOpenKeyRef = useRef<string | null>(null);
 
@@ -1790,6 +1807,51 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     [paymentOptions, selectedPaymentOptionId],
   );
   const selectedPaymentConfig = selectedPaymentOption?.config ?? null;
+  const availablePlanBillingCycles = useMemo(() => {
+    const cycleMap = new Map<OemCloudBillingCycle, string>();
+    plans.forEach((plan) => {
+      plan.billingCycles.forEach((cycle) => {
+        if (!cycleMap.has(cycle.key)) {
+          cycleMap.set(
+            cycle.key,
+            cycle.label || formatBillingCycleLabel(cycle.key),
+          );
+        }
+      });
+    });
+
+    const order = ["monthly", "yearly", "one_time"];
+    return Array.from(cycleMap.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((left, right) => {
+        const leftIndex = order.indexOf(left.key);
+        const rightIndex = order.indexOf(right.key);
+        if (leftIndex === -1 && rightIndex === -1) {
+          return left.label.localeCompare(right.label, "zh-CN");
+        }
+        if (leftIndex === -1) {
+          return 1;
+        }
+        if (rightIndex === -1) {
+          return -1;
+        }
+        return leftIndex - rightIndex;
+      });
+  }, [plans]);
+
+  useEffect(() => {
+    if (availablePlanBillingCycles.length === 0) {
+      return;
+    }
+    if (
+      !availablePlanBillingCycles.some(
+        (cycle) => cycle.key === selectedPlanBillingCycle,
+      )
+    ) {
+      setSelectedPlanBillingCycle(availablePlanBillingCycles[0].key);
+    }
+  }, [availablePlanBillingCycles, selectedPlanBillingCycle]);
+
   const rawBillingCurrency = billingDashboard?.billingSummary.currency ?? "";
   const billingCurrency = /^[A-Z]{3}$/.test(rawBillingCurrency)
     ? rawBillingCurrency
@@ -1845,50 +1907,59 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       ? creditsDashboard.creditOrders
       : creditTopupOrders;
   const displayedCreditWallets = creditsDashboard?.creditWallets ?? [];
-  const featuredPlan =
-    plans.find((plan) => plan.recommended) ?? plans[0] ?? null;
-  const featuredPlanCycle = featuredPlan
-    ? resolvePlanCycle(featuredPlan, selectedPlanCycles)
-    : undefined;
-  const featuredPlanIsCurrent = Boolean(
-    featuredPlan &&
-    (subscription?.planId === featuredPlan.id ||
-      subscription?.planKey === featuredPlan.key),
+  const creditBreakdownItems = [
+    {
+      key: "free",
+      label: "每日基础积分",
+      used: monthlyUsageSummary?.freeCreditsUsed ?? 0,
+      limit: monthlyUsageSummary?.freeCreditsLimit ?? 0,
+      tone: "sky",
+    },
+    {
+      key: "subscription",
+      label: "套餐积分",
+      used: monthlyUsageSummary?.subscriptionCreditsUsed ?? 0,
+      limit: monthlyUsageSummary?.subscriptionCreditsLimit ?? 0,
+      tone: "emerald",
+    },
+    {
+      key: "topup",
+      label: "补充积分",
+      used: monthlyUsageSummary?.topupCreditsUsed ?? 0,
+      limit: monthlyUsageSummary?.topupCreditsLimit ?? 0,
+      tone: "amber",
+    },
+  ];
+  const monthlyUsagePercent = buildUsagePercent(
+    monthlyUsedCredits,
+    monthlyLimitCredits,
   );
-  const featuredPlanActionLabel = featuredPlanIsCurrent
-    ? "续费套餐"
-    : subscription
-      ? "升级套餐"
-      : "购买套餐";
-  const featuredTopupPackage =
-    topupPackages.find((item) => item.recommended) ?? topupPackages[0] ?? null;
-  const commerceRecords: CompactCommerceRecord[] = [
-    ...displayedPlanOrders.map((order: OemCloudOrder) => ({
-      id: `plan-${order.id}`,
-      kind: "套餐",
-      title: order.planName || order.planKey || "套餐订单",
-      statusLabel: formatOrderStatusLabel(order.status),
-      statusTone: resolvePaidCommerceTone(order.status),
-      detail: `${formatMoneyCents(order.amountCents, billingCurrency)} · ${formatCreditAmount(order.creditsGranted)} credits · ${formatOemCloudDateTime(order.paidAt || order.createdAt)}`,
-    })),
-    ...displayedCreditOrders.map((order: OemCloudCreditTopupOrder) => ({
-      id: `topup-${order.id}`,
-      kind: "充值",
-      title: order.packageName || "积分包",
-      statusLabel: formatOrderStatusLabel(order.status),
-      statusTone: resolvePaidCommerceTone(order.status),
-      detail: `${formatMoneyCents(order.amountCents, billingCurrency)} · ${formatCreditAmount(order.creditsGranted)} credits · ${formatOemCloudDateTime(order.paidAt || order.createdAt)}`,
-    })),
-    ...displayedCreditWallets.map((wallet: OemCloudCreditWallet) => ({
-      id: `wallet-${wallet.id}`,
-      kind: "钱包",
-      title: wallet.packageName || wallet.sourceType || "积分包",
-      statusLabel: formatWalletStatusLabel(wallet.status),
-      statusTone: resolveActiveCommerceTone(wallet.status),
-      detail: `剩余 ${formatCreditAmount(wallet.remainingCredits)} / 共 ${formatCreditAmount(wallet.grantedCredits)} · 到期 ${formatOemCloudDateTime(wallet.expiresAt)}`,
-    })),
-  ].slice(0, 3);
-  const recentUsageRecords = usageDashboard?.usageRecords.slice(0, 3) ?? [];
+  const dailyUsageBuckets = useMemo(
+    () => buildDailyUsageBuckets(usageDashboard?.usageRecords ?? [], 14),
+    [usageDashboard?.usageRecords],
+  );
+  const maxDailyUsageCredits = Math.max(
+    1,
+    ...dailyUsageBuckets.map((item) => item.credits),
+  );
+  const recentUsageRecords = usageDashboard?.usageRecords.slice(0, 8) ?? [];
+  const recentPlanOrders = displayedPlanOrders.slice(0, 8);
+  const recentCreditOrders = displayedCreditOrders.slice(0, 8);
+  const subscriptionPeriodLabel = formatSubscriptionPeriod(
+    subscription?.currentPeriodStart ||
+      billingDashboard?.billingSummary.currentPeriodStart,
+    subscription?.currentPeriodEnd ||
+      billingDashboard?.billingSummary.currentPeriodEnd,
+    billingDashboard?.billingSummary.renewalAt
+      ? `下次续费 ${formatOemCloudDateTime(billingDashboard.billingSummary.renewalAt)}`
+      : undefined,
+  );
+  const accountIdentityLabel =
+    session?.user.displayName ||
+    session?.user.email ||
+    session?.user.username ||
+    session?.user.id ||
+    "已登录";
   const pendingPaymentReference = pendingPayment?.paymentReference;
   const canOpenPendingPayment = Boolean(
     pendingPaymentReference && /^https?:\/\//i.test(pendingPaymentReference),
@@ -1925,7 +1996,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
             当前版本未配置云端服务
           </h3>
           <p className="text-sm leading-6 text-slate-600">
-            本地功能可以继续使用；云端登录入口需要由品牌服务配置后才会显示。
+            本地功能可直接使用；连接入口由品牌服务下发后显示。
           </p>
         </div>
       </article>
@@ -1946,21 +2017,19 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
               正在打开 {cloudBrandLabel} 登录
             </h3>
             <p className="text-sm leading-6 text-slate-600">
-              登录完成后会自动回到客户端，同步套餐、积分、API Key 和云端模型目录。
+              登录完成后自动同步套餐、积分、API Key 和模型目录。
             </p>
           </div>
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => void handleGoogleLogin()}
-              disabled={openingGoogleLogin}
-              className={PRIMARY_ACTION_BUTTON_CLASS}
-              data-testid="open-cloud-login"
-            >
-              <LogIn className="h-4 w-4" />
-              {openingGoogleLogin ? "正在打开登录页..." : "重新打开登录页"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void handleGoogleLogin()}
+            disabled={openingGoogleLogin}
+            className={PRIMARY_ACTION_BUTTON_CLASS}
+            data-testid="open-cloud-login"
+          >
+            <LogIn className="h-4 w-4" />
+            {openingGoogleLogin ? "正在打开登录页..." : "重新打开登录页"}
+          </button>
         </div>
       </article>
     </section>
@@ -1971,526 +2040,607 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       ) : null}
 
       <article
-        className={SURFACE_CLASS_NAME}
-        data-testid="oem-cloud-session-summary"
+        className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm shadow-slate-950/5"
+        data-testid="cloud-plan-summary-card"
       >
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700">
-                <Cloud className="h-5 w-5" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    {session.user.displayName || session.user.email || "已登录"}
-                  </h3>
-                  <InfoPill
-                    label={formatSubscriptionStatus(subscription?.status)}
-                    tone={
-                      subscription?.status === "active" ? "emerald" : "slate"
-                    }
-                  />
-                  {loadingCommerce ? (
-                    <InfoPill label="正在同步商业状态" tone="amber" />
-                  ) : null}
-                </div>
-                <p className="text-sm text-slate-500">
-                  {session.user.email ||
-                    session.user.username ||
-                    session.user.id}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
-            <button
-              type="button"
-              onClick={() => void handleRefresh()}
-              disabled={refreshing}
-              className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60"
-              data-testid="oem-cloud-refresh"
-            >
-              <RefreshCw
-                className={cn("h-4 w-4", refreshing && "animate-spin")}
-              />
-              刷新云端状态
-            </button>
-            <button
-              type="button"
-              onClick={() => void openUserCenter("")}
-              className={PRIMARY_ACTION_BUTTON_CLASS}
-            >
-              <ExternalLink className="h-4 w-4" />
-              打开用户中心
-            </button>
-          </div>
-        </div>
-      </article>
-
-      <CloudReadinessPanel
-        readiness={cloudReadiness}
-        pendingPayment={pendingPayment}
-        paymentWatcher={paymentWatcher}
-        onRefresh={() => void handleRefresh()}
-        onCreateKey={() => void handleCreateAccessToken()}
-        onOpenPayment={() => {
-          if (
-            pendingPayment?.paymentReference &&
-            /^https?:\/\//i.test(pendingPayment.paymentReference)
-          ) {
-            void openUrl(pendingPayment.paymentReference);
-          }
-        }}
-        creatingKey={managingToken === "create"}
-      />
-
-      <article
-        className={SURFACE_CLASS_NAME}
-        data-testid="oem-cloud-commerce-compact-panel"
-      >
-        <div className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-1">
+        <div className="bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,252,249,0.96)_48%,rgba(241,246,255,0.94)_100%)] p-5">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-lg font-semibold text-slate-900">
-                  云端额度
-                </h3>
+                <InfoPill label={cloudBrandLabel} tone="emerald" />
                 {loadingCommerce ? (
                   <InfoPill label="同步中" tone="amber" />
                 ) : null}
+                <InfoPill
+                  label={formatSubscriptionStatus(subscription?.status)}
+                  tone={subscription?.status === "active" ? "emerald" : "slate"}
+                />
               </div>
-              <p className="text-sm leading-6 text-slate-600">
-                套餐、积分和账本记录统一收在这里。
-              </p>
+              <div>
+                <p className="text-sm font-medium text-slate-500">当前套餐</p>
+                <h3 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+                  {currentPlanName}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {subscriptionPeriodLabel} · {accountIdentityLabel}
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={
-                  !featuredPlan ||
-                  !selectedPaymentConfig ||
-                  !featuredPlanCycle ||
-                  orderingPlanId === featuredPlan.id
-                }
-                onClick={() =>
-                  featuredPlan && featuredPlanCycle && selectedPaymentConfig
-                    ? void handlePurchasePlan({
-                        planId: featuredPlan.id,
-                        billingCycle: featuredPlanCycle.key,
-                        paymentChannel:
-                          selectedPaymentOption?.provider ??
-                          selectedPaymentConfig.provider,
-                        paymentMethod: selectedPaymentOption?.method,
-                      })
-                    : undefined
-                }
-                className={PRIMARY_ACTION_BUTTON_CLASS}
-              >
-                {featuredPlan && orderingPlanId === featuredPlan.id ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CreditCard className="h-4 w-4" />
-                )}
-                {featuredPlan
-                  ? selectedPaymentConfig
-                    ? featuredPlanActionLabel
-                    : "等待支付配置"
-                  : "暂无套餐"}
-              </button>
-              <button
-                type="button"
-                disabled={
-                  !featuredTopupPackage ||
-                  !selectedPaymentConfig ||
-                  creatingTopupPackageId === featuredTopupPackage.id
-                }
-                onClick={() =>
-                  featuredTopupPackage && selectedPaymentConfig
-                    ? void handleTopupCredits({
-                        packageId: featuredTopupPackage.id,
-                        paymentChannel:
-                          selectedPaymentOption?.provider ??
-                          selectedPaymentConfig.provider,
-                        paymentMethod: selectedPaymentOption?.method,
-                      })
-                    : undefined
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60"
-              >
-                {featuredTopupPackage &&
-                creatingTopupPackageId === featuredTopupPackage.id ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <WalletCards className="h-4 w-4" />
-                )}
-                {featuredTopupPackage
-                  ? selectedPaymentConfig
-                    ? "立即充值"
-                    : "等待支付配置"
-                  : "暂无积分包"}
-              </button>
-              {canOpenPendingPayment ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (pendingPaymentReference) {
-                      void openUrl(pendingPaymentReference);
-                    }
-                  }}
-                  className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-700 transition hover:bg-amber-100"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  继续支付
-                </button>
-              ) : null}
-              <button
-                type="button"
                 onClick={() => void handleRefresh()}
                 disabled={refreshing}
                 className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+                data-testid="oem-cloud-refresh"
               >
                 <RefreshCw
                   className={cn("h-4 w-4", refreshing && "animate-spin")}
                 />
                 刷新
               </button>
+              <button
+                type="button"
+                onClick={() => void openUserCenter("")}
+                className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                <ExternalLink className="h-4 w-4" />
+                用户中心
+              </button>
+              <button
+                type="button"
+                onClick={() => setCloudCommerceView("plans")}
+                className={PRIMARY_ACTION_BUTTON_CLASS}
+              >
+                <CreditCard className="h-4 w-4" />
+                升级
+              </button>
             </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))]">
+            <div className="rounded-[20px] border border-white bg-white px-4 py-3 shadow-sm shadow-slate-950/5">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-medium text-slate-600">本月已用</span>
+                <span className="font-semibold text-slate-950">
+                  {monthlyUsagePercent}%
+                </span>
+              </div>
+              <div className="mt-3 h-2 rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${monthlyUsagePercent}%` }}
+                />
+              </div>
+              <p className="mt-2 text-sm text-slate-600">
+                {formatUsageRatio(monthlyUsedCredits, monthlyLimitCredits)} 积分
+              </p>
+            </div>
             <SessionValueCard
-              label="当前套餐"
-              value={currentPlanName}
-              hint="以 limecore 返回的订阅权益为准"
-              icon={<Sparkles className="h-3.5 w-3.5" />}
-            />
-            <SessionValueCard
-              label="Token 积分"
+              label="可用积分"
               value={formatCreditAmount(creditAccount?.balance)}
-              hint="套餐赠送和充值积分进入统一账本"
+              hint="来自服务端积分账户余额"
               icon={<WalletCards className="h-3.5 w-3.5" />}
             />
             <SessionValueCard
-              label="本月用量"
-              value={
-                monthlyLimitCredits > 0
-                  ? `${formatCreditAmount(monthlyUsedCredits)} / ${formatCreditAmount(monthlyLimitCredits)}`
-                  : formatCreditAmount(monthlyUsedCredits)
-              }
-              hint="本月已消耗的免费、套餐和充值积分合计"
-              icon={<ReceiptText className="h-3.5 w-3.5" />}
-            />
-            <SessionValueCard
-              label="支付渠道"
-              value={selectedPaymentOption?.label ?? "未配置"}
-              hint="由服务端支付配置决定"
+              label="支付方式"
+              value={selectedPaymentOption?.label ?? "暂不可购买"}
+              hint="只显示服务端启用的支付配置"
               icon={<CreditCard className="h-3.5 w-3.5" />}
             />
           </div>
+        </div>
+      </article>
 
-          <div className="flex flex-wrap gap-2">
-            {paymentOptions.length > 0 ? (
-              paymentOptions.map((option) => (
+      <CloudCommerceStatusBar
+        readiness={cloudReadiness}
+        pendingPayment={pendingPayment}
+        paymentWatcher={paymentWatcher}
+        onRefresh={() => void handleRefresh()}
+        onCreateKey={() => void handleCreateAccessToken()}
+        onOpenPayment={() => {
+          if (pendingPaymentReference) {
+            void openUrl(pendingPaymentReference);
+          }
+        }}
+        creatingKey={managingToken === "create"}
+        refreshing={refreshing}
+      />
+
+      {cloudCommerceView === "plans" ? (
+        <article
+          className={SURFACE_CLASS_NAME}
+          data-testid="cloud-plan-upgrade-page"
+        >
+          <div className="space-y-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-2">
                 <button
-                  key={option.id}
                   type="button"
-                  onClick={() => setSelectedPaymentOptionId(option.id)}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition",
-                    selectedPaymentOption?.id === option.id
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                  )}
+                  onClick={() => setCloudCommerceView("usage")}
+                  className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-900"
                 >
-                  <CreditCard className="h-3.5 w-3.5" />
-                  {option.label}
+                  ← 返回使用详情
                 </button>
-              ))
-            ) : (
-              <InfoPill label="未配置支付渠道" tone="amber" />
-            )}
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-            <div className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="text-sm font-semibold text-slate-900">套餐</h4>
-                  {plans.length > 3 ? (
-                    <span className="text-xs text-slate-500">
-                      另有 {plans.length - 3} 个
-                    </span>
-                  ) : null}
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-950">
+                    选择适合你的套餐
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    套餐、价格和权益全部来自服务端配置；购买后通过真实支付回调同步权益。
+                  </p>
                 </div>
-                {plans.length === 0 ? (
-                  <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                    暂无可购买套餐
-                  </div>
-                ) : (
-                  <div
-                    className="grid gap-3 lg:grid-cols-3"
-                    data-testid="oem-cloud-plan-grid"
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {availablePlanBillingCycles.map((cycle) => (
+                  <button
+                    key={cycle.key}
+                    type="button"
+                    onClick={() => setSelectedPlanBillingCycle(cycle.key)}
+                    className={cn(
+                      "rounded-full border px-4 py-2 text-sm font-medium transition",
+                      selectedPlanBillingCycle === cycle.key
+                        ? "border-slate-950 bg-slate-950 text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                    )}
                   >
-                    {plans.slice(0, 3).map((plan) => {
-                      const selectedCycle = resolvePlanCycle(
-                        plan,
-                        selectedPlanCycles,
-                      );
-                      const isCurrentPlan =
-                        subscription?.planId === plan.id ||
-                        subscription?.planKey === plan.key;
-                      const actionLabel = isCurrentPlan
-                        ? "续费套餐"
-                        : subscription
-                          ? "升级套餐"
-                          : "购买套餐";
-                      const disabled =
-                        !selectedPaymentConfig ||
-                        !selectedCycle ||
-                        orderingPlanId === plan.id;
-                      const features = (
-                        plan.quotaSummaries.length > 0
-                          ? plan.quotaSummaries.map((item) => item.value)
-                          : plan.features
-                      ).slice(0, 2);
+                    {cycle.label || formatBillingCycleLabel(cycle.key)}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                      return (
-                        <div
-                          key={plan.id}
-                          className={cn(
-                            "rounded-[20px] border bg-slate-50 p-3.5",
-                            plan.recommended || isCurrentPlan
-                              ? "border-emerald-200 bg-emerald-50/60"
-                              : "border-slate-200/80",
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h5 className="truncate text-sm font-semibold text-slate-900">
-                                  {plan.name}
-                                </h5>
-                                {plan.recommended ? (
-                                  <InfoPill
-                                    label={plan.badge || "推荐"}
-                                    tone="emerald"
-                                  />
-                                ) : plan.badge ? (
-                                  <InfoPill label={plan.badge} />
-                                ) : null}
-                                {isCurrentPlan ? (
-                                  <InfoPill label="当前" tone="emerald" />
-                                ) : null}
-                              </div>
-                              <p className="line-clamp-2 text-xs leading-5 text-slate-500">
-                                {plan.tagline || plan.description || "套餐权益"}
-                              </p>
+            <div
+              className="flex flex-wrap gap-2"
+              data-testid="cloud-payment-options"
+            >
+              {paymentOptions.length > 0 ? (
+                paymentOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setSelectedPaymentOptionId(option.id)}
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                      selectedPaymentOption?.id === option.id
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                    )}
+                  >
+                    <CreditCard className="h-3.5 w-3.5" />
+                    {option.label}
+                  </button>
+                ))
+              ) : (
+                <InfoPill label="服务端未启用支付渠道" tone="amber" />
+              )}
+              {canOpenPendingPayment ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    pendingPaymentReference &&
+                    void openUrl(pendingPaymentReference)
+                  }
+                  className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  继续支付
+                </button>
+              ) : null}
+            </div>
+
+            {plans.length === 0 ? (
+              <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500">
+                服务端暂未发布可购买套餐。
+              </div>
+            ) : (
+              <div
+                className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4"
+                data-testid="cloud-plan-grid"
+              >
+                {plans.map((plan) => {
+                  const selectedCycle = resolvePlanCycleByKey(
+                    plan,
+                    selectedPlanBillingCycle,
+                  );
+                  const lowerPlanKey = plan.key.toLowerCase();
+                  const isFreePlan =
+                    lowerPlanKey.includes("free") ||
+                    (selectedCycle?.priceCents ?? plan.priceMonthly) <= 0;
+                  const isCurrentPlan =
+                    subscription?.planId === plan.id ||
+                    subscription?.planKey === plan.key ||
+                    (!subscription && isFreePlan);
+                  const disabled =
+                    isCurrentPlan ||
+                    !selectedPaymentConfig ||
+                    !selectedCycle ||
+                    orderingPlanId === plan.id;
+                  const featureItems = (
+                    plan.featureSections.length > 0
+                      ? plan.featureSections.flatMap((section) => section.items)
+                      : plan.quotaSummaries.length > 0
+                        ? plan.quotaSummaries.map((item) => item.value)
+                        : plan.features
+                  ).slice(0, 5);
+                  const priceLabel = formatMoneyCents(
+                    selectedCycle?.priceCents ?? plan.priceMonthly,
+                    billingCurrency,
+                  );
+                  const actionLabel = isCurrentPlan
+                    ? "当前套餐"
+                    : orderingPlanId === plan.id
+                      ? "正在打开支付..."
+                      : selectedPaymentConfig
+                        ? subscription
+                          ? "升级"
+                          : "选择套餐"
+                        : "暂不可购买";
+
+                  return (
+                    <div
+                      key={plan.id}
+                      className={cn(
+                        "flex min-h-[320px] flex-col rounded-[24px] border bg-white p-5 shadow-sm shadow-slate-950/5",
+                        plan.recommended || isCurrentPlan
+                          ? "border-emerald-200 ring-1 ring-emerald-100"
+                          : "border-slate-200/80",
+                      )}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isCurrentPlan ? (
+                            <InfoPill label="当前" tone="emerald" />
+                          ) : plan.recommended ? (
+                            <InfoPill
+                              label={plan.badge || "推荐"}
+                              tone="emerald"
+                            />
+                          ) : plan.badge ? (
+                            <InfoPill label={plan.badge} />
+                          ) : null}
+                        </div>
+                        <div>
+                          <h4 className="text-xl font-semibold text-slate-950">
+                            {plan.name}
+                          </h4>
+                          <p className="mt-2 min-h-[44px] text-sm leading-6 text-slate-600">
+                            {plan.tagline ||
+                              plan.description ||
+                              "服务端配置的套餐权益"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-3xl font-semibold tracking-tight text-slate-950">
+                            {priceLabel}
+                          </span>
+                          <span className="ml-2 text-sm text-slate-500">
+                            / {formatBillingCycleLabel(selectedCycle?.key)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-600">
+                          含{" "}
+                          {formatCreditAmount(
+                            selectedCycle?.credits ?? plan.creditsMonthly,
+                          )}{" "}
+                          积分
+                        </p>
+                      </div>
+
+                      <div className="mt-5 flex-1 space-y-2">
+                        {featureItems.length > 0 ? (
+                          featureItems.map((item) => (
+                            <div
+                              key={`${plan.id}-${item}`}
+                              className="flex items-start gap-2 text-sm leading-6 text-slate-600"
+                            >
+                              <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-500" />
+                              <span>{item}</span>
                             </div>
-                            <p className="whitespace-nowrap text-sm font-semibold text-slate-950">
-                              {formatMoneyCents(
-                                selectedCycle?.priceCents ?? plan.priceMonthly,
-                                billingCurrency,
-                              )}
+                          ))
+                        ) : (
+                          <p className="text-sm leading-6 text-slate-500">
+                            具体权益以服务端套餐配置为准。
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() =>
+                          selectedCycle && selectedPaymentConfig
+                            ? void handlePurchasePlan({
+                                planId: plan.id,
+                                billingCycle: selectedCycle.key,
+                                paymentChannel:
+                                  selectedPaymentOption?.provider ??
+                                  selectedPaymentConfig.provider,
+                                paymentMethod: selectedPaymentOption?.method,
+                              })
+                            : undefined
+                        }
+                        className={cn(
+                          isCurrentPlan
+                            ? "mt-5 inline-flex items-center justify-center rounded-[16px] border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-500"
+                            : cn(PRIMARY_ACTION_BUTTON_CLASS, "mt-5 w-full"),
+                        )}
+                      >
+                        {orderingPlanId === plan.id ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                        ) : isCurrentPlan ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          <CreditCard className="h-4 w-4" />
+                        )}
+                        {actionLabel}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="rounded-[24px] border border-slate-200/80 bg-slate-50 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-900">
+                    补充积分
+                  </h4>
+                  <p className="mt-1 text-sm text-slate-500">
+                    余额不足时可按服务端积分包充值；没有积分包时不显示兜底套餐。
+                  </p>
+                </div>
+                {topupPackages.length === 0 ? (
+                  <InfoPill label="暂无积分包" />
+                ) : null}
+              </div>
+              {topupPackages.length > 0 ? (
+                <div
+                  className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+                  data-testid="cloud-topup-grid"
+                >
+                  {topupPackages.map((item) => {
+                    const totalCredits =
+                      item.credits + (item.bonusCredits ?? 0);
+                    const disabled =
+                      !selectedPaymentConfig ||
+                      creatingTopupPackageId === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded-[18px] border border-slate-200 bg-white px-4 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {item.name}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {formatCreditAmount(totalCredits)} 积分 · 有效{" "}
+                              {item.validDays} 天
                             </p>
                           </div>
+                          <span className="text-sm font-semibold text-slate-950">
+                            {formatMoneyCents(item.priceCents, billingCurrency)}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() =>
+                            selectedPaymentConfig
+                              ? void handleTopupCredits({
+                                  packageId: item.id,
+                                  paymentChannel:
+                                    selectedPaymentOption?.provider ??
+                                    selectedPaymentConfig.provider,
+                                  paymentMethod: selectedPaymentOption?.method,
+                                })
+                              : undefined
+                          }
+                          className={cn(
+                            PRIMARY_ACTION_BUTTON_CLASS,
+                            "mt-3 w-full px-3 py-2 text-xs",
+                          )}
+                        >
+                          {creatingTopupPackageId === item.id ? (
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <WalletCards className="h-4 w-4" />
+                          )}
+                          {selectedPaymentConfig ? "充值" : "暂不可购买"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </article>
+      ) : (
+        <article
+          className={SURFACE_CLASS_NAME}
+          data-testid="cloud-commerce-dashboard"
+        >
+          <div className="space-y-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-100 p-1">
+                {[
+                  ["usage", "使用详情"],
+                  ["billing", "账单"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() =>
+                      setCloudCommerceView(value as "usage" | "billing")
+                    }
+                    className={cn(
+                      "rounded-full px-4 py-2 text-sm font-medium transition",
+                      cloudCommerceView === value
+                        ? "bg-white text-slate-950 shadow-sm shadow-slate-950/5"
+                        : "text-slate-500 hover:text-slate-800",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setCloudCommerceView("plans")}
+                className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                <CreditCard className="h-4 w-4" />
+                查看套餐
+              </button>
+            </div>
 
-                          <p className="mt-2 text-xs text-slate-600">
-                            含{" "}
-                            {formatCreditAmount(
-                              selectedCycle?.credits ?? plan.creditsMonthly,
-                            )}{" "}
-                            Token 积分
-                          </p>
+            {cloudCommerceView === "usage" ? (
+              <div className="space-y-5" data-testid="cloud-usage-details">
+                <div className="grid gap-3 md:grid-cols-3">
+                  {creditBreakdownItems.map((item) => (
+                    <div
+                      key={item.key}
+                      className="rounded-[20px] border border-slate-200/80 bg-slate-50 px-4 py-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-slate-600">
+                          {item.label}
+                        </p>
+                        <span className="text-xs font-medium text-slate-400">
+                          {buildUsagePercent(item.used, item.limit)}%
+                        </span>
+                      </div>
+                      <p className="mt-3 text-xl font-semibold text-slate-950">
+                        {formatUsageRatio(item.used, item.limit)}
+                      </p>
+                      <div className="mt-3 h-1.5 rounded-full bg-white">
+                        <div
+                          className={cn(
+                            "h-full rounded-full",
+                            item.tone === "emerald"
+                              ? "bg-emerald-500"
+                              : item.tone === "amber"
+                                ? "bg-amber-500"
+                                : "bg-sky-500",
+                          )}
+                          style={{
+                            width: `${buildUsagePercent(item.used, item.limit)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-                          {plan.billingCycles.length > 1 ? (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {plan.billingCycles.map((cycle) => (
-                                <button
-                                  key={`${plan.id}-${cycle.key}`}
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectedPlanCycles((current) => ({
-                                      ...current,
-                                      [plan.id]: cycle.key,
-                                    }))
-                                  }
-                                  className={cn(
-                                    "rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
-                                    selectedCycle?.key === cycle.key
-                                      ? "border-slate-900 bg-slate-900 text-white"
-                                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                                  )}
-                                >
-                                  {formatBillingCycleLabel(cycle.key)}
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-
-                          {features.length > 0 ? (
-                            <div className="mt-3 space-y-1.5">
-                              {features.map((item) => (
-                                <div
-                                  key={`${plan.id}-${item}`}
-                                  className="flex items-center gap-2 text-xs text-slate-600"
-                                >
-                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                                  <span className="line-clamp-1">{item}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              selectedCycle && selectedPaymentConfig
-                                ? void handlePurchasePlan({
-                                    planId: plan.id,
-                                    billingCycle: selectedCycle.key,
-                                    paymentChannel:
-                                      selectedPaymentOption?.provider ??
-                                      selectedPaymentConfig.provider,
-                                    paymentMethod:
-                                      selectedPaymentOption?.method,
-                                  })
-                                : undefined
-                            }
-                            disabled={disabled}
-                            className={cn(
-                              PRIMARY_ACTION_BUTTON_CLASS,
-                              "mt-3 w-full px-3 py-2 text-xs",
-                            )}
-                          >
-                            {orderingPlanId === plan.id ? (
-                              <LoaderCircle className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <CreditCard className="h-4 w-4" />
-                            )}
-                            {selectedPaymentConfig
-                              ? actionLabel
-                              : "等待支付配置"}
-                          </button>
+                <div className="rounded-[24px] border border-slate-200/80 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        近 14 天消耗
+                      </h4>
+                      <p className="mt-1 text-sm text-slate-500">
+                        从服务端用量记录聚合，不生成兜底数据。
+                      </p>
+                    </div>
+                    <InfoPill label={`${recentUsageRecords.length} 条记录`} />
+                  </div>
+                  <div className="mt-4 flex h-44 items-end gap-2 rounded-[18px] border border-slate-200 bg-white px-3 py-3">
+                    {dailyUsageBuckets.map((bucket) => {
+                      const height =
+                        bucket.credits > 0
+                          ? Math.max(
+                              8,
+                              Math.round(
+                                (bucket.credits / maxDailyUsageCredits) * 100,
+                              ),
+                            )
+                          : 2;
+                      return (
+                        <div
+                          key={bucket.key}
+                          className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                          title={`${bucket.key} · ${formatCreditAmount(bucket.credits)} 积分`}
+                        >
+                          <div className="flex h-full w-full items-end justify-center rounded-full bg-slate-100">
+                            <div
+                              className={cn(
+                                "w-full max-w-[18px] rounded-full transition-all",
+                                bucket.credits > 0
+                                  ? "bg-slate-950"
+                                  : "bg-slate-200",
+                              )}
+                              style={{ height: `${height}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-slate-400">
+                            {bucket.label}
+                          </span>
                         </div>
                       );
                     })}
                   </div>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="text-sm font-semibold text-slate-900">
-                    积分充值
-                  </h4>
-                  {topupPackages.length > 3 ? (
-                    <span className="text-xs text-slate-500">
-                      另有 {topupPackages.length - 3} 个
-                    </span>
-                  ) : null}
                 </div>
-                {topupPackages.length === 0 ? (
-                  <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                    暂无积分包
-                  </div>
-                ) : (
-                  <div
-                    className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-                    data-testid="oem-cloud-topup-grid"
-                  >
-                    {topupPackages
-                      .slice(0, 3)
-                      .map((item: OemCloudTopupPackage) => {
-                        const disabled =
-                          !selectedPaymentConfig ||
-                          creatingTopupPackageId === item.id;
-                        const totalCredits =
-                          item.credits + (item.bonusCredits ?? 0);
 
-                        return (
-                          <div
-                            key={item.id}
-                            className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-3.5 py-3"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h5 className="truncate text-sm font-semibold text-slate-900">
-                                    {item.name}
-                                  </h5>
-                                  {item.recommended ? (
-                                    <InfoPill label="推荐" tone="emerald" />
-                                  ) : null}
-                                </div>
-                                <p className="mt-1 text-xs text-slate-500">
-                                  {formatCreditAmount(totalCredits)} Token 积分
-                                </p>
-                              </div>
-                              <p className="whitespace-nowrap text-sm font-semibold text-slate-950">
-                                {formatMoneyCents(
-                                  item.priceCents,
-                                  billingCurrency,
-                                )}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              disabled={disabled}
-                              onClick={() =>
-                                selectedPaymentConfig
-                                  ? void handleTopupCredits({
-                                      packageId: item.id,
-                                      paymentChannel:
-                                        selectedPaymentOption?.provider ??
-                                        selectedPaymentConfig.provider,
-                                      paymentMethod:
-                                        selectedPaymentOption?.method,
-                                    })
-                                  : undefined
-                              }
-                              className={cn(
-                                PRIMARY_ACTION_BUTTON_CLASS,
-                                "mt-3 w-full px-3 py-2 text-xs",
-                              )}
-                            >
-                              {creatingTopupPackageId === item.id ? (
-                                <LoaderCircle className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <WalletCards className="h-4 w-4" />
-                              )}
-                              {selectedPaymentConfig
-                                ? "立即充值"
-                                : "等待支付配置"}
-                            </button>
+                <div className="rounded-[24px] border border-slate-200/80 bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 px-4 py-3">
+                    <h4 className="text-sm font-semibold text-slate-900">
+                      用量记录
+                    </h4>
+                    <InfoPill label="真实账本" tone="emerald" />
+                  </div>
+                  {recentUsageRecords.length > 0 ? (
+                    <div
+                      className="divide-y divide-slate-100"
+                      data-testid="cloud-usage-records"
+                    >
+                      {recentUsageRecords.map((record) => (
+                        <div
+                          key={record.id}
+                          className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.2fr_1fr_0.8fr_0.8fr] md:items-center"
+                        >
+                          <div>
+                            <p className="font-medium text-slate-900">
+                              {record.model || "未知模型"}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {formatOemCloudDateTime(record.createdAt)}
+                            </p>
                           </div>
-                        );
-                      })}
-                  </div>
-                )}
+                          <span className="text-slate-600">
+                            {formatCreditAmount(record.tokens)} tokens
+                          </span>
+                          <span className="font-medium text-slate-900">
+                            {formatCreditAmount(record.credits)} 积分
+                          </span>
+                          <InfoPill
+                            label={formatUsageStatusLabel(record.status)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-8 text-center text-sm text-slate-500">
+                      暂无用量记录。
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="rounded-[20px] border border-slate-200/80 bg-slate-50/80 p-3.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="text-sm font-semibold text-slate-900">
-                    账本记录
-                  </h4>
-                  <InfoPill
-                    label={formatMoneyCents(
+            ) : (
+              <div className="space-y-5" data-testid="cloud-billing-details">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <SessionValueCard
+                    label="累计支付"
+                    value={formatMoneyCents(
                       billingDashboard?.billingSummary.totalSpentCents,
                       billingCurrency,
                     )}
-                  />
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
-                  <SessionValueCard
-                    label="本月消耗"
-                    value={formatCreditAmount(monthlyUsedCredits)}
-                    hint="本月消耗合计"
+                    hint="服务端账单摘要返回"
+                    icon={<ReceiptText className="h-3.5 w-3.5" />}
                   />
                   <SessionValueCard
                     label="下次付款"
@@ -2498,149 +2648,208 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                       billingDashboard?.billingSummary.nextPaymentAmountCents,
                       billingCurrency,
                     )}
-                    hint="订阅账单摘要返回"
+                    hint="自动续费套餐才会返回下次金额"
+                    icon={<CreditCard className="h-3.5 w-3.5" />}
                   />
                   <SessionValueCard
-                    label="累计支付"
-                    value={formatMoneyCents(
-                      billingDashboard?.billingSummary.totalSpentCents,
-                      billingCurrency,
+                    label="最近支付"
+                    value={formatOemCloudDateTime(
+                      billingDashboard?.billingSummary.lastPaidAt,
                     )}
-                    hint="当前账号累计支出"
+                    hint="最近一笔已支付订单"
+                    icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                   />
                 </div>
-                <div
-                  className="mt-3 space-y-2"
-                  data-testid="oem-cloud-commerce-records"
-                >
-                  {commerceRecords.length > 0 ? (
-                    commerceRecords.map((record) => (
-                      <CommerceRecordRow key={record.id} record={record} />
-                    ))
-                  ) : (
-                    <div className="rounded-[16px] border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-500">
-                      暂无订单记录
-                    </div>
-                  )}
-                </div>
-              </div>
 
-              <div className="rounded-[20px] border border-slate-200/80 bg-slate-50/80 p-3.5">
-                <h4 className="text-sm font-semibold text-slate-900">
-                  最近用量
-                </h4>
-                <div
-                  className="mt-3 space-y-2"
-                  data-testid="oem-cloud-usage-list"
-                >
-                  {recentUsageRecords.length > 0 ? (
-                    recentUsageRecords.map((record) => (
-                      <div
-                        key={record.id}
-                        className="rounded-[16px] border border-slate-200 bg-white px-3 py-2.5"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                          <span className="font-medium text-slate-900">
-                            {record.model || "未知模型"}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            {formatOemCloudDateTime(record.createdAt)}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {formatCreditAmount(record.tokens)} tokens ·{" "}
-                          {formatCreditAmount(record.credits)} credits ·{" "}
-                          {record.status}
-                        </p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-[16px] border border-dashed border-slate-300 bg-white px-3 py-3 text-sm text-slate-500">
-                      暂无最近用量
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <div className="grid gap-4">
-        <article
-          className={SURFACE_CLASS_NAME}
-          data-testid="oem-cloud-api-key-section"
-        >
-          <div className="space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <h3 className="text-lg font-semibold text-slate-900">
-                  API Key
-                </h3>
-                <p className="text-sm leading-6 text-slate-600">
-                  用于 OpenAI-compatible / Anthropic-compatible
-                  协议调用，密钥明文只显示一次。
-                </p>
-              </div>
-              <ShieldCheck className="h-5 w-5 text-emerald-600" />
-            </div>
-
-            {lastIssuedRawToken ? (
-              <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-xs font-medium text-emerald-700">
-                  请立即保存，刷新后不会再次显示
-                </p>
-                <code className="mt-2 block break-all rounded-[14px] border border-emerald-200 bg-white px-3 py-2 text-xs text-slate-800">
-                  {lastIssuedRawToken}
-                </code>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => copyTextToClipboard(lastIssuedRawToken)}
-                    className="inline-flex items-center gap-2 rounded-[14px] border border-emerald-200 bg-white px-3 py-2 text-xs font-medium text-emerald-700"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    复制 API Key
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDismissIssuedToken}
-                    className="inline-flex items-center gap-2 rounded-[14px] border border-emerald-200 bg-emerald-100 px-3 py-2 text-xs font-medium text-emerald-800"
-                  >
-                    我已保存
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {activeAccessToken?.token ? (
-              <div className="rounded-[18px] border border-slate-200/80 bg-slate-50 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {activeAccessToken.token.name}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {activeAccessToken.token.tokenMasked} · 到期{" "}
-                      {formatOemCloudDateTime(
-                        activeAccessToken.token.expiresAt,
-                      )}
-                    </p>
+                <div className="rounded-[24px] border border-slate-200/80 bg-white">
+                  <div className="border-b border-slate-200/80 px-4 py-3">
+                    <h4 className="text-sm font-semibold text-slate-900">
+                      套餐订单
+                    </h4>
                   </div>
-                  <InfoPill
-                    label={
-                      activeAccessToken.token.status === "active"
-                        ? "可用"
-                        : activeAccessToken.token.status
-                    }
-                    tone={
-                      activeAccessToken.token.status === "active"
-                        ? "emerald"
-                        : "amber"
-                    }
-                  />
+                  {recentPlanOrders.length > 0 ? (
+                    <div
+                      className="divide-y divide-slate-100"
+                      data-testid="cloud-plan-orders"
+                    >
+                      {recentPlanOrders.map((order: OemCloudOrder) => (
+                        <div
+                          key={order.id}
+                          className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr] md:items-center"
+                        >
+                          <div>
+                            <p className="font-medium text-slate-900">
+                              {order.planName || order.planKey}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {formatOemCloudDateTime(
+                                order.paidAt || order.createdAt,
+                              )}
+                            </p>
+                          </div>
+                          <span className="text-slate-600">
+                            {formatBillingCycleLabel(order.billingCycle)}
+                          </span>
+                          <span className="font-medium text-slate-900">
+                            {formatMoneyCents(
+                              order.amountCents,
+                              billingCurrency,
+                            )}
+                          </span>
+                          <InfoPill
+                            label={formatOrderStatusLabel(order.status)}
+                            tone={resolvePaidCommerceTone(order.status)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-8 text-center text-sm text-slate-500">
+                      暂无套餐订单。
+                    </div>
+                  )}
                 </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-[24px] border border-slate-200/80 bg-white">
+                    <div className="border-b border-slate-200/80 px-4 py-3">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        充值订单
+                      </h4>
+                    </div>
+                    {recentCreditOrders.length > 0 ? (
+                      <div className="divide-y divide-slate-100">
+                        {recentCreditOrders.map(
+                          (order: OemCloudCreditTopupOrder) => (
+                            <div key={order.id} className="px-4 py-3 text-sm">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="font-medium text-slate-900">
+                                  {order.packageName}
+                                </span>
+                                <InfoPill
+                                  label={formatOrderStatusLabel(order.status)}
+                                  tone={resolvePaidCommerceTone(order.status)}
+                                />
+                              </div>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatMoneyCents(
+                                  order.amountCents,
+                                  billingCurrency,
+                                )}{" "}
+                                · {formatCreditAmount(order.creditsGranted)}{" "}
+                                积分 ·{" "}
+                                {formatOemCloudDateTime(
+                                  order.paidAt || order.createdAt,
+                                )}
+                              </p>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-8 text-center text-sm text-slate-500">
+                        暂无充值订单。
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-[24px] border border-slate-200/80 bg-white">
+                    <div className="border-b border-slate-200/80 px-4 py-3">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        积分来源
+                      </h4>
+                    </div>
+                    {displayedCreditWallets.length > 0 ? (
+                      <div className="divide-y divide-slate-100">
+                        {displayedCreditWallets
+                          .slice(0, 6)
+                          .map((wallet: OemCloudCreditWallet) => (
+                            <div key={wallet.id} className="px-4 py-3 text-sm">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="font-medium text-slate-900">
+                                  {wallet.packageName || wallet.sourceType}
+                                </span>
+                                <InfoPill
+                                  label={formatWalletStatusLabel(wallet.status)}
+                                  tone={resolveActiveCommerceTone(
+                                    wallet.status,
+                                  )}
+                                />
+                              </div>
+                              <p className="mt-1 text-xs text-slate-500">
+                                剩余{" "}
+                                {formatCreditAmount(wallet.remainingCredits)} /
+                                共 {formatCreditAmount(wallet.grantedCredits)} ·
+                                到期 {formatOemCloudDateTime(wallet.expiresAt)}
+                              </p>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-8 text-center text-sm text-slate-500">
+                        暂无积分来源。
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </article>
+      )}
+
+      <details
+        className={SURFACE_CLASS_NAME}
+        data-testid="oem-cloud-api-key-section"
+      >
+        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">
+          API Key 与 SDK
+          <span className="ml-2 text-xs font-normal text-slate-500">
+            {activeAccessToken?.hasActive ? "已就绪" : "未创建"}
+          </span>
+        </summary>
+        <div className="mt-4 space-y-4">
+          {lastIssuedRawToken ? (
+            <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xs font-medium text-emerald-700">
+                请立即保存，刷新后不会再次显示
+              </p>
+              <code className="mt-2 block break-all rounded-[14px] border border-emerald-200 bg-white px-3 py-2 text-xs text-slate-800">
+                {lastIssuedRawToken}
+              </code>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => copyTextToClipboard(lastIssuedRawToken)}
+                  className="inline-flex items-center gap-2 rounded-[14px] border border-emerald-200 bg-white px-3 py-2 text-xs font-medium text-emerald-700"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  复制 API Key
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDismissIssuedToken()}
+                  className="inline-flex items-center gap-2 rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600"
+                >
+                  我已保存
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {activeAccessToken?.hasActive && activeAccessToken.token ? (
+            <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {activeAccessToken.token.name || "Desktop Key"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {activeAccessToken.token.tokenMasked ||
+                      activeAccessToken.token.tokenPrefix}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     disabled={managingToken === activeAccessToken.token.id}
@@ -2668,334 +2877,312 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-500">
-                当前账号还没有活跃 API Key。创建后可复制到 SDK
-                或兼容客户端中使用。
-              </div>
-            )}
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              <SessionValueCard
-                label="Base URL"
-                value={llmBaseUrl}
-                hint="只通过 limecore 统一入口调用，不暴露内部供应层"
-              />
-              <SessionValueCard
-                label="OpenAI URL"
-                value={openAIBaseUrl || "未配置"}
-                hint="OpenAI-compatible SDK 使用的 /v1 入口，来自 cloud-activation"
-              />
-              <SessionValueCard
-                label="Anthropic URL"
-                value={anthropicBaseUrl || "未配置"}
-                hint="Anthropic-compatible SDK 使用的根入口，来自 cloud-activation"
-              />
-              <SessionValueCard
-                label="Key 数量"
-                value={`${accessTokens.length} 个`}
-                hint="包含活跃和已撤销的历史 Key"
-              />
             </div>
+          ) : null}
 
-            {canRenderSdkSnippets ? (
-              <div className="space-y-3" data-testid="oem-cloud-sdk-section">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-900">
-                      SDK 调用
-                    </h4>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      示例只使用服务端下发的 Base URL 和模型 ID；Key 请放到
-                      LIME_API_KEY 环境变量，并随请求携带租户 Header。
-                    </p>
-                  </div>
-                  {activeAccessToken?.hasActive ? (
-                    <InfoPill label="API Key 已就绪" tone="emerald" />
-                  ) : (
-                    <InfoPill label="先创建 API Key" tone="amber" />
-                  )}
-                </div>
-                <div className="grid gap-3 xl:grid-cols-2">
-                  <SdkSnippetCard
-                    title="OpenAI SDK"
-                    description="用于 chat.completions 与 OpenAI-compatible 客户端。"
-                    lines={buildOpenAISdkSnippet(
-                      openAIBaseUrl,
-                      sdkModelId,
-                      gatewaySnippetOptions,
-                    )}
-                  />
-                  {canRenderAnthropicSnippet ? (
-                    <SdkSnippetCard
-                      title="Anthropic SDK"
-                      description="用于 Kimi / GLM / MiniMax / Mimo 等服务端下发的 Anthropic-compatible coding plan。"
-                      lines={buildAnthropicSdkSnippet(
-                        anthropicBaseUrl,
-                        sdkModelId,
-                        gatewaySnippetOptions,
-                      )}
-                    />
-                  ) : null}
-                </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <SessionValueCard
+              label="Base URL"
+              value={llmBaseUrl}
+              hint="只通过 limecore 统一入口调用，不暴露内部供应层"
+            />
+            <SessionValueCard
+              label="OpenAI URL"
+              value={openAIBaseUrl || "未配置"}
+              hint="OpenAI-compatible SDK 使用的 /v1 入口"
+            />
+            <SessionValueCard
+              label="Anthropic URL"
+              value={anthropicBaseUrl || "未配置"}
+              hint="Anthropic-compatible SDK 使用的根入口"
+            />
+            <SessionValueCard
+              label="Key 数量"
+              value={`${accessTokens.length} 个`}
+              hint="包含活跃和历史 Key"
+            />
+          </div>
+
+          {canRenderSdkSnippets ? (
+            <div className="space-y-3" data-testid="oem-cloud-sdk-section">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold text-slate-900">
+                  SDK 调用
+                </h4>
+                {activeAccessToken?.hasActive ? (
+                  <InfoPill label="API Key 已就绪" tone="emerald" />
+                ) : (
+                  <InfoPill label="先创建 API Key" tone="amber" />
+                )}
+              </div>
+              <div className="grid gap-3 xl:grid-cols-2">
                 <SdkSnippetCard
-                  title="最小 curl 测试"
-                  description="测试区只保留最小请求，不再做复杂表单兜底。"
-                  lines={buildCurlSmokeSnippet(
+                  title="OpenAI SDK"
+                  description="用于 chat.completions 与 OpenAI-compatible 客户端。"
+                  lines={buildOpenAISdkSnippet(
                     openAIBaseUrl,
                     sdkModelId,
                     gatewaySnippetOptions,
                   )}
                 />
+                {canRenderAnthropicSnippet ? (
+                  <SdkSnippetCard
+                    title="Anthropic SDK"
+                    description="用于 Kimi / GLM / MiniMax / Mimo 等服务端下发的 Anthropic-compatible coding plan。"
+                    lines={buildAnthropicSdkSnippet(
+                      anthropicBaseUrl,
+                      sdkModelId,
+                      gatewaySnippetOptions,
+                    )}
+                  />
+                ) : null}
               </div>
-            ) : (
-              <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500">
-                服务端尚未下发可用于 SDK 示例的 Base URL
-                或模型目录。客户端不会生成兜底模型。
-              </div>
-            )}
-
-            <button
-              type="button"
-              disabled={managingToken === "create"}
-              onClick={() => void handleCreateAccessToken()}
-              className={cn(PRIMARY_ACTION_BUTTON_CLASS, "w-full")}
-            >
-              {managingToken === "create" ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <KeyRound className="h-4 w-4" />
-              )}
-              创建 API Key
-            </button>
-          </div>
-        </article>
-      </div>
-
-      <div className="grid gap-4">
-        <article
-          className={SURFACE_CLASS_NAME}
-          data-testid="oem-cloud-model-section"
-        >
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-1">
-                <h3 className="text-lg font-semibold text-slate-900">
-                  可用模型
-                </h3>
-                <p className="text-sm leading-6 text-slate-600">
-                  模型和 Anthropic / coding
-                  能力以服务端目录为准，这里只做查看和设默认。
-                </p>
-              </div>
-              <InfoPill label={defaultProviderSummary || "未设默认来源"} />
+              <SdkSnippetCard
+                title="最小 curl 测试"
+                description="只保留最小请求，不生成兜底模型。"
+                lines={buildCurlSmokeSnippet(
+                  openAIBaseUrl,
+                  sdkModelId,
+                  gatewaySnippetOptions,
+                )}
+              />
             </div>
+          ) : (
+            <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500">
+              服务端尚未下发可用于 SDK 示例的 Base URL 或模型目录。
+            </div>
+          )}
 
-            {offers.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-500">
-                当前租户还没有可用云端来源。请先在后台发布 Offer。
-              </div>
+          <button
+            type="button"
+            disabled={managingToken === "create"}
+            onClick={() => void handleCreateAccessToken()}
+            className={cn(PRIMARY_ACTION_BUTTON_CLASS, "w-full")}
+          >
+            {managingToken === "create" ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
             ) : (
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                <div className="space-y-2" data-testid="oem-cloud-offer-grid">
-                  {offers.map((offer) => {
-                    const isDefaultCloudOffer =
-                      preference?.providerSource === "oem_cloud" &&
-                      preference.providerKey === offer.providerKey;
-                    const isFocused = selectedOfferKey === offer.providerKey;
-                    const displayedOfferState = resolveDisplayOfferState(
-                      session,
-                      offer,
-                    );
-                    return (
-                      <button
-                        key={offer.providerKey}
-                        type="button"
-                        onClick={() => void openOfferDetail(offer.providerKey)}
-                        className={cn(
-                          "w-full rounded-[18px] border px-4 py-3 text-left transition",
-                          isFocused
-                            ? "border-emerald-300 bg-emerald-50/70 shadow-sm shadow-emerald-950/10"
-                            : "border-slate-200 bg-slate-50 hover:bg-white",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">
-                              {offer.displayName}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {offer.availableModelCount} 个模型 ·{" "}
-                              {formatOemCloudModelsSourceLabel(
-                                offer.modelsSource,
-                              )}
-                            </p>
-                          </div>
-                          <InfoPill
-                            label={formatOemCloudOfferStateLabel(
-                              displayedOfferState ?? offer.state,
-                            )}
-                            tone={resolveOfferTone(
-                              displayedOfferState ?? offer.state,
-                            )}
-                          />
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {isDefaultCloudOffer ? (
-                            <InfoPill label="默认" tone="emerald" />
-                          ) : null}
-                          <InfoPill
-                            label={formatOemCloudAccessModeLabel(
-                              offer.effectiveAccessMode,
-                            )}
-                          />
-                          {offer.tags?.slice(0, 2).map((tag) => (
-                            <InfoPill
-                              key={`${offer.providerKey}-${tag}`}
-                              label={tag}
-                            />
-                          ))}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+              <KeyRound className="h-4 w-4" />
+            )}
+            创建 API Key
+          </button>
+        </div>
+      </details>
 
-                <div className="rounded-[20px] border border-slate-200/80 bg-slate-50 p-4">
-                  {selectedOffer ? (
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
+      <details
+        className={SURFACE_CLASS_NAME}
+        data-testid="oem-cloud-model-section"
+      >
+        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">
+          可用模型
+          <span className="ml-2 text-xs font-normal text-slate-500">
+            {defaultProviderSummary || "未设默认来源"}
+          </span>
+        </summary>
+        <div className="mt-4 space-y-4">
+          {offers.length === 0 ? (
+            <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-500">
+              当前租户还没有可用云端来源。请先在后台发布 Offer。
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <div className="space-y-2" data-testid="oem-cloud-offer-grid">
+                {offers.map((offer) => {
+                  const isDefaultCloudOffer =
+                    preference?.providerSource === "oem_cloud" &&
+                    preference.providerKey === offer.providerKey;
+                  const isFocused = selectedOfferKey === offer.providerKey;
+                  const displayedOfferState = resolveDisplayOfferState(
+                    session,
+                    offer,
+                  );
+                  return (
+                    <button
+                      key={offer.providerKey}
+                      type="button"
+                      onClick={() => void openOfferDetail(offer.providerKey)}
+                      className={cn(
+                        "w-full rounded-[18px] border px-4 py-3 text-left transition",
+                        isFocused
+                          ? "border-emerald-300 bg-emerald-50/70 shadow-sm shadow-emerald-950/10"
+                          : "border-slate-200 bg-slate-50 hover:bg-white",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h4 className="text-base font-semibold text-slate-900">
-                            {selectedOffer.displayName}
-                          </h4>
-                          <p className="mt-1 text-sm text-slate-500">
-                            {formatOemCloudAccessModeLabel(
-                              selectedOffer.access.accessMode,
-                            )}{" "}
-                            · {selectedModels.length} 个模型
+                          <p className="text-sm font-semibold text-slate-900">
+                            {offer.displayName}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {offer.availableModelCount} 个模型 ·{" "}
+                            {formatOemCloudModelsSourceLabel(
+                              offer.modelsSource,
+                            )}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleSetDefault(selectedOffer)}
-                          disabled={savingDefault === selectedOffer.providerKey}
-                          className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                        >
-                          {savingDefault === selectedOffer.providerKey ? (
-                            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="h-3.5 w-3.5" />
+                        <InfoPill
+                          label={formatOemCloudOfferStateLabel(
+                            displayedOfferState ?? offer.state,
                           )}
-                          设为默认
-                        </button>
+                          tone={resolveOfferTone(
+                            displayedOfferState ?? offer.state,
+                          )}
+                        />
                       </div>
-
-                      {selectedModels.length > 0 ? (
-                        <label className="flex items-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-                          <Search className="h-4 w-4 text-slate-400" />
-                          <input
-                            value={modelSearch}
-                            onChange={(event) =>
-                              setModelSearch(event.currentTarget.value)
-                            }
-                            placeholder="筛选模型、协议或能力"
-                            className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {isDefaultCloudOffer ? (
+                          <InfoPill label="默认" tone="emerald" />
+                        ) : null}
+                        <InfoPill
+                          label={formatOemCloudAccessModeLabel(
+                            offer.effectiveAccessMode,
+                          )}
+                        />
+                        {offer.tags?.slice(0, 2).map((tag) => (
+                          <InfoPill
+                            key={`${offer.providerKey}-${tag}`}
+                            label={tag}
                           />
-                          <span className="text-xs text-slate-400">
-                            {filteredSelectedModels.length}/
-                            {selectedModels.length}
-                          </span>
-                        </label>
-                      ) : null}
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
 
-                      {loadingDetail ? (
-                        <div className="flex items-center gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                          正在加载模型目录...
-                        </div>
-                      ) : filteredSelectedModels.length > 0 ? (
-                        <div className="space-y-2">
-                          {filteredSelectedModels.map((model) => {
-                            const metadata = createOemCloudModelMetadata(model);
-                            const abilityTags = (
-                              metadata.task_families ?? []
-                            ).map(formatOemModelTaskFamilyLabel);
-                            const upstreamMapping =
-                              metadata.alias_source === "oem"
-                                ? metadata.canonical_model_id
-                                : null;
-                            return (
-                              <div
-                                key={model.id}
-                                className="rounded-[16px] border border-slate-200/80 bg-white px-3 py-3"
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div>
-                                    <p className="text-sm font-semibold text-slate-900">
-                                      {model.displayName}
-                                    </p>
-                                    <p className="mt-1 text-xs text-slate-500">
-                                      {model.modelId}
-                                    </p>
-                                  </div>
-                                  {model.recommended ? (
-                                    <InfoPill label="推荐" tone="emerald" />
-                                  ) : null}
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  <InfoPill
-                                    label={formatOemModelDeploymentLabel(
-                                      metadata.deployment_source,
-                                    )}
-                                  />
-                                  {abilityTags.map((tag) => (
-                                    <InfoPill
-                                      key={`${model.id}-${tag}`}
-                                      label={tag}
-                                    />
-                                  ))}
-                                </div>
-                                {model.description ? (
-                                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                                    {model.description}
+              <div className="rounded-[20px] border border-slate-200/80 bg-slate-50 p-4">
+                {selectedOffer ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h4 className="text-base font-semibold text-slate-900">
+                          {selectedOffer.displayName}
+                        </h4>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {formatOemCloudAccessModeLabel(
+                            selectedOffer.access.accessMode,
+                          )}{" "}
+                          · {selectedModels.length} 个模型
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleSetDefault(selectedOffer)}
+                        disabled={savingDefault === selectedOffer.providerKey}
+                        className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        {savingDefault === selectedOffer.providerKey ? (
+                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        )}
+                        设为默认
+                      </button>
+                    </div>
+
+                    {selectedModels.length > 0 ? (
+                      <label className="flex items-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                        <Search className="h-4 w-4 text-slate-400" />
+                        <input
+                          value={modelSearch}
+                          onChange={(event) =>
+                            setModelSearch(event.currentTarget.value)
+                          }
+                          placeholder="筛选模型、协议或能力"
+                          className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                        />
+                        <span className="text-xs text-slate-400">
+                          {filteredSelectedModels.length}/
+                          {selectedModels.length}
+                        </span>
+                      </label>
+                    ) : null}
+
+                    {loadingDetail ? (
+                      <div className="flex items-center gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                        正在加载模型目录...
+                      </div>
+                    ) : filteredSelectedModels.length > 0 ? (
+                      <div className="space-y-2">
+                        {filteredSelectedModels.map((model) => {
+                          const metadata = createOemCloudModelMetadata(model);
+                          const abilityTags = (
+                            metadata.task_families ?? []
+                          ).map(formatOemModelTaskFamilyLabel);
+                          const upstreamMapping =
+                            metadata.alias_source === "oem"
+                              ? metadata.canonical_model_id
+                              : null;
+                          return (
+                            <div
+                              key={model.id}
+                              className="rounded-[16px] border border-slate-200/80 bg-white px-3 py-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    {model.displayName}
                                   </p>
-                                ) : null}
-                                {upstreamMapping ? (
-                                  <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                                    实际映射：{model.modelId} →{" "}
-                                    {upstreamMapping}
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    {model.modelId}
                                   </p>
+                                </div>
+                                {model.recommended ? (
+                                  <InfoPill label="推荐" tone="emerald" />
                                 ) : null}
                               </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="rounded-[18px] border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
-                          {selectedModels.length > 0
-                            ? "没有匹配当前筛选条件的模型。"
-                            : "当前来源还没有下发模型目录。"}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
-                      <Layers3 className="h-8 w-8 text-slate-400" />
-                      <p className="mt-3 text-sm font-medium text-slate-700">
-                        选择云端来源查看模型
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                        点击左侧来源后会展开模型、协议能力和默认来源操作。
-                      </p>
-                    </div>
-                  )}
-                </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                <InfoPill
+                                  label={formatOemModelDeploymentLabel(
+                                    metadata.deployment_source,
+                                  )}
+                                />
+                                {abilityTags.map((tag) => (
+                                  <InfoPill
+                                    key={`${model.id}-${tag}`}
+                                    label={tag}
+                                  />
+                                ))}
+                              </div>
+                              {model.description ? (
+                                <p className="mt-2 text-xs leading-5 text-slate-500">
+                                  {model.description}
+                                </p>
+                              ) : null}
+                              {upstreamMapping ? (
+                                <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                                  实际映射：{model.modelId} → {upstreamMapping}
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-[18px] border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
+                        {selectedModels.length > 0
+                          ? "没有匹配当前筛选条件的模型。"
+                          : "当前来源还没有下发模型目录。"}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
+                    <Layers3 className="h-8 w-8 text-slate-400" />
+                    <p className="mt-3 text-sm font-medium text-slate-700">
+                      选择云端来源查看模型
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      点击左侧来源后会展开模型、协议能力和默认来源操作。
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </article>
-      </div>
+            </div>
+          )}
+        </div>
+      </details>
     </section>
   );
 

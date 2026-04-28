@@ -21,7 +21,9 @@ use aster::tools::{ConfigTool, SkillTool};
 use lime_agent::AgentEvent as RuntimeAgentEvent;
 use lime_core::workspace::WorkspaceSettings;
 use regex::Regex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 use tauri::Manager;
 
 const ARTIFACT_DOCUMENT_REPAIRED_WARNING_CODE: &str = "artifact_document_repaired";
@@ -3710,6 +3712,7 @@ async fn execute_runtime_stream_attempt(
         request,
     );
     let images_for_provider = resolve_runtime_forwarded_images(request);
+    let stream_timing = RuntimeStreamTiming::new();
 
     let execution = stream_reply_once(
         agent,
@@ -3725,6 +3728,7 @@ async fn execute_runtime_stream_attempt(
             let app = app.clone();
             let event_name = request.event_name.clone();
             let timeline_recorder = timeline_recorder.clone();
+            let stream_timing = stream_timing.clone();
             move |event| {
                 record_runtime_stream_event(
                     &run_observation,
@@ -3734,6 +3738,7 @@ async fn execute_runtime_stream_attempt(
                     workspace_root,
                     request_metadata,
                     provider_continuation_capability,
+                    &stream_timing,
                     event,
                 );
             }
@@ -3760,6 +3765,93 @@ async fn execute_runtime_stream_attempt(
     );
 
     Ok(execution.text_output)
+}
+
+#[derive(Clone)]
+struct RuntimeStreamTiming {
+    started_at: Instant,
+    first_delta_emitted: Arc<AtomicBool>,
+}
+
+impl RuntimeStreamTiming {
+    fn new() -> Self {
+        Self {
+            started_at: Instant::now(),
+            first_delta_emitted: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    fn mark_direct_emit(&self, event_name: &str, event: &RuntimeAgentEvent) {
+        let has_visible_delta = match event {
+            RuntimeAgentEvent::TextDelta { text } | RuntimeAgentEvent::ThinkingDelta { text } => {
+                !text.is_empty()
+            }
+            _ => false,
+        };
+        if !has_visible_delta {
+            return;
+        }
+
+        if self
+            .first_delta_emitted
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+
+        tracing::info!(
+            "[AsterAgent][TTFT] 首个 runtime delta 已透传: event_name={}, elapsed_ms={}",
+            event_name,
+            self.started_at.elapsed().as_millis()
+        );
+    }
+}
+
+fn should_emit_runtime_stream_event_directly(event: &RuntimeAgentEvent) -> bool {
+    !matches!(
+        event,
+        RuntimeAgentEvent::ItemStarted { .. }
+            | RuntimeAgentEvent::ItemUpdated { .. }
+            | RuntimeAgentEvent::ItemCompleted { .. }
+            | RuntimeAgentEvent::ArtifactSnapshot { .. }
+            | RuntimeAgentEvent::ContextCompactionStarted { .. }
+            | RuntimeAgentEvent::ContextCompactionCompleted { .. }
+            | RuntimeAgentEvent::Warning { .. }
+            | RuntimeAgentEvent::Error { .. }
+            | RuntimeAgentEvent::Message { .. }
+    )
+}
+
+fn should_record_runtime_stream_event_on_timeline(event: &RuntimeAgentEvent) -> bool {
+    matches!(
+        event,
+        RuntimeAgentEvent::TurnStarted { .. }
+            | RuntimeAgentEvent::ItemStarted { .. }
+            | RuntimeAgentEvent::ItemUpdated { .. }
+            | RuntimeAgentEvent::ItemCompleted { .. }
+            | RuntimeAgentEvent::ArtifactSnapshot { .. }
+            | RuntimeAgentEvent::ContextCompactionStarted { .. }
+            | RuntimeAgentEvent::ContextCompactionCompleted { .. }
+            | RuntimeAgentEvent::Warning { .. }
+            | RuntimeAgentEvent::Error { .. }
+    )
+}
+
+fn emit_direct_runtime_stream_event(
+    app: &AppHandle,
+    event_name: &str,
+    stream_timing: &RuntimeStreamTiming,
+    event: &RuntimeAgentEvent,
+) {
+    stream_timing.mark_direct_emit(event_name, event);
+    if let Err(error) = app.emit(event_name, event) {
+        tracing::warn!(
+            "[AsterAgent] 发送实时运行时事件失败: event_name={}, error={}",
+            event_name,
+            error
+        );
+    }
 }
 
 async fn remove_code_execution_extension_if_added(
@@ -4069,8 +4161,13 @@ fn record_runtime_stream_event(
     workspace_root: &str,
     request_metadata: Option<&serde_json::Value>,
     provider_continuation_capability: ProviderContinuationCapability,
+    stream_timing: &RuntimeStreamTiming,
     event: &RuntimeAgentEvent,
 ) {
+    if should_emit_runtime_stream_event_directly(event) {
+        emit_direct_runtime_stream_event(app, event_name, stream_timing, event);
+    }
+
     let mut observation = match run_observation.lock() {
         Ok(guard) => guard,
         Err(error) => {
@@ -4084,6 +4181,11 @@ fn record_runtime_stream_event(
         request_metadata,
         provider_continuation_capability,
     );
+
+    if !should_record_runtime_stream_event_on_timeline(event) {
+        return;
+    }
+
     let mut recorder = match timeline_recorder.lock() {
         Ok(guard) => guard,
         Err(error) => error.into_inner(),
@@ -4615,6 +4717,7 @@ async fn maybe_auto_compact_runtime_session_before_turn(
     request_event_name: &str,
     workspace_settings: &WorkspaceSettings,
 ) -> Result<(), String> {
+    let check_started_at = Instant::now();
     let session = read_session(session_id, true, "读取自动压缩会话失败").await?;
     let provider_scope = prepare_auxiliary_provider_scope(
         state,
@@ -4640,11 +4743,22 @@ async fn maybe_auto_compact_runtime_session_before_turn(
     provider_scope.restore(state, db).await;
 
     if !should_compact_result? {
+        tracing::debug!(
+            "[AsterAgent][TTFT] 自动压缩检查跳过: session_id={}, elapsed_ms={}",
+            session_id,
+            check_started_at.elapsed().as_millis()
+        );
         return Ok(());
     }
 
+    tracing::info!(
+        "[AsterAgent][TTFT] 自动压缩开始阻塞当前 turn: session_id={}, check_elapsed_ms={}",
+        session_id,
+        check_started_at.elapsed().as_millis()
+    );
+    let compact_started_at = Instant::now();
     let auto_event_name = build_auto_context_compaction_event_name(session_id);
-    if let Err(error) = compact_runtime_session_with_trigger(
+    match compact_runtime_session_with_trigger(
         app,
         state,
         db,
@@ -4655,17 +4769,27 @@ async fn maybe_auto_compact_runtime_session_before_turn(
     )
     .await
     {
-        tracing::warn!(
-            "[AsterAgent] 自动压缩上下文失败，已降级继续当前 turn: session_id={}, error={}",
-            session_id,
-            error
-        );
-        let warning_event = RuntimeAgentEvent::Warning {
-            code: Some(AUTO_CONTEXT_COMPACTION_FAILED_WARNING_CODE.to_string()),
-            message: format!("自动压缩上下文失败，已继续当前请求：{error}"),
-        };
-        if let Err(emit_error) = app.emit(request_event_name, &warning_event) {
-            tracing::warn!("[AsterAgent] 发送自动压缩失败提醒失败: {}", emit_error);
+        Ok(()) => {
+            tracing::info!(
+                "[AsterAgent][TTFT] 自动压缩完成，继续当前 turn: session_id={}, compact_elapsed_ms={}",
+                session_id,
+                compact_started_at.elapsed().as_millis()
+            );
+        }
+        Err(error) => {
+            tracing::warn!(
+                "[AsterAgent] 自动压缩上下文失败，已降级继续当前 turn: session_id={}, elapsed_ms={}, error={}",
+                session_id,
+                compact_started_at.elapsed().as_millis(),
+                error
+            );
+            let warning_event = RuntimeAgentEvent::Warning {
+                code: Some(AUTO_CONTEXT_COMPACTION_FAILED_WARNING_CODE.to_string()),
+                message: format!("自动压缩上下文失败，已继续当前请求：{error}"),
+            };
+            if let Err(emit_error) = app.emit(request_event_name, &warning_event) {
+                tracing::warn!("[AsterAgent] 发送自动压缩失败提醒失败: {}", emit_error);
+            }
         }
     }
 
@@ -5373,6 +5497,9 @@ mod tests {
     };
     use async_trait::async_trait;
     use chrono::Utc;
+    use lime_core::database::dao::agent_timeline::{
+        AgentThreadItem, AgentThreadItemPayload, AgentThreadItemStatus,
+    };
     use lime_core::database::schema::create_tables;
     use lime_services::aster_session_store::LimeSessionStore;
     use rmcp::model::Tool;
@@ -5427,6 +5554,60 @@ mod tests {
             queue_if_busy: None,
             queued_turn_id: None,
         }
+    }
+
+    fn build_runtime_turn_test_item() -> AgentThreadItem {
+        let now = Utc::now().to_rfc3339();
+        AgentThreadItem {
+            id: "item-test".to_string(),
+            thread_id: "thread-test".to_string(),
+            turn_id: "turn-test".to_string(),
+            sequence: 1,
+            status: AgentThreadItemStatus::InProgress,
+            started_at: now.clone(),
+            completed_at: None,
+            updated_at: now,
+            payload: AgentThreadItemPayload::AgentMessage {
+                text: "hello".to_string(),
+                phase: None,
+            },
+        }
+    }
+
+    #[test]
+    fn runtime_stream_text_delta_should_bypass_timeline_for_direct_emit() {
+        let event = RuntimeAgentEvent::TextDelta {
+            text: "首字".to_string(),
+        };
+
+        assert!(should_emit_runtime_stream_event_directly(&event));
+        assert!(!should_record_runtime_stream_event_on_timeline(&event));
+    }
+
+    #[test]
+    fn runtime_stream_item_event_should_remain_timeline_owned() {
+        let event = RuntimeAgentEvent::ItemStarted {
+            item: build_runtime_turn_test_item(),
+        };
+
+        assert!(!should_emit_runtime_stream_event_directly(&event));
+        assert!(should_record_runtime_stream_event_on_timeline(&event));
+    }
+
+    #[test]
+    fn runtime_stream_status_should_emit_without_timeline_write() {
+        let event = RuntimeAgentEvent::RuntimeStatus {
+            status: AgentRuntimeStatus {
+                phase: "streaming".to_string(),
+                title: "正在生成".to_string(),
+                detail: "模型已经开始返回内容。".to_string(),
+                checkpoints: Vec::new(),
+                metadata: None,
+            },
+        };
+
+        assert!(should_emit_runtime_stream_event_directly(&event));
+        assert!(!should_record_runtime_stream_event_on_timeline(&event));
     }
 
     #[derive(Clone)]

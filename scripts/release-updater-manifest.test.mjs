@@ -194,6 +194,80 @@ describe("release updater manifest", () => {
         .sort(),
     ).toEqual(["arm", "x64"]);
   });
+
+  it("没有 latest.json 时应从 Tauri 签名产物生成清单", () => {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "lime-release-signed-assets-"),
+    );
+    const assetsDir = path.join(root, "release-assets");
+    const rawSignature = [
+      "untrusted comment: signature from tauri secret key",
+      "RUQf6LRCGA9i559r3g7V1qNyJDApGip8MfqcadIgT9CuhV3EMhHoN1mGTkUidF/z7SrlQgXdy8ofjb7bNJJylDOocrCo8KLzZwo=",
+      "trusted comment: timestamp:1777371807\tfile:Lime.app.tar.gz",
+      "MYL3b9yoLwH4W4MRmQQhvOOg9XdKEJkrScotKO5F4kdJ4OZTulm0GmFfp+vweCaiBahx5I+m3FCYP//z/l/gAA==",
+    ].join("\n");
+    const encodedSignature = Buffer.from(`${rawSignature}\n`, "utf8").toString(
+      "base64",
+    );
+
+    writeFile(path.join(assetsDir, "aarch64-apple-darwin", "Lime.app.tar.gz"));
+    writeFile(
+      path.join(assetsDir, "aarch64-apple-darwin", "Lime.app.tar.gz.sig"),
+      encodedSignature,
+    );
+    writeFile(
+      path.join(assetsDir, "x86_64-apple-darwin", "Lime.app.tar.gz"),
+    );
+    writeFile(
+      path.join(assetsDir, "x86_64-apple-darwin", "Lime.app.tar.gz.sig"),
+      rawSignature,
+    );
+    writeFile(
+      path.join(
+        assetsDir,
+        "x86_64-pc-windows-msvc",
+        "Lime_1.20.0_x64-setup.exe",
+      ),
+    );
+    writeFile(
+      path.join(
+        assetsDir,
+        "x86_64-pc-windows-msvc",
+        "Lime_1.20.0_x64-setup.exe.sig",
+      ),
+      encodedSignature,
+    );
+
+    const result = collectUpdaterManifest({
+      assetsDir,
+      baseUrl: "https://updates.limecloud.com",
+      channel: "stable",
+      notes: "notes",
+      requiredPlatforms: [
+        "darwin-aarch64",
+        "darwin-x86_64",
+        "windows-x86_64",
+      ],
+      version: "v1.20.0",
+    });
+
+    expect(result.manifest.version).toBe("1.20.0");
+    expect(result.manifest.notes).toBe("notes");
+    expect(result.manifest.platforms["darwin-aarch64"].signature).toBe(
+      encodedSignature,
+    );
+    expect(result.manifest.platforms["darwin-x86_64"].signature).toBe(
+      encodedSignature,
+    );
+    expect(result.manifest.platforms["windows-x86_64"].url).toBe(
+      "https://updates.limecloud.com/lime/stable/v1.20.0/windows-x86_64/Lime_1.20.0_x64-setup.exe",
+    );
+    expect(result.r2UploadPlan.map((item) => item.key).sort()).toEqual([
+      "lime/stable/v1.20.0/darwin-aarch64/Lime.app.tar.gz",
+      "lime/stable/v1.20.0/darwin-x86_64/Lime.app.tar.gz",
+      "lime/stable/v1.20.0/windows-x86_64/Lime_1.20.0_x64-setup.exe",
+    ]);
+  });
 });
 
 describe("R2 release cleanup", () => {
