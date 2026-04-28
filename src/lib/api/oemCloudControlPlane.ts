@@ -47,7 +47,7 @@ export interface OemCloudUserSession {
   expiresAt: string;
 }
 
-export interface OemCloudPublicOAuthProvider {
+export interface OemCloudAuthCatalogProvider {
   provider: string;
   displayName: string;
   authorizeUrl?: string;
@@ -66,7 +66,7 @@ export interface OemCloudAuthPolicy {
 }
 
 export interface OemCloudPublicAuthCatalog {
-  providers: OemCloudPublicOAuthProvider[];
+  providers: OemCloudAuthCatalogProvider[];
   authPolicy: OemCloudAuthPolicy;
 }
 
@@ -1120,15 +1120,15 @@ function parseCurrentSession(value: unknown): OemCloudCurrentSession {
   };
 }
 
-function parsePublicOAuthProvider(value: unknown): OemCloudPublicOAuthProvider {
+function parseAuthCatalogProvider(value: unknown): OemCloudAuthCatalogProvider {
   if (!isRecord(value)) {
-    throw new OemCloudControlPlaneError("OAuth Provider 格式非法");
+    throw new OemCloudControlPlaneError("登录方式格式非法");
   }
 
   const provider = normalizeText(value.provider);
   const displayName = normalizeText(value.displayName) ?? provider;
   if (!provider || !displayName) {
-    throw new OemCloudControlPlaneError("OAuth Provider 格式非法");
+    throw new OemCloudControlPlaneError("登录方式格式非法");
   }
 
   return {
@@ -1157,7 +1157,7 @@ function parsePublicAuthCatalog(value: unknown): OemCloudPublicAuthCatalog {
   const record = isRecord(value) ? value : {};
   return {
     providers: Array.isArray(record.items)
-      ? record.items.map(parsePublicOAuthProvider)
+      ? record.items.map(parseAuthCatalogProvider)
       : [],
     authPolicy: parseAuthPolicy(record.authPolicy),
   };
@@ -2470,18 +2470,12 @@ export async function pollClientDesktopAuthSession(
   );
 }
 
-export async function listPublicOAuthProviders(
-  tenantId: string,
-): Promise<OemCloudPublicOAuthProvider[]> {
-  return (await getPublicAuthCatalog(tenantId)).providers;
-}
-
 export async function getPublicAuthCatalog(
   tenantId: string,
 ): Promise<OemCloudPublicAuthCatalog> {
   return parsePublicAuthCatalog(
     await requestControlPlane<unknown>(
-      `/v1/public/tenants/${encodeURIComponent(tenantId)}/oauth/providers`,
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/auth-catalog`,
     ),
   );
 }

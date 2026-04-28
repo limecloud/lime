@@ -16,7 +16,6 @@ import {
   getPublicAuthCatalog,
   getClientProviderOffer,
   getClientReferralDashboard,
-  listPublicOAuthProviders,
   listClientPaymentConfigs,
   listClientPlans,
   listClientProviderOfferModels,
@@ -156,59 +155,6 @@ describe("oemCloudControlPlane desktop auth", () => {
     });
   });
 
-  it("应读取公开 OAuth Provider 目录供启动登录判断使用", async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        code: 200,
-        message: "success",
-        data: {
-          items: [
-            {
-              provider: "google",
-              displayName: "Google",
-              authorizeUrl: "https://user.limeai.run/oauth/google",
-              redirectUri: "https://user.limeai.run/oauth/callback",
-              scopes: ["openid", "email"],
-              enabled: true,
-              loginHint: "使用 Google 登录",
-            },
-          ],
-          authPolicy: {
-            required: true,
-            startupTrigger: "oauth",
-            primaryProvider: "google",
-          },
-        },
-      }),
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const providers = await listPublicOAuthProviders("tenant-0001");
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/oauth/providers",
-      expect.objectContaining({
-        method: "GET",
-        headers: expect.objectContaining({
-          Accept: "application/json",
-        }),
-      }),
-    );
-    expect(providers).toEqual([
-      {
-        provider: "google",
-        displayName: "Google",
-        authorizeUrl: "https://user.limeai.run/oauth/google",
-        redirectUri: "https://user.limeai.run/oauth/callback",
-        scopes: ["openid", "email"],
-        enabled: true,
-        loginHint: "使用 Google 登录",
-      },
-    ]);
-  });
-
   it("应读取公开登录目录与启动策略", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
@@ -238,7 +184,7 @@ describe("oemCloudControlPlane desktop auth", () => {
     const catalog = await getPublicAuthCatalog("tenant-0001");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/oauth/providers",
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/client/auth-catalog",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({

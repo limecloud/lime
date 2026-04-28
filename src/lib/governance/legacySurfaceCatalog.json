@@ -3054,6 +3054,17 @@
         "listPosterMaterialsByMood(",
         "usePosterMaterial("
       ]
+    },
+    {
+      "id": "oem-cloud-public-oauth-provider-list-surface",
+      "classification": "dead-candidate",
+      "description": "云端启动登录不允许恢复旧公开 OAuth Provider 列表入口，客户端只能通过 auth catalog/authPolicy 判断登录策略",
+      "patterns": [
+        "listPublicOAuthProviders(",
+        "OemCloudPublicOAuthProvider",
+        "/oauth/providers"
+      ],
+      "allowedPaths": []
     }
   ],
   "rustText": [

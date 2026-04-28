@@ -89,8 +89,10 @@
   - `cargo test --manifest-path "src-tauri/Cargo.toml"` — 1109 passed / 0 failed / 2 ignored
   - `cargo clippy --manifest-path "src-tauri/Cargo.toml" --all-targets --all-features`
   - `npm run lint`
-  - `npm test` — 43 个 Vitest smart 批次通过
+  - `npm test` — 44 个 Vitest smart 批次通过
   - `npm run test:contracts`
+  - `npm run smoke:agent-runtime-tool-surface`
+  - `npm run smoke:agent-runtime-tool-surface-page`
   - `git diff --check`
 - `cargo test` 通过，当前存在 1 条预存 warning：
   - `write_auxiliary_runtime_projection_fixture` 的 `dead_code`
@@ -99,9 +101,7 @@
   - `crates/skills/src/lime_llm_provider.rs` 的 `too_many_arguments`
   - `crates/agent/src/session_execution_runtime.rs` 的 `needless_lifetimes`
   - `src/services/runtime_evidence_pack_service.rs` 的 `dead_code`
-- GUI 主路径校验未完全通过：
-  - `npm run verify:gui-smoke` 已通过 `bridge:health`、`smoke:workspace-ready`、`smoke:browser-runtime`、`smoke:site-adapters`、`smoke:agent-service-skill-entry`、`smoke:agent-runtime-tool-surface`。
-  - `smoke:agent-runtime-tool-surface-page` 在等待 Harness 按钮出现时超时；单独复测时托管 Chrome 会话在提交后丢失，需继续定位真实页面发送后的会话保持 / Harness 入口暴露问题。
+- GUI 主路径补充复测已通过：`smoke:agent-runtime-tool-surface` 与 `smoke:agent-runtime-tool-surface-page` 均确认 Harness 入口在执行态可见，修复此前等待 Harness 按钮超时的问题。
 
 ---
 

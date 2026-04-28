@@ -1,6 +1,6 @@
 import {
   getPublicAuthCatalog,
-  type OemCloudPublicOAuthProvider,
+  type OemCloudAuthCatalogProvider,
 } from "@/lib/api/oemCloudControlPlane";
 import {
   resolveOemCloudRuntimeContext,
@@ -30,8 +30,8 @@ function normalizeProvider(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? "";
 }
 
-function hasGoogleOAuthProvider(
-  providers: OemCloudPublicOAuthProvider[],
+function hasGoogleAuthProvider(
+  providers: OemCloudAuthCatalogProvider[],
 ): boolean {
   return providers.some(
     (provider) =>
@@ -54,7 +54,7 @@ function shouldStartGoogleOauth(
     return { status: "unsupported_policy" };
   }
 
-  if (!hasGoogleOAuthProvider(catalog.providers)) {
+  if (!hasGoogleAuthProvider(catalog.providers)) {
     return { status: "no_google_provider" };
   }
 
