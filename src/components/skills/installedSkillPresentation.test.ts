@@ -35,9 +35,7 @@ describe("installedSkillPresentation", () => {
     expect(summarizeInstalledSkillRequiredInputs(skill)).toBe(
       "主题、受众与风格约束",
     );
-    expect(getInstalledSkillOutputHint(skill)).toBe(
-      "沿用这套写法进入生成",
-    );
+    expect(getInstalledSkillOutputHint(skill)).toBe("沿用这套写法进入生成");
     expect(buildInstalledSkillCapabilityDescription(skill)).toBe(
       "当你需要复用内容改写方法时使用。 · 需要：主题、受众与风格约束 · 交付：沿用这套写法进入生成",
     );

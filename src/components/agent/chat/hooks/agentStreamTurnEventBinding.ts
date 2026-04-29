@@ -354,7 +354,10 @@ export async function registerAgentStreamTurnEventBinding(
           clearFirstEventWatchdog();
         }
         lastEventReceivedAt = Date.now();
-        callbacks.activateStream(activeSessionId, effectiveWaitingRuntimeStatus);
+        callbacks.activateStream(
+          activeSessionId,
+          effectiveWaitingRuntimeStatus,
+        );
         if (!warnedUnknownEventTypes.has(eventType)) {
           warnedUnknownEventTypes.add(eventType);
           console.warn(

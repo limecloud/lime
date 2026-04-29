@@ -979,7 +979,8 @@ export function PluginManager({ onNavigate }: PluginManagerProps = {}) {
     if (updateLoading) {
       return {
         toneClassName: "border-slate-300 bg-slate-50/80",
-        badgeClassName: "border border-sky-200 bg-white/90 text-sky-700 hover:bg-white/90",
+        badgeClassName:
+          "border border-sky-200 bg-white/90 text-sky-700 hover:bg-white/90",
         badgeText: "检查中",
         title: "正在检查 Windows 主程序版本",
         summary:
@@ -1684,7 +1685,8 @@ export function PluginManager({ onNavigate }: PluginManagerProps = {}) {
                 </div>
               </div>
               <p className="text-xs text-slate-600">
-                Windows 仅保留单一 setup 安装包；需要重装或手动升级时直接使用它即可。
+                Windows 仅保留单一 setup
+                安装包；需要重装或手动升级时直接使用它即可。
               </p>
               {pluginVersionRequirementNotice && (
                 <div

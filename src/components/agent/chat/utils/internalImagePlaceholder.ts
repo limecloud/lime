@@ -50,12 +50,10 @@ function replaceImagePlaceholders(text: string, replacement: string): string {
   );
 }
 
-function hasAdjacentToolUse(
-  parts: ContentPart[],
-  index: number,
-): boolean {
+function hasAdjacentToolUse(parts: ContentPart[], index: number): boolean {
   return (
-    parts[index - 1]?.type === "tool_use" || parts[index + 1]?.type === "tool_use"
+    parts[index - 1]?.type === "tool_use" ||
+    parts[index + 1]?.type === "tool_use"
   );
 }
 
@@ -93,7 +91,10 @@ function stripAssistantPhaseSummaryTitle(text: string): string {
     const line = lines[index] || "";
     const trimmed = line.trim();
 
-    if (ASSISTANT_PHASE_SUMMARY_HEADING_RE.test(trimmed) || trimmed === "阶段结论") {
+    if (
+      ASSISTANT_PHASE_SUMMARY_HEADING_RE.test(trimmed) ||
+      trimmed === "阶段结论"
+    ) {
       while (index + 1 < lines.length && !(lines[index + 1] || "").trim()) {
         index += 1;
       }
@@ -112,7 +113,10 @@ function stripAssistantPhaseSummaryTitle(text: string): string {
     strippedLines.push(line);
   }
 
-  return strippedLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return strippedLines
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export function containsInternalImagePlaceholder(text: string): boolean {

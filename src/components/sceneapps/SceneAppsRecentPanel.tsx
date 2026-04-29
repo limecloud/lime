@@ -106,7 +106,8 @@ export function SceneAppsRecentPanel({
           ))}
           {items.length === 1 ? (
             <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500">
-              最近只记录到这一条 SceneApp 工作上下文，继续使用后会在这里累积更多可恢复入口。
+              最近只记录到这一条 SceneApp
+              工作上下文，继续使用后会在这里累积更多可恢复入口。
             </div>
           ) : null}
         </div>

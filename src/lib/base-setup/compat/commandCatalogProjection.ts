@@ -18,7 +18,10 @@ function resolveCommandExecutionKind(
       : explicitExecutionKind;
   }
 
-  if (projection.siteCapabilityBinding || bindingProfile.bindingFamily === "browser_assist") {
+  if (
+    projection.siteCapabilityBinding ||
+    bindingProfile.bindingFamily === "browser_assist"
+  ) {
     return "site_adapter";
   }
 
@@ -35,7 +38,9 @@ function resolveCommandExecutionKind(
 }
 
 function resolveCommandRenderContract(
-  executionKind: NonNullable<SkillCatalogCommandEntry["binding"]>["executionKind"],
+  executionKind: NonNullable<
+    SkillCatalogCommandEntry["binding"]
+  >["executionKind"],
   projection: BaseSetupCatalogProjection,
   bindingProfile: BaseSetupBindingProfile,
 ): SkillCatalogCommandEntry["renderContract"] {
@@ -80,9 +85,7 @@ function resolveCommandRenderContract(
   };
 }
 
-function buildLinkedSkillIndex(
-  items: ServiceSkillItem[],
-): {
+function buildLinkedSkillIndex(items: ServiceSkillItem[]): {
   byId: Map<string, string>;
   bySkillKey: Map<string, string>;
 } {
@@ -171,8 +174,7 @@ function compileCommandProjectionEntry(params: {
   linkedSkillId?: string;
 }): SkillCatalogCommandEntry {
   const { projection, bindingProfile, policyProfile, linkedSkillId } = params;
-  const commandKey =
-    projection.skillKey?.trim() || projection.entryKey.trim();
+  const commandKey = projection.skillKey?.trim() || projection.entryKey.trim();
   const executionKind = resolveCommandExecutionKind(bindingProfile, projection);
 
   return {

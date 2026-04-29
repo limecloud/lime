@@ -136,7 +136,8 @@ describe("site capability binding natural launch message", () => {
         },
       }),
       slotValues: {
-        article_url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
+        article_url:
+          "https://x.com/GoogleCloudTech/article/2033953579824758855",
         target_language: "中文",
       },
     });
@@ -187,7 +188,8 @@ describe("site capability binding natural launch message", () => {
     const context = buildServiceSkillClawLaunchContext(
       skill,
       {
-        article_url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
+        article_url:
+          "https://x.com/GoogleCloudTech/article/2033953579824758855",
         target_language: "中文",
       },
       {
@@ -270,7 +272,8 @@ describe("site capability binding natural launch message", () => {
         },
       }),
       {
-        article_url: "https://twitter.com/GoogleCloudTech/article/2033953579824758855",
+        article_url:
+          "https://twitter.com/GoogleCloudTech/article/2033953579824758855",
       },
     );
 

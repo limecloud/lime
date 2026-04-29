@@ -664,7 +664,10 @@ export function useWorkspaceServiceSkillEntryActions({
         return true;
       }
 
-      const launchUserInput = resolveServiceSkillLaunchUserInput(input, options);
+      const launchUserInput = resolveServiceSkillLaunchUserInput(
+        input,
+        options,
+      );
       const prompt = composeServiceSkillPrompt({
         skill,
         slotValues,
@@ -672,9 +675,7 @@ export function useWorkspaceServiceSkillEntryActions({
       });
 
       if (skill.runnerType !== "instant") {
-        toast.info(
-          "这轮会先回到生成起第一版，后面再按设定继续带回来。",
-        );
+        toast.info("这轮会先回到生成起第一版，后面再按设定继续带回来。");
       }
 
       let workspacePayload: WorkspaceEntryPayload;
@@ -783,10 +784,7 @@ export function useWorkspaceServiceSkillEntryActions({
   );
 
   const handleServiceSkillSelect = useCallback(
-    (
-      skill: ServiceSkillHomeItem,
-      options?: ServiceSkillSelectionOptions,
-    ) => {
+    (skill: ServiceSkillHomeItem, options?: ServiceSkillSelectionOptions) => {
       const replayPrefill = resolveServiceSkillLaunchPrefill({
         skill,
         creationReplay,
@@ -799,7 +797,10 @@ export function useWorkspaceServiceSkillEntryActions({
         ...(replayPrefill?.slotValues || {}),
         ...(options?.initialSlotValues || {}),
       };
-      const validation = validateServiceSkillSlotValues(skill, initialSlotValues);
+      const validation = validateServiceSkillSlotValues(
+        skill,
+        initialSlotValues,
+      );
 
       if (skill.slotSchema.length === 0 || validation.valid) {
         void handleServiceSkillLaunch(skill, initialSlotValues, {

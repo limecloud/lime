@@ -416,12 +416,12 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("写作助手");
     expect(container.textContent).toContain("你来给：当前无必填信息");
     expect(container.textContent).toContain("会拿到：研究摘要");
-    expect(container.textContent).toContain(
-      "结果会回到生成，方便接着改。",
-    );
+    expect(container.textContent).toContain("结果会回到生成，方便接着改。");
     expect(container.textContent).toContain("当你需要复用本地写作方法时使用。");
     expect(container.textContent).toContain("主题、受众与语气要求");
-    expect(container.textContent).toContain("回到生成后会继续按这套方法往下做。");
+    expect(container.textContent).toContain(
+      "回到生成后会继续按这套方法往下做。",
+    );
     expect(container.textContent).toContain(
       "回到生成后会继续按这套方法往下做，跑顺后的结果也会再沉淀回来。",
     );
@@ -489,7 +489,8 @@ describe("SkillsWorkspacePage", () => {
         memory_type: "project",
         category: "experience",
         title: "账号复盘结论",
-        summary: "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
+        summary:
+          "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
         content:
           "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
         tags: ["复盘", "反馈", "增长"],
@@ -523,7 +524,8 @@ describe("SkillsWorkspacePage", () => {
       {
         session_id: "session-review-needs-evidence",
         decision_status: "needs_more_evidence",
-        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        decision_summary:
+          "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
         chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
         risk_level: "medium",
         risk_tags: ["证据不足", "需要复盘"],
@@ -567,7 +569,9 @@ describe("SkillsWorkspacePage", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("开始这一步前，我先确认几件事。");
+    expect(document.body.textContent).toContain(
+      "开始这一步前，我先确认几件事。",
+    );
     expect(document.body.textContent).toContain("复盘这个账号/项目");
   });
 
@@ -576,7 +580,8 @@ describe("SkillsWorkspacePage", () => {
       {
         session_id: "session-review-switch-launcher",
         decision_status: "needs_more_evidence",
-        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        decision_summary:
+          "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
         chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
         risk_level: "medium",
         risk_tags: ["证据不足", "需要复盘"],
@@ -753,7 +758,9 @@ describe("SkillsWorkspacePage", () => {
   it("页面打开后新增本地方法 recent usage 时应即时刷新已经沉淀的方法", async () => {
     const { container } = renderPage();
 
-    expect(container.textContent).not.toContain("上次目标：继续优化这套写作方法");
+    expect(container.textContent).not.toContain(
+      "上次目标：继续优化这套写作方法",
+    );
 
     await act(async () => {
       recordSlashEntryUsage({
@@ -859,9 +866,7 @@ describe("SkillsWorkspacePage", () => {
     const launchButton = Array.from(container.querySelectorAll("button")).find(
       (button) =>
         button.textContent?.includes("进入生成") &&
-        button
-          .closest("article")
-          ?.textContent?.includes("每日趋势摘要"),
+        button.closest("article")?.textContent?.includes("每日趋势摘要"),
     );
     expect(launchButton).toBeTruthy();
 
@@ -962,9 +967,7 @@ describe("SkillsWorkspacePage", () => {
     const launchButton = Array.from(container.querySelectorAll("button")).find(
       (button) =>
         button.textContent?.includes("进入生成") &&
-        button
-          .closest("article")
-          ?.textContent?.includes("每日趋势摘要"),
+        button.closest("article")?.textContent?.includes("每日趋势摘要"),
     );
     expect(launchButton).toBeTruthy();
 
@@ -1214,7 +1217,9 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain(
       "先从 GitHub 里最接近的一条开始；不对再换方向。",
     );
-    expect(container.textContent).toContain("围绕仓库与 Issue 的只读研究技能。");
+    expect(container.textContent).toContain(
+      "围绕仓库与 Issue 的只读研究技能。",
+    );
     expect(container.textContent).toContain("换个方向");
 
     const launchButton = Array.from(container.querySelectorAll("button")).find(
@@ -1339,7 +1344,9 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("当你需要复用本地写作方法时使用。");
     expect(container.textContent).toContain("你来给：主题、受众与语气要求");
     expect(container.textContent).toContain("会拿到：带着该方法进入生成");
-    expect(container.textContent).toContain("回到生成后会继续按这套方法往下做。");
+    expect(container.textContent).toContain(
+      "回到生成后会继续按这套方法往下做。",
+    );
     expect(container.textContent).toContain("继续这套方法");
 
     const manageButton = Array.from(container.querySelectorAll("button")).find(
@@ -1388,9 +1395,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("这次沿用：沉淀自一次成功结果");
     expect(container.textContent).toContain("继续补完");
     expect(container.textContent).toContain("回到生成");
-    expect(container.textContent).toContain(
-      "上次目标：一段结果摘要",
-    );
+    expect(container.textContent).toContain("上次目标：一段结果摘要");
     expect(container.textContent).not.toContain(
       "这套做法草稿已经从当前结果带到方法页",
     );
@@ -1452,7 +1457,9 @@ describe("SkillsWorkspacePage", () => {
     });
 
     expect(mockRefreshLocalSkills).toHaveBeenCalledTimes(1);
-    expect(mockToastSuccess).toHaveBeenCalledWith("已创建“结果沉淀技能”并收进我的方法");
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "已创建“结果沉淀技能”并收进我的方法",
+    );
     expect(container.textContent).toContain("结果沉淀技能");
     expect(container.textContent).toContain("刚沉淀");
     expect(container.textContent).toContain("已经收回这里，后面可以直接继续。");
@@ -1487,9 +1494,9 @@ describe("SkillsWorkspacePage", () => {
 
     const reopenedProps = mockAdvancedSkillsPage.mock.lastCall?.[0] as
       | {
-      initialScaffoldDraft?: Record<string, unknown> | null;
-      initialScaffoldRequestKey?: number | null;
-    }
+          initialScaffoldDraft?: Record<string, unknown> | null;
+          initialScaffoldRequestKey?: number | null;
+        }
       | undefined;
 
     expect(reopenedProps?.initialScaffoldDraft).toBeNull();
@@ -1589,8 +1596,11 @@ describe("SkillsWorkspacePage", () => {
       }),
     );
     expect(
-      (onNavigate.mock.calls[0]?.[1] as { initialUserPrompt?: string } | undefined)
-        ?.initialUserPrompt,
+      (
+        onNavigate.mock.calls[0]?.[1] as
+          | { initialUserPrompt?: string }
+          | undefined
+      )?.initialUserPrompt,
     ).toContain("执行步骤：");
   });
 
@@ -1619,7 +1629,9 @@ describe("SkillsWorkspacePage", () => {
     expect(bringBackButton).toBeTruthy();
 
     act(() => {
-      bringBackButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      bringBackButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
 
     expect(onNavigate).toHaveBeenCalledWith(

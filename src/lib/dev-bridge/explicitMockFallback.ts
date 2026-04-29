@@ -20,8 +20,8 @@ export async function invokeExplicitMock<T>(
   cmd: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
-  const { invoke } = await loadMockCoreModule();
-  return invoke<T>(cmd, args);
+  const { invokeMockOnly } = await loadMockCoreModule();
+  return invokeMockOnly<T>(cmd, args);
 }
 
 export async function listenExplicitMock<T>(

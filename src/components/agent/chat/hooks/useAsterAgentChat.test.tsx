@@ -3758,6 +3758,49 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
     }
   });
 
+  it("从旧会话新建任务时应立即清空当前消息，避免新标签继续显示旧对话", async () => {
+    const workspaceId = "ws-create-fresh-clears-stale-messages";
+    const createdSessionId = "session-fresh-empty-tab";
+    mockCreateAgentRuntimeSession.mockResolvedValue(createdSessionId);
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      act(() => {
+        harness.getValue().setMessages([
+          {
+            id: "msg-stale-user",
+            role: "user",
+            content: "这是旧会话内容",
+            timestamp: new Date("2026-04-25T10:00:00.000Z"),
+          },
+          {
+            id: "msg-stale-assistant",
+            role: "assistant",
+            content: "这是旧会话回复",
+            timestamp: new Date("2026-04-25T10:00:01.000Z"),
+          },
+        ]);
+      });
+      expect(harness.getValue().messages).toHaveLength(2);
+
+      await act(async () => {
+        const newSessionId = await harness.getValue().createFreshSession();
+        expect(newSessionId).toBe(createdSessionId);
+      });
+
+      expect(harness.getValue().sessionId).toBe(createdSessionId);
+      expect(harness.getValue().messages).toEqual([]);
+      expect(harness.getValue().turns).toEqual([]);
+      expect(harness.getValue().threadItems).toEqual([]);
+      expect(mockGenerateAgentRuntimeSessionTitle).not.toHaveBeenCalled();
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("手动切换话题时不应继续停留在自动恢复占位态", async () => {
     const workspaceId = "ws-manual-topic-switch-hide-auto-restore";
     const listSessionsDeferred = createDeferred<

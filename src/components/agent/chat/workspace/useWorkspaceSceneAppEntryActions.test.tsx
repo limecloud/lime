@@ -4,10 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import { useWorkspaceSceneAppEntryActions } from "./useWorkspaceSceneAppEntryActions";
-import type {
-  SceneAppCatalog,
-  SceneAppPlanResult,
-} from "@/lib/sceneapp";
+import type { SceneAppCatalog, SceneAppPlanResult } from "@/lib/sceneapp";
 
 type SceneAppPlanResultOverrides = {
   descriptor?: Partial<SceneAppPlanResult["descriptor"]>;
@@ -55,9 +52,8 @@ vi.mock("@/lib/api/project", () => ({
 }));
 
 vi.mock("@/lib/sceneapp", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/sceneapp")>(
-    "@/lib/sceneapp",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/lib/sceneapp")>("@/lib/sceneapp");
   return {
     ...actual,
     readStoredSceneAppCatalog: () => mockReadStoredSceneAppCatalog(),
@@ -395,20 +391,17 @@ describe("useWorkspaceSceneAppEntryActions", () => {
     });
     await harness.render();
 
-    expect(harness.getValue().featuredSceneApps.map((item) => item.id)).toEqual([
-      "story-video-suite",
-      "daily-trend-briefing",
-    ]);
+    expect(harness.getValue().featuredSceneApps.map((item) => item.id)).toEqual(
+      ["story-video-suite", "daily-trend-briefing"],
+    );
 
     await harness.render({
       input: "请整理这篇文章 https://example.com/agent-trends",
     });
 
-    expect(harness.getValue().featuredSceneApps.map((item) => item.id)).toEqual([
-      "story-video-suite",
-      "x-article-export",
-      "daily-trend-briefing",
-    ]);
+    expect(harness.getValue().featuredSceneApps.map((item) => item.id)).toEqual(
+      ["story-video-suite", "x-article-export", "daily-trend-briefing"],
+    );
   });
 
   it("应把可在当前会话继续的 SceneApp 翻译成 agent 导航动作", async () => {
@@ -453,9 +446,9 @@ describe("useWorkspaceSceneAppEntryActions", () => {
     await harness.render();
     await waitForSceneAppCatalogReady(harness);
     expect(
-      harness.getValue().featuredSceneApps.some(
-        (item) => item.id === "story-video-suite",
-      ),
+      harness
+        .getValue()
+        .featuredSceneApps.some((item) => item.id === "story-video-suite"),
     ).toBe(true);
 
     await act(async () => {

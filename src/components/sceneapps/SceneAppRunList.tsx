@@ -1,6 +1,4 @@
-import {
-  type SceneAppRunListItemViewModel,
-} from "@/lib/sceneapp";
+import { type SceneAppRunListItemViewModel } from "@/lib/sceneapp";
 import { cn } from "@/lib/utils";
 
 interface SceneAppRunListProps {

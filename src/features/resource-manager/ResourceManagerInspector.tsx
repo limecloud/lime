@@ -1,5 +1,8 @@
 import { Info } from "lucide-react";
-import { getItemTitle, type ResourceManagerRow } from "./resourceManagerPresentation";
+import {
+  getItemTitle,
+  type ResourceManagerRow,
+} from "./resourceManagerPresentation";
 import type { ResourceManagerItem } from "./types";
 
 interface ResourceManagerInspectorProps {

@@ -161,7 +161,9 @@ describe("ProviderSetting", () => {
       container.querySelector('[data-testid="provider-simple-card"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector('[data-testid="provider-test-connection-button"]'),
+      container.querySelector(
+        '[data-testid="provider-test-connection-button"]',
+      ),
     ).not.toBeNull();
   });
 

@@ -51,7 +51,7 @@ describe("toolBatchGrouping", () => {
         file_path: "src/main.ts",
       }),
       createToolCall("REPLTool", {
-        code: "rg \"tool inventory\" src",
+        code: 'rg "tool inventory" src',
       }),
       createToolCall("Grep", {
         pattern: "tool inventory",

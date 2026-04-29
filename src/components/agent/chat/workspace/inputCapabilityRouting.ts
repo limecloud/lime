@@ -45,7 +45,10 @@ function resolveInstalledSkillReplayText(params: {
     return displayReplayText;
   }
 
-  const escapedSkillKey = params.skillKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedSkillKey = params.skillKey.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
   const matched = params.rawText
     .trim()
     .match(new RegExp(`^/${escapedSkillKey}\\s*([\\s\\S]*)$`, "u"));

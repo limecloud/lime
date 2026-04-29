@@ -4,28 +4,27 @@ import { Label } from "@/components/ui/label";
 
 type SelectorProps = ComponentProps<typeof ModelSelector>;
 
-interface SettingModelSelectorFieldProps
-  extends Pick<
-    SelectorProps,
-    | "activeTheme"
-    | "allowAutoModel"
-    | "allowAutoProvider"
-    | "autoModelLabel"
-    | "autoProviderLabel"
-    | "disabled"
-    | "emptyStateDescription"
-    | "emptyStateTitle"
-    | "model"
-    | "modelFilter"
-    | "onManageProviders"
-    | "placeholderLabel"
-    | "popoverSide"
-    | "providerFilter"
-    | "providerType"
-    | "setModel"
-    | "setProviderType"
-    | "suppressAutoSelection"
-  > {
+interface SettingModelSelectorFieldProps extends Pick<
+  SelectorProps,
+  | "activeTheme"
+  | "allowAutoModel"
+  | "allowAutoProvider"
+  | "autoModelLabel"
+  | "autoProviderLabel"
+  | "disabled"
+  | "emptyStateDescription"
+  | "emptyStateTitle"
+  | "model"
+  | "modelFilter"
+  | "onManageProviders"
+  | "placeholderLabel"
+  | "popoverSide"
+  | "providerFilter"
+  | "providerType"
+  | "setModel"
+  | "setProviderType"
+  | "suppressAutoSelection"
+> {
   label: string;
   description: string;
   warningText?: string;

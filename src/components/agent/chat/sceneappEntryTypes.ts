@@ -1,4 +1,1 @@
-export type {
-  SceneAppEntryCardItem,
-  SceneAppEntryTone,
-} from "@/lib/sceneapp";
+export type { SceneAppEntryCardItem, SceneAppEntryTone } from "@/lib/sceneapp";

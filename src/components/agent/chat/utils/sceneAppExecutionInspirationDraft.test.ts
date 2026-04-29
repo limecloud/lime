@@ -13,7 +13,8 @@ describe("buildSceneAppExecutionInspirationDraft", () => {
         executionChainLabel: "做法 -> 生成 -> Project Pack",
         deliveryContractLabel: "Project Pack",
         planningStatusLabel: "已就绪",
-        planningSummary: "当前已经带入 2 条参考与 1 条风格偏好，可直接进入生成。",
+        planningSummary:
+          "当前已经带入 2 条参考与 1 条风格偏好，可直接进入生成。",
         activeLayers: [],
         referenceCount: 2,
         referenceItems: [],
@@ -65,9 +66,7 @@ describe("buildSceneAppExecutionInspirationDraft", () => {
         deliverySummary: "当前结果包已完整回流。",
         deliveryRequiredParts: [],
         deliveryCompletedParts: [],
-        deliveryMissingParts: [
-          { key: "review_note", label: "复核意见" },
-        ],
+        deliveryMissingParts: [{ key: "review_note", label: "复核意见" }],
         deliveryPartCoverageKnown: true,
         plannedDeliveryRequiredParts: [],
         packPlanNotes: [],
@@ -113,13 +112,21 @@ describe("buildSceneAppExecutionInspirationDraft", () => {
         category: "experience",
         confidence: 0.9,
         importance: 8,
-        tags: ["内容闭环", "多模态组合", "Project Pack", "复核阻塞", "先补复核与修复"],
+        tags: [
+          "内容闭环",
+          "多模态组合",
+          "Project Pack",
+          "复核阻塞",
+          "先补复核与修复",
+        ],
       },
     });
     expect(result?.request.summary).toContain("当前结果包已完整回流");
     expect(result?.request.summary).toContain("下一步：继续进入编辑或发布");
     expect(result?.request.content).toContain("场景：短视频编排");
-    expect(result?.request.content).toContain("建议下一步：继续进入编辑或发布。");
+    expect(result?.request.content).toContain(
+      "建议下一步：继续进入编辑或发布。",
+    );
     expect(result?.request.content).toContain("待补部件：复核意见");
   });
 

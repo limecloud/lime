@@ -117,7 +117,9 @@ function normalizeTaskStatus(value: unknown): ImageWorkbenchTask["status"] {
   }
 }
 
-function normalizeImageWorkbenchTask(value: unknown): ImageWorkbenchTask | null {
+function normalizeImageWorkbenchTask(
+  value: unknown,
+): ImageWorkbenchTask | null {
   const record = asRecord(value);
   const id = readString(record?.id);
   if (!record || !id) {
@@ -211,8 +213,12 @@ function normalizeSessionImageWorkbenchState(
     active: record.active === true,
     viewport: asRecord(record.viewport)
       ? {
-          x: readFiniteNumber((record.viewport as Record<string, unknown>).x) ?? 0,
-          y: readFiniteNumber((record.viewport as Record<string, unknown>).y) ?? 0,
+          x:
+            readFiniteNumber((record.viewport as Record<string, unknown>).x) ??
+            0,
+          y:
+            readFiniteNumber((record.viewport as Record<string, unknown>).y) ??
+            0,
           scale:
             readFiniteNumber(
               (record.viewport as Record<string, unknown>).scale,
@@ -363,7 +369,8 @@ function normalizeCachedStateRecord(
 
   const updatedAt = readFiniteNumber(record.updatedAt) ?? nowMs;
   const lastAccessedAt = readFiniteNumber(record.lastAccessedAt) ?? updatedAt;
-  const expiresAt = readFiniteNumber(record.expiresAt) ?? updatedAt + policy.ttlMs;
+  const expiresAt =
+    readFiniteNumber(record.expiresAt) ?? updatedAt + policy.ttlMs;
   const staleUntil =
     readFiniteNumber(record.staleUntil) ?? expiresAt + policy.staleGraceMs;
   if (nowMs > staleUntil) {
@@ -459,7 +466,11 @@ export function loadSessionImageWorkbenchCachedState(
     saveTransient(
       cacheKey,
       Object.fromEntries(
-        pruneCacheEntries(refreshedMap, TRANSIENT_IMAGE_WORKBENCH_POLICY, nowMs),
+        pruneCacheEntries(
+          refreshedMap,
+          TRANSIENT_IMAGE_WORKBENCH_POLICY,
+          nowMs,
+        ),
       ),
     );
     return toCachedState(

@@ -202,7 +202,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const selectedProviderVisible = useMemo(
     () =>
       selectedProvider
-        ? visibleProviders.some((provider) => provider.key === selectedProvider.key)
+        ? visibleProviders.some(
+            (provider) => provider.key === selectedProvider.key,
+          )
         : false,
     [selectedProvider, visibleProviders],
   );
@@ -296,7 +298,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     hasInitialized.current = true;
 
     if (!providerType.trim()) {
-      setProviderType(visibleProviders[0].providerId ?? visibleProviders[0].key);
+      setProviderType(
+        visibleProviders[0].providerId ?? visibleProviders[0].key,
+      );
     }
   }, [
     allowAutoProvider,
@@ -706,7 +710,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
               <ScrollArea className="flex-1">
                 <div className="space-y-1 p-1">
-                  {!selectedProvider && (allowAutoProvider || suppressAutoSelection) ? (
+                  {!selectedProvider &&
+                  (allowAutoProvider || suppressAutoSelection) ? (
                     <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
                       先选择供应商，再查看模型列表
                     </div>
@@ -735,63 +740,67 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           ) : null}
                         </button>
                       ) : null}
-                      {selectedProvider && model.trim() && !currentModels.includes(model) ? (
+                      {selectedProvider &&
+                      model.trim() &&
+                      !currentModels.includes(model) ? (
                         <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-700">
                           当前已选模型暂不可用
                         </div>
                       ) : null}
                       {modelOptions.map((currentModelItem) => (
-                      <button
-                        key={currentModelItem.id}
-                        disabled={Boolean(currentModelItem.compatibilityIssue)}
-                        onClick={() => {
-                          if (currentModelItem.compatibilityIssue) {
-                            return;
-                          }
-                          setModel(currentModelItem.id);
-                          setOpen(false);
-                        }}
-                        className={cn(
-                          `${itemClassName} group`,
-                          currentModelItem.compatibilityIssue
-                            ? "cursor-not-allowed border-transparent bg-transparent text-slate-400 opacity-70"
-                            : model === currentModelItem.id
-                              ? "border-slate-200 bg-slate-50 text-slate-900"
-                              : "text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900",
-                        )}
-                        title={currentModelItem.compatibilityIssue?.message}
-                      >
-                        <span className="flex items-center gap-2 min-w-0">
-                          {selectedProvider && (
-                            <ProviderIcon
-                              providerType={selectedProvider.key}
-                              fallbackText={selectedProvider.label}
-                              size={15}
-                            />
+                        <button
+                          key={currentModelItem.id}
+                          disabled={Boolean(
+                            currentModelItem.compatibilityIssue,
                           )}
-                          <span className="min-w-0 flex flex-col gap-1">
-                            <span className="truncate">
-                              {currentModelItem.id}
-                            </span>
-                            <ModelCapabilityBadges
-                              capabilities={
-                                currentModelItem.metadata.capabilities
-                              }
-                              compact
-                            />
-                            {currentModelItem.compatibilityIssue ? (
-                              <span className="truncate text-[11px] text-amber-700">
-                                {currentModelItem.compatibilityIssue.message}
+                          onClick={() => {
+                            if (currentModelItem.compatibilityIssue) {
+                              return;
+                            }
+                            setModel(currentModelItem.id);
+                            setOpen(false);
+                          }}
+                          className={cn(
+                            `${itemClassName} group`,
+                            currentModelItem.compatibilityIssue
+                              ? "cursor-not-allowed border-transparent bg-transparent text-slate-400 opacity-70"
+                              : model === currentModelItem.id
+                                ? "border-slate-200 bg-slate-50 text-slate-900"
+                                : "text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900",
+                          )}
+                          title={currentModelItem.compatibilityIssue?.message}
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            {selectedProvider && (
+                              <ProviderIcon
+                                providerType={selectedProvider.key}
+                                fallbackText={selectedProvider.label}
+                                size={15}
+                              />
+                            )}
+                            <span className="min-w-0 flex flex-col gap-1">
+                              <span className="truncate">
+                                {currentModelItem.id}
                               </span>
-                            ) : null}
+                              <ModelCapabilityBadges
+                                capabilities={
+                                  currentModelItem.metadata.capabilities
+                                }
+                                compact
+                              />
+                              {currentModelItem.compatibilityIssue ? (
+                                <span className="truncate text-[11px] text-amber-700">
+                                  {currentModelItem.compatibilityIssue.message}
+                                </span>
+                              ) : null}
+                            </span>
                           </span>
-                        </span>
-                        {currentModelItem.compatibilityIssue ? (
-                          <AlertCircle size={14} className="text-amber-500" />
-                        ) : model === currentModelItem.id ? (
-                          <Check size={14} className="text-slate-900" />
-                        ) : null}
-                      </button>
+                          {currentModelItem.compatibilityIssue ? (
+                            <AlertCircle size={14} className="text-amber-500" />
+                          ) : model === currentModelItem.id ? (
+                            <Check size={14} className="text-slate-900" />
+                          ) : null}
+                        </button>
                       ))}
                     </>
                   )}

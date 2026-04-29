@@ -96,6 +96,27 @@ describe("apiKeyProvider API", () => {
     expect(vi.mocked(safeInvoke)).toHaveBeenCalledTimes(2);
   });
 
+  it("本地开发浏览器模式下 Provider 读取失败时应提供 Lime Hub mock", async () => {
+    vi.mocked(safeInvoke).mockRejectedValueOnce(
+      new Error("DevBridge unavailable"),
+    );
+
+    await expect(
+      apiKeyProviderApi.getProviders({ forceRefresh: true }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "lime-hub",
+        name: "Lime Hub",
+        type: "openai",
+        api_key_count: 1,
+        custom_models: expect.arrayContaining([
+          "gpt-5.5",
+          "deepseek-v4-flash",
+        ]),
+      }),
+    ]);
+  });
+
   it("写操作成功后应失效缓存", async () => {
     vi.mocked(safeInvoke)
       .mockResolvedValueOnce([

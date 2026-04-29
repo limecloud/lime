@@ -29,8 +29,7 @@ function createServiceSkill(
     isRecent: false,
     runnerLabel: "本地计划任务",
     runnerTone: "sky",
-    runnerDescription:
-      "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
+    runnerDescription: "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
     actionLabel: "先做方案",
     automationStatus: null,
     groupKey: "general",

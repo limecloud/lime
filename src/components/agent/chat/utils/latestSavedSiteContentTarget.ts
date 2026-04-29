@@ -1,7 +1,5 @@
 import type { Message, SiteSavedContentTarget } from "../types";
-import {
-  resolveSiteSavedContentTargetFromMetadata,
-} from "./siteToolResultSummary";
+import { resolveSiteSavedContentTargetFromMetadata } from "./siteToolResultSummary";
 
 export interface LatestSavedSiteContentTargetMatch {
   messageId: string;
@@ -59,7 +57,11 @@ export function resolveLatestProjectFileSavedSiteContentTargetFromMessage(
 export function resolveLatestProjectFileSavedSiteContentTargetFromMessages(
   messages: Message[],
 ): LatestSavedSiteContentTargetMatch | null {
-  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+  for (
+    let messageIndex = messages.length - 1;
+    messageIndex >= 0;
+    messageIndex -= 1
+  ) {
     const message = messages[messageIndex];
     if (message.role !== "assistant") {
       continue;

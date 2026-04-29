@@ -63,6 +63,14 @@ const DEFAULT_TASK_CONTEXT = {
   project_id: DEFAULT_PROJECT_ID,
   content_id: DEFAULT_CONTENT_ID,
 };
+const EMPTY_MODALITY_RUNTIME_CONTRACT_INDEX = {
+  snapshot_count: 0,
+  contract_keys: [],
+  blocked_count: 0,
+  routing_outcomes: [],
+  model_registry_assessment_count: 0,
+  snapshots: [],
+};
 
 function withDefaultTaskContext<T extends Record<string, unknown>>(record: T) {
   return {
@@ -1262,6 +1270,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         limit: 32,
       },
       total: 1,
+      modality_runtime_contracts: EMPTY_MODALITY_RUNTIME_CONTRACT_INDEX,
       tasks: [
         createArtifactOutput({
           task_id: taskId,
@@ -1377,6 +1386,111 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
           status: "complete",
           imageUrl: "https://example.com/history-direct-restore.png",
           prompt: "历史直恢广州春日主视觉",
+        }),
+      }),
+    ]);
+  });
+
+  it("应从 task artifact 恢复多模态合同路由阻止状态", async () => {
+    const taskId = "task-image-contract-blocked-1";
+    vi.mocked(hasTauriInvokeCapability).mockReturnValue(false);
+    vi.mocked(hasTauriRuntimeMarkers).mockReturnValue(false);
+    vi.mocked(getMediaTaskArtifact).mockResolvedValueOnce(
+      createArtifactOutput({
+        task_id: taskId,
+        task_type: "image_generate",
+        status: "failed",
+        normalized_status: "failed",
+        record: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "failed",
+          normalized_status: "failed",
+          created_at: "2026-04-04T12:05:00Z",
+          payload: {
+            prompt: "[img:合同阻止的青柠主视觉]",
+            count: 1,
+            size: "1024x1024",
+            modality_contract_key: "image_generation",
+            routing_slot: "image_task",
+            required_capabilities: ["image_generation"],
+            provider_id: "openai",
+            model: "gpt-5.2",
+            model_capability_assessment: {
+              model_id: "gpt-5.2",
+              provider_id: "openai",
+              source: "model_registry",
+              supports_image_generation: false,
+              reason: "output_modalities_missing_image",
+            },
+          },
+          last_error: {
+            code: "image_generation_model_capability_gap",
+            message: "model registry 显示当前模型不具备图片生成能力。",
+            retryable: false,
+          },
+        }),
+      }),
+    );
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: [
+          {
+            id: `image-workbench:${taskId}:assistant`,
+            role: "assistant",
+            content: "图片任务已提交，正在同步任务状态。",
+            timestamp: new Date("2026-04-04T12:05:00Z"),
+            imageWorkbenchPreview: {
+              taskId,
+              prompt: "合同阻止的青柠主视觉",
+              status: "running",
+              phase: "queued",
+            },
+          },
+        ],
+      },
+    );
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getMediaTaskArtifact).toHaveBeenCalledWith({
+      projectRootPath: DEFAULT_PROJECT_ROOT_PATH,
+      taskRef: taskId,
+    });
+    expect(getValue().imageWorkbenchState.tasks).toEqual([
+      expect.objectContaining({
+        id: taskId,
+        status: "error",
+        runtimeContract: expect.objectContaining({
+          contractKey: "image_generation",
+          routingSlot: "image_task",
+          providerId: "openai",
+          model: "gpt-5.2",
+          routingEvent: "routing_not_possible",
+          routingOutcome: "blocked",
+          failureCode: "image_generation_model_capability_gap",
+          modelCapabilityAssessmentSource: "model_registry",
+          modelSupportsImageGeneration: false,
+        }),
+      }),
+    ]);
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "failed",
+          runtimeContract: expect.objectContaining({
+            routingOutcome: "blocked",
+            failureCode: "image_generation_model_capability_gap",
+            modelCapabilityAssessmentSource: "model_registry",
+          }),
         }),
       }),
     ]);
@@ -1651,6 +1765,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         limit: 8,
       },
       total: 1,
+      modality_runtime_contracts: EMPTY_MODALITY_RUNTIME_CONTRACT_INDEX,
       tasks: [
         createArtifactOutput({
           task_id: "task-image-browser-recover-1",

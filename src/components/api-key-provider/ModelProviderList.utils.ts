@@ -1,4 +1,5 @@
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
+import { isOemManagedHubProvider } from "@/lib/oemLimeHubProvider";
 
 export interface EnabledModelItem {
   id: string;
@@ -13,8 +14,13 @@ function getEnabledApiKeyCount(provider: ProviderWithKeysDisplay): number {
   return provider.api_keys?.filter((apiKey) => apiKey.enabled).length ?? 0;
 }
 
-function getProviderDefaultModel(provider: ProviderWithKeysDisplay): string | null {
-  return provider.custom_models?.find((model) => model.trim().length > 0)?.trim() ?? null;
+function getProviderDefaultModel(
+  provider: ProviderWithKeysDisplay,
+): string | null {
+  return (
+    provider.custom_models?.find((model) => model.trim().length > 0)?.trim() ??
+    null
+  );
 }
 
 function isKeylessLocalProvider(provider: ProviderWithKeysDisplay): boolean {
@@ -28,6 +34,10 @@ function isKeylessLocalProvider(provider: ProviderWithKeysDisplay): boolean {
 export function isProviderVisibleInEnabledModelList(
   provider: ProviderWithKeysDisplay,
 ): boolean {
+  if (isOemManagedHubProvider(provider)) {
+    return false;
+  }
+
   if (!provider.enabled) {
     return false;
   }

@@ -100,7 +100,10 @@ function buildCompositionBlueprintMap(
   pkg: BaseSetupPackage,
 ): Map<string, BaseSetupCompositionBlueprint> {
   return new Map(
-    (pkg.compositionBlueprints ?? []).map((blueprint) => [blueprint.id, blueprint]),
+    (pkg.compositionBlueprints ?? []).map((blueprint) => [
+      blueprint.id,
+      blueprint,
+    ]),
   );
 }
 
@@ -303,13 +306,11 @@ function buildLaunchRequirements(
   return requirements;
 }
 
-function buildEntryBindings(
-  params: {
-    bindingFamily: BaseSetupAllowedBindingFamily;
-    serviceSkillProjection?: BaseSetupCatalogProjection;
-    sceneProjection?: BaseSetupCatalogProjection;
-  },
-): SceneAppEntryBinding[] {
+function buildEntryBindings(params: {
+  bindingFamily: BaseSetupAllowedBindingFamily;
+  serviceSkillProjection?: BaseSetupCatalogProjection;
+  sceneProjection?: BaseSetupCatalogProjection;
+}): SceneAppEntryBinding[] {
   const bindings: SceneAppEntryBinding[] = [];
   const bindingFamily = normalizeCompatSceneAppBindingFamily(
     params.bindingFamily,
@@ -336,7 +337,8 @@ function buildEntryBindings(
       commandPrefix: sceneBinding.commandPrefix,
       aliases: sceneBinding.aliases,
       skillKey:
-        params.sceneProjection?.skillKey ?? params.serviceSkillProjection?.skillKey,
+        params.sceneProjection?.skillKey ??
+        params.serviceSkillProjection?.skillKey,
     });
   }
 
@@ -439,7 +441,9 @@ function compileSceneAppDescriptor(params: {
   const requiredSlotCount =
     slotProfile?.slots.filter((slot) => slot.required).length ?? 0;
   const compositionBlueprint = primaryProjection.compositionBlueprintRef
-    ? params.compositionBlueprintMap.get(primaryProjection.compositionBlueprintRef)
+    ? params.compositionBlueprintMap.get(
+        primaryProjection.compositionBlueprintRef,
+      )
     : undefined;
   const scorecardProfile = params.scorecardProfileMap.get(
     primaryProjection.scorecardProfileRef,
@@ -494,7 +498,8 @@ function compileSceneAppDescriptor(params: {
       artifactProfile,
       compositionBlueprint,
     ),
-    deliveryContract: artifactProfile.deliveryContract as SceneAppDeliveryContract,
+    deliveryContract:
+      artifactProfile.deliveryContract as SceneAppDeliveryContract,
     artifactKind: artifactProfile.defaultArtifactKind,
     outputHint: primaryProjection.outputHint,
     entryBindings: buildEntryBindings({

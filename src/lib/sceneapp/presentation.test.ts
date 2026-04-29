@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  SceneAppCompatType,
-  SceneAppDescriptor,
-} from "./types";
+import type { SceneAppCompatType, SceneAppDescriptor } from "./types";
 import {
   collectSceneAppInfraPresentationLabels,
   getSceneAppInfraSummary,
@@ -81,8 +78,6 @@ describe("sceneapp presentation", () => {
         executionTone: "slate",
       }),
     );
-    expect(getSceneAppInfraSummary(descriptor)).toBe(
-      "Agent 工作区 · 项目沉淀",
-    );
+    expect(getSceneAppInfraSummary(descriptor)).toBe("Agent 工作区 · 项目沉淀");
   });
 });

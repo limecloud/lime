@@ -693,7 +693,7 @@ function buildRuntimeFeedbackSummary(
   const deliverySentence = run
     ? run.deliveryPartCoverageKnown && deliveryRequiredParts.length > 0
       ? deliveryMissingParts.length === 0
-      ? `最近一次运行已交齐 ${deliveryCompletedParts.length}/${deliveryRequiredParts.length} 个必含部件。`
+        ? `最近一次运行已交齐 ${deliveryCompletedParts.length}/${deliveryRequiredParts.length} 个必含部件。`
         : `最近一次运行已交付 ${deliveryCompletedParts.length}/${deliveryRequiredParts.length} 个必含部件。`
       : run.artifactCount > 0
         ? `最近一次运行已回流 ${run.artifactCount} 份结果。`
@@ -1594,7 +1594,8 @@ export function buildSceneAppWorkbenchStatItems(
 ): SceneAppWorkbenchStatItem[] {
   const uniqueTypes = new Set(
     descriptors.map(
-      (descriptor) => resolveSceneAppTypePresentation(descriptor.sceneappType).label,
+      (descriptor) =>
+        resolveSceneAppTypePresentation(descriptor.sceneappType).label,
     ),
   ).size;
   const uniqueInfraCount = new Set(
@@ -1807,7 +1808,8 @@ export function buildSceneAppDetailViewModel(params: {
       (requirement) => requirement.message,
     ),
     launchInputPlaceholder: copy.fallbackPrompt,
-    launchSeedLabel: launchSeed?.sourceLabel ?? "当前这套做法还需要更明确的启动信息",
+    launchSeedLabel:
+      launchSeed?.sourceLabel ?? "当前这套做法还需要更明确的启动信息",
     launchSeedPreview:
       launchSeed?.sourcePreview ?? "例如补一个 URL，或明确要追踪的主题与目标。",
     launchActionLabel: entryCard?.actionLabel ?? copy.actionLabel,
@@ -1908,14 +1910,16 @@ export function buildSceneAppExecutionSummaryRunDetailViewModel(params: {
   run: SceneAppRunSummary;
 }): SceneAppRunDetailViewModel {
   const requiredParts = dedupeNonEmptyLines([
-    ...(params.summary.descriptorSnapshot?.deliveryProfile?.requiredParts ?? []),
+    ...(params.summary.descriptorSnapshot?.deliveryProfile?.requiredParts ??
+      []),
     ...(params.run.deliveryRequiredParts ?? []),
   ]);
   const detailView = buildSceneAppRunDetailViewModel({
     descriptor: {
       title: params.summary.title,
-      deliveryContract:
-        resolveSceneAppExecutionSummaryDeliveryContract(params.summary),
+      deliveryContract: resolveSceneAppExecutionSummaryDeliveryContract(
+        params.summary,
+      ),
       deliveryProfile: {
         ...params.summary.descriptorSnapshot?.deliveryProfile,
         requiredParts,
@@ -2053,8 +2057,9 @@ export function backfillSceneAppExecutionSummaryViewModel(params: {
     scorecardAggregate: buildSceneAppScorecardAggregateViewModel({
       descriptor: {
         title: params.summary.title,
-        deliveryContract:
-          resolveSceneAppExecutionSummaryDeliveryContract(params.summary),
+        deliveryContract: resolveSceneAppExecutionSummaryDeliveryContract(
+          params.summary,
+        ),
         deliveryProfile: params.summary.descriptorSnapshot?.deliveryProfile,
         scorecardProfile:
           params.summary.scorecardProfileRef ||
@@ -2325,8 +2330,7 @@ function buildSceneAppGovernanceDestinations(params: {
     destinations.push({
       key: "task-center",
       label: "生成",
-      description:
-        "结果记录已经适合继续被生成、结果统计或后续持续流程消费。",
+      description: "结果记录已经适合继续被生成、结果统计或后续持续流程消费。",
     });
   }
 
@@ -2362,7 +2366,8 @@ function buildSceneAppGovernanceStatusItems(params: {
         key: "weekly-pack",
         label: "结果材料",
         value: "待首轮样本",
-        description: "还没有可继续判断的运行样本，结果材料会在首轮运行后自动形成。",
+        description:
+          "还没有可继续判断的运行样本，结果材料会在首轮运行后自动形成。",
         tone: "idle",
       },
       {
@@ -2650,8 +2655,7 @@ function buildSceneAppFallbackOperatingSummaryViewModel(params: {
     return {
       status: "risk",
       statusLabel: "建议限制投入",
-      summary:
-        "当前经营信号更偏向限制投入，先不要继续扩大这套做法的曝光。",
+      summary: "当前经营信号更偏向限制投入，先不要继续扩大这套做法的曝光。",
       nextAction:
         "先把失败信号和复核结论沉淀成结构化材料，再决定是重做、降级还是退出主推。",
       scorecardActionLabel,
@@ -2671,8 +2675,7 @@ function buildSceneAppFallbackOperatingSummaryViewModel(params: {
       summary: topFailureSignalLabel
         ? `当前主要卡在${topFailureSignalLabel}，暂时不适合直接放大。`
         : "当前仍有运行或复核问题，暂时不适合直接放大。",
-      nextAction:
-        "优先补齐复核与修复动作，再决定是否继续沿当前结果推进。",
+      nextAction: "优先补齐复核与修复动作，再决定是否继续沿当前结果推进。",
       scorecardActionLabel,
       topFailureSignalLabel,
       destinations: [],
@@ -2706,12 +2709,10 @@ function buildSceneAppFallbackOperatingSummaryViewModel(params: {
 }
 
 export function buildSceneAppScorecardAggregateViewModel(params: {
-  descriptor:
-    | Pick<
-        SceneAppDescriptor,
-        "title" | "deliveryContract" | "deliveryProfile" | "scorecardProfile"
-      >
-    | null;
+  descriptor: Pick<
+    SceneAppDescriptor,
+    "title" | "deliveryContract" | "deliveryProfile" | "scorecardProfile"
+  > | null;
   scorecard: SceneAppScorecard | null;
   run: SceneAppRunSummary | null;
   planResult?: Pick<

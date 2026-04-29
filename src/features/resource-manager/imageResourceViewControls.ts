@@ -63,7 +63,8 @@ export function useImageResourceViewControls(params: {
   const [fitMode, setFitMode] = useState<ImageResourceFitMode>("fit");
   const [backdropMode, setBackdropMode] =
     useState<ImageResourceBackdropMode>("light");
-  const [naturalSize, setNaturalSize] = useState<ImageResourceNaturalSize>(null);
+  const [naturalSize, setNaturalSize] =
+    useState<ImageResourceNaturalSize>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
 

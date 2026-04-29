@@ -37,10 +37,7 @@ function normalizeHomeServiceSkillBinding(
 }
 
 function resolveServiceSkillExecutionKind(
-  skill: Pick<
-    ServiceSkillItem,
-    "defaultExecutorBinding" | "executionLocation"
-  >,
+  skill: Pick<ServiceSkillItem, "defaultExecutorBinding" | "executionLocation">,
 ): SkillCatalogExecutionKind {
   switch (normalizeHomeServiceSkillBinding(skill.defaultExecutorBinding)) {
     case "browser_assist":
@@ -84,15 +81,13 @@ function listFeaturedFromCandidates(
   const visibleSkills = skills.filter((skill) =>
     shouldExposeServiceSkillHomeItem(skill),
   );
-  const { featuredSkills } = buildServiceSkillRecommendationBuckets(
-    visibleSkills,
-    {
+  const { recentSkills, featuredSkills } =
+    buildServiceSkillRecommendationBuckets(visibleSkills, {
       featuredLimit: limit,
       surface: "home",
-    },
-  );
+    });
 
-  return featuredSkills.slice(0, limit);
+  return [...recentSkills, ...featuredSkills].slice(0, limit);
 }
 
 export function shouldExposeServiceSkillHomeItem(

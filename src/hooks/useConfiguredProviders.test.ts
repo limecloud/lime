@@ -123,7 +123,10 @@ describe("buildConfiguredProviders", () => {
       }),
     ]);
 
-    const resolvedProvider = findConfiguredProviderBySelection(providers, "mimo");
+    const resolvedProvider = findConfiguredProviderBySelection(
+      providers,
+      "mimo",
+    );
 
     expect(resolvedProvider).toEqual(
       expect.objectContaining({

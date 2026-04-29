@@ -2568,7 +2568,8 @@ export function ImConfigPage() {
                   />
                 </div>
                 <p className="max-w-3xl text-sm leading-7 text-slate-600">
-                  把外部消息接进 Lime，让消息接收、回复和结果投递继续留在熟悉客户端。
+                  把外部消息接进
+                  Lime，让消息接收、回复和结果投递继续留在熟悉客户端。
                 </p>
               </div>
             </div>

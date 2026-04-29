@@ -6,7 +6,13 @@ import {
   type ChangeEvent,
   type ReactNode,
 } from "react";
-import { AlertCircle, CheckCircle2, Mic, Wand2, type LucideIcon } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Mic,
+  Wand2,
+  type LucideIcon,
+} from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { ShortcutSettings } from "@/components/smart-input/ShortcutSettings";
 import { MicrophoneTest } from "@/components/voice/MicrophoneTest";
@@ -80,7 +86,9 @@ function ensureValidVoiceInstructionSelection(
     ? "translate_en"
     : nextDefaultInstructionId;
 
-  const nextTranslateInstructionId = hasInstruction(config.translate_instruction_id)
+  const nextTranslateInstructionId = hasInstruction(
+    config.translate_instruction_id,
+  )
     ? config.translate_instruction_id
     : fallbackTranslateInstructionId;
 
@@ -233,7 +241,8 @@ function buildTranslateShortcutStatus(
 
   if (
     runtimeStatus?.translate_shortcut_registered &&
-    runtimeStatus.registered_translate_shortcut === voiceConfig.translate_shortcut
+    runtimeStatus.registered_translate_shortcut ===
+      voiceConfig.translate_shortcut
   ) {
     return { text: "翻译模式快捷键已注册", tone: "success" };
   }
@@ -246,7 +255,9 @@ export function VoiceSettings() {
   const [voiceConfig, setVoiceConfig] = useState<VoiceInputConfig | null>(null);
   const [voiceShortcutStatus, setVoiceShortcutStatus] =
     useState<VoiceShortcutRuntimeStatus | null>(null);
-  const [asrCredentials, setAsrCredentials] = useState<AsrCredentialEntry[]>([]);
+  const [asrCredentials, setAsrCredentials] = useState<AsrCredentialEntry[]>(
+    [],
+  );
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -405,12 +416,14 @@ export function VoiceSettings() {
   );
 
   const voiceInstructions = voiceConfig?.instructions ?? [];
-  const defaultInstructionId = voiceConfig?.processor.default_instruction_id ?? "";
+  const defaultInstructionId =
+    voiceConfig?.processor.default_instruction_id ?? "";
   const translateInstructionId = voiceConfig?.translate_instruction_id ?? "";
 
   const defaultInstructionLabel =
-    voiceInstructions.find((instruction) => instruction.id === defaultInstructionId)
-      ?.name ?? "请选择默认润色指令";
+    voiceInstructions.find(
+      (instruction) => instruction.id === defaultInstructionId,
+    )?.name ?? "请选择默认润色指令";
 
   const translateInstructionLabel =
     voiceInstructions.find(
@@ -594,7 +607,8 @@ export function VoiceSettings() {
     <div className="max-w-[820px] space-y-4">
       {voiceConfig?.enabled && !defaultAsrCredential ? (
         <div className="rounded-[22px] border border-amber-200 bg-amber-50/85 px-4 py-3 text-sm text-amber-800">
-          语音输入已启用，但当前没有默认的语音识别凭证；请先在设置的“语音服务”里设置默认 ASR 服务。
+          语音输入已启用，但当前没有默认的语音识别凭证；请先在设置的“语音服务”里设置默认
+          ASR 服务。
         </div>
       ) : null}
 
@@ -804,7 +818,9 @@ export function VoiceSettings() {
         disabled={!config}
         onReset={handleResetPreference}
         resetLabel="恢复默认"
-        resetDisabled={!hasMediaGenerationPreferenceOverride(globalVoicePreference)}
+        resetDisabled={
+          !hasMediaGenerationPreferenceOverride(globalVoicePreference)
+        }
       />
 
       {message ? (

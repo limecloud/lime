@@ -14,8 +14,7 @@ import type { BaseSetupPackage, CompiledBaseSetupPackage } from "./types";
 
 type UnknownRecord = Record<string, unknown>;
 
-export interface ResolveBaseSetupCatalogPayloadOptions
-  extends BaseSetupServiceSkillCatalogAdapterOptions {
+export interface ResolveBaseSetupCatalogPayloadOptions extends BaseSetupServiceSkillCatalogAdapterOptions {
   persistSnapshot?: boolean;
 }
 

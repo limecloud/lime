@@ -6,10 +6,7 @@ import { resolveSiteSceneSlotValues } from "../workspace/serviceSkillSceneLaunch
 import type { CreationReplayMetadata } from "../utils/creationReplayMetadata";
 import { buildCreationReplaySlotPrefill } from "./creationReplaySlotPrefill";
 import { getServiceSkillUsageMap } from "./storage";
-import type {
-  ServiceSkillHomeItem,
-  ServiceSkillSlotValues,
-} from "./types";
+import type { ServiceSkillHomeItem, ServiceSkillSlotValues } from "./types";
 
 export interface ServiceSkillLaunchPrefillResult {
   slotValues?: ServiceSkillSlotValues;
@@ -45,7 +42,9 @@ function compactSlotValues(
   const nextValues = Object.fromEntries(
     Object.entries(slotValues)
       .map(([key, value]) => [key.trim(), normalizeOptionalText(value)])
-      .filter((entry): entry is [string, string] => Boolean(entry[0] && entry[1])),
+      .filter((entry): entry is [string, string] =>
+        Boolean(entry[0] && entry[1]),
+      ),
   );
 
   return Object.keys(nextValues).length > 0 ? nextValues : undefined;

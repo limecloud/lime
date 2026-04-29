@@ -2,6 +2,10 @@ use super::*;
 use crate::agent_tools::catalog::{
     LIME_SITE_INFO_TOOL_NAME, LIME_SITE_RUN_TOOL_NAME, LIME_SITE_SEARCH_TOOL_NAME,
 };
+use crate::commands::modality_runtime_contracts::{
+    insert_voice_generation_contract_fields, VOICE_GENERATION_CONTRACT_KEY,
+    VOICE_GENERATION_ROUTING_SLOT,
+};
 use crate::services::site_capability_service::{
     get_site_adapter, run_site_adapter_with_optional_save, RunSiteAdapterRequest,
     SiteAdapterDefinition, SiteAdapterRunResult,
@@ -77,6 +81,11 @@ pub(crate) struct ServiceSceneLaunchContext {
     pub(crate) project_id: Option<String>,
     pub(crate) content_id: Option<String>,
     pub(crate) entry_source: Option<String>,
+    pub(crate) modality_contract_key: Option<String>,
+    pub(crate) modality: Option<String>,
+    pub(crate) required_capabilities: Vec<String>,
+    pub(crate) routing_slot: Option<String>,
+    pub(crate) runtime_contract: Option<serde_json::Value>,
     pub(crate) oem_runtime: ServiceSceneLaunchOemRuntimeContext,
 }
 
@@ -100,6 +109,35 @@ fn extract_object_string(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+}
+
+fn extract_object_string_array(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Vec<String> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(|value| match value {
+            serde_json::Value::Array(items) => Some(
+                items
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+                    .collect::<Vec<_>>(),
+            ),
+            serde_json::Value::String(text) => {
+                let trimmed = text.trim();
+                if trimmed.is_empty() {
+                    Some(Vec::new())
+                } else {
+                    Some(vec![trimmed.to_string()])
+                }
+            }
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 fn normalized_optional_object(
@@ -399,6 +437,21 @@ pub(crate) fn extract_service_scene_launch_context(
         project_id: extract_object_string(service_scene_run, &["project_id", "projectId"]),
         content_id: extract_object_string(service_scene_run, &["content_id", "contentId"]),
         entry_source: extract_object_string(service_scene_run, &["entry_source", "entrySource"]),
+        modality_contract_key: extract_object_string(
+            service_scene_run,
+            &["modality_contract_key", "modalityContractKey"],
+        ),
+        modality: extract_object_string(service_scene_run, &["modality"]),
+        required_capabilities: extract_object_string_array(
+            service_scene_run,
+            &["required_capabilities", "requiredCapabilities"],
+        ),
+        routing_slot: extract_object_string(service_scene_run, &["routing_slot", "routingSlot"]),
+        runtime_contract: service_scene_run
+            .get("runtime_contract")
+            .or_else(|| service_scene_run.get("runtimeContract"))
+            .cloned()
+            .filter(serde_json::Value::is_object),
         oem_runtime: ServiceSceneLaunchOemRuntimeContext {
             scene_base_url: oem_runtime.and_then(|value| {
                 extract_object_string(value, &["scene_base_url", "sceneBaseUrl"])
@@ -411,6 +464,50 @@ pub(crate) fn extract_service_scene_launch_context(
     })
 }
 
+fn ensure_voice_generation_contract_metadata(metadata: &mut serde_json::Value) {
+    let Some(harness) = metadata
+        .get_mut("harness")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return;
+    };
+
+    for launch_key in ["service_scene_launch", "serviceSceneLaunch"] {
+        let Some(service_scene_run) = harness
+            .get_mut(launch_key)
+            .and_then(serde_json::Value::as_object_mut)
+            .and_then(|launch| {
+                if launch.contains_key("service_scene_run") {
+                    launch.get_mut("service_scene_run")
+                } else {
+                    launch.get_mut("serviceSceneRun")
+                }
+            })
+            .and_then(serde_json::Value::as_object_mut)
+        else {
+            continue;
+        };
+
+        let scene_key = extract_object_string(service_scene_run, &["scene_key", "sceneKey"]);
+        let entry_source =
+            extract_object_string(service_scene_run, &["entry_source", "entrySource"]);
+        let contract_key = extract_object_string(
+            service_scene_run,
+            &["modality_contract_key", "modalityContractKey"],
+        );
+        let routing_slot =
+            extract_object_string(service_scene_run, &["routing_slot", "routingSlot"]);
+        let is_voice_runtime = scene_key.as_deref() == Some("voice_runtime")
+            || entry_source.as_deref() == Some("at_voice_command")
+            || contract_key.as_deref() == Some(VOICE_GENERATION_CONTRACT_KEY)
+            || routing_slot.as_deref() == Some(VOICE_GENERATION_ROUTING_SLOT);
+
+        if is_voice_runtime {
+            insert_voice_generation_contract_fields(service_scene_run);
+        }
+    }
+}
+
 pub(crate) fn prepare_service_scene_launch_request_metadata(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<serde_json::Value> {
@@ -419,6 +516,7 @@ pub(crate) fn prepare_service_scene_launch_request_metadata(
         &mut metadata,
         &["service_scene_launch", "serviceSceneLaunch"],
     );
+    ensure_voice_generation_contract_metadata(&mut metadata);
 
     Some(metadata)
 }

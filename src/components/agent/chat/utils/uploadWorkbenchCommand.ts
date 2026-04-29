@@ -4,10 +4,7 @@ import {
   type ContentPostPlatformType,
 } from "./contentPostPlatform";
 
-export type UploadWorkbenchCommandTrigger =
-  | "@上传"
-  | "@upload"
-  | "@上架";
+export type UploadWorkbenchCommandTrigger = "@上传" | "@upload" | "@上架";
 
 export type UploadPlatformType = ContentPostPlatformType;
 
@@ -62,8 +59,12 @@ export function parseUploadWorkbenchCommand(
   }
 
   const body = (matched[2] || "").trim();
-  const { platformType, platformLabel, explicitPlatformText, leadingPlatformText } =
-    parseContentPostPlatform(body);
+  const {
+    platformType,
+    platformLabel,
+    explicitPlatformText,
+    leadingPlatformText,
+  } = parseContentPostPlatform(body);
   const prompt = stripContentPostPromptDecorations(
     body,
     explicitPlatformText || leadingPlatformText,

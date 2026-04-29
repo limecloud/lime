@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  listSceneAppCatalog,
-  type SceneAppCatalog,
-} from "@/lib/api/sceneapp";
+import { listSceneAppCatalog, type SceneAppCatalog } from "@/lib/api/sceneapp";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import {
   buildSceneAppEntryCard,
@@ -185,13 +182,7 @@ export function useWorkspaceSceneAppEntryActions({
         entrySource: "workspace_card",
       });
     },
-    [
-      descriptorMap,
-      input,
-      launchRuntime,
-      selectedText,
-      urlCandidate,
-    ],
+    [descriptorMap, input, launchRuntime, selectedText, urlCandidate],
   );
 
   return {

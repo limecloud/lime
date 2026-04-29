@@ -45,17 +45,9 @@
           "executor_error"
         ]
       },
-      "truth_source": [
-        "image_task_artifact",
-        "runtime_timeline_event"
-      ],
-      "artifact_kinds": [
-        "image_task",
-        "image_output"
-      ],
-      "viewer_surface": [
-        "image_workbench"
-      ],
+      "truth_source": ["image_task_artifact", "runtime_timeline_event"],
+      "artifact_kinds": ["image_task", "image_output"],
+      "viewer_surface": ["image_workbench"],
       "evidence_events": [
         "runtime_identity_bound",
         "model_routing_decision",
@@ -73,9 +65,7 @@
         "block_on_no_image_generation_model"
       ],
       "detour_policy": {
-        "allowed": [
-          "ask_user_question"
-        ],
+        "allowed": ["ask_user_question"],
         "denied": [
           "free_bash",
           "web_search_before_skill",
@@ -83,7 +73,122 @@
         ]
       },
       "owner_surface": "agent_runtime",
-      "bound_entries": []
+      "bound_entries": [
+        {
+          "entry_key": "at_image_command",
+          "entry_kind": "command",
+          "display_name": "@配图 / @image / /image / @Vision 1",
+          "launch_metadata_path": "harness.image_skill_launch.image_task",
+          "entry_source": "at_image_command",
+          "default_input_mapping": [
+            "user_text",
+            "selected_assets",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_image_generation"
+          ]
+        },
+        {
+          "entry_key": "at_poster_command",
+          "entry_kind": "command",
+          "display_name": "@海报 / @Flyer 3",
+          "launch_metadata_path": "harness.image_skill_launch.image_task",
+          "entry_source": "at_poster_command",
+          "default_input_mapping": [
+            "user_text",
+            "poster_intent",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_image_generation"
+          ]
+        },
+        {
+          "entry_key": "at_image_edit_command",
+          "entry_kind": "command",
+          "display_name": "@修图",
+          "launch_metadata_path": "harness.image_skill_launch.image_task",
+          "entry_source": "at_image_command",
+          "default_input_mapping": [
+            "user_text",
+            "image_reference",
+            "selected_assets"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_image_generation",
+            "requires_image_reference_or_upload"
+          ]
+        },
+        {
+          "entry_key": "at_image_variation_command",
+          "entry_kind": "command",
+          "display_name": "@重绘",
+          "launch_metadata_path": "harness.image_skill_launch.image_task",
+          "entry_source": "at_image_command",
+          "default_input_mapping": [
+            "user_text",
+            "image_reference",
+            "selected_assets"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_image_generation",
+            "requires_image_reference_or_upload"
+          ]
+        },
+        {
+          "entry_key": "at_storyboard_command",
+          "entry_kind": "command",
+          "display_name": "@分镜",
+          "launch_metadata_path": "harness.image_skill_launch.image_task",
+          "entry_source": "at_image_command",
+          "default_input_mapping": [
+            "user_text",
+            "storyboard_slots",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_image_generation"
+          ]
+        },
+        {
+          "entry_key": "document_inline_image_action",
+          "entry_kind": "button_action",
+          "display_name": "文稿正文配图",
+          "launch_metadata_path": "harness.image_skill_launch.image_task",
+          "entry_source": "at_image_command",
+          "default_input_mapping": [
+            "selected_text",
+            "canvas_insert_anchor",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "document_canvas_active",
+            "profile_allows_image_generation"
+          ]
+        },
+        {
+          "entry_key": "image_workbench_followup_action",
+          "entry_kind": "button_action",
+          "display_name": "图片工作台续做",
+          "launch_metadata_path": "harness.image_skill_launch.image_task",
+          "entry_source": "at_image_command",
+          "default_input_mapping": [
+            "selected_image_output",
+            "user_text",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "image_workbench_active",
+            "profile_allows_image_generation"
+          ]
+        }
+      ]
     },
     {
       "contract_key": "browser_control",
@@ -97,11 +202,7 @@
         "content_id",
         "artifact_id"
       ],
-      "input_context_kinds": [
-        "text_prompt",
-        "url",
-        "browser_state"
-      ],
+      "input_context_kinds": ["text_prompt", "url", "browser_state"],
       "required_capabilities": [
         "text_generation",
         "browser_reasoning",
@@ -128,17 +229,9 @@
           "observation_unavailable"
         ]
       },
-      "truth_source": [
-        "browser_action_trace",
-        "runtime_timeline_event"
-      ],
-      "artifact_kinds": [
-        "browser_session",
-        "browser_snapshot"
-      ],
-      "viewer_surface": [
-        "browser_replay_viewer"
-      ],
+      "truth_source": ["browser_action_trace", "runtime_timeline_event"],
+      "artifact_kinds": ["browser_session", "browser_snapshot"],
+      "viewer_surface": ["browser_replay_viewer"],
       "evidence_events": [
         "runtime_identity_bound",
         "execution_profile_decision",
@@ -146,19 +239,13 @@
         "browser_observation_recorded",
         "artifact_written"
       ],
-      "limecore_policy_refs": [
-        "tenant_feature_flags",
-        "gateway_policy"
-      ],
+      "limecore_policy_refs": ["tenant_feature_flags", "gateway_policy"],
       "fallback_policy": [
         "ask_on_high_risk_action",
         "block_on_browser_control_denied"
       ],
       "detour_policy": {
-        "allowed": [
-          "ask_user_question",
-          "web_search_after_user_approval"
-        ],
+        "allowed": ["ask_user_question", "web_search_after_user_approval"],
         "denied": [
           "web_search_as_browser_substitute",
           "free_bash",
@@ -211,41 +298,44 @@
           "executor_error"
         ]
       },
-      "truth_source": [
-        "pdf_extract_artifact",
-        "runtime_timeline_event"
-      ],
-      "artifact_kinds": [
-        "pdf_extract",
-        "report_document"
-      ],
-      "viewer_surface": [
-        "document_viewer"
-      ],
+      "truth_source": ["pdf_extract_artifact", "runtime_timeline_event"],
+      "artifact_kinds": ["pdf_extract", "report_document"],
+      "viewer_surface": ["document_viewer"],
       "evidence_events": [
         "runtime_identity_bound",
         "file_read_authorized",
         "executor_invoked",
         "artifact_written"
       ],
-      "limecore_policy_refs": [
-        "tenant_feature_flags"
-      ],
+      "limecore_policy_refs": ["tenant_feature_flags"],
       "fallback_policy": [
         "ask_on_file_permission_missing",
         "block_on_file_unavailable"
       ],
       "detour_policy": {
-        "allowed": [
-          "ask_user_question"
-        ],
-        "denied": [
-          "frontend_direct_pdf_parse",
-          "generic_chat_summary_only"
-        ]
+        "allowed": ["ask_user_question"],
+        "denied": ["frontend_direct_pdf_parse", "generic_chat_summary_only"]
       },
       "owner_surface": "agent_runtime",
-      "bound_entries": []
+      "bound_entries": [
+        {
+          "entry_key": "at_pdf_read_command",
+          "entry_kind": "command",
+          "display_name": "@读PDF / @pdf / @read_pdf",
+          "launch_metadata_path": "harness.pdf_read_skill_launch.pdf_read_request",
+          "entry_source": "at_pdf_read_command",
+          "default_input_mapping": [
+            "user_text",
+            "pdf_file_reference",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_file_read",
+            "requires_pdf_source"
+          ]
+        }
+      ]
     },
     {
       "contract_key": "voice_generation",
@@ -264,10 +354,7 @@
         "voice_preset",
         "workspace_context"
       ],
-      "required_capabilities": [
-        "text_generation",
-        "voice_generation"
-      ],
+      "required_capabilities": ["text_generation", "voice_generation"],
       "permission_profile_keys": [
         "write_artifacts",
         "media_upload",
@@ -289,17 +376,9 @@
           "executor_error"
         ]
       },
-      "truth_source": [
-        "audio_task_artifact",
-        "runtime_timeline_event"
-      ],
-      "artifact_kinds": [
-        "audio_task",
-        "audio_output"
-      ],
-      "viewer_surface": [
-        "audio_player"
-      ],
+      "truth_source": ["audio_task_artifact", "runtime_timeline_event"],
+      "artifact_kinds": ["audio_task", "audio_output"],
+      "viewer_surface": ["audio_player"],
       "evidence_events": [
         "runtime_identity_bound",
         "execution_profile_decision",
@@ -316,16 +395,32 @@
         "block_on_media_upload_denied"
       ],
       "detour_policy": {
-        "allowed": [
-          "ask_user_question"
-        ],
+        "allowed": ["ask_user_question"],
         "denied": [
           "legacy_tts_test_command",
           "cloud_run_without_explicit_scene"
         ]
       },
       "owner_surface": "service_skill_runtime",
-      "bound_entries": []
+      "bound_entries": [
+        {
+          "entry_key": "at_voice_command",
+          "entry_kind": "command",
+          "display_name": "@配音 / @voice / @dubbing",
+          "launch_metadata_path": "harness.service_scene_launch.service_scene_run",
+          "entry_source": "at_voice_command",
+          "default_input_mapping": [
+            "user_text",
+            "voice_preset",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_voice_generation",
+            "requires_voice_runtime_skill"
+          ]
+        }
+      ]
     },
     {
       "contract_key": "web_research",
@@ -339,11 +434,7 @@
         "content_id",
         "artifact_id"
       ],
-      "input_context_kinds": [
-        "text_prompt",
-        "url",
-        "workspace_context"
-      ],
+      "input_context_kinds": ["text_prompt", "url", "workspace_context"],
       "required_capabilities": [
         "text_generation",
         "web_search",
@@ -371,18 +462,9 @@
           "source_unavailable"
         ]
       },
-      "truth_source": [
-        "research_timeline_event",
-        "report_document_artifact"
-      ],
-      "artifact_kinds": [
-        "report_document",
-        "webpage_artifact"
-      ],
-      "viewer_surface": [
-        "report_viewer",
-        "webpage_viewer"
-      ],
+      "truth_source": ["research_timeline_event", "report_document_artifact"],
+      "artifact_kinds": ["report_document", "webpage_artifact"],
+      "viewer_surface": ["report_viewer", "webpage_viewer"],
       "evidence_events": [
         "runtime_identity_bound",
         "model_routing_decision",
@@ -399,17 +481,260 @@
         "block_on_source_unavailable"
       ],
       "detour_policy": {
-        "allowed": [
-          "ask_user_question",
-          "web_search"
-        ],
+        "allowed": ["ask_user_question", "web_search"],
         "denied": [
           "model_memory_only_answer",
           "local_file_search_before_research_skill"
         ]
       },
       "owner_surface": "agent_runtime",
-      "bound_entries": []
+      "bound_entries": [
+        {
+          "entry_key": "at_search_command",
+          "entry_kind": "command",
+          "display_name": "@搜索 / @Search / @research",
+          "launch_metadata_path": "harness.research_skill_launch.research_request",
+          "entry_source": "at_search_command",
+          "default_input_mapping": ["user_text", "query", "workspace_context"],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_web_research"
+          ]
+        },
+        {
+          "entry_key": "at_deep_search_command",
+          "entry_kind": "command",
+          "display_name": "@深搜 / @deep / @Researchers Pro",
+          "launch_metadata_path": "harness.deep_search_skill_launch.deep_search_request",
+          "entry_source": "at_deep_search_command",
+          "default_input_mapping": ["user_text", "query", "research_depth"],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_web_research",
+            "profile_allows_long_context"
+          ]
+        },
+        {
+          "entry_key": "at_site_search_command",
+          "entry_kind": "command",
+          "display_name": "@站点搜索 / @站点 / @site_search",
+          "launch_metadata_path": "harness.site_search_skill_launch.site_search_request",
+          "entry_source": "at_site_search_command",
+          "default_input_mapping": ["user_text", "site", "query"],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_web_research",
+            "requires_site_adapter_or_site_hint"
+          ]
+        },
+        {
+          "entry_key": "at_report_command",
+          "entry_kind": "command",
+          "display_name": "@研报 / @report / @research_report",
+          "launch_metadata_path": "harness.report_skill_launch.report_request",
+          "entry_source": "at_report_command",
+          "default_input_mapping": [
+            "user_text",
+            "query",
+            "report_focus",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_web_research",
+            "profile_allows_long_context"
+          ]
+        },
+        {
+          "entry_key": "at_competitor_command",
+          "entry_kind": "command",
+          "display_name": "@竞品 / @competitor / @product_search",
+          "launch_metadata_path": "harness.report_skill_launch.report_request",
+          "entry_source": "at_competitor_command",
+          "default_input_mapping": [
+            "user_text",
+            "query",
+            "competitor_focus",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_web_research",
+            "profile_allows_long_context"
+          ]
+        }
+      ]
+    },
+    {
+      "contract_key": "text_transform",
+      "lifecycle": "current",
+      "modality": "document",
+      "runtime_identity": [
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "task_id",
+        "content_id",
+        "artifact_id"
+      ],
+      "input_context_kinds": [
+        "text_prompt",
+        "local_file_reference",
+        "workspace_context"
+      ],
+      "required_capabilities": [
+        "text_generation",
+        "local_file_read",
+        "long_context"
+      ],
+      "permission_profile_keys": [
+        "read_files",
+        "write_artifacts",
+        "ask_user_question"
+      ],
+      "routing_slot": "base_model",
+      "executor_binding": {
+        "executor_kind": "skill",
+        "binding_key": "text_transform",
+        "current_path": "Runtime contract -> Skill(summary|translation|analysis) -> text transform timeline / document artifact",
+        "supports_progress": true,
+        "supports_cancel": true,
+        "supports_resume": false,
+        "supports_artifact": true,
+        "failure_mapping": [
+          "permission_denied",
+          "capability_gap",
+          "file_unavailable",
+          "executor_error"
+        ]
+      },
+      "truth_source": ["runtime_timeline_event", "report_document_artifact"],
+      "artifact_kinds": ["report_document", "generic_file"],
+      "viewer_surface": ["document_viewer", "generic_file_viewer"],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "file_read_authorized",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "limecore_policy_refs": ["tenant_feature_flags", "model_catalog"],
+      "fallback_policy": [
+        "ask_on_missing_source",
+        "ask_on_file_permission_missing",
+        "block_on_file_unavailable"
+      ],
+      "detour_policy": {
+        "allowed": [
+          "ask_user_question",
+          "local_file_read_when_explicit_path"
+        ],
+        "denied": [
+          "frontend_direct_text_transform",
+          "tool_search_before_text_transform_skill",
+          "web_search_before_text_transform_skill"
+        ]
+      },
+      "owner_surface": "agent_runtime",
+      "bound_entries": [
+        {
+          "entry_key": "at_file_read_command",
+          "entry_kind": "command",
+          "display_name": "@读文件 / @read_file / @Read File Content",
+          "launch_metadata_path": "harness.summary_skill_launch.summary_request",
+          "entry_source": "at_file_read_command",
+          "default_input_mapping": [
+            "user_text",
+            "local_file_reference",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_file_read",
+            "requires_file_source"
+          ]
+        },
+        {
+          "entry_key": "at_summary_command",
+          "entry_kind": "command",
+          "display_name": "@总结 / @summary",
+          "launch_metadata_path": "harness.summary_skill_launch.summary_request",
+          "entry_source": "at_summary_command",
+          "default_input_mapping": [
+            "user_text",
+            "content",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_text_transform"
+          ]
+        },
+        {
+          "entry_key": "at_translation_command",
+          "entry_kind": "command",
+          "display_name": "@翻译 / @translate",
+          "launch_metadata_path": "harness.translation_skill_launch.translation_request",
+          "entry_source": "at_translation_command",
+          "default_input_mapping": [
+            "user_text",
+            "content",
+            "target_language"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_text_transform"
+          ]
+        },
+        {
+          "entry_key": "at_analysis_command",
+          "entry_kind": "command",
+          "display_name": "@分析 / @analysis",
+          "launch_metadata_path": "harness.analysis_skill_launch.analysis_request",
+          "entry_source": "at_analysis_command",
+          "default_input_mapping": [
+            "user_text",
+            "content",
+            "analysis_focus"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_text_transform"
+          ]
+        },
+        {
+          "entry_key": "at_publish_compliance_command",
+          "entry_kind": "command",
+          "display_name": "@发布合规 / @publish_compliance",
+          "launch_metadata_path": "harness.analysis_skill_launch.analysis_request",
+          "entry_source": "at_publish_compliance_command",
+          "default_input_mapping": [
+            "user_text",
+            "content",
+            "compliance_focus"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_text_transform",
+            "creative_delivery_context"
+          ]
+        },
+        {
+          "entry_key": "at_logo_decomposition_command",
+          "entry_kind": "command",
+          "display_name": "@Logo拆解 / @logo_decomposition",
+          "launch_metadata_path": "harness.analysis_skill_launch.analysis_request",
+          "entry_source": "at_logo_decomposition_command",
+          "default_input_mapping": [
+            "user_text",
+            "content",
+            "logo_analysis_focus"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_text_transform"
+          ]
+        }
+      ]
     }
   ]
 }

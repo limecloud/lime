@@ -1004,8 +1004,7 @@ describe("BrowserSiteAdapterPanel", () => {
         content_id: "content-markdown-1",
         project_id: "project-2",
         title: "Google Cloud 周报",
-        markdown_relative_path:
-          "exports/social-article/google-cloud/index.md",
+        markdown_relative_path: "exports/social-article/google-cloud/index.md",
       },
       saved_project_id: "project-2",
       saved_by: "explicit_project",

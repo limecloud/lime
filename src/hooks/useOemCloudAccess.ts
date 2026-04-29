@@ -1162,17 +1162,33 @@ export function useOemCloudAccess() {
 
     setOpeningGoogleLogin(true);
     setErrorMessage(null);
-    setInfoMessage(null);
+    setInfoMessage(
+      "已打开系统浏览器，请完成 Google 授权；如果浏览器出现确认页，请继续完成，桌面端会自动同步登录结果。",
+    );
 
     const browserTarget = createExternalBrowserOpenTarget();
     try {
       const result = await startOemCloudLogin(runtime, { browserTarget });
+      const storedSession = getStoredOemCloudSessionState();
+      const storedTenantId = storedSession?.session.tenant.id?.trim();
+      const storedTenantSlug = storedSession?.session.tenant.slug?.trim();
+      const runtimeTenantId = runtime.tenantId.trim();
+      if (
+        storedTenantId &&
+        (storedTenantId === runtimeTenantId ||
+          storedTenantSlug === runtimeTenantId)
+      ) {
+        setInfoMessage("Google 登录成功，已同步云端目录。");
+        return;
+      }
+
       setInfoMessage(
         result.mode === "desktop_auth"
           ? "已打开系统浏览器，请完成 Google 授权；如果浏览器出现确认页，请继续完成，桌面端会自动同步登录结果。"
           : "已打开 Lime 云端登录页，请在浏览器完成授权，桌面端会自动同步登录结果。",
       );
     } catch (error) {
+      setInfoMessage(null);
       setErrorMessage(buildErrorMessage(error, "打开 Lime 云端登录页失败"));
     } finally {
       setOpeningGoogleLogin(false);

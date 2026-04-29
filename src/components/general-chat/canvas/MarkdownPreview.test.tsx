@@ -19,14 +19,11 @@ vi.mock("react-syntax-highlighter/dist/esm/styles/prism", () => ({
   oneLight: { __theme: "light" },
 }));
 
-vi.mock(
-  "@/components/agent/chat/components/ArtifactPlaceholder",
-  () => ({
-    ArtifactPlaceholder: ({ language }: { language: string }) => (
-      <div data-testid="artifact-placeholder">{language}</div>
-    ),
-  }),
-);
+vi.mock("@/components/agent/chat/components/ArtifactPlaceholder", () => ({
+  ArtifactPlaceholder: ({ language }: { language: string }) => (
+    <div data-testid="artifact-placeholder">{language}</div>
+  ),
+}));
 
 vi.mock("@/components/agent/chat/components/A2UITaskCard", () => ({
   A2UITaskCard: () => <div data-testid="a2ui-task-card" />,

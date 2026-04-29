@@ -32,9 +32,7 @@ function createItem(overrides: Partial<AgentThreadItem> = {}): AgentThreadItem {
         ? overrides.tool_name
         : "search_query",
     arguments:
-      "arguments" in overrides
-        ? overrides.arguments
-        : { query: "AI Agent" },
+      "arguments" in overrides ? overrides.arguments : { query: "AI Agent" },
     status: overrides.status ?? "in_progress",
     started_at: overrides.started_at ?? "2026-04-27T01:00:00.000Z",
     updated_at: overrides.updated_at ?? "2026-04-27T01:00:00.000Z",

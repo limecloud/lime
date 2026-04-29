@@ -62,7 +62,10 @@ async function openTauriResourceManagerWindow(params: {
     ]);
     return true;
   } catch (error) {
-    console.warn("[资源管理器] 打开 Tauri 独立窗口失败，回退到浏览器窗口:", error);
+    console.warn(
+      "[资源管理器] 打开 Tauri 独立窗口失败，回退到浏览器窗口:",
+      error,
+    );
     return false;
   }
 }

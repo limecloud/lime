@@ -1,4 +1,9 @@
 use super::*;
+use crate::commands::modality_runtime_contracts::{
+    insert_text_transform_contract_fields, text_transform_required_capabilities,
+    text_transform_runtime_contract, TEXT_TRANSFORM_CONTRACT_KEY, TEXT_TRANSFORM_MODALITY,
+    TEXT_TRANSFORM_ROUTING_SLOT,
+};
 
 const TRANSLATION_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_TRANSLATION_SKILL_LAUNCH_HINT>>";
 const TRANSLATION_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
@@ -19,6 +24,33 @@ fn extract_object_string(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+}
+
+fn extract_harness_nested_object_mut<'a>(
+    value: &'a mut serde_json::Value,
+    keys: &[&str],
+) -> Option<&'a mut serde_json::Map<String, serde_json::Value>> {
+    let root = value.as_object_mut()?;
+    let harness = if root.contains_key("harness") {
+        root.get_mut("harness")
+            .and_then(serde_json::Value::as_object_mut)?
+    } else {
+        root
+    };
+
+    for key in keys.iter().copied() {
+        let exists = harness
+            .get(key)
+            .and_then(serde_json::Value::as_object)
+            .is_some();
+        if exists {
+            return harness
+                .get_mut(key)
+                .and_then(serde_json::Value::as_object_mut);
+        }
+    }
+
+    None
 }
 
 fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys: &[&str]) {
@@ -53,6 +85,18 @@ fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys
     );
 }
 
+fn ensure_text_transform_contract_metadata(
+    launch: &mut serde_json::Map<String, serde_json::Value>,
+) {
+    insert_text_transform_contract_fields(launch);
+    if let Some(translation_request) = launch
+        .get_mut("translation_request")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        insert_text_transform_contract_fields(translation_request);
+    }
+}
+
 fn truncate_prompt_text(value: String, max_chars: usize) -> String {
     let total_chars = value.chars().count();
     if total_chars <= max_chars {
@@ -71,6 +115,12 @@ pub(crate) fn prepare_translation_skill_launch_request_metadata(
         &mut metadata,
         &["translation_skill_launch", "translationSkillLaunch"],
     );
+    if let Some(launch) = extract_harness_nested_object_mut(
+        &mut metadata,
+        &["translation_skill_launch", "translationSkillLaunch"],
+    ) {
+        ensure_text_transform_contract_metadata(launch);
+    }
 
     Some(metadata)
 }
@@ -198,6 +248,8 @@ fn build_translation_skill_launch_system_prompt(
     let content_id = extract_object_string(translation_request, &["content_id", "contentId"]);
     let entry_source = extract_object_string(translation_request, &["entry_source", "entrySource"])
         .unwrap_or_else(|| "at_translation_command".to_string());
+    let required_capabilities = text_transform_required_capabilities();
+    let runtime_contract = text_transform_runtime_contract();
     let args_payload = serde_json::json!({
         "user_input": raw_text.clone().unwrap_or_else(|| prompt.clone()),
         "translation_request": serde_json::Value::Object(translation_request.clone()),
@@ -219,6 +271,22 @@ fn build_translation_skill_launch_system_prompt(
     let mut lines = vec![
         TRANSLATION_SKILL_LAUNCH_PROMPT_MARKER.to_string(),
         "- 当前回合来自翻译技能启动，不要把它当成普通聊天回答。".to_string(),
+        format!(
+            "- 当前底层运行合同：modality_contract_key={}, modality={}, routing_slot={}；`@翻译` 只是 text_transform 的上层入口，首刀仍走 Skill(translation)。",
+            TEXT_TRANSFORM_CONTRACT_KEY, TEXT_TRANSFORM_MODALITY, TEXT_TRANSFORM_ROUTING_SLOT
+        ),
+        format!(
+            "- 当前合同所需能力：{}；不得退回 frontend_direct_text_transform、tool_search_before_text_transform_skill 或 web_search_before_text_transform_skill。",
+            required_capabilities.join(", ")
+        ),
+        format!(
+            "- 当前 runtime_contract(JSON)：{}",
+            truncate_prompt_text(
+                serde_json::to_string(&runtime_contract)
+                    .unwrap_or_else(|_| "{}".to_string()),
+                1_200,
+            )
+        ),
         "- 先快速判断要翻译什么、要翻译成什么语言，再立刻把任务交给 Skill 工具；不要直接跳过 Skill 在聊天区作答。"
             .to_string(),
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),

@@ -1,4 +1,7 @@
-import type { ImageStoryboardSlot } from "../types";
+import type {
+  ImageRuntimeContractSnapshot,
+  ImageStoryboardSlot,
+} from "../types";
 
 export type ImageWorkbenchTaskMode = "generate" | "edit" | "variation";
 
@@ -35,6 +38,7 @@ export interface ImageWorkbenchTaskView {
   sourceImageCount?: number;
   createdAt: number;
   failureMessage?: string;
+  runtimeContract?: ImageRuntimeContractSnapshot | null;
 }
 
 export interface ImageWorkbenchOutputView {

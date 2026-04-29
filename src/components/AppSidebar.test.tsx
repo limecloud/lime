@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentPageParams, Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 import { AppSidebar } from "./AppSidebar";
+import {
+  TASK_CENTER_CREATE_DRAFT_TASK_EVENT,
+  TASK_CENTER_OPEN_TASK_EVENT,
+} from "@/components/agent/chat/taskCenterDraftTaskEvents";
 import { LIME_COLOR_SCHEME_STORAGE_KEY } from "@/lib/appearance/colorSchemes";
 import { LIME_THEME_STORAGE_KEY } from "@/lib/appearance/themeMode";
 import {
@@ -23,7 +27,10 @@ const {
   mockSetI18nLanguage,
   mockScheduleMinimumDelayIdleTask,
   mockLogoutClient,
+  mockGetConfiguredOemCloudTarget,
+  mockBuildOemCloudUserCenterUrl,
   mockCreateExternalBrowserOpenTarget,
+  mockOpenExternalUrl,
   mockStartOemCloudLogin,
   mockGetClientReferralDashboard,
   mockClearSiteAdapterCatalogCache,
@@ -43,7 +50,12 @@ const {
     return () => undefined;
   }),
   mockLogoutClient: vi.fn(),
+  mockGetConfiguredOemCloudTarget: vi.fn(),
+  mockBuildOemCloudUserCenterUrl: vi.fn(
+    (baseUrl: string, path = "") => `${baseUrl}${path}`,
+  ),
   mockCreateExternalBrowserOpenTarget: vi.fn(() => null),
+  mockOpenExternalUrl: vi.fn(),
   mockStartOemCloudLogin: vi.fn(),
   mockGetClientReferralDashboard: vi.fn(),
   mockClearSiteAdapterCatalogCache: vi.fn(),
@@ -76,11 +88,14 @@ vi.mock("@/lib/api/agentRuntime", () => ({
 
 vi.mock("@/lib/api/oemCloudControlPlane", () => ({
   logoutClient: mockLogoutClient,
+  getConfiguredOemCloudTarget: mockGetConfiguredOemCloudTarget,
   getClientReferralDashboard: mockGetClientReferralDashboard,
 }));
 
 vi.mock("@/lib/oemCloudLoginLauncher", () => ({
+  buildOemCloudUserCenterUrl: mockBuildOemCloudUserCenterUrl,
   createExternalBrowserOpenTarget: mockCreateExternalBrowserOpenTarget,
+  openExternalUrl: mockOpenExternalUrl,
   startOemCloudLogin: mockStartOemCloudLogin,
 }));
 
@@ -233,6 +248,14 @@ describe("AppSidebar", () => {
     mockListAgentRuntimeSessions.mockResolvedValue([]);
     mockUpdateAgentRuntimeSession.mockResolvedValue(undefined);
     mockLogoutClient.mockResolvedValue(undefined);
+    mockGetConfiguredOemCloudTarget.mockReturnValue({
+      baseUrl: "https://user.limeai.run",
+      tenantId: "tenant-0001",
+    });
+    mockBuildOemCloudUserCenterUrl.mockImplementation(
+      (baseUrl: string, path = "") => `${baseUrl}${path}`,
+    );
+    mockOpenExternalUrl.mockResolvedValue(undefined);
     mockStartOemCloudLogin.mockResolvedValue({
       mode: "login_url",
       openedUrl: "https://user.limeai.run/login",
@@ -501,7 +524,7 @@ describe("AppSidebar", () => {
     });
   });
 
-  it("已登录账号弹框应展示真实套餐摘要并可直达详情", async () => {
+  it("已登录账号弹框应展示真实套餐摘要并跳出到用户中心详情", async () => {
     const onNavigate = vi.fn();
     setStoredOemCloudSessionState({
       token: "session-token",
@@ -558,10 +581,16 @@ describe("AppSidebar", () => {
       await Promise.resolve();
     });
 
-    expect(onNavigate).toHaveBeenCalledWith("settings", {
-      tab: SettingsTabs.Providers,
-      providerView: "cloud",
-    });
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(mockBuildOemCloudUserCenterUrl).toHaveBeenCalledWith(
+      "https://user.limeai.run",
+      "/billing?tab=usage",
+    );
+    expect(mockOpenExternalUrl).toHaveBeenCalledWith(
+      "https://user.limeai.run/billing?tab=usage",
+      { browserTarget: null },
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith("已打开 Lime 云端 用户中心");
   });
 
   it("云端开启邀请时应在头部展示入口并读取 share 事实源", async () => {
@@ -709,7 +738,9 @@ describe("AppSidebar", () => {
 
     await act(async () => {
       accountMenu
-        ?.querySelector<HTMLButtonElement>('button[aria-label="连接 Lime 云端"]')
+        ?.querySelector<HTMLButtonElement>(
+          'button[aria-label="连接 Lime 云端"]',
+        )
         ?.click();
       await Promise.resolve();
     });
@@ -733,9 +764,7 @@ describe("AppSidebar", () => {
     const accountMenu = container.querySelector(
       '[data-testid="app-sidebar-account-menu"]',
     );
-    expect(accountMenu?.textContent).not.toContain(
-      "本地开源功能可直接使用",
-    );
+    expect(accountMenu?.textContent).not.toContain("本地开源功能可直接使用");
     expect(
       accountMenu?.querySelector('button[aria-label="开源使用说明"]'),
     ).not.toBeNull();
@@ -881,10 +910,32 @@ describe("AppSidebar", () => {
       providerView: "settings",
     });
 
-    await clickAccountMenuItem(container, "Lime 云端");
+    await clickAccountMenuItem(container, "用户中心");
+    expect(mockBuildOemCloudUserCenterUrl).toHaveBeenLastCalledWith(
+      "https://user.limeai.run",
+      "/welcome",
+    );
+    expect(mockOpenExternalUrl).toHaveBeenLastCalledWith(
+      "https://user.limeai.run/welcome",
+      { browserTarget: null },
+    );
     expect(onNavigate).toHaveBeenLastCalledWith("settings", {
       tab: SettingsTabs.Providers,
-      providerView: "cloud",
+      providerView: "settings",
+    });
+
+    await clickAccountMenuItem(container, "Lime 云端");
+    expect(mockBuildOemCloudUserCenterUrl).toHaveBeenLastCalledWith(
+      "https://user.limeai.run",
+      "/welcome",
+    );
+    expect(mockOpenExternalUrl).toHaveBeenLastCalledWith(
+      "https://user.limeai.run/welcome",
+      { browserTarget: null },
+    );
+    expect(onNavigate).toHaveBeenLastCalledWith("settings", {
+      tab: SettingsTabs.Providers,
+      providerView: "settings",
     });
 
     await clickAccountMenuItem(container, "关于");
@@ -947,6 +998,103 @@ describe("AppSidebar", () => {
         'button[aria-label="新建任务"][aria-current="page"]',
       ),
     ).not.toBeNull();
+  });
+
+  it("任务中心内点击一级新建任务应交给本地草稿标签，不跳出到新建首页", async () => {
+    const onNavigate = vi.fn();
+    const receivedDetails: unknown[] = [];
+    const listener = (event: Event) => {
+      receivedDetails.push(
+        event instanceof CustomEvent ? event.detail : undefined,
+      );
+      event.preventDefault();
+    };
+    window.addEventListener(TASK_CENTER_CREATE_DRAFT_TASK_EVENT, listener);
+
+    try {
+      const container = mountSidebarContainer({
+        currentPage: "agent",
+        currentPageParams: {
+          agentEntry: "claw",
+          projectId: "project-1",
+          initialSessionId: "session-current",
+        } as AgentPageParams,
+        onNavigate,
+      });
+      await flushEffects(2);
+
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('button[aria-label="新建任务"]')
+          ?.click();
+        await Promise.resolve();
+      });
+
+      expect(receivedDetails).toEqual([{ source: "sidebar" }]);
+      expect(onNavigate).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(TASK_CENTER_CREATE_DRAFT_TASK_EVENT, listener);
+    }
+  });
+
+  it("任务中心内点击已有会话应先通知本地标签栏，再继续导航", async () => {
+    const onNavigate = vi.fn();
+    const receivedDetails: unknown[] = [];
+    const listener = (event: Event) => {
+      receivedDetails.push(
+        event instanceof CustomEvent ? event.detail : undefined,
+      );
+    };
+    window.addEventListener(TASK_CENTER_OPEN_TASK_EVENT, listener);
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: "session-target",
+        name: "目标历史会话",
+        created_at: 1713000000,
+        updated_at: 1713000600,
+        archived_at: null,
+        workspace_id: "project-1",
+        messages_count: 3,
+      },
+    ]);
+
+    try {
+      const container = mountSidebarContainer({
+        currentPage: "agent",
+        currentPageParams: {
+          agentEntry: "claw",
+          projectId: "project-1",
+          initialSessionId: "session-current",
+        } as AgentPageParams,
+        onNavigate,
+      });
+      await flushEffects(2);
+
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('button[title="目标历史会话"]')
+          ?.click();
+        await Promise.resolve();
+      });
+
+      expect(receivedDetails).toEqual([
+        {
+          sessionId: "session-target",
+          workspaceId: "project-1",
+          source: "sidebar",
+        },
+      ]);
+      expect(onNavigate).toHaveBeenCalledWith(
+        "agent",
+        expect.objectContaining({
+          agentEntry: "claw",
+          projectId: "project-1",
+          initialSessionId: "session-target",
+        }),
+      );
+    } finally {
+      window.removeEventListener(TASK_CENTER_OPEN_TASK_EVENT, listener);
+    }
   });
 
   it("claw 页面不应再外露左侧工作台一级入口", async () => {

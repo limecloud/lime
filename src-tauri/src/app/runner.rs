@@ -1506,6 +1506,7 @@ pub fn run() {
             commands::video_generation_cmd::list_video_generation_tasks,
             commands::video_generation_cmd::cancel_video_generation_task,
             commands::media_task_cmd::create_image_generation_task_artifact,
+            commands::media_task_cmd::create_audio_generation_task_artifact,
             commands::media_task_cmd::get_media_task_artifact,
             commands::media_task_cmd::list_media_task_artifacts,
             commands::media_task_cmd::cancel_media_task_artifact,

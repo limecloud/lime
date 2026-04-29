@@ -349,14 +349,14 @@ describe("serviceSkills API", () => {
     );
 
     const stored = window.localStorage.getItem("lime:service-skill-catalog:v1");
-    expect(stored).toContain("\"Lime_execution_location\":\"client_default\"");
-    expect(stored).toContain("\"Lime_executor_binding\":\"agent_turn\"");
-    expect(stored).toContain("\"executionLocation\":\"client_default\"");
-    expect(stored).toContain("\"defaultExecutorBinding\":\"agent_turn\"");
-    expect(stored).not.toContain("\"executionLocation\":\"cloud_required\"");
-    expect(stored).not.toContain("\"defaultExecutorBinding\":\"cloud_scene\"");
-    expect(stored).not.toContain("\"Lime_execution_location\":\"cloud_required\"");
-    expect(stored).not.toContain("\"Lime_executor_binding\":\"cloud_scene\"");
+    expect(stored).toContain('"Lime_execution_location":"client_default"');
+    expect(stored).toContain('"Lime_executor_binding":"agent_turn"');
+    expect(stored).toContain('"executionLocation":"client_default"');
+    expect(stored).toContain('"defaultExecutorBinding":"agent_turn"');
+    expect(stored).not.toContain('"executionLocation":"cloud_required"');
+    expect(stored).not.toContain('"defaultExecutorBinding":"cloud_scene"');
+    expect(stored).not.toContain('"Lime_execution_location":"cloud_required"');
+    expect(stored).not.toContain('"Lime_executor_binding":"cloud_scene"');
   });
 
   it("清空缓存后应恢复到 seeded catalog", async () => {

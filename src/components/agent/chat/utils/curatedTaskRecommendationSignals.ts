@@ -25,16 +25,14 @@ export interface CuratedTaskRecommendationSignal {
   sessionId?: string;
 }
 
-interface StoredCuratedTaskRecommendationSignal
-  extends CuratedTaskRecommendationSignal {
+interface StoredCuratedTaskRecommendationSignal extends CuratedTaskRecommendationSignal {
   key: string;
 }
 
 const CURATED_TASK_RECOMMENDATION_SIGNAL_STORAGE_KEY =
   "lime:curated-task-recommendation-signals:v1";
 const CURATED_TASK_RECOMMENDATION_SIGNAL_MAX_RECORDS = 24;
-const CURATED_TASK_RECOMMENDATION_SIGNAL_MAX_AGE_MS =
-  30 * 24 * 60 * 60 * 1000;
+const CURATED_TASK_RECOMMENDATION_SIGNAL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT =
   "lime:curated-task-recommendation-signals-changed";
@@ -81,7 +79,9 @@ function normalizeOptionalText(value?: string | null): string | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function dedupeNonEmptyText(values: Array<string | null | undefined>): string[] {
+function dedupeNonEmptyText(
+  values: Array<string | null | undefined>,
+): string[] {
   return Array.from(
     new Set(
       values
@@ -195,7 +195,8 @@ function readStoredSignals(): StoredCuratedTaskRecommendationSignal[] {
       .filter(isStoredSignal)
       .filter(
         (signal) =>
-          now - signal.createdAt <= CURATED_TASK_RECOMMENDATION_SIGNAL_MAX_AGE_MS,
+          now - signal.createdAt <=
+          CURATED_TASK_RECOMMENDATION_SIGNAL_MAX_AGE_MS,
       )
       .sort((left, right) => right.createdAt - left.createdAt)
       .slice(0, CURATED_TASK_RECOMMENDATION_SIGNAL_MAX_RECORDS);
@@ -449,10 +450,12 @@ export function recordCuratedTaskRecommendationSignalFromReviewDecision(
   );
 }
 
-export function listCuratedTaskRecommendationSignals(options: {
-  projectId?: string | null;
-  sessionId?: string | null;
-} = {}): CuratedTaskRecommendationSignal[] {
+export function listCuratedTaskRecommendationSignals(
+  options: {
+    projectId?: string | null;
+    sessionId?: string | null;
+  } = {},
+): CuratedTaskRecommendationSignal[] {
   const projectId = normalizeOptionalText(options.projectId);
   const sessionId = normalizeOptionalText(options.sessionId);
   const signals = readStoredSignals();

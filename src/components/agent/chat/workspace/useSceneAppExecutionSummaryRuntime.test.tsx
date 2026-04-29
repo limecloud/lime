@@ -2,9 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  useSceneAppExecutionSummaryRuntime,
-} from "./useSceneAppExecutionSummaryRuntime";
+import { useSceneAppExecutionSummaryRuntime } from "./useSceneAppExecutionSummaryRuntime";
 import type { SceneAppExecutionSummaryViewModel } from "@/lib/sceneapp/product";
 
 const listSceneAppRunsMock = vi.fn();
@@ -12,7 +10,8 @@ const getSceneAppScorecardMock = vi.fn();
 
 vi.mock("@/lib/api/sceneapp", () => ({
   listSceneAppRuns: (...args: unknown[]) => listSceneAppRunsMock(...args),
-  getSceneAppScorecard: (...args: unknown[]) => getSceneAppScorecardMock(...args),
+  getSceneAppScorecard: (...args: unknown[]) =>
+    getSceneAppScorecardMock(...args),
 }));
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
@@ -49,12 +48,8 @@ function createInitialSummary(): SceneAppExecutionSummaryViewModel {
       notes: [],
     },
     scorecardProfileRef: "story-video-scorecard",
-    scorecardMetricKeys: [
-      { key: "delivery_readiness", label: "交付就绪度" },
-    ],
-    scorecardFailureSignals: [
-      { key: "publish_stalled", label: "发布卡点" },
-    ],
+    scorecardMetricKeys: [{ key: "delivery_readiness", label: "交付就绪度" }],
+    scorecardFailureSignals: [{ key: "publish_stalled", label: "发布卡点" }],
     notes: [],
     descriptorSnapshot: {
       deliveryContract: "project_pack",
@@ -159,7 +154,8 @@ describe("useSceneAppExecutionSummaryRuntime", () => {
           {
             kind: "evidence_summary",
             label: "证据摘要",
-            relativePath: ".lime/harness/sessions/session-1/evidence/summary.md",
+            relativePath:
+              ".lime/harness/sessions/session-1/evidence/summary.md",
             absolutePath: "/tmp/summary.md",
             projectId: "project-1",
             workspaceId: "project-1",

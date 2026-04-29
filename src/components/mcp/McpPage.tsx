@@ -429,13 +429,13 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
                 <div
                   key={server.id}
                   onClick={() => handleSelectServer(server)}
-                    className={cn(
-                      "p-2.5 rounded-lg cursor-pointer transition-colors",
-                      selectedServer?.id === server.id
-                        ? "border border-emerald-200 bg-emerald-50"
-                        : "hover:bg-muted border border-transparent",
-                    )}
-                  >
+                  className={cn(
+                    "p-2.5 rounded-lg cursor-pointer transition-colors",
+                    selectedServer?.id === server.id
+                      ? "border border-emerald-200 bg-emerald-50"
+                      : "hover:bg-muted border border-transparent",
+                  )}
+                >
                   <span className="font-medium text-sm truncate block">
                     {server.name}
                   </span>

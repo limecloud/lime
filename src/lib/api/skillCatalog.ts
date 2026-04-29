@@ -63,6 +63,13 @@ export interface SkillCatalogRenderContract {
   supportsTimeline?: boolean;
 }
 
+export interface SkillCatalogSceneTemplate {
+  id: string;
+  title: string;
+  description?: string;
+  prompt: string;
+}
+
 export type SkillCatalogCommandTriggerMode = "mention" | "slash";
 
 export interface SkillCatalogCommandTrigger {
@@ -110,10 +117,13 @@ export interface SkillCatalogSceneEntry {
   summary: string;
   sceneKey: string;
   commandPrefix: string;
+  linkedEntryId?: string;
   aliases?: string[];
   surfaceScopes?: ServiceSkillSurfaceScope[];
   linkedSkillId?: string;
   executionKind?: SkillCatalogExecutionKind | "scene";
+  placeholder?: string;
+  templates?: SkillCatalogSceneTemplate[];
   renderContract?: SkillCatalogRenderContract;
 }
 
@@ -310,10 +320,7 @@ function normalizeCompatSkillCatalogExecutionKind(
 }
 
 function isLegacyCompatSceneSourceItem(
-  item: Pick<
-    ServiceSkillItem,
-    "sceneBinding"
-  >,
+  item: Pick<ServiceSkillItem, "sceneBinding">,
 ): boolean {
   return Boolean(item.sceneBinding);
 }
@@ -489,7 +496,9 @@ function buildSceneEntryFromCatalogItem(
         : item.aliases,
     surfaceScopes: item.surfaceScopes,
     linkedSkillId: item.id,
-    executionKind: normalizeCompatSkillCatalogExecutionKind(item.execution.kind),
+    executionKind: normalizeCompatSkillCatalogExecutionKind(
+      item.execution.kind,
+    ),
     renderContract: {
       resultKind: "tool_timeline",
       detailKind: "scene_detail",
@@ -605,8 +614,7 @@ function normalizeCategoryGroupKey(value?: string): string | null {
 
 function resolveSkillCatalogGroupKey(item: ServiceSkillItem): string {
   return (
-    normalizeCategoryGroupKey(item.category) ??
-    resolveSeededSkillGroupKey(item)
+    normalizeCategoryGroupKey(item.category) ?? resolveSeededSkillGroupKey(item)
   );
 }
 
@@ -948,6 +956,41 @@ function parseSkillCatalogCommandTrigger(
   };
 }
 
+function parseSkillCatalogSceneTemplate(
+  value: unknown,
+): SkillCatalogSceneTemplate | null {
+  if (!isPlainRecord(value)) {
+    return null;
+  }
+
+  const id = normalizeText(value.id);
+  const title = normalizeText(value.title);
+  const prompt = normalizeText(value.prompt);
+  if (!id || !title || !prompt) {
+    return null;
+  }
+
+  return {
+    id,
+    title,
+    description: normalizeText(value.description) ?? undefined,
+    prompt,
+  };
+}
+
+function parseSkillCatalogSceneTemplates(
+  value: unknown,
+): SkillCatalogSceneTemplate[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const templates = value
+    .map((item) => parseSkillCatalogSceneTemplate(item))
+    .filter((item): item is SkillCatalogSceneTemplate => Boolean(item));
+  return templates.length > 0 ? templates : undefined;
+}
+
 function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
   if (!isPlainRecord(value)) {
     return null;
@@ -1012,10 +1055,13 @@ function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
       summary,
       sceneKey,
       commandPrefix,
+      linkedEntryId: normalizeText(value.linkedEntryId) ?? undefined,
       aliases: normalizeSearchAliases(value.aliases),
       surfaceScopes: normalizeSurfaceScopes(value.surfaceScopes),
       linkedSkillId: normalizeText(value.linkedSkillId) ?? undefined,
       executionKind: parseSceneExecutionKind(value.executionKind),
+      placeholder: normalizeText(value.placeholder) ?? undefined,
+      templates: parseSkillCatalogSceneTemplates(value.templates),
       renderContract: parseRenderContract(value.renderContract),
     };
   }

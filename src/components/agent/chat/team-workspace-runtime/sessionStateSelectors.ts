@@ -66,15 +66,13 @@ export function isCompletedTeamSession(
   );
 }
 
-export function buildTeamWorkspaceSessionControlState(
-  params: {
-    visibleSessions: TeamWorkspaceSessionStateSnapshot[];
-    railSessions: TeamWorkspaceSessionStateSnapshot[];
-    currentChildSession?: TeamWorkspaceSessionStateSnapshot | null;
-    isChildSession: boolean;
-    currentSessionId?: string | null;
-  },
-): TeamWorkspaceSessionControlState {
+export function buildTeamWorkspaceSessionControlState(params: {
+  visibleSessions: TeamWorkspaceSessionStateSnapshot[];
+  railSessions: TeamWorkspaceSessionStateSnapshot[];
+  currentChildSession?: TeamWorkspaceSessionStateSnapshot | null;
+  isChildSession: boolean;
+  currentSessionId?: string | null;
+}): TeamWorkspaceSessionControlState {
   const statusSummarySessions = params.isChildSession
     ? dedupeSessions([params.currentChildSession, ...params.visibleSessions])
     : params.visibleSessions;
@@ -94,7 +92,8 @@ export function buildTeamWorkspaceSessionControlState(
     completedSessionIds: params.railSessions
       .filter(
         (session) =>
-          session.id !== params.currentSessionId && isCompletedTeamSession(session),
+          session.id !== params.currentSessionId &&
+          isCompletedTeamSession(session),
       )
       .map((session) => session.id),
   };
@@ -124,34 +123,34 @@ export function buildTeamWorkspaceSelectedSessionActionState(params: {
       params.completedTeamSessionIds.length > 0,
     canOpenSelectedSession: Boolean(
       selectedSession &&
-        params.hasOpenSubagentSessionHandler &&
-        selectedSession.id !== params.currentSessionId,
+      params.hasOpenSubagentSessionHandler &&
+      selectedSession.id !== params.currentSessionId,
     ),
     canWaitSelectedSession: Boolean(
       selectedSession &&
-        params.hasWaitSubagentSessionHandler &&
-        isWaitableTeamSession(selectedSession),
+      params.hasWaitSubagentSessionHandler &&
+      isWaitableTeamSession(selectedSession),
     ),
     canSendSelectedSessionInput: Boolean(
       selectedSession &&
-        selectedSession.sessionType !== "user" &&
-        selectedSession.runtimeStatus !== "closed" &&
-        params.hasSendSubagentInputHandler &&
-        selectedSession.id !== params.currentSessionId,
+      selectedSession.sessionType !== "user" &&
+      selectedSession.runtimeStatus !== "closed" &&
+      params.hasSendSubagentInputHandler &&
+      selectedSession.id !== params.currentSessionId,
     ),
     canStopSelectedSession: Boolean(
       selectedSession &&
-        selectedSession.sessionType !== "user" &&
-        params.hasCloseSubagentSessionHandler &&
-        isTeamWorkspaceActiveStatus(
-          selectedSession.runtimeStatus ?? selectedSession.latestTurnStatus,
-        ),
+      selectedSession.sessionType !== "user" &&
+      params.hasCloseSubagentSessionHandler &&
+      isTeamWorkspaceActiveStatus(
+        selectedSession.runtimeStatus ?? selectedSession.latestTurnStatus,
+      ),
     ),
     canResumeSelectedSession: Boolean(
       selectedSession &&
-        selectedSession.sessionType !== "user" &&
-        selectedSession.runtimeStatus === "closed" &&
-        params.hasResumeSubagentSessionHandler,
+      selectedSession.sessionType !== "user" &&
+      selectedSession.runtimeStatus === "closed" &&
+      params.hasResumeSubagentSessionHandler,
     ),
   };
 }

@@ -300,7 +300,9 @@ describe("ImConfigPage", () => {
     renderPage();
     await flushEffects();
 
-    expect(document.body.querySelector(".lime-workbench-theme-scope")).not.toBeNull();
+    expect(
+      document.body.querySelector(".lime-workbench-theme-scope"),
+    ).not.toBeNull();
 
     const text = document.body.textContent ?? "";
     expect(text).toContain("消息渠道");

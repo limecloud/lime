@@ -7,6 +7,18 @@
 import { safeInvoke } from "@/lib/dev-bridge";
 import { logAgentDebug } from "@/lib/agentDebug";
 
+const PROJECT_MEMORY_CACHE_TTL_MS = 30_000;
+const projectMemoryCache = new Map<
+  string,
+  { loadedAt: number; memory: ProjectMemory }
+>();
+const projectMemoryInflight = new Map<string, Promise<ProjectMemory>>();
+
+function clearProjectMemoryCache(): void {
+  projectMemoryCache.clear();
+  projectMemoryInflight.clear();
+}
+
 // ==================== 类型定义 ====================
 
 /** 角色关系 */
@@ -146,7 +158,11 @@ export async function getCharacter(id: string): Promise<Character | null> {
 export async function createCharacter(
   request: CreateCharacterRequest,
 ): Promise<Character> {
-  return safeInvoke<Character>("character_create", { request });
+  const character = await safeInvoke<Character>("character_create", {
+    request,
+  });
+  clearProjectMemoryCache();
+  return character;
 }
 
 /** 更新角色 */
@@ -154,12 +170,19 @@ export async function updateCharacter(
   id: string,
   request: UpdateCharacterRequest,
 ): Promise<Character> {
-  return safeInvoke<Character>("character_update", { id, request });
+  const character = await safeInvoke<Character>("character_update", {
+    id,
+    request,
+  });
+  clearProjectMemoryCache();
+  return character;
 }
 
 /** 删除角色 */
 export async function deleteCharacter(id: string): Promise<boolean> {
-  return safeInvoke<boolean>("character_delete", { id });
+  const deleted = await safeInvoke<boolean>("character_delete", { id });
+  clearProjectMemoryCache();
+  return deleted;
 }
 
 // ==================== 世界观 API ====================
@@ -176,10 +199,15 @@ export async function updateWorldBuilding(
   projectId: string,
   request: UpdateWorldBuildingRequest,
 ): Promise<WorldBuilding> {
-  return safeInvoke<WorldBuilding>("world_building_update", {
-    projectId,
-    request,
-  });
+  const worldBuilding = await safeInvoke<WorldBuilding>(
+    "world_building_update",
+    {
+      projectId,
+      request,
+    },
+  );
+  clearProjectMemoryCache();
+  return worldBuilding;
 }
 
 // ==================== 大纲 API ====================
@@ -200,7 +228,11 @@ export async function getOutlineNode(id: string): Promise<OutlineNode | null> {
 export async function createOutlineNode(
   request: CreateOutlineNodeRequest,
 ): Promise<OutlineNode> {
-  return safeInvoke<OutlineNode>("outline_node_create", { request });
+  const node = await safeInvoke<OutlineNode>("outline_node_create", {
+    request,
+  });
+  clearProjectMemoryCache();
+  return node;
 }
 
 /** 更新大纲节点 */
@@ -208,12 +240,19 @@ export async function updateOutlineNode(
   id: string,
   request: UpdateOutlineNodeRequest,
 ): Promise<OutlineNode> {
-  return safeInvoke<OutlineNode>("outline_node_update", { id, request });
+  const node = await safeInvoke<OutlineNode>("outline_node_update", {
+    id,
+    request,
+  });
+  clearProjectMemoryCache();
+  return node;
 }
 
 /** 删除大纲节点 */
 export async function deleteOutlineNode(id: string): Promise<boolean> {
-  return safeInvoke<boolean>("outline_node_delete", { id });
+  const deleted = await safeInvoke<boolean>("outline_node_delete", { id });
+  clearProjectMemoryCache();
+  return deleted;
 }
 
 // ==================== 聚合 API ====================
@@ -222,6 +261,18 @@ export async function deleteOutlineNode(id: string): Promise<boolean> {
 export async function getProjectMemory(
   projectId: string,
 ): Promise<ProjectMemory> {
+  const cached = projectMemoryCache.get(projectId);
+  if (cached && Date.now() - cached.loadedAt < PROJECT_MEMORY_CACHE_TTL_MS) {
+    logAgentDebug("AgentApi", "projectMemoryGet.cacheHit", { projectId });
+    return cached.memory;
+  }
+
+  const inflight = projectMemoryInflight.get(projectId);
+  if (inflight) {
+    logAgentDebug("AgentApi", "projectMemoryGet.inflightHit", { projectId });
+    return inflight;
+  }
+
   const startedAt = Date.now();
   let settled = false;
   const slowTimer: number | null =
@@ -239,7 +290,7 @@ export async function getProjectMemory(
             },
             {
               dedupeKey: `projectMemoryGet.slow:${projectId}`,
-              level: "warn",
+              level: "info",
               throttleMs: 1000,
             },
           );
@@ -248,7 +299,7 @@ export async function getProjectMemory(
 
   logAgentDebug("AgentApi", "projectMemoryGet.start", { projectId });
 
-  try {
+  const request = (async () => {
     const memory = await safeInvoke<ProjectMemory>("project_memory_get", {
       projectId,
     });
@@ -260,7 +311,16 @@ export async function getProjectMemory(
       outlineCount: memory.outline.length,
       projectId,
     });
+    projectMemoryCache.set(projectId, {
+      loadedAt: Date.now(),
+      memory,
+    });
     return memory;
+  })();
+  projectMemoryInflight.set(projectId, request);
+
+  try {
+    return await request;
   } catch (error) {
     settled = true;
     logAgentDebug(
@@ -275,6 +335,7 @@ export async function getProjectMemory(
     );
     throw error;
   } finally {
+    projectMemoryInflight.delete(projectId);
     if (slowTimer !== null) {
       clearTimeout(slowTimer);
     }

@@ -1,9 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import styled, { keyframes } from "styled-components";
-import { ArrowRight } from "lucide-react";
 import { getConfig } from "@/lib/api/appConfig";
+import {
+  getSkillCatalog,
+  listSkillCatalogSceneEntries,
+  subscribeSkillCatalogChanged,
+  type SkillCatalogSceneEntry,
+} from "@/lib/api/skillCatalog";
 import type { CreationMode } from "./types";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   buildRecommendationPrompt,
@@ -11,12 +21,9 @@ import {
   isTeamRuntimeRecommendation,
 } from "../utils/contextualRecommendations";
 import {
-  buildCuratedTaskRecentUsageDescription,
-  buildCuratedTaskCapabilityDescription,
   buildCuratedTaskLaunchPrompt,
   findCuratedTaskTemplateById,
   listCuratedTaskTemplates,
-  listFeaturedHomeCuratedTaskTemplates,
   recordCuratedTaskTemplateUsage,
   replaceCuratedTaskLaunchPromptInInput,
   resolveCuratedTaskTemplateLaunchPrefill,
@@ -24,11 +31,7 @@ import {
   type CuratedTaskInputValues,
   type CuratedTaskTemplateItem,
 } from "../utils/curatedTaskTemplates";
-import {
-  listCuratedTaskRecommendationSignals,
-  subscribeCuratedTaskRecommendationSignalsChanged,
-} from "../utils/curatedTaskRecommendationSignals";
-import { buildReviewFeedbackProjection } from "../utils/reviewFeedbackProjection";
+import { subscribeCuratedTaskRecommendationSignalsChanged } from "../utils/curatedTaskRecommendationSignals";
 import {
   extractCuratedTaskReferenceMemoryIds,
   mergeCuratedTaskReferenceEntries,
@@ -39,11 +42,9 @@ import type {
   CuratedTaskReferenceSelection,
 } from "../utils/curatedTaskReferenceSelection";
 import { CuratedTaskLauncherDialog } from "./CuratedTaskLauncherDialog";
-import { CreationReplaySurfaceBanner } from "./CreationReplaySurfaceBanner";
 import { EmptyStateComposerPanel } from "./EmptyStateComposerPanel";
 import { EmptyStateHero } from "./EmptyStateHero";
 import { EmptyStateQuickActions } from "./EmptyStateQuickActions";
-import { EmptyStateSceneAppsPanel } from "./EmptyStateSceneAppsPanel";
 import {
   EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
   EMPTY_STATE_PAGE_CONTAINER_CLASSNAME,
@@ -74,23 +75,28 @@ import {
   getSiteSkillAutoLaunchExample,
   hasAutoLaunchableSiteSkill,
 } from "../service-skills/siteSkillExamplePrompts";
-import { resolveServiceSkillEntryDescription } from "../service-skills/entryAdapter";
 import { listFeaturedHomeServiceSkills } from "../service-skills/homeEntrySkills";
-import { buildServiceSkillCapabilityDescription } from "../service-skills/skillPresentation";
-import {
-  buildServiceSkillLaunchPrefillSummary,
-  resolveServiceSkillLaunchPrefill,
-} from "../service-skills/serviceSkillLaunchPrefill";
 import type { SceneAppEntryCardItem } from "../sceneappEntryTypes";
 import type { RuntimeToolAvailability } from "../utils/runtimeToolAvailability";
 import type { AgentTaskRuntimeCardModel } from "../utils/agentTaskRuntime";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";
 import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
-import { buildInstalledSkillCapabilityDescription } from "@/components/skills/installedSkillPresentation";
 import {
-  buildSceneAppExecutionReviewPrefillHighlights,
-  buildSceneAppExecutionReviewPrefillSnapshot,
-} from "../utils/sceneAppCuratedTaskReference";
+  HomeStartSurface,
+  type HomeSupplementalAction,
+} from "../home/HomeStartSurface";
+import { HomeSkillGallery } from "../home/HomeSkillGallery";
+import {
+  buildHomeGalleryItems,
+  buildHomeSkillItems,
+  buildHomeSkillSections,
+  buildHomeStarterChips,
+} from "../home/buildHomeSkillSurface";
+import { HOME_COMPOSER_PLACEHOLDER } from "../home/homeSurfaceCopy";
+import type {
+  HomeSkillSurfaceItem,
+  HomeStarterChip,
+} from "../home/homeSurfaceTypes";
 
 const contentReveal = keyframes`
   from {
@@ -106,6 +112,15 @@ const contentReveal = keyframes`
 const PageContainer = styled.div.attrs({
   className: EMPTY_STATE_PAGE_CONTAINER_CLASSNAME,
 })`
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
   isolation: isolate;
   background:
     radial-gradient(
@@ -130,450 +145,132 @@ const ContentWrapper = styled.div.attrs({
   className: EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
 })`
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 100%;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
   animation: ${contentReveal} 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  padding: 0.45rem 0.25rem 1.25rem;
+  padding: 0.45rem 0.25rem 4.7rem;
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
 `;
 
-const RecommendationShelf = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.88rem;
-  border-radius: 30px;
-  border: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.92));
-  background: linear-gradient(
-    180deg,
-    var(--lime-surface-subtle, #fcfffb) 0%,
-    var(--lime-surface-soft, #f8fcfa) 100%
-  );
-  padding: 1rem 1.05rem 0.95rem;
-  box-shadow: 0 22px 42px -38px var(--lime-shadow-color);
-`;
+const ComposerGlowFrame = styled.div`
+  position: relative;
+  isolation: isolate;
 
-const RecommendationShelfHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-width: 0;
-`;
-
-const RecommendationShelfHeaderBody = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  min-width: 0;
-  flex: 1 1 auto;
-`;
-
-const RecommendationShelfHeaderTitle = styled.div`
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--lime-text, rgb(71 85 105));
-`;
-
-const RecommendationShelfHeaderDescription = styled.div`
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--lime-text-muted, rgb(100 116 139));
-`;
-
-const RecommendationShelfInlineBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  border-radius: 9999px;
-  border: 1px solid var(--lime-surface-border, rgb(226 232 240));
-  background: var(--lime-surface-soft, rgb(248 250 252));
-  padding: 0.1rem 0.38rem;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--lime-text-muted, rgb(100 116 139));
-`;
-
-const RecommendationShelfBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  border-radius: 9999px;
-  border: 1px solid var(--lime-surface-border-strong, rgb(209 250 229));
-  background: var(--lime-brand-soft, rgb(236 253 245));
-  padding: 0.18rem 0.42rem;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--lime-brand-strong, rgb(5 150 105));
-`;
-
-const RecommendationShelfEmptyState = styled.div`
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--lime-text-muted, rgb(148 163 184));
-  padding: 0.1rem 0;
-`;
-
-const RecommendationSignalBanner = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  border-radius: 18px;
-  border: 1px solid var(--lime-home-card-border, rgba(191, 219, 254, 0.95));
-  background:
-    radial-gradient(
-      circle at top right,
-      var(--lime-home-glow-secondary, rgba(186, 230, 253, 0.26)),
-      rgba(255, 255, 255, 0) 48%
-    ),
-    linear-gradient(
-      180deg,
-      var(--lime-surface-soft, rgba(248, 250, 252, 0.96)),
-      var(--lime-surface, rgba(255, 255, 255, 0.98))
+  &::after {
+    content: "";
+    position: absolute;
+    left: clamp(1.5rem, 9vw, 7rem);
+    right: clamp(1.5rem, 9vw, 7rem);
+    bottom: -1.1rem;
+    z-index: 0;
+    height: clamp(34px, 5vw, 58px);
+    border-radius: 999px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(187, 247, 208, 0.18) 16%,
+      rgba(110, 231, 183, 0.36) 42%,
+      rgba(45, 212, 191, 0.34) 58%,
+      rgba(186, 230, 253, 0.18) 84%,
+      transparent 100%
     );
-  padding: 0.9rem 0.95rem;
-`;
+    filter: blur(18px);
+    opacity: 0.86;
+    pointer-events: none;
+  }
 
-const RecommendationSignalBannerHeader = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-`;
-
-const RecommendationSignalBannerTitle = styled.div`
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.6;
-  color: var(--lime-text-strong, rgb(15 23 42));
-`;
-
-const RecommendationSignalBannerSummary = styled.div`
-  font-size: 12px;
-  line-height: 1.65;
-  color: var(--lime-text, rgb(71 85 105));
-`;
-
-const RecommendationSignalBannerFootnote = styled.div`
-  font-size: 11px;
-  line-height: 1.6;
-  color: var(--lime-info, rgb(14 116 144));
-`;
-
-const RecommendationLeadCard = styled.button`
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.72rem;
-  border-radius: 30px;
-  border: 1px solid var(--lime-home-card-border, rgba(191, 219, 254, 0.92));
-  background: var(--lime-home-card-surface-strong);
-  padding: 1.22rem 1.25rem 1.18rem;
-  text-align: left;
-  color: var(--lime-text, rgb(51 65 85));
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease;
-
-  &:hover {
-    border-color: var(--lime-home-card-hover-border, rgb(147 197 253));
-    box-shadow: 0 18px 42px -30px var(--lime-shadow-color);
-    transform: translateY(-1px);
+  > * {
+    position: relative;
+    z-index: 1;
   }
 `;
 
-const RecommendationLeadEyebrowRow = styled.div`
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.55rem;
-`;
-
-const RecommendationLeadEyebrow = styled.span`
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--lime-info, rgb(3 105 161));
-`;
-
-const RecommendationLeadTitle = styled.div`
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--lime-text-strong, rgb(15 23 42));
-`;
-
-const RecommendationLeadSummary = styled.div`
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--lime-text, rgb(71 85 105));
-`;
-
-const RecommendationLeadMeta = styled.div`
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--lime-text-muted, rgb(100 116 139));
-`;
-
-const RecommendationLeadFooter = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 0.38rem;
-  padding-top: 0.2rem;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--lime-text-strong, rgb(15 23 42));
-`;
-
-const RecommendationAssistGroup = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.28rem;
-`;
-
-const RecommendationAssistLabel = styled.div`
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.45;
-  color: var(--lime-text, rgb(71 85 105));
-`;
-
-const RecommendationAssistList = styled.div`
+const ScrollCue = styled.a`
+  position: absolute;
+  left: 50%;
+  bottom: clamp(0.62rem, 1.8vh, 1.15rem);
+  z-index: 8;
   display: grid;
-  gap: 0.55rem;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  @media (min-width: 1240px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-`;
-
-const RecommendationAssistCard = styled.button`
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  border-radius: 22px;
-  border: 1px solid
-    var(--lime-home-card-border-muted, rgba(219, 234, 254, 0.98));
-  background: var(--lime-home-card-surface-strong);
-  padding: 0.96rem 1rem;
-  text-align: left;
-  color: var(--lime-text, rgb(51 65 85));
-  transition:
-    border-color 180ms ease,
-    background-color 180ms ease,
-    transform 180ms ease;
-
-  &:hover {
-    border-color: var(--lime-home-card-hover-border, rgb(147 197 253));
-    background: var(--lime-surface, rgb(255 255 255));
-    transform: translateY(-1px);
-  }
-`;
-
-const RecommendationAssistCardHeader = styled.div`
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  flex-wrap: wrap;
+  width: min(680px, calc(100% - 2rem));
+  max-width: calc(100% - 2rem);
+  grid-template-columns: minmax(64px, 1fr) auto minmax(64px, 1fr);
   align-items: center;
-  gap: 0.35rem;
-`;
-
-const RecommendationAssistCardTitle = styled.div`
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.45;
-  color: var(--lime-text-strong, rgb(15 23 42));
-`;
-
-const RecommendationAssistCardSummary = styled.div`
-  font-size: 12px;
-  line-height: 1.55;
+  justify-content: center;
+  gap: 0.9rem;
+  transform: translateX(-50%);
+  padding: 0.35rem 0;
   color: var(--lime-text-muted, rgb(100 116 139));
-`;
-
-const RecommendationAssistFootnote = styled.div`
   font-size: 12px;
-  line-height: 1.55;
-  color: var(--lime-text-muted, rgb(148 163 184));
-`;
-
-const RecommendationSupplementalPanel = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.56rem;
-  padding-top: 0.2rem;
-  border-top: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.88));
-`;
-
-const RecommendationSupplementalLabel = styled.div`
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--lime-text-muted, rgb(148 163 184));
-`;
-
-const RecommendationSupplementalRow = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-`;
-
-const RecommendationSupplementalLink = styled.button`
-  display: inline-flex;
-  align-items: center;
-  border-radius: 9999px;
-  border: 1px solid var(--lime-surface-border, rgb(226 232 240));
-  background: var(--lime-surface, rgb(255 255 255));
-  padding: 0.42rem 0.78rem;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--lime-text, rgb(71 85 105));
-  transition:
-    border-color 180ms ease,
-    background-color 180ms ease,
-    color 180ms ease;
-
-  &:hover {
-    border-color: var(--lime-surface-border-strong, rgb(203 213 225));
-    background: var(--lime-surface-soft, rgb(248 250 252));
-    color: var(--lime-text-strong, rgb(15 23 42));
-  }
-`;
-
-const RecommendationTabsRow = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-`;
-
-const RecommendationTabsRail = styled.div`
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-`;
-
-const RecommendationTabButton = styled.button<{ $active: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 36px;
-  border-radius: 9999px;
-  border: 1px solid
-    ${({ $active }) =>
-      $active
-        ? "var(--lime-surface-border-strong, rgba(134, 239, 172, 0.72))"
-        : "var(--lime-surface-border, rgba(226, 232, 240, 0.94))"};
-  background: ${({ $active }) =>
-    $active
-      ? "var(--lime-brand-soft, linear-gradient(180deg, rgba(240, 253, 244, 0.98), rgba(220, 252, 231, 0.92)))"
-      : "var(--lime-surface, rgba(255, 255, 255, 0.94))"};
-  padding: 0.5rem 0.85rem;
-  font-size: 12px;
-  font-weight: 600;
+  font-weight: 680;
   line-height: 1;
-  color: ${({ $active }) =>
-    $active
-      ? "var(--lime-brand-strong, rgb(22 101 52))"
-      : "var(--lime-text, rgb(71 85 105))"};
+  text-decoration: none;
+  white-space: nowrap;
   transition:
-    border-color 180ms ease,
-    background-color 180ms ease,
-    color 180ms ease,
-    transform 180ms ease,
-    box-shadow 180ms ease;
+    color 160ms ease,
+    transform 160ms ease;
 
   &:hover {
-    border-color: ${({ $active }) =>
-      $active
-        ? "var(--lime-surface-border-strong, rgba(110, 231, 183, 0.84))"
-        : "var(--lime-surface-border, rgba(203, 213, 225, 0.96))"};
-    color: var(--lime-text-strong, rgb(15 23 42));
-    background: ${({ $active }) =>
-      $active
-        ? "var(--lime-brand-soft, linear-gradient(180deg, rgba(236, 253, 245, 1), rgba(220, 252, 231, 0.98)))"
-        : "var(--lime-surface, rgb(255 255 255))"};
-    box-shadow: 0 14px 28px -28px var(--lime-shadow-color);
-    transform: translateY(-1px);
+    color: var(--lime-text, rgb(71 85 105));
+    transform: translateX(-50%) translateY(-1px);
   }
 `;
 
-const RecommendationTabCount = styled.span<{ $active: boolean }>`
+const ScrollCueLine = styled.span`
+  display: block;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--lime-surface-border-strong, rgba(203, 213, 225, 0.82)) 18%,
+    var(--lime-surface-border-strong, rgba(203, 213, 225, 0.82)) 82%,
+    transparent 100%
+  );
+`;
+
+const ScrollCueText = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+`;
+
+const ScrollCueArrow = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 9999px;
-  background: ${({ $active }) =>
-    $active
-      ? "var(--lime-surface, rgba(255, 255, 255, 0.96))"
-      : "var(--lime-surface-soft, rgba(248, 250, 252, 0.98))"};
-  border: 1px solid
-    ${({ $active }) =>
-      $active
-        ? "var(--lime-surface-border-strong, rgba(134, 239, 172, 0.64))"
-        : "var(--lime-surface-border, rgba(226, 232, 240, 0.96))"};
-  padding: 0 0.35rem;
-  font-size: 11px;
-  font-weight: 700;
+  color: inherit;
+  font-size: 14px;
   line-height: 1;
-  color: ${({ $active }) =>
-    $active
-      ? "var(--lime-brand-strong, rgb(21 128 61))"
-      : "var(--lime-text-muted, rgb(100 116 139))"};
 `;
 
-const RecommendationTabCaption = styled.div`
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--lime-text-muted, rgb(100 116 139));
-`;
-
-const RecommendationPanels = styled.div`
+const SecondScreenSection = styled.section`
   display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 0.8rem;
+  flex: 0 0 auto;
+  min-height: 100%;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  overscroll-behavior: auto;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  padding: clamp(3.5rem, 8vh, 6rem) 0.25rem clamp(3rem, 8vh, 5.5rem);
 `;
 
-const RecommendationTabPanel = styled.section`
-  display: flex;
+const SecondScreenInner = styled.div`
+  width: min(1180px, 100%);
   min-width: 0;
-  flex-direction: column;
-  gap: 0.78rem;
-
-  &[hidden] {
-    display: none;
-  }
 `;
 
 interface EmptyStateProps extends SkillSelectionSourceProps {
@@ -674,49 +371,6 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
 }
 
-type RecommendationShelfItem =
-  | {
-      kind: "service-skill";
-      key: string;
-      title: string;
-      summary: string;
-      badge?: string;
-      hint: string;
-      meta: string;
-      contextSummary?: string;
-      reasonLabel?: string;
-      reasonSummary?: string;
-      testId: string;
-      onSelect: () => void;
-    }
-  | {
-      kind: "solution";
-      key: string;
-      title: string;
-      summary: string;
-      badge?: string;
-      hint: string;
-      meta: string;
-      contextSummary?: string;
-      reasonLabel?: string;
-      reasonSummary?: string;
-      testId: string;
-      onSelect: () => void;
-    };
-
-interface ContinuationShelfItem {
-  key: string;
-  title: string;
-  summary: string;
-  badge?: string;
-  usedAt: number;
-  testId: string;
-  onSelect: () => void;
-}
-
-type LaunchDeckTab = "recommended" | "continuation" | "methods";
-
-// 需要显示创作模式选择器的主题
 const CREATION_THEMES: string[] = [];
 
 const THEME_ICONS: Record<string, string> = {
@@ -745,77 +399,6 @@ function truncatePrompt(value: string, maxLength = 92) {
     return normalized;
   }
   return `${normalized.slice(0, maxLength).trim()}…`;
-}
-
-function compareRecentShelfItems<
-  T extends {
-    title: string;
-    usedAt: number;
-  },
->(left: T, right: T): number {
-  if (left.usedAt !== right.usedAt) {
-    return right.usedAt - left.usedAt;
-  }
-
-  return left.title.localeCompare(right.title, "zh-CN");
-}
-
-function resolveResultShelfTitle(
-  creationReplaySurface?: CreationReplaySurfaceModel | null,
-): string {
-  return creationReplaySurface ? "沿着当前上下文继续" : "先开始这一轮";
-}
-
-function resolveResultShelfDescription(
-  creationReplaySurface?: CreationReplaySurfaceModel | null,
-): string {
-  if (!creationReplaySurface) {
-    return "先选一个结果起手；后面的补参考、改方向和续做，都留在这一轮里继续推进。";
-  }
-
-  if (creationReplaySurface.kind === "skill_scaffold") {
-    return "这轮会先沿着当前带入的做法草稿继续生成；先拿一个结果开工，跑顺后再回到我的方法继续整理。";
-  }
-
-  return "这轮会默认带着当前参考一起生成；你选的结果模板会自动沿用这份上下文。";
-}
-
-function resolveLeadRecommendationEyebrow(
-  creationReplaySurface?: CreationReplaySurfaceModel | null,
-): string {
-  if (!creationReplaySurface) {
-    return "先从这个开始";
-  }
-
-  return creationReplaySurface.kind === "skill_scaffold"
-    ? "先沿着当前做法开工"
-    : "先沿着当前参考继续";
-}
-
-function resolveLaunchDeckTabCaption(tab: LaunchDeckTab): string {
-  switch (tab) {
-    case "continuation":
-      return "把最近跑过的模板、方法和会话接回这一轮，省掉重复起手。";
-    case "methods":
-      return "不想先选结果模板时，也可以直接沿着现成做法开工。";
-    case "recommended":
-    default:
-      return "先从结果入口起手，后面的补参考、改方向和续做都留在这一轮里。";
-  }
-}
-
-function buildRecommendationContextSummary(
-  segments: Array<string | null | undefined>,
-): string | undefined {
-  const normalizedSegments = segments
-    .map((segment) => segment?.trim())
-    .filter((segment): segment is string => Boolean(segment));
-
-  if (normalizedSegments.length === 0) {
-    return undefined;
-  }
-
-  return normalizedSegments.join(" · ");
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
@@ -880,6 +463,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   defaultCuratedTaskReferenceMemoryIds,
   defaultCuratedTaskReferenceEntries,
 }) => {
+  const pageContainerRef = useRef<HTMLDivElement | null>(null);
   const [activeCapability, setActiveCapability] =
     useState<InputCapabilitySelection | null>(null);
   const activeCuratedTaskCapability =
@@ -1068,35 +652,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     return listCuratedTaskTemplates();
   }, [curatedTaskRecommendationSignalsVersion, curatedTaskTemplatesVersion]);
 
-  const latestReviewRecommendationSignal = useMemo(() => {
-    void curatedTaskRecommendationSignalsVersion;
-    return (
-      listCuratedTaskRecommendationSignals({
-        projectId,
-      })
-        .filter((signal) => signal.source === "review_feedback")
-        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
-    );
-  }, [curatedTaskRecommendationSignalsVersion, projectId]);
-
-  const recentSceneUsageBySceneKey = useMemo(() => {
-    void slashEntryUsageVersion;
-    return new Map(
-      listSlashEntryUsage()
-        .filter((record) => record.kind === "scene")
-        .map((record) => [record.entryId, record] as const),
-    );
-  }, [slashEntryUsageVersion]);
-
-  const recentInstalledSkillUsageBySkillKey = useMemo(() => {
-    void slashEntryUsageVersion;
-    return new Map(
-      listSlashEntryUsage()
-        .filter((record) => record.kind === "skill")
-        .map((record) => [record.entryId, record] as const),
-    );
-  }, [slashEntryUsageVersion]);
-
   const selectedTextPreview = useMemo(() => {
     const normalized = (recommendationSelectedText || "")
       .trim()
@@ -1193,7 +748,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const getPlaceholder = () => {
     return hasAutoLaunchSiteSkill
       ? `直接说一句话，例如：${siteSkillAutoLaunchExample}`
-      : "先说这轮要做什么，目标、对象或限制都可以。";
+      : HOME_COMPOSER_PLACEHOLDER;
   };
 
   const handleApplyRecommendation = useCallback(
@@ -1371,400 +926,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     ],
   );
 
-  const recommendationShelfItems = useMemo<RecommendationShelfItem[]>(() => {
-    const curatedTemplateRecommendations = listFeaturedHomeCuratedTaskTemplates(
-      curatedTaskTemplates,
-      {
-        projectId,
-        referenceEntries: effectiveDefaultCuratedTaskReferenceEntries,
-      },
-    ).map((featured) => {
-      const template = featured.template;
-      const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(template);
-      const reviewPrefillSnapshot = buildSceneAppExecutionReviewPrefillSnapshot(
-        {
-          referenceEntries: [
-            ...effectiveDefaultCuratedTaskReferenceEntries,
-            ...(launchPrefill?.referenceEntries ?? []),
-          ],
-          taskId: template.id,
-        },
-      );
-      const metaPrefix = featured.reasonSummary
-        ? `${featured.reasonSummary} · `
-        : "";
-
-      return {
-        kind: "solution" as const,
-        key: template.id,
-        title: template.title,
-        summary: template.summary,
-        hint: template.outputHint,
-        meta: `${metaPrefix}${buildCuratedTaskCapabilityDescription(template, {
-          includeSummary: false,
-          includeResultDestination: true,
-          includeFollowUpActions: true,
-          followUpLimit: 1,
-        })}`,
-        contextSummary: buildRecommendationContextSummary(
-          reviewPrefillSnapshot
-            ? [
-                `当前结果基线：${reviewPrefillSnapshot.sourceTitle}`,
-                reviewPrefillSnapshot.statusLabel
-                  ? `当前判断：${reviewPrefillSnapshot.statusLabel}`
-                  : null,
-                reviewPrefillSnapshot.failureSignalLabel
-                  ? `当前卡点：${reviewPrefillSnapshot.failureSignalLabel}`
-                  : null,
-                reviewPrefillSnapshot.destinationsLabel
-                  ? `更适合去向：${reviewPrefillSnapshot.destinationsLabel}`
-                  : reviewPrefillSnapshot.operatingAction
-                    ? `经营动作：${reviewPrefillSnapshot.operatingAction}`
-                    : null,
-              ]
-            : buildSceneAppExecutionReviewPrefillHighlights(
-                reviewPrefillSnapshot,
-              ),
-        ),
-        reasonLabel: featured.reasonLabel,
-        reasonSummary: featured.reasonSummary,
-        testId: `entry-recommended-${template.id}`,
-        onSelect: () =>
-          handleCuratedTaskLauncherRequest(
-            template,
-            null,
-            effectiveDefaultCuratedTaskReferenceMemoryIds,
-            effectiveDefaultCuratedTaskReferenceEntries,
-          ),
-      };
-    });
-
-    const featuredServiceSkills = listFeaturedHomeServiceSkills(
-      serviceSkills ?? [],
-    );
-
-    const serviceSkillRecommendations = isGeneralTheme
-      ? featuredServiceSkills.map((skill) => {
-          const requiresSlots = skill.slotSchema.some((slot) => slot.required);
-
-          return {
-            kind: "service-skill" as const,
-            key: `service-skill-${skill.id}`,
-            title: skill.title,
-            summary:
-              skill.summary?.trim() ||
-              resolveServiceSkillEntryDescription(skill),
-            hint: requiresSlots
-              ? "补齐这一步后开始"
-              : `${skill.actionLabel} · 当前对话继续`,
-            meta: buildServiceSkillCapabilityDescription(skill, {
-              includeSummary: false,
-            }),
-            testId: `entry-service-skill-${skill.id}`,
-            onSelect: () =>
-              handleSelectInputCapability({
-                kind: "service_skill",
-                skill,
-              }),
-          };
-        })
-      : [];
-
-    return [...curatedTemplateRecommendations, ...serviceSkillRecommendations];
-  }, [
-    curatedTaskTemplates,
-    effectiveDefaultCuratedTaskReferenceEntries,
-    effectiveDefaultCuratedTaskReferenceMemoryIds,
-    handleCuratedTaskLauncherRequest,
-    handleSelectInputCapability,
-    isGeneralTheme,
-    projectId,
-    serviceSkills,
-  ]);
-
-  const recommendationSolutionItems = useMemo(
-    () => recommendationShelfItems.filter((item) => item.kind === "solution"),
-    [recommendationShelfItems],
-  );
-
-  const recommendationServiceSkillItems = useMemo(
-    () =>
-      recommendationShelfItems.filter((item) => item.kind === "service-skill"),
-    [recommendationShelfItems],
-  );
-
-  const primaryRecommendationItems = useMemo(
-    () => recommendationSolutionItems.slice(0, 2),
-    [recommendationSolutionItems],
-  );
-
-  const leadRecommendationItem = useMemo(
-    () =>
-      primaryRecommendationItems[0] ??
-      recommendationSolutionItems[0] ??
-      recommendationShelfItems[0] ??
-      null,
-    [
-      primaryRecommendationItems,
-      recommendationShelfItems,
-      recommendationSolutionItems,
-    ],
-  );
-
-  const alternativeRecommendationItems = useMemo(() => {
-    const leadKey = leadRecommendationItem?.key;
-    return recommendationSolutionItems
-      .filter((item) => item.key !== leadKey)
-      .slice(0, 5);
-  }, [leadRecommendationItem?.key, recommendationSolutionItems]);
-
-  const reviewFeedbackBanner = useMemo(() => {
-    if (!latestReviewRecommendationSignal) {
-      return null;
-    }
-
-    const projection = buildReviewFeedbackProjection({
-      signal: latestReviewRecommendationSignal,
-    });
-    const highlightedRecommendations = recommendationSolutionItems
-      .filter((item) => item.reasonLabel === "围绕最近判断")
-      .slice(0, 2);
-    if (highlightedRecommendations.length === 0) {
-      return null;
-    }
-    const primarySuggestedRecommendation =
-      (projection?.suggestedTasks[0]
-        ? highlightedRecommendations.find(
-            (item) => item.key === projection.suggestedTasks[0]?.taskId,
-          )
-        : null) ?? highlightedRecommendations[0];
-
-    return {
-      title: latestReviewRecommendationSignal.title,
-      summary: truncatePrompt(
-        [
-          latestReviewRecommendationSignal.summary,
-          projection?.suggestionText ?? "",
-        ]
-          .filter((segment) => segment.trim().length > 0)
-          .join(" "),
-        152,
-      ),
-      nextSteps: highlightedRecommendations
-        .map((item) => item.title)
-        .join(" / "),
-      actionLabel: primarySuggestedRecommendation
-        ? `继续去「${primarySuggestedRecommendation.title}」`
-        : null,
-      onAction: primarySuggestedRecommendation?.onSelect ?? null,
-    };
-  }, [latestReviewRecommendationSignal, recommendationSolutionItems]);
-
-  const continuationShelfItems = useMemo<ContinuationShelfItem[]>(() => {
-    const recentTemplateItems = curatedTaskTemplates
-      .filter(
-        (template) =>
-          template.isRecent && typeof template.recentUsedAt === "number",
-      )
-      .map((template) => {
-        const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(template);
-        return {
-          key: `solution-${template.id}`,
-          title: template.title,
-          summary: [
-            buildCuratedTaskRecentUsageDescription({
-              task: template,
-              prefill: launchPrefill,
-            }),
-            buildCuratedTaskCapabilityDescription(template, {
-              includeSummary: false,
-              includeResultDestination: true,
-              includeFollowUpActions: true,
-              followUpLimit: 1,
-            }),
-          ]
-            .filter((segment) => segment.length > 0)
-            .join(" · "),
-          usedAt: template.recentUsedAt as number,
-          testId: `entry-continuation-solution-${template.id}`,
-          onSelect: () =>
-            handleCuratedTaskLauncherRequest(
-              template,
-              launchPrefill?.inputValues ?? null,
-              launchPrefill?.referenceMemoryIds ??
-                effectiveDefaultCuratedTaskReferenceMemoryIds,
-              launchPrefill?.referenceEntries ??
-                effectiveDefaultCuratedTaskReferenceEntries,
-              launchPrefill?.hint ?? null,
-            ),
-        };
-      });
-
-    const recentInstalledSkillItems = skillSelection.skills
-      .map((skill) => {
-        const usage = recentInstalledSkillUsageBySkillKey.get(skill.key);
-        const usedAt = usage?.usedAt ?? 0;
-
-        if (usedAt <= 0) {
-          return null;
-        }
-
-        return {
-          key: `installed-skill-${skill.key}`,
-          title: skill.name,
-          summary: [
-            usage?.replayText
-              ? `上次目标：${truncatePrompt(usage.replayText, 56)}`
-              : "",
-            buildInstalledSkillCapabilityDescription(skill),
-          ]
-            .filter((segment) => segment.length > 0)
-            .join(" · "),
-          usedAt,
-          testId: `entry-continuation-method-${skill.key}`,
-          onSelect: () => {
-            handleSelectInputCapability({
-              kind: "installed_skill",
-              skill,
-            });
-            if (usage?.replayText) {
-              setInput(usage.replayText);
-            }
-          },
-        };
-      })
-      .filter((item): item is ContinuationShelfItem => item !== null);
-
-    const recentServiceSkillItems =
-      typeof onSelectServiceSkill === "function"
-        ? (serviceSkills ?? [])
-            .map((skill) => {
-              const recentPrefill = resolveServiceSkillLaunchPrefill({
-                skill,
-              });
-              const serviceSkillUsedAt =
-                typeof skill.recentUsedAt === "number" ? skill.recentUsedAt : 0;
-              const sceneUsedAt = skill.sceneBinding?.sceneKey
-                ? (recentSceneUsageBySceneKey.get(skill.sceneBinding.sceneKey)
-                    ?.usedAt ?? 0)
-                : 0;
-              const usedAt = Math.max(serviceSkillUsedAt, sceneUsedAt);
-
-              if (usedAt <= 0) {
-                return null;
-              }
-
-              return {
-                key: `method-${skill.id}`,
-                title: skill.title,
-                summary: [
-                  buildServiceSkillLaunchPrefillSummary({
-                    skill,
-                    slotValues: recentPrefill?.slotValues,
-                    launchUserInput: recentPrefill?.launchUserInput,
-                  }),
-                  buildServiceSkillCapabilityDescription(skill, {
-                    includeSummary: false,
-                  }),
-                ]
-                  .filter((segment) => segment.length > 0)
-                  .join(" · "),
-                usedAt,
-                testId: `entry-continuation-method-${skill.id}`,
-                onSelect: () =>
-                  handleSelectInputCapability({
-                    kind: "service_skill",
-                    skill,
-                  }),
-              };
-            })
-            .filter((item): item is ContinuationShelfItem => item !== null)
-        : [];
-
-    return [
-      ...recentTemplateItems,
-      ...recentInstalledSkillItems,
-      ...recentServiceSkillItems,
-    ]
-      .sort(compareRecentShelfItems)
-      .slice(0, 4);
-  }, [
-    curatedTaskTemplates,
-    effectiveDefaultCuratedTaskReferenceEntries,
-    effectiveDefaultCuratedTaskReferenceMemoryIds,
-    handleCuratedTaskLauncherRequest,
-    handleSelectInputCapability,
-    onSelectServiceSkill,
-    recentInstalledSkillUsageBySkillKey,
-    recentSceneUsageBySceneKey,
-    serviceSkills,
-    setInput,
-    skillSelection.skills,
-  ]);
-
-  const directMethodItems = useMemo(() => {
-    return recommendationServiceSkillItems.slice(0, 3).map((item) => ({
-      key: item.key,
-      title: item.title,
-      summary: item.meta,
-      badge: item.badge,
-      testId: item.testId,
-      onSelect: item.onSelect,
-    }));
-  }, [recommendationServiceSkillItems]);
-
-  const preferredLaunchDeckTab = useMemo<LaunchDeckTab>(() => {
-    if (leadRecommendationItem) {
-      return "recommended";
-    }
-    if (continuationShelfItems.length > 0) {
-      return "continuation";
-    }
-    if (directMethodItems.length > 0) {
-      return "methods";
-    }
-    return "recommended";
-  }, [
-    continuationShelfItems.length,
-    directMethodItems.length,
-    leadRecommendationItem,
-  ]);
-
-  const [launchDeckTab, setLaunchDeckTab] = useState<LaunchDeckTab>(
-    preferredLaunchDeckTab,
-  );
-
-  useEffect(() => {
-    const availableTabs = new Set<LaunchDeckTab>();
-    if (leadRecommendationItem || alternativeRecommendationItems.length > 0) {
-      availableTabs.add("recommended");
-    }
-    if (continuationShelfItems.length > 0) {
-      availableTabs.add("continuation");
-    }
-    if (directMethodItems.length > 0) {
-      availableTabs.add("methods");
-    }
-
-    if (availableTabs.size === 0 || availableTabs.has(launchDeckTab)) {
-      return;
-    }
-
-    setLaunchDeckTab(preferredLaunchDeckTab);
-  }, [
-    alternativeRecommendationItems.length,
-    continuationShelfItems.length,
-    directMethodItems.length,
-    launchDeckTab,
-    leadRecommendationItem,
-    preferredLaunchDeckTab,
-  ]);
-
-  const launchDeckTabCaption = resolveLaunchDeckTabCaption(launchDeckTab);
-
-  const shouldShowSceneAppsPanel =
-    sceneAppsLoading || featuredSceneApps.length > 0 || canResumeRecentSceneApp;
-
   const quickActionItems = useMemo(
     () =>
       currentRecommendations.slice(0, 4).map(([shortLabel, fullPrompt]) => ({
@@ -1833,84 +994,344 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     return presets;
   }, []);
 
+  const homeStarterChips = useMemo(() => buildHomeStarterChips(), []);
+  const [homeCatalogSceneEntries, setHomeCatalogSceneEntries] = useState<
+    SkillCatalogSceneEntry[]
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCatalogScenes = async () => {
+      try {
+        const catalog = await getSkillCatalog();
+        if (cancelled) {
+          return;
+        }
+        setHomeCatalogSceneEntries(
+          listSkillCatalogSceneEntries(catalog).filter((entry) =>
+            (entry.surfaceScopes ?? []).includes("home"),
+          ),
+        );
+      } catch {
+        if (!cancelled) {
+          setHomeCatalogSceneEntries([]);
+        }
+      }
+    };
+
+    void loadCatalogScenes();
+    const unsubscribe = subscribeSkillCatalogChanged(() => {
+      void loadCatalogScenes();
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  const homeServiceSkillItems = useMemo(
+    () => listFeaturedHomeServiceSkills(serviceSkills ?? [], { limit: 6 }),
+    [serviceSkills],
+  );
+
+  const homeSkillItems = useMemo(() => {
+    void slashEntryUsageVersion;
+    return buildHomeSkillItems({
+      curatedTasks: curatedTaskTemplates,
+      catalogSceneEntries: homeCatalogSceneEntries,
+      serviceSkills: homeServiceSkillItems,
+      installedSkills: skillSelection.skills ?? [],
+      sceneApps: featuredSceneApps,
+      slashEntryUsage: listSlashEntryUsage(),
+    });
+  }, [
+    curatedTaskTemplates,
+    featuredSceneApps,
+    homeCatalogSceneEntries,
+    homeServiceSkillItems,
+    skillSelection.skills,
+    slashEntryUsageVersion,
+  ]);
+
+  const homeSkillSections = useMemo(
+    () => buildHomeSkillSections(homeSkillItems),
+    [homeSkillItems],
+  );
+  const homeGalleryItems = useMemo(
+    () => buildHomeGalleryItems(homeSkillItems, "all"),
+    [homeSkillItems],
+  );
+
+  const handleSelectHomeSkillItem = useCallback(
+    (item: HomeSkillSurfaceItem) => {
+      if (item.launchKind === "curated_task_launcher") {
+        const template = findCuratedTaskTemplateById(item.id);
+        if (!template) {
+          return;
+        }
+        const prefill = resolveCuratedTaskTemplateLaunchPrefill(template);
+        handleCuratedTaskLauncherRequest(
+          template,
+          prefill?.inputValues ?? null,
+          prefill?.referenceMemoryIds ??
+            effectiveDefaultCuratedTaskReferenceMemoryIds,
+          prefill?.referenceEntries ??
+            effectiveDefaultCuratedTaskReferenceEntries,
+          prefill?.hint,
+        );
+        return;
+      }
+
+      if (item.launchKind === "service_skill") {
+        const skill = homeServiceSkillItems.find(
+          (candidate) => candidate.id === item.id,
+        );
+        if (skill) {
+          handleSelectInputCapability({ kind: "service_skill", skill });
+        }
+        return;
+      }
+
+      if (item.launchKind === "installed_skill") {
+        const skill = (skillSelection.skills ?? []).find(
+          (candidate) => candidate.key === item.id,
+        );
+        if (skill) {
+          handleSelectInputCapability({ kind: "installed_skill", skill });
+          if (item.isRecent && item.summary.trim()) {
+            setInput(item.summary);
+          }
+        }
+        return;
+      }
+
+      if (item.launchKind === "scene_app") {
+        void onLaunchSceneApp?.(item.id);
+        return;
+      }
+
+      if (item.launchKind === "skill_catalog_scene") {
+        const launchPrompt =
+          item.launchPrompt?.trim() ||
+          item.placeholder?.trim() ||
+          item.summary.trim();
+        if (launchPrompt) {
+          setInput(launchPrompt);
+        }
+        if (item.linkedSkillId) {
+          const skill = (serviceSkills ?? []).find(
+            (candidate) => candidate.id === item.linkedSkillId,
+          );
+          if (skill) {
+            handleSelectInputCapability({ kind: "service_skill", skill });
+          }
+        }
+      }
+    },
+    [
+      effectiveDefaultCuratedTaskReferenceEntries,
+      effectiveDefaultCuratedTaskReferenceMemoryIds,
+      handleCuratedTaskLauncherRequest,
+      handleSelectInputCapability,
+      homeServiceSkillItems,
+      onLaunchSceneApp,
+      serviceSkills,
+      setInput,
+      skillSelection.skills,
+    ],
+  );
+
+  const handleSelectHomeStarterChip = useCallback(
+    (chip: HomeStarterChip) => {
+      if (chip.launchKind === "open_manager") {
+        onOpenSceneAppsDirectory?.();
+        return;
+      }
+
+      const targetItem = chip.targetItemId
+        ? homeSkillItems.find((item) => item.id === chip.targetItemId)
+        : null;
+      if (targetItem) {
+        handleSelectHomeSkillItem(targetItem);
+      }
+    },
+    [handleSelectHomeSkillItem, homeSkillItems, onOpenSceneAppsDirectory],
+  );
+
+  const recentSessionLinkLabel = useMemo(() => {
+    const normalizedTitle = truncatePrompt(recentSessionTitle || "", 18);
+    if (!normalizedTitle) {
+      return recentSessionActionLabel;
+    }
+    return `${recentSessionActionLabel} · ${normalizedTitle}`;
+  }, [recentSessionActionLabel, recentSessionTitle]);
+  const recentSessionLinkTitle = useMemo(
+    () =>
+      [recentSessionTitle, recentSessionSummary]
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value))
+        .join(" · "),
+    [recentSessionSummary, recentSessionTitle],
+  );
+
+  const homeSupplementalActions = useMemo<HomeSupplementalAction[]>(() => {
+    const actions: HomeSupplementalAction[] = [];
+
+    if (recentSessionTitle && onResumeRecentSession) {
+      actions.push({
+        id: "recent-session",
+        label: recentSessionLinkLabel,
+        title: recentSessionLinkTitle || undefined,
+        testId: "entry-recent-session-resume",
+        onSelect: onResumeRecentSession,
+      });
+    }
+
+    if (canResumeRecentSceneApp && onResumeRecentSceneApp) {
+      actions.push({
+        id: "recent-sceneapp",
+        label: "继续最近做法",
+        testId: "entry-sceneapp-resume",
+        onSelect: onResumeRecentSceneApp,
+      });
+    }
+
+    featuredSceneApps.slice(0, 2).forEach((item) => {
+      actions.push({
+        id: `sceneapp-${item.id}`,
+        label:
+          sceneAppLaunchingId === item.id
+            ? `${item.title} 准备中…`
+            : item.title,
+        title: `${item.businessLabel} · ${item.summary}`,
+        testId: `sceneapp-launch-${item.id}`,
+        onSelect: () => {
+          if (item.disabledReason || sceneAppLaunchingId === item.id) {
+            return;
+          }
+          void onLaunchSceneApp?.(item.id);
+        },
+      });
+    });
+
+    if (onOpenSceneAppsDirectory) {
+      actions.push({
+        id: "sceneapps-directory",
+        label: sceneAppsLoading ? "做法加载中" : "查看全部做法",
+        testId: "entry-sceneapps-directory",
+        onSelect: onOpenSceneAppsDirectory,
+      });
+    }
+
+    if (onLaunchBrowserAssist) {
+      actions.push({
+        id: "connect-browser",
+        label: browserAssistLoading ? "浏览器连接准备中" : "连接浏览器",
+        testId: "entry-connect-browser",
+        onSelect: () => {
+          void onLaunchBrowserAssist();
+        },
+      });
+    }
+
+    return actions;
+  }, [
+    browserAssistLoading,
+    canResumeRecentSceneApp,
+    featuredSceneApps,
+    onLaunchBrowserAssist,
+    onLaunchSceneApp,
+    onOpenSceneAppsDirectory,
+    onResumeRecentSceneApp,
+    onResumeRecentSession,
+    recentSessionLinkLabel,
+    recentSessionLinkTitle,
+    recentSessionTitle,
+    sceneAppLaunchingId,
+    sceneAppsLoading,
+  ]);
+
   const composerPanel = (
-    <EmptyStateComposerPanel
-      input={input}
-      placeholder={getPlaceholder()}
-      onSend={handleSend}
-      activeTheme={activeTheme}
-      providerType={providerType}
-      setProviderType={setProviderType}
-      model={model}
-      setModel={setModel}
-      executionStrategy={executionStrategy}
-      setExecutionStrategy={setExecutionStrategy}
-      accessMode={accessMode}
-      setAccessMode={setAccessMode}
-      onManageProviders={onManageProviders}
-      isLoading={isComposerBusy}
-      disabled={isComposerBusy}
-      isGeneralTheme={isGeneralTheme}
-      characters={characters}
-      skillSelection={skillSelection}
-      activeCapability={activeCapability}
-      onSelectInputCapability={handleSelectInputCapability}
-      onClearInputCapability={clearSelectedSkill}
-      onEditCuratedTask={
-        activeCuratedTask
-          ? () =>
-              handleCuratedTaskLauncherRequest(
-                activeCuratedTask,
-                activeCuratedTaskLaunchInputValues,
-                activeCuratedTaskReferenceMemoryIds ||
-                  effectiveDefaultCuratedTaskReferenceMemoryIds,
-                activeCuratedTaskReferenceEntries ||
-                  effectiveDefaultCuratedTaskReferenceEntries,
-              )
-          : undefined
-      }
-      onApplyCuratedTaskReviewSuggestion={
-        activeCuratedTask
-          ? (task) =>
-              handleCuratedTaskLauncherRequest(
-                task,
-                activeCuratedTaskLaunchInputValues,
-                activeCuratedTaskReferenceMemoryIds ||
-                  effectiveDefaultCuratedTaskReferenceMemoryIds,
-                activeCuratedTaskReferenceEntries ||
-                  effectiveDefaultCuratedTaskReferenceEntries,
-                "已按最近判断切到更适合的结果模板，你可以继续改后再进入生成。",
-              )
-          : undefined
-      }
-      creationReplaySurface={creationReplaySurface}
-      projectId={projectId}
-      sessionId={sessionId}
-      defaultCuratedTaskReferenceMemoryIds={
-        effectiveDefaultCuratedTaskReferenceMemoryIds
-      }
-      defaultCuratedTaskReferenceEntries={
-        effectiveDefaultCuratedTaskReferenceEntries
-      }
-      showCreationModeSelector={showCreationModeSelector}
-      creationMode={creationMode}
-      onCreationModeChange={onCreationModeChange}
-      thinkingEnabled={thinkingEnabled}
-      onThinkingEnabledChange={onThinkingEnabledChange}
-      subagentEnabled={subagentEnabled}
-      onSubagentEnabledChange={onSubagentEnabledChange}
-      selectedTeam={selectedTeam}
-      onSelectTeam={onSelectTeam}
-      teamWorkspaceSettings={teamWorkspaceSettings}
-      onPersistCustomTeams={onPersistCustomTeams}
-      onEnableSuggestedTeam={onEnableSuggestedTeam}
-      webSearchEnabled={webSearchEnabled}
-      onWebSearchEnabledChange={onWebSearchEnabledChange}
-      pendingImages={pendingImages}
-      onFileSelect={handleFileSelect}
-      onPaste={handlePaste}
-      onRemoveImage={handleRemoveImage}
-    />
+    <ComposerGlowFrame>
+      <EmptyStateComposerPanel
+        input={input}
+        placeholder={getPlaceholder()}
+        onSend={handleSend}
+        activeTheme={activeTheme}
+        providerType={providerType}
+        setProviderType={setProviderType}
+        model={model}
+        setModel={setModel}
+        executionStrategy={executionStrategy}
+        setExecutionStrategy={setExecutionStrategy}
+        accessMode={accessMode}
+        setAccessMode={setAccessMode}
+        onManageProviders={onManageProviders}
+        isLoading={isComposerBusy}
+        disabled={isComposerBusy}
+        isGeneralTheme={isGeneralTheme}
+        characters={characters}
+        skillSelection={skillSelection}
+        activeCapability={activeCapability}
+        onSelectInputCapability={handleSelectInputCapability}
+        onClearInputCapability={clearSelectedSkill}
+        onEditCuratedTask={
+          activeCuratedTask
+            ? () =>
+                handleCuratedTaskLauncherRequest(
+                  activeCuratedTask,
+                  activeCuratedTaskLaunchInputValues,
+                  activeCuratedTaskReferenceMemoryIds ||
+                    effectiveDefaultCuratedTaskReferenceMemoryIds,
+                  activeCuratedTaskReferenceEntries ||
+                    effectiveDefaultCuratedTaskReferenceEntries,
+                )
+            : undefined
+        }
+        onApplyCuratedTaskReviewSuggestion={
+          activeCuratedTask
+            ? (task) =>
+                handleCuratedTaskLauncherRequest(
+                  task,
+                  activeCuratedTaskLaunchInputValues,
+                  activeCuratedTaskReferenceMemoryIds ||
+                    effectiveDefaultCuratedTaskReferenceMemoryIds,
+                  activeCuratedTaskReferenceEntries ||
+                    effectiveDefaultCuratedTaskReferenceEntries,
+                  "已按最近判断切到更适合的结果模板，你可以继续改后再进入生成。",
+                )
+            : undefined
+        }
+        creationReplaySurface={creationReplaySurface}
+        projectId={projectId}
+        sessionId={sessionId}
+        defaultCuratedTaskReferenceMemoryIds={
+          effectiveDefaultCuratedTaskReferenceMemoryIds
+        }
+        defaultCuratedTaskReferenceEntries={
+          effectiveDefaultCuratedTaskReferenceEntries
+        }
+        showCreationModeSelector={showCreationModeSelector}
+        creationMode={creationMode}
+        onCreationModeChange={onCreationModeChange}
+        thinkingEnabled={thinkingEnabled}
+        onThinkingEnabledChange={onThinkingEnabledChange}
+        subagentEnabled={subagentEnabled}
+        onSubagentEnabledChange={onSubagentEnabledChange}
+        selectedTeam={selectedTeam}
+        onSelectTeam={onSelectTeam}
+        teamWorkspaceSettings={teamWorkspaceSettings}
+        onPersistCustomTeams={onPersistCustomTeams}
+        onEnableSuggestedTeam={onEnableSuggestedTeam}
+        webSearchEnabled={webSearchEnabled}
+        onWebSearchEnabledChange={onWebSearchEnabledChange}
+        pendingImages={pendingImages}
+        onFileSelect={handleFileSelect}
+        onPaste={handlePaste}
+        onRemoveImage={handleRemoveImage}
+      />
+    </ComposerGlowFrame>
   );
 
   const defaultQuickActionsPanel = (
@@ -1928,393 +1349,29 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     />
   );
 
-  const generalResultShelfPanel = (
-    <RecommendationShelf>
-      <RecommendationShelfHeader>
-        <RecommendationShelfHeaderBody>
-          <RecommendationShelfHeaderTitle>
-            {resolveResultShelfTitle(creationReplaySurface)}
-          </RecommendationShelfHeaderTitle>
-          <RecommendationShelfHeaderDescription>
-            {resolveResultShelfDescription(creationReplaySurface)}
-          </RecommendationShelfHeaderDescription>
-        </RecommendationShelfHeaderBody>
-        {selectedTextPreview ? (
-          <RecommendationShelfInlineBadge
-            as="span"
-            className="max-w-full truncate"
-          >
-            当前会带上选中内容
-          </RecommendationShelfInlineBadge>
-        ) : null}
-      </RecommendationShelfHeader>
-
-      {creationReplaySurface ? (
-        <CreationReplaySurfaceBanner surface={creationReplaySurface} />
-      ) : null}
-
-      {reviewFeedbackBanner ? (
-        <RecommendationSignalBanner data-testid="entry-review-feedback-banner">
-          <RecommendationSignalBannerHeader>
-            <RecommendationSignalBannerTitle>
-              最近判断已更新：{reviewFeedbackBanner.title}
-            </RecommendationSignalBannerTitle>
-          </RecommendationSignalBannerHeader>
-          <RecommendationSignalBannerSummary>
-            {reviewFeedbackBanner.summary}
-          </RecommendationSignalBannerSummary>
-          <RecommendationSignalBannerFootnote>
-            更适合继续：{reviewFeedbackBanner.nextSteps}
-          </RecommendationSignalBannerFootnote>
-          {reviewFeedbackBanner.actionLabel && reviewFeedbackBanner.onAction ? (
-            <div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-full border-[color:var(--lime-surface-border-strong)] bg-[color:var(--lime-surface)] px-3 text-xs font-medium text-[color:var(--lime-text)] hover:border-[color:var(--lime-surface-border-strong)] hover:bg-[color:var(--lime-brand-soft)]"
-                data-testid="entry-review-feedback-banner-action"
-                onClick={() => reviewFeedbackBanner.onAction?.()}
-              >
-                {reviewFeedbackBanner.actionLabel}
-              </Button>
-            </div>
-          ) : null}
-        </RecommendationSignalBanner>
-      ) : null}
-
-      <RecommendationTabsRow>
-        <RecommendationTabsRail role="tablist" aria-label="首页起手入口">
-          {(leadRecommendationItem ||
-            alternativeRecommendationItems.length > 0) && (
-            <RecommendationTabButton
-              type="button"
-              role="tab"
-              aria-selected={launchDeckTab === "recommended"}
-              data-testid="entry-launch-tab-recommended"
-              $active={launchDeckTab === "recommended"}
-              onClick={() => setLaunchDeckTab("recommended")}
-            >
-              先开始这一轮
-              <RecommendationTabCount $active={launchDeckTab === "recommended"}>
-                {recommendationSolutionItems.length}
-              </RecommendationTabCount>
-            </RecommendationTabButton>
-          )}
-
-          {continuationShelfItems.length > 0 ? (
-            <RecommendationTabButton
-              type="button"
-              role="tab"
-              aria-selected={launchDeckTab === "continuation"}
-              data-testid="entry-launch-tab-continuation"
-              $active={launchDeckTab === "continuation"}
-              onClick={() => setLaunchDeckTab("continuation")}
-            >
-              继续这轮
-              <RecommendationTabCount
-                $active={launchDeckTab === "continuation"}
-              >
-                {continuationShelfItems.length}
-              </RecommendationTabCount>
-            </RecommendationTabButton>
-          ) : null}
-
-          {directMethodItems.length > 0 ? (
-            <RecommendationTabButton
-              type="button"
-              role="tab"
-              aria-selected={launchDeckTab === "methods"}
-              data-testid="entry-launch-tab-methods"
-              $active={launchDeckTab === "methods"}
-              onClick={() => setLaunchDeckTab("methods")}
-            >
-              直接开工
-              <RecommendationTabCount $active={launchDeckTab === "methods"}>
-                {directMethodItems.length}
-              </RecommendationTabCount>
-            </RecommendationTabButton>
-          ) : null}
-        </RecommendationTabsRail>
-
-        <RecommendationTabCaption>
-          {launchDeckTabCaption}
-        </RecommendationTabCaption>
-      </RecommendationTabsRow>
-
-      <RecommendationPanels>
-        <RecommendationTabPanel hidden={launchDeckTab !== "recommended"}>
-          {leadRecommendationItem ? (
-            <RecommendationLeadCard
-              type="button"
-              data-testid={leadRecommendationItem.testId}
-              title={[
-                leadRecommendationItem.summary,
-                leadRecommendationItem.meta,
-              ]
-                .filter((segment) => segment.trim().length > 0)
-                .join(" · ")}
-              onClick={() => {
-                leadRecommendationItem.onSelect();
-              }}
-            >
-              <RecommendationLeadEyebrowRow>
-                <RecommendationLeadEyebrow>
-                  {resolveLeadRecommendationEyebrow(creationReplaySurface)}
-                </RecommendationLeadEyebrow>
-                {leadRecommendationItem.badge ? (
-                  <RecommendationShelfInlineBadge>
-                    {leadRecommendationItem.badge}
-                  </RecommendationShelfInlineBadge>
-                ) : null}
-              </RecommendationLeadEyebrowRow>
-              <RecommendationLeadTitle>
-                {leadRecommendationItem.title}
-              </RecommendationLeadTitle>
-              <RecommendationLeadSummary>
-                {leadRecommendationItem.summary}
-              </RecommendationLeadSummary>
-              {leadRecommendationItem.contextSummary ? (
-                <RecommendationLeadMeta>
-                  {leadRecommendationItem.contextSummary}
-                </RecommendationLeadMeta>
-              ) : null}
-              <RecommendationLeadMeta>
-                {leadRecommendationItem.meta}
-              </RecommendationLeadMeta>
-              <RecommendationLeadFooter>
-                开始这一轮
-                <ArrowRight className="h-3.5 w-3.5" />
-              </RecommendationLeadFooter>
-            </RecommendationLeadCard>
-          ) : (
-            <RecommendationShelfEmptyState>
-              先描述目标，Lime 会帮你把这一轮组织起来。
-            </RecommendationShelfEmptyState>
-          )}
-
-          {alternativeRecommendationItems.length > 0 ? (
-            <RecommendationAssistGroup>
-              <RecommendationAssistLabel>
-                其他起手结果
-              </RecommendationAssistLabel>
-              <RecommendationAssistList>
-                {alternativeRecommendationItems.map((item) => (
-                  <RecommendationAssistCard
-                    key={item.key}
-                    type="button"
-                    data-testid={item.testId}
-                    title={[item.summary, item.meta]
-                      .filter((segment) => segment.trim().length > 0)
-                      .join(" · ")}
-                    onClick={() => {
-                      item.onSelect();
-                    }}
-                  >
-                    <RecommendationAssistCardHeader>
-                      <RecommendationAssistCardTitle>
-                        {item.title}
-                      </RecommendationAssistCardTitle>
-                      {item.badge ? (
-                        <RecommendationShelfInlineBadge>
-                          {item.badge}
-                        </RecommendationShelfInlineBadge>
-                      ) : null}
-                    </RecommendationAssistCardHeader>
-                    <RecommendationAssistCardSummary>
-                      {item.contextSummary
-                        ? `${item.contextSummary} · ${item.meta}`
-                        : item.meta}
-                    </RecommendationAssistCardSummary>
-                  </RecommendationAssistCard>
-                ))}
-              </RecommendationAssistList>
-            </RecommendationAssistGroup>
-          ) : null}
-        </RecommendationTabPanel>
-
-        <RecommendationTabPanel hidden={launchDeckTab !== "continuation"}>
-          <RecommendationAssistGroup>
-            <RecommendationAssistLabel>继续上次做法</RecommendationAssistLabel>
-            {continuationShelfItems.length > 0 ? (
-              <RecommendationAssistList>
-                {continuationShelfItems.map((item) => (
-                  <RecommendationAssistCard
-                    key={item.key}
-                    type="button"
-                    data-testid={item.testId}
-                    title={item.summary}
-                    onClick={() => {
-                      item.onSelect();
-                    }}
-                  >
-                    <RecommendationAssistCardHeader>
-                      <RecommendationAssistCardTitle>
-                        {item.title}
-                      </RecommendationAssistCardTitle>
-                      {item.badge ? (
-                        <RecommendationShelfBadge>
-                          {item.badge}
-                        </RecommendationShelfBadge>
-                      ) : null}
-                    </RecommendationAssistCardHeader>
-                    <RecommendationAssistCardSummary>
-                      {item.summary}
-                    </RecommendationAssistCardSummary>
-                  </RecommendationAssistCard>
-                ))}
-              </RecommendationAssistList>
-            ) : (
-              <RecommendationShelfEmptyState>
-                最近跑通过的结果模板和方法会留在这里。
-              </RecommendationShelfEmptyState>
-            )}
-          </RecommendationAssistGroup>
-        </RecommendationTabPanel>
-
-        <RecommendationTabPanel hidden={launchDeckTab !== "methods"}>
-          <RecommendationAssistGroup>
-            <RecommendationAssistLabel>
-              也可以直接按做法开工
-            </RecommendationAssistLabel>
-            {directMethodItems.length > 0 ? (
-              <RecommendationAssistList>
-                {directMethodItems.map((item) => (
-                  <RecommendationAssistCard
-                    key={item.key}
-                    type="button"
-                    data-testid={item.testId}
-                    title={item.summary}
-                    onClick={() => {
-                      item.onSelect();
-                    }}
-                  >
-                    <RecommendationAssistCardHeader>
-                      <RecommendationAssistCardTitle>
-                        {item.title}
-                      </RecommendationAssistCardTitle>
-                      {item.badge ? (
-                        <RecommendationShelfBadge>
-                          {item.badge}
-                        </RecommendationShelfBadge>
-                      ) : null}
-                    </RecommendationAssistCardHeader>
-                    <RecommendationAssistCardSummary>
-                      {item.summary}
-                    </RecommendationAssistCardSummary>
-                  </RecommendationAssistCard>
-                ))}
-              </RecommendationAssistList>
-            ) : (
-              <RecommendationShelfEmptyState>
-                当前还没有可直接复用的做法，先选一个结果起手也可以。
-              </RecommendationShelfEmptyState>
-            )}
-          </RecommendationAssistGroup>
-        </RecommendationTabPanel>
-      </RecommendationPanels>
-
-      <RecommendationAssistFootnote data-testid="entry-result-destination-hint">
-        {projectId
-          ? "本轮产出会沉淀到当前项目，后续继续也会优先从这里接回。"
-          : "本轮产出会先写回当前任务，后续继续也会优先从这里接回。"}
-      </RecommendationAssistFootnote>
-    </RecommendationShelf>
+  const homeStartSurfacePanel = (
+    <HomeStartSurface
+      starterChips={homeStarterChips}
+      sections={homeSkillSections}
+      supplementalActions={homeSupplementalActions}
+      onSelectStarterChip={handleSelectHomeStarterChip}
+      onSelectSkillItem={handleSelectHomeSkillItem}
+    />
   );
+  const handleSecondScreenWheel = useCallback(
+    (event: React.WheelEvent<HTMLElement>) => {
+      if (event.deltaY >= 0 || event.currentTarget.scrollTop > 1) {
+        return;
+      }
 
-  const hasRecentSessionContinuation = Boolean(
-    recentSessionTitle && onResumeRecentSession,
+      event.preventDefault();
+      pageContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [],
   );
-  const shouldShowContinuationSupplemental =
-    shouldShowSceneAppsPanel ||
-    hasRecentSessionContinuation ||
-    Boolean(onOpenSceneAppsDirectory);
-  const shouldShowSupplementalPanel =
-    shouldShowContinuationSupplemental || Boolean(onLaunchBrowserAssist);
-  const recentSessionLinkLabel = useMemo(() => {
-    const normalizedTitle = truncatePrompt(recentSessionTitle || "", 18);
-    if (!normalizedTitle) {
-      return recentSessionActionLabel;
-    }
-    return `${recentSessionActionLabel} · ${normalizedTitle}`;
-  }, [recentSessionActionLabel, recentSessionTitle]);
-  const recentSessionLinkTitle = useMemo(
-    () =>
-      [recentSessionTitle, recentSessionSummary]
-        .map((value) => value?.trim())
-        .filter((value): value is string => Boolean(value))
-        .join(" · "),
-    [recentSessionSummary, recentSessionTitle],
-  );
-
-  const supplementalSceneAppItems = useMemo(
-    () => featuredSceneApps.slice(0, 2),
-    [featuredSceneApps],
-  );
-
-  const generalSupplementalPanel = shouldShowSupplementalPanel ? (
-    <RecommendationSupplementalPanel data-testid="entry-supplemental-panel">
-      <RecommendationSupplementalLabel>
-        {shouldShowContinuationSupplemental
-          ? "也可以直接续上这一轮。"
-          : "需要网页登录时，也可以先把浏览器接上。"}
-      </RecommendationSupplementalLabel>
-      <RecommendationSupplementalRow>
-        {recentSessionTitle && onResumeRecentSession ? (
-          <RecommendationSupplementalLink
-            type="button"
-            data-testid="entry-recent-session-resume"
-            title={recentSessionLinkTitle || undefined}
-            onClick={onResumeRecentSession}
-          >
-            {recentSessionLinkLabel}
-          </RecommendationSupplementalLink>
-        ) : null}
-
-        {canResumeRecentSceneApp && onResumeRecentSceneApp ? (
-          <RecommendationSupplementalLink
-            type="button"
-            data-testid="entry-sceneapp-resume"
-            onClick={onResumeRecentSceneApp}
-          >
-            继续最近做法
-          </RecommendationSupplementalLink>
-        ) : null}
-
-        <EmptyStateSceneAppsPanel
-          items={supplementalSceneAppItems}
-          loading={sceneAppsLoading}
-          launchingSceneAppId={sceneAppLaunchingId}
-          onLaunchSceneApp={onLaunchSceneApp}
-        />
-
-        {onOpenSceneAppsDirectory ? (
-          <RecommendationSupplementalLink
-            type="button"
-            data-testid="entry-sceneapps-directory"
-            onClick={onOpenSceneAppsDirectory}
-          >
-            查看全部做法
-          </RecommendationSupplementalLink>
-        ) : null}
-
-        {onLaunchBrowserAssist ? (
-          <RecommendationSupplementalLink
-            type="button"
-            data-testid="entry-connect-browser"
-            onClick={() => {
-              void onLaunchBrowserAssist();
-            }}
-          >
-            {browserAssistLoading ? "浏览器连接准备中" : "连接浏览器"}
-          </RecommendationSupplementalLink>
-        ) : null}
-      </RecommendationSupplementalRow>
-    </RecommendationSupplementalPanel>
-  ) : null;
 
   return (
-    <PageContainer>
+    <PageContainer ref={pageContainerRef}>
       <ContentWrapper>
         <EmptyStateHero
           eyebrow="创作"
@@ -2325,17 +1382,39 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           cards={[]}
           prioritySlot={composerPanel}
           supportingSlot={
-            isGeneralTheme ? (
-              <>
-                {generalResultShelfPanel}
-                {generalSupplementalPanel}
-              </>
-            ) : (
-              defaultQuickActionsPanel
-            )
+            isGeneralTheme ? homeStartSurfacePanel : defaultQuickActionsPanel
           }
         />
+        {isGeneralTheme && homeGalleryItems.length > 0 ? (
+          <ScrollCue
+            href="#home-skill-gallery-screen"
+            data-testid="home-scroll-cue"
+            aria-label="向下滚动或点击以查看示例"
+          >
+            <ScrollCueLine aria-hidden />
+            <ScrollCueText>
+              向下滚动或点击以查看示例
+              <ScrollCueArrow aria-hidden>⌄</ScrollCueArrow>
+            </ScrollCueText>
+            <ScrollCueLine aria-hidden />
+          </ScrollCue>
+        ) : null}
       </ContentWrapper>
+      {isGeneralTheme && homeGalleryItems.length > 0 ? (
+        <SecondScreenSection
+          id="home-skill-gallery-screen"
+          aria-label="Lime 可执行任务示例"
+          data-testid="home-second-screen"
+          onWheel={handleSecondScreenWheel}
+        >
+          <SecondScreenInner>
+            <HomeSkillGallery
+              items={homeGalleryItems}
+              onSelectItem={handleSelectHomeSkillItem}
+            />
+          </SecondScreenInner>
+        </SecondScreenSection>
+      ) : null}
       <CuratedTaskLauncherDialog
         open={Boolean(curatedTaskLauncherTask)}
         task={curatedTaskLauncherTask}

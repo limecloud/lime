@@ -49,12 +49,11 @@ export function ServiceSkillExecutionCard({
   const imageCount = state.result?.saved_content?.image_count;
   const savedSiteContentTarget: SiteSavedContentTarget | null =
     resolveSiteSavedContentTargetFromRunResult(state.result || null);
-  const savedContentActionLabel =
-    preferredResultFileTarget?.relativePath
-      ? `在画布中打开 ${preferredResultFileTarget.title || "index.md"}`
-      : savedSiteContentTarget?.preferredTarget === "project_file"
-        ? `在画布中打开 ${resultFileLabel || "index.md"}`
-        : "打开结果";
+  const savedContentActionLabel = preferredResultFileTarget?.relativePath
+    ? `在画布中打开 ${preferredResultFileTarget.title || "index.md"}`
+    : savedSiteContentTarget?.preferredTarget === "project_file"
+      ? `在画布中打开 ${resultFileLabel || "index.md"}`
+      : "打开结果";
 
   return (
     <section

@@ -400,12 +400,7 @@ export function loadAgentSessionCachedSnapshot(
     return toCachedSnapshot(transientSnapshot, "transient", nowMs);
   }
 
-  removeCachedSnapshotRecord(
-    cacheKey,
-    snapshotMap,
-    sessionId,
-    "transient",
-  );
+  removeCachedSnapshotRecord(cacheKey, snapshotMap, sessionId, "transient");
 
   const persistedCacheKey = getScopedStorageKey(
     workspaceId,

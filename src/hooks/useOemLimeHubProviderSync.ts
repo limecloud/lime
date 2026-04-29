@@ -72,10 +72,12 @@ async function resolveSyncedCustomModels(
   }
 
   const offerKeys = Array.from(
-    new Set([
-      cloudPreference?.providerKey,
-      ...offers.map((offer) => offer.providerKey),
-    ].filter((value): value is string => Boolean(value))),
+    new Set(
+      [
+        cloudPreference?.providerKey,
+        ...offers.map((offer) => offer.providerKey),
+      ].filter((value): value is string => Boolean(value)),
+    ),
   );
   const modelGroups = await Promise.all(
     offerKeys.map(async (providerKey) => {

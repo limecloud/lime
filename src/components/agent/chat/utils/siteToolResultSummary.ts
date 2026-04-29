@@ -109,8 +109,7 @@ export function isPreloadSiteToolResultMetadata(rawMetadata: unknown): boolean {
     readFirstNonEmptyString(candidates, [
       "execution_origin",
       "executionOrigin",
-    ]) === "preload" ||
-    readFirstBoolean(candidates, ["preload"]) === true
+    ]) === "preload" || readFirstBoolean(candidates, ["preload"]) === true
   );
 }
 
@@ -148,7 +147,9 @@ export function resolveSiteSavedContentTargetFromMetadata(
   if (isPreloadSiteToolResultMetadata(rawMetadata)) {
     return null;
   }
-  return resolveSiteSavedContentTarget(normalizeSiteToolResultSummary(rawMetadata));
+  return resolveSiteSavedContentTarget(
+    normalizeSiteToolResultSummary(rawMetadata),
+  );
 }
 
 export function hasMeaningfulSiteToolResultSignal(
@@ -157,9 +158,9 @@ export function hasMeaningfulSiteToolResultSignal(
   const summary = normalizeSiteToolResultSummary(rawMetadata);
   return Boolean(
     summary?.savedContent ||
-      summary?.savedProjectId ||
-      summary?.saveSkippedProjectId ||
-      summary?.saveErrorMessage,
+    summary?.savedProjectId ||
+    summary?.saveSkippedProjectId ||
+    summary?.saveErrorMessage,
   );
 }
 
@@ -185,7 +186,10 @@ export function resolveSiteSavedContentTargetDisplayName(
 }
 
 export function resolveSiteSavedContentTargetFromRunResult(
-  result: Pick<SiteAdapterRunResult, "saved_content" | "saved_project_id"> | null,
+  result: Pick<
+    SiteAdapterRunResult,
+    "saved_content" | "saved_project_id"
+  > | null,
 ): SiteSavedContentTarget | null {
   const savedContent = result?.saved_content;
   if (!savedContent) {
@@ -292,10 +296,10 @@ export function normalizeSiteToolResultSummary(
           title: readFirstNonEmptyString([savedContentRecord], ["title"]),
           projectRootPath:
             normalizeManagedWorkspacePathForDisplay(
-              readFirstNonEmptyString([savedContentRecord], [
-                "project_root_path",
-                "projectRootPath",
-              ]),
+              readFirstNonEmptyString(
+                [savedContentRecord],
+                ["project_root_path", "projectRootPath"],
+              ),
             ) || undefined,
           bundleRelativeDir: readFirstNonEmptyString(
             [savedContentRecord],

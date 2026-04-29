@@ -22,7 +22,7 @@ vi.mock("../dev-bridge/mockPriorityCommands", () => ({
 }));
 
 import { shouldPreferMockInBrowser } from "../dev-bridge/mockPriorityCommands";
-import { clearMocks, invoke } from "./core";
+import { clearMocks, invoke, invokeMockOnly } from "./core";
 
 describe("tauri-mock/core invoke", () => {
   beforeEach(() => {
@@ -49,6 +49,18 @@ describe("tauri-mock/core invoke", () => {
     await expect(
       invoke("list_plugin_tasks", { taskState: null, limit: 300 }),
     ).resolves.toEqual([]);
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
+  it("显式 mock 入口不应再次探测 HTTP bridge", async () => {
+    await expect(invokeMockOnly("get_config")).resolves.toEqual(
+      expect.objectContaining({
+        server: expect.objectContaining({
+          port: 8787,
+        }),
+      }),
+    );
 
     expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
   });
@@ -166,7 +178,9 @@ describe("tauri-mock/core invoke", () => {
           compilerPlan: expect.objectContaining({
             notes: expect.not.arrayContaining([
               expect.stringContaining("已从项目上下文恢复"),
-              expect.stringContaining("当前 planning 直接复用了 1 条项目级参考"),
+              expect.stringContaining(
+                "当前 planning 直接复用了 1 条项目级参考",
+              ),
             ]),
           }),
         }),
@@ -229,7 +243,9 @@ describe("tauri-mock/core invoke", () => {
             referenceCount: 1,
             notes: expect.arrayContaining([
               expect.stringContaining("已从项目上下文恢复 1 条历史参考"),
-              expect.stringContaining("当前 planning 直接复用了 1 条项目级参考"),
+              expect.stringContaining(
+                "当前 planning 直接复用了 1 条项目级参考",
+              ),
               expect.stringContaining("当前已复用项目级 TasteProfile"),
             ]),
           }),
@@ -528,7 +544,9 @@ describe("tauri-mock/core invoke", () => {
       expect(result.catalog_tools).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: "social_generate_cover_image" }),
-          expect.objectContaining({ name: "lime_create_image_generation_task" }),
+          expect.objectContaining({
+            name: "lime_create_image_generation_task",
+          }),
           expect.objectContaining({ name: "lime_run_service_skill" }),
           expect.objectContaining({ name: "lime_site_recommend" }),
           expect.objectContaining({ name: "mcp__lime-browser__" }),
@@ -588,6 +606,10 @@ describe("tauri-mock/core invoke", () => {
         expect.objectContaining({
           success: true,
           total: 1,
+          modality_runtime_contracts: expect.objectContaining({
+            snapshot_count: 1,
+            contract_keys: ["image_generation"],
+          }),
           tasks: expect.arrayContaining([
             expect.objectContaining({
               task_type: "image_generate",
@@ -628,6 +650,64 @@ describe("tauri-mock/core invoke", () => {
       expect.objectContaining({
         task_id: "task-image-mock-1",
         path: ".lime/tasks/image_generate/task-image-mock-1.json",
+      }),
+    );
+  });
+
+  it("音频任务命令在 bridge 失败时应回退 voice_generation task file mock 协议", async () => {
+    mocks.isDevBridgeAvailable.mockReturnValue(false);
+
+    await expect(
+      invoke("create_audio_generation_task_artifact", {
+        request: {
+          projectRootPath: "/mock/workspace",
+          sourceText: "请生成温暖旁白",
+          voice: "warm_narrator",
+          modalityContractKey: "voice_generation",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        task_type: "audio_generate",
+        task_family: "audio",
+        path: ".lime/tasks/audio_generate/task-audio-mock-1.json",
+        record: expect.objectContaining({
+          payload: expect.objectContaining({
+            modality_contract_key: "voice_generation",
+            modality: "audio",
+            routing_slot: "voice_generation_model",
+            audio_output: expect.objectContaining({
+              kind: "audio_output",
+              status: "pending",
+              mime_type: "audio/mpeg",
+            }),
+          }),
+        }),
+      }),
+    );
+
+    await expect(
+      invoke("list_media_task_artifacts", {
+        request: {
+          projectRootPath: "/mock/workspace",
+          taskFamily: "audio",
+          taskType: "audio_generate",
+          modalityContractKey: "voice_generation",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        total: 1,
+        modality_runtime_contracts: expect.objectContaining({
+          contract_keys: ["voice_generation"],
+          snapshots: expect.arrayContaining([
+            expect.objectContaining({
+              task_type: "audio_generate",
+              contract_key: "voice_generation",
+              routing_event: "executor_invoked",
+            }),
+          ]),
+        }),
       }),
     );
   });

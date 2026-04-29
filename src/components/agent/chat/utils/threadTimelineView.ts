@@ -206,9 +206,7 @@ function pickPreferredAssistantMessage(
     return current;
   }
 
-  const candidateSubstantive = isSubstantiveAssistantMessage(
-    candidate.message,
-  );
+  const candidateSubstantive = isSubstantiveAssistantMessage(candidate.message);
   const currentSubstantive = isSubstantiveAssistantMessage(current.message);
 
   if (candidateSubstantive !== currentSubstantive) {
@@ -241,10 +239,7 @@ function pickClosestUnassignedAssistantMessage(
   let best: AssistantTimelineEntry | null = null;
 
   for (const assistant of assistants) {
-    if (
-      assignedMessageIds.has(assistant.message.id) ||
-      !predicate(assistant)
-    ) {
+    if (assignedMessageIds.has(assistant.message.id) || !predicate(assistant)) {
       continue;
     }
 

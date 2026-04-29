@@ -143,11 +143,9 @@ describe("useProjects", () => {
     } = {
       resolve: null,
     };
-    const ensureReadyPromise = new Promise<WorkspaceEnsureResult>(
-      (resolve) => {
-        deferredEnsure.resolve = resolve;
-      },
-    );
+    const ensureReadyPromise = new Promise<WorkspaceEnsureResult>((resolve) => {
+      deferredEnsure.resolve = resolve;
+    });
 
     projectApiMocks.listProjects.mockResolvedValueOnce([defaultProject]);
     projectApiMocks.getDefaultProject.mockResolvedValueOnce(defaultProject);

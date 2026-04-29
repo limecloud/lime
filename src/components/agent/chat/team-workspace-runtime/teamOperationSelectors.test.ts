@@ -51,8 +51,7 @@ describe("teamOperationSelectors", () => {
         id: "control-close-1710000200000",
         title: "暂停处理",
         detail: "刚才已暂停 研究员 的处理。",
-        badgeClassName:
-          "border border-slate-200 bg-slate-100 text-slate-700",
+        badgeClassName: "border border-slate-200 bg-slate-100 text-slate-700",
         updatedAt: 1_710_000_200_000,
         targetSessionId: "child-1",
       },
@@ -115,8 +114,7 @@ describe("teamOperationSelectors", () => {
         id: "control-close-1710000200000",
         title: "暂停处理",
         detail: "刚才已暂停 研究员 的处理。",
-        badgeClassName:
-          "border border-slate-200 bg-slate-100 text-slate-700",
+        badgeClassName: "border border-slate-200 bg-slate-100 text-slate-700",
         updatedAt: 1_710_000_200_000,
         targetSessionId: "child-1",
       },

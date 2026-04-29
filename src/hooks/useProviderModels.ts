@@ -16,10 +16,13 @@ import {
   getAliasConfigKey,
   isAliasProvider,
 } from "@/lib/constants/providerMappings";
-import {
-  buildProviderModelsFromRegistry,
-} from "@/lib/model/providerModelsCatalog";
+import { buildProviderModelsFromRegistry } from "@/lib/model/providerModelsCatalog";
 import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
+import {
+  buildLimeHubLocalDevModels,
+  isLimeHubProviderId,
+  shouldUseLimeHubLocalDevModels,
+} from "@/lib/model/limeHubLocalDevModels";
 import type { ConfiguredProvider } from "./useConfiguredProviders";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 
@@ -63,6 +66,10 @@ function getProviderAutoFetchCapability(selectedProvider: ConfiguredProvider) {
   });
 }
 
+function isLimeHubProvider(selectedProvider: ConfiguredProvider): boolean {
+  return isLimeHubProviderId(selectedProvider.key, selectedProvider.providerId);
+}
+
 async function fetchProviderModelsFromApi(
   selectedProvider: ConfiguredProvider,
 ): Promise<EnhancedModelMetadata[]> {
@@ -89,6 +96,14 @@ async function fetchProviderModelsFromApi(
     }
   } catch {
     // ignore and fall back below
+  }
+
+  const limeHubDevModels =
+    shouldUseLimeHubLocalDevModels() && isLimeHubProvider(selectedProvider)
+      ? buildLimeHubLocalDevModels(selectedProvider)
+      : [];
+  if (limeHubDevModels.length > 0) {
+    return limeHubDevModels;
   }
 
   return [];

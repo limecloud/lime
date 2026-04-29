@@ -89,8 +89,7 @@ export function useWorkspaceInitialSessionNavigation({
 
     const startedAt = Date.now();
     const lastStartedAt =
-      recentInitialSessionNavigationStarts.get(normalizedInitialSessionId) ??
-      0;
+      recentInitialSessionNavigationStarts.get(normalizedInitialSessionId) ?? 0;
     if (startedAt - lastStartedAt < INITIAL_SESSION_NAVIGATION_DEDUPE_MS) {
       logAgentDebug(
         "AgentChatPage",

@@ -110,10 +110,7 @@ export function SceneAppsCatalogPanel({
   } as const;
 
   return (
-    <section
-      data-testid="sceneapps-catalog-directory"
-      className="space-y-4"
-    >
+    <section data-testid="sceneapps-catalog-directory" className="space-y-4">
       <div className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -240,7 +237,8 @@ export function SceneAppsCatalogPanel({
           {items.map((item) => {
             const isSelected = item.id === selectedSceneAppId;
             const aggregate = item.scorecardAggregate ?? null;
-            const aggregateSummary = aggregate?.summary ?? item.operatingSummary;
+            const aggregateSummary =
+              aggregate?.summary ?? item.operatingSummary;
             const aggregateNextAction = aggregate?.nextAction;
 
             return (
@@ -361,8 +359,8 @@ export function SceneAppsCatalogPanel({
                     >
                       {item.infraSummary}
                     </span>
-                    {(aggregate?.topFailureSignalLabel ||
-                      item.topFailureSignalLabel) ? (
+                    {aggregate?.topFailureSignalLabel ||
+                    item.topFailureSignalLabel ? (
                       <span
                         className={cn(
                           "rounded-full border px-2.5 py-1 text-[11px] font-medium",
@@ -397,7 +395,9 @@ export function SceneAppsCatalogPanel({
                     )}
                   >
                     <span>{item.outputHint}</span>
-                    {item.latestRunLabel ? <span>{item.latestRunLabel}</span> : null}
+                    {item.latestRunLabel ? (
+                      <span>{item.latestRunLabel}</span>
+                    ) : null}
                   </div>
                 </button>
               </div>

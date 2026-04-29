@@ -169,7 +169,9 @@ export function useAutomationSceneAppRuntime({
         !linkedRunCandidate.runId.startsWith("automation-job:")
       ) {
         try {
-          const detailedRun = await getSceneAppRunSummary(linkedRunCandidate.runId);
+          const detailedRun = await getSceneAppRunSummary(
+            linkedRunCandidate.runId,
+          );
           if (detailedRun) {
             nextLinkedRun = detailedRun;
           }

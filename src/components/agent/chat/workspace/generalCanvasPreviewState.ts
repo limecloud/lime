@@ -20,5 +20,7 @@ export function hasNamedGeneralCanvasFilePreview(
     return false;
   }
 
-  return typeof state?.filename === "string" && state.filename.trim().length > 0;
+  return (
+    typeof state?.filename === "string" && state.filename.trim().length > 0
+  );
 }

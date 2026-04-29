@@ -338,7 +338,9 @@ describe("skillCatalog", () => {
     const commandEntry = listSkillCatalogCommandEntries(catalog).find(
       (entry) => entry.commandKey === "voice_runtime",
     );
-    const skillEntry = catalog.items.find((item) => item.id === "sceneapp-service");
+    const skillEntry = catalog.items.find(
+      (item) => item.id === "sceneapp-service",
+    );
 
     expect(skillEntry).toEqual(
       expect.objectContaining({
@@ -423,13 +425,13 @@ describe("skillCatalog", () => {
     );
 
     const stored = window.localStorage.getItem("lime:skill-catalog:v1");
-    expect(stored).toContain("\"defaultExecutorBinding\":\"agent_turn\"");
-    expect(stored).toContain("\"executionLocation\":\"client_default\"");
-    expect(stored).not.toContain("\"defaultExecutorBinding\":\"cloud_scene\"");
-    expect(stored).not.toContain("\"executionLocation\":\"cloud_required\"");
-    expect(stored).toContain("\"executionKind\":\"agent_turn\"");
-    expect(stored).not.toContain("\"executionKind\":\"cloud_scene\"");
-    expect(stored).not.toContain("\"kind\":\"cloud_scene\"");
+    expect(stored).toContain('"defaultExecutorBinding":"agent_turn"');
+    expect(stored).toContain('"executionLocation":"client_default"');
+    expect(stored).not.toContain('"defaultExecutorBinding":"cloud_scene"');
+    expect(stored).not.toContain('"executionLocation":"cloud_required"');
+    expect(stored).toContain('"executionKind":"agent_turn"');
+    expect(stored).not.toContain('"executionKind":"cloud_scene"');
+    expect(stored).not.toContain('"kind":"cloud_scene"');
   });
 
   it("应从统一目录中暴露 command 与 scene 扩展入口", async () => {
@@ -650,6 +652,16 @@ describe("skillCatalog", () => {
           summary: "把链接解析、配图与封面串成一个可复用场景。",
           sceneKey: "campaign-launch",
           commandPrefix: "/campaign-launch",
+          linkedEntryId: "skill:tenant-daily-briefing",
+          placeholder: "输入新品链接或发布主题",
+          templates: [
+            {
+              id: "default",
+              title: "发布启动",
+              description: "从一个主题启动发布链路",
+              prompt: "请帮我规划新品发布内容。",
+            },
+          ],
           aliases: ["launch", "campaign"],
           executionKind: "scene",
           renderContract: {
@@ -690,5 +702,21 @@ describe("skillCatalog", () => {
         "x-article-export",
       ]),
     );
+    expect(
+      listSkillCatalogSceneEntries(catalog).find(
+        (entry) => entry.sceneKey === "campaign-launch",
+      ),
+    ).toMatchObject({
+      linkedEntryId: "skill:tenant-daily-briefing",
+      placeholder: "输入新品链接或发布主题",
+      templates: [
+        {
+          id: "default",
+          title: "发布启动",
+          description: "从一个主题启动发布链路",
+          prompt: "请帮我规划新品发布内容。",
+        },
+      ],
+    });
   });
 });

@@ -55,11 +55,12 @@ const CONTENT_POST_ORDER: ContentPostPublishIntent[] = [
   "upload",
 ];
 
-const CONTENT_POST_SOURCE_PRIORITY: Record<ContentPostSource["kind"], number> = {
-  task_file: 3,
-  artifact: 2,
-  session_file: 1,
-};
+const CONTENT_POST_SOURCE_PRIORITY: Record<ContentPostSource["kind"], number> =
+  {
+    task_file: 3,
+    artifact: 2,
+    session_file: 1,
+  };
 
 const CONTENT_POST_COMPANION_DEFINITIONS: Array<{
   key: SceneAppExecutionContentPostCompanionEntry["key"];
@@ -165,7 +166,8 @@ function resolveContentPostReadiness(params: {
 
   if (params.intent === "upload") {
     return {
-      helperText: "优先先看正文、素材清单和上传前检查，再决定是否直接进入平台后台。",
+      helperText:
+        "优先先看正文、素材清单和上传前检查，再决定是否直接进入平台后台。",
       readinessLabel: "优先上传整理",
       readinessTone: "success",
     };
@@ -179,7 +181,8 @@ function resolveContentPostReadiness(params: {
 
   if (hasCoverMeta && hasPublishPack) {
     return {
-      helperText: "正文、封面信息和发布包都已就绪，当前更适合继续进入正式发布动作。",
+      helperText:
+        "正文、封面信息和发布包都已就绪，当前更适合继续进入正式发布动作。",
       readinessLabel: "可继续发布",
       readinessTone: "success",
     };

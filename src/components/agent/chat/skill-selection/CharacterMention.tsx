@@ -269,14 +269,18 @@ export function CharacterMention({
   });
   const commandRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [curatedTaskRecommendationSignalsVersion, setCuratedTaskRecommendationSignalsVersion] =
-    useState(0);
+  const [
+    curatedTaskRecommendationSignalsVersion,
+    setCuratedTaskRecommendationSignalsVersion,
+  ] = useState(0);
   const [curatedTaskTemplatesVersion, setCuratedTaskTemplatesVersion] =
     useState(0);
   const [mentionEntryUsageVersion, setMentionEntryUsageVersion] = useState(0);
   const [slashEntryUsageVersion, setSlashEntryUsageVersion] = useState(0);
-  const { builtinCommands: runtimeBuiltinCommands, sceneCommands: runtimeSceneCommands } =
-    useRuntimeInputCapabilityCatalog();
+  const {
+    builtinCommands: runtimeBuiltinCommands,
+    sceneCommands: runtimeSceneCommands,
+  } = useRuntimeInputCapabilityCatalog();
 
   useIdleModulePreload(() => {
     void preloadCharacterMentionPanel();
@@ -929,9 +933,7 @@ export function CharacterMention({
     const mergedReferenceMemoryIds =
       normalizeCuratedTaskReferenceMemoryIds([
         ...(options?.referenceMemoryIds ?? []),
-        ...(extractCuratedTaskReferenceMemoryIds(
-          mergedReferenceEntries,
-        ) ?? []),
+        ...(extractCuratedTaskReferenceMemoryIds(mergedReferenceEntries) ?? []),
         ...defaultCuratedTaskReferenceMemoryIds,
       ]) ?? [];
 
@@ -1112,7 +1114,13 @@ export function CharacterMention({
         );
       }, 0);
     },
-    [inputRef, onChange, onSelectCuratedTask, onSelectInputCapability, pendingCuratedTaskLaunch],
+    [
+      inputRef,
+      onChange,
+      onSelectCuratedTask,
+      onSelectInputCapability,
+      pendingCuratedTaskLaunch,
+    ],
   );
 
   useEffect(() => {

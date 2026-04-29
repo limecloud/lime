@@ -10,11 +10,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
-import {
-  type AgentPageParams,
-  type Page,
-  type PageParams,
-} from "@/types/page";
+import { type AgentPageParams, type Page, type PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 

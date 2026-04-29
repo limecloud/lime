@@ -147,12 +147,8 @@ function buildInstalledSkillRecentUsageDescription(
   return `上次目标：${summarizeRecentReplayText(normalizedReplayText)}`;
 }
 
-function buildSkillGroupStarterSummary(
-  skills: ServiceSkillHomeItem[],
-): string {
-  const starterTitles = skills
-    .slice(0, 2)
-    .map((skill) => `「${skill.title}」`);
+function buildSkillGroupStarterSummary(skills: ServiceSkillHomeItem[]): string {
+  const starterTitles = skills.slice(0, 2).map((skill) => `「${skill.title}」`);
 
   if (starterTitles.length === 0) {
     return "先带着这次目标进去继续收窄。";
@@ -262,31 +258,31 @@ export function SkillsWorkspacePage({
     useState(0);
   const [slashEntryUsageVersion, setSlashEntryUsageVersion] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [highlightedInstalledSkillDirectory, setHighlightedInstalledSkillDirectory] =
-    useState<string | null>(null);
+  const [
+    highlightedInstalledSkillDirectory,
+    setHighlightedInstalledSkillDirectory,
+  ] = useState<string | null>(null);
   const [optimisticInstalledSkill, setOptimisticInstalledSkill] =
     useState<Skill | null>(null);
-  const [consumedScaffoldRequestKey, setConsumedScaffoldRequestKey] =
-    useState<number | null>(null);
+  const [consumedScaffoldRequestKey, setConsumedScaffoldRequestKey] = useState<
+    number | null
+  >(null);
   const lastHandledScaffoldRequestKeyRef = useRef<number | null>(null);
 
-  const installedLocalSkills = useMemo(
-    () => {
-      const installedSkills = localSkills.filter((skill) => skill.installed);
+  const installedLocalSkills = useMemo(() => {
+    const installedSkills = localSkills.filter((skill) => skill.installed);
 
-      if (!optimisticInstalledSkill) {
-        return installedSkills;
-      }
+    if (!optimisticInstalledSkill) {
+      return installedSkills;
+    }
 
-      return [
-        optimisticInstalledSkill,
-        ...installedSkills.filter(
-          (skill) => skill.directory !== optimisticInstalledSkill.directory,
-        ),
-      ];
-    },
-    [localSkills, optimisticInstalledSkill],
-  );
+    return [
+      optimisticInstalledSkill,
+      ...installedSkills.filter(
+        (skill) => skill.directory !== optimisticInstalledSkill.directory,
+      ),
+    ];
+  }, [localSkills, optimisticInstalledSkill]);
   const serviceSkillRecommendationBuckets = useMemo(
     () =>
       buildServiceSkillRecommendationBuckets(serviceSkills, {
@@ -296,7 +292,8 @@ export function SkillsWorkspacePage({
     [serviceSkills],
   );
   const recentServiceSkills = serviceSkillRecommendationBuckets.recentSkills;
-  const nonRecentServiceSkills = serviceSkillRecommendationBuckets.remainingSkills;
+  const nonRecentServiceSkills =
+    serviceSkillRecommendationBuckets.remainingSkills;
   const workspaceServiceSkills = useMemo(
     () => [...recentServiceSkills, ...nonRecentServiceSkills],
     [nonRecentServiceSkills, recentServiceSkills],
@@ -469,14 +466,15 @@ export function SkillsWorkspacePage({
       return left.name.localeCompare(right.name, "zh-CN");
     });
   }, [highlightedInstalledSkillDirectory, installedLocalSkills, searchQuery]);
-  const visibleCuratedTaskTemplates = useMemo(
-    () => {
-      void curatedTaskTemplatesVersion;
-      void curatedTaskRecommendationSignalsVersion;
-      return filterCuratedTaskTemplates(searchQuery, listCuratedTaskTemplates());
-    },
-    [curatedTaskRecommendationSignalsVersion, curatedTaskTemplatesVersion, searchQuery],
-  );
+  const visibleCuratedTaskTemplates = useMemo(() => {
+    void curatedTaskTemplatesVersion;
+    void curatedTaskRecommendationSignalsVersion;
+    return filterCuratedTaskTemplates(searchQuery, listCuratedTaskTemplates());
+  }, [
+    curatedTaskRecommendationSignalsVersion,
+    curatedTaskTemplatesVersion,
+    searchQuery,
+  ]);
   const visibleFeaturedCuratedTaskTemplates = useMemo(
     () =>
       listFeaturedHomeCuratedTaskTemplates(visibleCuratedTaskTemplates, {
@@ -487,11 +485,13 @@ export function SkillsWorkspacePage({
   );
   const latestReviewRecommendationSignal = useMemo(() => {
     void curatedTaskRecommendationSignalsVersion;
-    return listCuratedTaskRecommendationSignals({
-      projectId: pageParams?.creationProjectId,
-    })
-      .filter((signal) => signal.source === "review_feedback")
-      .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
+    return (
+      listCuratedTaskRecommendationSignals({
+        projectId: pageParams?.creationProjectId,
+      })
+        .filter((signal) => signal.source === "review_feedback")
+        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
+    );
   }, [curatedTaskRecommendationSignalsVersion, pageParams?.creationProjectId]);
   const reviewRecommendationBanner = useMemo(() => {
     if (!latestReviewRecommendationSignal) {
@@ -533,14 +533,13 @@ export function SkillsWorkspacePage({
         ? `继续去「${primarySuggestedTemplate.template.title}」`
         : null,
       onAction: primarySuggestedTemplate
-        ? () =>
-            {
-              setCuratedTaskLauncherTask(primarySuggestedTemplate.template);
-              setCuratedTaskLauncherInitialInputValues(null);
-              setCuratedTaskLauncherInitialReferenceMemoryIds(null);
-              setCuratedTaskLauncherInitialReferenceEntries(null);
-              setCuratedTaskLauncherPrefillHint(null);
-            }
+        ? () => {
+            setCuratedTaskLauncherTask(primarySuggestedTemplate.template);
+            setCuratedTaskLauncherInitialInputValues(null);
+            setCuratedTaskLauncherInitialReferenceMemoryIds(null);
+            setCuratedTaskLauncherInitialReferenceEntries(null);
+            setCuratedTaskLauncherPrefillHint(null);
+          }
         : null,
     };
   }, [latestReviewRecommendationSignal, visibleFeaturedCuratedTaskTemplates]);
@@ -559,9 +558,9 @@ export function SkillsWorkspacePage({
   const highlightedInstalledSkill = useMemo(
     () =>
       highlightedInstalledSkillDirectory
-        ? installedLocalSkills.find(
+        ? (installedLocalSkills.find(
             (skill) => skill.directory === highlightedInstalledSkillDirectory,
-          ) ?? null
+          ) ?? null)
         : null,
     [highlightedInstalledSkillDirectory, installedLocalSkills],
   );
@@ -614,9 +613,9 @@ export function SkillsWorkspacePage({
           projectId: creationProjectId,
           ...(normalizedReplayText
             ? {
-              initialUserPrompt: normalizedReplayText,
-            }
-          : {}),
+                initialUserPrompt: normalizedReplayText,
+              }
+            : {}),
           entryBannerMessage: normalizedReplayText
             ? `已带着方法“${skill.name}”和上次目标回到生成，接着把这轮做下去就行。`
             : `已带着方法“${skill.name}”回到生成，接着把这轮做下去就行。`,
@@ -944,7 +943,10 @@ export function SkillsWorkspacePage({
                     disabled={refreshing}
                   >
                     <RefreshCw
-                      className={cn("mr-1.5 h-3.5 w-3.5", refreshing && "animate-spin")}
+                      className={cn(
+                        "mr-1.5 h-3.5 w-3.5",
+                        refreshing && "animate-spin",
+                      )}
                     />
                     刷新
                   </Button>
@@ -1005,13 +1007,16 @@ export function SkillsWorkspacePage({
                           </span>
                           {activeScaffoldSummary ? (
                             <span className="max-w-xl truncate text-xs leading-5 text-slate-500">
-                              这次沿用：{summarizeRecentReplayText(activeScaffoldSummary)}
+                              这次沿用：
+                              {summarizeRecentReplayText(activeScaffoldSummary)}
                             </span>
                           ) : null}
                           {activeScaffoldReplayText ? (
                             <span className="max-w-xl truncate text-xs leading-5 text-slate-500">
                               上次目标：
-                              {summarizeRecentReplayText(activeScaffoldReplayText)}
+                              {summarizeRecentReplayText(
+                                activeScaffoldReplayText,
+                              )}
                             </span>
                           ) : null}
                         </div>
@@ -1122,128 +1127,143 @@ export function SkillsWorkspacePage({
 
                 {visibleFeaturedCuratedTaskTemplates.length > 0 ? (
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
-                    {visibleFeaturedCuratedTaskTemplates.map((featured, index) => {
-                      const template = featured.template;
-                      const isPrimaryRecommendation = index === 0;
-                      const launchPrefill =
-                        resolveCuratedTaskTemplateLaunchPrefill(template);
-                      const reviewPrefillSnapshot =
-                        buildSceneAppExecutionReviewPrefillSnapshot({
-                          referenceEntries: launchPrefill?.referenceEntries,
-                          taskId: template.id,
-                        });
-                      const reviewPrefillHighlights =
-                        buildSceneAppExecutionReviewPrefillHighlights(
-                          reviewPrefillSnapshot,
-                        );
-                      const recentUsageDescription =
-                        buildCuratedTaskRecentUsageDescription({
-                          task: template,
-                          prefill: launchPrefill,
-                        });
-                      const compactReasonSummary =
-                        featured.reasonSummary || recentUsageDescription;
-                      const requiredSummary =
-                        summarizeCuratedTaskRequiredInputs(template);
-                      const outputSummary =
-                        summarizeCuratedTaskOutputContract(template);
-                      const followUpSummary =
-                        summarizeCuratedTaskFollowUpActions(template);
-                      const resultDestination =
-                        getCuratedTaskOutputDestination(template);
+                    {visibleFeaturedCuratedTaskTemplates.map(
+                      (featured, index) => {
+                        const template = featured.template;
+                        const isPrimaryRecommendation = index === 0;
+                        const launchPrefill =
+                          resolveCuratedTaskTemplateLaunchPrefill(template);
+                        const reviewPrefillSnapshot =
+                          buildSceneAppExecutionReviewPrefillSnapshot({
+                            referenceEntries: launchPrefill?.referenceEntries,
+                            taskId: template.id,
+                          });
+                        const reviewPrefillHighlights =
+                          buildSceneAppExecutionReviewPrefillHighlights(
+                            reviewPrefillSnapshot,
+                          );
+                        const recentUsageDescription =
+                          buildCuratedTaskRecentUsageDescription({
+                            task: template,
+                            prefill: launchPrefill,
+                          });
+                        const compactReasonSummary =
+                          featured.reasonSummary || recentUsageDescription;
+                        const requiredSummary =
+                          summarizeCuratedTaskRequiredInputs(template);
+                        const outputSummary =
+                          summarizeCuratedTaskOutputContract(template);
+                        const followUpSummary =
+                          summarizeCuratedTaskFollowUpActions(template);
+                        const resultDestination =
+                          getCuratedTaskOutputDestination(template);
 
-                      return (
-                        <article
-                          key={template.id}
-                          className={cn(
-                            "flex h-full flex-col rounded-[24px] border px-4 py-4 transition hover:border-slate-300 hover:shadow-sm hover:shadow-slate-950/5",
-                            isPrimaryRecommendation
-                              ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] md:col-span-2"
-                              : "border-slate-200 bg-white",
-                          )}
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            {isPrimaryRecommendation ? (
-                              <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                                优先起手
-                              </span>
-                            ) : (
-                              <span />
+                        return (
+                          <article
+                            key={template.id}
+                            className={cn(
+                              "flex h-full flex-col rounded-[24px] border px-4 py-4 transition hover:border-slate-300 hover:shadow-sm hover:shadow-slate-950/5",
+                              isPrimaryRecommendation
+                                ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] md:col-span-2"
+                                : "border-slate-200 bg-white",
                             )}
-                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                              {template.outputHint}
-                            </span>
-                          </div>
-                          <div className="mt-3 space-y-2.5">
-                            <div className="space-y-1.5">
-                              <h3 className="text-base font-semibold text-slate-950">
-                                {template.title}
-                              </h3>
-                              <p className="text-sm leading-6 text-slate-600">
-                                {template.summary}
-                              </p>
-                              {featured.reasonLabel || compactReasonSummary ? (
-                                <div className="text-[11px] leading-5 text-slate-500">
-                                  {[featured.reasonLabel, compactReasonSummary]
-                                    .filter((segment): segment is string =>
-                                      Boolean(segment && segment.trim()),
-                                    )
-                                    .join(" · ")}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              {isPrimaryRecommendation ? (
+                                <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                                  优先起手
+                                </span>
+                              ) : (
+                                <span />
+                              )}
+                              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                                {template.outputHint}
+                              </span>
+                            </div>
+                            <div className="mt-3 space-y-2.5">
+                              <div className="space-y-1.5">
+                                <h3 className="text-base font-semibold text-slate-950">
+                                  {template.title}
+                                </h3>
+                                <p className="text-sm leading-6 text-slate-600">
+                                  {template.summary}
+                                </p>
+                                {featured.reasonLabel ||
+                                compactReasonSummary ? (
+                                  <div className="text-[11px] leading-5 text-slate-500">
+                                    {[
+                                      featured.reasonLabel,
+                                      compactReasonSummary,
+                                    ]
+                                      .filter((segment): segment is string =>
+                                        Boolean(segment && segment.trim()),
+                                      )
+                                      .join(" · ")}
+                                  </div>
+                                ) : null}
+                              </div>
+                              {reviewPrefillHighlights.length > 0 ? (
+                                <div className="rounded-[18px] border border-emerald-200 bg-emerald-50/70 px-3 py-3 text-[11px] leading-5 text-emerald-800">
+                                  <div className="font-medium text-emerald-900">
+                                    当前结果基线：
+                                    {reviewPrefillSnapshot?.sourceTitle ||
+                                      "当前项目结果"}
+                                  </div>
+                                  <div className="mt-1.5 space-y-1">
+                                    {reviewPrefillHighlights.map((item) => (
+                                      <div key={`${template.id}-${item}`}>
+                                        {item}
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               ) : null}
                             </div>
-                            {reviewPrefillHighlights.length > 0 ? (
-                              <div className="rounded-[18px] border border-emerald-200 bg-emerald-50/70 px-3 py-3 text-[11px] leading-5 text-emerald-800">
-                                <div className="font-medium text-emerald-900">
-                                  当前结果基线：
-                                  {reviewPrefillSnapshot?.sourceTitle || "当前项目结果"}
-                                </div>
-                                <div className="mt-1.5 space-y-1">
-                                  {reviewPrefillHighlights.map((item) => (
-                                    <div key={`${template.id}-${item}`}>{item}</div>
-                                  ))}
-                                </div>
+                            <div className="mt-4 space-y-1 text-[11px] leading-5 text-slate-500">
+                              <div>
+                                <span className="font-medium text-slate-700">
+                                  你先给：
+                                </span>
+                                {requiredSummary}
                               </div>
-                            ) : null}
-                          </div>
-                          <div className="mt-4 space-y-1 text-[11px] leading-5 text-slate-500">
-                            <div>
-                              <span className="font-medium text-slate-700">
-                                你先给：
-                              </span>
-                              {requiredSummary}
+                              <div>
+                                <span className="font-medium text-slate-700">
+                                  这一步先拿：
+                                </span>
+                                {outputSummary}
+                              </div>
                             </div>
-                            <div>
-                              <span className="font-medium text-slate-700">
-                                这一步先拿：
-                              </span>
-                              {outputSummary}
+                            <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+                              <div className="space-y-1 text-[11px] leading-5 text-slate-500">
+                                <div>{resultDestination}</div>
+                                <div>接着可做：{followUpSummary}</div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant={
+                                  isPrimaryRecommendation
+                                    ? undefined
+                                    : "outline"
+                                }
+                                className={
+                                  isPrimaryRecommendation
+                                    ? SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME
+                                    : SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME
+                                }
+                                onClick={() =>
+                                  handleCuratedTaskTemplateLauncherRequest(
+                                    template,
+                                  )
+                                }
+                              >
+                                进入生成
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                              </Button>
                             </div>
-                          </div>
-                          <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-                            <div className="space-y-1 text-[11px] leading-5 text-slate-500">
-                              <div>{resultDestination}</div>
-                              <div>接着可做：{followUpSummary}</div>
-                            </div>
-                            <Button
-                              type="button"
-                              variant={isPrimaryRecommendation ? undefined : "outline"}
-                              className={
-                                isPrimaryRecommendation
-                                  ? SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME
-                                  : SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME
-                              }
-                              onClick={() =>
-                                handleCuratedTaskTemplateLauncherRequest(template)
-                              }
-                            >
-                              进入生成
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </div>
-                        </article>
-                      );
-                    })}
+                          </article>
+                        );
+                      },
+                    )}
                   </div>
                 ) : (
                   <div className="mt-5 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
@@ -1266,11 +1286,14 @@ export function SkillsWorkspacePage({
                           </h2>
                         </div>
                         <p className="text-sm leading-6 text-slate-700">
-                          先从 {selectedGroup.title} 里最接近的一条开始；不对再换方向。
+                          先从 {selectedGroup.title}{" "}
+                          里最接近的一条开始；不对再换方向。
                         </p>
                         <div className="space-y-1 text-sm leading-6 text-slate-500">
                           <p>{selectedGroup.summary}</p>
-                          {selectedGroup.entryHint ? <p>{selectedGroup.entryHint}</p> : null}
+                          {selectedGroup.entryHint ? (
+                            <p>{selectedGroup.entryHint}</p>
+                          ) : null}
                         </div>
                       </div>
                       <Button
@@ -1355,9 +1378,7 @@ export function SkillsWorkspacePage({
                                 </div>
                               ) : null}
                               {group.entryHint ? (
-                                <div>
-                                  {group.entryHint}
-                                </div>
+                                <div>{group.entryHint}</div>
                               ) : null}
                             </div>
                           </div>
@@ -1366,7 +1387,9 @@ export function SkillsWorkspacePage({
                             <Button
                               type="button"
                               variant="outline"
-                              className={SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME}
+                              className={
+                                SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME
+                              }
                               onClick={() => setSelectedGroupKey(group.key)}
                             >
                               进去看看
@@ -1613,7 +1636,9 @@ export function SkillsWorkspacePage({
                             <Button
                               type="button"
                               variant="outline"
-                              className={SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME}
+                              className={
+                                SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME
+                              }
                               onClick={() =>
                                 handleInstalledSkillSelect(
                                   skill,

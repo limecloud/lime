@@ -15,9 +15,7 @@ export function isAgentInstructionFilePath(path?: string | null): boolean {
   return extractFileName(path || "") === "agents.md";
 }
 
-export function scorePreferredResultFilePath(
-  path?: string | null,
-): number {
+export function scorePreferredResultFilePath(path?: string | null): number {
   const normalizedPath = normalizePath(path);
   if (!normalizedPath || !isMarkdownLikePath(normalizedPath)) {
     return Number.NEGATIVE_INFINITY;

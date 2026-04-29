@@ -96,7 +96,9 @@ export function buildSelectedTeamPlanDisplayState(params: {
   selectedTeamRoles?: TeamRoleDefinition[] | null;
 }): TeamWorkspaceSelectedTeamPlanDisplayState {
   const label = normalizeTeamWorkspaceDisplayValue(params.selectedTeamLabel);
-  const summary = normalizeTeamWorkspaceDisplayValue(params.selectedTeamSummary);
+  const summary = normalizeTeamWorkspaceDisplayValue(
+    params.selectedTeamSummary,
+  );
   const roleCards = (params.selectedTeamRoles ?? [])
     .map((role) => ({
       id: role.id,

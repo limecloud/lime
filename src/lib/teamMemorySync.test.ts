@@ -87,10 +87,9 @@ describe("teamMemorySync", () => {
       },
     });
 
-    expect(listTeamMemorySnapshots(storage).map((snapshot) => snapshot.repoScope)).toEqual([
-      "/tmp/repo-b",
-      "/tmp/repo-a",
-    ]);
+    expect(
+      listTeamMemorySnapshots(storage).map((snapshot) => snapshot.repoScope),
+    ).toEqual(["/tmp/repo-b", "/tmp/repo-a"]);
   });
 
   it("应把快照压成稳定的 team_memory_shadow request metadata", () => {

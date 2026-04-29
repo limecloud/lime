@@ -104,16 +104,23 @@ export function buildSkillsPageParamsFromSceneAppExecution(
     .map((item) => normalizeOptionalText(item.label))
     .filter((item): item is string => Boolean(item))
     .join("、");
-  const failureSignalLabel = normalizeOptionalText(detailView.failureSignalLabel);
-  const reviewSignalSummary = normalizeOptionalText(options.reviewSignal?.summary);
+  const failureSignalLabel = normalizeOptionalText(
+    detailView.failureSignalLabel,
+  );
+  const reviewSignalSummary = normalizeOptionalText(
+    options.reviewSignal?.summary,
+  );
 
   const name = truncate(`${summary.title}复用做法`, 24);
   const sourceExcerpt = truncate(
-    dedupeItems([
-      `场景结果：${summarySnippet}`,
-      `交付状态：${deliverySnippet}`,
-      reviewSnippet,
-    ], 3).join(" "),
+    dedupeItems(
+      [
+        `场景结果：${summarySnippet}`,
+        `交付状态：${deliverySnippet}`,
+        reviewSnippet,
+      ],
+      3,
+    ).join(" "),
     180,
   );
 
@@ -123,11 +130,14 @@ export function buildSkillsPageParamsFromSceneAppExecution(
       target: "project",
       directory: buildDirectorySlug(summary, detailView),
       name,
-      description: dedupeItems([
-        `沉淀自「${summary.title}」这轮已经进入结果消费与判断闭环的做法。`,
-        `当前交付状态：${deliverySnippet}`,
-        reviewSnippet,
-      ], 3).join(" "),
+      description: dedupeItems(
+        [
+          `沉淀自「${summary.title}」这轮已经进入结果消费与判断闭环的做法。`,
+          `当前交付状态：${deliverySnippet}`,
+          reviewSnippet,
+        ],
+        3,
+      ).join(" "),
       whenToUse: dedupeItems([
         `当你需要继续产出“${summary.title}”这类${summary.businessLabel}结果时使用。`,
         `适合继续沿用这轮已验证过的 ${summary.executionChainLabel} 执行路径与当前结果交付约定。`,

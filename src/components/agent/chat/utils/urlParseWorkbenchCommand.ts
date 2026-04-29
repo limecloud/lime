@@ -104,7 +104,9 @@ function normalizeTrigger(value: string): UrlParseWorkbenchCommandTrigger {
 export function isUrlParseScrapeTrigger(
   trigger: UrlParseWorkbenchCommandTrigger,
 ): boolean {
-  return trigger === "@抓取" || trigger === "@Fetch" || trigger === "@web_scrape";
+  return (
+    trigger === "@抓取" || trigger === "@Fetch" || trigger === "@web_scrape"
+  );
 }
 
 export function isUrlParseReadTrigger(
@@ -248,7 +250,8 @@ function extractUrlParseFields(text: string): ExtractedUrlParseFields {
     }
 
     if (match.key === "extractGoal") {
-      extracted.extractGoal = extracted.extractGoal || resolveExtractGoal(rawValue);
+      extracted.extractGoal =
+        extracted.extractGoal || resolveExtractGoal(rawValue);
       return;
     }
 
@@ -286,7 +289,8 @@ export function parseUrlParseWorkbenchCommand(
   const body = (matched[2] || "").trim();
   const trigger = normalizeTrigger(matched[1] || "");
   const extracted = extractUrlParseFields(body);
-  const url = extracted.url || extracted.strippedText.match(URL_REGEX)?.[0]?.trim();
+  const url =
+    extracted.url || extracted.strippedText.match(URL_REGEX)?.[0]?.trim();
   const promptSource =
     extracted.prompt || stripDetectedUrl(extracted.strippedText, url);
   const extractGoal = extracted.extractGoal || resolveExtractGoal(promptSource);

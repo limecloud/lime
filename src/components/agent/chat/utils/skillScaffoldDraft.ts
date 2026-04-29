@@ -61,7 +61,9 @@ function getMeaningfulSentences(text: string): string[] {
     .filter((part) => part.length >= 6);
 }
 
-function buildStructuredItems(...items: Array<string | null | undefined>): string[] {
+function buildStructuredItems(
+  ...items: Array<string | null | undefined>
+): string[] {
   return items.map((item) => normalizeWhitespace(item || "")).filter(Boolean);
 }
 
@@ -162,7 +164,9 @@ function buildOutputItems(name: string, focusSnippet: string): string[] {
 
 function buildStepItems(focusSnippet: string): string[] {
   return buildStructuredItems(
-    focusSnippet ? `先确认本次任务是否仍围绕：${focusSnippet}` : "先确认目标、边界和交付格式。",
+    focusSnippet
+      ? `先确认本次任务是否仍围绕：${focusSnippet}`
+      : "先确认目标、边界和交付格式。",
     "提炼这次成功结果里的结构骨架，再决定哪些部分需要沿用或改写。",
     "按相同颗粒度补齐关键信息与执行细节，输出可直接交付的结果。",
   );

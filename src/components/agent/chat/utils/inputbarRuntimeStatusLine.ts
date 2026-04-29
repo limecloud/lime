@@ -60,7 +60,10 @@ function resolveLatestTurn(
 }
 
 function resolveLatestAssistantMessage(messages: Message[]): Message | null {
-  return [...messages].reverse().find((message) => message.role === "assistant") || null;
+  return (
+    [...messages].reverse().find((message) => message.role === "assistant") ||
+    null
+  );
 }
 
 function resolveFallbackStatus(params: {
@@ -209,7 +212,11 @@ function resolveFallbackDetail(params: {
   }
 
   if (status === "failed") {
-    return latestTurn?.error_message || latestAssistant?.runtimeStatus?.detail || null;
+    return (
+      latestTurn?.error_message ||
+      latestAssistant?.runtimeStatus?.detail ||
+      null
+    );
   }
 
   if (status === "aborted") {

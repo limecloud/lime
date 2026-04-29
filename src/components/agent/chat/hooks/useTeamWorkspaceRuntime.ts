@@ -15,9 +15,7 @@ import {
   type TeamWorkspaceRuntimeSessionSnapshot,
   type TeamWorkspaceRuntimeStatus,
 } from "../teamWorkspaceRuntime";
-import {
-  type SessionLiveStreamState,
-} from "../team-workspace-runtime/liveRuntimeProjector";
+import { type SessionLiveStreamState } from "../team-workspace-runtime/liveRuntimeProjector";
 import {
   subscribeTeamWorkspaceStatusEvents,
   subscribeTeamWorkspaceStreamEvents,

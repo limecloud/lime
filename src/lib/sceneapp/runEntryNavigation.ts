@@ -200,7 +200,10 @@ export function resolveSceneAppRunEntryNavigationTarget(
     const targetParams: AgentPageParams = {
       agentEntry: "claw",
       initialSessionId: params.action.sessionId,
-      entryBannerMessage: buildEntryBannerMessage(sourceLabel, "对应 Agent 会话"),
+      entryBannerMessage: buildEntryBannerMessage(
+        sourceLabel,
+        "对应 Agent 会话",
+      ),
     };
     return {
       page: "agent",
@@ -210,7 +213,8 @@ export function resolveSceneAppRunEntryNavigationTarget(
 
   if (params.action.kind === "open_browser_runtime") {
     const targetParams: BrowserRuntimePageParams = {
-      initialProfileKey: params.action.browserRuntimeRef.profileKey ?? undefined,
+      initialProfileKey:
+        params.action.browserRuntimeRef.profileKey ?? undefined,
       initialSessionId: params.action.browserRuntimeRef.sessionId ?? undefined,
       initialTargetId: params.action.browserRuntimeRef.targetId ?? undefined,
     };
@@ -259,7 +263,10 @@ export function resolveSceneAppRunEntryNavigationTarget(
       const targetParams: AgentPageParams = {
         agentEntry: "claw",
         initialSessionId: params.action.sessionId,
-        entryBannerMessage: buildEntryBannerMessage(sourceLabel, "本机技能会话"),
+        entryBannerMessage: buildEntryBannerMessage(
+          sourceLabel,
+          "本机技能会话",
+        ),
       };
       return {
         page: "agent",

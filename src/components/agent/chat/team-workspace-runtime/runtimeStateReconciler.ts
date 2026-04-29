@@ -9,7 +9,9 @@ export function collectInactiveSessionIds(
   record: Record<string, unknown>,
   activeSessionIds: Set<string>,
 ): string[] {
-  return Object.keys(record).filter((sessionId) => !activeSessionIds.has(sessionId));
+  return Object.keys(record).filter(
+    (sessionId) => !activeSessionIds.has(sessionId),
+  );
 }
 
 export function pruneInactiveSessionRecord<TValue>(
@@ -47,7 +49,8 @@ export function reconcileActiveLiveRuntimeBySessionId(
   return Object.fromEntries(nextEntries);
 }
 
-export type TeamWorkspaceLiveActivityBySessionId =
-  SessionScopedRecord<TeamWorkspaceActivityEntry[]>;
+export type TeamWorkspaceLiveActivityBySessionId = SessionScopedRecord<
+  TeamWorkspaceActivityEntry[]
+>;
 export type TeamWorkspaceActivityRefreshVersionBySessionId =
   SessionScopedRecord<number>;

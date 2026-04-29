@@ -419,21 +419,13 @@ describe("CloudProviderSettings", () => {
     expect(text).not.toContain("默认先进入“服务商设置”处理 Provider");
     expect(text).not.toContain("public/oem-runtime-config.js");
     expect(settingsTab?.getAttribute("data-state")).toBe("active");
-    expect(cloudTab?.getAttribute("data-state")).toBe("inactive");
+    expect(cloudTab).toBeNull();
     expect(companionTab?.getAttribute("data-state")).toBe("inactive");
-
-    await act(async () => {
-      findButton(container, "云端服务").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
-    expect(container.textContent ?? "").toContain("当前版本未配置云端服务");
+    expect(container.textContent ?? "").not.toContain("当前版本未配置云端服务");
     expect(container.textContent ?? "").not.toContain(
       "public/oem-runtime-config.js",
     );
-    expect(settingsTab?.getAttribute("data-state")).toBe("inactive");
-    expect(cloudTab?.getAttribute("data-state")).toBe("active");
+    expect(settingsTab?.getAttribute("data-state")).toBe("active");
     expect(companionTab?.getAttribute("data-state")).toBe("inactive");
   });
 
@@ -480,16 +472,22 @@ describe("CloudProviderSettings", () => {
     });
 
     const text = container.textContent ?? "";
-    expect(text).toContain("正在打开 Lime Hub 登录");
-    expect(text).toContain("重新打开登录页");
+    expect(text).toContain("已打开 Lime Hub 登录页，请在浏览器完成授权。");
+    expect(text).toContain("API Key Provider 设置占位");
+    expect(text).not.toContain("正在打开 Lime Hub 登录");
+    expect(text).not.toContain("重新打开登录页");
     expect(text).not.toContain("去个人中心登录");
     expect(text).not.toContain("云端页面承接什么");
     expect(handleGoogleLogin).toHaveBeenCalledTimes(1);
   });
 
-  it("未登录且登录页打开失败时应显示可复制登录链接", async () => {
+  it("未登录且登录页打开失败时不再渲染客户端登录页", async () => {
+    const handleGoogleLogin = vi
+      .fn()
+      .mockRejectedValue(new Error("登录页没有被浏览器打开，可能被弹窗拦截。"));
     mockUseOemCloudAccess.mockReturnValue(
       createAccessState({
+        handleGoogleLogin,
         errorMessage: "登录页没有被浏览器打开，可能被弹窗拦截。",
       }),
     );
@@ -504,167 +502,16 @@ describe("CloudProviderSettings", () => {
     });
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Lime Hub 登录页未打开");
-    expect(text).toContain("https://user.limeai.run/login?");
-    expect(text).toContain("tenant=tenant-0001");
-    expect(text).toContain("redirectUrl=lime%3A%2F%2Foauth%2Fcallback");
-    expect(text).toContain("复制链接");
+    expect(text).toContain("登录页没有被浏览器打开，可能被弹窗拦截。");
+    expect(text).toContain("打开 Lime Hub 用户中心失败");
+    expect(text).toContain("API Key Provider 设置占位");
+    expect(text).not.toContain("Lime Hub 登录页未打开");
+    expect(text).not.toContain("https://user.limeai.run/login?");
+    expect(text).not.toContain("复制链接");
   });
 
-  it("已登录时应在云端页展示品牌来源目录与模型详情", async () => {
-    const handleRefresh = vi.fn();
-    const handleSetDefault = vi.fn();
-    const selectedOffer = {
-      ...createOffer(),
-      access: {
-        offerId: "offer-001",
-        accessMode: "session",
-        hubTokenEnabled: false,
-      },
-    };
-
-    mockUseOemCloudAccess.mockReturnValue(
-      createAccessState({
-        session: {
-          tenant: { id: "tenant-0001" },
-          user: {
-            id: "user-001",
-            email: "operator@example.com",
-            displayName: "Demo Operator",
-          },
-          session: {
-            id: "session-001",
-            expiresAt: "2026-03-25T08:00:00.000Z",
-          },
-        },
-        offers: [createOffer()],
-        preference: {
-          providerSource: "oem_cloud",
-          providerKey: "lime-hub-main",
-        },
-        cloudActivation: {
-          gateway: {
-            basePath: "https://llm.limeai.run",
-            openAIBaseUrl: "https://llm.limeai.run/v1",
-            anthropicBaseUrl: "https://llm.limeai.run",
-            authorizationHeader: "Authorization",
-            authorizationScheme: "Bearer",
-            tenantHeader: "X-Lime-Tenant-ID",
-          },
-          llmBaseUrl: "https://llm.limeai.run",
-          openAIBaseUrl: "https://llm.limeai.run/v1",
-          anthropicBaseUrl: "https://llm.limeai.run",
-        },
-        cloudReadiness: {
-          status: "ready",
-          title: "云端模型调用已就绪",
-          description: "套餐、API Key 和模型目录均已准备完成。",
-          nextAction: "开始调用",
-          canInvoke: true,
-          blockers: [],
-          steps: [
-            {
-              key: "plan",
-              label: "套餐权益",
-              done: true,
-            },
-            {
-              key: "api_key",
-              label: "API Key",
-              done: true,
-            },
-          ],
-        },
-        pendingPayment: null,
-        selectedOffer,
-        selectedModels: [
-          {
-            id: "model-001",
-            offerId: "offer-001",
-            modelId: "gpt-5.2-pro",
-            displayName: "GPT-5.2 Pro",
-            recommended: true,
-            abilities: ["chat", "vision_understanding", "image_generation"],
-            upstreamMapping: "openai/gpt-image-1",
-            description: "统一下发的多能力目录项",
-          },
-        ],
-        defaultCloudOffer: createOffer(),
-        activeCloudOffer: createOffer(),
-        defaultProviderSummary: "Lime Hub 主服务 · gpt-5.2-pro",
-        defaultProviderSourceLabel: "云端服务",
-        handleRefresh,
-        handleSetDefault,
-      }),
-    );
-
-    const { container } = await renderPage();
-
-    await act(async () => {
-      findButton(container, "云端服务").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
-    await act(async () => {
-      findButton(container, "刷新").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
-    const text = container.textContent ?? "";
-    expect(text).toContain("Demo Operator");
-    expect(text).toContain("云端管理");
-    expect(text).toContain("套餐与价格");
-    expect(text).toContain("用量详情");
-    expect(text).toContain("账单管理");
-    expect(text).toContain("可用积分");
-    expect(text).toContain("API Key");
-    expect(text).toContain("SDK 调用");
-    expect(text).toContain("OpenAI SDK");
-    expect(text).toContain("Anthropic SDK");
-    expect(text).toContain("https://llm.limeai.run/v1");
-    expect(text).toContain("X-Lime-Tenant-ID");
-    expect(text).toContain("最小 curl 测试");
-    expect(text).toContain("Lime Hub 主服务");
-    expect(text).toContain("GPT-5.2 Pro");
-    expect(text).toContain("Lime 云端");
-    expect(text).toContain("对话");
-    expect(text).toContain("视觉理解");
-    expect(text).toContain("图片生成");
-    expect(text).toContain("实际映射：gpt-5.2-pro → openai/gpt-image-1");
-    expect(text).toContain("统一下发的多能力目录项");
-
-    await act(async () => {
-      findButton(container, "设为默认").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-
-    expect(handleRefresh).toHaveBeenCalledTimes(1);
-    expect(handleSetDefault).toHaveBeenCalledTimes(1);
-  });
-
-  it("已登录时应支持用户中心购买入口和 API Key 管理入口", async () => {
-    const handleCreateAccessToken = vi.fn();
-    const handleRotateAccessToken = vi.fn();
-    const handleRevokeAccessToken = vi.fn();
-    const handleDismissIssuedToken = vi.fn();
+  it("已登录时点击云端服务应跳出到用户中心，不再渲染客户端商业页", async () => {
     const openUserCenter = vi.fn();
-    const activeToken = {
-      id: "token-001",
-      tenantId: "tenant-0001",
-      userId: "user-001",
-      name: "Desktop Key",
-      tokenMasked: "sk-lime-***abcd",
-      tokenPrefix: "sk-lime-abcd",
-      scopes: ["llm:invoke"],
-      allowedModels: [],
-      status: "active",
-      createdAt: "2026-04-27T00:00:00.000Z",
-      updatedAt: "2026-04-27T00:00:00.000Z",
-      expiresAt: "2026-05-27T00:00:00.000Z",
-    };
 
     mockUseOemCloudAccess.mockReturnValue(
       createAccessState({
@@ -680,76 +527,21 @@ describe("CloudProviderSettings", () => {
             expiresAt: "2026-03-25T08:00:00.000Z",
           },
         },
-        paymentConfigs: [
-          {
-            id: "pay-alipay",
-            tenantId: "tenant-0001",
-            provider: "epay",
-            displayName: "易支付",
-            enabled: true,
-            methods: [
-              {
-                key: "alipay",
-                displayName: "支付宝",
-                enabled: true,
-              },
-            ],
-            providerOptions: {},
-            credentialMasks: {},
-          },
-        ],
-        cloudReadiness: {
-          status: "payment_pending",
-          title: "存在待支付订单",
-          description: "请先完成支付，再刷新云端激活状态。",
-          nextAction: "刷新支付状态",
-          canInvoke: false,
-          blockers: ["payment"],
-          steps: [
-            {
-              key: "payment",
-              label: "支付确认",
-              done: false,
-            },
-          ],
+        subscription: {
+          id: "subscription-001",
+          tenantId: "tenant-0001",
+          userId: "user-001",
+          planId: "plan-pro",
+          planKey: "pro",
+          planName: "Pro",
+          status: "active",
+          billingCycle: "monthly",
+          currentPeriodStart: "2026-04-01T00:00:00.000Z",
+          currentPeriodEnd: "2026-05-01T00:00:00.000Z",
+          autoRenew: true,
+          createdAt: "2026-04-01T00:00:00.000Z",
+          updatedAt: "2026-04-01T00:00:00.000Z",
         },
-        pendingPayment: {
-          kind: "plan_order",
-          orderId: "order-001",
-          title: "Pro",
-          paymentChannel: "epay",
-          paymentReference: "https://pay.limeai.run/order-001",
-          amountCents: 9900,
-          status: "pending",
-          createdAt: "2026-04-27T00:00:00.000Z",
-          updatedAt: "2026-04-27T00:00:00.000Z",
-        },
-        plans: [
-          {
-            id: "plan-pro",
-            tenantId: "tenant-0001",
-            key: "pro",
-            name: "Pro",
-            tagline: "适合 coding plan 和高频模型调用",
-            priceMonthly: 9900,
-            creditsMonthly: 1000000,
-            features: ["Anthropic-compatible coding", "GLM / Kimi / MiniMax"],
-            status: "active",
-            recommended: true,
-            billingCycles: [
-              {
-                key: "monthly",
-                label: "月付",
-                priceCents: 9900,
-                credits: 1000000,
-                autoRenew: true,
-              },
-            ],
-            quotaSummaries: [],
-            featureSections: [],
-          },
-        ],
-        subscription: null,
         creditAccount: {
           tenantId: "tenant-0001",
           balance: 120000,
@@ -757,136 +549,7 @@ describe("CloudProviderSettings", () => {
           currency: "credits",
           updatedAt: "2026-04-27T00:00:00.000Z",
         },
-        topupPackages: [
-          {
-            id: "topup-100k",
-            tenantId: "tenant-0001",
-            key: "100k",
-            name: "10 万积分包",
-            credits: 100000,
-            priceCents: 1900,
-            bonusCredits: 10000,
-            validDays: 365,
-            recommended: true,
-            status: "active",
-          },
-        ],
-        usageDashboard: {
-          usageRecords: [
-            {
-              id: "usage-001",
-              tenantId: "tenant-0001",
-              userId: "user-001",
-              createdAt: "2026-04-27T00:00:00.000Z",
-              usageType: "llm",
-              triggerType: "api",
-              model: "glm-4.6",
-              tokens: 1024,
-              credits: 88,
-              durationMs: 1200,
-              status: "charged",
-            },
-          ],
-          monthlySummary: {
-            freeCreditsUsed: 10,
-            freeCreditsLimit: 100,
-            topupCreditsUsed: 20,
-            topupCreditsLimit: 1000,
-            subscriptionCreditsUsed: 30,
-            subscriptionCreditsLimit: 1000000,
-          },
-        },
-        billingDashboard: {
-          billingSummary: {
-            currency: "CNY",
-            nextPaymentAmountCents: 9900,
-            autoRenew: true,
-            totalSpentCents: 19900,
-          },
-          subscription: null,
-          currentPlan: null,
-          orders: [
-            {
-              id: "order-001",
-              tenantId: "tenant-0001",
-              userId: "user-001",
-              planId: "plan-pro",
-              planKey: "pro",
-              planName: "Pro",
-              amountCents: 9900,
-              creditsGranted: 1000000,
-              paymentChannel: "epay",
-              paymentMethod: "alipay",
-              billingCycle: "monthly",
-              status: "paid",
-              paidAt: "2026-04-27T00:00:00.000Z",
-              createdAt: "2026-04-27T00:00:00.000Z",
-              updatedAt: "2026-04-27T00:00:00.000Z",
-            },
-          ],
-        },
-        creditsDashboard: {
-          creditAccount: {
-            tenantId: "tenant-0001",
-            balance: 120000,
-            reserved: 0,
-            currency: "credits",
-            updatedAt: "2026-04-27T00:00:00.000Z",
-          },
-          subscription: null,
-          topupPackages: [],
-          creditWallets: [
-            {
-              id: "wallet-001",
-              tenantId: "tenant-0001",
-              userId: "user-001",
-              packageName: "10 万积分包",
-              sourceType: "topup",
-              grantedCredits: 110000,
-              usedCredits: 10000,
-              remainingCredits: 100000,
-              status: "active",
-              effectiveAt: "2026-04-27T00:00:00.000Z",
-              expiresAt: "2027-04-27T00:00:00.000Z",
-              createdAt: "2026-04-27T00:00:00.000Z",
-              updatedAt: "2026-04-27T00:00:00.000Z",
-            },
-          ],
-          creditOrders: [
-            {
-              id: "topup-order-001",
-              tenantId: "tenant-0001",
-              userId: "user-001",
-              packageId: "topup-100k",
-              packageName: "10 万积分包",
-              creditsGranted: 110000,
-              amountCents: 1900,
-              paymentChannel: "epay",
-              paymentMethod: "alipay",
-              status: "paid",
-              paidAt: "2026-04-27T00:00:00.000Z",
-              createdAt: "2026-04-27T00:00:00.000Z",
-              updatedAt: "2026-04-27T00:00:00.000Z",
-            },
-          ],
-        },
-        accessTokens: [activeToken],
-        activeAccessToken: {
-          hasActive: true,
-          token: activeToken,
-        },
-        lastIssuedRawToken: "sk-lime-once",
-        offers: [createOffer()],
-        preference: {
-          providerSource: "oem_cloud",
-          providerKey: "lime-hub-main",
-        },
-        defaultCloudOffer: createOffer(),
-        activeCloudOffer: createOffer(),
-        handleCreateAccessToken,
-        handleRotateAccessToken,
-        handleRevokeAccessToken,
-        handleDismissIssuedToken,
+        defaultProviderSummary: "Lime Hub 主服务 · gpt-5.2-pro",
         openUserCenter,
       }),
     );
@@ -901,86 +564,110 @@ describe("CloudProviderSettings", () => {
 
     const text = container.textContent ?? "";
     expect(
-      container.querySelector('[data-testid="cloud-commerce-web-entry-card"]'),
-    ).not.toBeNull();
-    expect(text).toContain("套餐与价格");
-    expect(text).toContain("用量详情");
-    expect(text).toContain("账单管理");
-    expect(text).toContain("积分充值");
-    expect(text).toContain("Pro");
-    expect(text).toContain("待支付：Pro");
-    expect(text).toContain("继续支付");
-    expect(text).toContain("sk-lime-once");
-    expect(text).not.toContain("支付后台配置");
-    expect(text).not.toContain("选择适合你的套餐");
+      container.querySelector('[data-testid="oem-cloud-user-center-handoff"]'),
+    ).toBeNull();
+    expect(text).toContain("已在浏览器打开 Lime Hub 用户中心。");
+    expect(text).toContain("API Key Provider 设置占位");
+    expect(text).not.toContain("由用户中心托管");
+    expect(text).not.toContain("云端管理已迁移到服务端");
+    expect(text).not.toContain("套餐与价格");
+    expect(text).not.toContain("用量与账单");
+    expect(text).not.toContain("积分管理");
+    expect(text).not.toContain("可用积分");
+    expect(text).not.toContain("当前套餐");
+    expect(text).not.toContain("120,000");
+    expect(text).not.toContain("SDK 调用");
+    expect(text).not.toContain("OpenAI SDK");
+    expect(text).not.toContain("Anthropic SDK");
+    expect(text).not.toContain("最小 curl 测试");
+    expect(text).not.toContain("GPT-5.2 Pro");
+    expect(text).not.toContain("设为默认");
 
-    await act(async () => {
-      findButton(container, "打开套餐与价格").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(openUserCenter).toHaveBeenCalledWith("/pricing");
-
-    await act(async () => {
-      findButton(container, "查看用量详情").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(openUserCenter).toHaveBeenCalledWith("/billing?tab=usage");
-
-    await act(async () => {
-      findButton(container, "查看账单管理").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(openUserCenter).toHaveBeenCalledWith("/billing?tab=billing");
-
-    await act(async () => {
-      findButton(container, "管理积分").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(openUserCenter).toHaveBeenCalledWith("/credits");
-
-    await act(async () => {
-      findButton(container, "继续支付").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(mockOpenUrl).toHaveBeenCalledWith(
-      "https://pay.limeai.run/order-001",
-    );
-
-    await act(async () => {
-      findButton(container, "创建 API Key").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(handleCreateAccessToken).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      findButton(container, "轮换 Key").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(handleRotateAccessToken).toHaveBeenCalledWith("token-001");
-
-    await act(async () => {
-      findButton(container, "撤销 Key").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(handleRevokeAccessToken).toHaveBeenCalledWith("token-001");
-
-    await act(async () => {
-      findButton(container, "我已保存").dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
-    });
-    expect(handleDismissIssuedToken).toHaveBeenCalledTimes(1);
+    expect(openUserCenter).toHaveBeenCalledWith("/welcome");
   });
 
-  it("已下发 taxonomy 时应优先使用统一 schema 渲染品牌模型目录", async () => {
+  it("已登录时不再在客户端渲染购买、账单、积分和 API Key 管理入口", async () => {
+    const openUserCenter = vi.fn();
+
+    mockUseOemCloudAccess.mockReturnValue(
+      createAccessState({
+        session: {
+          tenant: { id: "tenant-0001" },
+          user: {
+            id: "user-001",
+            email: "operator@example.com",
+            displayName: "Demo Operator",
+          },
+          session: {
+            id: "session-001",
+            expiresAt: "2026-03-25T08:00:00.000Z",
+          },
+        },
+        pendingPayment: {
+          kind: "plan_order",
+          orderId: "order-001",
+          title: "Pro",
+          paymentChannel: "epay",
+          paymentReference: "https://pay.limeai.run/order-001",
+          amountCents: 9900,
+          status: "pending",
+          createdAt: "2026-04-27T00:00:00.000Z",
+          updatedAt: "2026-04-27T00:00:00.000Z",
+        },
+        billingDashboard: {
+          billingSummary: {
+            currency: "CNY",
+            nextPaymentAmountCents: 9900,
+            autoRenew: true,
+            totalSpentCents: 19900,
+          },
+          subscription: null,
+          currentPlan: null,
+          orders: [],
+        },
+        offers: [createOffer()],
+        preference: {
+          providerSource: "oem_cloud",
+          providerKey: "lime-hub-main",
+        },
+        defaultCloudOffer: createOffer(),
+        activeCloudOffer: createOffer(),
+        openUserCenter,
+      }),
+    );
+
+    const { container } = await renderPage();
+
+    await act(async () => {
+      findButton(container, "云端服务").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    const text = container.textContent ?? "";
+    expect(
+      container.querySelector('[data-testid="cloud-commerce-web-entry-card"]'),
+    ).toBeNull();
+    expect(text).toContain("API Key Provider 设置占位");
+    expect(text).not.toContain("打开套餐与价格");
+    expect(text).not.toContain("查看用量与账单");
+    expect(text).not.toContain("管理积分");
+    expect(text).not.toContain("管理 API Key");
+    expect(text).not.toContain("待支付：Pro");
+    expect(text).not.toContain("去用户中心处理");
+    expect(text).not.toContain("继续支付");
+    expect(text).not.toContain("创建 API Key");
+    expect(text).not.toContain("轮换 Key");
+    expect(text).not.toContain("撤销 Key");
+    expect(text).not.toContain("支付后台配置");
+    expect(text).not.toContain("选择适合你的套餐");
+    expect(openUserCenter).toHaveBeenCalledTimes(1);
+    expect(openUserCenter).toHaveBeenCalledWith("/welcome");
+    expect(mockOpenUrl).not.toHaveBeenCalled();
+  });
+
+  it("已下发 taxonomy 时也不再由客户端渲染品牌模型目录", async () => {
     mockUseOemCloudAccess.mockReturnValue(
       createAccessState({
         session: {
@@ -1039,16 +726,19 @@ describe("CloudProviderSettings", () => {
     });
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Relay GPT Images 2");
-    expect(text).toContain("图片生成");
+    expect(text).toContain("API Key Provider 设置占位");
+    expect(text).not.toContain("由用户中心托管");
+    expect(text).not.toContain("云端管理已迁移到服务端");
+    expect(text).not.toContain("Relay GPT Images 2");
+    expect(text).not.toContain("图片生成");
     expect(text).not.toContain("视觉理解");
     expect(text).not.toContain("对话");
-    expect(text).toContain(
+    expect(text).not.toContain(
       "实际映射：relay-gpt-images-2 → openai/gpt-images-2",
     );
   });
 
-  it("服务端误报待登录时应优先展示当前会话的已登录状态", async () => {
+  it("服务端误报待登录时不再渲染客户端 Offer 登录提示", async () => {
     const staleOffer = createOffer({
       state: "available_logged_out",
       loggedIn: true,
@@ -1110,12 +800,14 @@ describe("CloudProviderSettings", () => {
     });
 
     const text = container.textContent ?? "";
-    expect(text).toContain("available_ready");
+    expect(text).toContain("API Key Provider 设置占位");
+    expect(text).not.toContain("由用户中心托管");
     expect(text).not.toContain("available_logged_out");
+    expect(text).not.toContain("available_ready");
     expect(text).not.toContain("登录提示：请先登录后再查看模型目录");
   });
 
-  it("单个云端来源时不应保留空的双列占位", () => {
+  it("单个云端来源时不再渲染本地 Offer 网格", async () => {
     mockUseOemCloudAccess.mockReturnValue(
       createAccessState({
         session: {
@@ -1148,19 +840,22 @@ describe("CloudProviderSettings", () => {
       }),
     );
 
-    return renderPage().then(({ container }) => {
-      act(() => {
-        findButton(container, "云端服务").dispatchEvent(
-          new MouseEvent("click", { bubbles: true }),
-        );
-      });
-      const offerGrid = container.querySelector(
-        '[data-testid="oem-cloud-offer-grid"]',
-      );
+    const { container } = await renderPage();
 
-      expect(offerGrid).not.toBeNull();
-      expect(offerGrid?.className).not.toContain("lg:grid-cols-2");
+    await act(async () => {
+      findButton(container, "云端服务").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
     });
+
+    const offerGrid = container.querySelector(
+      '[data-testid="oem-cloud-offer-grid"]',
+    );
+
+    expect(offerGrid).toBeNull();
+    expect(container.textContent ?? "").toContain("API Key Provider 设置占位");
+    expect(container.textContent ?? "").not.toContain("由用户中心托管");
   });
 
   it("桌宠管理页应展示桌宠桥接卡片和脱敏边界说明", async () => {

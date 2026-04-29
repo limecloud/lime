@@ -65,7 +65,11 @@ export function useResourceTextPreview({
           });
           return;
         }
-        setState({ loading: false, content: preview.content ?? "", error: null });
+        setState({
+          loading: false,
+          content: preview.content ?? "",
+          error: null,
+        });
       })
       .catch((error) => {
         if (cancelled) return;
@@ -79,7 +83,14 @@ export function useResourceTextPreview({
     return () => {
       cancelled = true;
     };
-  }, [binaryError, item.content, item.filePath, item.id, maxSize, missingPathError]);
+  }, [
+    binaryError,
+    item.content,
+    item.filePath,
+    item.id,
+    maxSize,
+    missingPathError,
+  ]);
 
   return state;
 }

@@ -40,9 +40,11 @@ describe("agentRuntime transport", () => {
     const bridgeInvoke = vi.fn().mockResolvedValueOnce({ ok: true });
     const invokeCommand = createAgentRuntimeCommandInvoke({ bridgeInvoke });
 
-    await expect(invokeCommand("agent_runtime_list_sessions")).resolves.toEqual({
-      ok: true,
-    });
+    await expect(invokeCommand("agent_runtime_list_sessions")).resolves.toEqual(
+      {
+        ok: true,
+      },
+    );
 
     expect(bridgeInvoke).toHaveBeenCalledWith("agent_runtime_list_sessions");
   });

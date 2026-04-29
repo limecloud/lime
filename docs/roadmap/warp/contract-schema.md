@@ -19,7 +19,7 @@
 
 1. `contract_key` 代表底层多模态运行能力，例如 `image_generation`、`browser_control`、`pdf_extract`。
 2. `contract_key` 不代表上层入口，不能写成 `@配图`、`@浏览器` 或 `/scene-key`。
-3. `bound_entries` 在 Phase 0/1 可以为空；Phase 7 才把 `@`、按钮和 Scene 绑定进来。
+3. `bound_entries` 在 Phase 0/1 可以为空；进入 Phase 7 后按 contract 逐条把 `@`、按钮和 Scene 绑定进来。
 4. 每个 contract 必须能解释 identity、capability、profile、executor、truth source、artifact、viewer、evidence。
 5. `required_capabilities` 必须全部出现在 [capability-matrix.md](./capability-matrix.md)。
 6. `routing_slot` 必须出现在 capability matrix 的 `model_roles`。
@@ -92,6 +92,7 @@ Phase 7 才允许大量补 entry binding。
   "entry_kind": "command",
   "display_name": "@配图",
   "launch_metadata_path": "harness.image_skill_launch",
+  "entry_source": "at_image_command",
   "default_input_mapping": ["user_text", "selected_assets"],
   "entry_visibility_policy": ["skill_catalog_visible", "profile_allows_image_generation"]
 }
@@ -101,11 +102,12 @@ Phase 7 才允许大量补 entry binding。
 
 1. Entry binding 必须引用已存在的 `contract_key`。
 2. Entry binding 不得拥有 `truth_source`、`artifact_kinds`、`viewer_surface`。
-3. Entry binding 只补 launch metadata 和 input mapping。
+3. Entry binding 只补 launch metadata、`entry_source` 和 input mapping。
+4. `launch_metadata_path` 必须指向 `harness.*`，避免入口直接绕到 task / artifact 层。
 
 ## 7. 首批 contract
 
-首批 registry 只覆盖底层能力，不抢做入口绑定：
+首批 registry 先覆盖底层能力；`image_generation` 已作为第一条 vertical slice 进入 Phase 7 entry binding：
 
 1. `image_generation`
 2. `browser_control`
@@ -113,7 +115,7 @@ Phase 7 才允许大量补 entry binding。
 4. `voice_generation`
 5. `web_research`
 
-这些 contract 用于验证 schema 和治理守卫，后续 vertical slice 可优先选择 `image_generation` 或 `browser_control`。
+这些 contract 用于验证 schema 和治理守卫；后续 vertical slice 继续按“先底层、后 entry binding”的顺序推进。
 
 ## 8. 校验入口
 
@@ -129,3 +131,4 @@ npm run governance:modality-contracts
 4. 枚举字段使用已知值。
 5. executor binding 声明能力与 failure mapping。
 6. entry binding 不携带底层事实源字段。
+7. entry binding 必须声明 `entry_source`，且 `launch_metadata_path` 必须留在 `harness.*`。

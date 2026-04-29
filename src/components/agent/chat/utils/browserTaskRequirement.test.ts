@@ -37,7 +37,9 @@ describe("browserTaskRequirement", () => {
 
   it("X / Twitter 发布任务也应识别为必须浏览器且需要用户步骤", () => {
     expect(
-      detectBrowserTaskRequirement("平台:X / Twitter 帮我整理成可直接发布的版本"),
+      detectBrowserTaskRequirement(
+        "平台:X / Twitter 帮我整理成可直接发布的版本",
+      ),
     ).toMatchObject({
       requirement: "required_with_user_step",
       launchUrl: "https://x.com/compose/post",

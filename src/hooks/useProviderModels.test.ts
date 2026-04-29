@@ -49,6 +49,18 @@ function createProvider(
   };
 }
 
+function createLimeHubProvider(): ConfiguredProvider {
+  return createProvider({
+    key: "lime-hub",
+    label: "Lime Hub",
+    registryId: "lime-hub",
+    fallbackRegistryId: undefined,
+    type: "openai",
+    providerId: "lime-hub",
+    apiHost: "https://llm.limeai.run#lime_tenant_id=tenant-0001",
+  });
+}
+
 describe("loadProviderModels", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -243,7 +255,8 @@ describe("loadProviderModels", () => {
         },
       ],
       source: "LocalFallback",
-      error: "当前 Anthropic 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。",
+      error:
+        "当前 Anthropic 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。",
     });
 
     const models = await loadProviderModels(
@@ -262,4 +275,39 @@ describe("loadProviderModels", () => {
     expect(models.map((model) => model.id)).toEqual(["MiniMax-M2.7"]);
   });
 
+  it("本地开发环境下 Lime Hub 实时目录为空时，应使用本地 mock 兜底", async () => {
+    mockFetchProviderModelsAuto.mockResolvedValueOnce({
+      models: [],
+      source: "Api",
+      error: null,
+    });
+
+    const models = await loadProviderModels(createLimeHubProvider(), {
+      liveFetchOnly: true,
+      hasApiKey: true,
+    });
+
+    expect(models.map((model) => model.id)).toEqual(
+      expect.arrayContaining(["gpt-5.5", "deepseek-v4-flash"]),
+    );
+    expect(models.every((model) => model.provider_id === "lime-hub")).toBe(
+      true,
+    );
+    expect(mockFetchProviderModelsAuto).toHaveBeenCalledWith("lime-hub");
+  });
+
+  it("本地开发 mock 兜底只应用于 Lime Hub", async () => {
+    mockFetchProviderModelsAuto.mockResolvedValueOnce({
+      models: [],
+      source: "Api",
+      error: null,
+    });
+
+    const models = await loadProviderModels(createProvider(), {
+      liveFetchOnly: true,
+      hasApiKey: true,
+    });
+
+    expect(models).toEqual([]);
+  });
 });

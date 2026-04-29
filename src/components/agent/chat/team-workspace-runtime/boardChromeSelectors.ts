@@ -57,8 +57,7 @@ function buildBoardHeadline(params: {
   const runningCount = statusSummary.running ?? 0;
   const queuedCount = statusSummary.queued ?? 0;
   const completedCount = statusSummary.completed ?? 0;
-  const retryCount =
-    (statusSummary.failed ?? 0) + (statusSummary.aborted ?? 0);
+  const retryCount = (statusSummary.failed ?? 0) + (statusSummary.aborted ?? 0);
 
   if (isChildSession) {
     return parentSessionName?.trim() || "主助手总览";
@@ -85,9 +84,7 @@ function buildBoardHeadline(params: {
       : "任务已完成";
   }
   if (retryCount > 0 && retryCount === totalTeamSessions) {
-    return totalTeamSessions > 1
-      ? `${retryCount} 项任务需重试`
-      : "任务需重试";
+    return totalTeamSessions > 1 ? `${retryCount} 项任务需重试` : "任务需重试";
   }
   return totalTeamSessions > 0
     ? `${totalTeamSessions} 条当前进展已接入`

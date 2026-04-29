@@ -51,7 +51,8 @@ describe("parseWritingWorkbenchCommand", () => {
     expect(result).toMatchObject({
       trigger: "@Newsletters Pro",
       draftKind: "newsletter",
-      prompt: "summarize this week’s AI agent launches into a concise newsletter",
+      prompt:
+        "summarize this week’s AI agent launches into a concise newsletter",
     });
     expect(result?.dispatchBody).toContain("Newsletter / 简报主稿");
   });

@@ -54,16 +54,16 @@ function buildSection(title: string, items: string[]): string | undefined {
     return undefined;
   }
 
-  return [`${title}：`, ...items.map((item, index) => `${index + 1}. ${item}`)].join(
-    "\n",
-  );
+  return [
+    `${title}：`,
+    ...items.map((item, index) => `${index + 1}. ${item}`),
+  ].join("\n");
 }
 
 export function buildSkillScaffoldCreationSeed(
   draft: SkillScaffoldDraft,
 ): SkillScaffoldCreationSeed {
-  const name =
-    normalizeOptionalSnippet(draft.name, 80) || DEFAULT_SKILL_NAME;
+  const name = normalizeOptionalSnippet(draft.name, 80) || DEFAULT_SKILL_NAME;
   const description = normalizeOptionalSnippet(draft.description, 160);
   const sourceExcerpt = normalizeOptionalSnippet(draft.sourceExcerpt, 180);
   const whenToUse = normalizeStructuredItems(draft.whenToUse);

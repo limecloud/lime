@@ -166,8 +166,6 @@ describe("AutomationOverviewFocusCard", () => {
       runDetailView: null,
     });
 
-    expect(document.body.textContent).toContain(
-      "还没有持续接上的做法",
-    );
+    expect(document.body.textContent).toContain("还没有持续接上的做法");
   });
 });

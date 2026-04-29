@@ -81,27 +81,38 @@ interface FormState {
 
 interface ModelAddPanelProps {
   providers: ProviderWithKeysDisplay[];
-  onAddProvider: (request: AddCustomProviderRequest) => Promise<ProviderDisplay>;
-  onUpdateProvider: (id: string, request: UpdateProviderRequest) => Promise<ProviderDisplay>;
-  onAddApiKey: (providerId: string, apiKey: string, alias?: string) => Promise<unknown>;
+  onAddProvider: (
+    request: AddCustomProviderRequest,
+  ) => Promise<ProviderDisplay>;
+  onUpdateProvider: (
+    id: string,
+    request: UpdateProviderRequest,
+  ) => Promise<ProviderDisplay>;
+  onAddApiKey: (
+    providerId: string,
+    apiKey: string,
+    alias?: string,
+  ) => Promise<unknown>;
   onActivated: (providerId: string) => void;
   onCancel: () => void;
   className?: string;
 }
 
-const CATEGORY_OPTIONS: Array<{ value: ModelCatalogCategory; label: string }> = [
-  { value: "recommended", label: "推荐服务" },
-  { value: "cn", label: "国内服务" },
-  { value: "aggregator", label: "聚合平台" },
-  { value: "overseas", label: "海外平台" },
-  { value: "local", label: "本地模型" },
-];
+const CATEGORY_OPTIONS: Array<{ value: ModelCatalogCategory; label: string }> =
+  [
+    { value: "recommended", label: "推荐服务" },
+    { value: "cn", label: "国内服务" },
+    { value: "aggregator", label: "聚合平台" },
+    { value: "overseas", label: "海外平台" },
+    { value: "local", label: "本地模型" },
+  ];
 
 const FEATURED_TEMPLATES: ProviderTemplate[] = [
   {
     id: "kimi-code-subscription",
     name: "Kimi Code 会员（订阅）",
-    description: "Kimi Code 官方订阅入口，Anthropic 协议，适合 Claude Code / OpenClaw",
+    description:
+      "Kimi Code 官方订阅入口，Anthropic 协议，适合 Claude Code / OpenClaw",
     category: "overseas",
     type: "anthropic-compatible",
     apiHost: "https://api.kimi.com/coding/",
@@ -151,7 +162,8 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     type: "anthropic-compatible",
     apiHost: "https://api.minimaxi.com/anthropic",
     recommended: true,
-    apiKeyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key",
+    apiKeyUrl:
+      "https://platform.minimaxi.com/user-center/basic-information/interface-key",
     defaultModels: ["MiniMax-M2.7"],
     iconProviderId: "minimax-cn",
     providerResourceId: "minimax-cn",
@@ -166,7 +178,8 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     type: "anthropic-compatible",
     apiHost: "https://api.minimax.io/anthropic",
     recommended: true,
-    apiKeyUrl: "https://platform.minimax.io/user-center/basic-information/interface-key",
+    apiKeyUrl:
+      "https://platform.minimax.io/user-center/basic-information/interface-key",
     defaultModels: ["MiniMax-M2.7"],
     iconProviderId: "minimax",
     providerResourceId: "minimax",
@@ -236,7 +249,8 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
   {
     id: "alibaba-coding-plan-global",
     name: "Alibaba Coding Plan（海外）",
-    description: "阿里云 Model Studio 国际区 Claude Code Coding Plan 专用 Anthropic 入口",
+    description:
+      "阿里云 Model Studio 国际区 Claude Code Coding Plan 专用 Anthropic 入口",
     category: "overseas",
     type: "anthropic-compatible",
     apiHost: "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic",
@@ -419,7 +433,9 @@ function resolveProviderCategory(
   }
 }
 
-function buildCatalogTemplates(catalog: SystemProviderCatalogItem[]): ProviderTemplate[] {
+function buildCatalogTemplates(
+  catalog: SystemProviderCatalogItem[],
+): ProviderTemplate[] {
   return catalog.map((item) => {
     const providerType = normalizeCatalogProviderType(item.type);
     return {
@@ -482,7 +498,7 @@ function dedupeTemplates(templates: ProviderTemplate[]): ProviderTemplate[] {
   for (const template of templates) {
     const key = template.providerResourceId
       ? `provider:${template.providerResourceId}:${template.apiHost}`
-      : template.systemProviderId ?? template.id;
+      : (template.systemProviderId ?? template.id);
     if (seen.has(key)) {
       continue;
     }
@@ -536,7 +552,9 @@ function renderTemplateIcon(template: ProviderTemplate) {
 
   return (
     <ProviderIcon
-      providerType={template.iconProviderId ?? template.systemProviderId ?? template.id}
+      providerType={
+        template.iconProviderId ?? template.systemProviderId ?? template.id
+      }
       fallbackText={template.name}
       size={24}
     />
@@ -605,8 +623,11 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [category, setCategory] = useState<ModelCatalogCategory>("recommended");
   const [view, setView] = useState<ModelAddView>("catalog");
-  const [selectedTemplate, setSelectedTemplate] = useState<ProviderTemplate | null>(null);
-  const [formState, setFormState] = useState<FormState>(createInitialFormState(CUSTOM_TEMPLATE));
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<ProviderTemplate | null>(null);
+  const [formState, setFormState] = useState<FormState>(
+    createInitialFormState(CUSTOM_TEMPLATE),
+  );
   const [modelDraft, setModelDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -769,7 +790,8 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
 
       if (!testResult.success) {
         throw new Error(
-          testResult.error || "已保存配置，但连接测试未通过，请检查密钥或模型 ID。",
+          testResult.error ||
+            "已保存配置，但连接测试未通过，请检查密钥或模型 ID。",
         );
       }
 
@@ -825,7 +847,10 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
           </div>
         ) : null}
 
-        <div className="grid gap-3 lg:grid-cols-2" data-testid="model-template-grid">
+        <div
+          className="grid gap-3 lg:grid-cols-2"
+          data-testid="model-template-grid"
+        >
           {visibleTemplates.map((template) => (
             <button
               key={template.id}
@@ -884,7 +909,10 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
 
   return (
     <div
-      className={cn("flex h-full flex-col overflow-y-auto bg-white px-4 py-4 lg:px-5", className)}
+      className={cn(
+        "flex h-full flex-col overflow-y-auto bg-white px-4 py-4 lg:px-5",
+        className,
+      )}
       data-testid="model-add-configure"
     >
       <div className="mb-3">
@@ -915,7 +943,9 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
                 </h3>
                 {renderTemplateBadges(template)}
               </div>
-              <p className="mt-1 text-sm text-slate-500">{template.description}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {template.description}
+              </p>
             </div>
           </div>
           {template.apiKeyUrl ? (
@@ -936,7 +966,10 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
           {template.isCustom ? (
             <>
               <div className="space-y-1.5">
-                <Label htmlFor="model-provider-name" className="text-sm text-slate-600">
+                <Label
+                  htmlFor="model-provider-name"
+                  className="text-sm text-slate-600"
+                >
                   供应商名称
                 </Label>
                 <Input
@@ -956,7 +989,10 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="model-api-host" className="text-sm text-slate-600">
+                <Label
+                  htmlFor="model-api-host"
+                  className="text-sm text-slate-600"
+                >
                   API Base URL
                 </Label>
                 <Input
@@ -1072,7 +1108,9 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
                     apiKey: event.target.value,
                   }))
                 }
-                placeholder={apiKeyRequired ? "输入 API 密钥" : "本地模型可留空"}
+                placeholder={
+                  apiKeyRequired ? "输入 API 密钥" : "本地模型可留空"
+                }
                 className="h-12 rounded-[18px] border-slate-200 bg-white px-4 pr-11"
                 disabled={submitting}
                 data-testid="model-api-key-input"
@@ -1089,11 +1127,17 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm text-slate-600">模型优先级（至少添加一个）</Label>
+            <Label className="text-sm text-slate-600">
+              模型优先级（至少添加一个）
+            </Label>
             <p className="text-xs leading-5 text-slate-500">
-              这里不再预填本地兜底模型；请输入你确认可用的模型 ID，或保存后到配置页从接口获取。
+              这里不再预填本地兜底模型；请输入你确认可用的模型
+              ID，或保存后到配置页从接口获取。
             </p>
-            <div className="rounded-[22px] bg-slate-100 p-3" data-testid="model-priority-list">
+            <div
+              className="rounded-[22px] bg-slate-100 p-3"
+              data-testid="model-priority-list"
+            >
               {formState.models.length > 0 ? (
                 <div className="space-y-2">
                   {formState.models.map((model, index) => (
@@ -1107,7 +1151,9 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
                           主模型
                         </Badge>
                       ) : null}
-                      <span className="min-w-0 flex-1 truncate normal-case">{model}</span>
+                      <span className="min-w-0 flex-1 truncate normal-case">
+                        {model}
+                      </span>
                       {index > 0 ? (
                         <button
                           type="button"

@@ -59,8 +59,8 @@ export function buildSelectedSessionDetailDisplayState(params: {
     selectedSession?.teamQueuedCount ?? selectedSession?.queuedTurnCount ?? 0;
   const roleLabel = resolveTeamWorkspaceRoleHintLabel(selectedSession?.roleKey);
   const presetLabel = selectedSession?.teamPresetId
-    ? getTeamPresetOption(selectedSession.teamPresetId)?.label ??
-      selectedSession.teamPresetId
+    ? (getTeamPresetOption(selectedSession.teamPresetId)?.label ??
+      selectedSession.teamPresetId)
     : null;
   const skillBadges = (selectedSession?.skills ?? []).map((skill) => ({
     id: skill.id,

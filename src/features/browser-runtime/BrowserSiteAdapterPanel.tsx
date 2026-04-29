@@ -1437,8 +1437,8 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
                     {savedDocumentMarkdownRelativePath
                       ? "打开导出结果"
                       : shouldWriteToCurrentContent
-                      ? "打开当前主稿"
-                      : "打开已保存内容"}
+                        ? "打开当前主稿"
+                        : "打开已保存内容"}
                   </button>
                 </div>
               ) : null}

@@ -412,11 +412,14 @@ export async function listenViaHttpEvent<T = unknown>(
       if (hasOpened) {
         if (!reconnectWarningShown) {
           reconnectWarningShown = true;
-          console.warn(`[DevBridge] 事件流异常: ${normalizedEvent}`, error);
+          console.debug(
+            `[DevBridge] 事件流暂不可用: ${normalizedEvent}`,
+            error,
+          );
         }
         return;
       }
-      console.warn(`[DevBridge] 事件流异常: ${normalizedEvent}`, error);
+      console.debug(`[DevBridge] 事件流暂不可用: ${normalizedEvent}`, error);
       hubActive = false;
       bridgeEventHubs.delete(normalizedEvent);
       source.close();
@@ -502,7 +505,11 @@ export async function invokeViaHttp<T = unknown>(
     if (isBridgeHardConnectionError(message)) {
       markBridgeUnavailable();
     }
-    console.error(`[DevBridge] HTTP 调用失败: ${cmd}`, e);
+    if (isBridgeConnectionError(message)) {
+      console.debug(`[DevBridge] HTTP 暂不可用: ${cmd}`, e);
+    } else {
+      console.error(`[DevBridge] HTTP 调用失败: ${cmd}`, e);
+    }
     throw e;
   }
 }

@@ -28,7 +28,9 @@ function normalizeServiceSkillSlotValues(
   const nextValues = Object.fromEntries(
     Object.entries(value)
       .map(([key, slotValue]) => [key.trim(), normalizeOptionalText(slotValue)])
-      .filter((entry): entry is [string, string] => Boolean(entry[0] && entry[1])),
+      .filter((entry): entry is [string, string] =>
+        Boolean(entry[0] && entry[1]),
+      ),
   );
 
   return Object.keys(nextValues).length > 0 ? nextValues : undefined;

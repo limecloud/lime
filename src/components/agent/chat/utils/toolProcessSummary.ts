@@ -146,7 +146,9 @@ function normalizePlainResultLine(
   return shorten(line, maxLength);
 }
 
-function extractToolResultText(value: string | null | undefined): string | null {
+function extractToolResultText(
+  value: string | null | undefined,
+): string | null {
   const raw = value?.trim();
   if (!raw) {
     return null;
@@ -798,9 +800,7 @@ function buildGenericPreSummary(params: {
   }
 
   if (normalizedName === "taskcreate") {
-    return normalizedSubject
-      ? `先开始 ${normalizedSubject}`
-      : "先开始这一步";
+    return normalizedSubject ? `先开始 ${normalizedSubject}` : "先开始这一步";
   }
 
   if (normalizedName === "tasklist") {
@@ -948,7 +948,11 @@ function buildNarrative(input: ToolProcessInput): ToolProcessNarrative {
   });
   const normalizedName = normalizeToolNameKey(input.toolName);
   const resultOutput = input.output || "";
-  const plainError = resolveToolErrorSummaryText(input.toolName, input.error, 88);
+  const plainError = resolveToolErrorSummaryText(
+    input.toolName,
+    input.error,
+    88,
+  );
   const plainOutput = normalizePlainResultLine(resultOutput, 96);
   const failedOutputSummary =
     input.status === "failed"

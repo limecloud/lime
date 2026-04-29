@@ -171,8 +171,14 @@ describe("liveRuntimeProjector", () => {
       } as AgentEvent,
     });
 
-    expect(queuedProjection?.entry?.detail).toContain("这项子任务会在前一项完成后继续处理");
-    expect(startedProjection?.entry?.detail).toContain("这项子任务已经开始处理当前任务");
-    expect(turnProjection?.entry?.detail).toContain("这项子任务正在推进当前内容");
+    expect(queuedProjection?.entry?.detail).toContain(
+      "这项子任务会在前一项完成后继续处理",
+    );
+    expect(startedProjection?.entry?.detail).toContain(
+      "这项子任务已经开始处理当前任务",
+    );
+    expect(turnProjection?.entry?.detail).toContain(
+      "这项子任务正在推进当前内容",
+    );
   });
 });

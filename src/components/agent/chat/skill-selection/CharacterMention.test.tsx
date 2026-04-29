@@ -245,13 +245,8 @@ vi.mock("@/components/ui/label", () => ({
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({
-    open,
-    children,
-  }: {
-    open: boolean;
-    children: React.ReactNode;
-  }) => (open ? <div>{children}</div> : null),
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div>{children}</div> : null,
   DialogContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -261,7 +256,9 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogFooter: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   DialogDescription: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -366,9 +363,7 @@ const Harness: React.FC<HarnessProps> = ({
         defaultCuratedTaskReferenceMemoryIds={
           defaultCuratedTaskReferenceMemoryIds
         }
-        defaultCuratedTaskReferenceEntries={
-          defaultCuratedTaskReferenceEntries
-        }
+        defaultCuratedTaskReferenceEntries={defaultCuratedTaskReferenceEntries}
         onNavigateToSettings={onNavigateToSettings}
         inputCompletionEnabled={inputCompletionEnabled}
       />
@@ -728,12 +723,13 @@ describe("CharacterMention", () => {
 
   it("提供 onSelectInputCapability 时，选择配图命令应走统一 capability 回调", async () => {
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectInputCapability = vi.fn<
-      (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<
+        (
+          capability: InputCapabilitySelection,
+          options?: { replayText?: string },
+        ) => void
+      >();
     const container = renderHarness({
       onChangeSpy,
       onSelectInputCapability,
@@ -913,7 +909,9 @@ describe("CharacterMention", () => {
 
     expect(document.body.textContent).toContain("最近调用");
     expect(document.body.textContent).toContain("@搜索");
-    expect(document.body.textContent).toContain("上次输入：关键词:AI Agent 融资");
+    expect(document.body.textContent).toContain(
+      "上次输入：关键词:AI Agent 融资",
+    );
   });
 
   it("选择最近使用的 @命令时应回填上次成功草稿", async () => {
@@ -1147,7 +1145,9 @@ describe("CharacterMention", () => {
 
     expect(document.body.textContent).toContain("我的方法");
     expect(document.body.textContent).toContain("写作助手");
-    expect(document.body.textContent).toContain("当你需要复用本地写作方法时使用。");
+    expect(document.body.textContent).toContain(
+      "当你需要复用本地写作方法时使用。",
+    );
     expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
     expect(document.body.textContent).toContain("交付：带着该方法进入生成");
   });
@@ -1609,12 +1609,13 @@ describe("CharacterMention", () => {
   });
 
   it("提供统一 capability 回调时，选择服务技能应走 current 主链", async () => {
-    const onSelectInputCapability = vi.fn<
-      (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<
+        (
+          capability: InputCapabilitySelection,
+          options?: { replayText?: string },
+        ) => void
+      >();
     const onChangeSpy = vi.fn<(value: string) => void>();
     const serviceSkill = createServiceSkill();
     const container = renderHarness({
@@ -1745,7 +1746,9 @@ describe("CharacterMention", () => {
       templateButton?.click();
     });
 
-    expect(document.body.textContent).toContain("开始这一步前，我先确认几件事。");
+    expect(document.body.textContent).toContain(
+      "开始这一步前，我先确认几件事。",
+    );
     expect(onChangeSpy).not.toHaveBeenCalled();
 
     const themeInput = document.body.querySelector(
@@ -1892,12 +1895,13 @@ describe("CharacterMention", () => {
 
   it("提供 onSelectInputCapability 时，slash 面板选择结果模板应在 launcher 确认后走统一 capability 回调", async () => {
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectInputCapability = vi.fn<
-      (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<
+        (
+          capability: InputCapabilitySelection,
+          options?: { replayText?: string },
+        ) => void
+      >();
     const template = findCuratedTaskTemplateById("daily-trend-briefing");
     expect(template).toBeTruthy();
     const container = renderHarness({
@@ -2088,7 +2092,8 @@ describe("CharacterMention", () => {
       {
         session_id: "session-review-needs-evidence",
         decision_status: "needs_more_evidence",
-        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        decision_summary:
+          "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
         chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
         risk_level: "medium",
         risk_tags: ["证据不足", "需要复盘"],
@@ -2110,7 +2115,9 @@ describe("CharacterMention", () => {
     const banner = document.body.querySelector(
       '[data-testid="input-capability-section-banner-result-templates"]',
     );
-    expect(banner?.textContent).toContain("最近判断已更新：短视频编排 · 补证据");
+    expect(banner?.textContent).toContain(
+      "最近判断已更新：短视频编排 · 补证据",
+    );
     expect(banner?.textContent).toContain("这轮结果还缺证据");
     expect(banner?.textContent).toContain("这轮判断更建议优先回到");
     expect(banner?.textContent).toContain("复盘这个账号/项目");
@@ -2129,7 +2136,9 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("开始这一步前，我先确认几件事。");
+    expect(document.body.textContent).toContain(
+      "开始这一步前，我先确认几件事。",
+    );
     expect(document.body.textContent).toContain("复盘这个账号/项目");
   });
 
@@ -2224,9 +2233,7 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain(
       "去向：首版主稿会先进入当前内容，方便继续改写、拆成多平台版本。",
     );
-    expect(document.body.textContent).toContain(
-      "下一步：改成多平台版本",
-    );
+    expect(document.body.textContent).toContain("下一步：改成多平台版本");
   });
 
   it("slash 面板中的已经沉淀的方法与继续上次做法应展示统一轻合同", async () => {
@@ -2350,8 +2357,7 @@ describe("CharacterMention", () => {
         kind: "scene",
         entryId: "x-article-export",
         usedAt: 1_712_345_678_900,
-        replayText:
-          "https://x.com/GoogleCloudTech/article/2033953579824758855",
+        replayText: "https://x.com/GoogleCloudTech/article/2033953579824758855",
       });
     });
     mockListServiceSkills.mockResolvedValueOnce([
@@ -2513,12 +2519,13 @@ describe("CharacterMention", () => {
     });
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectInputCapability = vi.fn<
-      (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<
+        (
+          capability: InputCapabilitySelection,
+          options?: { replayText?: string },
+        ) => void
+      >();
     const container = renderHarness({
       onChangeSpy,
       onSelectInputCapability,
@@ -2561,12 +2568,13 @@ describe("CharacterMention", () => {
     });
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectInputCapability = vi.fn<
-      (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<
+        (
+          capability: InputCapabilitySelection,
+          options?: { replayText?: string },
+        ) => void
+      >();
     const container = renderHarness({
       onChangeSpy,
       onSelectInputCapability,
@@ -2606,12 +2614,13 @@ describe("CharacterMention", () => {
     ]);
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectInputCapability = vi.fn<
-      (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<
+        (
+          capability: InputCapabilitySelection,
+          options?: { replayText?: string },
+        ) => void
+      >();
     const container = renderHarness({
       onChangeSpy,
       onSelectInputCapability,
@@ -2664,12 +2673,13 @@ describe("CharacterMention", () => {
 
   it("提供 onSelectInputCapability 时，slash 面板选择已安装技能应走统一 capability 回调", async () => {
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectInputCapability = vi.fn<
-      (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<
+        (
+          capability: InputCapabilitySelection,
+          options?: { replayText?: string },
+        ) => void
+      >();
     const container = renderHarness({
       skills: [createSkill("技能A", "skill-a", true)],
       onChangeSpy,
@@ -2712,12 +2722,13 @@ describe("CharacterMention", () => {
     });
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectInputCapability = vi.fn<
-      (
-        capability: InputCapabilitySelection,
-        options?: { replayText?: string },
-      ) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<
+        (
+          capability: InputCapabilitySelection,
+          options?: { replayText?: string },
+        ) => void
+      >();
     const container = renderHarness({
       skills: [createSkill("技能A", "skill-a", true)],
       onChangeSpy,

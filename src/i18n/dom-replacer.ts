@@ -42,9 +42,7 @@ function getCompiledPatchMap(language: Language): CompiledPatchMap {
   const entries = Object.entries(patches)
     .filter(
       ([key, value]) =>
-        key.length > 0 &&
-        key !== value &&
-        !key.startsWith("//"),
+        key.length > 0 && key !== value && !key.startsWith("//"),
     )
     .sort(([left], [right]) => right.length - left.length);
 

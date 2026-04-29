@@ -63,10 +63,15 @@ describe("imageWorkbenchStateCache", () => {
     const nowMs = Date.parse("2026-04-24T00:00:00.000Z");
     const state = createImageWorkbenchState("task-image-cache-1", nowMs);
 
-    saveSessionImageWorkbenchCachedState("ws-image-cache", "session-image", state, {
-      nowMs,
-      contentId: "content-1",
-    });
+    saveSessionImageWorkbenchCachedState(
+      "ws-image-cache",
+      "session-image",
+      state,
+      {
+        nowMs,
+        contentId: "content-1",
+      },
+    );
 
     const restored = loadSessionImageWorkbenchCachedState(
       "ws-image-cache",
@@ -112,9 +117,14 @@ describe("imageWorkbenchStateCache", () => {
     const nowMs = Date.parse("2026-04-24T00:00:00.000Z");
     const state = createImageWorkbenchState("task-image-stale-1", nowMs);
 
-    saveSessionImageWorkbenchCachedState("ws-image-stale", "session-image", state, {
-      nowMs,
-    });
+    saveSessionImageWorkbenchCachedState(
+      "ws-image-stale",
+      "session-image",
+      state,
+      {
+        nowMs,
+      },
+    );
 
     const restored = loadSessionImageWorkbenchCachedState(
       "ws-image-stale",

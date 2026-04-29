@@ -7,6 +7,43 @@ pub(crate) const IMAGE_GENERATION_ROUTING_SLOT: &str = "image_generation_model";
 pub(crate) const IMAGE_GENERATION_EXECUTOR_BINDING_KEY: &str = "image_generate";
 pub(crate) const IMAGE_GENERATION_REQUIRED_CAPABILITIES: &[&str] =
     &["text_generation", "image_generation", "vision_input"];
+pub(crate) const BROWSER_CONTROL_CONTRACT_KEY: &str = "browser_control";
+pub(crate) const BROWSER_CONTROL_MODALITY: &str = "browser";
+pub(crate) const BROWSER_CONTROL_ROUTING_SLOT: &str = "browser_reasoning_model";
+pub(crate) const BROWSER_CONTROL_EXECUTOR_BINDING_KEY: &str = "browser_assist";
+pub(crate) const BROWSER_CONTROL_REQUIRED_CAPABILITIES: &[&str] = &[
+    "text_generation",
+    "browser_reasoning",
+    "browser_control_planning",
+];
+pub(crate) const PDF_EXTRACT_CONTRACT_KEY: &str = "pdf_extract";
+pub(crate) const PDF_EXTRACT_MODALITY: &str = "document";
+pub(crate) const PDF_EXTRACT_ROUTING_SLOT: &str = "base_model";
+pub(crate) const PDF_EXTRACT_EXECUTOR_BINDING_KEY: &str = "pdf_read";
+pub(crate) const PDF_EXTRACT_REQUIRED_CAPABILITIES: &[&str] =
+    &["text_generation", "local_file_read", "long_context"];
+pub(crate) const VOICE_GENERATION_CONTRACT_KEY: &str = "voice_generation";
+pub(crate) const VOICE_GENERATION_MODALITY: &str = "audio";
+pub(crate) const VOICE_GENERATION_ROUTING_SLOT: &str = "voice_generation_model";
+pub(crate) const VOICE_GENERATION_EXECUTOR_BINDING_KEY: &str = "voice_runtime";
+pub(crate) const VOICE_GENERATION_REQUIRED_CAPABILITIES: &[&str] =
+    &["text_generation", "voice_generation"];
+pub(crate) const WEB_RESEARCH_CONTRACT_KEY: &str = "web_research";
+pub(crate) const WEB_RESEARCH_MODALITY: &str = "mixed";
+pub(crate) const WEB_RESEARCH_ROUTING_SLOT: &str = "report_generation_model";
+pub(crate) const WEB_RESEARCH_EXECUTOR_BINDING_KEY: &str = "research";
+pub(crate) const WEB_RESEARCH_REQUIRED_CAPABILITIES: &[&str] = &[
+    "text_generation",
+    "web_search",
+    "structured_document_generation",
+    "long_context",
+];
+pub(crate) const TEXT_TRANSFORM_CONTRACT_KEY: &str = "text_transform";
+pub(crate) const TEXT_TRANSFORM_MODALITY: &str = "document";
+pub(crate) const TEXT_TRANSFORM_ROUTING_SLOT: &str = "base_model";
+pub(crate) const TEXT_TRANSFORM_EXECUTOR_BINDING_KEY: &str = "text_transform";
+pub(crate) const TEXT_TRANSFORM_REQUIRED_CAPABILITIES: &[&str] =
+    &["text_generation", "local_file_read", "long_context"];
 const IMAGE_GENERATION_MODEL_KEYWORDS: &[&str] = &[
     "gpt-image",
     "gpt-images",
@@ -86,6 +123,41 @@ pub(crate) fn image_generation_required_capabilities() -> Vec<String> {
         .collect()
 }
 
+pub(crate) fn browser_control_required_capabilities() -> Vec<String> {
+    BROWSER_CONTROL_REQUIRED_CAPABILITIES
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect()
+}
+
+pub(crate) fn pdf_extract_required_capabilities() -> Vec<String> {
+    PDF_EXTRACT_REQUIRED_CAPABILITIES
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect()
+}
+
+pub(crate) fn voice_generation_required_capabilities() -> Vec<String> {
+    VOICE_GENERATION_REQUIRED_CAPABILITIES
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect()
+}
+
+pub(crate) fn web_research_required_capabilities() -> Vec<String> {
+    WEB_RESEARCH_REQUIRED_CAPABILITIES
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect()
+}
+
+pub(crate) fn text_transform_required_capabilities() -> Vec<String> {
+    TEXT_TRANSFORM_REQUIRED_CAPABILITIES
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect()
+}
+
 pub(crate) fn normalize_image_generation_contract_key(
     value: Option<String>,
 ) -> Result<String, String> {
@@ -124,6 +196,66 @@ pub(crate) fn normalize_image_generation_required_capabilities(
     Ok(expected)
 }
 
+fn normalize_expected_voice_generation_contract_string(
+    value: Option<String>,
+    expected: &str,
+    field_name: &str,
+) -> Result<String, String> {
+    match normalize_optional_contract_string(value) {
+        Some(value) if value == expected => Ok(expected.to_string()),
+        Some(value) => Err(format!(
+            "配音任务 {field_name} 必须是 {expected}，收到 {value}"
+        )),
+        None => Ok(expected.to_string()),
+    }
+}
+
+pub(crate) fn normalize_voice_generation_contract_key(
+    value: Option<String>,
+) -> Result<String, String> {
+    normalize_expected_voice_generation_contract_string(
+        value,
+        VOICE_GENERATION_CONTRACT_KEY,
+        "modality_contract_key",
+    )
+}
+
+pub(crate) fn normalize_voice_generation_modality(value: Option<String>) -> Result<String, String> {
+    normalize_expected_voice_generation_contract_string(
+        value,
+        VOICE_GENERATION_MODALITY,
+        "modality",
+    )
+}
+
+pub(crate) fn normalize_voice_generation_routing_slot(
+    value: Option<String>,
+) -> Result<String, String> {
+    normalize_expected_voice_generation_contract_string(
+        value,
+        VOICE_GENERATION_ROUTING_SLOT,
+        "routing_slot",
+    )
+}
+
+pub(crate) fn normalize_voice_generation_required_capabilities(
+    values: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let expected = voice_generation_required_capabilities();
+    for value in values {
+        let normalized = value.trim();
+        if normalized.is_empty() {
+            continue;
+        }
+        if !expected.iter().any(|item| item == normalized) {
+            return Err(format!(
+                "配音任务 required_capabilities 包含不属于 voice_generation contract 的能力: {normalized}"
+            ));
+        }
+    }
+    Ok(expected)
+}
+
 pub(crate) fn image_generation_runtime_contract() -> Value {
     json!({
         "contract_key": IMAGE_GENERATION_CONTRACT_KEY,
@@ -137,6 +269,91 @@ pub(crate) fn image_generation_runtime_contract() -> Value {
         "truth_source": ["image_task_artifact", "runtime_timeline_event"],
         "artifact_kinds": ["image_task", "image_output"],
         "viewer_surface": ["image_workbench"],
+        "owner_surface": "agent_runtime"
+    })
+}
+
+pub(crate) fn browser_control_runtime_contract() -> Value {
+    json!({
+        "contract_key": BROWSER_CONTROL_CONTRACT_KEY,
+        "modality": BROWSER_CONTROL_MODALITY,
+        "required_capabilities": BROWSER_CONTROL_REQUIRED_CAPABILITIES,
+        "routing_slot": BROWSER_CONTROL_ROUTING_SLOT,
+        "executor_binding": {
+            "executor_kind": "browser",
+            "binding_key": BROWSER_CONTROL_EXECUTOR_BINDING_KEY
+        },
+        "truth_source": ["browser_action_trace", "runtime_timeline_event"],
+        "artifact_kinds": ["browser_session", "browser_snapshot"],
+        "viewer_surface": ["browser_replay_viewer"],
+        "owner_surface": "browser_runtime"
+    })
+}
+
+pub(crate) fn pdf_extract_runtime_contract() -> Value {
+    json!({
+        "contract_key": PDF_EXTRACT_CONTRACT_KEY,
+        "modality": PDF_EXTRACT_MODALITY,
+        "required_capabilities": PDF_EXTRACT_REQUIRED_CAPABILITIES,
+        "routing_slot": PDF_EXTRACT_ROUTING_SLOT,
+        "executor_binding": {
+            "executor_kind": "skill",
+            "binding_key": PDF_EXTRACT_EXECUTOR_BINDING_KEY
+        },
+        "truth_source": ["pdf_extract_artifact", "runtime_timeline_event"],
+        "artifact_kinds": ["pdf_extract", "report_document"],
+        "viewer_surface": ["document_viewer"],
+        "owner_surface": "agent_runtime"
+    })
+}
+
+pub(crate) fn voice_generation_runtime_contract() -> Value {
+    json!({
+        "contract_key": VOICE_GENERATION_CONTRACT_KEY,
+        "modality": VOICE_GENERATION_MODALITY,
+        "required_capabilities": VOICE_GENERATION_REQUIRED_CAPABILITIES,
+        "routing_slot": VOICE_GENERATION_ROUTING_SLOT,
+        "executor_binding": {
+            "executor_kind": "service_skill",
+            "binding_key": VOICE_GENERATION_EXECUTOR_BINDING_KEY
+        },
+        "truth_source": ["audio_task_artifact", "runtime_timeline_event"],
+        "artifact_kinds": ["audio_task", "audio_output"],
+        "viewer_surface": ["audio_player"],
+        "owner_surface": "service_skill_runtime"
+    })
+}
+
+pub(crate) fn web_research_runtime_contract() -> Value {
+    json!({
+        "contract_key": WEB_RESEARCH_CONTRACT_KEY,
+        "modality": WEB_RESEARCH_MODALITY,
+        "required_capabilities": WEB_RESEARCH_REQUIRED_CAPABILITIES,
+        "routing_slot": WEB_RESEARCH_ROUTING_SLOT,
+        "executor_binding": {
+            "executor_kind": "skill",
+            "binding_key": WEB_RESEARCH_EXECUTOR_BINDING_KEY
+        },
+        "truth_source": ["research_timeline_event", "report_document_artifact"],
+        "artifact_kinds": ["report_document", "webpage_artifact"],
+        "viewer_surface": ["report_viewer", "webpage_viewer"],
+        "owner_surface": "agent_runtime"
+    })
+}
+
+pub(crate) fn text_transform_runtime_contract() -> Value {
+    json!({
+        "contract_key": TEXT_TRANSFORM_CONTRACT_KEY,
+        "modality": TEXT_TRANSFORM_MODALITY,
+        "required_capabilities": TEXT_TRANSFORM_REQUIRED_CAPABILITIES,
+        "routing_slot": TEXT_TRANSFORM_ROUTING_SLOT,
+        "executor_binding": {
+            "executor_kind": "skill",
+            "binding_key": TEXT_TRANSFORM_EXECUTOR_BINDING_KEY
+        },
+        "truth_source": ["runtime_timeline_event", "report_document_artifact"],
+        "artifact_kinds": ["report_document", "generic_file"],
+        "viewer_surface": ["document_viewer", "generic_file_viewer"],
         "owner_surface": "agent_runtime"
     })
 }
@@ -240,6 +457,98 @@ pub(crate) fn insert_image_generation_contract_fields(record: &mut Map<String, V
     record.insert(
         "runtime_contract".to_string(),
         image_generation_runtime_contract(),
+    );
+}
+
+pub(crate) fn insert_pdf_extract_contract_fields(record: &mut Map<String, Value>) {
+    record.insert(
+        "modality_contract_key".to_string(),
+        Value::String(PDF_EXTRACT_CONTRACT_KEY.to_string()),
+    );
+    record.insert(
+        "modality".to_string(),
+        Value::String(PDF_EXTRACT_MODALITY.to_string()),
+    );
+    record.insert(
+        "required_capabilities".to_string(),
+        json!(PDF_EXTRACT_REQUIRED_CAPABILITIES),
+    );
+    record.insert(
+        "routing_slot".to_string(),
+        Value::String(PDF_EXTRACT_ROUTING_SLOT.to_string()),
+    );
+    record.insert(
+        "runtime_contract".to_string(),
+        pdf_extract_runtime_contract(),
+    );
+}
+
+pub(crate) fn insert_voice_generation_contract_fields(record: &mut Map<String, Value>) {
+    record.insert(
+        "modality_contract_key".to_string(),
+        Value::String(VOICE_GENERATION_CONTRACT_KEY.to_string()),
+    );
+    record.insert(
+        "modality".to_string(),
+        Value::String(VOICE_GENERATION_MODALITY.to_string()),
+    );
+    record.insert(
+        "required_capabilities".to_string(),
+        json!(VOICE_GENERATION_REQUIRED_CAPABILITIES),
+    );
+    record.insert(
+        "routing_slot".to_string(),
+        Value::String(VOICE_GENERATION_ROUTING_SLOT.to_string()),
+    );
+    record.insert(
+        "runtime_contract".to_string(),
+        voice_generation_runtime_contract(),
+    );
+}
+
+pub(crate) fn insert_web_research_contract_fields(record: &mut Map<String, Value>) {
+    record.insert(
+        "modality_contract_key".to_string(),
+        Value::String(WEB_RESEARCH_CONTRACT_KEY.to_string()),
+    );
+    record.insert(
+        "modality".to_string(),
+        Value::String(WEB_RESEARCH_MODALITY.to_string()),
+    );
+    record.insert(
+        "required_capabilities".to_string(),
+        json!(WEB_RESEARCH_REQUIRED_CAPABILITIES),
+    );
+    record.insert(
+        "routing_slot".to_string(),
+        Value::String(WEB_RESEARCH_ROUTING_SLOT.to_string()),
+    );
+    record.insert(
+        "runtime_contract".to_string(),
+        web_research_runtime_contract(),
+    );
+}
+
+pub(crate) fn insert_text_transform_contract_fields(record: &mut Map<String, Value>) {
+    record.insert(
+        "modality_contract_key".to_string(),
+        Value::String(TEXT_TRANSFORM_CONTRACT_KEY.to_string()),
+    );
+    record.insert(
+        "modality".to_string(),
+        Value::String(TEXT_TRANSFORM_MODALITY.to_string()),
+    );
+    record.insert(
+        "required_capabilities".to_string(),
+        json!(TEXT_TRANSFORM_REQUIRED_CAPABILITIES),
+    );
+    record.insert(
+        "routing_slot".to_string(),
+        Value::String(TEXT_TRANSFORM_ROUTING_SLOT.to_string()),
+    );
+    record.insert(
+        "runtime_contract".to_string(),
+        text_transform_runtime_contract(),
     );
 }
 

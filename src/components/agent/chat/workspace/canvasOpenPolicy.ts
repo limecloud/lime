@@ -18,9 +18,7 @@ const MANUAL_CANVAS_OPEN_REASONS = new Set<CanvasOpenReason>([
   "user_open_message_preview",
 ]);
 
-export function shouldOpenCanvasForReason(
-  reason: CanvasOpenReason,
-): boolean {
+export function shouldOpenCanvasForReason(reason: CanvasOpenReason): boolean {
   return MANUAL_CANVAS_OPEN_REASONS.has(reason);
 }
 

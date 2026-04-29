@@ -47,9 +47,7 @@ vi.mock("./components/ui/sonner", () => ({
 }));
 
 vi.mock("./components/layout/AppCrashBoundary", () => ({
-  AppCrashBoundary: ({ children }: { children: ReactNode }) => (
-    <>{children}</>
-  ),
+  AppCrashBoundary: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("./components/layout/CrashRecoveryPanel.helpers", () => ({
@@ -61,8 +59,7 @@ vi.mock("./lib/appVersion", () => ({
 }));
 
 vi.mock("./lib/oemCloudStartupLogin", () => ({
-  startOemCloudStartupLoginIfRequired:
-    mockStartOemCloudStartupLoginIfRequired,
+  startOemCloudStartupLoginIfRequired: mockStartOemCloudStartupLoginIfRequired,
 }));
 
 interface MountedRootRouter {

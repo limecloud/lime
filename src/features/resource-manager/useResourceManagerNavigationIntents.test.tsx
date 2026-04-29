@@ -119,7 +119,9 @@ describe("useResourceManagerNavigationIntents", () => {
       }),
     );
     expect(
-      window.localStorage.getItem(RESOURCE_MANAGER_NAVIGATION_INTENT_CONSUMED_KEY),
+      window.localStorage.getItem(
+        RESOURCE_MANAGER_NAVIGATION_INTENT_CONSUMED_KEY,
+      ),
     ).toBe("resource-intent-1");
   });
 

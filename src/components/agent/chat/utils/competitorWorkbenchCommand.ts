@@ -9,8 +9,10 @@ export type CompetitorWorkbenchCommandTrigger =
   | "@competitive"
   | "@Product Search";
 
-export interface ParsedCompetitorWorkbenchCommand
-  extends Omit<ParsedReportWorkbenchCommand, "trigger" | "focus" | "outputFormat"> {
+export interface ParsedCompetitorWorkbenchCommand extends Omit<
+  ParsedReportWorkbenchCommand,
+  "trigger" | "focus" | "outputFormat"
+> {
   trigger: CompetitorWorkbenchCommandTrigger;
   focus: string;
   outputFormat: string;
@@ -22,8 +24,7 @@ export const DEFAULT_COMPETITOR_OUTPUT_FORMAT = "竞品分析";
 
 const COMPETITOR_COMMAND_PREFIX_REGEX =
   /^\s*(@竞品|@competitor|@competitive|@Product Search)(?:\s+|$)([\s\S]*)$/i;
-const EXPLICIT_OUTPUT_FORMAT_REGEX =
-  /(?:输出|格式|output|format)\s*[:：=]\s*/i;
+const EXPLICIT_OUTPUT_FORMAT_REGEX = /(?:输出|格式|output|format)\s*[:：=]\s*/i;
 
 function normalizeTrigger(value: string): CompetitorWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();

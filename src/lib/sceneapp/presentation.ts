@@ -151,8 +151,7 @@ const RUN_SOURCE_LABELS: Record<SceneAppRunSummary["source"], string> = {
 const FEATURED_SCENEAPP_PRESETS: Record<string, SceneAppPresentationCopy> = {
   "story-video-suite": {
     businessLabel: "多模态组合",
-    valueStatement:
-      "从一句主题串起脚本、线框图、配乐方向和短视频草稿。",
+    valueStatement: "从一句主题串起脚本、线框图、配乐方向和短视频草稿。",
     actionLabel: "进入生成",
     executionLabel: "当前会话继续",
     executionTone: "sky",
@@ -196,10 +195,7 @@ function truncateSingleLine(value: string, maxLength = 88): string {
   return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
-function summarizeLabels(
-  values: string[],
-  fallback: string,
-): string {
+function summarizeLabels(values: string[], fallback: string): string {
   const labels = Array.from(new Set(values.filter(Boolean))).slice(0, 3);
 
   return labels.length > 0 ? labels.join(" · ") : fallback;
@@ -303,7 +299,9 @@ function inferFallbackCopy(
 export function getSceneAppPresentationCopy(
   descriptor: SceneAppPresentationDescriptor,
 ): SceneAppPresentationCopy {
-  return FEATURED_SCENEAPP_PRESETS[descriptor.id] ?? inferFallbackCopy(descriptor);
+  return (
+    FEATURED_SCENEAPP_PRESETS[descriptor.id] ?? inferFallbackCopy(descriptor)
+  );
 }
 
 export function getSceneAppPatternLabel(pattern: SceneAppPattern): string {
@@ -330,7 +328,9 @@ export function getSceneAppInfraSummary(
   );
 }
 
-export function getSceneAppTypeLabel(sceneappType: SceneAppPresentedType): string {
+export function getSceneAppTypeLabel(
+  sceneappType: SceneAppPresentedType,
+): string {
   return resolveSceneAppTypePresentation(sceneappType).label;
 }
 
@@ -402,7 +402,8 @@ export function getSceneAppRunInsight(params: {
         sourceLabel,
         stageLabel: "执行中",
         summary: `${subject} 正在推进结果链，${artifactSummary}。`,
-        nextAction: "建议等待当前轮完成，再判断是否适合沉淀成稳定模板或自动化。",
+        nextAction:
+          "建议等待当前轮完成，再判断是否适合沉淀成稳定模板或自动化。",
       };
     case "success":
       return {
@@ -426,7 +427,8 @@ export function getSceneAppRunInsight(params: {
         sourceLabel,
         stageLabel: "已超时",
         summary: `${subject} 在执行过程中超时，${artifactSummary}。`,
-        nextAction: "优先检查依赖能力是否过重、超时阈值是否过短，以及是否需要拆分步骤链。",
+        nextAction:
+          "优先检查依赖能力是否过重、超时阈值是否过短，以及是否需要拆分步骤链。",
       };
     case "error":
       return {

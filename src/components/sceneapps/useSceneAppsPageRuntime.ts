@@ -184,7 +184,10 @@ function buildLatestSceneAppRunMap(
 ): Record<string, SceneAppRunSummary> {
   return runs.reduce<Record<string, SceneAppRunSummary>>((acc, run) => {
     const current = acc[run.sceneappId];
-    if (!current || resolveSceneAppRunSortTime(run) >= resolveSceneAppRunSortTime(current)) {
+    if (
+      !current ||
+      resolveSceneAppRunSortTime(run) >= resolveSceneAppRunSortTime(current)
+    ) {
       acc[run.sceneappId] = run;
     }
     return acc;
@@ -514,7 +517,9 @@ export function useSceneAppsPageRuntime({
         partialErrors.push(formatSceneAppErrorMessage(runsResult.error));
       }
       if (scorecardResults.some((result) => !result.ok)) {
-        partialErrors.push("部分结果判断暂未回流，目录先按已拿到的运行事实展示。");
+        partialErrors.push(
+          "部分结果判断暂未回流，目录先按已拿到的运行事实展示。",
+        );
       }
       setCatalogRuntimeError(partialErrors[0] ?? null);
       setCatalogRuntimeLoading(false);
@@ -1150,8 +1155,7 @@ export function useSceneAppsPageRuntime({
         entryBannerMessage: followUpAction.bannerMessage,
         ...(selectedSceneAppExecutionSummary
           ? {
-              initialSceneAppExecutionSummary:
-                selectedSceneAppExecutionSummary,
+              initialSceneAppExecutionSummary: selectedSceneAppExecutionSummary,
             }
           : {}),
       });

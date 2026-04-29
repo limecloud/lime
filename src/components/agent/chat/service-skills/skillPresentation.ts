@@ -53,16 +53,11 @@ function uniqueStrings(values: string[]): string[] {
   );
 }
 
-function hasRequiredSlots(
-  item: Pick<ServiceSkillItem, "slotSchema">,
-): boolean {
+function hasRequiredSlots(item: Pick<ServiceSkillItem, "slotSchema">): boolean {
   return item.slotSchema.some((slot) => slot.required);
 }
 
-function summarizeServiceSkillFactItems(
-  items: string[],
-  limit = 2,
-): string {
+function summarizeServiceSkillFactItems(items: string[], limit = 2): string {
   const normalizedItems = uniqueStrings(items);
   if (normalizedItems.length === 0) {
     return "";
@@ -149,7 +144,10 @@ export function summarizeServiceSkillRequiredInputs(
 }
 
 export function buildServiceSkillCapabilityDescription(
-  item: Pick<ServiceSkillItem, "entryHint" | "summary" | "slotSchema" | "outputHint">,
+  item: Pick<
+    ServiceSkillItem,
+    "entryHint" | "summary" | "slotSchema" | "outputHint"
+  >,
   options: BuildServiceSkillCapabilityDescriptionOptions = {},
 ): string {
   const segments: string[] = [];

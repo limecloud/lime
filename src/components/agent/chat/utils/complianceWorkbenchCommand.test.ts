@@ -43,6 +43,8 @@ describe("parseComplianceWorkbenchCommand", () => {
   });
 
   it("非发布合规命令应返回空", () => {
-    expect(parseComplianceWorkbenchCommand("@分析 帮我分析这篇文案")).toBeNull();
+    expect(
+      parseComplianceWorkbenchCommand("@分析 帮我分析这篇文案"),
+    ).toBeNull();
   });
 });

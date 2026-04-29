@@ -26,7 +26,8 @@ describe("buildSkillScaffoldCreationSeed", () => {
         "执行步骤：\n1. 先确认主题，再沿用原结果的结构骨架。",
         "失败回退：\n1. 信息不足时先补问关键时间范围。",
       ].join("\n\n"),
-      entryBannerMessage: "已从技能草稿“研究结果复用”带回创作输入，可继续改写后发送。",
+      entryBannerMessage:
+        "已从技能草稿“研究结果复用”带回创作输入，可继续改写后发送。",
     });
   });
 

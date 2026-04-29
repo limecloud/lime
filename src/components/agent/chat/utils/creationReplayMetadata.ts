@@ -275,7 +275,12 @@ export function extractCreationReplayMetadata(
   }
 
   const category = readText(data, "category");
-  if (kind === "memory_entry" && page === "memory" && data && isMemoryCategory(category)) {
+  if (
+    kind === "memory_entry" &&
+    page === "memory" &&
+    data &&
+    isMemoryCategory(category)
+  ) {
     return {
       version,
       kind,

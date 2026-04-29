@@ -4,11 +4,7 @@ import {
   apiKeyProviderApi,
   type ProviderWithKeysDisplay,
 } from "@/lib/api/apiKeyProvider";
-import {
-  getConfig,
-  saveConfig,
-  type Config,
-} from "@/lib/api/appConfig";
+import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import {
   canUseCompanionQuickActionProvider,
   getCompanionDefaultsFromConfig,
@@ -283,7 +279,8 @@ export function CompanionCapabilityPreferencesCard() {
                 桌宠能力偏好
               </h3>
               <p className="text-sm leading-6 text-slate-600">
-                用与聊天页相同的模型选择器，为 Lime 青柠精灵单独指定当前已接入主链的通用模型。
+                用与聊天页相同的模型选择器，为 Lime
+                青柠精灵单独指定当前已接入主链的通用模型。
                 本地、自管云端与品牌云端继续复用同一套筛选口径。
               </p>
             </div>
@@ -291,7 +288,10 @@ export function CompanionCapabilityPreferencesCard() {
         </div>
         <div className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
           <p className="font-medium text-slate-800">当前主链</p>
-          <p>当前只暴露已接入双击鼓励、三击下一步建议等 quick action 的通用模型设置。</p>
+          <p>
+            当前只暴露已接入双击鼓励、三击下一步建议等 quick action
+            的通用模型设置。
+          </p>
         </div>
       </div>
 
@@ -320,7 +320,9 @@ export function CompanionCapabilityPreferencesCard() {
             })
           }
           providerFilter={(provider) =>
-            generalProviderIds.has(normalizeProviderSelection(provider.providerId))
+            generalProviderIds.has(
+              normalizeProviderSelection(provider.providerId),
+            )
           }
           allowFallback={generalPreference.allowFallback ?? true}
           onAllowFallbackChange={(value) =>

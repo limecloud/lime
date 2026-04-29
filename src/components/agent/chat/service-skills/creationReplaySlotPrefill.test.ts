@@ -206,7 +206,8 @@ describe("buildCreationReplaySlotPrefill", () => {
     expect(result).toEqual({
       slotValues: {
         platform: "x",
-        industry_keywords: "北美、AI Agent、X / Twitter、北美 AI Agent X 趋势巡检",
+        industry_keywords:
+          "北美、AI Agent、X / Twitter、北美 AI Agent X 趋势巡检",
         time_window: "过去 7 天",
         region: "北美",
         schedule_time: "每天 08:30",
@@ -267,7 +268,8 @@ describe("buildCreationReplaySlotPrefill", () => {
         },
         data: {
           name: "日文配音短视频",
-          description: "参考 https://example.com/video-demo 并整理成 60-90 秒版本。",
+          description:
+            "参考 https://example.com/video-demo 并整理成 60-90 秒版本。",
           source_excerpt:
             "请输出日文配音稿，保留中英双语字幕，整体更像科技感讲解。",
         },

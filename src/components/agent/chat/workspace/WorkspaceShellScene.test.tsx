@@ -79,6 +79,8 @@ describe("WorkspaceShellScene", () => {
     ) as HTMLElement | null;
 
     expect(shell?.className).toContain("lime-workbench-theme-scope");
-    expect(shell?.querySelector('[data-testid="workspace-main"]')).not.toBeNull();
+    expect(
+      shell?.querySelector('[data-testid="workspace-main"]'),
+    ).not.toBeNull();
   });
 });

@@ -89,7 +89,10 @@ function truncate(value: string, maxLength: number): string {
   return `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
-function uniqueItems(items: Array<string | null | undefined>, maxItems: number): string[] {
+function uniqueItems(
+  items: Array<string | null | undefined>,
+  maxItems: number,
+): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
 
@@ -136,7 +139,8 @@ export function buildInspirationProjectionEntries(
         id: memory.id,
         title: normalizeWhitespace(memory.title) || "未命名灵感",
         summary:
-          normalizedSummary || truncate(normalizedContent || "等待补充摘要", 96),
+          normalizedSummary ||
+          truncate(normalizedContent || "等待补充摘要", 96),
         contentPreview: truncate(normalizedContent || normalizedSummary, 120),
         category: memory.category,
         categoryLabel: CATEGORY_LABELS[memory.category],

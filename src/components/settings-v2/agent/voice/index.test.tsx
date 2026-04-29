@@ -321,9 +321,7 @@ describe("VoiceSettings", () => {
     const container = renderComponent();
     await flushEffects(6);
 
-    const toggle = container.querySelector(
-      "button[aria-label='切换语音输入']",
-    );
+    const toggle = container.querySelector("button[aria-label='切换语音输入']");
     expect(toggle).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {

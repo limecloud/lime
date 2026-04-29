@@ -454,6 +454,34 @@ describe("useSelectedTeamPreference", () => {
     }
   });
 
+  it("自动回填 fallback Team 时应标记为后台同步", async () => {
+    const engineeringTeam = createTeamDefinitionFromPreset(
+      "code-triage-team",
+    ) as TeamDefinition;
+    const syncSpy = vi.fn().mockResolvedValue(undefined);
+    persistSelectedTeam(engineeringTeam, "general");
+
+    const harness = mountHook("general", {
+      sessionSync: {
+        getSessionId: () => "session-1",
+        setSessionRecentTeamSelection: syncSpy,
+      },
+    });
+
+    try {
+      await flushEffects();
+
+      expect(syncSpy).toHaveBeenCalledWith(
+        "session-1",
+        engineeringTeam,
+        "general",
+        { priority: "background" },
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("runtime 明确 disabled 时应清空当前 Team 与本地影子缓存", async () => {
     const engineeringTeam = createTeamDefinitionFromPreset(
       "code-triage-team",

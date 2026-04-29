@@ -18,7 +18,9 @@ function getPlaybackDescription(item: ResourceManagerItem): string | null {
   return item.description || item.metadata?.prompt?.toString() || null;
 }
 
-export function MediaPlaybackResourceRenderer({ item }: MediaPlaybackResourceRendererProps) {
+export function MediaPlaybackResourceRenderer({
+  item,
+}: MediaPlaybackResourceRendererProps) {
   const isVideo = item.kind === "video";
   const [loadFailed, setLoadFailed] = useState(false);
   const formatLabel = getResourceFormatLabel(item);
@@ -39,7 +41,8 @@ export function MediaPlaybackResourceRenderer({ item }: MediaPlaybackResourceRen
             {isVideo ? "视频暂时无法播放" : "音频暂时无法播放"}
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            当前媒体地址无法被 WebView 原生播放器读取，可以尝试下载、定位文件或用系统应用打开。
+            当前媒体地址无法被 WebView
+            原生播放器读取，可以尝试下载、定位文件或用系统应用打开。
           </p>
           {formatLabel ? (
             <div className="mt-4 inline-flex rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">

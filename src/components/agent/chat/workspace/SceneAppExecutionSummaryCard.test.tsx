@@ -1,14 +1,7 @@
 import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SceneAppExecutionSummaryCard } from "./SceneAppExecutionSummaryCard";
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
@@ -114,7 +107,9 @@ function createLatestPackResultDetailView(
 }
 
 function renderCard(
-  props: Partial<React.ComponentProps<typeof SceneAppExecutionSummaryCard>> = {},
+  props: Partial<
+    React.ComponentProps<typeof SceneAppExecutionSummaryCard>
+  > = {},
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -132,7 +127,8 @@ function renderCard(
           executionChainLabel: "做法 -> 生成 -> Project Pack",
           deliveryContractLabel: "Project Pack",
           planningStatusLabel: "已就绪",
-          planningSummary: "当前已经带入 2 条参考与 1 条风格偏好，可直接进入生成。",
+          planningSummary:
+            "当前已经带入 2 条参考与 1 条风格偏好，可直接进入生成。",
           activeLayers: [
             { key: "skill", label: "Skill" },
             { key: "memory", label: "Memory" },
@@ -187,12 +183,8 @@ function renderCard(
             actionLabel: "建议继续优化",
             topFailureSignalLabel: "复核阻塞",
             profileRef: "story-video-scorecard",
-            metricKeys: [
-              { key: "delivery_readiness", label: "交付就绪度" },
-            ],
-            failureSignals: [
-              { key: "publish_stalled", label: "发布卡点" },
-            ],
+            metricKeys: [{ key: "delivery_readiness", label: "交付就绪度" }],
+            failureSignals: [{ key: "publish_stalled", label: "发布卡点" }],
             observedFailureSignals: [
               { key: "review_blocked", label: "复核阻塞" },
             ],
@@ -232,9 +224,7 @@ function renderCard(
             scorecardActionLabel: "优先优化",
             topFailureSignalLabel: "复核阻塞",
             deliveryCompletedParts: [{ key: "brief", label: "任务简报" }],
-            deliveryMissingParts: [
-              { key: "review_note", label: "复核意见" },
-            ],
+            deliveryMissingParts: [{ key: "review_note", label: "复核意见" }],
             observedFailureSignals: [
               { key: "review_blocked", label: "复核阻塞" },
             ],
@@ -280,18 +270,22 @@ describe("SceneAppExecutionSummaryCard", () => {
     expect(container.textContent).toContain("做法执行摘要");
     expect(container.textContent).toContain("短视频编排");
     expect(container.textContent).toContain("做法 -> 生成 -> Project Pack");
-    expect(container.textContent).toContain("当前已经带入 2 条参考与 1 条风格偏好");
+    expect(container.textContent).toContain(
+      "当前已经带入 2 条参考与 1 条风格偏好",
+    );
     expect(container.textContent).toContain("当前带入对象");
     expect(container.textContent).toContain("结果去向与交付");
     expect(container.textContent).toContain("这轮怎么判断");
     expect(container.textContent).toContain("当前带入：2 条参考对象");
     expect(
-      container.querySelector('[data-testid="sceneapp-execution-summary-project-pack"]')
-        ?.textContent,
+      container.querySelector(
+        '[data-testid="sceneapp-execution-summary-project-pack"]',
+      )?.textContent,
     ).toContain("短视频项目包");
     expect(
-      container.querySelector('[data-testid="sceneapp-execution-summary-scorecard"]')
-        ?.textContent,
+      container.querySelector(
+        '[data-testid="sceneapp-execution-summary-scorecard"]',
+      )?.textContent,
     ).toContain("story-video-scorecard");
     expect(
       container.querySelector(
@@ -322,8 +316,7 @@ describe("SceneAppExecutionSummaryCard", () => {
         source: "review_feedback",
         category: "experience",
         title: "短视频编排 · 补证据",
-        summary:
-          "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
+        summary: "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
         tags: ["复盘", "补证据"],
         preferredTaskIds: ["account-project-review", "viral-content-breakdown"],
         createdAt: 1_776_869_588_097,
@@ -358,8 +351,7 @@ describe("SceneAppExecutionSummaryCard", () => {
         source: "review_feedback",
         category: "experience",
         title: "短视频编排 · 补证据",
-        summary:
-          "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
+        summary: "这轮结果还缺证据，需要回到账号复盘和高表现样本继续补证据。",
         tags: ["复盘", "补证据"],
         preferredTaskIds: ["account-project-review", "viral-content-breakdown"],
         createdAt: 1_776_869_588_097,
@@ -827,7 +819,8 @@ describe("SceneAppExecutionSummaryCard", () => {
             artifactRef: {
               kind: "evidence_summary",
               label: "证据摘要",
-              relativePath: ".lime/harness/sessions/session-1/evidence/summary.md",
+              relativePath:
+                ".lime/harness/sessions/session-1/evidence/summary.md",
               absolutePath: "/tmp/summary.md",
               projectId: "project-1",
               workspaceId: "project-1",
@@ -842,7 +835,8 @@ describe("SceneAppExecutionSummaryCard", () => {
             artifactRef: {
               kind: "review_decision_markdown",
               label: "人工复核记录",
-              relativePath: ".lime/harness/sessions/session-1/review/decision.md",
+              relativePath:
+                ".lime/harness/sessions/session-1/review/decision.md",
               absolutePath: "/tmp/decision.md",
               projectId: "project-1",
               workspaceId: "project-1",
@@ -857,7 +851,8 @@ describe("SceneAppExecutionSummaryCard", () => {
             artifactRef: {
               kind: "review_decision_json",
               label: "复核 JSON",
-              relativePath: ".lime/harness/sessions/session-1/review/decision.json",
+              relativePath:
+                ".lime/harness/sessions/session-1/review/decision.json",
               absolutePath: "/tmp/decision.json",
               projectId: "project-1",
               workspaceId: "project-1",
@@ -902,9 +897,7 @@ describe("SceneAppExecutionSummaryCard", () => {
       automationButton?.dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
-      deliveryButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
+      deliveryButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(onGovernanceAction).toHaveBeenCalledWith(
@@ -932,7 +925,9 @@ describe("SceneAppExecutionSummaryCard", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="sceneapp-execution-summary-card"]'),
+      container.querySelector(
+        '[data-testid="sceneapp-execution-summary-card"]',
+      ),
     ).toBeNull();
   });
 });

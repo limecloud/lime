@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import type { AgentRuntimeGeneratedTitleResult } from "@/lib/api/agentRuntime";
+import { resolveImageGenerationRuntimeContractBinding } from "@/lib/governance/modalityRuntimeContracts";
 import type { MessageImage } from "../types";
 import type { ParsedImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
 import { readMessageImageFromDataUrl } from "../utils/imageAttachments";
@@ -8,15 +9,6 @@ import {
   type ImageWorkbenchApplyTarget,
   type SessionImageWorkbenchState,
 } from "./imageWorkbenchHelpers";
-
-const IMAGE_GENERATION_CONTRACT_KEY = "image_generation";
-const IMAGE_GENERATION_MODALITY = "image";
-const IMAGE_GENERATION_ROUTING_SLOT = "image_generation_model";
-const IMAGE_GENERATION_REQUIRED_CAPABILITIES = [
-  "text_generation",
-  "image_generation",
-  "vision_input",
-] as const;
 
 export interface ImageWorkbenchSkillRequest {
   images: MessageImage[];
@@ -231,6 +223,7 @@ export function resolveImageWorkbenchSkillRequest(
       : documentInlineSlotId
         ? "document-inline"
         : "claw-image-workbench";
+  const runtimeContract = resolveImageGenerationRuntimeContractBinding();
 
   const requestContext = {
     kind: "image_task",
@@ -251,10 +244,11 @@ export function resolveImageWorkbenchSkillRequest(
       project_id: params.projectId,
       content_id: params.contentId || undefined,
       entry_source: params.entrySource || "at_image_command",
-      modality_contract_key: IMAGE_GENERATION_CONTRACT_KEY,
-      modality: IMAGE_GENERATION_MODALITY,
-      required_capabilities: [...IMAGE_GENERATION_REQUIRED_CAPABILITIES],
-      routing_slot: IMAGE_GENERATION_ROUTING_SLOT,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
       requested_target: requestedTarget,
       slot_id: documentInlineSlotId,
       anchor_hint: documentInlineAnchorHint,

@@ -5,12 +5,8 @@ import type { SceneAppPlanResult } from "./types";
 type SceneAppPlanResultOverrides = {
   descriptor?: Partial<SceneAppPlanResult["descriptor"]>;
   readiness?: Partial<SceneAppPlanResult["readiness"]>;
-  contextOverlay?: Partial<
-    NonNullable<SceneAppPlanResult["contextOverlay"]>
-  >;
-  projectPackPlan?: Partial<
-    NonNullable<SceneAppPlanResult["projectPackPlan"]>
-  >;
+  contextOverlay?: Partial<NonNullable<SceneAppPlanResult["contextOverlay"]>>;
+  projectPackPlan?: Partial<NonNullable<SceneAppPlanResult["projectPackPlan"]>>;
   plan?: Partial<Omit<SceneAppPlanResult["plan"], "adapterPlan">> & {
     adapterPlan?: Partial<SceneAppPlanResult["plan"]["adapterPlan"]>;
   };
@@ -168,7 +164,9 @@ describe("sceneapp launch facade", () => {
               duration: "30s",
             },
           },
-          notes: ["当前做法规划会收敛到 Agent 工作区主链，并由客户端继续执行。"],
+          notes: [
+            "当前做法规划会收敛到 Agent 工作区主链，并由客户端继续执行。",
+          ],
         },
       },
     });

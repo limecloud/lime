@@ -105,9 +105,9 @@ describe("runtimeInputCapabilityCatalog", () => {
           command.commandPrefix === "/campaign-launch",
       ),
     ).toBe(true);
-    expect(
-      runtimeCatalog.mentionCommandPrefixKeyMap.get("@租户搜索测试"),
-    ).toBe("tenant_research_custom");
+    expect(runtimeCatalog.mentionCommandPrefixKeyMap.get("@租户搜索测试")).toBe(
+      "tenant_research_custom",
+    );
     expect(
       runtimeCatalog.mentionCommandSkillIdMap.get("tenant_research_custom"),
     ).toBe("tenant-research");
@@ -127,9 +127,9 @@ describe("runtimeInputCapabilityCatalog", () => {
     });
 
     expect(
-      snapshots.at(-1)?.sceneCommands.some(
-        (command) => command.key === "campaign-launch",
-      ),
+      snapshots
+        .at(-1)
+        ?.sceneCommands.some((command) => command.key === "campaign-launch"),
     ).toBe(false);
 
     await act(async () => {
@@ -139,7 +139,9 @@ describe("runtimeInputCapabilityCatalog", () => {
 
     const latest = snapshots.at(-1);
     expect(
-      latest?.sceneCommands.some((command) => command.key === "campaign-launch"),
+      latest?.sceneCommands.some(
+        (command) => command.key === "campaign-launch",
+      ),
     ).toBe(true);
   });
 });

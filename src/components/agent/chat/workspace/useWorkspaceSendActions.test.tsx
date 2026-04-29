@@ -2034,6 +2034,19 @@ describe("useWorkspaceSendActions", () => {
                 focus: "融资额与产品发布",
                 output_format: "要点",
                 entry_source: "at_search_command",
+                modality_contract_key: "web_research",
+                modality: "mixed",
+                required_capabilities: expect.arrayContaining([
+                  "text_generation",
+                  "web_search",
+                  "structured_document_generation",
+                  "long_context",
+                ]),
+                routing_slot: "report_generation_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "web_research",
+                  routing_slot: "report_generation_model",
+                }),
               },
             },
           },
@@ -2213,7 +2226,8 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           kind: "builtin_command",
           entryId: "research",
-          replayText: "关键词:OpenAI agent release notes 时间:最近一天 深度:标准",
+          replayText:
+            "关键词:OpenAI agent release notes 时间:最近一天 深度:标准",
         }),
       ]);
     } finally {
@@ -2255,7 +2269,8 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           kind: "builtin_command",
           entryId: "research",
-          replayText: "关键词:openai agents sdk issue 讨论 站点:GitHub 时间:最近一周 深度:标准",
+          replayText:
+            "关键词:openai agents sdk issue 讨论 站点:GitHub 时间:最近一周 深度:标准",
         }),
       ]);
     } finally {
@@ -2630,6 +2645,19 @@ describe("useWorkspaceSendActions", () => {
                 focus: "融资额与产品发布",
                 output_format: "对比表",
                 entry_source: "at_deep_search_command",
+                modality_contract_key: "web_research",
+                modality: "mixed",
+                required_capabilities: expect.arrayContaining([
+                  "text_generation",
+                  "web_search",
+                  "structured_document_generation",
+                  "long_context",
+                ]),
+                routing_slot: "report_generation_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "web_research",
+                  routing_slot: "report_generation_model",
+                }),
               },
             },
           },
@@ -2741,6 +2769,14 @@ describe("useWorkspaceSendActions", () => {
                 focus: "融资额与代表产品",
                 output_format: "投资人研报",
                 entry_source: "at_report_command",
+                modality_contract_key: "web_research",
+                modality: "mixed",
+                required_capabilities: expect.arrayContaining(["web_search"]),
+                routing_slot: "report_generation_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "web_research",
+                  routing_slot: "report_generation_model",
+                }),
               },
             },
           },
@@ -2790,6 +2826,14 @@ describe("useWorkspaceSendActions", () => {
                 depth: "deep",
                 output_format: "investor memo",
                 entry_source: "at_report_command",
+                modality_contract_key: "web_research",
+                modality: "mixed",
+                required_capabilities: expect.arrayContaining(["web_search"]),
+                routing_slot: "report_generation_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "web_research",
+                  routing_slot: "report_generation_model",
+                }),
               },
             },
           },
@@ -2838,6 +2882,14 @@ describe("useWorkspaceSendActions", () => {
                   "产品定位、目标用户、核心功能、定价模式、渠道策略、差异化优劣势",
                 output_format: "竞品分析",
                 entry_source: "at_competitor_command",
+                modality_contract_key: "web_research",
+                modality: "mixed",
+                required_capabilities: expect.arrayContaining(["web_search"]),
+                routing_slot: "report_generation_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "web_research",
+                  routing_slot: "report_generation_model",
+                }),
               },
             },
           },
@@ -2884,6 +2936,14 @@ describe("useWorkspaceSendActions", () => {
                   "产品定位、目标用户、核心功能、定价模式、渠道策略、差异化优劣势",
                 output_format: "竞品分析",
                 entry_source: "at_competitor_command",
+                modality_contract_key: "web_research",
+                modality: "mixed",
+                required_capabilities: expect.arrayContaining(["web_search"]),
+                routing_slot: "report_generation_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "web_research",
+                  routing_slot: "report_generation_model",
+                }),
               },
             },
           },
@@ -2936,6 +2996,19 @@ describe("useWorkspaceSendActions", () => {
                 query: "openai agents sdk issue",
                 limit: 8,
                 entry_source: "at_site_search_command",
+                modality_contract_key: "web_research",
+                modality: "mixed",
+                required_capabilities: expect.arrayContaining([
+                  "text_generation",
+                  "web_search",
+                  "structured_document_generation",
+                  "long_context",
+                ]),
+                routing_slot: "report_generation_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "web_research",
+                  routing_slot: "report_generation_model",
+                }),
               },
             },
           },
@@ -2980,6 +3053,18 @@ describe("useWorkspaceSendActions", () => {
                 source_path: "/tmp/agent-report.pdf",
                 output_format: "投资人摘要",
                 entry_source: "at_pdf_read_command",
+                modality_contract_key: "pdf_extract",
+                modality: "document",
+                required_capabilities: expect.arrayContaining([
+                  "local_file_read",
+                ]),
+                routing_slot: "base_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "pdf_extract",
+                  executor_binding: expect.objectContaining({
+                    binding_key: "pdf_read",
+                  }),
+                }),
               },
             },
           },
@@ -3025,6 +3110,19 @@ describe("useWorkspaceSendActions", () => {
                 source_path: "/tmp/agent-notes.md",
                 output_format: "投资人摘要",
                 entry_source: "at_file_read_command",
+                modality_contract_key: "text_transform",
+                modality: "document",
+                required_capabilities: expect.arrayContaining([
+                  "text_generation",
+                  "local_file_read",
+                ]),
+                routing_slot: "base_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "text_transform",
+                  executor_binding: expect.objectContaining({
+                    binding_key: "text_transform",
+                  }),
+                }),
               },
             },
           },
@@ -3115,6 +3213,19 @@ describe("useWorkspaceSendActions", () => {
                 style: "投资人简报",
                 output_format: "三点要点",
                 entry_source: "at_summary_command",
+                modality_contract_key: "text_transform",
+                modality: "document",
+                required_capabilities: expect.arrayContaining([
+                  "text_generation",
+                  "local_file_read",
+                ]),
+                routing_slot: "base_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "text_transform",
+                  executor_binding: expect.objectContaining({
+                    binding_key: "text_transform",
+                  }),
+                }),
               },
             },
           },
@@ -3238,6 +3349,19 @@ describe("useWorkspaceSendActions", () => {
                 style: "产品文案",
                 output_format: "只输出译文",
                 entry_source: "at_translation_command",
+                modality_contract_key: "text_transform",
+                modality: "document",
+                required_capabilities: expect.arrayContaining([
+                  "text_generation",
+                  "local_file_read",
+                ]),
+                routing_slot: "base_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "text_transform",
+                  executor_binding: expect.objectContaining({
+                    binding_key: "text_transform",
+                  }),
+                }),
               },
             },
           },
@@ -3385,6 +3509,19 @@ describe("useWorkspaceSendActions", () => {
                 style: "投资备忘",
                 output_format: "三点判断",
                 entry_source: "at_analysis_command",
+                modality_contract_key: "text_transform",
+                modality: "document",
+                required_capabilities: expect.arrayContaining([
+                  "text_generation",
+                  "local_file_read",
+                ]),
+                routing_slot: "base_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "text_transform",
+                  executor_binding: expect.objectContaining({
+                    binding_key: "text_transform",
+                  }),
+                }),
               },
             },
           },
@@ -3484,6 +3621,19 @@ describe("useWorkspaceSendActions", () => {
                 output_format: "拆解清单",
                 analysis_mode: "image_logo_decomposition",
                 entry_source: "at_logo_decomposition_command",
+                modality_contract_key: "text_transform",
+                modality: "document",
+                required_capabilities: expect.arrayContaining([
+                  "text_generation",
+                  "local_file_read",
+                ]),
+                routing_slot: "base_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "text_transform",
+                  executor_binding: expect.objectContaining({
+                    binding_key: "text_transform",
+                  }),
+                }),
               },
             },
           },
@@ -3533,6 +3683,19 @@ describe("useWorkspaceSendActions", () => {
                 style: "合规审校",
                 output_format: "风险清单",
                 entry_source: "at_publish_compliance_command",
+                modality_contract_key: "text_transform",
+                modality: "document",
+                required_capabilities: expect.arrayContaining([
+                  "text_generation",
+                  "local_file_read",
+                ]),
+                routing_slot: "base_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "text_transform",
+                  executor_binding: expect.objectContaining({
+                    binding_key: "text_transform",
+                  }),
+                }),
               },
             },
           },
@@ -3978,7 +4141,8 @@ describe("useWorkspaceSendActions", () => {
 
   it("@Read Webpage 应保留原始消息，并复用同一条网页阅读主链", async () => {
     const harness = mountHook({
-      input: "@Read Webpage https://example.com/post summarize the launch notes",
+      input:
+        "@Read Webpage https://example.com/post summarize the launch notes",
     });
 
     try {
@@ -4021,7 +4185,8 @@ describe("useWorkspaceSendActions", () => {
 
   it("@URL Summarize 应保留原始消息，并复用同一条网页摘要主链", async () => {
     const harness = mountHook({
-      input: "@URL Summarize https://example.com/post summarize the launch notes",
+      input:
+        "@URL Summarize https://example.com/post summarize the launch notes",
     });
 
     try {
@@ -4239,7 +4404,8 @@ describe("useWorkspaceSendActions", () => {
 
   it("@Web Style 应保留原始消息，并继续走同一条网页生成主链", async () => {
     const harness = mountHook({
-      input: "@Web Style 类型:官网 风格:glassmorphism 帮我做一个 AI workspace 官网",
+      input:
+        "@Web Style 类型:官网 风格:glassmorphism 帮我做一个 AI workspace 官网",
     });
 
     try {
@@ -4739,8 +4905,7 @@ describe("useWorkspaceSendActions", () => {
             "help me turn this launch brief into a stronger narrative",
           slotValues: {
             prompt: "help me turn this launch brief into a stronger narrative",
-            content:
-              "help me turn this launch brief into a stronger narrative",
+            content: "help me turn this launch brief into a stronger narrative",
           },
         }),
       ]);
@@ -4845,7 +5010,8 @@ describe("useWorkspaceSendActions", () => {
       expect(listMentionEntryUsage()).toEqual([
         expect.objectContaining({
           entryId: "writing_runtime",
-          replayText: "平台:微信公众号后台 要求:帮我写一篇 AI 浏览器产品观察文章",
+          replayText:
+            "平台:微信公众号后台 要求:帮我写一篇 AI 浏览器产品观察文章",
         }),
       ]);
       expect(listServiceSkillUsage()).toEqual([
@@ -5022,7 +5188,8 @@ describe("useWorkspaceSendActions", () => {
 
   it("@Instagram Preview 应保留原始消息，并复用同一条渠道预览主链", async () => {
     const harness = mountHook({
-      input: "@Instagram Preview turn this launch brief into a first-screen draft",
+      input:
+        "@Instagram Preview turn this launch brief into a first-screen draft",
     });
 
     try {
@@ -5304,6 +5471,17 @@ describe("useWorkspaceSendActions", () => {
                 skill_title: "视频配音",
                 user_input: "给这个新品视频做一版发布配音稿",
                 entry_source: "at_voice_command",
+                modality_contract_key: "voice_generation",
+                modality: "audio",
+                required_capabilities: ["text_generation", "voice_generation"],
+                routing_slot: "voice_generation_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "voice_generation",
+                  routing_slot: "voice_generation_model",
+                  executor_binding: expect.objectContaining({
+                    binding_key: "voice_runtime",
+                  }),
+                }),
                 project_id: "project-1",
                 target_language: "英文",
                 voice_style: "科技感",
@@ -5383,7 +5561,8 @@ describe("useWorkspaceSendActions", () => {
 
   it("@Growth Expert 应保留原始消息，并通过本地 service scene launch 注入增长跟踪 prompt", async () => {
     const harness = mountHook({
-      input: "@Growth Expert 平台:X 账号:@openai,@anthropic 回报频率:每天 09:00 告警阈值:互动率低于 2% 帮我先做一版增长跟踪策略",
+      input:
+        "@Growth Expert 平台:X 账号:@openai,@anthropic 回报频率:每天 09:00 告警阈值:互动率低于 2% 帮我先做一版增长跟踪策略",
       serviceSkills: [createGrowthTrackingSkill()],
     });
 
@@ -5565,6 +5744,18 @@ describe("useWorkspaceSendActions", () => {
             browser_assist: expect.objectContaining({
               enabled: true,
               profile_key: "general_browser_assist",
+              modality_contract_key: "browser_control",
+              modality: "browser",
+              required_capabilities: expect.arrayContaining([
+                "browser_control_planning",
+              ]),
+              routing_slot: "browser_reasoning_model",
+              runtime_contract: expect.objectContaining({
+                contract_key: "browser_control",
+                routing_slot: "browser_reasoning_model",
+              }),
+              entry_source: "at_browser_command",
+              launch_url: "https://news.baidu.com",
             }),
           },
         },
@@ -5611,6 +5802,14 @@ describe("useWorkspaceSendActions", () => {
             browser_assist: expect.objectContaining({
               enabled: true,
               profile_key: "general_browser_assist",
+              modality_contract_key: "browser_control",
+              required_capabilities: expect.arrayContaining([
+                "browser_control_planning",
+              ]),
+              routing_slot: "browser_reasoning_model",
+              runtime_contract: expect.objectContaining({
+                contract_key: "browser_control",
+              }),
             }),
           },
         },
@@ -5656,6 +5855,14 @@ describe("useWorkspaceSendActions", () => {
             browser_assist: expect.objectContaining({
               enabled: true,
               profile_key: "general_browser_assist",
+              modality_contract_key: "browser_control",
+              required_capabilities: expect.arrayContaining([
+                "browser_control_planning",
+              ]),
+              routing_slot: "browser_reasoning_model",
+              runtime_contract: expect.objectContaining({
+                contract_key: "browser_control",
+              }),
             }),
           },
         },

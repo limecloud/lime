@@ -26,7 +26,8 @@ export type ServiceSkillCompatExecutionLocation = "cloud_required";
 export type ServiceSkillAnyExecutionLocation =
   | ServiceSkillCurrentExecutionLocation
   | ServiceSkillCompatExecutionLocation;
-export type ServiceSkillExecutionLocation = ServiceSkillCurrentExecutionLocation;
+export type ServiceSkillExecutionLocation =
+  ServiceSkillCurrentExecutionLocation;
 
 export type ServiceSkillArtifactKind =
   | "report"
@@ -175,11 +176,10 @@ export interface ServiceSkillItem {
   version: string;
 }
 
-export interface ServiceSkillCompatItem
-  extends Omit<
-    ServiceSkillItem,
-    "defaultExecutorBinding" | "executionLocation"
-  > {
+export interface ServiceSkillCompatItem extends Omit<
+  ServiceSkillItem,
+  "defaultExecutorBinding" | "executionLocation"
+> {
   defaultExecutorBinding: ServiceSkillAnyExecutorBinding;
   executionLocation: ServiceSkillAnyExecutionLocation;
 }
@@ -191,8 +191,10 @@ export interface ServiceSkillCatalog {
   items: ServiceSkillItem[];
 }
 
-export interface ServiceSkillCompatCatalog
-  extends Omit<ServiceSkillCatalog, "items"> {
+export interface ServiceSkillCompatCatalog extends Omit<
+  ServiceSkillCatalog,
+  "items"
+> {
   items: ServiceSkillCompatItem[];
 }
 
@@ -206,8 +208,7 @@ export const SERVICE_SKILL_EXECUTION_LOCATION_LABEL = "客户端执行";
 export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL = "旧目录兼容";
 export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_SUMMARY =
   "沿用旧目录兼容标记，实际仍在客户端执行";
-export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE =
-  `${LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_SUMMARY}。`;
+export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE = `${LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_SUMMARY}。`;
 
 export interface ServiceSkillExecutionLocationPresentation {
   label: string;
@@ -362,7 +363,10 @@ function toServiceSkillBundleMetadata(
 function resolveDerivedServiceSkillOutputDestination(
   item: Pick<
     ServiceSkillCompatItem,
-    "outputDestination" | "executionLocation" | "siteCapabilityBinding" | "runnerType"
+    | "outputDestination"
+    | "executionLocation"
+    | "siteCapabilityBinding"
+    | "runnerType"
   >,
 ): string {
   if (trimToUndefined(item.outputDestination)) {
@@ -395,9 +399,7 @@ function resolveDerivedServiceSkillOutputDestination(
 function buildDerivedServiceSkillCompatibility(
   item: Pick<
     ServiceSkillCompatItem,
-    | "readinessRequirements"
-    | "executionLocation"
-    | "defaultExecutorBinding"
+    "readinessRequirements" | "executionLocation" | "defaultExecutorBinding"
   >,
 ): string {
   const parts = ["适用于 Lime 客户端技能目录"];
@@ -517,7 +519,9 @@ function buildDerivedServiceSkillBundleSummary(
   };
 }
 
-function normalizeServiceSkillItem(item: ServiceSkillCompatItem): ServiceSkillItem {
+function normalizeServiceSkillItem(
+  item: ServiceSkillCompatItem,
+): ServiceSkillItem {
   return {
     ...item,
     defaultExecutorBinding: resolveCurrentServiceSkillExecutorBinding(item),
@@ -722,7 +726,9 @@ function isServiceSkillSceneBinding(
   );
 }
 
-function isServiceSkillCompatItem(value: unknown): value is ServiceSkillCompatItem {
+function isServiceSkillCompatItem(
+  value: unknown,
+): value is ServiceSkillCompatItem {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -1061,10 +1067,7 @@ function isNormalizedServiceSkillCatalogInput(
   }
 
   const record = value as Record<string, unknown>;
-  if (
-    !("catalog" in record) ||
-    !isServiceSkillCompatCatalog(record.catalog)
-  ) {
+  if (!("catalog" in record) || !isServiceSkillCompatCatalog(record.catalog)) {
     return false;
   }
 

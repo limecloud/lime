@@ -26,7 +26,10 @@ interface MemoryEntrySurfaceCopy {
   hintWithoutReference: string;
 }
 
-const MEMORY_ENTRY_SURFACE_COPY: Record<MemoryCategory, MemoryEntrySurfaceCopy> = {
+const MEMORY_ENTRY_SURFACE_COPY: Record<
+  MemoryCategory,
+  MemoryEntrySurfaceCopy
+> = {
   identity: {
     eyebrow: "当前带入风格参考",
     tagsPrefix: "风格标签",

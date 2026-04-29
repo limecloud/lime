@@ -288,6 +288,7 @@ function validateEntryBindings(errors, contract) {
       "entry_key",
       "display_name",
       "launch_metadata_path",
+      "entry_source",
     ]) {
       pushIf(
         errors,
@@ -299,6 +300,12 @@ function validateEntryBindings(errors, contract) {
       errors,
       !ENTRY_KINDS.has(entry.entry_kind),
       `${prefix}.entry_kind is unknown: ${String(entry.entry_kind)}`,
+    );
+    pushIf(
+      errors,
+      isNonEmptyString(entry.launch_metadata_path) &&
+        !entry.launch_metadata_path.startsWith("harness."),
+      `${prefix}.launch_metadata_path must point to harness metadata`,
     );
     validateStringArray(
       errors,

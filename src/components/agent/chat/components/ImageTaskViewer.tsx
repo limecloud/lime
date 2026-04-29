@@ -5,6 +5,7 @@ import type { ResourceManagerSourceContext } from "@/features/resource-manager";
 import { cn } from "@/lib/utils";
 import { RenderableTaskImage } from "./RenderableTaskImage";
 import type { ImageTaskViewerProps } from "./imageWorkbenchTypes";
+import type { ImageRuntimeContractSnapshot } from "../types";
 
 const IMAGE_TASK_PRIMARY_BUTTON_CLASSNAME =
   "inline-flex items-center justify-center rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95";
@@ -189,6 +190,53 @@ function resolveStatusTone(status?: string): string {
   }
 }
 
+function resolveRuntimeContractBadge(
+  runtimeContract?: ImageRuntimeContractSnapshot | null,
+): { label: string; tone: string } | null {
+  if (!runtimeContract) {
+    return null;
+  }
+
+  const contractKey = runtimeContract.contractKey?.trim() || "image_generation";
+  const outcome = (runtimeContract.routingOutcome || "").trim().toLowerCase();
+  if (outcome === "blocked") {
+    return {
+      label: `运行合同阻止 · ${
+        runtimeContract.failureCode?.trim() || contractKey
+      }`,
+      tone: "border-amber-200 bg-amber-50 text-amber-800",
+    };
+  }
+  if (outcome === "failed") {
+    return {
+      label: `运行合同失败 · ${
+        runtimeContract.failureCode?.trim() || contractKey
+      }`,
+      tone: "border-rose-200 bg-rose-50 text-rose-700",
+    };
+  }
+
+  return {
+    label: `运行合同 · 已按 ${contractKey} 路由`,
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
+}
+
+function resolveRuntimeContractRegistryLabel(
+  runtimeContract?: ImageRuntimeContractSnapshot | null,
+): string | null {
+  if (runtimeContract?.modelCapabilityAssessmentSource !== "model_registry") {
+    return null;
+  }
+  if (runtimeContract.modelSupportsImageGeneration === false) {
+    return "模型能力来自 model_registry · 不支持图片生成";
+  }
+  if (runtimeContract.modelSupportsImageGeneration === true) {
+    return "模型能力来自 model_registry · 支持图片生成";
+  }
+  return "模型能力来自 model_registry";
+}
+
 function resolveEmptyStateDescription(
   status?: string,
   failureMessage?: string,
@@ -350,6 +398,12 @@ export function ImageTaskViewer({
   const statusLabel = resolveStatusLabel(
     selectedTask?.status,
     selectedTask?.mode,
+  );
+  const runtimeContractBadge = resolveRuntimeContractBadge(
+    selectedTask?.runtimeContract,
+  );
+  const runtimeContractRegistryLabel = resolveRuntimeContractRegistryLabel(
+    selectedTask?.runtimeContract,
   );
   const layoutLabel = resolveLayoutLabel(selectedTask?.layoutHint);
   const selectedOutputLabel = resolveSelectedOutputLabel({
@@ -637,6 +691,25 @@ export function ImageTaskViewer({
         ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {runtimeContractBadge ? (
+            <span
+              data-testid="image-task-viewer-runtime-contract"
+              className={cn(
+                "rounded-full border px-2.5 py-1 font-medium",
+                runtimeContractBadge.tone,
+              )}
+            >
+              {runtimeContractBadge.label}
+            </span>
+          ) : null}
+          {runtimeContractRegistryLabel ? (
+            <span
+              data-testid="image-task-viewer-runtime-contract-registry"
+              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600"
+            >
+              {runtimeContractRegistryLabel}
+            </span>
+          ) : null}
           {layoutLabel ? (
             <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 font-medium text-sky-700">
               {layoutLabel}

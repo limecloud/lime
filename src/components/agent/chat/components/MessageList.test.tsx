@@ -277,15 +277,18 @@ describe("MessageList", () => {
     expect(messageColumn?.className).toContain("justify-start");
   });
 
-  it("短对话首帧应贴近输入区底部，避免发送后消息短暂贴顶", () => {
-    const container = render([
-      {
-        id: "msg-user-first-frame",
-        role: "user",
-        content: "你好",
-        timestamp: new Date("2026-04-25T10:00:00.000Z"),
-      } as Message,
-    ]);
+  it("短对话发送首帧也应吸顶展示，避免完成前后跳动", () => {
+    const container = render(
+      [
+        {
+          id: "msg-user-first-frame",
+          role: "user",
+          content: "你好",
+          timestamp: new Date("2026-04-25T10:00:00.000Z"),
+        } as Message,
+      ],
+      { isSending: true },
+    );
 
     const messageColumn = container.querySelector(
       '[data-testid="message-list-column"]',
@@ -293,10 +296,11 @@ describe("MessageList", () => {
 
     expect(messageColumn?.textContent).toContain("你好");
     expect(messageColumn?.className).toContain("min-h-full");
-    expect(messageColumn?.className).toContain("justify-end");
+    expect(messageColumn?.className).toContain("justify-start");
+    expect(messageColumn?.className).not.toContain("justify-end");
   });
 
-  it("任务中心进入对话后也应将短消息贴近输入区底部", () => {
+  it("任务中心发送首帧也应吸顶展示", () => {
     const container = render(
       [
         {
@@ -308,6 +312,7 @@ describe("MessageList", () => {
       ],
       {
         emptyStateVariant: "task-center",
+        isSending: true,
       },
     );
 
@@ -316,7 +321,50 @@ describe("MessageList", () => {
     );
 
     expect(messageColumn?.textContent).toContain("从任务中心开始对话");
-    expect(messageColumn?.className).toContain("justify-end");
+    expect(messageColumn?.className).toContain("justify-start");
+    expect(messageColumn?.className).not.toContain("justify-end");
+  });
+
+  it("已完成的旧会话短消息应吸顶展示，避免打开历史时贴近输入区", () => {
+    const container = render(
+      [
+        {
+          id: "msg-user-history-short",
+          role: "user",
+          content: "打开旧会话",
+          timestamp: new Date("2026-04-25T10:00:00.000Z"),
+        } as Message,
+        {
+          id: "msg-assistant-history-short",
+          role: "assistant",
+          content: "这是历史回复",
+          timestamp: new Date("2026-04-25T10:00:01.000Z"),
+        } as Message,
+      ],
+      {
+        currentTurnId: "turn-history-completed",
+        turns: [
+          {
+            id: "turn-history-completed",
+            thread_id: "session-history-short",
+            prompt_text: "打开旧会话",
+            status: "completed",
+            started_at: "2026-04-25T10:00:00.000Z",
+            completed_at: "2026-04-25T10:00:01.000Z",
+            created_at: "2026-04-25T10:00:00.000Z",
+            updated_at: "2026-04-25T10:00:01.000Z",
+          },
+        ],
+      },
+    );
+
+    const messageColumn = container.querySelector(
+      '[data-testid="message-list-column"]',
+    );
+
+    expect(messageColumn?.textContent).toContain("打开旧会话");
+    expect(messageColumn?.className).toContain("justify-start");
+    expect(messageColumn?.className).not.toContain("justify-end");
   });
 
   it("自动恢复生成会话时应展示恢复占位而不是空白引导", () => {
@@ -394,7 +442,11 @@ describe("MessageList", () => {
       text: `历史执行轨迹 ${index + 1}`,
     }));
 
-    const container = render(messages, { turns, threadItems });
+    const container = render(messages, {
+      currentTurnId: "turn-30",
+      turns,
+      threadItems,
+    });
 
     expect(container.textContent).toContain("消息 60");
     expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
@@ -405,11 +457,38 @@ describe("MessageList", () => {
 
     expect(mockAgentThreadTimeline).toHaveBeenCalled();
     expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
-      expect.objectContaining({ deferCompletedSingleDetails: true }),
+      expect.objectContaining({
+        deferCompletedSingleDetails: true,
+        isCurrentTurn: false,
+      }),
     );
     expect(
       container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
     ).not.toBeNull();
+  });
+
+  it("旧会话已分页窗口首帧应只挂载更小的尾部批次", () => {
+    vi.useFakeTimers();
+    const messages = createConversationMessages(40);
+    const container = render(messages, {
+      sessionHistoryWindow: {
+        loadedMessages: 40,
+        totalMessages: 188,
+        isLoadingFull: false,
+        error: null,
+      },
+    });
+
+    expect(container.textContent).toContain("最近 40 / 188 条消息");
+    expect(container.textContent).toContain("消息 40");
+    expect(container.textContent).toContain("消息 21");
+    expect(container.textContent).not.toContain("消息 20");
+
+    act(() => {
+      vi.advanceTimersByTime(130);
+    });
+
+    expect(container.textContent).toContain("消息 20");
   });
 
   it("任务中心空列表时应展示最近对话空态而不是普通新对话文案", () => {
@@ -2167,7 +2246,9 @@ describe("MessageList", () => {
       container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector('[data-testid="assistant-primary-timeline-shell"]'),
+      container.querySelector(
+        '[data-testid="assistant-primary-timeline-shell"]',
+      ),
     ).not.toBeNull();
     expect(mockStreamingRenderer).toHaveBeenCalledWith(
       expect.objectContaining({

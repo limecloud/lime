@@ -38,7 +38,9 @@ function extractServiceSkillCatalogPayloadFromRecord(
 
   const nestedBootstrap = record.bootstrap;
   if (nestedBootstrap && typeof nestedBootstrap === "object") {
-    return extractServiceSkillCatalogPayloadFromBootstrapPayload(nestedBootstrap);
+    return extractServiceSkillCatalogPayloadFromBootstrapPayload(
+      nestedBootstrap,
+    );
   }
 
   return null;
@@ -64,7 +66,8 @@ function extractServiceSkillCatalogPayloadFromBootstrapPayload(
 export function extractServiceSkillCatalogFromBootstrapPayload(
   payload: unknown,
 ): ServiceSkillCatalog | null {
-  const extracted = extractServiceSkillCatalogPayloadFromBootstrapPayload(payload);
+  const extracted =
+    extractServiceSkillCatalogPayloadFromBootstrapPayload(payload);
   if (!extracted) {
     return null;
   }
@@ -75,7 +78,8 @@ export function extractServiceSkillCatalogFromBootstrapPayload(
 export function syncServiceSkillCatalogFromBootstrapPayload(
   payload: unknown,
 ): ServiceSkillCatalog | null {
-  const extracted = extractServiceSkillCatalogPayloadFromBootstrapPayload(payload);
+  const extracted =
+    extractServiceSkillCatalogPayloadFromBootstrapPayload(payload);
   if (!extracted) {
     return null;
   }

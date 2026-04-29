@@ -32,7 +32,9 @@ function truncateText(value: string, maxLength: number): string {
   return `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
-function dedupeNonEmptyText(values: Array<string | null | undefined>): string[] {
+function dedupeNonEmptyText(
+  values: Array<string | null | undefined>,
+): string[] {
   return Array.from(
     new Set(
       values
@@ -54,9 +56,10 @@ function extractMarkedSection(
   const lookahead = nextLabels
     .map((item) => `${escapeRegExp(item)}：`)
     .join("|");
-  const pattern = lookahead.length > 0
-    ? `${escapeRegExp(label)}：\\s*(.+?)(?=\\s*(?:${lookahead})|$)`
-    : `${escapeRegExp(label)}：\\s*(.+)$`;
+  const pattern =
+    lookahead.length > 0
+      ? `${escapeRegExp(label)}：\\s*(.+?)(?=\\s*(?:${lookahead})|$)`
+      : `${escapeRegExp(label)}：\\s*(.+)$`;
   const match = source.match(new RegExp(pattern));
   return normalizeOptionalText(match?.[1]);
 }
@@ -116,7 +119,7 @@ function hasBaselinePrefillFields(
 
   return Boolean(
     normalizeOptionalText(prefill.project_goal) ||
-      normalizeOptionalText(prefill.existing_results),
+    normalizeOptionalText(prefill.existing_results),
   );
 }
 
@@ -150,8 +153,9 @@ export function buildSceneAppExecutionReviewPrefillSnapshot(params: {
   const prefill = matchedTaskId
     ? referenceEntry.taskPrefillByTaskId?.[matchedTaskId]
     : candidateTaskIds
-        .map((candidateTaskId) =>
-          referenceEntry.taskPrefillByTaskId?.[candidateTaskId],
+        .map(
+          (candidateTaskId) =>
+            referenceEntry.taskPrefillByTaskId?.[candidateTaskId],
         )
         .find((item) => Boolean(item));
   const existingResults = normalizeOptionalText(prefill?.existing_results);
@@ -186,9 +190,11 @@ export function buildSceneAppExecutionReviewPrefillSnapshot(params: {
       "经营动作",
       "更适合去向",
     ]),
-    operatingAction: extractMarkedSection(normalizedExistingResults, "经营动作", [
-      "更适合去向",
-    ]),
+    operatingAction: extractMarkedSection(
+      normalizedExistingResults,
+      "经营动作",
+      ["更适合去向"],
+    ),
     destinationsLabel: extractMarkedSection(
       normalizedExistingResults,
       "更适合去向",
@@ -208,9 +214,13 @@ export function buildSceneAppExecutionReviewPrefillHighlights(
 
   return dedupeNonEmptyText([
     snapshot.statusLabel ? `当前判断：${snapshot.statusLabel}` : null,
-    snapshot.failureSignalLabel ? `当前卡点：${snapshot.failureSignalLabel}` : null,
+    snapshot.failureSignalLabel
+      ? `当前卡点：${snapshot.failureSignalLabel}`
+      : null,
     snapshot.operatingAction ? `经营动作：${snapshot.operatingAction}` : null,
-    snapshot.destinationsLabel ? `更适合去向：${snapshot.destinationsLabel}` : null,
+    snapshot.destinationsLabel
+      ? `更适合去向：${snapshot.destinationsLabel}`
+      : null,
   ]);
 }
 
@@ -224,7 +234,9 @@ function buildSceneAppExecutionBaselinePromptBlock(
   const lines = dedupeNonEmptyText([
     snapshot.sourceTitle ? `当前结果基线：${snapshot.sourceTitle}` : null,
     snapshot.projectGoal ? `当前项目目标：${snapshot.projectGoal}` : null,
-    snapshot.existingResults ? `当前已有结果：${snapshot.existingResults}` : null,
+    snapshot.existingResults
+      ? `当前已有结果：${snapshot.existingResults}`
+      : null,
   ]);
   if (lines.length === 0) {
     return null;
@@ -275,7 +287,8 @@ export function buildCuratedTaskReferenceEntryFromSceneAppExecution(params: {
     id,
     sourceKind: "sceneapp_execution_summary",
     title,
-    summary: summaryText || "当前已有一轮项目结果与执行摘要，可直接带入下一步判断。",
+    summary:
+      summaryText || "当前已有一轮项目结果与执行摘要，可直接带入下一步判断。",
     category: "experience",
     categoryLabel: "成果",
     tags,
@@ -332,12 +345,11 @@ export function buildSceneAppExecutionCuratedTaskFollowUpAction(params: {
     return null;
   }
 
-  const inputValues =
-    buildCuratedTaskLaunchInputPrefillFromReferenceEntries({
-      taskId: task.id,
-      inputValues: params.inputValues,
-      referenceEntries,
-    });
+  const inputValues = buildCuratedTaskLaunchInputPrefillFromReferenceEntries({
+    taskId: task.id,
+    inputValues: params.inputValues,
+    referenceEntries,
+  });
   const baselinePromptBlock =
     task.id === SCENEAPP_REVIEW_BASELINE_FALLBACK_TASK_ID
       ? null

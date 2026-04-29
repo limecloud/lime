@@ -461,14 +461,12 @@ export const ArtifactToolbar: React.FC<ArtifactToolbarProps> = memo(
       onToggleSource;
 
     return (
-    <div
-      className={cn(
-        "flex items-center px-4 py-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm gap-4",
-        tone === "light"
-          ? ""
-          : "border-white/10 bg-[#21252b]",
-      )}
-    >
+      <div
+        className={cn(
+          "flex items-center px-4 py-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm gap-4",
+          tone === "light" ? "" : "border-white/10 bg-[#21252b]",
+        )}
+      >
         {/* 标题区域 */}
         <div className="flex-1 flex items-center gap-3 min-w-0">
           {/* 类型图标 */}

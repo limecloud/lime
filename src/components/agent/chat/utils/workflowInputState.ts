@@ -116,27 +116,25 @@ export function useWorkflowInputState({
     return workflowGate ? 1 : 0;
   }, [isWorkspaceVariant, workflowGate, workflowStepSnapshot]);
 
-  const workflowSummaryLabel = useMemo(
-    () => {
-      if (workflowActiveItem) {
-        return buildWorkflowSummaryText({
-          leadingStep: workflowActiveItem,
-          remainingCount: workflowQueueTotalCount,
-        });
-      }
-      if (workflowGate?.status === "waiting") {
-        return "等待你的决策后继续";
-      }
-      if (workflowGate?.status === "running") {
-        return "正在编排下一步";
-      }
-      return "正在整理任务节奏";
-    },
-    [workflowGate, workflowActiveItem, workflowQueueTotalCount],
-  );
+  const workflowSummaryLabel = useMemo(() => {
+    if (workflowActiveItem) {
+      return buildWorkflowSummaryText({
+        leadingStep: workflowActiveItem,
+        remainingCount: workflowQueueTotalCount,
+      });
+    }
+    if (workflowGate?.status === "waiting") {
+      return "等待你的决策后继续";
+    }
+    if (workflowGate?.status === "running") {
+      return "正在编排下一步";
+    }
+    return "正在整理任务节奏";
+  }, [workflowGate, workflowActiveItem, workflowQueueTotalCount]);
 
   const workflowCompletedCount = workflowStepSnapshot?.completedCount ?? 0;
-  const workflowTotalCount = workflowStepSnapshot?.totalCount ?? workflowSteps.length;
+  const workflowTotalCount =
+    workflowStepSnapshot?.totalCount ?? workflowSteps.length;
   const workflowProgressLabel = useMemo(
     () =>
       formatWorkflowProgressLabel({

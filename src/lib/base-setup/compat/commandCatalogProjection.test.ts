@@ -110,7 +110,10 @@ describe("compileCommandCatalogProjection", () => {
       tenantId: "tenant-a",
       syncedAt: "2026-04-15T00:00:00.000Z",
     });
-    const entries = compileCommandCatalogProjection(pkg, compiled.catalog.items);
+    const entries = compileCommandCatalogProjection(
+      pkg,
+      compiled.catalog.items,
+    );
 
     expect(entries).toEqual([
       expect.objectContaining({
@@ -178,7 +181,9 @@ describe("compileCommandCatalogProjection", () => {
       syncedAt: "2026-04-15T00:00:00.000Z",
     });
 
-    expect(compileCommandCatalogProjection(pkg, compiled.catalog.items)).toEqual([
+    expect(
+      compileCommandCatalogProjection(pkg, compiled.catalog.items),
+    ).toEqual([
       expect.objectContaining({
         id: "command:poster_generate",
         commandKey: "poster_generate",

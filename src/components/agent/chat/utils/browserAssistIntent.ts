@@ -51,7 +51,9 @@ export function hasBrowserAssistIntent(input: string): boolean {
     ) {
       return false;
     }
-    return Boolean(explicitUrl) || BROWSER_ASSIST_ACTION_PATTERN.test(normalized);
+    return (
+      Boolean(explicitUrl) || BROWSER_ASSIST_ACTION_PATTERN.test(normalized)
+    );
   }
 
   return Boolean(explicitUrl) && BROWSER_NAVIGATION_PATTERN.test(normalized);

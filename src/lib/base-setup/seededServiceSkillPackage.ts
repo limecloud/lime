@@ -937,7 +937,9 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
 };
 
 export function createSeededServiceSkillBaseSetupPackage(): BaseSetupPackage {
-  return JSON.parse(JSON.stringify(SEEDED_SERVICE_SKILL_PACKAGE)) as BaseSetupPackage;
+  return JSON.parse(
+    JSON.stringify(SEEDED_SERVICE_SKILL_PACKAGE),
+  ) as BaseSetupPackage;
 }
 
 export function createSeededLocalCustomServiceSkillBaseSetupPackage(): BaseSetupPackage {

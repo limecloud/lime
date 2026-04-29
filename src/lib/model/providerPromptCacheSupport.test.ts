@@ -127,9 +127,7 @@ describe("providerPromptCacheSupport", () => {
       ),
     ).toBe("zhipuai");
     expect(
-      resolveKnownAnthropicCompatibleProvider(
-        "https://api.z.ai/api/anthropic",
-      ),
+      resolveKnownAnthropicCompatibleProvider("https://api.z.ai/api/anthropic"),
     ).toBe("zai");
     expect(
       getRegistryIdFromType(

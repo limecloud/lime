@@ -59,7 +59,9 @@ describe("parseImageWorkbenchCommand", () => {
   });
 
   it("@分镜 显式声明非九宫格数量时应保留通用多图数量", () => {
-    const result = parseImageWorkbenchCommand("@分镜 生成 三国人物群像，出 6 张");
+    const result = parseImageWorkbenchCommand(
+      "@分镜 生成 三国人物群像，出 6 张",
+    );
 
     expect(result).toMatchObject({
       trigger: "@分镜",

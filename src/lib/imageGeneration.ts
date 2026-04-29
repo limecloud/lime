@@ -77,9 +77,9 @@ export function isImageProvider(
 
   return Boolean(
     Array.isArray(customModels) &&
-      customModels.some((modelId) =>
-        isImageGenerationModelId(modelId, providerId, providerType),
-      ),
+    customModels.some((modelId) =>
+      isImageGenerationModelId(modelId, providerId, providerType),
+    ),
   );
 }
 

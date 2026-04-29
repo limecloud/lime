@@ -1,11 +1,15 @@
 use super::*;
+use crate::agent_tools::catalog::LIME_CREATE_AUDIO_TASK_TOOL_NAME;
 use crate::commands::media_task_cmd::{
-    create_image_generation_task_artifact_inner, finalize_image_generation_task_creation,
-    CreateImageGenerationTaskArtifactRequest, ImageStoryboardSlotInput,
+    create_audio_generation_task_artifact_inner, create_image_generation_task_artifact_inner,
+    finalize_audio_generation_task_creation, finalize_image_generation_task_creation,
+    CreateAudioGenerationTaskArtifactRequest, CreateImageGenerationTaskArtifactRequest,
+    ImageStoryboardSlotInput,
 };
 use crate::commands::modality_runtime_contracts::{
     image_generation_required_capabilities, IMAGE_GENERATION_CONTRACT_KEY,
-    IMAGE_GENERATION_MODALITY, IMAGE_GENERATION_ROUTING_SLOT,
+    IMAGE_GENERATION_MODALITY, IMAGE_GENERATION_ROUTING_SLOT, VOICE_GENERATION_CONTRACT_KEY,
+    VOICE_GENERATION_MODALITY, VOICE_GENERATION_ROUTING_SLOT,
 };
 use lime_media_runtime::{
     write_task_artifact, MediaTaskType, TaskRelationships, TaskType, TaskWriteOptions,
@@ -15,6 +19,7 @@ use serde::{de, Deserialize, Deserializer};
 const PROJECT_ID_ENV_KEYS: &[&str] = &["LIME_PROJECT_ID", "PROXYCAST_PROJECT_ID"];
 const CONTENT_ID_ENV_KEYS: &[&str] = &["LIME_CONTENT_ID", "PROXYCAST_CONTENT_ID"];
 const IMAGE_TASK_DEFAULT_ENTRY_SOURCE: &str = "at_image_command";
+const AUDIO_TASK_DEFAULT_ENTRY_SOURCE: &str = "at_voice_command";
 
 fn submit_creation_task_record(
     app_handle: &AppHandle,
@@ -598,6 +603,55 @@ struct ImageTaskInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct AudioTaskInput {
+    #[serde(default, alias = "source_text", alias = "prompt", alias = "text")]
+    source_text: String,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default, alias = "raw_text")]
+    raw_text: Option<String>,
+    #[serde(default)]
+    voice: Option<String>,
+    #[serde(default, alias = "voice_style")]
+    voice_style: Option<String>,
+    #[serde(default, alias = "target_language")]
+    target_language: Option<String>,
+    #[serde(default, alias = "mime_type")]
+    mime_type: Option<String>,
+    #[serde(default, alias = "audio_path")]
+    audio_path: Option<String>,
+    #[serde(default, alias = "duration_ms")]
+    duration_ms: Option<u64>,
+    #[serde(default, alias = "provider_id")]
+    provider_id: Option<String>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default, alias = "session_id")]
+    session_id: Option<String>,
+    #[serde(default, alias = "project_id")]
+    project_id: Option<String>,
+    #[serde(default, alias = "content_id")]
+    content_id: Option<String>,
+    #[serde(default, alias = "entry_source")]
+    entry_source: Option<String>,
+    #[serde(default, alias = "modality_contract_key")]
+    modality_contract_key: Option<String>,
+    #[serde(default)]
+    modality: Option<String>,
+    #[serde(default, alias = "required_capabilities")]
+    required_capabilities: Vec<String>,
+    #[serde(default, alias = "routing_slot")]
+    routing_slot: Option<String>,
+    #[serde(default, alias = "runtime_contract")]
+    runtime_contract: Option<serde_json::Value>,
+    #[serde(default, alias = "requested_target")]
+    requested_target: Option<String>,
+    #[serde(default, alias = "output_path")]
+    output_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct TranscriptionTaskInput {
     #[serde(default)]
     prompt: Option<String>,
@@ -1132,6 +1186,196 @@ impl Tool for LimeCreateImageTaskTool {
 }
 
 #[derive(Clone)]
+struct LimeCreateAudioTaskTool {
+    app_handle: AppHandle,
+}
+
+impl LimeCreateAudioTaskTool {
+    fn new(app_handle: AppHandle) -> Self {
+        Self { app_handle }
+    }
+}
+
+fn audio_task_input_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "sourceText": { "type": "string", "description": "需要生成配音的正文。" },
+            "source_text": { "type": "string", "description": "需要生成配音的正文（snake_case 兼容）。" },
+            "prompt": { "type": "string", "description": "兼容字段，等价于 sourceText。" },
+            "title": { "type": "string", "description": "任务标题（可选）。" },
+            "rawText": { "type": "string", "description": "原始用户输入（可选）。" },
+            "raw_text": { "type": "string", "description": "原始用户输入（snake_case 兼容，可选）。" },
+            "voice": { "type": "string", "description": "音色或 voice preset（可选）。" },
+            "voiceStyle": { "type": "string", "description": "配音风格（可选）。" },
+            "voice_style": { "type": "string", "description": "配音风格（snake_case 兼容，可选）。" },
+            "targetLanguage": { "type": "string", "description": "目标语言（可选）。" },
+            "target_language": { "type": "string", "description": "目标语言（snake_case 兼容，可选）。" },
+            "mimeType": { "type": "string", "description": "音频 MIME 类型（可选，默认 audio/mpeg）。" },
+            "mime_type": { "type": "string", "description": "音频 MIME 类型（snake_case 兼容，可选）。" },
+            "audioPath": { "type": "string", "description": "已生成音频路径（可选；未生成时留空）。" },
+            "audio_path": { "type": "string", "description": "已生成音频路径（snake_case 兼容，可选）。" },
+            "durationMs": { "type": "integer", "minimum": 0, "description": "音频时长毫秒（可选）。" },
+            "duration_ms": { "type": "integer", "minimum": 0, "description": "音频时长毫秒（snake_case 兼容，可选）。" },
+            "providerId": { "type": "string", "description": "Provider 标识（可选）。" },
+            "provider_id": { "type": "string", "description": "Provider 标识（snake_case 兼容，可选）。" },
+            "model": { "type": "string", "description": "模型名（可选）。" },
+            "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
+            "session_id": { "type": "string", "description": "会话 ID（snake_case 兼容，可选）。" },
+            "projectId": { "type": "string", "description": "项目 ID（可选）。" },
+            "project_id": { "type": "string", "description": "项目 ID（snake_case 兼容，可选）。" },
+            "contentId": { "type": "string", "description": "内容 ID（可选）。" },
+            "content_id": { "type": "string", "description": "内容 ID（snake_case 兼容，可选）。" },
+            "entrySource": { "type": "string", "description": "入口来源（可选，默认 at_voice_command）。" },
+            "entry_source": { "type": "string", "description": "入口来源（snake_case 兼容，可选）。" },
+            "modalityContractKey": { "type": "string", "description": "兼容字段，默认 voice_generation。" },
+            "modality_contract_key": { "type": "string", "description": "兼容字段，默认 voice_generation。" },
+            "modality": { "type": "string", "description": "兼容字段，默认 audio。" },
+            "requiredCapabilities": { "type": "array", "items": { "type": "string" }, "description": "兼容字段，运行时会规范化为 voice_generation 所需能力。" },
+            "required_capabilities": { "type": "array", "items": { "type": "string" }, "description": "兼容字段，运行时会规范化为 voice_generation 所需能力。" },
+            "routingSlot": { "type": "string", "description": "兼容字段，默认 voice_generation_model。" },
+            "routing_slot": { "type": "string", "description": "兼容字段，默认 voice_generation_model。" },
+            "runtimeContract": { "type": "object", "description": "运行合同快照（可选）。", "additionalProperties": true },
+            "runtime_contract": { "type": "object", "description": "运行合同快照（可选）。", "additionalProperties": true },
+            "requestedTarget": { "type": "string", "description": "请求目标（可选，默认 voice）。" },
+            "requested_target": { "type": "string", "description": "请求目标（snake_case 兼容，可选）。" },
+            "outputPath": { "type": "string", "description": "可选 task JSON 输出路径。" },
+            "output_path": { "type": "string", "description": "可选 task JSON 输出路径（snake_case 兼容）。" }
+        },
+        "additionalProperties": false,
+        "x-lime": {
+            "always_visible": true,
+            "tags": ["audio", "voice", "task", "generation"],
+            "allowed_callers": ["assistant", "skill"]
+        }
+    })
+}
+
+fn resolve_context_session_id(context: &ToolContext, requested: Option<String>) -> Option<String> {
+    requested.or_else(|| {
+        let value = context.session_id.trim();
+        if value.is_empty() {
+            None
+        } else {
+            Some(value.to_string())
+        }
+    })
+}
+
+fn resolve_context_environment_id(
+    context: &ToolContext,
+    requested: Option<String>,
+    env_keys: &[&str],
+) -> Option<String> {
+    requested.or_else(|| {
+        env_keys.iter().find_map(|key| {
+            context
+                .environment
+                .get(*key)
+                .map(String::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+        })
+    })
+}
+
+fn build_audio_generation_task_request(
+    context: &ToolContext,
+    input: AudioTaskInput,
+) -> CreateAudioGenerationTaskArtifactRequest {
+    CreateAudioGenerationTaskArtifactRequest {
+        project_root_path: context.working_directory.to_string_lossy().to_string(),
+        source_text: input.source_text,
+        title: input.title,
+        raw_text: input.raw_text,
+        voice: input.voice,
+        voice_style: input.voice_style,
+        target_language: input.target_language,
+        mime_type: input.mime_type,
+        audio_path: input.audio_path,
+        duration_ms: input.duration_ms,
+        provider_id: input.provider_id,
+        model: input.model,
+        session_id: resolve_context_session_id(context, input.session_id),
+        project_id: resolve_context_environment_id(context, input.project_id, PROJECT_ID_ENV_KEYS),
+        content_id: resolve_context_environment_id(context, input.content_id, CONTENT_ID_ENV_KEYS),
+        entry_source: input
+            .entry_source
+            .or_else(|| Some(AUDIO_TASK_DEFAULT_ENTRY_SOURCE.to_string())),
+        modality_contract_key: input
+            .modality_contract_key
+            .or_else(|| Some(VOICE_GENERATION_CONTRACT_KEY.to_string())),
+        modality: input
+            .modality
+            .or_else(|| Some(VOICE_GENERATION_MODALITY.to_string())),
+        required_capabilities: if input.required_capabilities.is_empty() {
+            vec![
+                "text_generation".to_string(),
+                "voice_generation".to_string(),
+            ]
+        } else {
+            input.required_capabilities
+        },
+        routing_slot: input
+            .routing_slot
+            .or_else(|| Some(VOICE_GENERATION_ROUTING_SLOT.to_string())),
+        runtime_contract: input.runtime_contract,
+        requested_target: input.requested_target.or_else(|| Some("voice".to_string())),
+        output_path: input.output_path,
+    }
+}
+
+fn submit_audio_generation_task_record(
+    app_handle: &AppHandle,
+    context: &ToolContext,
+    input: AudioTaskInput,
+) -> Result<ToolResult, ToolError> {
+    let request = build_audio_generation_task_request(context, input);
+    let output = create_audio_generation_task_artifact_inner(request)
+        .map_err(|error| ToolError::execution_failed(format!("创建音频任务失败: {error}")))?;
+
+    finalize_audio_generation_task_creation(Some(app_handle), &output);
+
+    let serialized = serde_json::to_string_pretty(&output)
+        .unwrap_or_else(|_| serde_json::json!(&output).to_string());
+    Ok(media_cli_bridge::attach_media_task_metadata(
+        ToolResult::success(serialized),
+        &output,
+    ))
+}
+
+#[async_trait]
+impl Tool for LimeCreateAudioTaskTool {
+    fn name(&self) -> &str {
+        LIME_CREATE_AUDIO_TASK_TOOL_NAME
+    }
+
+    fn description(&self) -> &str {
+        "创建配音生成任务（audio_generate），只写入标准 audio_task/audio_output artifact。"
+    }
+
+    fn input_schema(&self) -> serde_json::Value {
+        audio_task_input_schema()
+    }
+
+    async fn execute(
+        &self,
+        params: serde_json::Value,
+        context: &ToolContext,
+    ) -> Result<ToolResult, ToolError> {
+        let input: AudioTaskInput = serde_json::from_value(params)
+            .map_err(|error| ToolError::invalid_params(format!("参数解析失败: {error}")))?;
+        if input.source_text.trim().is_empty() {
+            return Err(ToolError::invalid_params(
+                "sourceText 不能为空字符串".to_string(),
+            ));
+        }
+        submit_audio_generation_task_record(&self.app_handle, context, input)
+    }
+}
+
+#[derive(Clone)]
 struct LimeCreateTranscriptionTaskTool {
     app_handle: AppHandle,
 }
@@ -1591,6 +1835,9 @@ pub(super) fn register_creation_task_tools_to_registry(
             app_handle.clone(),
         )));
     }
+    if !registry.contains(LIME_CREATE_AUDIO_TASK_TOOL_NAME) {
+        registry.register(Box::new(LimeCreateAudioTaskTool::new(app_handle.clone())));
+    }
     if !registry.contains(LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME) {
         registry.register(Box::new(LimeCreateTranscriptionTaskTool::new(
             app_handle.clone(),
@@ -1834,6 +2081,90 @@ mod tests {
         assert_eq!(
             output.record.payload.get("model").and_then(Value::as_str),
             Some("fal-ai/nano-banana-pro")
+        );
+    }
+
+    #[test]
+    fn build_audio_generation_task_request_should_keep_voice_contract_artifact() {
+        let temp_dir = tempdir().expect("create temp dir");
+        let context = ToolContext::new(temp_dir.path().to_path_buf())
+            .with_session_id("session-audio-1")
+            .with_environment(std::collections::HashMap::from([
+                ("LIME_PROJECT_ID".to_string(), "project-audio-1".to_string()),
+                ("LIME_CONTENT_ID".to_string(), "content-audio-1".to_string()),
+            ]));
+        let request = build_audio_generation_task_request(
+            &context,
+            AudioTaskInput {
+                source_text: "请为这段新品发布文案生成温暖旁白".to_string(),
+                title: Some("新品发布旁白".to_string()),
+                raw_text: Some("@配音 请为这段新品发布文案生成温暖旁白".to_string()),
+                voice: Some("warm_narrator".to_string()),
+                voice_style: Some("温暖".to_string()),
+                target_language: Some("zh-CN".to_string()),
+                mime_type: None,
+                audio_path: None,
+                duration_ms: None,
+                provider_id: Some("limecore".to_string()),
+                model: Some("voice-pro".to_string()),
+                session_id: None,
+                project_id: None,
+                content_id: None,
+                entry_source: None,
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
+                requested_target: None,
+                output_path: None,
+            },
+        );
+
+        assert_eq!(
+            request.project_root_path,
+            temp_dir.path().to_string_lossy().to_string()
+        );
+        assert_eq!(request.session_id.as_deref(), Some("session-audio-1"));
+        assert_eq!(request.project_id.as_deref(), Some("project-audio-1"));
+        assert_eq!(request.content_id.as_deref(), Some("content-audio-1"));
+        assert_eq!(request.entry_source.as_deref(), Some("at_voice_command"));
+        assert_eq!(
+            request.modality_contract_key.as_deref(),
+            Some("voice_generation")
+        );
+        assert_eq!(request.modality.as_deref(), Some("audio"));
+        assert_eq!(
+            request.required_capabilities,
+            vec![
+                "text_generation".to_string(),
+                "voice_generation".to_string()
+            ]
+        );
+        assert_eq!(
+            request.routing_slot.as_deref(),
+            Some("voice_generation_model")
+        );
+
+        let output =
+            create_audio_generation_task_artifact_inner(request).expect("create audio artifact");
+
+        assert!(output.path.contains("audio_generate"));
+        assert_eq!(
+            output
+                .record
+                .payload
+                .get("modality_contract_key")
+                .and_then(Value::as_str),
+            Some("voice_generation")
+        );
+        assert_eq!(
+            output
+                .record
+                .payload
+                .pointer("/audio_output/kind")
+                .and_then(Value::as_str),
+            Some("audio_output")
         );
     }
 

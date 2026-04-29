@@ -1,4 +1,9 @@
 use super::*;
+use crate::commands::modality_runtime_contracts::{
+    insert_web_research_contract_fields, web_research_required_capabilities,
+    web_research_runtime_contract, WEB_RESEARCH_CONTRACT_KEY, WEB_RESEARCH_MODALITY,
+    WEB_RESEARCH_ROUTING_SLOT,
+};
 
 const REPORT_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_REPORT_SKILL_LAUNCH_HINT>>";
 const REPORT_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
@@ -21,6 +26,62 @@ fn extract_object_string(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+}
+
+fn extract_object_string_array(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Vec<String> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(serde_json::Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_object_value(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<serde_json::Value> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find(|value| value.is_object())
+        .cloned()
+}
+
+fn extract_harness_nested_object_mut<'a>(
+    value: &'a mut serde_json::Value,
+    keys: &[&str],
+) -> Option<&'a mut serde_json::Map<String, serde_json::Value>> {
+    let root = value.as_object_mut()?;
+    let harness = if root.contains_key("harness") {
+        root.get_mut("harness")
+            .and_then(serde_json::Value::as_object_mut)?
+    } else {
+        root
+    };
+
+    for key in keys.iter().copied() {
+        let exists = harness
+            .get(key)
+            .and_then(serde_json::Value::as_object)
+            .is_some();
+        if exists {
+            return harness
+                .get_mut(key)
+                .and_then(serde_json::Value::as_object_mut);
+        }
+    }
+
+    None
 }
 
 fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys: &[&str]) {
@@ -55,6 +116,16 @@ fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys
     );
 }
 
+fn ensure_web_research_contract_metadata(launch: &mut serde_json::Map<String, serde_json::Value>) {
+    insert_web_research_contract_fields(launch);
+    if let Some(report_request) = launch
+        .get_mut("report_request")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        insert_web_research_contract_fields(report_request);
+    }
+}
+
 fn truncate_prompt_text(value: String, max_chars: usize) -> String {
     let total_chars = value.chars().count();
     if total_chars <= max_chars {
@@ -73,6 +144,12 @@ pub(crate) fn prepare_report_skill_launch_request_metadata(
         &mut metadata,
         &["report_skill_launch", "reportSkillLaunch"],
     );
+    if let Some(launch) = extract_harness_nested_object_mut(
+        &mut metadata,
+        &["report_skill_launch", "reportSkillLaunch"],
+    ) {
+        ensure_web_research_contract_metadata(launch);
+    }
 
     Some(metadata)
 }
@@ -197,6 +274,29 @@ fn build_report_skill_launch_system_prompt(
     let content_id = extract_object_string(report_request, &["content_id", "contentId"]);
     let entry_source = extract_object_string(report_request, &["entry_source", "entrySource"])
         .unwrap_or_else(|| "at_report_command".to_string());
+    let modality_contract_key = extract_object_string(
+        report_request,
+        &["modality_contract_key", "modalityContractKey"],
+    )
+    .unwrap_or_else(|| WEB_RESEARCH_CONTRACT_KEY.to_string());
+    let modality = extract_object_string(report_request, &["modality"])
+        .unwrap_or_else(|| WEB_RESEARCH_MODALITY.to_string());
+    let routing_slot = extract_object_string(report_request, &["routing_slot", "routingSlot"])
+        .unwrap_or_else(|| WEB_RESEARCH_ROUTING_SLOT.to_string());
+    let required_capabilities = {
+        let values = extract_object_string_array(
+            report_request,
+            &["required_capabilities", "requiredCapabilities"],
+        );
+        if values.is_empty() {
+            web_research_required_capabilities()
+        } else {
+            values
+        }
+    };
+    let runtime_contract =
+        extract_object_value(report_request, &["runtime_contract", "runtimeContract"])
+            .unwrap_or_else(web_research_runtime_contract);
     let args_payload = serde_json::json!({
         "user_input": raw_text
             .clone()
@@ -222,6 +322,21 @@ fn build_report_skill_launch_system_prompt(
     let mut lines = vec![
         REPORT_SKILL_LAUNCH_PROMPT_MARKER.to_string(),
         "- 当前回合来自研报技能启动，不要把它当成普通聊天回答。".to_string(),
+        format!(
+            "- 当前底层运行合同：modality_contract_key={modality_contract_key}, modality={modality}, routing_slot={routing_slot}；`@研报` / `@竞品` 只是 web_research 的上层入口，首刀仍走 Skill(report_generate)。"
+        ),
+        format!(
+            "- 当前合同所需能力：{}；不得退回 model_memory_only_answer 或 local_file_search_before_research_skill。",
+            required_capabilities.join(", ")
+        ),
+        format!(
+            "- 当前 runtime_contract(JSON)：{}",
+            truncate_prompt_text(
+                serde_json::to_string(&runtime_contract)
+                    .unwrap_or_else(|_| "{}".to_string()),
+                1_200,
+            )
+        ),
         "- 先快速归纳用户的研报目标，然后立刻把任务交给 Skill 工具；不要先写空泛长文。"
             .to_string(),
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
@@ -237,6 +352,7 @@ fn build_report_skill_launch_system_prompt(
         "- 如果某个工具目录/读文件工具因为 session policy 被拒绝，不要重复同类调用；应立即改为直调 Skill(report_generate)。".to_string(),
         "- 这条命令属于 prompt skill 主链，不要创建媒体 task file，也不要退回普通聊天写长文。".to_string(),
         "- report_generate skill 内部必须先执行真实联网检索，再产出研究报告。".to_string(),
+        "- `report_generate` 只是 `web_research` 下的报告型子入口；证据链必须保留 Skill(report_generate) 与 search_query / WebSearch 时间线。".to_string(),
         "- 如果用户要求最新、近期、今天或时间敏感信息，检索词里必须补年份或时间范围，并在结果中标注时间口径。".to_string(),
         "- 最终输出必须清楚区分核心结论、关键证据、风险/待确认项与建议动作，不要把推断写成已确认事实。".to_string(),
         format!("- 当前研报请求上下文(JSON)：{request_json}"),

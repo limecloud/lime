@@ -21,6 +21,21 @@ vi.mock("@/lib/dev-bridge", () => ({
   safeInvoke: vi.fn(),
 }));
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return {
+    promise,
+    reject,
+    resolve,
+  };
+}
+
 describe("memory API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -140,6 +155,50 @@ describe("memory API", () => {
     expect(safeInvoke).toHaveBeenNthCalledWith(6, "project_memory_get", {
       projectId: "project-1",
     });
+  });
+
+  it("并发读取同一项目记忆时应复用同一个 project_memory_get", async () => {
+    const deferred = createDeferred<{
+      characters: [];
+      outline: [];
+    }>();
+    vi.mocked(safeInvoke).mockReturnValueOnce(deferred.promise);
+
+    const first = getProjectMemory("project-memory-dedupe");
+    const second = getProjectMemory("project-memory-dedupe");
+
+    expect(safeInvoke).toHaveBeenCalledTimes(1);
+    expect(safeInvoke).toHaveBeenCalledWith("project_memory_get", {
+      projectId: "project-memory-dedupe",
+    });
+
+    deferred.resolve({
+      characters: [],
+      outline: [],
+    });
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { characters: [], outline: [] },
+      { characters: [], outline: [] },
+    ]);
+  });
+
+  it("短时间重复读取同一项目记忆时应命中本地缓存", async () => {
+    vi.mocked(safeInvoke).mockResolvedValueOnce({
+      characters: [],
+      outline: [],
+    });
+
+    await expect(getProjectMemory("project-memory-cache")).resolves.toEqual({
+      characters: [],
+      outline: [],
+    });
+    await expect(getProjectMemory("project-memory-cache")).resolves.toEqual({
+      characters: [],
+      outline: [],
+    });
+
+    expect(safeInvoke).toHaveBeenCalledTimes(1);
   });
 
   it("应按父子关系和顺序构建大纲树", () => {

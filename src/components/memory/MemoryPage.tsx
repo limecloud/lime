@@ -259,14 +259,16 @@ const MEMORY_TYPE_LABELS: Record<MemoryKnowledgeType, string> = {
   reference: "参考记忆",
 };
 
-const LEGACY_CATEGORY_TO_MEMORY_TYPE: Record<MemoryCategory, MemoryKnowledgeType> =
-  {
-    identity: "user",
-    preference: "feedback",
-    experience: "project",
-    activity: "project",
-    context: "reference",
-  };
+const LEGACY_CATEGORY_TO_MEMORY_TYPE: Record<
+  MemoryCategory,
+  MemoryKnowledgeType
+> = {
+  identity: "user",
+  preference: "feedback",
+  experience: "project",
+  activity: "project",
+  context: "reference",
+};
 
 const MEMORY_TYPE_BADGE_CLASS_NAMES: Record<MemoryKnowledgeType, string> = {
   user: "border-emerald-200 bg-emerald-50 text-emerald-800",
@@ -327,7 +329,8 @@ const SOURCE_BUCKET_META: Array<{
     key: "auto",
     label: "记忆目录（memdir）",
     scope: "memdir 根目录",
-    description: "以 MEMORY.md 为入口，承接四类记忆文件、自动沉淀 note 与索引。",
+    description:
+      "以 MEMORY.md 为入口，承接四类记忆文件、自动沉淀 note 与索引。",
     kinds: ["auto_memory", "auto_memory_item"],
     emptyState: "当前未启用或未发现 memdir 入口。",
   },
@@ -484,8 +487,7 @@ const EMERALD_BADGE_CLASS_NAME =
   "border-emerald-200 bg-emerald-50 text-emerald-700";
 const SLATE_OUTLINE_BADGE_CLASS_NAME =
   "border-slate-200 bg-white text-slate-700";
-const SLATE_BADGE_CLASS_NAME =
-  "border-slate-200 bg-slate-100 text-slate-700";
+const SLATE_BADGE_CLASS_NAME = "border-slate-200 bg-slate-100 text-slate-700";
 
 function formatRelativeTime(timestamp: number | undefined): string {
   if (!timestamp) {
@@ -855,8 +857,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     memoryLauncherInitialReferenceEntries,
     setMemoryLauncherInitialReferenceEntries,
   ] = useState<CuratedTaskReferenceEntry[] | null>(null);
-  const [memoryLauncherPrefillHintOverride, setMemoryLauncherPrefillHintOverride] =
-    useState<string | null>(null);
+  const [
+    memoryLauncherPrefillHintOverride,
+    setMemoryLauncherPrefillHintOverride,
+  ] = useState<string | null>(null);
   const [, setCuratedTaskRecommendationSignalsVersion] = useState(0);
   const durableEntryRefs = useRef<Record<string, HTMLElement | null>>({});
   const lastAutoFocusedDurableMemoryIdRef = useRef<string | null>(null);
@@ -1209,9 +1213,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
   const inspirationKindCards = useMemo(
     () =>
       (
-        Object.keys(
-          INSPIRATION_PROJECTION_META,
-        ) as Array<keyof typeof INSPIRATION_PROJECTION_META>
+        Object.keys(INSPIRATION_PROJECTION_META) as Array<
+          keyof typeof INSPIRATION_PROJECTION_META
+        >
       ).map((key) => ({
         key,
         label: INSPIRATION_PROJECTION_META[key].label,
@@ -1887,10 +1891,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         eyebrow: "灵感库",
         title: "可继续复用的灵感对象",
         value: `${inspirationEntries.length} 条灵感对象`,
-        detail:
-          inspirationEntries[0]
-            ? `最近更新：${inspirationEntries[0].title} · ${inspirationEntries[0].summary}`
-            : "把认可的风格、参考、成果和收藏沉淀成可复用对象。",
+        detail: inspirationEntries[0]
+          ? `最近更新：${inspirationEntries[0].title} · ${inspirationEntries[0].summary}`
+          : "把认可的风格、参考、成果和收藏沉淀成可复用对象。",
         actionLabel: "看灵感条目",
         onClick: () => navigateToMemorySection("durable"),
       },
@@ -1922,8 +1925,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         eyebrow: "底层记忆",
         title: "底层记忆只做事实源",
         value: `${rulesSources?.loaded_sources || 0} 条来源已接入`,
-        detail:
-          `会话 ${workingView?.total_entries || 0} 条 · 团队 ${teamSnapshots.length} 个 · 压缩 ${extractionStatus?.recent_compactions.length || 0} 条`,
+        detail: `会话 ${workingView?.total_entries || 0} 条 · 团队 ${teamSnapshots.length} 个 · 压缩 ${extractionStatus?.recent_compactions.length || 0} 条`,
         actionLabel: "看底层来源",
         onClick: () => navigateToMemorySection("rules"),
       },
@@ -2054,9 +2056,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                 来源加载：{rulesSources?.loaded_sources || 0}/
                 {rulesSources?.total_sources || 0}
               </span>
-              <span>
-                memdir：{autoIndex?.enabled ? "已启用" : "未启用"}
-              </span>
+              <span>memdir：{autoIndex?.enabled ? "已启用" : "未启用"}</span>
               <span>
                 抽取状态：{extractionStatus?.status_summary || "等待加载"}
               </span>
@@ -2211,7 +2211,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                 <MemoryCuratedTaskSuggestionPanel
                   panelTestId="memory-home-suggestion-panel"
                   tasks={featuredMemoryCuratedTasks}
-                  referenceEntryCount={activeRecommendationReferenceEntries.length}
+                  referenceEntryCount={
+                    activeRecommendationReferenceEntries.length
+                  }
                   referenceSummary={featuredMemoryReferenceSummary}
                   contextCard={
                     homeContinuationReferenceEntry
@@ -2331,7 +2333,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                       {tasteSummary.summary}
                     </p>
                     <p className="mt-3 text-sm leading-6 text-slate-500">
-                      这份摘要会优先服务做法 planning；如果后续你继续收藏、筛掉或认可结果，这里的关键词会继续变化。
+                      这份摘要会优先服务做法
+                      planning；如果后续你继续收藏、筛掉或认可结果，这里的关键词会继续变化。
                     </p>
                   </div>
 
@@ -3195,8 +3198,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
               >
                 <div className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50/80 p-4">
                   <p className="text-sm font-medium text-emerald-900">
-                    同一 topic 会覆盖旧内容；“整理 memdir” 会去重入口链接、裁剪 README
-                    历史段落，并把旧 topic 日志收口为当前版本。
+                    同一 topic 会覆盖旧内容；“整理 memdir” 会去重入口链接、裁剪
+                    README 历史段落，并把旧 topic 日志收口为当前版本。
                   </p>
                   <p className="mt-2 text-sm leading-6 text-emerald-800/90">
                     {memdirWorkingDir
@@ -3286,7 +3289,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               variant="outline"
                               className={SLATE_OUTLINE_BADGE_CLASS_NAME}
                             >
-                              最近更新：{formatRelativeTime(bucket.latestUpdatedAt)}
+                              最近更新：
+                              {formatRelativeTime(bucket.latestUpdatedAt)}
                             </Badge>
                           ) : null}
                         </div>
@@ -3553,8 +3557,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                 variant="outline"
                                 className="border-emerald-200 bg-emerald-50 text-emerald-700"
                               >
-                                {inspirationEntryMap.get(memory.id)?.projectionLabel ||
-                                  "灵感对象"}
+                                {inspirationEntryMap.get(memory.id)
+                                  ?.projectionLabel || "灵感对象"}
                               </Badge>
                               {focusedDurableMemory?.id === memory.id ? (
                                 <Badge

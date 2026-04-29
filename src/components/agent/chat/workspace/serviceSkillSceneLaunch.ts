@@ -306,9 +306,8 @@ export function buildServiceSceneLaunchRequestMetadata(
 ): Record<string, unknown> {
   if (isServiceSkillClawLaunchContext(requestContext)) {
     const existingHarness = asRecord(existingMetadata?.harness);
-    const siteMetadata = buildServiceSkillClawLaunchRequestMetadata(
-      requestContext,
-    );
+    const siteMetadata =
+      buildServiceSkillClawLaunchRequestMetadata(requestContext);
     const siteHarness = asRecord(siteMetadata.harness);
 
     return {

@@ -23,13 +23,18 @@ function buildRecentVisitScopeKey(
   return `${params.sceneappId}::${params.projectId ?? ""}`;
 }
 
-function readRecentVisitRecord(value: unknown): SceneAppRecentVisitRecord | null {
+function readRecentVisitRecord(
+  value: unknown,
+): SceneAppRecentVisitRecord | null {
   if (!value || typeof value !== "object") {
     return null;
   }
 
   const record = value as Partial<SceneAppRecentVisitRecord>;
-  if (typeof record.visitedAt !== "number" || !Number.isFinite(record.visitedAt)) {
+  if (
+    typeof record.visitedAt !== "number" ||
+    !Number.isFinite(record.visitedAt)
+  ) {
     return null;
   }
 
@@ -102,10 +107,7 @@ export function subscribeSceneAppRecentVisits(
     listener(listSceneAppRecentVisits());
   };
   const handleStorage = (event: StorageEvent) => {
-    if (
-      event.key &&
-      event.key !== SCENEAPP_RECENT_VISITS_STORAGE_KEY
-    ) {
+    if (event.key && event.key !== SCENEAPP_RECENT_VISITS_STORAGE_KEY) {
       return;
     }
 
@@ -153,7 +155,10 @@ export function recordSceneAppRecentVisit(
       if (nextScopeKey && currentScopeKey) {
         return currentScopeKey !== nextScopeKey;
       }
-      return serializeSceneAppsPageParams(record) !== serializeSceneAppsPageParams(nextRecord);
+      return (
+        serializeSceneAppsPageParams(record) !==
+        serializeSceneAppsPageParams(nextRecord)
+      );
     }),
   ].slice(0, MAX_SCENEAPP_RECENT_VISITS);
 

@@ -106,6 +106,17 @@ import {
   buildImageSkillLaunchRequestMetadata,
   type ImageWorkbenchSkillRequest,
 } from "./imageSkillLaunch";
+import { buildBrowserControlLaunchRequestMetadata } from "./browserControlLaunch";
+import {
+  PDF_EXTRACT_DEFAULT_ENTRY_SOURCE,
+  TEXT_TRANSFORM_DEFAULT_ENTRY_SOURCE,
+  VOICE_GENERATION_DEFAULT_ENTRY_SOURCE,
+  WEB_RESEARCH_DEFAULT_ENTRY_SOURCE,
+  resolvePdfExtractRuntimeContractBinding,
+  resolveTextTransformRuntimeContractBinding,
+  resolveVoiceGenerationRuntimeContractBinding,
+  resolveWebResearchRuntimeContractBinding,
+} from "@/lib/governance/modalityRuntimeContracts";
 import {
   buildServiceSceneLaunchRequestMetadata,
   parseRuntimeSceneCommand,
@@ -264,6 +275,15 @@ function normalizeOptionalText(value?: string | null): string | undefined {
   return normalized ? normalized : undefined;
 }
 
+function resolveContractEntrySource(
+  boundEntrySources: string[],
+  preferredEntrySource: string,
+): string {
+  return boundEntrySources.includes(preferredEntrySource)
+    ? preferredEntrySource
+    : boundEntrySources[0] || preferredEntrySource;
+}
+
 function hasHarnessLaunchRequestMetadata(
   requestMetadata: Record<string, unknown> | undefined,
   launchKey: "translation_skill_launch" | "resource_search_skill_launch",
@@ -349,144 +369,133 @@ function normalizeServiceSkillUsageSlotValue(
   return undefined;
 }
 
-const MENTION_USAGE_REQUEST_FIELDS: Readonly<Record<string, readonly string[]>> =
-  {
-    image_task: [
-      "mode",
-      "prompt",
-      "count",
-      "size",
-      "aspect_ratio",
-      "target_output_ref_id",
-    ],
-    cover_task: ["prompt", "title", "platform", "size", "style"],
-    video_task: ["prompt", "duration", "aspect_ratio", "resolution"],
-    broadcast_task: [
-      "prompt",
-      "content",
-      "title",
-      "audience",
-      "tone",
-      "duration_hint_minutes",
-    ],
-    resource_search_task: [
-      "prompt",
-      "title",
-      "resource_type",
-      "query",
-      "usage",
-      "count",
-    ],
-    transcription_task: [
-      "prompt",
-      "source_url",
-      "source_path",
-      "language",
-      "output_format",
-      "speaker_labels",
-      "timestamps",
-    ],
-    research_request: [
-      "prompt",
-      "query",
-      "site",
-      "time_range",
-      "depth",
-      "focus",
-      "output_format",
-    ],
-    deep_search_request: [
-      "prompt",
-      "query",
-      "site",
-      "time_range",
-      "depth",
-      "focus",
-      "output_format",
-    ],
-    report_request: [
-      "prompt",
-      "query",
-      "site",
-      "time_range",
-      "depth",
-      "focus",
-      "output_format",
-    ],
-    site_search_request: ["prompt", "site", "query", "limit"],
-    pdf_read_request: [
-      "prompt",
-      "source_path",
-      "source_url",
-      "focus",
-      "output_format",
-    ],
-    summary_request: [
-      "prompt",
-      "source_path",
-      "content",
-      "focus",
-      "length",
-      "style",
-      "output_format",
-    ],
-    translation_request: [
-      "prompt",
-      "content",
-      "source_language",
-      "target_language",
-      "style",
-      "output_format",
-    ],
-    analysis_request: [
-      "prompt",
-      "content",
-      "focus",
-      "style",
-      "output_format",
-    ],
-    url_parse_task: ["prompt", "url", "extract_goal"],
-    typesetting_task: ["prompt", "content", "target_platform"],
-    presentation_request: [
-      "prompt",
-      "content",
-      "deck_type",
-      "style",
-      "audience",
-      "slide_count",
-    ],
-    form_request: [
-      "prompt",
-      "content",
-      "form_type",
-      "style",
-      "audience",
-      "field_count",
-    ],
-    webpage_request: [
-      "prompt",
-      "content",
-      "page_type",
-      "style",
-      "tech_stack",
-    ],
-    service_scene: [
-      "user_input",
-      "target_language",
-      "voice_style",
-      "platform",
-      "account_list",
-      "report_cadence",
-      "alert_threshold",
-    ],
-    publish_command: [
-      "prompt",
-      "content",
-      "platform_type",
-      "platform_label",
-      "intent",
-    ],
-  };
+const MENTION_USAGE_REQUEST_FIELDS: Readonly<
+  Record<string, readonly string[]>
+> = {
+  image_task: [
+    "mode",
+    "prompt",
+    "count",
+    "size",
+    "aspect_ratio",
+    "target_output_ref_id",
+  ],
+  cover_task: ["prompt", "title", "platform", "size", "style"],
+  video_task: ["prompt", "duration", "aspect_ratio", "resolution"],
+  broadcast_task: [
+    "prompt",
+    "content",
+    "title",
+    "audience",
+    "tone",
+    "duration_hint_minutes",
+  ],
+  resource_search_task: [
+    "prompt",
+    "title",
+    "resource_type",
+    "query",
+    "usage",
+    "count",
+  ],
+  transcription_task: [
+    "prompt",
+    "source_url",
+    "source_path",
+    "language",
+    "output_format",
+    "speaker_labels",
+    "timestamps",
+  ],
+  research_request: [
+    "prompt",
+    "query",
+    "site",
+    "time_range",
+    "depth",
+    "focus",
+    "output_format",
+  ],
+  deep_search_request: [
+    "prompt",
+    "query",
+    "site",
+    "time_range",
+    "depth",
+    "focus",
+    "output_format",
+  ],
+  report_request: [
+    "prompt",
+    "query",
+    "site",
+    "time_range",
+    "depth",
+    "focus",
+    "output_format",
+  ],
+  site_search_request: ["prompt", "site", "query", "limit"],
+  pdf_read_request: [
+    "prompt",
+    "source_path",
+    "source_url",
+    "focus",
+    "output_format",
+  ],
+  summary_request: [
+    "prompt",
+    "source_path",
+    "content",
+    "focus",
+    "length",
+    "style",
+    "output_format",
+  ],
+  translation_request: [
+    "prompt",
+    "content",
+    "source_language",
+    "target_language",
+    "style",
+    "output_format",
+  ],
+  analysis_request: ["prompt", "content", "focus", "style", "output_format"],
+  url_parse_task: ["prompt", "url", "extract_goal"],
+  typesetting_task: ["prompt", "content", "target_platform"],
+  presentation_request: [
+    "prompt",
+    "content",
+    "deck_type",
+    "style",
+    "audience",
+    "slide_count",
+  ],
+  form_request: [
+    "prompt",
+    "content",
+    "form_type",
+    "style",
+    "audience",
+    "field_count",
+  ],
+  webpage_request: ["prompt", "content", "page_type", "style", "tech_stack"],
+  service_scene: [
+    "user_input",
+    "target_language",
+    "voice_style",
+    "platform",
+    "account_list",
+    "report_cadence",
+    "alert_threshold",
+  ],
+  publish_command: [
+    "prompt",
+    "content",
+    "platform_type",
+    "platform_label",
+    "intent",
+  ],
+};
 
 const MENTION_USAGE_MODEL_SKILL_LAUNCHES = [
   {
@@ -679,8 +688,9 @@ function resolveMentionCommandUsageLaunchUserInput(
     }
 
     return normalizeOptionalText(
-      ((scopedRequestContext.user_input ??
-        scopedRequestContext.prompt) as string | undefined) ?? undefined,
+      ((scopedRequestContext.user_input ?? scopedRequestContext.prompt) as
+        | string
+        | undefined) ?? undefined,
     );
   }
 
@@ -718,9 +728,12 @@ function normalizeMentionCommandReplayText(
   return trimmed.slice(0, MAX_MENTION_COMMAND_REPLAY_TEXT_LENGTH).trim();
 }
 
-function resolveMentionCommandReplayText(parsedCommand: {
-  body: string;
-}, commandKey?: string): string | undefined {
+function resolveMentionCommandReplayText(
+  parsedCommand: {
+    body: string;
+  },
+  commandKey?: string,
+): string | undefined {
   return normalizeMentionCommandReplayText(
     buildMentionCommandReplayText({
       commandKey,
@@ -882,10 +895,7 @@ type AnalysisCommandRecentDefaultsTarget = Pick<
 
 function mergeAnalysisCommandRecentDefaults<
   T extends AnalysisCommandRecentDefaultsTarget,
->(params: {
-  parsedCommand: T;
-  slotValues?: ServiceSkillSlotValues;
-}): T {
+>(params: { parsedCommand: T; slotValues?: ServiceSkillSlotValues }): T {
   const slotValues = params.slotValues;
   if (!slotValues) {
     return params.parsedCommand;
@@ -1203,10 +1213,7 @@ function normalizeRecentPublishPlatform(params: {
 
 function mergePublishLikeCommandRecentDefaults<
   T extends ParsedPublishLikeWorkbenchCommand,
->(params: {
-  parsedCommand: T;
-  slotValues?: ServiceSkillSlotValues;
-}): T {
+>(params: { parsedCommand: T; slotValues?: ServiceSkillSlotValues }): T {
   const slotValues = params.slotValues;
   if (!slotValues) {
     return params.parsedCommand;
@@ -1325,7 +1332,8 @@ function resolveMentionCommandUsage(params: {
     return null;
   }
 
-  const boundSkillId = params.mentionCommandSkillIdMap.get(normalizedCommandKey);
+  const boundSkillId =
+    params.mentionCommandSkillIdMap.get(normalizedCommandKey);
   if (!boundSkillId) {
     return null;
   }
@@ -1753,6 +1761,11 @@ function buildFileReadSkillLaunchRequestContext(params: {
     params.parsedCommand.prompt.trim() ||
     params.parsedCommand.focus?.trim() ||
     "请阅读这个文件并提炼关键信息";
+  const runtimeContract = resolveTextTransformRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    "at_file_read_command",
+  );
 
   return {
     kind: "summary_request",
@@ -1766,7 +1779,12 @@ function buildFileReadSkillLaunchRequestContext(params: {
       output_format: params.parsedCommand.outputFormat,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_file_read_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2048,6 +2066,11 @@ function buildResearchSkillLaunchRequestContext(params: {
     toast.error("请补充明确的搜索主题后再提交");
     return null;
   }
+  const runtimeContract = resolveWebResearchRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    WEB_RESEARCH_DEFAULT_ENTRY_SOURCE,
+  );
 
   return {
     kind: "research_request",
@@ -2062,7 +2085,12 @@ function buildResearchSkillLaunchRequestContext(params: {
       output_format: params.parsedCommand.outputFormat,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_search_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2079,6 +2107,11 @@ function buildDeepSearchSkillLaunchRequestContext(params: {
     toast.error("请补充明确的深搜主题后再提交");
     return null;
   }
+  const runtimeContract = resolveWebResearchRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    "at_deep_search_command",
+  );
 
   return {
     kind: "deep_search_request",
@@ -2093,7 +2126,12 @@ function buildDeepSearchSkillLaunchRequestContext(params: {
       output_format: params.parsedCommand.outputFormat,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_deep_search_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2110,6 +2148,11 @@ function buildReportSkillLaunchRequestContext(params: {
     toast.error("请补充明确的研报主题后再提交");
     return null;
   }
+  const runtimeContract = resolveWebResearchRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    "at_report_command",
+  );
 
   return {
     kind: "report_request",
@@ -2124,7 +2167,12 @@ function buildReportSkillLaunchRequestContext(params: {
       output_format: params.parsedCommand.outputFormat || "研究报告",
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_report_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2141,6 +2189,11 @@ function buildCompetitorSkillLaunchRequestContext(params: {
     toast.error("请补充明确的竞品分析主题后再提交");
     return null;
   }
+  const runtimeContract = resolveWebResearchRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    "at_competitor_command",
+  );
 
   return {
     kind: "report_request",
@@ -2155,7 +2208,12 @@ function buildCompetitorSkillLaunchRequestContext(params: {
       output_format: params.parsedCommand.outputFormat,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_competitor_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2172,6 +2230,11 @@ function buildSiteSearchSkillLaunchRequestContext(params: {
     toast.error("请先补充站点和检索主题后再提交");
     return null;
   }
+  const runtimeContract = resolveWebResearchRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    "at_site_search_command",
+  );
 
   return {
     kind: "site_search_request",
@@ -2183,7 +2246,12 @@ function buildSiteSearchSkillLaunchRequestContext(params: {
       limit: params.parsedCommand.limit,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_site_search_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2205,6 +2273,9 @@ function buildPdfReadSkillLaunchRequestContext(params: {
     params.parsedCommand.prompt.trim() ||
     params.parsedCommand.focus?.trim() ||
     "请阅读这份 PDF 并提炼关键信息";
+  const runtimeContract = resolvePdfExtractRuntimeContractBinding();
+  const entrySource =
+    runtimeContract.boundEntrySources[0] || PDF_EXTRACT_DEFAULT_ENTRY_SOURCE;
 
   return {
     kind: "pdf_read_request",
@@ -2217,7 +2288,12 @@ function buildPdfReadSkillLaunchRequestContext(params: {
       output_format: params.parsedCommand.outputFormat,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_pdf_read_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2230,6 +2306,11 @@ function buildSummarySkillLaunchRequestContext(params: {
 }): Record<string, unknown> {
   const prompt =
     params.parsedCommand.prompt.trim() || "请总结当前对话中的关键信息";
+  const runtimeContract = resolveTextTransformRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    TEXT_TRANSFORM_DEFAULT_ENTRY_SOURCE,
+  );
 
   return {
     kind: "summary_request",
@@ -2243,7 +2324,12 @@ function buildSummarySkillLaunchRequestContext(params: {
       output_format: params.parsedCommand.outputFormat,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_summary_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2256,6 +2342,11 @@ function buildTranslationSkillLaunchRequestContext(params: {
 }): Record<string, unknown> {
   const prompt =
     params.parsedCommand.prompt.trim() || "请翻译当前对话中最相关的内容";
+  const runtimeContract = resolveTextTransformRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    "at_translation_command",
+  );
 
   return {
     kind: "translation_request",
@@ -2269,7 +2360,12 @@ function buildTranslationSkillLaunchRequestContext(params: {
       output_format: params.parsedCommand.outputFormat,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_translation_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2288,6 +2384,11 @@ function buildAnalysisSkillLaunchRequestContext(params: {
 }): Record<string, unknown> {
   const prompt =
     params.parsedCommand.prompt.trim() || "请分析当前对话中最相关的内容";
+  const runtimeContract = resolveTextTransformRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    params.entrySource || "at_analysis_command",
+  );
 
   return {
     kind: "analysis_request",
@@ -2301,7 +2402,12 @@ function buildAnalysisSkillLaunchRequestContext(params: {
       analysis_mode: params.parsedCommand.analysisMode,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: params.entrySource || "at_analysis_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }
@@ -2614,7 +2720,8 @@ async function resolveGrowthSkillLaunchRequestContext(params: {
         account_list: params.parsedCommand.accountList,
         report_cadence: params.parsedCommand.reportCadence,
         alert_threshold: params.parsedCommand.alertThreshold,
-        slot_values: Object.keys(slotValues).length > 0 ? slotValues : undefined,
+        slot_values:
+          Object.keys(slotValues).length > 0 ? slotValues : undefined,
       },
     },
   };
@@ -2675,6 +2782,10 @@ async function resolveVoiceSkillLaunchRequestContext(params: {
   const resolvedVoicePreference = normalizeMediaGenerationPreference(
     params.voicePreference,
   );
+  const runtimeContract = resolveVoiceGenerationRuntimeContractBinding();
+  const entrySource =
+    runtimeContract.boundEntrySources[0] ||
+    VOICE_GENERATION_DEFAULT_ENTRY_SOURCE;
 
   return {
     dispatchText: composeServiceSkillPrompt({
@@ -2702,10 +2813,16 @@ async function resolveVoiceSkillLaunchRequestContext(params: {
         execution_location: "client_default",
         project_id: resolvedProjectId,
         content_id: normalizeOptionalText(params.contentId),
-        entry_source: "at_voice_command",
+        entry_source: entrySource,
+        modality_contract_key: runtimeContract.contractKey,
+        modality: runtimeContract.modality,
+        required_capabilities: runtimeContract.requiredCapabilities,
+        routing_slot: runtimeContract.routingSlot,
+        runtime_contract: runtimeContract.runtimeContract,
         target_language: params.parsedCommand.targetLanguage,
         voice_style: params.parsedCommand.voiceStyle,
-        slot_values: Object.keys(slotValues).length > 0 ? slotValues : undefined,
+        slot_values:
+          Object.keys(slotValues).length > 0 ? slotValues : undefined,
         preferred_provider_id: resolvedVoicePreference.preferredProviderId,
         preferred_model_id: resolvedVoicePreference.preferredModelId,
         allow_fallback: resolvedVoicePreference.allowFallback ?? true,
@@ -2865,9 +2982,8 @@ export function useWorkspaceSendActions({
   resolveImageWorkbenchSkillRequest,
 }: UseWorkspaceSendActionsParams) {
   const messagesCount = messages.length;
-  const [runtimeTeamDispatchPreview, setRuntimeTeamDispatchPreview] = useState<
-    RuntimeTeamDispatchPreviewSnapshot | null
-  >(null);
+  const [runtimeTeamDispatchPreview, setRuntimeTeamDispatchPreview] =
+    useState<RuntimeTeamDispatchPreviewSnapshot | null>(null);
   const [submissionPreview, setSubmissionPreview] =
     useState<SubmissionPreviewSnapshot | null>(null);
   const [isPreparingSend, setIsPreparingSend] = useState(false);
@@ -3397,9 +3513,10 @@ export function useWorkspaceSendActions({
           ? parseResourceSearchWorkbenchCommand(sourceText)
           : null;
       if (parsedResourceSearchWorkbenchCommand) {
-        const resourceRewritePreference = resolveServiceModelExecutionPreference(
-          resourcePromptRewritePreference,
-        );
+        const resourceRewritePreference =
+          resolveServiceModelExecutionPreference(
+            resourcePromptRewritePreference,
+          );
         const requestContext = buildResourceSearchSkillLaunchRequestContext({
           rawText: sourceText,
           parsedCommand: parsedResourceSearchWorkbenchCommand,
@@ -3790,12 +3907,14 @@ export function useWorkspaceSendActions({
           ? parseFileReadWorkbenchCommand(sourceText)
           : null;
       if (parsedFileReadWorkbenchCommand) {
-        const prefilledFileReadCommand = maybeApplyMentionCommandRecentDefaults({
-          rawText: sourceText,
-          commandKey: "file_read_runtime",
-          parsedCommand: parsedFileReadWorkbenchCommand,
-          reparse: parseFileReadWorkbenchCommand,
-        });
+        const prefilledFileReadCommand = maybeApplyMentionCommandRecentDefaults(
+          {
+            rawText: sourceText,
+            commandKey: "file_read_runtime",
+            parsedCommand: parsedFileReadWorkbenchCommand,
+            reparse: parseFileReadWorkbenchCommand,
+          },
+        );
         sourceText = prefilledFileReadCommand.rawText;
         dispatchText = sourceText;
         const requestContext = buildFileReadSkillLaunchRequestContext({
@@ -3863,10 +3982,7 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "summary",
-          resolveMentionCommandReplayText(
-            mergedSummaryCommand,
-            "summary",
-          ),
+          resolveMentionCommandReplayText(mergedSummaryCommand, "summary"),
         );
         hasBoundSkillLaunch = true;
       }
@@ -3990,8 +4106,8 @@ export function useWorkspaceSendActions({
           ? parseLogoDecompositionWorkbenchCommand(sourceText)
           : null;
       if (parsedLogoDecompositionWorkbenchCommand) {
-        const mergedLogoDecompositionCommand = mergeAnalysisCommandRecentDefaults(
-          {
+        const mergedLogoDecompositionCommand =
+          mergeAnalysisCommandRecentDefaults({
             parsedCommand: parsedLogoDecompositionWorkbenchCommand,
             slotValues: mentionUsageMap.get(
               getMentionEntryUsageRecordKey(
@@ -3999,8 +4115,7 @@ export function useWorkspaceSendActions({
                 "logo_decomposition",
               ),
             )?.slotValues,
-          },
-        );
+          });
         const requestContext = buildAnalysisSkillLaunchRequestContext({
           rawText: sourceText,
           parsedCommand: mergedLogoDecompositionCommand,
@@ -4067,10 +4182,7 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "analysis",
-          resolveMentionCommandReplayText(
-            mergedAnalysisCommand,
-            "analysis",
-          ),
+          resolveMentionCommandReplayText(mergedAnalysisCommand, "analysis"),
         );
         hasBoundSkillLaunch = true;
       }
@@ -4120,7 +4232,7 @@ export function useWorkspaceSendActions({
             ? "web_scrape"
             : isUrlParseReadTrigger(parsedUrlParseWorkbenchCommand.trigger)
               ? "webpage_read"
-            : "url_parse",
+              : "url_parse",
           resolveMentionCommandReplayText(
             parsedUrlParseWorkbenchCommand,
             isUrlParseScrapeTrigger(parsedUrlParseWorkbenchCommand.trigger)
@@ -4288,10 +4400,7 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "form_generate",
-          resolveMentionCommandReplayText(
-            mergedFormCommand,
-            "form_generate",
-          ),
+          resolveMentionCommandReplayText(mergedFormCommand, "form_generate"),
         );
         hasBoundSkillLaunch = true;
       }
@@ -4599,7 +4708,9 @@ export function useWorkspaceSendActions({
           platformLabel: mergedUploadCommand.platformLabel,
         });
         const uploadBrowserRequirementMatch = detectBrowserTaskRequirement(
-          dispatchBody || mergedUploadCommand.body || mergedUploadCommand.prompt,
+          dispatchBody ||
+            mergedUploadCommand.body ||
+            mergedUploadCommand.prompt,
         );
         dispatchText = `/${CONTENT_POST_SKILL_KEY}${
           dispatchBody ? ` ${dispatchBody}` : ""
@@ -4617,13 +4728,11 @@ export function useWorkspaceSendActions({
                       uploadBrowserRequirementMatch.requirement,
                     browser_requirement_reason:
                       uploadBrowserRequirementMatch.reason,
-                    browser_launch_url:
-                      uploadBrowserRequirementMatch.launchUrl,
+                    browser_launch_url: uploadBrowserRequirementMatch.launchUrl,
                   }
                 : {}),
               publish_command: {
-                prompt:
-                  mergedUploadCommand.prompt || mergedUploadCommand.body,
+                prompt: mergedUploadCommand.prompt || mergedUploadCommand.body,
                 content: mergedUploadCommand.body,
                 platform_type: mergedUploadCommand.platformType || undefined,
                 platform_label: mergedUploadCommand.platformLabel || undefined,
@@ -4801,8 +4910,6 @@ export function useWorkspaceSendActions({
           ? parseBrowserWorkbenchCommand(sourceText)
           : null;
       if (parsedBrowserWorkbenchCommand) {
-        const existingHarnessMetadata =
-          asRecord(sendOptions?.requestMetadata?.harness) || {};
         effectiveToolPreferences = {
           ...effectiveToolPreferences,
           webSearch: false,
@@ -4812,20 +4919,10 @@ export function useWorkspaceSendActions({
         sendOptions = {
           ...(sendOptions || {}),
           toolPreferencesOverride: effectiveToolPreferences,
-          requestMetadata: {
-            ...(sendOptions?.requestMetadata || {}),
-            harness: {
-              ...existingHarnessMetadata,
-              browser_requirement:
-                parsedBrowserWorkbenchCommand.browserRequirement,
-              browser_requirement_reason:
-                parsedBrowserWorkbenchCommand.browserRequirementReason,
-              browser_launch_url: parsedBrowserWorkbenchCommand.launchUrl,
-              browser_user_step_required:
-                parsedBrowserWorkbenchCommand.browserRequirement ===
-                "required_with_user_step",
-            },
-          },
+          requestMetadata: buildBrowserControlLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            parsedBrowserWorkbenchCommand,
+          ),
         };
         markCompletedMentionCommand(
           "browser_runtime",
@@ -5086,7 +5183,7 @@ export function useWorkspaceSendActions({
           ...(sendOptions || {}),
           displayContent:
             dispatchText !== sourceText
-              ? sendOptions?.displayContent ?? sourceText
+              ? (sendOptions?.displayContent ?? sourceText)
               : sendOptions?.displayContent,
           requestMetadata: nextRequestMetadata,
           providerOverride:

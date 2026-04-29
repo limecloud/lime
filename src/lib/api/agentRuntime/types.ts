@@ -1070,6 +1070,32 @@ export interface CreateImageGenerationTaskArtifactRequest {
   }>;
 }
 
+export interface CreateAudioGenerationTaskArtifactRequest {
+  projectRootPath: string;
+  sourceText: string;
+  title?: string;
+  rawText?: string;
+  voice?: string;
+  voiceStyle?: string;
+  targetLanguage?: string;
+  mimeType?: string;
+  audioPath?: string;
+  durationMs?: number;
+  providerId?: string;
+  model?: string;
+  sessionId?: string;
+  projectId?: string;
+  contentId?: string;
+  entrySource?: string;
+  modalityContractKey?: "voice_generation";
+  modality?: "audio";
+  requiredCapabilities?: string[];
+  routingSlot?: "voice_generation_model";
+  runtimeContract?: Record<string, unknown>;
+  requestedTarget?: "voice" | "dubbing";
+  outputPath?: string;
+}
+
 export interface MediaTaskArtifactRecord {
   task_id: string;
   task_type: string;
@@ -1119,6 +1145,8 @@ export interface ListMediaTaskArtifactsRequest {
   status?: string;
   taskFamily?: string;
   taskType?: string;
+  modalityContractKey?: string;
+  routingOutcome?: "accepted" | "failed" | "blocked";
   limit?: number;
 }
 
@@ -1126,7 +1154,38 @@ export interface MediaTaskListFilters {
   status?: string | null;
   task_family?: string | null;
   task_type?: string | null;
+  modality_contract_key?: string | null;
+  routing_outcome?: string | null;
   limit?: number | null;
+}
+
+export interface MediaTaskModalityRuntimeContractIndexEntry {
+  task_id: string;
+  task_type: string;
+  normalized_status: string;
+  contract_key?: string | null;
+  routing_slot?: string | null;
+  provider_id?: string | null;
+  model?: string | null;
+  routing_event: string;
+  routing_outcome: string;
+  failure_code?: string | null;
+  model_capability_assessment_source?: string | null;
+  model_supports_image_generation?: boolean | null;
+}
+
+export interface MediaTaskRoutingOutcomeCount {
+  outcome: string;
+  count: number;
+}
+
+export interface MediaTaskModalityRuntimeContractIndex {
+  snapshot_count: number;
+  contract_keys: string[];
+  blocked_count: number;
+  routing_outcomes: MediaTaskRoutingOutcomeCount[];
+  model_registry_assessment_count: number;
+  snapshots: MediaTaskModalityRuntimeContractIndexEntry[];
 }
 
 export interface ListMediaTaskArtifactsOutput {
@@ -1135,6 +1194,7 @@ export interface ListMediaTaskArtifactsOutput {
   artifact_root: string;
   filters: MediaTaskListFilters;
   total: number;
+  modality_runtime_contracts: MediaTaskModalityRuntimeContractIndex;
   tasks: MediaTaskArtifactOutput[];
 }
 

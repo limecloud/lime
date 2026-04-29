@@ -452,7 +452,19 @@ mod tests {
                     "profile_key": "general_browser_assist",
                     "preferred_backend": "cdp_direct",
                     "auto_launch": true,
-                    "launch_url": "https://www.google.com"
+                    "launch_url": "https://www.google.com",
+                    "modality_contract_key": "browser_control",
+                    "modality": "browser",
+                    "required_capabilities": [
+                        "text_generation",
+                        "browser_reasoning",
+                        "browser_control_planning"
+                    ],
+                    "routing_slot": "browser_reasoning_model",
+                    "runtime_contract": {
+                        "contract_key": "browser_control"
+                    },
+                    "entry_source": "at_browser_command"
                 }
             }
         });
@@ -464,7 +476,74 @@ mod tests {
                 preferred_backend: Some(BrowserBackendType::CdpDirect),
                 auto_launch: true,
                 launch_url: Some("https://www.google.com".to_string()),
+                modality_runtime_contract: Some(BrowserAssistModalityRuntimeContract {
+                    contract_key: "browser_control".to_string(),
+                    modality: "browser".to_string(),
+                    required_capabilities: vec![
+                        "text_generation".to_string(),
+                        "browser_reasoning".to_string(),
+                        "browser_control_planning".to_string(),
+                    ],
+                    routing_slot: "browser_reasoning_model".to_string(),
+                    runtime_contract: serde_json::json!({
+                        "contract_key": "browser_control"
+                    }),
+                    entry_source: Some("at_browser_command".to_string()),
+                }),
             })
+        );
+    }
+
+    #[test]
+    fn test_lime_browser_tool_attaches_modality_contract_metadata() {
+        let session_hint = BrowserAssistRuntimeHint {
+            profile_key: "general_browser_assist".to_string(),
+            preferred_backend: Some(BrowserBackendType::CdpDirect),
+            auto_launch: true,
+            launch_url: Some("https://www.google.com".to_string()),
+            modality_runtime_contract: Some(BrowserAssistModalityRuntimeContract {
+                contract_key: "browser_control".to_string(),
+                modality: "browser".to_string(),
+                required_capabilities: vec![
+                    "text_generation".to_string(),
+                    "browser_reasoning".to_string(),
+                    "browser_control_planning".to_string(),
+                ],
+                routing_slot: "browser_reasoning_model".to_string(),
+                runtime_contract: serde_json::json!({
+                    "contract_key": "browser_control",
+                    "routing_slot": "browser_reasoning_model"
+                }),
+                entry_source: Some("at_browser_command".to_string()),
+            }),
+        };
+
+        let result = LimeBrowserMcpTool::attach_modality_runtime_contract_metadata(
+            ToolResult::success("ok"),
+            Some(&session_hint),
+        );
+
+        assert_eq!(
+            result.metadata.get("modality_contract_key"),
+            Some(&serde_json::json!("browser_control"))
+        );
+        assert_eq!(
+            result.metadata.get("routing_slot"),
+            Some(&serde_json::json!("browser_reasoning_model"))
+        );
+        assert_eq!(
+            result
+                .metadata
+                .get("modality_runtime_contract")
+                .and_then(|value| value.pointer("/contractKey")),
+            Some(&serde_json::json!("browser_control"))
+        );
+        assert_eq!(
+            result
+                .metadata
+                .get("runtime_contract")
+                .and_then(|value| value.pointer("/contract_key")),
+            Some(&serde_json::json!("browser_control"))
         );
     }
 
@@ -478,6 +557,7 @@ mod tests {
             preferred_backend: Some(BrowserBackendType::AsterCompat),
             auto_launch: true,
             launch_url: None,
+            modality_runtime_contract: None,
         };
 
         assert_eq!(
@@ -494,6 +574,7 @@ mod tests {
             preferred_backend: Some(BrowserBackendType::CdpDirect),
             auto_launch: true,
             launch_url: None,
+            modality_runtime_contract: None,
         };
 
         assert_eq!(
@@ -510,6 +591,7 @@ mod tests {
             preferred_backend: Some(BrowserBackendType::CdpDirect),
             auto_launch: true,
             launch_url: None,
+            modality_runtime_contract: None,
         };
 
         assert_eq!(
@@ -541,6 +623,7 @@ mod tests {
             preferred_backend: Some(BrowserBackendType::LimeExtensionBridge),
             auto_launch: true,
             launch_url: None,
+            modality_runtime_contract: None,
         };
 
         assert!(!LimeBrowserMcpTool::should_auto_launch_managed_browser(
@@ -558,6 +641,7 @@ mod tests {
             preferred_backend: Some(BrowserBackendType::CdpDirect),
             auto_launch: true,
             launch_url: Some("https://www.google.com".to_string()),
+            modality_runtime_contract: None,
         };
 
         assert!(LimeBrowserMcpTool::should_auto_launch_managed_browser(
@@ -577,6 +661,7 @@ mod tests {
             preferred_backend: Some(BrowserBackendType::CdpDirect),
             auto_launch: true,
             launch_url: Some("https://github.com/search?q=ai+agent".to_string()),
+            modality_runtime_contract: None,
         };
 
         assert!(!LimeBrowserMcpTool::should_auto_launch_managed_browser(
@@ -1103,9 +1188,9 @@ mod tests {
             serde_json::json!("session-image-skill-1")
         );
 
-        assert!(!permissions
-            .iter()
-            .any(|permission| permission.tool == LIME_CREATE_IMAGE_TASK_TOOL_NAME && !permission.allowed));
+        assert!(!permissions.iter().any(|permission| permission.tool
+            == LIME_CREATE_IMAGE_TASK_TOOL_NAME
+            && !permission.allowed));
         assert!(permissions
             .iter()
             .any(|permission| permission.tool == "Bash" && !permission.allowed));
@@ -3326,24 +3411,22 @@ mod tests {
 
     #[test]
     fn test_agent_runtime_list_sessions_request_deserializes_include_archived_alias() {
-        let request: AgentRuntimeListSessionsRequest =
-            serde_json::from_value(serde_json::json!({
-                "includeArchived": true
-            }))
-            .expect("request should deserialize");
+        let request: AgentRuntimeListSessionsRequest = serde_json::from_value(serde_json::json!({
+            "includeArchived": true
+        }))
+        .expect("request should deserialize");
 
         assert_eq!(request.include_archived, Some(true));
     }
 
     #[test]
     fn test_agent_runtime_list_sessions_request_deserializes_archive_scope_and_limit() {
-        let request: AgentRuntimeListSessionsRequest =
-            serde_json::from_value(serde_json::json!({
-                "archivedOnly": true,
-                "workspaceId": "workspace-1",
-                "limit": 24
-            }))
-            .expect("request should deserialize");
+        let request: AgentRuntimeListSessionsRequest = serde_json::from_value(serde_json::json!({
+            "archivedOnly": true,
+            "workspaceId": "workspace-1",
+            "limit": 24
+        }))
+        .expect("request should deserialize");
 
         assert_eq!(request.archived_only, Some(true));
         assert_eq!(request.workspace_id.as_deref(), Some("workspace-1"));
@@ -4516,6 +4599,53 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_system_prompt_with_voice_service_scene_launch_includes_modality_contract() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "service_scene_launch": {
+                    "kind": "local_service_skill",
+                    "service_scene_run": {
+                        "skill_id": "voice-skill-1",
+                        "skill_title": "视频配音",
+                        "skill_summary": "围绕视频文案与素材整理一版可继续加工的配音稿。",
+                        "scene_key": "voice_runtime",
+                        "command_prefix": "@配音",
+                        "user_input": "给这个新品视频做一版发布配音稿",
+                        "execution_kind": "agent_turn",
+                        "execution_location": "client_default",
+                        "entry_source": "at_voice_command",
+                        "modality_contract_key": "voice_generation",
+                        "modality": "audio",
+                        "required_capabilities": ["text_generation", "voice_generation"],
+                        "routing_slot": "voice_generation_model",
+                        "runtime_contract": {
+                            "contract_key": "voice_generation",
+                            "routing_slot": "voice_generation_model",
+                            "executor_binding": {
+                                "executor_kind": "service_skill",
+                                "binding_key": "voice_runtime"
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_service_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("modality_contract_key=voice_generation"));
+        assert!(merged.contains("modality=audio"));
+        assert!(merged.contains("routing_slot=voice_generation_model"));
+        assert!(merged.contains("当前合同所需能力：text_generation, voice_generation"));
+        assert!(merged.contains("\"binding_key\":\"voice_runtime\""));
+        assert!(merged.contains("不要退回 legacy_tts_test_command"));
+    }
+
+    #[test]
     fn test_merge_system_prompt_with_image_skill_launch_appends_prompt() {
         let metadata = serde_json::json!({
             "harness": {
@@ -4806,6 +4936,13 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_RESEARCH_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains(
+            "modality_contract_key=web_research, modality=mixed, routing_slot=report_generation_model"
+        ));
+        assert!(merged.contains("structured_document_generation"));
+        assert!(merged.contains("model_memory_only_answer"));
+        assert!(merged.contains("runtime_contract(JSON)"));
+        assert!(merged.contains("contract_key\":\"web_research"));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"research\""));
         assert!(merged.contains("Skill.args 的 JSON"));
@@ -4847,6 +4984,13 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_DEEP_SEARCH_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains(
+            "modality_contract_key=web_research, modality=mixed, routing_slot=report_generation_model"
+        ));
+        assert!(merged.contains("structured_document_generation"));
+        assert!(merged.contains("model_memory_only_answer"));
+        assert!(merged.contains("runtime_contract(JSON)"));
+        assert!(merged.contains("contract_key\":\"web_research"));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"research\""));
         assert!(merged.contains("Skill.args 的 JSON"));
@@ -4889,6 +5033,13 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_REPORT_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains(
+            "modality_contract_key=web_research, modality=mixed, routing_slot=report_generation_model"
+        ));
+        assert!(merged.contains("structured_document_generation"));
+        assert!(merged.contains("model_memory_only_answer"));
+        assert!(merged.contains("runtime_contract(JSON)"));
+        assert!(merged.contains("contract_key\":\"web_research"));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"report_generate\""));
         assert!(merged.contains("Skill.args 的 JSON"));
@@ -4898,6 +5049,7 @@ mod tests {
         assert!(merged.contains("不要先走 ToolSearch / Read / Glob / Grep"));
         assert!(merged.contains("应立即改为直调 Skill(report_generate)"));
         assert!(merged.contains("report_generate skill 内部必须先执行真实联网检索"));
+        assert!(merged.contains("`web_research` 下的报告型子入口"));
         assert!(merged.contains("核心结论、关键证据、风险/待确认项与建议动作"));
         assert!(merged.contains("当前任务已经显式进入研报技能主链"));
     }
@@ -4928,6 +5080,13 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_SITE_SEARCH_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains(
+            "modality_contract_key=web_research, modality=mixed, routing_slot=report_generation_model"
+        ));
+        assert!(merged.contains("structured_document_generation"));
+        assert!(merged.contains("web_research 合同下的子入口"));
+        assert!(merged.contains("runtime_contract(JSON)"));
+        assert!(merged.contains("contract_key\":\"web_research"));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"site_search\""));
         assert!(merged.contains("Skill.args 的 JSON"));
@@ -4966,6 +5125,11 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_PDF_READ_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains(
+            "modality_contract_key=pdf_extract, modality=document, routing_slot=base_model"
+        ));
+        assert!(merged.contains("local_file_read"));
+        assert!(merged.contains("generic_chat_summary_only"));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"pdf_read\""));
         assert!(merged.contains("Skill.args 的 JSON"));
@@ -5006,6 +5170,13 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_SUMMARY_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains(
+            "modality_contract_key=text_transform, modality=document, routing_slot=base_model"
+        ));
+        assert!(merged.contains("local_file_read"));
+        assert!(merged.contains("frontend_direct_text_transform"));
+        assert!(merged.contains("runtime_contract(JSON)"));
+        assert!(merged.contains("contract_key\":\"text_transform"));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("Skill.args 的 JSON"));
         assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
@@ -5078,6 +5249,13 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_TRANSLATION_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains(
+            "modality_contract_key=text_transform, modality=document, routing_slot=base_model"
+        ));
+        assert!(merged.contains("local_file_read"));
+        assert!(merged.contains("frontend_direct_text_transform"));
+        assert!(merged.contains("runtime_contract(JSON)"));
+        assert!(merged.contains("contract_key\":\"text_transform"));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("Skill.args 的 JSON"));
         assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
@@ -5118,6 +5296,13 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_ANALYSIS_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains(
+            "modality_contract_key=text_transform, modality=document, routing_slot=base_model"
+        ));
+        assert!(merged.contains("local_file_read"));
+        assert!(merged.contains("frontend_direct_text_transform"));
+        assert!(merged.contains("runtime_contract(JSON)"));
+        assert!(merged.contains("contract_key\":\"text_transform"));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("Skill.args 的 JSON"));
         assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
@@ -5156,6 +5341,7 @@ mod tests {
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
         );
+        assert!(harness.get("broadcast_skill_launch").is_some());
     }
 
     #[test]
@@ -5184,6 +5370,7 @@ mod tests {
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
         );
+        assert!(harness.get("resource_search_skill_launch").is_some());
     }
 
     #[test]
@@ -5212,6 +5399,40 @@ mod tests {
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
         );
+        let launch = harness
+            .get("site_search_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("site_search_skill_launch");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("web_research")
+        );
+        let site_search_request = launch
+            .get("site_search_request")
+            .and_then(serde_json::Value::as_object)
+            .expect("site_search_request");
+        assert_eq!(
+            site_search_request
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("web_research")
+        );
+        assert_eq!(
+            site_search_request
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("report_generation_model")
+        );
+        assert_eq!(
+            site_search_request
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("research")
+        );
     }
 
     #[test]
@@ -5238,6 +5459,40 @@ mod tests {
         assert_eq!(
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
+        );
+        let launch = harness
+            .get("pdf_read_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("pdf_read_skill_launch");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("pdf_extract")
+        );
+        let pdf_read_request = launch
+            .get("pdf_read_request")
+            .and_then(serde_json::Value::as_object)
+            .expect("pdf_read_request");
+        assert_eq!(
+            pdf_read_request
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("pdf_extract")
+        );
+        assert_eq!(
+            pdf_read_request
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("base_model")
+        );
+        assert_eq!(
+            pdf_read_request
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("pdf_read")
         );
     }
 
@@ -5266,6 +5521,40 @@ mod tests {
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
         );
+        let launch = harness
+            .get("research_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("research_skill_launch");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("web_research")
+        );
+        let research_request = launch
+            .get("research_request")
+            .and_then(serde_json::Value::as_object)
+            .expect("research_request");
+        assert_eq!(
+            research_request
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("web_research")
+        );
+        assert_eq!(
+            research_request
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("report_generation_model")
+        );
+        assert_eq!(
+            research_request
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("research")
+        );
     }
 
     #[test]
@@ -5292,6 +5581,40 @@ mod tests {
         assert_eq!(
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
+        );
+        let launch = harness
+            .get("deep_search_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("deep_search_skill_launch");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("web_research")
+        );
+        let deep_search_request = launch
+            .get("deep_search_request")
+            .and_then(serde_json::Value::as_object)
+            .expect("deep_search_request");
+        assert_eq!(
+            deep_search_request
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("web_research")
+        );
+        assert_eq!(
+            deep_search_request
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("report_generation_model")
+        );
+        assert_eq!(
+            deep_search_request
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("research")
         );
     }
 
@@ -5320,6 +5643,40 @@ mod tests {
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
         );
+        let launch = harness
+            .get("report_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("report_skill_launch");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("web_research")
+        );
+        let report_request = launch
+            .get("report_request")
+            .and_then(serde_json::Value::as_object)
+            .expect("report_request");
+        assert_eq!(
+            report_request
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("web_research")
+        );
+        assert_eq!(
+            report_request
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("report_generation_model")
+        );
+        assert_eq!(
+            report_request
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("research")
+        );
     }
 
     #[test]
@@ -5346,6 +5703,40 @@ mod tests {
         assert_eq!(
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
+        );
+        let launch = harness
+            .get("summary_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("summary_skill_launch");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("text_transform")
+        );
+        let summary_request = launch
+            .get("summary_request")
+            .and_then(serde_json::Value::as_object)
+            .expect("summary_request");
+        assert_eq!(
+            summary_request
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("text_transform")
+        );
+        assert_eq!(
+            summary_request
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("base_model")
+        );
+        assert_eq!(
+            summary_request
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("text_transform")
         );
     }
 
@@ -5374,6 +5765,40 @@ mod tests {
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
         );
+        let launch = harness
+            .get("translation_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("translation_skill_launch");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("text_transform")
+        );
+        let translation_request = launch
+            .get("translation_request")
+            .and_then(serde_json::Value::as_object)
+            .expect("translation_request");
+        assert_eq!(
+            translation_request
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("text_transform")
+        );
+        assert_eq!(
+            translation_request
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("base_model")
+        );
+        assert_eq!(
+            translation_request
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("text_transform")
+        );
     }
 
     #[test]
@@ -5400,6 +5825,40 @@ mod tests {
         assert_eq!(
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
+        );
+        let launch = harness
+            .get("analysis_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("analysis_skill_launch");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("text_transform")
+        );
+        let analysis_request = launch
+            .get("analysis_request")
+            .and_then(serde_json::Value::as_object)
+            .expect("analysis_request");
+        assert_eq!(
+            analysis_request
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("text_transform")
+        );
+        assert_eq!(
+            analysis_request
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("base_model")
+        );
+        assert_eq!(
+            analysis_request
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("text_transform")
         );
     }
 
@@ -5876,6 +6335,50 @@ mod tests {
         assert_eq!(
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_service_scene_launch_request_metadata_adds_voice_generation_contract() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "service_scene_launch": {
+                    "kind": "local_service_skill",
+                    "service_scene_run": {
+                        "skill_id": "voice-skill-1",
+                        "scene_key": "voice_runtime",
+                        "entry_source": "at_voice_command"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_service_scene_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+        let service_scene_run = prepared
+            .pointer("/harness/service_scene_launch/service_scene_run")
+            .and_then(serde_json::Value::as_object)
+            .expect("service_scene_run");
+
+        assert_eq!(
+            service_scene_run
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("voice_generation")
+        );
+        assert_eq!(
+            service_scene_run
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("voice_generation_model")
+        );
+        assert_eq!(
+            service_scene_run
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("voice_runtime")
         );
     }
 

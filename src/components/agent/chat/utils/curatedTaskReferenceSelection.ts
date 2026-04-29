@@ -42,7 +42,12 @@ const EXPERIENCE_MEMORY_PLATFORM_LABELS = [
   "渠道",
   "发布渠道",
 ] as const;
-const EXPERIENCE_MEMORY_REGION_LABELS = ["地区", "地域", "区域", "语种"] as const;
+const EXPERIENCE_MEMORY_REGION_LABELS = [
+  "地区",
+  "地域",
+  "区域",
+  "语种",
+] as const;
 const EXPERIENCE_MEMORY_AUDIENCE_LABELS = [
   "目标受众",
   "受众",
@@ -79,7 +84,9 @@ function truncateText(value: string, maxLength: number): string {
   return `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
-function dedupeNonEmptyText(values: Array<string | null | undefined>): string[] {
+function dedupeNonEmptyText(
+  values: Array<string | null | undefined>,
+): string[] {
   return Array.from(
     new Set(
       values
@@ -148,8 +155,7 @@ function normalizeExperienceMemoryProjectGoal(
   }
 
   const compactTitle = normalizeOptionalText(title.replace(/结果闭环$/, ""));
-  const strippedTitle =
-    compactTitle?.split(/\s*[·•｜|]\s*/)[0] ?? compactTitle;
+  const strippedTitle = compactTitle?.split(/\s*[·•｜|]\s*/)[0] ?? compactTitle;
   return normalizeOptionalText(strippedTitle) || compactTitle;
 }
 
@@ -290,8 +296,7 @@ function normalizeCuratedTaskReferenceEntry(
   const title =
     normalizeOptionalText(entry.title) ||
     getCuratedTaskReferenceFallbackTitle(entry.category);
-  const summary =
-    normalizeOptionalText(entry.summary) || "等待补充摘要";
+  const summary = normalizeOptionalText(entry.summary) || "等待补充摘要";
   const tags = Array.from(
     new Set(
       entry.tags
@@ -305,17 +310,16 @@ function normalizeCuratedTaskReferenceEntry(
       : "memory";
   const taskPrefillByTaskId = Object.fromEntries(
     Object.entries(entry.taskPrefillByTaskId ?? {})
-      .map(([taskId, inputValues]) => [
-        normalizeOptionalText(taskId),
-        normalizeCuratedTaskLaunchInputValues(inputValues),
-      ] as const)
+      .map(
+        ([taskId, inputValues]) =>
+          [
+            normalizeOptionalText(taskId),
+            normalizeCuratedTaskLaunchInputValues(inputValues),
+          ] as const,
+      )
       .filter(
-        (
-          item,
-        ): item is [
-          string,
-          CuratedTaskInputValues,
-        ] => Boolean(item[0]) && Boolean(item[1]),
+        (item): item is [string, CuratedTaskInputValues] =>
+          Boolean(item[0]) && Boolean(item[1]),
       ),
   );
 
@@ -427,8 +431,7 @@ export function buildCuratedTaskLaunchInputPrefillFromReferenceEntries(params: {
   };
 
   for (const entry of params.referenceEntries ?? []) {
-    const taskPrefill =
-      entry.taskPrefillByTaskId?.[params.taskId];
+    const taskPrefill = entry.taskPrefillByTaskId?.[params.taskId];
     if (!taskPrefill) {
       continue;
     }
@@ -527,9 +530,8 @@ export function buildCuratedTaskReferenceSelectionFromCreationReplay(
   }
 
   return {
-    referenceMemoryIds: extractCuratedTaskReferenceMemoryIds([
-      referenceEntry,
-    ]) ?? [],
+    referenceMemoryIds:
+      extractCuratedTaskReferenceMemoryIds([referenceEntry]) ?? [],
     referenceEntries: [referenceEntry],
   };
 }
@@ -574,9 +576,7 @@ export function buildCuratedTaskLaunchRequestMetadata(params: {
   ).slice(0, 3);
   const inferredReferenceIds = normalizeCuratedTaskReferenceMemoryIds([
     ...(params.referenceMemoryIds ?? []),
-    ...(extractCuratedTaskReferenceMemoryIds(
-      normalizedReferenceEntries,
-    ) ?? []),
+    ...(extractCuratedTaskReferenceMemoryIds(normalizedReferenceEntries) ?? []),
   ]);
   const primaryReference = normalizedReferenceEntries.find(
     (entry) => getCuratedTaskReferenceSourceKind(entry) === "memory",
@@ -626,7 +626,9 @@ export function buildCuratedTaskLaunchRequestMetadata(params: {
                           Object.entries(entry.taskPrefillByTaskId).map(
                             ([taskId, inputValues]) => [
                               taskId,
-                              normalizeCuratedTaskLaunchInputValues(inputValues),
+                              normalizeCuratedTaskLaunchInputValues(
+                                inputValues,
+                              ),
                             ],
                           ),
                         )

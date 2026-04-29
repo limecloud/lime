@@ -163,7 +163,9 @@ describe("saveSceneAppExecutionAsInspiration", () => {
 
     expect(result).toBe(false);
     expect(createUnifiedMemory).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith("当前这轮结果还不足以沉淀到灵感库");
+    expect(toast.error).toHaveBeenCalledWith(
+      "当前这轮结果还不足以沉淀到灵感库",
+    );
   });
 
   it("应能根据推荐信号判断这轮结果是否已存入灵感库", async () => {
@@ -193,8 +195,7 @@ describe("saveSceneAppExecutionAsInspiration", () => {
       executionChainLabel: "做法 -> 生成 -> Project Pack",
       deliveryContractLabel: "Project Pack",
       planningStatusLabel: "已就绪",
-      planningSummary:
-        "当前已经带入 2 条参考与 1 条风格偏好，可直接进入生成。",
+      planningSummary: "当前已经带入 2 条参考与 1 条风格偏好，可直接进入生成。",
       activeLayers: [],
       referenceCount: 2,
       referenceItems: [],

@@ -148,8 +148,8 @@ export function MicrophoneTest({
   }, []); // 空依赖，只在卸载时执行
 
   const selectedDeviceLabel = selectedDeviceId
-    ? devices.find((device) => device.id === selectedDeviceId)?.name ??
-      selectedDeviceId
+    ? (devices.find((device) => device.id === selectedDeviceId)?.name ??
+      selectedDeviceId)
     : devices.find((device) => device.is_default)?.name
       ? `系统默认 (${devices.find((device) => device.is_default)?.name})`
       : "系统默认";

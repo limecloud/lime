@@ -189,6 +189,9 @@ interface MessageListProps {
 const MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD = 72;
 const MESSAGE_LIST_INITIAL_RENDER_COUNT = 36;
 const MESSAGE_LIST_RENDER_BATCH_SIZE = 48;
+const MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_THRESHOLD = 20;
+const MESSAGE_LIST_RESTORED_INITIAL_RENDER_COUNT = 20;
+const MESSAGE_LIST_RESTORED_RENDER_BATCH_SIZE = 12;
 const MESSAGE_LIST_TIMELINE_ITEMS_FACTOR = 4;
 const MESSAGE_LIST_TIMELINE_DEFER_MESSAGE_THRESHOLD = 24;
 const MESSAGE_LIST_TIMELINE_DEFER_ITEM_THRESHOLD = 24;
@@ -567,10 +570,24 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const visibleMessageFirstId = visibleMessages[0]?.id ?? null;
   const visibleMessageLastId =
     visibleMessages[visibleMessages.length - 1]?.id ?? null;
+  const persistedHiddenHistoryCount =
+    sessionHistoryWindow &&
+    sessionHistoryWindow.totalMessages > sessionHistoryWindow.loadedMessages
+      ? sessionHistoryWindow.totalMessages - sessionHistoryWindow.loadedMessages
+      : 0;
+  const isRestoredHistoryWindow =
+    isRestoringSession || persistedHiddenHistoryCount > 0;
+  const progressiveRenderThreshold = isRestoredHistoryWindow
+    ? MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_THRESHOLD
+    : MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD;
+  const progressiveInitialRenderCount = isRestoredHistoryWindow
+    ? MESSAGE_LIST_RESTORED_INITIAL_RENDER_COUNT
+    : MESSAGE_LIST_INITIAL_RENDER_COUNT;
+  const progressiveRenderBatchSize = isRestoredHistoryWindow
+    ? MESSAGE_LIST_RESTORED_RENDER_BATCH_SIZE
+    : MESSAGE_LIST_RENDER_BATCH_SIZE;
   const shouldUseProgressiveRender =
-    !isRestoringSession &&
-    !isSending &&
-    visibleMessages.length > MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD;
+    !isSending && visibleMessages.length > progressiveRenderThreshold;
   const visibleMessageWindowRef = useRef<{
     firstId: string | null;
     lastId: string | null;
@@ -578,7 +595,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   } | null>(null);
   const [renderedMessageCount, setRenderedMessageCount] = useState(() =>
     shouldUseProgressiveRender
-      ? Math.min(visibleMessages.length, MESSAGE_LIST_INITIAL_RENDER_COUNT)
+      ? Math.min(visibleMessages.length, progressiveInitialRenderCount)
       : visibleMessages.length,
   );
 
@@ -603,7 +620,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
     if (!isAppendOnlyUpdate) {
       setRenderedMessageCount(
-        Math.min(visibleMessages.length, MESSAGE_LIST_INITIAL_RENDER_COUNT),
+        Math.min(visibleMessages.length, progressiveInitialRenderCount),
       );
       return;
     }
@@ -616,10 +633,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
     setRenderedMessageCount((current) =>
       Math.min(
         visibleMessages.length,
-        Math.max(current + appendedCount, MESSAGE_LIST_INITIAL_RENDER_COUNT),
+        Math.max(current + appendedCount, progressiveInitialRenderCount),
       ),
     );
   }, [
+    progressiveInitialRenderCount,
     shouldUseProgressiveRender,
     visibleMessageFirstId,
     visibleMessageLastId,
@@ -629,11 +647,6 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const hiddenHistoryCount = shouldUseProgressiveRender
     ? Math.max(0, visibleMessages.length - renderedMessageCount)
     : 0;
-  const persistedHiddenHistoryCount =
-    sessionHistoryWindow &&
-    sessionHistoryWindow.totalMessages > sessionHistoryWindow.loadedMessages
-      ? sessionHistoryWindow.totalMessages - sessionHistoryWindow.loadedMessages
-      : 0;
 
   useEffect(() => {
     if (
@@ -649,7 +662,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
         setRenderedMessageCount((current) =>
           Math.min(
             visibleMessages.length,
-            current + MESSAGE_LIST_RENDER_BATCH_SIZE,
+            current + progressiveRenderBatchSize,
           ),
         );
       },
@@ -661,6 +674,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   }, [
     hiddenHistoryCount,
     isUserScrolling,
+    progressiveRenderBatchSize,
     shouldUseProgressiveRender,
     visibleMessages.length,
   ]);
@@ -676,10 +690,15 @@ const MessageListInner: React.FC<MessageListProps> = ({
     () =>
       hiddenHistoryCount > 0
         ? turns.slice(
-            -Math.max(renderedMessageCount, MESSAGE_LIST_INITIAL_RENDER_COUNT),
+            -Math.max(renderedMessageCount, progressiveInitialRenderCount),
           )
         : turns,
-    [hiddenHistoryCount, renderedMessageCount, turns],
+    [
+      hiddenHistoryCount,
+      progressiveInitialRenderCount,
+      renderedMessageCount,
+      turns,
+    ],
   );
   const renderedThreadItems = useMemo(
     () =>
@@ -687,12 +706,30 @@ const MessageListInner: React.FC<MessageListProps> = ({
         ? threadItems.slice(
             -Math.max(
               renderedMessageCount * MESSAGE_LIST_TIMELINE_ITEMS_FACTOR,
-              MESSAGE_LIST_INITIAL_RENDER_COUNT,
+              progressiveInitialRenderCount,
             ),
           )
         : threadItems,
-    [hiddenHistoryCount, renderedMessageCount, threadItems],
+    [
+      hiddenHistoryCount,
+      progressiveInitialRenderCount,
+      renderedMessageCount,
+      threadItems,
+    ],
   );
+  const activeCurrentTurn = useMemo(() => {
+    if (!currentTurnId) {
+      return null;
+    }
+
+    return renderedTurns.find((entry) => entry.id === currentTurnId) ?? null;
+  }, [currentTurnId, renderedTurns]);
+  const activeCurrentTurnId =
+    activeCurrentTurn &&
+    (activeCurrentTurn.status === "running" ||
+      activeCurrentTurn.status === "failed")
+      ? activeCurrentTurn.id
+      : null;
   const timelineHydrationKey = [
     renderedMessages[renderedMessages.length - 1]?.id ?? "no-message",
     renderedTurns[renderedTurns.length - 1]?.id ?? "no-turn",
@@ -700,7 +737,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   ].join("|");
   const shouldDeferHistoricalTimeline =
     !isSending &&
-    !currentTurnId &&
+    !activeCurrentTurnId &&
     !focusedTimelineItemId &&
     renderedMessages.length >= MESSAGE_LIST_TIMELINE_DEFER_MESSAGE_THRESHOLD &&
     renderedThreadItems.length >= MESSAGE_LIST_TIMELINE_DEFER_ITEM_THRESHOLD;
@@ -731,25 +768,22 @@ const MessageListInner: React.FC<MessageListProps> = ({
   }, [shouldDeferHistoricalTimeline, timelineHydrationKey]);
   const canBuildHistoricalTimeline =
     !shouldDeferHistoricalTimeline || isHistoricalTimelineReady;
-  const timelineByMessageId = useMemo(
-    () => {
-      if (!canBuildHistoricalTimeline) {
-        return new Map<string, MessageTurnTimeline>();
-      }
+  const timelineByMessageId = useMemo(() => {
+    if (!canBuildHistoricalTimeline) {
+      return new Map<string, MessageTurnTimeline>();
+    }
 
-      return buildMessageTurnTimeline(
-        renderedMessages,
-        renderedTurns,
-        renderedThreadItems,
-      );
-    },
-    [
-      canBuildHistoricalTimeline,
+    return buildMessageTurnTimeline(
       renderedMessages,
-      renderedThreadItems,
       renderedTurns,
-    ],
-  );
+      renderedThreadItems,
+    );
+  }, [
+    canBuildHistoricalTimeline,
+    renderedMessages,
+    renderedThreadItems,
+    renderedTurns,
+  ]);
   const lastAssistantMessageId = useMemo(
     () =>
       [...renderedMessages]
@@ -766,7 +800,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
       messages: renderedMessages,
       turns: renderedTurns,
       threadItems: renderedThreadItems,
-      currentTurnId,
+      currentTurnId: activeCurrentTurnId,
       threadRead,
       pendingActions,
       queuedTurns,
@@ -774,8 +808,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
       isSending,
     });
   }, [
+    activeCurrentTurnId,
     childSubagentSessions,
-    currentTurnId,
     isSending,
     lastAssistantMessageId,
     pendingActions,
@@ -786,44 +820,33 @@ const MessageListInner: React.FC<MessageListProps> = ({
     threadRead,
   ]);
   const currentTurnTimeline = useMemo(() => {
-    if (!currentTurnId || !lastAssistantMessageId) {
-      return null;
-    }
-
-    const turn = renderedTurns.find((entry) => entry.id === currentTurnId);
-    if (!turn) {
+    if (!activeCurrentTurnId || !activeCurrentTurn || !lastAssistantMessageId) {
       return null;
     }
 
     const mappedMessageId =
       [...timelineByMessageId.values()].find(
-        (entry) => entry.turn.id === turn.id,
+        (entry) => entry.turn.id === activeCurrentTurnId,
       )?.messageId ?? null;
 
     return {
       messageId: mappedMessageId || lastAssistantMessageId,
-      turn,
-      items: renderedThreadItems.filter((item) => item.turn_id === turn.id),
+      turn: activeCurrentTurn,
+      items: renderedThreadItems.filter(
+        (item) => item.turn_id === activeCurrentTurnId,
+      ),
     };
   }, [
-    currentTurnId,
+    activeCurrentTurn,
+    activeCurrentTurnId,
     lastAssistantMessageId,
     renderedThreadItems,
-    renderedTurns,
     timelineByMessageId,
   ]);
   const messageGroups = useMemo(
     () => buildMessageTurnGroups(renderedMessages),
     [renderedMessages],
   );
-  const hasStickyTopContent =
-    Boolean(leadingContent) ||
-    persistedHiddenHistoryCount > 0 ||
-    hiddenHistoryCount > 0;
-  const shouldBottomAnchorMessageStack =
-    messageGroups.length > 0 &&
-    !hasStickyTopContent &&
-    !isRestoringSession;
   const renderGroups = useMemo(
     () =>
       messageGroups.map((group) => {
@@ -1243,11 +1266,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
           items={primaryTimeline.items}
           threadRead={threadRead}
           actionRequests={primaryActionRequests}
-          isCurrentTurn={primaryTimeline.turn.id === currentTurnId}
+          isCurrentTurn={primaryTimeline.turn.id === activeCurrentTurnId}
           collapseInactiveDetails={!isSending}
           deferCompletedSingleDetails={
             shouldDeferHistoricalTimelineDetails &&
-            primaryTimeline.turn.id !== currentTurnId
+            primaryTimeline.turn.id !== activeCurrentTurnId
           }
           placement="leading"
           onFileClick={onFileClick}
@@ -1448,11 +1471,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
                   items={trailingTimeline.items}
                   threadRead={threadRead}
                   actionRequests={trailingActionRequests}
-                  isCurrentTurn={trailingTimeline.turn.id === currentTurnId}
+                  isCurrentTurn={
+                    trailingTimeline.turn.id === activeCurrentTurnId
+                  }
                   collapseInactiveDetails={!isSending}
                   deferCompletedSingleDetails={
                     shouldDeferHistoricalTimelineDetails &&
-                    trailingTimeline.turn.id !== currentTurnId
+                    trailingTimeline.turn.id !== activeCurrentTurnId
                   }
                   placement="trailing"
                   onFileClick={onFileClick}
@@ -1621,10 +1646,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
         data-testid="message-list-column"
         className={[
           "mx-auto flex min-h-full w-full max-w-[1040px] flex-col gap-4 py-4",
-          compactLeadingSpacing
-            ? "pl-2.5 pr-3"
-            : "pl-4 pr-4",
-          shouldBottomAnchorMessageStack ? "justify-end" : "justify-start",
+          compactLeadingSpacing ? "pl-2.5 pr-3" : "pl-4 pr-4",
+          "justify-start",
         ].join(" ")}
       >
         {leadingContent ? (

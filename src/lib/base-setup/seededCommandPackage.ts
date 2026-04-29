@@ -15,8 +15,7 @@ const SEEDED_COMMAND_TIMELINE_ARTIFACT_PROFILE_ID =
   "seeded-command-timeline-artifact";
 const SEEDED_COMMAND_MEDIA_ARTIFACT_PROFILE_ID =
   "seeded-command-media-artifact";
-const SEEDED_COMMAND_ARTIFACT_PROFILE_ID =
-  "seeded-command-artifact-bundle";
+const SEEDED_COMMAND_ARTIFACT_PROFILE_ID = "seeded-command-artifact-bundle";
 const SEEDED_COMMAND_FORM_ARTIFACT_PROFILE_ID = "seeded-command-form-artifact";
 
 const COMMAND_TIMELINE_JSON_CONTRACT: BaseSetupRenderContract = {
@@ -101,14 +100,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandKey: "image_storyboard",
     title: "分镜",
     summary: "根据主题一次生成多张分镜画面，适合九宫格与镜头草图场景。",
-    aliases: [
-      "storyboard",
-      "fenjing",
-      "分镜",
-      "九宫格",
-      "分镜图",
-      "多图配图",
-    ],
+    aliases: ["storyboard", "fenjing", "分镜", "九宫格", "分镜图", "多图配图"],
     trigger: "@分镜",
     category: "图像生成",
     outputHint: "分镜结果集",
@@ -136,14 +128,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandKey: "poster_generate",
     title: "海报",
     summary: "围绕活动、产品或主题生成可直接使用的海报视觉。",
-    aliases: [
-      "poster",
-      "haibao",
-      "flyer 3",
-      "海报",
-      "活动海报",
-      "宣传海报",
-    ],
+    aliases: ["poster", "haibao", "flyer 3", "海报", "活动海报", "宣传海报"],
     trigger: "@海报",
     triggerHints: ["@Flyer 3"],
     category: "图像生成",
@@ -249,7 +234,8 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
   {
     commandKey: "browser_runtime",
     title: "浏览器",
-    summary: "把本次输入显式切到真实浏览器执行主链，而不是退回 WebSearch 或普通聊天。",
+    summary:
+      "把本次输入显式切到真实浏览器执行主链，而不是退回 WebSearch 或普通聊天。",
     aliases: [
       "browser",
       "browse",
@@ -436,14 +422,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     commandKey: "upload_runtime",
     title: "上传",
     summary: "把当前内容整理成适合目标平台直接上传的上传稿与素材清单。",
-    aliases: [
-      "upload",
-      "shangchuan",
-      "上传",
-      "上架",
-      "内容上传",
-      "平台上传",
-    ],
+    aliases: ["upload", "shangchuan", "上传", "上架", "内容上传", "平台上传"],
     trigger: "@上传",
     category: "内容发布",
     outputHint: "上传稿 artifact",
@@ -468,11 +447,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
       "发布前检查",
     ],
     trigger: "@发布",
-    triggerHints: [
-      "@TikTok Publish",
-      "@Twitter Publish",
-      "@YouTube Publish",
-    ],
+    triggerHints: ["@TikTok Publish", "@Twitter Publish", "@YouTube Publish"],
     category: "内容发布",
     outputHint: "发布包 artifact",
     commandBinding: {
@@ -668,7 +643,8 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
   {
     commandKey: "read_pdf",
     title: "读PDF",
-    summary: "读取本地或工作区 PDF，并通过真实文件读取 timeline 输出结构化解读。",
+    summary:
+      "读取本地或工作区 PDF，并通过真实文件读取 timeline 输出结构化解读。",
     aliases: [
       "pdf",
       "read_pdf",
@@ -690,7 +666,8 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
   {
     commandKey: "file_read_runtime",
     title: "读文件",
-    summary: "读取本地或工作区文件，并继续挂回 summary 当前主链输出结构化解读。",
+    summary:
+      "读取本地或工作区文件，并继续挂回 summary 当前主链输出结构化解读。",
     aliases: [
       "read_file",
       "duwenjian",
@@ -926,10 +903,16 @@ function resolveBindingProfileRef(
 function resolveArtifactProfileRef(
   contract: BaseSetupRenderContract,
 ): BaseSetupCatalogProjection["artifactProfileRef"] {
-  if (contract.resultKind === "image_gallery" || contract.detailKind === "media_detail") {
+  if (
+    contract.resultKind === "image_gallery" ||
+    contract.detailKind === "media_detail"
+  ) {
     return SEEDED_COMMAND_MEDIA_ARTIFACT_PROFILE_ID;
   }
-  if (contract.resultKind === "artifact" || contract.resultKind === "table_report") {
+  if (
+    contract.resultKind === "artifact" ||
+    contract.resultKind === "table_report"
+  ) {
     return SEEDED_COMMAND_ARTIFACT_PROFILE_ID;
   }
   if (contract.resultKind === "form") {
@@ -991,8 +974,10 @@ const SEEDED_COMMAND_PACKAGE: BaseSetupPackage = {
           label: "用户输入",
           type: "textarea",
           required: false,
-          placeholder: "命令命中后继续保留原始输入，由当前输入主链解析具体参数。",
-          helpText: "当前字段只用于保持 command_catalog projection 的统一装配结构。",
+          placeholder:
+            "命令命中后继续保留原始输入，由当前输入主链解析具体参数。",
+          helpText:
+            "当前字段只用于保持 command_catalog projection 的统一装配结构。",
         },
       ],
     },

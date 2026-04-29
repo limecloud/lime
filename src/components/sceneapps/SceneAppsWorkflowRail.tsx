@@ -102,8 +102,7 @@ function buildWorkflowStages(
             : props.launchReady
               ? "这套做法已经具备首轮启动条件，可以直接进入详情页发起结果链。"
               : "这套做法还没补齐启动条件，先去详情页完善项目、输入或链接。",
-        actionLabel:
-          props.activeView === "detail" ? "继续补启动" : "进入详情",
+        actionLabel: props.activeView === "detail" ? "继续补启动" : "进入详情",
         tone:
           props.activeView === "detail"
             ? "sky"
@@ -204,13 +203,17 @@ export function SceneAppsWorkflowRail(props: SceneAppsWorkflowRailProps) {
                 {stage.statusLabel}
               </span>
             </div>
-            <p className="mt-3 text-sm leading-6 text-slate-600">{stage.summary}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {stage.summary}
+            </p>
             <div className="mt-4">
               <Button
                 type="button"
                 size="sm"
                 data-testid={`sceneapps-workflow-action-${stage.key}`}
-                variant={props.activeView === stage.key ? "secondary" : "outline"}
+                variant={
+                  props.activeView === stage.key ? "secondary" : "outline"
+                }
                 className="rounded-full border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                 onClick={stage.onAction}
               >

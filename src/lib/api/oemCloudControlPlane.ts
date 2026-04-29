@@ -102,6 +102,38 @@ export interface OemCloudProviderPreference {
   updatedAt: string;
 }
 
+export interface OemCloudSceneSkillTemplate {
+  id: string;
+  title: string;
+  description?: string;
+  prompt: string;
+}
+
+export interface OemCloudCustomScene {
+  id?: string;
+  title: string;
+  summary?: string;
+  linkedEntryId: string;
+  placeholder?: string;
+  templates: OemCloudSceneSkillTemplate[];
+  enabled?: boolean;
+}
+
+export interface OemCloudSceneSkillPreference {
+  tenantId: string;
+  userId: string;
+  orderedEntryIds: string[];
+  hiddenEntryIds: string[];
+  customScenes: OemCloudCustomScene[];
+  updatedAt?: string;
+}
+
+export interface UpdateClientSceneSkillPreferencePayload {
+  orderedEntryIds: string[];
+  hiddenEntryIds: string[];
+  customScenes: OemCloudCustomScene[];
+}
+
 export interface OemCloudProviderOfferSummary {
   providerKey: string;
   displayName: string;
@@ -1338,6 +1370,82 @@ function parseProviderPreference(value: unknown): OemCloudProviderPreference {
   };
 }
 
+function parseSceneSkillTemplate(
+  value: unknown,
+): OemCloudSceneSkillTemplate | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = normalizeText(value.id);
+  const title = normalizeText(value.title);
+  const prompt = normalizeText(value.prompt);
+  if (!id || !title || !prompt) {
+    return null;
+  }
+
+  return {
+    id,
+    title,
+    description: normalizeText(value.description),
+    prompt,
+  };
+}
+
+function parseCustomScene(value: unknown): OemCloudCustomScene | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const title = normalizeText(value.title);
+  const linkedEntryId = normalizeText(value.linkedEntryId);
+  const templates = Array.isArray(value.templates)
+    ? value.templates
+        .map(parseSceneSkillTemplate)
+        .filter((item): item is OemCloudSceneSkillTemplate => Boolean(item))
+    : [];
+  if (!title || !linkedEntryId || templates.length === 0) {
+    return null;
+  }
+
+  return {
+    id: normalizeText(value.id),
+    title,
+    summary: normalizeText(value.summary),
+    linkedEntryId,
+    placeholder: normalizeText(value.placeholder),
+    templates,
+    enabled: normalizeBoolean(value.enabled),
+  };
+}
+
+function parseSceneSkillPreference(
+  value: unknown,
+): OemCloudSceneSkillPreference {
+  if (!isRecord(value)) {
+    throw new OemCloudControlPlaneError("场景技能偏好格式非法");
+  }
+
+  const tenantId = normalizeText(value.tenantId);
+  const userId = normalizeText(value.userId);
+  if (!tenantId || !userId) {
+    throw new OemCloudControlPlaneError("场景技能偏好格式非法");
+  }
+
+  return {
+    tenantId,
+    userId,
+    orderedEntryIds: normalizeStringArray(value.orderedEntryIds),
+    hiddenEntryIds: normalizeStringArray(value.hiddenEntryIds),
+    customScenes: Array.isArray(value.customScenes)
+      ? value.customScenes
+          .map(parseCustomScene)
+          .filter((item): item is OemCloudCustomScene => Boolean(item))
+      : [],
+    updatedAt: normalizeText(value.updatedAt),
+  };
+}
+
 function parseFeatureFlags(value: unknown): OemCloudFeatureFlags {
   const record = isRecord(value) ? value : {};
   return {
@@ -1699,9 +1807,18 @@ function parseSubscription(value: unknown): OemCloudSubscription {
 function parseOptionalSubscription(
   value: unknown,
 ): OemCloudSubscription | null {
-  return isRecord(value) && normalizeText(value.id)
-    ? parseSubscription(value)
-    : null;
+  if (!isRecord(value) || !normalizeText(value.id)) {
+    return null;
+  }
+
+  const tenantId = normalizeText(value.tenantId);
+  const planId = normalizeText(value.planId);
+  const planKey = normalizeText(value.planKey);
+  if (!tenantId || !planId || !planKey) {
+    return null;
+  }
+
+  return parseSubscription(value);
 }
 
 function parseCreditAccount(value: unknown): OemCloudCreditAccount {
@@ -2530,6 +2647,35 @@ export async function getClientSession(
     await requestControlPlane<unknown>(
       `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/session`,
       {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function getClientSceneSkillPreferences(
+  tenantId: string,
+): Promise<OemCloudSceneSkillPreference> {
+  return parseSceneSkillPreference(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/scene-skill-preferences`,
+      {
+        auth: true,
+      },
+    ),
+  );
+}
+
+export async function updateClientSceneSkillPreferences(
+  tenantId: string,
+  payload: UpdateClientSceneSkillPreferencePayload,
+): Promise<OemCloudSceneSkillPreference> {
+  return parseSceneSkillPreference(
+    await requestControlPlane<unknown>(
+      `/v1/public/tenants/${encodeURIComponent(tenantId)}/client/scene-skill-preferences`,
+      {
+        method: "PUT",
+        payload,
         auth: true,
       },
     ),

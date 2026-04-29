@@ -10,7 +10,11 @@ describe("workflowStepPresentation", () => {
   it("应按当前任务优先级排序并裁剪输入区队列", () => {
     const snapshot = buildWorkflowStepSnapshot(
       [
-        { id: "completed", title: "完成素材整理", status: "completed" as const },
+        {
+          id: "completed",
+          title: "完成素材整理",
+          status: "completed" as const,
+        },
         { id: "pending-a", title: "等待补充案例", status: "pending" as const },
         { id: "active", title: "编写正文", status: "active" as const },
         { id: "error", title: "封面生成失败", status: "error" as const },

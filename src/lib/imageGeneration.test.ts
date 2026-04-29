@@ -23,18 +23,14 @@ describe("imageGeneration", () => {
     expect(isImageProvider("new-api", "openai")).toBe(true);
     expect(isImageProvider("openai", "openai-response")).toBe(true);
     expect(isImageProvider("fal", "fal")).toBe(true);
+    expect(isImageProvider("relay-openai", "openai", ["gpt-images-2"])).toBe(
+      true,
+    );
+    expect(isImageProvider("lime-hub", "openai", ["gpt-images-2"])).toBe(true);
     expect(
-      isImageProvider("relay-openai", "openai", ["gpt-images-2"]),
-    ).toBe(true);
-    expect(
-      isImageProvider("lime-hub", "openai", ["gpt-images-2"]),
-    ).toBe(true);
-    expect(
-      isImageProvider(
-        "custom-f0181b00-35b6-4731-94e2-24f17fd247c9",
-        "openai",
-        ["mimo-v2-pro"],
-      ),
+      isImageProvider("custom-f0181b00-35b6-4731-94e2-24f17fd247c9", "openai", [
+        "mimo-v2-pro",
+      ]),
     ).toBe(false);
     expect(isImageProvider("deepseek", "openai", ["deepseek-reasoner"])).toBe(
       false,
@@ -80,8 +76,9 @@ describe("imageGeneration", () => {
         ?.id,
     ).toBe("gpt-image-1");
     expect(
-      getImageModelsForProvider("custom-provider", "openai", ["gpt-images-2"])[0]
-        ?.id,
+      getImageModelsForProvider("custom-provider", "openai", [
+        "gpt-images-2",
+      ])[0]?.id,
     ).toBe("gpt-images-2");
     expect(
       getImageModelsForProvider(

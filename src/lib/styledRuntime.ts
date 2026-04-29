@@ -67,8 +67,7 @@ function hasResolvableSheet(
 
   const rootNode = node.getRootNode();
   const styleSheets =
-    "styleSheets" in rootNode &&
-    rootNode.styleSheets instanceof StyleSheetList
+    "styleSheets" in rootNode && rootNode.styleSheets instanceof StyleSheetList
       ? rootNode.styleSheets
       : document.styleSheets;
 
@@ -264,8 +263,7 @@ function collectStyledRuntimeSnapshot(
     styledFallbackSheetHasSheet: fallbackSnapshot.hasSheet,
     styledFallbackSheetProtocol: fallbackSnapshot.protocol,
     styleSheetCount: document.styleSheets.length,
-    styledClassElementCount:
-      document.querySelectorAll('[class*="sc-"]').length,
+    styledClassElementCount: document.querySelectorAll('[class*="sc-"]').length,
     rootChildCount: document.getElementById("root")?.children.length ?? 0,
     rootFirstElementClassName: rootFirstElement?.className || null,
     rootFirstElementRulePresent: hasSidebarStyledRule(

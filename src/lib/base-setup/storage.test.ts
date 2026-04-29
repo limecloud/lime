@@ -139,6 +139,8 @@ describe("base-setup storage", () => {
 
     clearStoredBaseSetupPackageSnapshot();
 
-    expect(window.localStorage.getItem(BASE_SETUP_PACKAGE_STORAGE_KEY)).toBeNull();
+    expect(
+      window.localStorage.getItem(BASE_SETUP_PACKAGE_STORAGE_KEY),
+    ).toBeNull();
   });
 });

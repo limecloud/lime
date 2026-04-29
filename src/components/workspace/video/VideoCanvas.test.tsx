@@ -126,10 +126,12 @@ describe("VideoCanvas 全局默认模型", () => {
     await flushEffects(8);
 
     expect(mockGetProviders).toHaveBeenCalledTimes(1);
-    expect(observedStateChanges[observedStateChanges.length - 1]).toMatchObject({
-      providerId: "openai",
-      model: "sora-2-pro",
-    });
+    expect(observedStateChanges[observedStateChanges.length - 1]).toMatchObject(
+      {
+        providerId: "openai",
+        model: "sora-2-pro",
+      },
+    );
     expect(
       mounted.container.querySelector("[data-testid='video-sidebar-state']")
         ?.textContent,

@@ -70,6 +70,8 @@ describe("parseChannelPreviewWorkbenchCommand", () => {
   });
 
   it("非渠道预览命令应返回空", () => {
-    expect(parseChannelPreviewWorkbenchCommand("@发布 帮我发到小红书")).toBeNull();
+    expect(
+      parseChannelPreviewWorkbenchCommand("@发布 帮我发到小红书"),
+    ).toBeNull();
   });
 });

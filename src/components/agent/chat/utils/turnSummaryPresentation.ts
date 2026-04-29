@@ -91,11 +91,7 @@ export function buildRuntimeStatusPresentationText(
     return "";
   }
 
-  return [
-    status.title,
-    status.detail,
-    ...(status.checkpoints ?? []),
-  ]
+  return [status.title, status.detail, ...(status.checkpoints ?? [])]
     .map((line) => normalizeTurnSummaryDisplayText(line))
     .filter(Boolean)
     .join("\n");
@@ -116,5 +112,7 @@ export function isInternalRoutingRuntimeStatus(
     return true;
   }
 
-  return isInternalRoutingTurnSummaryText(buildRuntimeStatusPresentationText(status));
+  return isInternalRoutingTurnSummaryText(
+    buildRuntimeStatusPresentationText(status),
+  );
 }

@@ -286,15 +286,19 @@ describe("useWorkspaceWriteFileAction", () => {
     await render();
 
     act(() => {
-      getValue()("# 春日咖啡活动\n\n首屏预览", "content-posts/demo-preview.md", {
-        status: "complete",
-        metadata: {
-          writePhase: "completed",
-          contentPostIntent: "preview",
-          contentPostLabel: "渠道预览稿",
-          contentPostPlatformLabel: "小红书",
+      getValue()(
+        "# 春日咖啡活动\n\n首屏预览",
+        "content-posts/demo-preview.md",
+        {
+          status: "complete",
+          metadata: {
+            writePhase: "completed",
+            contentPostIntent: "preview",
+            contentPostLabel: "渠道预览稿",
+            contentPostPlatformLabel: "小红书",
+          },
         },
-      });
+      );
     });
 
     expect(saveSessionFile).toHaveBeenCalledWith(

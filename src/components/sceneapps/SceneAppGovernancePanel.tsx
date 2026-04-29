@@ -19,9 +19,7 @@ interface SceneAppGovernancePanelProps {
   quickReviewActions?: SceneAppQuickReviewAction[];
   quickReviewPending?: boolean;
   onOpenHumanReview?: () => void;
-  onApplyQuickReview?: (
-    actionKey: SceneAppQuickReviewAction["key"],
-  ) => void;
+  onApplyQuickReview?: (actionKey: SceneAppQuickReviewAction["key"]) => void;
   onGovernanceAction?: (
     action: SceneAppRunDetailViewModel["governanceActionEntries"][number],
   ) => void;
@@ -300,7 +298,9 @@ export function SceneAppGovernancePanel({
 
       {governanceView.destinations.length ? (
         <div className="mt-4">
-          <div className="text-xs font-medium text-slate-500">更适合往哪继续</div>
+          <div className="text-xs font-medium text-slate-500">
+            更适合往哪继续
+          </div>
           <div className="mt-2 grid gap-3 md:grid-cols-2">
             {governanceView.destinations.map((destination) => (
               <article

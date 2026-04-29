@@ -556,6 +556,26 @@ describe("useOemCloudAccess", () => {
       sessionToken: "desktop-session-token",
       sessionExpiresAt: "2026-05-27T00:00:00.000Z",
     });
+    desktopAuthMocks.completeOemCloudDesktopOAuthLogin.mockImplementation(
+      async () => {
+        setStoredOemCloudSessionState({
+          token: "desktop-session-token",
+          tenant: {
+            id: "tenant-0001",
+            slug: "tenant-0001",
+          },
+          user: {
+            id: "user-001",
+          },
+          session: {
+            id: "desktop-session-001",
+            tenantId: "tenant-0001",
+            userId: "user-001",
+          },
+        });
+        return {};
+      },
+    );
 
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -592,6 +612,7 @@ describe("useOemCloudAccess", () => {
       nextPath: "/welcome",
       error: null,
     });
+    expect(latestState?.infoMessage).toContain("Google 登录成功");
   });
 
   it("Google 桌面登录打开系统浏览器失败时不应提示已打开", async () => {

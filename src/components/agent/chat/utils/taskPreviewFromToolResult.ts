@@ -141,12 +141,10 @@ function readImageStoryboardSlots(
           readMetadataString([record], ["label", "slot_label", "slotLabel"]) ||
           null,
         prompt:
-          readMetadataString([record], [
-            "prompt",
-            "slot_prompt",
-            "slotPrompt",
-            "revised_prompt",
-          ]) || null,
+          readMetadataString(
+            [record],
+            ["prompt", "slot_prompt", "slotPrompt", "revised_prompt"],
+          ) || null,
         shotType:
           readMetadataString([record], ["shot_type", "shotType"]) || null,
         status: readMetadataString([record], ["status"]) || null,
@@ -242,10 +240,10 @@ function extractImageTaskPromptFromToolArguments(
       [parsed],
       ["count", "image_count", "imageCount"],
     );
-    const layoutHint = readMetadataString([parsed], [
-      "layout_hint",
-      "layoutHint",
-    ]);
+    const layoutHint = readMetadataString(
+      [parsed],
+      ["layout_hint", "layoutHint"],
+    );
     const command =
       typeof parsed.command === "string" ? parsed.command.trim() : undefined;
 
@@ -766,8 +764,10 @@ export function buildImageTaskPreviewFromToolResult(
     contentId:
       readMetadataString([metadata], ["content_id", "contentId"]) || null,
     taskFilePath:
-      readMetadataString([metadata], ["path", "absolute_path", "absolutePath"]) ||
-      null,
+      readMetadataString(
+        [metadata],
+        ["path", "absolute_path", "absolutePath"],
+      ) || null,
     artifactPath:
       readMetadataString([metadata], ["artifact_path", "artifactPath"]) || null,
     imageCount: resolvedImageCount,

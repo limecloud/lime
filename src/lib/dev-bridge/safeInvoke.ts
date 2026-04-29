@@ -150,6 +150,16 @@ async function invokeFallbackTransport<T>(
   }
 }
 
+async function invokeBrowserMockFallbackTransport<T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  if (canUseExplicitBrowserMockFallback()) {
+    return invokeExplicitMock<T>(cmd, args);
+  }
+  return invokeFallbackTransport<T>(cmd, args);
+}
+
 async function listenFallbackTransport<T>(
   event: string,
   handler: (event: { payload: T }) => void,
@@ -537,7 +547,7 @@ export async function safeInvoke<T = any>(
       }
 
       try {
-        const result = await invokeFallbackTransport<T>(cmd, args);
+        const result = await invokeBrowserMockFallbackTransport<T>(cmd, args);
         recordInvokeTrace(cmd, args, "fallback-invoke", "success", startedAt);
         finishInvokeTiming(timingId, cmd, "fallback-invoke", "success");
         return result;
@@ -637,10 +647,7 @@ export async function safeListen<T = any>(
 
   if (hasTauriRuntimeMarkers()) {
     if (shouldFailClosedOnMissingNativeEventBridge(event)) {
-      throw normalizeTauriListenError(
-        event,
-        new Error("Tauri 事件桥未就绪"),
-      );
+      throw normalizeTauriListenError(event, new Error("Tauri 事件桥未就绪"));
     }
     console.warn(`[safeListen] Tauri 事件桥未就绪，跳过监听: ${event}`);
     return () => {};

@@ -425,7 +425,10 @@ export function EnvironmentSettings() {
               className={SECONDARY_BUTTON_CLASS_NAME}
             >
               <RefreshCw
-                className={cn("h-4 w-4", refreshingPreview ? "animate-spin" : "")}
+                className={cn(
+                  "h-4 w-4",
+                  refreshingPreview ? "animate-spin" : "",
+                )}
               />
               刷新预览
             </button>

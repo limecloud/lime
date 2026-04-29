@@ -74,7 +74,9 @@ export function useWorkspaceTeamSessionControlRuntime({
         }
 
         if (summary.affectedSessionIds.length > 1) {
-          toast.success(`已级联停止 ${summary.affectedSessionIds.length} 项任务`);
+          toast.success(
+            `已级联停止 ${summary.affectedSessionIds.length} 项任务`,
+          );
         } else if (summary.affectedSessionIds.length === 1) {
           toast.success("这项任务已停止");
         } else {
@@ -108,7 +110,9 @@ export function useWorkspaceTeamSessionControlRuntime({
         }
 
         if (summary.affectedSessionIds.length > 1) {
-          toast.success(`已级联恢复 ${summary.affectedSessionIds.length} 项任务`);
+          toast.success(
+            `已级联恢复 ${summary.affectedSessionIds.length} 项任务`,
+          );
         } else if (summary.affectedSessionIds.length === 1) {
           toast.success("这项任务已恢复");
         } else {
@@ -195,7 +199,8 @@ export function useWorkspaceTeamSessionControlRuntime({
           `团队任务已进入${resolveTeamWorkspaceRuntimeStatusLabel(resolvedStatus)}状态`,
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : "等待团队任务失败";
+        const message =
+          error instanceof Error ? error.message : "等待团队任务失败";
         toast.error(message);
         throw error;
       }

@@ -65,12 +65,11 @@ export function MemoryCuratedTaskSuggestionPanel(
           {props.tasks.map((featured) => {
             const task = featured.template;
             const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(task);
-            const recentUsageDescription = buildCuratedTaskRecentUsageDescription(
-              {
+            const recentUsageDescription =
+              buildCuratedTaskRecentUsageDescription({
                 task,
                 prefill: launchPrefill,
-              },
-            );
+              });
 
             return (
               <article
@@ -163,9 +162,7 @@ export function MemoryCuratedTaskSuggestionPanel(
         </div>
       ) : (
         <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/70 p-4">
-          <p className="text-sm leading-6 text-slate-500">
-            {props.emptyState}
-          </p>
+          <p className="text-sm leading-6 text-slate-500">{props.emptyState}</p>
         </div>
       )}
     </div>

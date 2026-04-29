@@ -22,7 +22,9 @@ describe("protocolResidue", () => {
     ].join("\n");
 
     expect(containsAssistantProtocolResidue(leaked)).toBe(true);
-    expect(stripAssistantProtocolResidue(leaked)).toBe("已完成处理，结果如下。");
+    expect(stripAssistantProtocolResidue(leaked)).toBe(
+      "已完成处理，结果如下。",
+    );
   });
 
   it("应清理内部检索协议词，但保留正常答复", () => {

@@ -47,8 +47,7 @@ describe("parseCodeWorkbenchCommand", () => {
     expect(result).toMatchObject({
       trigger: "@Code Agent",
       taskType: "refactor",
-      prompt:
-        "the runtime mention registry and remove duplicate branches",
+      prompt: "the runtime mention registry and remove duplicate branches",
     });
   });
 

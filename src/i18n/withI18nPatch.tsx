@@ -110,7 +110,7 @@ export function withI18nPatch<P extends object>(
 
       // 如果不在 Tauri 环境，使用默认配置
       if (!isTauriEnvironment()) {
-        fallbackToDefault("Not in Tauri environment, using default language");
+        applyConfig({ language: "zh" } as Config);
         return () => {
           cancelled = true;
         };

@@ -51,7 +51,9 @@ function normalizeOptionalStringRecord(
     .map(([key, rawValue]) => {
       const normalizedKey = normalizeOptionalText(key);
       const normalizedValue =
-        typeof rawValue === "string" ? normalizeOptionalText(rawValue) : undefined;
+        typeof rawValue === "string"
+          ? normalizeOptionalText(rawValue)
+          : undefined;
       if (!normalizedKey || !normalizedValue) {
         return null;
       }
@@ -117,7 +119,9 @@ function resolveSceneAppAutomationContextFromRecord(
   return {
     sceneappId,
     title: normalizeOptionalText(
-      typeof sceneappValue?.title === "string" ? sceneappValue.title : undefined,
+      typeof sceneappValue?.title === "string"
+        ? sceneappValue.title
+        : undefined,
     ),
     sceneappType: normalizeOptionalText(
       typeof sceneappValue?.sceneapp_type === "string"

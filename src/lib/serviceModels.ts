@@ -66,9 +66,9 @@ export function hasServiceModelPreferenceOverride(
   const normalized = normalizeServiceModelPreference(preference);
   return Boolean(
     normalized.preferredProviderId ||
-      normalized.preferredModelId ||
-      normalized.customPrompt ||
-      normalized.enabled === false,
+    normalized.preferredModelId ||
+    normalized.customPrompt ||
+    normalized.enabled === false,
   );
 }
 

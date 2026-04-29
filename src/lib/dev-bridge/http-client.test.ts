@@ -35,6 +35,7 @@ describe("http-client", () => {
     vi.useFakeTimers();
     __resetDevBridgeHttpStateForTests();
     vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "debug").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.stubGlobal("fetch", vi.fn());
   });
@@ -337,7 +338,7 @@ describe("http-client", () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 200 }));
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const debugSpy = vi.mocked(console.debug);
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal(
       "EventSource",
@@ -359,7 +360,7 @@ describe("http-client", () => {
 
     expect(MockEventSource.instances).toHaveLength(1);
     expect(source.close).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(debugSpy).toHaveBeenCalledTimes(1);
 
     unlisten();
     secondUnlisten();

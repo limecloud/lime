@@ -77,7 +77,10 @@ const URL_PREFILL_SLOT_KEYS = new Set([
   "article_url",
 ]);
 
-const MATERIAL_PREFILL_SLOT_KEYS = new Set(["reference_post", "article_source"]);
+const MATERIAL_PREFILL_SLOT_KEYS = new Set([
+  "reference_post",
+  "article_source",
+]);
 
 const EXPAND_MODE_KEYWORDS = [
   "同风格扩写",
@@ -202,8 +205,12 @@ function extractReplayUrl(creationReplay: CreationReplayMetadata): string {
   return matched[0].replace(/[.,;!?]+$/g, "");
 }
 
-function resolveReplaySourceLabel(creationReplay: CreationReplayMetadata): string {
-  return creationReplay.kind === "memory_entry" ? "当前灵感条目" : "当前技能草稿";
+function resolveReplaySourceLabel(
+  creationReplay: CreationReplayMetadata,
+): string {
+  return creationReplay.kind === "memory_entry"
+    ? "当前灵感条目"
+    : "当前技能草稿";
 }
 
 function buildPrefillHint(
@@ -266,8 +273,12 @@ function resolvePlatformValue(
     return "";
   }
 
-  const optionValues = new Set((slot.options || []).map((option) => option.value));
-  const searchableText = collectReplayTexts(creationReplay).join("\n").toLowerCase();
+  const optionValues = new Set(
+    (slot.options || []).map((option) => option.value),
+  );
+  const searchableText = collectReplayTexts(creationReplay)
+    .join("\n")
+    .toLowerCase();
   if (!searchableText) {
     return "";
   }
@@ -357,8 +368,11 @@ function resolveReplicationModeValue(
     return "";
   }
 
-  const optionValues = new Set((slot.options || []).map((option) => option.value));
-  const searchableText = collectReplaySearchableText(creationReplay).toLowerCase();
+  const optionValues = new Set(
+    (slot.options || []).map((option) => option.value),
+  );
+  const searchableText =
+    collectReplaySearchableText(creationReplay).toLowerCase();
   if (!searchableText) {
     return "";
   }
@@ -421,7 +435,9 @@ function buildMustKeepValue(creationReplay: CreationReplayMetadata): string {
   ]);
 }
 
-function buildFocusChangesValue(creationReplay: CreationReplayMetadata): string {
+function buildFocusChangesValue(
+  creationReplay: CreationReplayMetadata,
+): string {
   if (creationReplay.kind === "skill_scaffold") {
     return joinMultilineItems([
       creationReplay.data.steps?.length
@@ -458,10 +474,11 @@ function buildVoiceStyleValue(creationReplay: CreationReplayMetadata): string {
   }
 
   return truncate(
-    joinInlineItems([
-      creationReplay.data.title,
-      creationReplay.data.summary,
-    ], 2, 120),
+    joinInlineItems(
+      [creationReplay.data.title, creationReplay.data.summary],
+      2,
+      120,
+    ),
     120,
   );
 }
@@ -478,7 +495,8 @@ function buildTargetLanguageValue(
 function buildSubtitlePreferenceValue(
   creationReplay: CreationReplayMetadata,
 ): string {
-  const searchableText = collectReplaySearchableText(creationReplay).toLowerCase();
+  const searchableText =
+    collectReplaySearchableText(creationReplay).toLowerCase();
   if (!searchableText) {
     return "";
   }
@@ -512,16 +530,18 @@ function buildIndustryKeywordsValue(
   creationReplay: CreationReplayMetadata,
 ): string {
   if (creationReplay.kind === "memory_entry") {
-    return joinInlineItems([
-      ...(creationReplay.data.tags || []),
-      creationReplay.data.title,
-    ], 5, 120);
+    return joinInlineItems(
+      [...(creationReplay.data.tags || []), creationReplay.data.title],
+      5,
+      120,
+    );
   }
 
-  return joinInlineItems([
-    creationReplay.data.name,
-    ...(creationReplay.data.outputs || []),
-  ], 4, 120);
+  return joinInlineItems(
+    [creationReplay.data.name, ...(creationReplay.data.outputs || [])],
+    4,
+    120,
+  );
 }
 
 function buildTargetDurationValue(

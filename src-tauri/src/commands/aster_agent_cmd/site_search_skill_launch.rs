@@ -1,4 +1,9 @@
 use super::*;
+use crate::commands::modality_runtime_contracts::{
+    insert_web_research_contract_fields, web_research_required_capabilities,
+    web_research_runtime_contract, WEB_RESEARCH_CONTRACT_KEY, WEB_RESEARCH_MODALITY,
+    WEB_RESEARCH_ROUTING_SLOT,
+};
 
 const SITE_SEARCH_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_SITE_SEARCH_SKILL_LAUNCH_HINT>>";
 const SITE_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
@@ -23,6 +28,62 @@ fn extract_object_string(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+}
+
+fn extract_object_string_array(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Vec<String> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(serde_json::Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_object_value(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<serde_json::Value> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find(|value| value.is_object())
+        .cloned()
+}
+
+fn extract_harness_nested_object_mut<'a>(
+    value: &'a mut serde_json::Value,
+    keys: &[&str],
+) -> Option<&'a mut serde_json::Map<String, serde_json::Value>> {
+    let root = value.as_object_mut()?;
+    let harness = if root.contains_key("harness") {
+        root.get_mut("harness")
+            .and_then(serde_json::Value::as_object_mut)?
+    } else {
+        root
+    };
+
+    for key in keys.iter().copied() {
+        let exists = harness
+            .get(key)
+            .and_then(serde_json::Value::as_object)
+            .is_some();
+        if exists {
+            return harness
+                .get_mut(key)
+                .and_then(serde_json::Value::as_object_mut);
+        }
+    }
+
+    None
 }
 
 fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys: &[&str]) {
@@ -57,6 +118,16 @@ fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys
     );
 }
 
+fn ensure_web_research_contract_metadata(launch: &mut serde_json::Map<String, serde_json::Value>) {
+    insert_web_research_contract_fields(launch);
+    if let Some(site_search_request) = launch
+        .get_mut("site_search_request")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        insert_web_research_contract_fields(site_search_request);
+    }
+}
+
 fn truncate_prompt_text(value: String, max_chars: usize) -> String {
     let total_chars = value.chars().count();
     if total_chars <= max_chars {
@@ -75,6 +146,12 @@ pub(crate) fn prepare_site_search_skill_launch_request_metadata(
         &mut metadata,
         &["site_search_skill_launch", "siteSearchSkillLaunch"],
     );
+    if let Some(launch) = extract_harness_nested_object_mut(
+        &mut metadata,
+        &["site_search_skill_launch", "siteSearchSkillLaunch"],
+    ) {
+        ensure_web_research_contract_metadata(launch);
+    }
 
     Some(metadata)
 }
@@ -227,6 +304,31 @@ fn build_site_search_skill_launch_system_prompt(
         .and_then(serde_json::Value::as_u64);
     let entry_source = extract_object_string(site_search_request, &["entry_source", "entrySource"])
         .unwrap_or_else(|| "at_site_search_command".to_string());
+    let modality_contract_key = extract_object_string(
+        site_search_request,
+        &["modality_contract_key", "modalityContractKey"],
+    )
+    .unwrap_or_else(|| WEB_RESEARCH_CONTRACT_KEY.to_string());
+    let modality = extract_object_string(site_search_request, &["modality"])
+        .unwrap_or_else(|| WEB_RESEARCH_MODALITY.to_string());
+    let routing_slot = extract_object_string(site_search_request, &["routing_slot", "routingSlot"])
+        .unwrap_or_else(|| WEB_RESEARCH_ROUTING_SLOT.to_string());
+    let required_capabilities = {
+        let values = extract_object_string_array(
+            site_search_request,
+            &["required_capabilities", "requiredCapabilities"],
+        );
+        if values.is_empty() {
+            web_research_required_capabilities()
+        } else {
+            values
+        }
+    };
+    let runtime_contract = extract_object_value(
+        site_search_request,
+        &["runtime_contract", "runtimeContract"],
+    )
+    .unwrap_or_else(web_research_runtime_contract);
     let args_payload = serde_json::json!({
         "user_input": raw_text
             .clone()
@@ -257,6 +359,21 @@ fn build_site_search_skill_launch_system_prompt(
     let mut lines = vec![
         SITE_SEARCH_SKILL_LAUNCH_PROMPT_MARKER.to_string(),
         "- 当前回合来自站点搜索技能启动，不要把它当成普通聊天回答。".to_string(),
+        format!(
+            "- 当前底层运行合同：modality_contract_key={modality_contract_key}, modality={modality}, routing_slot={routing_slot}；站点搜索是 web_research 合同下的子入口，后续站点结果与产物必须原样保留 contract 字段。"
+        ),
+        format!(
+            "- 当前合同所需能力：{}；不得退回 model_memory_only_answer、通用 WebSearch 或 local_file_search_before_research_skill。",
+            required_capabilities.join(", ")
+        ),
+        format!(
+            "- 当前 runtime_contract(JSON)：{}",
+            truncate_prompt_text(
+                serde_json::to_string(&runtime_contract)
+                    .unwrap_or_else(|_| "{}".to_string()),
+                1_200,
+            )
+        ),
         "- 先快速归纳用户要查哪个站点、查什么，然后立刻把任务交给 Skill 工具。".to_string(),
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
         "- 调用 Skill 时，args 必须是一个严格 JSON 字符串，不要漏引号、不要写注释、不要只传半截字段。".to_string(),

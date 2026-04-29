@@ -193,7 +193,9 @@ describe("CompanionCapabilityPreferencesCard", () => {
     expect(container.textContent).toContain("桌宠能力偏好");
     expect(container.textContent).toContain("桌宠通用模型");
     expect(container.textContent).toContain("最近当前 provider/model");
-    expect(container.textContent).toContain("[general] deepseek / deepseek-chat");
+    expect(container.textContent).toContain(
+      "[general] deepseek / deepseek-chat",
+    );
     expect(container.textContent).not.toContain("桌宠语音播报");
     expect(
       container.querySelectorAll("[data-testid='companion-model-selector']"),
@@ -214,7 +216,9 @@ describe("CompanionCapabilityPreferencesCard", () => {
     expect(
       savedConfig.workspace_preferences.companion_defaults.general,
     ).toBeUndefined();
-    expect(savedConfig.workspace_preferences.companion_defaults.tts).toBeUndefined();
+    expect(
+      savedConfig.workspace_preferences.companion_defaults.tts,
+    ).toBeUndefined();
     expect(container.textContent).toContain("桌宠能力偏好已保存");
   });
 });

@@ -140,9 +140,7 @@ export function ImageResourceRenderer({
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
         onWheel={controls.loadFailed ? undefined : handleWheel}
-        onDoubleClick={
-          controls.loadFailed ? undefined : controls.toggleFitMode
-        }
+        onDoubleClick={controls.loadFailed ? undefined : controls.toggleFitMode}
       >
         {controls.isLoading && !controls.loadFailed ? (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-sm font-medium text-slate-500">

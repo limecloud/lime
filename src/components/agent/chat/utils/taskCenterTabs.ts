@@ -243,7 +243,8 @@ export function updateTaskCenterTabIdsForWorkspace(
       return normalizationChanged ? normalizedMap : tabMap;
     }
 
-    const { [normalizedWorkspaceId]: _removed, ...remainingMap } = normalizedMap;
+    const { [normalizedWorkspaceId]: _removed, ...remainingMap } =
+      normalizedMap;
     return remainingMap;
   }
 
@@ -366,7 +367,9 @@ export function shouldHideTaskCenterTabsForDetachedSession(params: {
     return false;
   }
 
-  return !normalizeTaskCenterTabIds(params.openTabIds ?? []).includes(sessionId);
+  return !normalizeTaskCenterTabIds(params.openTabIds ?? []).includes(
+    sessionId,
+  );
 }
 
 export function resolveTaskCenterPreviewTopicId(params: {

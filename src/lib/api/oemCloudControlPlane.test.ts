@@ -13,6 +13,7 @@ import {
   getClientOrder,
   getClientBootstrap,
   getClientCreditsDashboard,
+  getClientSceneSkillPreferences,
   getPublicAuthCatalog,
   getClientProviderOffer,
   getClientReferralDashboard,
@@ -23,6 +24,7 @@ import {
   listClientTopupPackages,
   pollClientDesktopAuthSession,
   rotateClientAccessToken,
+  updateClientSceneSkillPreferences,
 } from "./oemCloudControlPlane";
 
 describe("oemCloudControlPlane desktop auth", () => {
@@ -301,6 +303,86 @@ describe("oemCloudControlPlane desktop auth", () => {
       code: "LIME-2026",
       downloadUrl: "https://limeai.run",
     });
+  });
+
+  it("应读取并更新首页场景技能偏好", async () => {
+    window.__LIME_SESSION_TOKEN__ = "session-token-001";
+
+    const preferencePayload = {
+      tenantId: "tenant-0001",
+      userId: "user-0001",
+      orderedEntryIds: ["custom_scene:daily-review", "skill:trend"],
+      hiddenEntryIds: ["skill:hidden"],
+      customScenes: [
+        {
+          id: "custom_scene:daily-review",
+          title: "每日复盘",
+          linkedEntryId: "skill:trend",
+          templates: [
+            {
+              id: "default",
+              title: "开始复盘",
+              prompt: "请帮我复盘今天的内容表现。",
+            },
+          ],
+          enabled: true,
+        },
+      ],
+      updatedAt: "2026-04-30T00:00:00.000Z",
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          code: 200,
+          message: "success",
+          data: preferencePayload,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          code: 200,
+          message: "success",
+          data: preferencePayload,
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const preference = await getClientSceneSkillPreferences("tenant-0001");
+    expect(preference.customScenes[0]?.title).toBe("每日复盘");
+
+    await updateClientSceneSkillPreferences("tenant-0001", {
+      orderedEntryIds: preference.orderedEntryIds,
+      hiddenEntryIds: preference.hiddenEntryIds,
+      customScenes: preference.customScenes,
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/client/scene-skill-preferences",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer session-token-001",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/client/scene-skill-preferences",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          orderedEntryIds: preference.orderedEntryIds,
+          hiddenEntryIds: preference.hiddenEntryIds,
+          customScenes: preference.customScenes,
+        }),
+      }),
+    );
   });
 
   it("应解析服务端下发的云端治理字段", async () => {
@@ -1136,5 +1218,65 @@ describe("oemCloudControlPlane desktop auth", () => {
     await expect(
       getClientCreditTopupOrder("tenant-0001", "topup-order-001"),
     ).resolves.toMatchObject({ id: "topup-order-001" });
+  });
+
+  it("客户端激活应容忍未开通订阅只返回状态摘要", async () => {
+    window.__LIME_SESSION_TOKEN__ = "session-token-001";
+    const response = (data: unknown) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ code: 200, message: "success", data }),
+    });
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      response({
+        gateway: {
+          basePath: "https://llm.limeai.run",
+          openAIBaseUrl: "https://llm.limeai.run/v1",
+        },
+        readiness: {
+          status: "ready",
+          title: "云端状态已同步",
+          canInvoke: true,
+        },
+        subscription: {
+          id: "sub-empty",
+          tenantId: "tenant-0001",
+          status: "none",
+          planName: "未开通",
+        },
+        usageDashboard: {
+          usageRecords: [],
+          monthlySummary: {},
+        },
+        billingDashboard: {
+          billingSummary: { currency: "CNY" },
+          subscription: {
+            id: "sub-billing-empty",
+            tenantId: "tenant-0001",
+            status: "none",
+          },
+          currentPlan: null,
+          orders: [],
+        },
+        providerOffers: [],
+        providerModels: [],
+        accessTokens: [],
+        activeAccessToken: { hasActive: false },
+        orders: [],
+        creditTopupOrders: [],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      getClientCloudActivation("tenant-0001"),
+    ).resolves.toMatchObject({
+      subscription: null,
+      billingDashboard: {
+        subscription: null,
+        currentPlan: null,
+      },
+      readiness: { status: "ready" },
+    });
   });
 });

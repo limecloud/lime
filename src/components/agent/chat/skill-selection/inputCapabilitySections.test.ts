@@ -60,7 +60,8 @@ function createInstalledSkill(
 }
 
 function createMentionServiceSkill(
-  overrides: Partial<ServiceSkillHomeItem> & Pick<ServiceSkillHomeItem, "id" | "title">,
+  overrides: Partial<ServiceSkillHomeItem> &
+    Pick<ServiceSkillHomeItem, "id" | "title">,
 ): ServiceSkillHomeItem {
   return {
     summary: `${overrides.title} 摘要`,
@@ -296,8 +297,9 @@ describe("buildInputCapabilitySections", () => {
     );
 
     expect(
-      recentOperationSection?.items.find((item) => item.kind === "slash_command")
-        ?.kindLabel,
+      recentOperationSection?.items.find(
+        (item) => item.kind === "slash_command",
+      )?.kindLabel,
     ).toBe("/compact");
     expect(
       recentContinuationSection?.items.find(
@@ -331,16 +333,20 @@ describe("buildInputCapabilitySections", () => {
       ],
     });
 
-    const recentSection = sections.find((section) => section.key === "recent-mention");
+    const recentSection = sections.find(
+      (section) => section.key === "recent-mention",
+    );
     const groupSection = sections.find((section) =>
       section.key.startsWith("service-skill-group:"),
     );
 
     expect(
-      recentSection?.items.find((item) => item.kind === "service_skill")?.kindLabel,
+      recentSection?.items.find((item) => item.kind === "service_skill")
+        ?.kindLabel,
     ).toBeUndefined();
     expect(
-      groupSection?.items.find((item) => item.kind === "service_skill")?.kindLabel,
+      groupSection?.items.find((item) => item.kind === "service_skill")
+        ?.kindLabel,
     ).toBeUndefined();
   });
 

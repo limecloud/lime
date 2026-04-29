@@ -51,9 +51,7 @@ export function buildReviewFeedbackProjection(params: {
         title,
       };
     })
-    .filter(
-      (task): task is ReviewFeedbackSuggestedTask => Boolean(task),
-    )
+    .filter((task): task is ReviewFeedbackSuggestedTask => Boolean(task))
     .slice(0, 2);
   const suggestedTaskTitles = suggestedTasks.map((task) => task.title);
 

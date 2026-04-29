@@ -74,6 +74,21 @@ export function extractExistingHarnessMetadata(
   return harnessValue as Record<string, unknown>;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, unknown>;
+}
+
+function readTrimmedString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
 const LEGACY_HARNESS_STATE_KEYS = [
   "creation_mode",
   "creationMode",
@@ -149,6 +164,28 @@ export function buildHarnessRequestMetadata(
       : undefined;
   const normalizedSessionMode =
     normalizeHarnessSessionMode(sessionMode) || "default";
+  const existingBrowserAssist =
+    asRecord(base?.browser_assist) || asRecord(base?.browserAssist);
+  const browserAssistMetadata = browserAssistProfileKey
+    ? {
+        ...(existingBrowserAssist || {}),
+        enabled: true,
+        profile_key: browserAssistProfileKey,
+        preferred_backend:
+          browserAssistPreferredBackend ??
+          readTrimmedString(existingBrowserAssist?.preferred_backend) ??
+          readTrimmedString(existingBrowserAssist?.preferredBackend),
+        auto_launch:
+          browserAssistAutoLaunch ??
+          readBoolean(existingBrowserAssist?.auto_launch) ??
+          readBoolean(existingBrowserAssist?.autoLaunch) ??
+          true,
+        stream_mode:
+          readTrimmedString(existingBrowserAssist?.stream_mode) ??
+          readTrimmedString(existingBrowserAssist?.streamMode) ??
+          "both",
+      }
+    : existingBrowserAssist;
 
   const metadata: Record<string, unknown> = {
     ...(base || {}),
@@ -181,17 +218,7 @@ export function buildHarnessRequestMetadata(
     browser_launch_url: browserLaunchUrl || undefined,
     browser_user_step_required:
       browserRequirement === "required_with_user_step",
-    ...(browserAssistProfileKey
-      ? {
-          browser_assist: {
-            enabled: true,
-            profile_key: browserAssistProfileKey,
-            preferred_backend: browserAssistPreferredBackend || undefined,
-            auto_launch: browserAssistAutoLaunch ?? true,
-            stream_mode: "both",
-          },
-        }
-      : {}),
+    ...(browserAssistMetadata ? { browser_assist: browserAssistMetadata } : {}),
   };
 
   clearLegacyHarnessStateFields(metadata);

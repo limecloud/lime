@@ -41,8 +41,7 @@ describe("markdownBundleMeta", () => {
           images: [
             {
               original_url: "https://cdn.example.com/hero.png",
-              project_relative_path:
-                "exports/x-article/google/images/hero.png",
+              project_relative_path: "exports/x-article/google/images/hero.png",
             },
           ],
         }),

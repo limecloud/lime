@@ -101,7 +101,9 @@ describe("CuratedTaskBadge", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="curated-task-badge-review-signal"]'),
+      container.querySelector(
+        '[data-testid="curated-task-badge-review-signal"]',
+      ),
     ).toBeNull();
   });
 
@@ -145,7 +147,9 @@ describe("CuratedTaskBadge", () => {
 
     expect(statusPill?.textContent).toContain("当前判断：先补复核与修复");
     expect(nextPill?.textContent).toContain("更适合去向：结果对齐");
-    expect(statusPill?.getAttribute("title")).toContain("当前结果基线：AI 内容周报");
+    expect(statusPill?.getAttribute("title")).toContain(
+      "当前结果基线：AI 内容周报",
+    );
   });
 
   it("切到下游结果模板后，badge 仍应显影同一份 sceneapp 基线", async () => {
@@ -188,7 +192,9 @@ describe("CuratedTaskBadge", () => {
 
     expect(statusPill?.textContent).toContain("当前判断：先补复核与修复");
     expect(nextPill?.textContent).toContain("更适合去向：结果对齐");
-    expect(statusPill?.getAttribute("title")).toContain("当前结果基线：AI 内容周报");
+    expect(statusPill?.getAttribute("title")).toContain(
+      "当前结果基线：AI 内容周报",
+    );
   });
 
   it("当前模板不是最近判断首选时，应提供改用推荐模板的动作", async () => {

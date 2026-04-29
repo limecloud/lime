@@ -402,7 +402,10 @@ export function AutomationJobDetailsDialog({
                                   这轮判断
                                 </div>
                                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
-                                  {sceneAppSummaryCard.scorecardAggregate.statusLabel}
+                                  {
+                                    sceneAppSummaryCard.scorecardAggregate
+                                      .statusLabel
+                                  }
                                 </span>
                                 {sceneAppSummaryCard.scorecardAggregate
                                   .actionLabel ? (
@@ -427,7 +430,11 @@ export function AutomationJobDetailsDialog({
                                 {sceneAppSummaryCard.scorecardAggregate.summary}
                               </div>
                               <div className="mt-2 text-sm leading-6 text-slate-600">
-                                先做：{sceneAppSummaryCard.scorecardAggregate.nextAction}
+                                先做：
+                                {
+                                  sceneAppSummaryCard.scorecardAggregate
+                                    .nextAction
+                                }
                               </div>
                               {followupDestinations.length ? (
                                 <div

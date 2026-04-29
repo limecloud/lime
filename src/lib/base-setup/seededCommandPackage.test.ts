@@ -12,10 +12,7 @@ describe("seededCommandPackage", () => {
     expect(pkg.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
     expect(pkg.catalogProjections).toHaveLength(37);
     expect(pkg.bindingProfiles.map((profile) => profile.id)).toEqual(
-      expect.arrayContaining([
-        "agent-turn-instant",
-        "native-skill-instant",
-      ]),
+      expect.arrayContaining(["agent-turn-instant", "native-skill-instant"]),
     );
     expect(pkg.compatibility.requiredKernelCapabilities).not.toContain(
       "cloud_scene",

@@ -140,7 +140,8 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     summary:
       "围绕目标受众、表达结构和关键信息，先生成一版可继续迭代的内容首稿。",
     outputHint: "内容首稿 + 结构提纲",
-    resultDestination: "首版主稿会先进入当前内容，方便继续改写、拆成多平台版本。",
+    resultDestination:
+      "首版主稿会先进入当前内容，方便继续改写、拆成多平台版本。",
     categoryLabel: "内容起稿",
     prompt:
       "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
@@ -155,7 +156,8 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
       {
         key: "target_audience",
         label: "目标受众",
-        placeholder: "例如 25-35 岁新消费品牌运营，或 正在找 AI 剪辑工具的创作者",
+        placeholder:
+          "例如 25-35 岁新消费品牌运营，或 正在找 AI 剪辑工具的创作者",
         helperText: "先说清楚这条内容是写给谁看的。",
         type: "text",
       },
@@ -262,8 +264,7 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     summary:
       "围绕目标、已有结果和下一步动作判断当前该怎么推进，适合内容账号、项目推进和运营回看。",
     outputHint: "判断摘要 + 下一步建议",
-    resultDestination:
-      "判断摘要会先回到当前内容，并把下一轮动作继续带回生成。",
+    resultDestination: "判断摘要会先回到当前内容，并把下一轮动作继续带回生成。",
     categoryLabel: "判断与优化",
     prompt:
       "请帮我判断这个账号或项目当前该怎么推进：先明确目标、当前结果、关键问题、哪些动作有效、哪些地方拖后腿，再给出下一轮最值得执行的优化建议。",
@@ -287,15 +288,14 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     outputContract: ["判断摘要", "关键问题", "下一轮动作建议"],
     followUpActions: ["继续做趋势摘要", "生成下一轮内容方案"],
     followUpActionTargets: {
-      "继续做趋势摘要": {
+      继续做趋势摘要: {
         taskId: "daily-trend-briefing",
         promptHint:
           "请承接这轮判断结论，先补一轮值得继续跟进的趋势与机会窗口。",
       },
-      "生成下一轮内容方案": {
+      生成下一轮内容方案: {
         taskId: "social-post-starter",
-        promptHint:
-          "请承接这轮判断结论，直接生成下一轮最值得执行的内容方案。",
+        promptHint: "请承接这轮判断结论，直接生成下一轮最值得执行的内容方案。",
       },
     },
     shouldEnableTeamMode: true,
@@ -453,10 +453,13 @@ function normalizeCuratedTaskUsageInputValues(
   }
 
   const normalizedEntries = Object.entries(inputValues)
-    .map(([key, value]) => [
-      key.trim(),
-      normalizeCuratedTaskInputValue(String(value ?? "")),
-    ] as const)
+    .map(
+      ([key, value]) =>
+        [
+          key.trim(),
+          normalizeCuratedTaskInputValue(String(value ?? "")),
+        ] as const,
+    )
     .filter(
       (entry): entry is [string, string] =>
         entry[0].length > 0 && entry[1].length > 0,
@@ -477,9 +480,7 @@ function normalizeCuratedTaskUsageRecord(
   ).slice(0, 3);
   const normalizedReferenceMemoryIds = normalizeCuratedTaskReferenceMemoryIds([
     ...(record.referenceMemoryIds ?? []),
-    ...(extractCuratedTaskReferenceMemoryIds(
-      normalizedReferenceEntries,
-    ) ?? []),
+    ...(extractCuratedTaskReferenceMemoryIds(normalizedReferenceEntries) ?? []),
   ]);
   const normalizedLaunchInputValues = normalizeCuratedTaskUsageInputValues(
     record.launchInputValues,
@@ -539,10 +540,7 @@ function getCuratedTaskTemplateUsageMap(): Map<
   CuratedTaskTemplateUsageRecord
 > {
   return new Map(
-    listCuratedTaskTemplateUsage().map((record) => [
-      record.templateId,
-      record,
-    ]),
+    listCuratedTaskTemplateUsage().map((record) => [record.templateId, record]),
   );
 }
 
@@ -671,10 +669,7 @@ function matchesTemplateQuery(
   ].some((value) => value.toLowerCase().includes(normalizedQuery));
 }
 
-function summarizeCuratedTaskFactItems(
-  items: string[],
-  limit = 2,
-): string {
+function summarizeCuratedTaskFactItems(items: string[], limit = 2): string {
   const normalizedItems = items
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
@@ -766,8 +761,9 @@ export function buildCuratedTaskRecentUsageDescription(params: {
     );
   }
 
-  const referenceEntries =
-    mergeCuratedTaskReferenceEntries(params.prefill?.referenceEntries ?? []);
+  const referenceEntries = mergeCuratedTaskReferenceEntries(
+    params.prefill?.referenceEntries ?? [],
+  );
   if (referenceEntries.length > 0) {
     const referenceTitles = referenceEntries
       .map((entry) => entry.title.trim())
@@ -893,7 +889,8 @@ export function hasFilledAllCuratedTaskRequiredInputs(params: {
   inputValues: CuratedTaskInputValues;
 }): boolean {
   return params.task.requiredInputFields.every(
-    (field) => normalizeCuratedTaskInputValue(params.inputValues[field.key]).length > 0,
+    (field) =>
+      normalizeCuratedTaskInputValue(params.inputValues[field.key]).length > 0,
   );
 }
 
@@ -907,7 +904,9 @@ export function buildCuratedTaskLaunchPrompt(params: {
 }): string {
   const starterFacts = params.task.requiredInputFields
     .map((field) => {
-      const value = normalizeCuratedTaskInputValue(params.inputValues[field.key]);
+      const value = normalizeCuratedTaskInputValue(
+        params.inputValues[field.key],
+      );
       if (!value) {
         return null;
       }
@@ -1149,21 +1148,19 @@ function scoreTemplateForRecommendationSignal(params: {
       signal.category
     ] ?? 0;
   const normalizedText = buildRecommendationSignalText(signal);
-  const keywordScore = (
-    CURATED_TASK_RECOMMENDATION_KEYWORDS[template.id] ?? []
-  )
+  const keywordScore = (CURATED_TASK_RECOMMENDATION_KEYWORDS[template.id] ?? [])
     .filter((keyword) => normalizedText.includes(keyword.toLowerCase()))
     .slice(0, 3).length;
 
   const activeReferenceBonus = signal.source === "active_reference" ? 8 : 0;
   const reviewFeedbackBonus = signal.source === "review_feedback" ? 6 : 0;
-  const preferredTaskBonus =
-    signal.preferredTaskIds?.includes(template.id) ? 30 : 0;
+  const preferredTaskBonus = signal.preferredTaskIds?.includes(template.id)
+    ? 30
+    : 0;
   const projectMatchBonus =
     projectId && signal.projectId && projectId === signal.projectId ? 4 : 0;
   const recentSignalBonus =
-    signal.source === "saved_inspiration" ||
-    signal.source === "review_feedback"
+    signal.source === "saved_inspiration" || signal.source === "review_feedback"
       ? Math.max(
           0,
           5 -
@@ -1194,16 +1191,18 @@ export function listFeaturedHomeCuratedTaskTemplates(
     limit?: number;
   } = {},
 ): FeaturedCuratedTaskTemplateItem[] {
-  const limit =
-    options.limit ?? FEATURED_HOME_CURATED_TASK_TEMPLATE_IDS.length;
+  const limit = options.limit ?? FEATURED_HOME_CURATED_TASK_TEMPLATE_IDS.length;
   const referenceEntries = mergeCuratedTaskReferenceEntries(
     options.referenceEntries ?? [],
   );
   const signals = [
-    ...buildCuratedTaskRecommendationSignalsFromReferenceEntries(referenceEntries, {
-      projectId: options.projectId,
-      sessionId: options.sessionId,
-    }),
+    ...buildCuratedTaskRecommendationSignalsFromReferenceEntries(
+      referenceEntries,
+      {
+        projectId: options.projectId,
+        sessionId: options.sessionId,
+      },
+    ),
     ...listCuratedTaskRecommendationSignals({
       projectId: options.projectId,
       sessionId: options.sessionId,
@@ -1345,9 +1344,7 @@ export function recordCuratedTaskTemplateUsage(
   ).slice(0, 3);
   const normalizedReferenceMemoryIds = normalizeCuratedTaskReferenceMemoryIds([
     ...(normalizedInput.referenceMemoryIds ?? []),
-    ...(extractCuratedTaskReferenceMemoryIds(
-      normalizedReferenceEntries,
-    ) ?? []),
+    ...(extractCuratedTaskReferenceMemoryIds(normalizedReferenceEntries) ?? []),
   ]);
   const normalizedLaunchInputValues = normalizeCuratedTaskUsageInputValues(
     normalizedInput.launchInputValues,

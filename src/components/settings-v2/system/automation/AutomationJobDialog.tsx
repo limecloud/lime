@@ -583,7 +583,11 @@ export function AutomationJobDialog({
                   }`}
                 >
                   当前状态：
-                  {isLegacyBrowserJob ? "已下线" : form.enabled ? "已启用" : "已停用"}
+                  {isLegacyBrowserJob
+                    ? "已下线"
+                    : form.enabled
+                      ? "已启用"
+                      : "已停用"}
                 </span>
               </div>
             </div>
@@ -605,9 +609,9 @@ export function AutomationJobDialog({
                       name: event.target.value,
                     }))
                   }
-                placeholder="例如：每日品牌线索巡检"
-              />
-            </div>
+                  placeholder="例如：每日品牌线索巡检"
+                />
+              </div>
               <div className="space-y-2">
                 <Label>归属位置</Label>
                 <Select
@@ -656,7 +660,9 @@ export function AutomationJobDialog({
                   <SelectContent>
                     <SelectItem value="agent_turn">Agent 对话</SelectItem>
                     {isLegacyBrowserJob ? (
-                      <SelectItem value="browser_session">浏览器自动化</SelectItem>
+                      <SelectItem value="browser_session">
+                        浏览器自动化
+                      </SelectItem>
                     ) : null}
                   </SelectContent>
                 </Select>
@@ -1107,7 +1113,7 @@ export function AutomationJobDialog({
                           ? "Webhook 适合系统对接；当前会携带 output_schema、output_format、结构化 output_data，以及稳定的 delivery_attempt_id 幂等键。"
                           : form.delivery_channel === "google_sheets"
                             ? "Google Sheets 使用 service account 直连，目标格式为 spreadsheet_id=...;sheet=...;credentials_file=绝对路径，可选 include_header=true 和 value_input_option=USER_ENTERED；追加行会自动带 delivery_attempt_id 等元数据列。"
-                          : form.delivery_channel === "local_file"
+                            : form.delivery_channel === "local_file"
                               ? "本地文件适合先落最小输出闭环；text 会按契约渲染，json 会写入结构化结果。"
                               : "Telegram 继续作为兼容通知通道，只发送文本提醒，不承诺结构化输出契约。"}
                       </div>

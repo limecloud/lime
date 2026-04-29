@@ -170,7 +170,11 @@ function buildSceneAppPackage(): BaseSetupPackage {
           "review_pass_rate",
           "publish_conversion_rate",
         ],
-        failureSignals: ["pack_incomplete", "review_blocked", "publish_stalled"],
+        failureSignals: [
+          "pack_incomplete",
+          "review_blocked",
+          "publish_stalled",
+        ],
       },
     ],
     policyProfiles: [
@@ -357,7 +361,9 @@ describe("sceneapp catalog", () => {
       ]),
     );
     expect(catalog.items[0]?.launchRequirements).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: "cloud_session" })]),
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "cloud_session" }),
+      ]),
     );
     expect(catalog.items[0]?.capabilityRefs).not.toContain("cloud_scene");
     expect(catalog.items[0]?.infraProfile).not.toContain("cloud_runtime");
@@ -446,7 +452,9 @@ describe("sceneapp catalog", () => {
     );
     expect(catalog.items[0]?.infraProfile).not.toContain("cloud_runtime");
     expect(catalog.items[0]?.launchRequirements).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: "cloud_session" })]),
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "cloud_session" }),
+      ]),
     );
   });
 

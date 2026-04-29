@@ -43,7 +43,9 @@ export function AutomationOverviewFocusCard({
     summaryCard?.nextAction ??
     null;
   const focusActionLabel =
-    summaryCard?.scorecardAggregate?.actionLabel ?? summaryCard?.statusLabel ?? null;
+    summaryCard?.scorecardAggregate?.actionLabel ??
+    summaryCard?.statusLabel ??
+    null;
   const focusSignalLabel =
     summaryCard?.scorecardAggregate?.topFailureSignalLabel ?? null;
 

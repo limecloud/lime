@@ -70,8 +70,7 @@ export const CuratedTaskBadge: React.FC<CuratedTaskBadgeProps> = ({
     });
   }, [referenceEntries, task.id]);
   const sceneAppReviewHighlights = useMemo(
-    () =>
-      buildSceneAppExecutionReviewPrefillHighlights(sceneAppReviewSnapshot),
+    () => buildSceneAppExecutionReviewPrefillHighlights(sceneAppReviewSnapshot),
     [sceneAppReviewSnapshot],
   );
   const latestReviewSignal = useMemo(() => {
@@ -100,7 +99,10 @@ export const CuratedTaskBadge: React.FC<CuratedTaskBadgeProps> = ({
       ? reviewProjection
       : null;
   const primarySuggestedTask = useMemo(() => {
-    if (!visibleReviewProjection || visibleReviewProjection.matchedCurrentTask) {
+    if (
+      !visibleReviewProjection ||
+      visibleReviewProjection.matchedCurrentTask
+    ) {
       return null;
     }
 

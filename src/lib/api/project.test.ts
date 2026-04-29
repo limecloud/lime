@@ -39,6 +39,7 @@ import {
   getCanvasTypeForProjectType,
   getCreateProjectErrorMessage,
   extractErrorMessage,
+  clearProjectDetailCacheForTests,
   normalizeProject,
   formatWordCount,
   formatRelativeTime,
@@ -61,6 +62,7 @@ describe("项目管理 API", () => {
   describe("workspace 路径 API", () => {
     beforeEach(() => {
       vi.clearAllMocks();
+      clearProjectDetailCacheForTests();
     });
 
     it("应该调用命令获取 workspace 根目录", async () => {
@@ -289,6 +291,80 @@ describe("项目管理 API", () => {
       expect(safeInvoke).toHaveBeenNthCalledWith(6, "workspace_delete", {
         id: "project-1",
         deleteDirectory: true,
+      });
+    });
+
+    it("短时间重复获取同一项目应复用 workspace_get 缓存", async () => {
+      const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_000);
+      try {
+        vi.mocked(safeInvoke)
+          .mockResolvedValueOnce({
+            id: "cached-project",
+            name: "缓存项目",
+            workspace_type: "general",
+            root_path: "/tmp/cached-project",
+          })
+          .mockResolvedValueOnce({
+            id: "cached-project",
+            name: "缓存项目刷新",
+            workspace_type: "general",
+            root_path: "/tmp/cached-project",
+          });
+
+        await expect(getProject("cached-project")).resolves.toEqual(
+          expect.objectContaining({ name: "缓存项目" }),
+        );
+        nowSpy.mockReturnValue(1_500);
+        await expect(getProject("cached-project")).resolves.toEqual(
+          expect.objectContaining({ name: "缓存项目" }),
+        );
+
+        nowSpy.mockReturnValue(2_001);
+        await expect(getProject("cached-project")).resolves.toEqual(
+          expect.objectContaining({ name: "缓存项目刷新" }),
+        );
+
+        expect(safeInvoke).toHaveBeenCalledTimes(2);
+        expect(safeInvoke).toHaveBeenNthCalledWith(1, "workspace_get", {
+          id: "cached-project",
+        });
+        expect(safeInvoke).toHaveBeenNthCalledWith(2, "workspace_get", {
+          id: "cached-project",
+        });
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    it("并发获取同一项目时应合并为一次 workspace_get", async () => {
+      let resolveProject!: (value: {
+        id: string;
+        name: string;
+        workspace_type: string;
+        root_path: string;
+      }) => void;
+      vi.mocked(safeInvoke).mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveProject = resolve;
+        }) as ReturnType<typeof safeInvoke>,
+      );
+
+      const first = getProject("parallel-project");
+      const second = getProject("parallel-project");
+      resolveProject({
+        id: "parallel-project",
+        name: "并发项目",
+        workspace_type: "general",
+        root_path: "/tmp/parallel-project",
+      });
+
+      await expect(Promise.all([first, second])).resolves.toEqual([
+        expect.objectContaining({ id: "parallel-project", name: "并发项目" }),
+        expect.objectContaining({ id: "parallel-project", name: "并发项目" }),
+      ]);
+      expect(safeInvoke).toHaveBeenCalledTimes(1);
+      expect(safeInvoke).toHaveBeenCalledWith("workspace_get", {
+        id: "parallel-project",
       });
     });
 

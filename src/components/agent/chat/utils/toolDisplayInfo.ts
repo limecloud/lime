@@ -151,8 +151,7 @@ const MCP_MUTATION_ACTION_RE =
   /(?:^|_)(?:create|update|delete|remove|add|set|send|write|edit|patch|run|execute|submit|publish|approve|reject|reply|comment)(?:_|$)/;
 const MCP_BROWSER_ACTION_RE =
   /(?:^|_)(?:navigate|goto|click|hover|fill|type|select|press|snapshot|screenshot|drag|upload|wait|tabs?|page|browser|runtime|evaluate)(?:_|$)/;
-const MCP_SEARCH_ACTION_RE =
-  /(?:^|_)(?:search|find|lookup|query)(?:_|$)/;
+const MCP_SEARCH_ACTION_RE = /(?:^|_)(?:search|find|lookup|query)(?:_|$)/;
 const MCP_LIST_ACTION_RE = /(?:^|_)list(?:_|$)/;
 const MCP_READ_ACTION_RE = /(?:^|_)(?:get|read|fetch|open)(?:_|$)/;
 
@@ -1325,41 +1324,43 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
   ],
 ]);
 
-const MCP_OPERATION_TOOL_CONFIGS: Record<McpToolOperationKind, ToolDisplayConfig> =
-  {
-    search: {
-      family: "search",
-      label: "MCP 搜索",
-      verb: "搜索",
-      icon: Search,
-      groupTitle: "MCP",
-      actionKey: "search",
-    },
-    list: {
-      family: "list",
-      label: "MCP 列表",
-      verb: "查看",
-      icon: FolderOpen,
-      groupTitle: "MCP",
-      actionKey: "list",
-    },
-    read: {
-      family: "read",
-      label: "MCP 读取",
-      verb: "查看",
-      icon: FileText,
-      groupTitle: "MCP",
-      actionKey: "read",
-    },
-    browser: {
-      family: "browser",
-      label: "MCP 浏览器",
-      verb: "操作",
-      icon: Globe,
-      groupTitle: "MCP",
-      actionKey: "browser",
-    },
-  };
+const MCP_OPERATION_TOOL_CONFIGS: Record<
+  McpToolOperationKind,
+  ToolDisplayConfig
+> = {
+  search: {
+    family: "search",
+    label: "MCP 搜索",
+    verb: "搜索",
+    icon: Search,
+    groupTitle: "MCP",
+    actionKey: "search",
+  },
+  list: {
+    family: "list",
+    label: "MCP 列表",
+    verb: "查看",
+    icon: FolderOpen,
+    groupTitle: "MCP",
+    actionKey: "list",
+  },
+  read: {
+    family: "read",
+    label: "MCP 读取",
+    verb: "查看",
+    icon: FileText,
+    groupTitle: "MCP",
+    actionKey: "read",
+  },
+  browser: {
+    family: "browser",
+    label: "MCP 浏览器",
+    verb: "操作",
+    icon: Globe,
+    groupTitle: "MCP",
+    actionKey: "browser",
+  },
+};
 
 const BROWSER_TOOL_MATCHERS: Array<{
   match: (name: string) => boolean;
@@ -2163,13 +2164,19 @@ export const resolveToolPrimarySubject = (
   }
 
   if (normalizedName === "limesiterecommend") {
-    return resolveToolArgumentPreview(args, ["query", "q", "goal"]) || "站点能力";
+    return (
+      resolveToolArgumentPreview(args, ["query", "q", "goal"]) || "站点能力"
+    );
   }
 
   if (normalizedName === "limesitesearch") {
     return (
-      resolveToolArgumentPreview(args, ["query", "q", "adapter_name", "name"]) ||
-      "站点能力"
+      resolveToolArgumentPreview(args, [
+        "query",
+        "q",
+        "adapter_name",
+        "name",
+      ]) || "站点能力"
     );
   }
 

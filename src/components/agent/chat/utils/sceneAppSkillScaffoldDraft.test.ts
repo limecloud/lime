@@ -37,12 +37,8 @@ function createSummary(): SceneAppExecutionSummaryViewModel {
       notes: [],
     },
     scorecardProfileRef: "story-video-scorecard",
-    scorecardMetricKeys: [
-      { key: "delivery_readiness", label: "交付就绪度" },
-    ],
-    scorecardFailureSignals: [
-      { key: "publish_stalled", label: "发布卡点" },
-    ],
+    scorecardMetricKeys: [{ key: "delivery_readiness", label: "交付就绪度" }],
+    scorecardFailureSignals: [{ key: "publish_stalled", label: "发布卡点" }],
     notes: [],
     descriptorSnapshot: {
       deliveryContract: "project_pack",
@@ -72,12 +68,8 @@ function createDetailView(): SceneAppRunDetailViewModel {
       { key: "brief", label: "任务简报" },
       { key: "storyboard", label: "分镜 / 线框图" },
     ],
-    deliveryCompletedParts: [
-      { key: "brief", label: "任务简报" },
-    ],
-    deliveryMissingParts: [
-      { key: "review_note", label: "复核意见" },
-    ],
+    deliveryCompletedParts: [{ key: "brief", label: "任务简报" }],
+    deliveryMissingParts: [{ key: "review_note", label: "复核意见" }],
     deliveryPartCoverageKnown: true,
     deliveryViewerLabel: "结果包查看",
     packCompletionStrategyLabel: "按必含部件判断整包完成度",

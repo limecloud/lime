@@ -11,7 +11,10 @@ function resolveSceneExecutionKind(
   bindingProfile: BaseSetupBindingProfile,
   projection: BaseSetupCatalogProjection,
 ): SkillCatalogSceneEntry["executionKind"] {
-  if (projection.siteCapabilityBinding || bindingProfile.bindingFamily === "browser_assist") {
+  if (
+    projection.siteCapabilityBinding ||
+    bindingProfile.bindingFamily === "browser_assist"
+  ) {
     return "site_adapter";
   }
 
@@ -27,9 +30,7 @@ function resolveSceneExecutionKind(
   }
 }
 
-function buildLinkedSkillIndex(
-  items: ServiceSkillItem[],
-): {
+function buildLinkedSkillIndex(items: ServiceSkillItem[]): {
   byId: Map<string, string>;
   bySkillKey: Map<string, string>;
 } {
@@ -78,7 +79,8 @@ function compileSceneProjectionEntry(params: {
     sceneKey,
     commandPrefix,
     aliases:
-      projection.sceneBinding?.aliases && projection.sceneBinding.aliases.length > 0
+      projection.sceneBinding?.aliases &&
+      projection.sceneBinding.aliases.length > 0
         ? [...projection.sceneBinding.aliases]
         : projection.aliases
           ? [...projection.aliases]

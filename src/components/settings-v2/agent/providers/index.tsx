@@ -1,39 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Bot,
   CheckCircle2,
   Cloud,
-  Copy,
-  CreditCard,
   ExternalLink,
   KeyRound,
-  Layers3,
   LoaderCircle,
-  LogIn,
-  ReceiptText,
   RefreshCw,
-  Search,
-  WalletCards,
 } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { ApiKeyProviderSection } from "@/components/api-key-provider";
 import { openUrl } from "@/components/openclaw/openUrl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  formatOemCloudAccessModeLabel,
-  formatOemCloudDateTime,
-  formatOemCloudModelsSourceLabel,
-  formatOemCloudOfferStateLabel,
-  useOemCloudAccess,
-} from "@/hooks/useOemCloudAccess";
-import type {
-  OemCloudCurrentSession,
-  OemCloudProviderOfferDetail,
-  OemCloudProviderModelItem,
-  OemCloudProviderOfferState,
-  OemCloudProviderOfferSummary,
-} from "@/lib/api/oemCloudControlPlane";
+import { useOemCloudAccess } from "@/hooks/useOemCloudAccess";
 import {
   getCompanionPetStatus,
   launchCompanionPet,
@@ -47,8 +27,6 @@ import {
   loadCompanionProviderOverview,
   type CompanionProviderOverviewPayload,
 } from "@/lib/provider/companionProviderOverview";
-import { createOemCloudModelMetadata } from "@/lib/model/oemCloudModelMetadata";
-import { buildOemCloudLoginUrl } from "@/lib/oemCloudLoginLauncher";
 import type { SettingsProviderView } from "@/types/page";
 import { cn } from "@/lib/utils";
 import { CompanionCapabilityPreferencesCard } from "./CompanionCapabilityPreferencesCard";
@@ -62,34 +40,6 @@ const ACTIVE_WORKSPACE_TRIGGER_CLASS =
 const DEFAULT_COMPANION_ENDPOINT = "ws://127.0.0.1:45554/companion/pet";
 const LIME_PET_RELEASES_URL =
   "https://github.com/limecloud/lime-pet/releases/latest";
-
-function SessionValueCard(props: {
-  label: string;
-  value: string;
-  hint: string;
-  icon?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[16px] border border-slate-200/80 bg-slate-50/80 px-3.5 py-3">
-      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
-          {props.icon ? (
-            <span className="text-slate-400">{props.icon}</span>
-          ) : null}
-          <span>{props.label}</span>
-          <WorkbenchInfoTip
-            ariaLabel={`${props.label}说明`}
-            content={props.hint}
-            tone="slate"
-          />
-        </div>
-        <p className="break-all text-sm font-medium text-slate-900 sm:text-right">
-          {props.value}
-        </p>
-      </div>
-    </div>
-  );
-}
 
 function NoticeBar(props: { tone: "error" | "success"; message: string }) {
   return (
@@ -107,136 +57,6 @@ function NoticeBar(props: { tone: "error" | "success"; message: string }) {
         <AlertCircle className="h-4 w-4 flex-shrink-0" />
       )}
       <span>{props.message}</span>
-    </div>
-  );
-}
-
-function CloudCommerceStatusBar(props: {
-  readiness: ReturnType<typeof useOemCloudAccess>["cloudReadiness"];
-  pendingPayment: ReturnType<typeof useOemCloudAccess>["pendingPayment"];
-  paymentWatcher: ReturnType<typeof useOemCloudAccess>["paymentWatcher"];
-  onRefresh: () => void;
-  onCreateKey: () => void;
-  onOpenPayment?: () => void;
-  creatingKey: boolean;
-  refreshing: boolean;
-}) {
-  const { readiness, pendingPayment, paymentWatcher } = props;
-  const needsAttention = Boolean(
-    readiness &&
-    (readiness.status !== "ready" || pendingPayment || paymentWatcher),
-  );
-
-  if (!needsAttention) {
-    return null;
-  }
-
-  const isPendingPayment = readiness?.status === "payment_pending";
-  const isMissingKey = readiness?.status === "no_api_key";
-  const canOpenPayment = Boolean(
-    pendingPayment?.paymentReference?.trim() &&
-    /^https?:\/\//i.test(pendingPayment.paymentReference),
-  );
-  const title = pendingPayment
-    ? `待支付：${pendingPayment.title || pendingPayment.orderId}`
-    : readiness?.title || "云端状态需要处理";
-  const description = pendingPayment
-    ? `${formatMoneyCents(pendingPayment.amountCents)} · ${pendingPayment.paymentChannel || "支付渠道"}`
-    : readiness?.description || readiness?.nextAction || "刷新后同步最新状态。";
-  const actionLabel = canOpenPayment
-    ? "继续支付"
-    : isMissingKey
-      ? "创建 API Key"
-      : isPendingPayment
-        ? "刷新支付状态"
-        : "刷新状态";
-  const action = canOpenPayment
-    ? props.onOpenPayment
-    : isMissingKey
-      ? props.onCreateKey
-      : props.onRefresh;
-
-  return (
-    <article
-      className={cn(
-        "rounded-[22px] border px-4 py-3 shadow-sm shadow-slate-950/5",
-        isPendingPayment || pendingPayment
-          ? "border-amber-200 bg-amber-50 text-amber-800"
-          : "border-slate-200 bg-white text-slate-700",
-      )}
-      data-testid="cloud-commerce-status-bar"
-    >
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <InfoPill
-              label={isPendingPayment || pendingPayment ? "待确认" : "需要处理"}
-              tone={isPendingPayment || pendingPayment ? "amber" : "slate"}
-            />
-            <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-          </div>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
-            {paymentWatcher
-              ? `${paymentWatcher.title} · ${paymentWatcher.message || "正在确认支付状态"}`
-              : description}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={action}
-          disabled={props.creatingKey || props.refreshing || !action}
-          className={cn(
-            canOpenPayment || isMissingKey
-              ? PRIMARY_ACTION_BUTTON_CLASS
-              : "inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60",
-          )}
-        >
-          {props.creatingKey || props.refreshing ? (
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-          ) : canOpenPayment ? (
-            <ExternalLink className="h-4 w-4" />
-          ) : isMissingKey ? (
-            <KeyRound className="h-4 w-4" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          {actionLabel}
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function SdkSnippetCard(props: {
-  title: string;
-  description?: string;
-  lines: string[];
-}) {
-  const snippet = props.lines.join("\n");
-
-  return (
-    <div className="rounded-[18px] border border-slate-200/80 bg-slate-950 p-4 text-slate-100">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-slate-200">{props.title}</p>
-          {props.description ? (
-            <p className="mt-1 text-[11px] leading-5 text-slate-400">
-              {props.description}
-            </p>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          onClick={() => copyTextToClipboard(snippet)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
-        >
-          <Copy className="h-3 w-3" />
-          复制
-        </button>
-      </div>
-      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all text-xs leading-5 text-slate-100">
-        {snippet}
-      </pre>
     </div>
   );
 }
@@ -259,245 +79,6 @@ function InfoPill(props: {
       {props.label}
     </span>
   );
-}
-
-function formatCreditAmount(value?: number | null): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "未配置";
-  }
-
-  return new Intl.NumberFormat("zh-CN").format(value);
-}
-
-function formatMoneyCents(value?: number | null, currency = "CNY"): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "未配置";
-  }
-
-  return new Intl.NumberFormat("zh-CN", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: value % 100 === 0 ? 0 : 2,
-  }).format(value / 100);
-}
-
-function formatSubscriptionStatus(value?: string): string {
-  switch (value) {
-    case "trial":
-      return "试用中";
-    case "active":
-      return "生效中";
-    case "past_due":
-      return "待续费";
-    case "canceled":
-      return "已取消";
-    default:
-      return value || "未开通";
-  }
-}
-
-function buildUsagePercent(used: number, limit: number): number {
-  if (!Number.isFinite(used) || !Number.isFinite(limit) || limit <= 0) {
-    return 0;
-  }
-
-  return Math.min(100, Math.max(0, Math.round((used / limit) * 100)));
-}
-
-function formatUsageRatio(used: number, limit: number): string {
-  if (limit <= 0) {
-    return formatCreditAmount(used);
-  }
-
-  return `${formatCreditAmount(used)} / ${formatCreditAmount(limit)}`;
-}
-
-function formatSubscriptionPeriod(
-  start?: string,
-  end?: string,
-  fallback?: string,
-): string {
-  if (start && end) {
-    return `${formatOemCloudDateTime(start)} - ${formatOemCloudDateTime(end)}`;
-  }
-  if (end) {
-    return `有效至 ${formatOemCloudDateTime(end)}`;
-  }
-  if (fallback) {
-    return fallback;
-  }
-  return "以服务端权益为准";
-}
-
-function copyTextToClipboard(value: string) {
-  if (typeof navigator === "undefined" || !navigator.clipboard) {
-    return;
-  }
-
-  void navigator.clipboard.writeText(value);
-}
-
-function formatOemModelTaskFamilyLabel(value: string): string {
-  switch (value) {
-    case "chat":
-      return "对话";
-    case "reasoning":
-      return "思考";
-    case "vision_understanding":
-      return "视觉理解";
-    case "image_generation":
-      return "图片生成";
-    case "image_edit":
-      return "图片编辑";
-    case "speech_to_text":
-      return "语音转写";
-    case "text_to_speech":
-      return "语音合成";
-    case "embedding":
-      return "Embedding";
-    case "rerank":
-      return "检索重排";
-    case "moderation":
-      return "审核";
-    default:
-      return value;
-  }
-}
-
-function formatOemModelDeploymentLabel(value?: string | null): string {
-  switch (value) {
-    case "local":
-      return "本地";
-    case "user_cloud":
-      return "云端";
-    case "oem_cloud":
-    default:
-      return "Lime 云端";
-  }
-}
-
-function resolveSdkModelId(models: OemCloudProviderModelItem[]) {
-  const explicitAnthropicModel = models.find((model) => {
-    const searchableText = [
-      model.modelId,
-      model.displayName,
-      model.description,
-      ...(model.abilities ?? []),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return (
-      searchableText.includes("anthropic") ||
-      searchableText.includes("claude") ||
-      searchableText.includes("coding plan")
-    );
-  });
-
-  return (
-    explicitAnthropicModel?.modelId ||
-    models.find((model) => model.recommended)?.modelId ||
-    models[0]?.modelId ||
-    ""
-  );
-}
-
-type GatewaySnippetOptions = {
-  tenantId: string;
-  authorizationHeader?: string;
-  authorizationScheme?: string;
-  tenantHeader?: string;
-};
-
-function resolveGatewaySnippetOptions(
-  options: GatewaySnippetOptions,
-): Required<GatewaySnippetOptions> {
-  return {
-    tenantId: options.tenantId || "<tenant-id>",
-    authorizationHeader: options.authorizationHeader || "Authorization",
-    authorizationScheme: options.authorizationScheme || "Bearer",
-    tenantHeader: options.tenantHeader || "X-Lime-Tenant-ID",
-  };
-}
-
-function buildSdkDefaultHeaders(options: GatewaySnippetOptions) {
-  const resolved = resolveGatewaySnippetOptions(options);
-  const lines = [
-    "  defaultHeaders: {",
-    `    ${JSON.stringify(resolved.tenantHeader)}: ${JSON.stringify(resolved.tenantId)},`,
-  ];
-  if (
-    resolved.authorizationHeader !== "Authorization" ||
-    resolved.authorizationScheme !== "Bearer"
-  ) {
-    lines.push(
-      `    ${JSON.stringify(resolved.authorizationHeader)}: \`${resolved.authorizationScheme} ${"${process.env.LIME_API_KEY}"}\`,`,
-    );
-  }
-  lines.push("  },");
-  return lines;
-}
-
-function buildOpenAISdkSnippet(
-  baseUrl: string,
-  modelId: string,
-  options: GatewaySnippetOptions,
-) {
-  return [
-    'import OpenAI from "openai";',
-    "",
-    "const client = new OpenAI({",
-    "  apiKey: process.env.LIME_API_KEY,",
-    `  baseURL: "${baseUrl}",`,
-    ...buildSdkDefaultHeaders(options),
-    "});",
-    "",
-    "const completion = await client.chat.completions.create({",
-    `  model: "${modelId}",`,
-    '  messages: [{ role: "user", content: "用一句话介绍 Lime Cloud" }],',
-    "});",
-  ];
-}
-
-function buildAnthropicSdkSnippet(
-  baseUrl: string,
-  modelId: string,
-  options: GatewaySnippetOptions,
-) {
-  return [
-    'import Anthropic from "@anthropic-ai/sdk";',
-    "",
-    "const anthropic = new Anthropic({",
-    "  apiKey: process.env.LIME_API_KEY,",
-    `  baseURL: "${baseUrl}",`,
-    ...buildSdkDefaultHeaders(options),
-    "});",
-    "",
-    "const message = await anthropic.messages.create({",
-    `  model: "${modelId}",`,
-    "  max_tokens: 1024,",
-    '  messages: [{ role: "user", content: "帮我规划一个小功能实现步骤" }],',
-    "});",
-  ];
-}
-
-function buildCurlSmokeSnippet(
-  baseUrl: string,
-  modelId: string,
-  options: GatewaySnippetOptions,
-) {
-  const resolved = resolveGatewaySnippetOptions(options);
-  return [
-    `curl "${baseUrl.replace(/\/$/, "")}/chat/completions" \\`,
-    `  -H "${resolved.authorizationHeader}: ${resolved.authorizationScheme} $LIME_API_KEY" \\`,
-    `  -H "${resolved.tenantHeader}: ${resolved.tenantId}" \\`,
-    '  -H "Content-Type: application/json" \\',
-    "  -d '{",
-    `    "model": "${modelId}",`,
-    '    "messages": [{"role": "user", "content": "ping"}]',
-    "  }'",
-  ];
 }
 
 function RuntimeSummaryItem(props: {
@@ -1310,68 +891,6 @@ function CompanionProviderBridgeCard() {
   );
 }
 
-function resolveOfferTone(state: string): "slate" | "emerald" | "amber" {
-  switch (state) {
-    case "available_ready":
-      return "emerald";
-    case "available_quota_low":
-    case "available_subscribe_required":
-      return "amber";
-    default:
-      return "slate";
-  }
-}
-
-type DisplayableOffer =
-  | OemCloudProviderOfferSummary
-  | OemCloudProviderOfferDetail;
-
-function resolveDisplayOfferState(
-  session: OemCloudCurrentSession | null,
-  offer?: DisplayableOffer | null,
-): OemCloudProviderOfferState | undefined {
-  if (!offer) {
-    return undefined;
-  }
-
-  if (!session || offer.state !== "available_logged_out") {
-    return offer.state;
-  }
-
-  const accessMode =
-    "access" in offer ? offer.access.accessMode : offer.effectiveAccessMode;
-  const hasSessionBackedAccess =
-    accessMode === "session" || accessMode === "hub_token";
-  const hasLoggedInEvidence =
-    offer.loggedIn ||
-    offer.accountStatus === "logged_in" ||
-    ("access" in offer && Boolean(offer.access.sessionTokenRef));
-
-  if (!hasSessionBackedAccess || !hasLoggedInEvidence) {
-    return offer.state;
-  }
-
-  if (offer.accountStatus === "blocked") {
-    return "blocked";
-  }
-  if (
-    offer.subscriptionStatus === "none" ||
-    offer.subscriptionStatus === "expired"
-  ) {
-    return "available_subscribe_required";
-  }
-  if (offer.canInvoke) {
-    if (offer.quotaStatus === "low") {
-      return "available_quota_low";
-    }
-    return "available_ready";
-  }
-  if (offer.quotaStatus === "exhausted") {
-    return "blocked";
-  }
-  return "available_subscribe_required";
-}
-
 type ProviderWorkspaceView = SettingsProviderView;
 
 const PROVIDER_WORKSPACE_VIEW_META: Array<{
@@ -1400,14 +919,6 @@ const PROVIDER_WORKSPACE_VIEW_META: Array<{
   },
 ];
 
-function isLimeBrandedHub(hubProviderName: string | null | undefined): boolean {
-  if (typeof hubProviderName !== "string") {
-    return false;
-  }
-
-  return hubProviderName.trim().toLowerCase().includes("lime");
-}
-
 export interface CloudProviderSettingsProps {
   initialView?: ProviderWorkspaceView;
 }
@@ -1418,61 +929,25 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     runtime,
     hubProviderName,
     session,
-    offers,
-    preference,
-    cloudActivation,
-    cloudReadiness,
-    pendingPayment,
-    subscription,
-    creditAccount,
-    usageDashboard,
-    billingDashboard,
-    accessTokens,
-    activeAccessToken,
-    lastIssuedRawToken,
-    paymentWatcher,
-    commerceErrorMessage,
-    selectedOffer,
-    selectedModels,
-    defaultCloudOffer,
-    activeCloudOffer,
     initializing,
-    refreshing,
-    loadingCommerce,
-    loadingDetail,
     openingGoogleLogin,
-    savingDefault,
-    managingToken,
     errorMessage,
     infoMessage,
-    defaultProviderSummary,
-    handleRefresh,
     handleGoogleLogin,
-    openOfferDetail,
-    handleSetDefault,
-    handleCreateAccessToken,
-    handleRotateAccessToken,
-    handleRevokeAccessToken,
-    handleDismissIssuedToken,
     openUserCenter,
   } = useOemCloudAccess();
 
   const isOemRuntime = Boolean(runtime);
-  const isLimeBrand = isLimeBrandedHub(hubProviderName);
   const cloudBrandLabel = hubProviderName?.trim() || "Lime 云端";
   const showProviderSettingsEntry = true;
   const workspaceViews = useMemo(() => {
     const orderedViews: ProviderWorkspaceView[] = [];
 
-    if (isOemRuntime && !isLimeBrand) {
-      orderedViews.push("cloud");
-    }
-
     if (showProviderSettingsEntry) {
       orderedViews.push("settings");
     }
 
-    if (!orderedViews.includes("cloud")) {
+    if (isOemRuntime) {
       orderedViews.push("cloud");
     }
 
@@ -1484,15 +959,86 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       (view) =>
         PROVIDER_WORKSPACE_VIEW_META.find((item) => item.value === view)!,
     );
-  }, [isLimeBrand, isOemRuntime, showProviderSettingsEntry]);
-  const defaultView =
-    initialView && workspaceViews.some((item) => item.value === initialView)
-      ? initialView
-      : (workspaceViews[0]?.value ?? "cloud");
+  }, [isOemRuntime, showProviderSettingsEntry]);
+  const defaultView = useMemo<ProviderWorkspaceView>(() => {
+    if (
+      initialView &&
+      initialView !== "cloud" &&
+      workspaceViews.some((item) => item.value === initialView)
+    ) {
+      return initialView;
+    }
+
+    return (
+      workspaceViews.find((item) => item.value === "settings")?.value ??
+      workspaceViews.find((item) => item.value !== "cloud")?.value ??
+      workspaceViews[0]?.value ??
+      "settings"
+    );
+  }, [initialView, workspaceViews]);
   const [activeView, setActiveView] =
     useState<ProviderWorkspaceView>(defaultView);
-  const [modelSearch, setModelSearch] = useState("");
-  const cloudLoginAutoOpenKeyRef = useRef<string | null>(null);
+  const cloudUserCenterAutoOpenKeyRef = useRef<string | null>(null);
+  const [cloudOpenError, setCloudOpenError] = useState<string | null>(null);
+  const [cloudOpenInfo, setCloudOpenInfo] = useState<string | null>(null);
+
+  const handleOpenCloudUserCenter = useCallback(
+    async (path = "/welcome") => {
+      if (!runtime) {
+        setCloudOpenInfo(null);
+        setCloudOpenError("当前版本未配置云端用户中心入口。");
+        return;
+      }
+
+      if (initializing || openingGoogleLogin) {
+        return;
+      }
+
+      setCloudOpenError(null);
+      setCloudOpenInfo(null);
+
+      try {
+        if (!session) {
+          await handleGoogleLogin();
+          setCloudOpenInfo(
+            `已打开 ${cloudBrandLabel} 登录页，请在浏览器完成授权。`,
+          );
+          return;
+        }
+
+        await openUserCenter(path);
+        setCloudOpenInfo(`已在浏览器打开 ${cloudBrandLabel} 用户中心。`);
+      } catch (error) {
+        const detail =
+          error instanceof Error && error.message.trim()
+            ? error.message.trim()
+            : "请稍后重试，或检查系统浏览器是否可用。";
+        setCloudOpenError(`打开 ${cloudBrandLabel} 用户中心失败：${detail}`);
+      }
+    },
+    [
+      cloudBrandLabel,
+      handleGoogleLogin,
+      initializing,
+      openingGoogleLogin,
+      openUserCenter,
+      runtime,
+      session,
+    ],
+  );
+
+  const handleWorkspaceViewChange = useCallback(
+    (value: string) => {
+      const nextView = value as ProviderWorkspaceView;
+      if (nextView === "cloud") {
+        void handleOpenCloudUserCenter("/welcome");
+        return;
+      }
+
+      setActiveView(nextView);
+    },
+    [handleOpenCloudUserCenter],
+  );
 
   useEffect(() => {
     if (!workspaceViews.some((item) => item.value === activeView)) {
@@ -1505,823 +1051,46 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
       return;
     }
 
+    if (initialView === "cloud") {
+      setActiveView(defaultView);
+      return;
+    }
+
     if (workspaceViews.some((item) => item.value === initialView)) {
       setActiveView(initialView);
     }
-  }, [initialView, workspaceViews]);
+  }, [defaultView, initialView, workspaceViews]);
 
   useEffect(() => {
     if (
-      activeView !== "cloud" ||
+      initialView !== "cloud" ||
       !runtime ||
-      session ||
       initializing ||
       openingGoogleLogin
     ) {
       return;
     }
 
-    const autoOpenKey = `${runtime.baseUrl}::${runtime.tenantId}`;
-    if (cloudLoginAutoOpenKeyRef.current === autoOpenKey) {
+    const sessionKey = session?.session.id ?? "anonymous";
+    const autoOpenKey = `${runtime.baseUrl}::${runtime.tenantId}::${sessionKey}`;
+    if (cloudUserCenterAutoOpenKeyRef.current === autoOpenKey) {
       return;
     }
 
-    cloudLoginAutoOpenKeyRef.current = autoOpenKey;
-    void handleGoogleLogin();
+    cloudUserCenterAutoOpenKeyRef.current = autoOpenKey;
+    void handleOpenCloudUserCenter("/welcome");
   }, [
-    activeView,
-    handleGoogleLogin,
+    handleOpenCloudUserCenter,
+    initialView,
     initializing,
     openingGoogleLogin,
     runtime,
     session,
   ]);
 
-  useEffect(() => {
-    if (!session || selectedOffer || loadingDetail || offers.length === 0) {
-      return;
-    }
-
-    const initialOffer = defaultCloudOffer ?? offers[0];
-    if (initialOffer) {
-      void openOfferDetail(initialOffer.providerKey);
-    }
-  }, [
-    defaultCloudOffer,
-    loadingDetail,
-    offers,
-    openOfferDetail,
-    selectedOffer,
-    session,
-  ]);
-
-  useEffect(() => {
-    setModelSearch("");
-  }, [selectedOffer?.providerKey]);
-
-  const selectedOfferKey =
-    selectedOffer?.providerKey ?? defaultCloudOffer?.providerKey;
-  const currentPlanName =
-    subscription?.planName ||
-    billingDashboard?.currentPlan?.name ||
-    activeCloudOffer?.currentPlan ||
-    "未开通";
-  const monthlyUsageSummary = usageDashboard?.monthlySummary;
-  const monthlyUsedCredits =
-    (monthlyUsageSummary?.freeCreditsUsed ?? 0) +
-    (monthlyUsageSummary?.topupCreditsUsed ?? 0) +
-    (monthlyUsageSummary?.subscriptionCreditsUsed ?? 0);
-  const monthlyLimitCredits =
-    (monthlyUsageSummary?.freeCreditsLimit ?? 0) +
-    (monthlyUsageSummary?.topupCreditsLimit ?? 0) +
-    (monthlyUsageSummary?.subscriptionCreditsLimit ?? 0);
-  const llmBaseUrl =
-    cloudActivation?.llmBaseUrl ||
-    cloudActivation?.gateway.llmBaseUrl ||
-    cloudActivation?.gateway.basePath ||
-    (loadingCommerce ? "同步中" : "未配置");
-  const openAIBaseUrl =
-    cloudActivation?.openAIBaseUrl ||
-    cloudActivation?.gateway.openAIBaseUrl ||
-    "";
-  const anthropicBaseUrl =
-    cloudActivation?.anthropicBaseUrl ||
-    cloudActivation?.gateway.anthropicBaseUrl ||
-    "";
-  const gatewaySnippetOptions = useMemo<GatewaySnippetOptions>(
-    () => ({
-      tenantId: session?.tenant.id ?? runtime?.tenantId ?? "",
-      authorizationHeader: cloudActivation?.gateway.authorizationHeader,
-      authorizationScheme: cloudActivation?.gateway.authorizationScheme,
-      tenantHeader: cloudActivation?.gateway.tenantHeader,
-    }),
-    [
-      cloudActivation?.gateway.authorizationHeader,
-      cloudActivation?.gateway.authorizationScheme,
-      cloudActivation?.gateway.tenantHeader,
-      runtime?.tenantId,
-      session?.tenant.id,
-    ],
+  const localProviderContent = (
+    <ApiKeyProviderSection className="min-h-[640px]" />
   );
-  const monthlyUsagePercent = buildUsagePercent(
-    monthlyUsedCredits,
-    monthlyLimitCredits,
-  );
-  const pendingOrderCount =
-    billingDashboard?.orders.filter((order) => order.status === "pending")
-      .length ?? (pendingPayment ? 1 : 0);
-  const subscriptionPeriodLabel = formatSubscriptionPeriod(
-    subscription?.currentPeriodStart ||
-      billingDashboard?.billingSummary.currentPeriodStart,
-    subscription?.currentPeriodEnd ||
-      billingDashboard?.billingSummary.currentPeriodEnd,
-    billingDashboard?.billingSummary.renewalAt
-      ? `下次续费 ${formatOemCloudDateTime(billingDashboard.billingSummary.renewalAt)}`
-      : undefined,
-  );
-  const accountIdentityLabel =
-    session?.user.displayName ||
-    session?.user.email ||
-    session?.user.username ||
-    session?.user.id ||
-    "已登录";
-  const pendingPaymentReference = pendingPayment?.paymentReference;
-  const sdkModelId = resolveSdkModelId(selectedModels);
-  const canRenderSdkSnippets = Boolean(sdkModelId && openAIBaseUrl);
-  const canRenderAnthropicSnippet = Boolean(sdkModelId && anthropicBaseUrl);
-  const cloudLoginUrl = runtime ? buildOemCloudLoginUrl(runtime) : "";
-  const filteredSelectedModels = useMemo(() => {
-    const keyword = modelSearch.trim().toLowerCase();
-    if (!keyword) {
-      return selectedModels;
-    }
-
-    return selectedModels.filter((model) =>
-      [
-        model.displayName,
-        model.modelId,
-        model.description,
-        ...(model.abilities ?? []),
-        ...(model.task_families ?? []),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword),
-    );
-  }, [modelSearch, selectedModels]);
-
-  const cloudDirectoryContent = !runtime ? (
-    <section className="space-y-4">
-      <article className={SURFACE_CLASS_NAME}>
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold text-slate-900">
-            当前版本未配置云端服务
-          </h3>
-          <p className="text-sm leading-6 text-slate-600">
-            本地功能可直接使用；连接入口由品牌服务下发后显示。
-          </p>
-        </div>
-      </article>
-    </section>
-  ) : initializing ? (
-    <article className={SURFACE_CLASS_NAME}>
-      <div className="flex items-center gap-3 text-sm text-slate-600">
-        <LoaderCircle className="h-4 w-4 animate-spin" />
-        正在恢复个人中心会话...
-      </div>
-    </article>
-  ) : !session ? (
-    <section className="space-y-4" data-testid="cloud-login-redirect-state">
-      <article className={SURFACE_CLASS_NAME}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold text-slate-900">
-              {errorMessage
-                ? `${cloudBrandLabel} 登录页未打开`
-                : `正在打开 ${cloudBrandLabel} 登录`}
-            </h3>
-            <p className="text-sm leading-6 text-slate-600">
-              {errorMessage
-                ? "如果浏览器没有弹出，请重新打开；仍失败时可复制链接到浏览器。"
-                : "登录完成后自动同步套餐、积分、API Key 和模型目录。"}
-            </p>
-            {errorMessage && cloudLoginUrl ? (
-              <div className="flex flex-col gap-2 rounded-[16px] border border-rose-100 bg-rose-50/70 p-3 text-sm text-rose-700 sm:flex-row sm:items-center sm:justify-between">
-                <span className="min-w-0 break-all">{cloudLoginUrl}</span>
-                <button
-                  type="button"
-                  onClick={() => copyTextToClipboard(cloudLoginUrl)}
-                  className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  复制链接
-                </button>
-              </div>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleGoogleLogin()}
-            disabled={openingGoogleLogin}
-            className={PRIMARY_ACTION_BUTTON_CLASS}
-            data-testid="open-cloud-login"
-          >
-            <LogIn className="h-4 w-4" />
-            {openingGoogleLogin ? "正在打开登录页..." : "重新打开登录页"}
-          </button>
-        </div>
-      </article>
-    </section>
-  ) : (
-    <section className="space-y-4" data-testid="oem-cloud-commerce-page">
-      {commerceErrorMessage ? (
-        <NoticeBar tone="error" message={commerceErrorMessage} />
-      ) : null}
-
-      <article
-        className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm shadow-slate-950/5"
-        data-testid="cloud-plan-summary-card"
-      >
-        <div className="bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,252,249,0.96)_48%,rgba(241,246,255,0.94)_100%)] p-5">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0 space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <InfoPill label={cloudBrandLabel} tone="emerald" />
-                {loadingCommerce ? (
-                  <InfoPill label="同步中" tone="amber" />
-                ) : null}
-                <InfoPill
-                  label={formatSubscriptionStatus(subscription?.status)}
-                  tone={subscription?.status === "active" ? "emerald" : "slate"}
-                />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-500">当前套餐</p>
-                <h3 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
-                  {currentPlanName}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {subscriptionPeriodLabel} · {accountIdentityLabel}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void handleRefresh()}
-                disabled={refreshing}
-                className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60"
-                data-testid="oem-cloud-refresh"
-              >
-                <RefreshCw
-                  className={cn("h-4 w-4", refreshing && "animate-spin")}
-                />
-                刷新
-              </button>
-              <button
-                type="button"
-                onClick={() => void openUserCenter("")}
-                className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-              >
-                <ExternalLink className="h-4 w-4" />
-                用户中心
-              </button>
-              <button
-                type="button"
-                onClick={() => void openUserCenter("/pricing")}
-                className={PRIMARY_ACTION_BUTTON_CLASS}
-              >
-                <CreditCard className="h-4 w-4" />
-                升级套餐
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))]">
-            <div className="rounded-[20px] border border-white bg-white px-4 py-3 shadow-sm shadow-slate-950/5">
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="font-medium text-slate-600">本月已用</span>
-                <span className="font-semibold text-slate-950">
-                  {monthlyUsagePercent}%
-                </span>
-              </div>
-              <div className="mt-3 h-2 rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-emerald-500 transition-all"
-                  style={{ width: `${monthlyUsagePercent}%` }}
-                />
-              </div>
-              <p className="mt-2 text-sm text-slate-600">
-                {formatUsageRatio(monthlyUsedCredits, monthlyLimitCredits)} 积分
-              </p>
-            </div>
-            <SessionValueCard
-              label="可用积分"
-              value={formatCreditAmount(creditAccount?.balance)}
-              hint="来自服务端积分账户余额"
-              icon={<WalletCards className="h-3.5 w-3.5" />}
-            />
-            <SessionValueCard
-              label="待支付"
-              value={`${pendingOrderCount} 笔`}
-              hint="支付与账单明细在用户中心网页完成"
-              icon={<ReceiptText className="h-3.5 w-3.5" />}
-            />
-          </div>
-        </div>
-      </article>
-
-      <CloudCommerceStatusBar
-        readiness={cloudReadiness}
-        pendingPayment={pendingPayment}
-        paymentWatcher={paymentWatcher}
-        onRefresh={() => void handleRefresh()}
-        onCreateKey={() => void handleCreateAccessToken()}
-        onOpenPayment={() => {
-          if (pendingPaymentReference) {
-            void openUrl(pendingPaymentReference);
-          }
-        }}
-        creatingKey={managingToken === "create"}
-        refreshing={refreshing}
-      />
-
-      <article
-        className={SURFACE_CLASS_NAME}
-        data-testid="cloud-commerce-web-entry-card"
-      >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h3 className="text-base font-semibold text-slate-950">云端管理</h3>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              套餐购买、支付、账单和用量明细在用户中心网页完成，客户端只同步关键状态。
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void openUserCenter("")}
-            className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-          >
-            <ExternalLink className="h-4 w-4" />
-            打开用户中心
-          </button>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              key: "plans",
-              title: "套餐与价格",
-              description: "购买、升级和计费规则",
-              meta: currentPlanName,
-              path: "/pricing",
-              action: "打开套餐与价格",
-              icon: <CreditCard className="h-4 w-4" />,
-              primary: true,
-            },
-            {
-              key: "usage",
-              title: "用量详情",
-              description: "调用记录和额度消耗",
-              meta: `${monthlyUsagePercent}% 本月已用`,
-              path: "/billing?tab=usage",
-              action: "查看用量详情",
-              icon: <Layers3 className="h-4 w-4" />,
-              primary: false,
-            },
-            {
-              key: "billing",
-              title: "账单管理",
-              description: "订单、续费和待支付",
-              meta: `${pendingOrderCount} 笔待支付`,
-              path: "/billing?tab=billing",
-              action: "查看账单管理",
-              icon: <ReceiptText className="h-4 w-4" />,
-              primary: false,
-            },
-            {
-              key: "credits",
-              title: "积分充值",
-              description: "余额、充值包和流水",
-              meta: `${formatCreditAmount(creditAccount?.balance)} 积分`,
-              path: "/credits",
-              action: "管理积分",
-              icon: <WalletCards className="h-4 w-4" />,
-              primary: false,
-            },
-          ].map((item) => (
-            <div
-              key={item.key}
-              className="flex min-h-[168px] flex-col justify-between rounded-[22px] border border-slate-200/80 bg-slate-50 px-4 py-4"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-[14px] border border-slate-200 bg-white text-slate-600">
-                    {item.icon}
-                  </span>
-                  <InfoPill
-                    label={item.meta}
-                    tone={item.primary ? "emerald" : "slate"}
-                  />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-950">
-                    {item.title}
-                  </h4>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    {item.description}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => void openUserCenter(item.path)}
-                className={cn(
-                  "mt-4 inline-flex items-center justify-center gap-2 rounded-[15px] px-3 py-2 text-xs font-medium transition",
-                  item.primary
-                    ? "border border-slate-950 bg-slate-950 text-white hover:bg-slate-800"
-                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-                )}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                {item.action}
-              </button>
-            </div>
-          ))}
-        </div>
-      </article>
-
-      <details
-        className={SURFACE_CLASS_NAME}
-        data-testid="oem-cloud-api-key-section"
-      >
-        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">
-          API Key 与 SDK
-          <span className="ml-2 text-xs font-normal text-slate-500">
-            {activeAccessToken?.hasActive ? "已就绪" : "未创建"}
-          </span>
-        </summary>
-        <div className="mt-4 space-y-4">
-          {lastIssuedRawToken ? (
-            <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-xs font-medium text-emerald-700">
-                请立即保存，刷新后不会再次显示
-              </p>
-              <code className="mt-2 block break-all rounded-[14px] border border-emerald-200 bg-white px-3 py-2 text-xs text-slate-800">
-                {lastIssuedRawToken}
-              </code>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => copyTextToClipboard(lastIssuedRawToken)}
-                  className="inline-flex items-center gap-2 rounded-[14px] border border-emerald-200 bg-white px-3 py-2 text-xs font-medium text-emerald-700"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  复制 API Key
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDismissIssuedToken()}
-                  className="inline-flex items-center gap-2 rounded-[14px] border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600"
-                >
-                  我已保存
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {activeAccessToken?.hasActive && activeAccessToken.token ? (
-            <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {activeAccessToken.token.name || "Desktop Key"}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {activeAccessToken.token.tokenMasked ||
-                      activeAccessToken.token.tokenPrefix}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={managingToken === activeAccessToken.token.id}
-                    onClick={() =>
-                      void handleRotateAccessToken(activeAccessToken.token!.id)
-                    }
-                    className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-60"
-                  >
-                    {managingToken === activeAccessToken.token.id ? (
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <KeyRound className="h-4 w-4" />
-                    )}
-                    轮换 Key
-                  </button>
-                  <button
-                    type="button"
-                    disabled={managingToken === activeAccessToken.token.id}
-                    onClick={() =>
-                      void handleRevokeAccessToken(activeAccessToken.token!.id)
-                    }
-                    className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-60"
-                  >
-                    撤销 Key
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <SessionValueCard
-              label="Base URL"
-              value={llmBaseUrl}
-              hint="只通过 limecore 统一入口调用，不暴露内部供应层"
-            />
-            <SessionValueCard
-              label="OpenAI URL"
-              value={openAIBaseUrl || "未配置"}
-              hint="OpenAI-compatible SDK 使用的 /v1 入口"
-            />
-            <SessionValueCard
-              label="Anthropic URL"
-              value={anthropicBaseUrl || "未配置"}
-              hint="Anthropic-compatible SDK 使用的根入口"
-            />
-            <SessionValueCard
-              label="Key 数量"
-              value={`${accessTokens.length} 个`}
-              hint="包含活跃和历史 Key"
-            />
-          </div>
-
-          {canRenderSdkSnippets ? (
-            <div className="space-y-3" data-testid="oem-cloud-sdk-section">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="text-sm font-semibold text-slate-900">
-                  SDK 调用
-                </h4>
-                {activeAccessToken?.hasActive ? (
-                  <InfoPill label="API Key 已就绪" tone="emerald" />
-                ) : (
-                  <InfoPill label="先创建 API Key" tone="amber" />
-                )}
-              </div>
-              <div className="grid gap-3 xl:grid-cols-2">
-                <SdkSnippetCard
-                  title="OpenAI SDK"
-                  description="用于 chat.completions 与 OpenAI-compatible 客户端。"
-                  lines={buildOpenAISdkSnippet(
-                    openAIBaseUrl,
-                    sdkModelId,
-                    gatewaySnippetOptions,
-                  )}
-                />
-                {canRenderAnthropicSnippet ? (
-                  <SdkSnippetCard
-                    title="Anthropic SDK"
-                    description="用于 Kimi / GLM / MiniMax / Mimo 等服务端下发的 Anthropic-compatible coding plan。"
-                    lines={buildAnthropicSdkSnippet(
-                      anthropicBaseUrl,
-                      sdkModelId,
-                      gatewaySnippetOptions,
-                    )}
-                  />
-                ) : null}
-              </div>
-              <SdkSnippetCard
-                title="最小 curl 测试"
-                description="只保留最小请求，不生成兜底模型。"
-                lines={buildCurlSmokeSnippet(
-                  openAIBaseUrl,
-                  sdkModelId,
-                  gatewaySnippetOptions,
-                )}
-              />
-            </div>
-          ) : (
-            <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500">
-              服务端尚未下发可用于 SDK 示例的 Base URL 或模型目录。
-            </div>
-          )}
-
-          <button
-            type="button"
-            disabled={managingToken === "create"}
-            onClick={() => void handleCreateAccessToken()}
-            className={cn(PRIMARY_ACTION_BUTTON_CLASS, "w-full")}
-          >
-            {managingToken === "create" ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <KeyRound className="h-4 w-4" />
-            )}
-            创建 API Key
-          </button>
-        </div>
-      </details>
-
-      <details
-        className={SURFACE_CLASS_NAME}
-        data-testid="oem-cloud-model-section"
-      >
-        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">
-          可用模型
-          <span className="ml-2 text-xs font-normal text-slate-500">
-            {defaultProviderSummary || "未设默认来源"}
-          </span>
-        </summary>
-        <div className="mt-4 space-y-4">
-          {offers.length === 0 ? (
-            <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-500">
-              当前租户还没有可用云端来源。请先在后台发布 Offer。
-            </div>
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-              <div className="space-y-2" data-testid="oem-cloud-offer-grid">
-                {offers.map((offer) => {
-                  const isDefaultCloudOffer =
-                    preference?.providerSource === "oem_cloud" &&
-                    preference.providerKey === offer.providerKey;
-                  const isFocused = selectedOfferKey === offer.providerKey;
-                  const displayedOfferState = resolveDisplayOfferState(
-                    session,
-                    offer,
-                  );
-                  return (
-                    <button
-                      key={offer.providerKey}
-                      type="button"
-                      onClick={() => void openOfferDetail(offer.providerKey)}
-                      className={cn(
-                        "w-full rounded-[18px] border px-4 py-3 text-left transition",
-                        isFocused
-                          ? "border-emerald-300 bg-emerald-50/70 shadow-sm shadow-emerald-950/10"
-                          : "border-slate-200 bg-slate-50 hover:bg-white",
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {offer.displayName}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {offer.availableModelCount} 个模型 ·{" "}
-                            {formatOemCloudModelsSourceLabel(
-                              offer.modelsSource,
-                            )}
-                          </p>
-                        </div>
-                        <InfoPill
-                          label={formatOemCloudOfferStateLabel(
-                            displayedOfferState ?? offer.state,
-                          )}
-                          tone={resolveOfferTone(
-                            displayedOfferState ?? offer.state,
-                          )}
-                        />
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {isDefaultCloudOffer ? (
-                          <InfoPill label="默认" tone="emerald" />
-                        ) : null}
-                        <InfoPill
-                          label={formatOemCloudAccessModeLabel(
-                            offer.effectiveAccessMode,
-                          )}
-                        />
-                        {offer.tags?.slice(0, 2).map((tag) => (
-                          <InfoPill
-                            key={`${offer.providerKey}-${tag}`}
-                            label={tag}
-                          />
-                        ))}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="rounded-[20px] border border-slate-200/80 bg-slate-50 p-4">
-                {selectedOffer ? (
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h4 className="text-base font-semibold text-slate-900">
-                          {selectedOffer.displayName}
-                        </h4>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {formatOemCloudAccessModeLabel(
-                            selectedOffer.access.accessMode,
-                          )}{" "}
-                          · {selectedModels.length} 个模型
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleSetDefault(selectedOffer)}
-                        disabled={savingDefault === selectedOffer.providerKey}
-                        className="inline-flex items-center justify-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                      >
-                        {savingDefault === selectedOffer.providerKey ? (
-                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        )}
-                        设为默认
-                      </button>
-                    </div>
-
-                    {selectedModels.length > 0 ? (
-                      <label className="flex items-center gap-2 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-                        <Search className="h-4 w-4 text-slate-400" />
-                        <input
-                          value={modelSearch}
-                          onChange={(event) =>
-                            setModelSearch(event.currentTarget.value)
-                          }
-                          placeholder="筛选模型、协议或能力"
-                          className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                        />
-                        <span className="text-xs text-slate-400">
-                          {filteredSelectedModels.length}/
-                          {selectedModels.length}
-                        </span>
-                      </label>
-                    ) : null}
-
-                    {loadingDetail ? (
-                      <div className="flex items-center gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                        正在加载模型目录...
-                      </div>
-                    ) : filteredSelectedModels.length > 0 ? (
-                      <div className="space-y-2">
-                        {filteredSelectedModels.map((model) => {
-                          const metadata = createOemCloudModelMetadata(model);
-                          const abilityTags = (
-                            metadata.task_families ?? []
-                          ).map(formatOemModelTaskFamilyLabel);
-                          const upstreamMapping =
-                            metadata.alias_source === "oem"
-                              ? metadata.canonical_model_id
-                              : null;
-                          return (
-                            <div
-                              key={model.id}
-                              className="rounded-[16px] border border-slate-200/80 bg-white px-3 py-3"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-900">
-                                    {model.displayName}
-                                  </p>
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    {model.modelId}
-                                  </p>
-                                </div>
-                                {model.recommended ? (
-                                  <InfoPill label="推荐" tone="emerald" />
-                                ) : null}
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                <InfoPill
-                                  label={formatOemModelDeploymentLabel(
-                                    metadata.deployment_source,
-                                  )}
-                                />
-                                {abilityTags.map((tag) => (
-                                  <InfoPill
-                                    key={`${model.id}-${tag}`}
-                                    label={tag}
-                                  />
-                                ))}
-                              </div>
-                              {model.description ? (
-                                <p className="mt-2 text-xs leading-5 text-slate-500">
-                                  {model.description}
-                                </p>
-                              ) : null}
-                              {upstreamMapping ? (
-                                <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                                  实际映射：{model.modelId} → {upstreamMapping}
-                                </p>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="rounded-[18px] border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
-                        {selectedModels.length > 0
-                          ? "没有匹配当前筛选条件的模型。"
-                          : "当前来源还没有下发模型目录。"}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
-                    <Layers3 className="h-8 w-8 text-slate-400" />
-                    <p className="mt-3 text-sm font-medium text-slate-700">
-                      选择云端来源查看模型
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      点击左侧来源后会展开模型、协议能力和默认来源操作。
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </details>
-    </section>
-  );
-
-  const localProviderContent = <ApiKeyProviderSection className="min-h-[640px]" />;
   const companionContent = (
     <div className="space-y-5">
       <CompanionProviderBridgeCard />
@@ -2333,10 +1102,16 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
     <div className="space-y-4">
       {errorMessage ? <NoticeBar tone="error" message={errorMessage} /> : null}
       {infoMessage ? <NoticeBar tone="success" message={infoMessage} /> : null}
+      {cloudOpenError ? (
+        <NoticeBar tone="error" message={cloudOpenError} />
+      ) : null}
+      {cloudOpenInfo ? (
+        <NoticeBar tone="success" message={cloudOpenInfo} />
+      ) : null}
 
       <Tabs
         value={activeView}
-        onValueChange={(value) => setActiveView(value as ProviderWorkspaceView)}
+        onValueChange={handleWorkspaceViewChange}
         className="space-y-4"
       >
         {workspaceViews.length > 1 ? (
@@ -2382,10 +1157,6 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
             {localProviderContent}
           </TabsContent>
         ) : null}
-
-        <TabsContent value="cloud" className="mt-0">
-          {cloudDirectoryContent}
-        </TabsContent>
 
         <TabsContent value="companion" className="mt-0">
           {companionContent}

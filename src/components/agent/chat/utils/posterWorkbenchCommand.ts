@@ -1,7 +1,4 @@
-export type PosterWorkbenchCommandTrigger =
-  | "@海报"
-  | "@poster"
-  | "@Flyer 3";
+export type PosterWorkbenchCommandTrigger = "@海报" | "@poster" | "@Flyer 3";
 
 export interface ParsedPosterWorkbenchCommand {
   rawText: string;
@@ -102,7 +99,10 @@ function stripPromptDecorations(
 ): string {
   return trimDecorations(
     body
-      .replace(/^(生成|制作|设计|做|create|generate|design)(?:\s|$|[:：])*/i, "")
+      .replace(
+        /^(生成|制作|设计|做|create|generate|design)(?:\s|$|[:：])*/i,
+        "",
+      )
       .replace(EXPLICIT_PLATFORM_REGEX, " ")
       .replace(
         platform
@@ -140,10 +140,10 @@ function buildPosterPrompt(input: {
   return fragments.join("，").trim();
 }
 
-function normalizeStyleAndPrompt(input: {
+function normalizeStyleAndPrompt(input: { style?: string; prompt: string }): {
   style?: string;
   prompt: string;
-}): { style?: string; prompt: string } {
+} {
   const normalizedStyle = input.style?.trim();
   const normalizedPrompt = input.prompt.trim();
   if (!normalizedStyle || normalizedPrompt) {

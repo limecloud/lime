@@ -182,8 +182,9 @@ function renderHook(initialProps: HookProps) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  let latestValue: ReturnType<typeof useWorkspaceConversationSceneRuntime> | null =
-    null;
+  let latestValue: ReturnType<
+    typeof useWorkspaceConversationSceneRuntime
+  > | null = null;
 
   function Probe(currentProps: HookProps) {
     latestValue = useWorkspaceConversationSceneRuntime(currentProps);
@@ -257,7 +258,9 @@ describe("useWorkspaceConversationSceneRuntime", () => {
     });
 
     const sceneProps = getRenderedSceneProps(params);
-    expect(sceneProps.canvasWorkbenchLayoutProps.onLayoutModeChange).toBeUndefined();
+    expect(
+      sceneProps.canvasWorkbenchLayoutProps.onLayoutModeChange,
+    ).toBeUndefined();
   });
 
   it("生成场景应继续向页面层透传顶栏上下文变体", () => {

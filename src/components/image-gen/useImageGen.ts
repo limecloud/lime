@@ -2202,8 +2202,8 @@ export function useImageGen(options: UseImageGenOptions = {}) {
     const nextProvider =
       preferredProvider ??
       (allowFallback
-        ? findImageProviderForSelection(availableProviders, "basic") ??
-          availableProviders[0]
+        ? (findImageProviderForSelection(availableProviders, "basic") ??
+          availableProviders[0])
         : null);
 
     if (nextProvider) {

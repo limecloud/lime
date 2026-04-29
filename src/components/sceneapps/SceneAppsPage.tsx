@@ -132,7 +132,8 @@ export function SceneAppsPage({
                       已写启动意图
                     </span>
                   ) : null}
-                  {!runtime.selectedDescriptor && runtime.recentVisits.length > 0 ? (
+                  {!runtime.selectedDescriptor &&
+                  runtime.recentVisits.length > 0 ? (
                     <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
                       最近看过的做法可直接续上
                     </span>
@@ -274,7 +275,9 @@ export function SceneAppsPage({
               <SceneAppDetailPanel
                 detailView={runtime.selectedDetailView}
                 packRuntimeView={runtime.latestPackResultDetailView}
-                packRuntimeLoading={runtime.runsLoading || runtime.selectedRunLoading}
+                packRuntimeLoading={
+                  runtime.runsLoading || runtime.selectedRunLoading
+                }
                 packRuntimeUsesFallback={runtime.latestPackResultUsesFallback}
                 projectId={runtime.selectedProjectId}
                 launchInput={runtime.launchInput}
@@ -300,7 +303,9 @@ export function SceneAppsPage({
               <SceneAppScorecardPanel
                 scorecardView={runtime.scorecardView}
                 packRuntimeView={runtime.latestPackResultDetailView}
-                packRuntimeLoading={runtime.runsLoading || runtime.selectedRunLoading}
+                packRuntimeLoading={
+                  runtime.runsLoading || runtime.selectedRunLoading
+                }
                 packRuntimeUsesFallback={runtime.latestPackResultUsesFallback}
                 loading={runtime.scorecardLoading}
                 error={runtime.scorecardError}
@@ -381,13 +386,18 @@ export function SceneAppsPage({
                   governanceView={runtime.governanceView}
                   loading={runtime.selectedRunLoading}
                   error={runtime.selectedRunError}
-                  latestReviewFeedbackSignal={runtime.latestReviewFeedbackSignal}
-                  onContinueReviewFeedback={runtime.handleContinueReviewFeedback}
+                  latestReviewFeedbackSignal={
+                    runtime.latestReviewFeedbackSignal
+                  }
+                  onContinueReviewFeedback={
+                    runtime.handleContinueReviewFeedback
+                  }
                   humanReviewAvailable={runtime.canOpenSelectedRunHumanReview}
                   humanReviewLoading={runtime.reviewDecisionLoading}
                   quickReviewActions={runtime.quickReviewActions}
                   quickReviewPending={
-                    runtime.reviewDecisionLoading || runtime.reviewDecisionSaving
+                    runtime.reviewDecisionLoading ||
+                    runtime.reviewDecisionSaving
                   }
                   onOpenHumanReview={runtime.handleOpenSelectedRunHumanReview}
                   onApplyQuickReview={runtime.handleApplySelectedRunQuickReview}
@@ -403,8 +413,12 @@ export function SceneAppsPage({
                   runDetailView={runtime.selectedRunDetailView}
                   loading={runtime.selectedRunLoading}
                   error={runtime.selectedRunError}
-                  latestReviewFeedbackSignal={runtime.latestReviewFeedbackSignal}
-                  onContinueReviewFeedback={runtime.handleContinueReviewFeedback}
+                  latestReviewFeedbackSignal={
+                    runtime.latestReviewFeedbackSignal
+                  }
+                  onContinueReviewFeedback={
+                    runtime.handleContinueReviewFeedback
+                  }
                   savedAsInspiration={runtime.selectedRunSavedAsInspiration}
                   onSaveAsInspiration={
                     runtime.handleSaveSelectedRunAsInspiration
@@ -416,7 +430,8 @@ export function SceneAppsPage({
                   humanReviewLoading={runtime.reviewDecisionLoading}
                   quickReviewActions={runtime.quickReviewActions}
                   quickReviewPending={
-                    runtime.reviewDecisionLoading || runtime.reviewDecisionSaving
+                    runtime.reviewDecisionLoading ||
+                    runtime.reviewDecisionSaving
                   }
                   onOpenHumanReview={runtime.handleOpenSelectedRunHumanReview}
                   onApplyQuickReview={runtime.handleApplySelectedRunQuickReview}

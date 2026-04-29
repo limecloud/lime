@@ -87,7 +87,12 @@ function renderPage(options?: {
   section?: "home" | "identity" | "rules" | "experience";
   onNavigate?: (page: string, params?: unknown) => void;
   focusMemoryTitle?: string;
-  focusMemoryCategory?: "identity" | "context" | "preference" | "experience" | "activity";
+  focusMemoryCategory?:
+    | "identity"
+    | "context"
+    | "preference"
+    | "experience"
+    | "activity";
   runtimeSessionId?: string;
   runtimeWorkingDir?: string;
   runtimeUserMessage?: string;
@@ -312,7 +317,9 @@ describe("MemoryPage", () => {
     renderPage();
     await flushPageEffects();
 
-    expect(document.body.querySelector(".lime-workbench-theme-scope")).not.toBeNull();
+    expect(
+      document.body.querySelector(".lime-workbench-theme-scope"),
+    ).not.toBeNull();
 
     const bodyText = document.body.textContent ?? "";
     expect(bodyText).toContain("灵感库");
@@ -386,7 +393,9 @@ describe("MemoryPage", () => {
     renderPage({ onNavigate });
     await flushPageEffects();
 
-    const launchButton = Array.from(document.body.querySelectorAll("button")).find(
+    const launchButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find(
       (element) =>
         element.textContent?.includes("开始这一步") &&
         element.closest("article")?.textContent?.includes("内容主稿生成"),
@@ -399,7 +408,9 @@ describe("MemoryPage", () => {
     });
     await flushPageEffects();
 
-    expect(document.body.textContent ?? "").toContain("开始这一步前，我先确认几件事。");
+    expect(document.body.textContent ?? "").toContain(
+      "开始这一步前，我先确认几件事。",
+    );
     expect(document.body.textContent ?? "").toContain("已选择 1 条参考对象");
 
     const subjectField = document.body.querySelector(
@@ -410,7 +421,10 @@ describe("MemoryPage", () => {
     ) as HTMLInputElement | null;
 
     await act(async () => {
-      updateFieldValue(subjectField, "夏日饮品新品上线，需要一版小红书首发主稿");
+      updateFieldValue(
+        subjectField,
+        "夏日饮品新品上线，需要一版小红书首发主稿",
+      );
       updateFieldValue(audienceField, "喜欢轻快口播风格的小红书用户");
       await Promise.resolve();
     });
@@ -475,7 +489,8 @@ describe("MemoryPage", () => {
       {
         session_id: "session-memory-review-switch",
         decision_status: "needs_more_evidence",
-        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        decision_summary:
+          "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
         chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
         risk_level: "medium",
         risk_tags: ["证据不足", "需要复盘"],
@@ -490,19 +505,19 @@ describe("MemoryPage", () => {
     renderPage();
     await flushPageEffects();
 
-    const launchButton = Array.from(document.body.querySelectorAll("button")).find(
-      (element) => {
-        if (!element.textContent?.includes("开始这一步")) {
-          return false;
-        }
-        const articleText = element.closest("article")?.textContent ?? "";
-        return (
-          articleText.length > 0 &&
-          !articleText.includes("复盘这个账号/项目") &&
-          !articleText.includes("拆解一条爆款内容")
-        );
-      },
-    );
+    const launchButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((element) => {
+      if (!element.textContent?.includes("开始这一步")) {
+        return false;
+      }
+      const articleText = element.closest("article")?.textContent ?? "";
+      return (
+        articleText.length > 0 &&
+        !articleText.includes("复盘这个账号/项目") &&
+        !articleText.includes("拆解一条爆款内容")
+      );
+    });
     expect(launchButton).toBeTruthy();
 
     await act(async () => {
@@ -836,9 +851,9 @@ describe("MemoryPage", () => {
       }),
     );
 
-    const sceneButton = Array.from(document.body.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("去全部做法"),
-    );
+    const sceneButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((element) => element.textContent?.includes("去全部做法"));
     expect(sceneButton).toBeTruthy();
 
     await act(async () => {
@@ -851,7 +866,9 @@ describe("MemoryPage", () => {
       projectId: "project-42",
       referenceMemoryIds: ["memory-1"],
       search: "夏日短视频语气",
-      prefillIntent: expect.stringContaining("围绕这条风格灵感继续创作：夏日短视频语气"),
+      prefillIntent: expect.stringContaining(
+        "围绕这条风格灵感继续创作：夏日短视频语气",
+      ),
     });
   });
 
@@ -987,9 +1004,13 @@ describe("MemoryPage", () => {
     ) as HTMLTextAreaElement | null;
 
     expect(goalField?.value).toBe("短视频编排");
-    expect(resultField?.value).toContain("当前结果包已完整回流，可继续进入下一轮。");
+    expect(resultField?.value).toContain(
+      "当前结果包已完整回流，可继续进入下一轮。",
+    );
     expect(resultField?.value).toContain("当前交付：已交付 3/4 个部件");
-    expect(resultField?.value).toContain("建议下一步：先完成复核，再决定下一轮放量");
+    expect(resultField?.value).toContain(
+      "建议下一步：先完成复核，再决定下一轮放量",
+    );
 
     const confirmButton = document.body.querySelector(
       '[data-testid="curated-task-launcher-confirm"]',

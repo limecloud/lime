@@ -54,8 +54,12 @@ export function buildWorkflowStepSnapshot<TStep extends WorkflowStepLike>(
   visibleQueueLimit = 3,
 ): WorkflowStepSnapshot<TStep> {
   const sortedSteps = sortWorkflowStepsForDisplay(steps);
-  const openSteps = sortedSteps.filter((step) => isWorkflowOpenStatus(step.status));
-  const completedCount = steps.filter((step) => step.status === "completed").length;
+  const openSteps = sortedSteps.filter((step) =>
+    isWorkflowOpenStatus(step.status),
+  );
+  const completedCount = steps.filter(
+    (step) => step.status === "completed",
+  ).length;
 
   return {
     sortedSteps,

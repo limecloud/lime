@@ -344,10 +344,10 @@ export async function collectRuntimeSnapshotForDiagnostic(
   const configTask = config ? Promise.resolve(config) : getConfig();
   const [configResult, apiKeyProviderResult, mcpResult] =
     await Promise.allSettled([
-    configTask,
-    apiKeyProviderApi.getProviders(),
-    mcpApi.listServersWithStatus(),
-  ]);
+      configTask,
+      apiKeyProviderApi.getProviders(),
+      mcpApi.listServersWithStatus(),
+    ]);
 
   const snapshot: RuntimeDiagnosticSnapshot = {};
   const collectionNotes: string[] = [];

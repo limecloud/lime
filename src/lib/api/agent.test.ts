@@ -574,14 +574,11 @@ describe("Agent API 治理护栏", () => {
       },
     ]);
 
-    expect(mockSafeInvoke).toHaveBeenCalledWith(
-      "agent_runtime_list_sessions",
-      {
-        request: {
-          include_archived: true,
-        },
+    expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_list_sessions", {
+      request: {
+        include_archived: true,
       },
-    );
+    });
   });
 
   it("listAgentRuntimeSessions 应支持工作区限流与仅归档过滤", async () => {
@@ -613,16 +610,13 @@ describe("Agent API 治理护栏", () => {
       },
     ]);
 
-    expect(mockSafeInvoke).toHaveBeenCalledWith(
-      "agent_runtime_list_sessions",
-      {
-        request: {
-          archived_only: true,
-          workspace_id: "workspace-1",
-          limit: 12,
-        },
+    expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_list_sessions", {
+      request: {
+        archived_only: true,
+        workspace_id: "workspace-1",
+        limit: 12,
       },
-    );
+    });
   });
 
   it("getAgentRuntimeSession 应返回现役 runtime 详情并归一 queued_turns", async () => {

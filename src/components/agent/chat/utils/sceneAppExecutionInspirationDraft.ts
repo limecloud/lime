@@ -74,13 +74,16 @@ function buildSummary(
   detailView: SceneAppRunDetailViewModel,
 ): string {
   const summaryText =
-    dedupeItems([
-      detailView.deliverySummary,
-      detailView.nextAction ? `下一步：${detailView.nextAction}` : null,
-      summary.scorecardAggregate?.summary,
-      summary.runtimeBackflow?.summary,
-      summary.summary,
-    ], 3).join("；") || `${summary.title}这轮结果已形成可复用闭环。`;
+    dedupeItems(
+      [
+        detailView.deliverySummary,
+        detailView.nextAction ? `下一步：${detailView.nextAction}` : null,
+        summary.scorecardAggregate?.summary,
+        summary.runtimeBackflow?.summary,
+        summary.summary,
+      ],
+      3,
+    ).join("；") || `${summary.title}这轮结果已形成可复用闭环。`;
 
   return truncate(summaryText, 140);
 }
@@ -109,11 +112,10 @@ function buildContent(
         ? `当前带入：${summary.referenceCount} 条参考对象`
         : "当前带入：本轮主要依赖当前输入与项目上下文",
       summary.tasteSummary ? `风格摘要：${summary.tasteSummary}` : null,
-      (
-        detailView.contextBaseline?.feedbackSummary || summary.feedbackSummary
-      )
+      detailView.contextBaseline?.feedbackSummary || summary.feedbackSummary
         ? `最近反馈：${
-            detailView.contextBaseline?.feedbackSummary || summary.feedbackSummary
+            detailView.contextBaseline?.feedbackSummary ||
+            summary.feedbackSummary
           }`
         : null,
       summary.runtimeBackflow?.summary

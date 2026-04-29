@@ -117,9 +117,7 @@ type SceneAppPlanResultOverrides = {
   plan?: Partial<Omit<SceneAppPlanResult["plan"], "adapterPlan">> & {
     adapterPlan?: Partial<SceneAppPlanResult["plan"]["adapterPlan"]>;
   };
-  projectPackPlan?: Partial<
-    NonNullable<SceneAppPlanResult["projectPackPlan"]>
-  >;
+  projectPackPlan?: Partial<NonNullable<SceneAppPlanResult["projectPackPlan"]>>;
 };
 
 function createSceneAppDescriptorMock(
@@ -173,8 +171,7 @@ function createSceneAppPlanResultMock(
         runtimeAction:
           adapterPlanOverrides.runtimeAction ?? "submit_agent_turn",
         targetRef: adapterPlanOverrides.targetRef ?? "story-video-suite",
-        targetLabel:
-          adapterPlanOverrides.targetLabel ?? "故事短视频套件",
+        targetLabel: adapterPlanOverrides.targetLabel ?? "故事短视频套件",
         requestMetadata: adapterPlanOverrides.requestMetadata ?? {},
         launchPayload: adapterPlanOverrides.launchPayload ?? {},
         notes: adapterPlanOverrides.notes ?? [],
@@ -640,7 +637,9 @@ describe("AutomationSettings", () => {
     expect(getBodyText()).not.toContain(
       "默认页只保留从 Agent 对话接回来的持续流程动作。模板会先帮你写好节奏、起手信息和输出去向，浏览器自动化不再保留单独起手入口。",
     );
-    expect(container.textContent).toContain("统一查看持续流程、运行状态和调度设置。");
+    expect(container.textContent).toContain(
+      "统一查看持续流程、运行状态和调度设置。",
+    );
     expect(container.textContent).toContain("系统入口");
     expect(container.textContent).not.toContain("Automation Workspace");
 
@@ -771,7 +770,9 @@ describe("AutomationSettings", () => {
       onOpenSettings: vi.fn(),
     });
 
-    expect(container.querySelector(".lime-workbench-theme-scope")).not.toBeNull();
+    expect(
+      container.querySelector(".lime-workbench-theme-scope"),
+    ).not.toBeNull();
     expect(container.textContent).toContain("持续流程");
     expect(container.textContent).toContain("开始这条");
     expect(container.textContent).toContain("已在运行的持续流程");
@@ -1137,9 +1138,7 @@ describe("AutomationSettings", () => {
     expect(runServiceSkillSummary?.textContent).toContain("技能流程运行上下文");
     expect(runServiceSkillSummary?.textContent).toContain("定时运行");
     expect(runServiceSkillSummary?.textContent).toContain("客户端执行");
-    expect(runServiceSkillSummary?.textContent).toContain(
-      "技能：每日趋势摘要",
-    );
+    expect(runServiceSkillSummary?.textContent).toContain("技能：每日趋势摘要");
     expect(runServiceSkillSummary?.textContent).toContain(
       "参数摘要: 监测平台: 小红书 · 行业关键词: AI 短视频",
     );
@@ -1306,7 +1305,9 @@ describe("AutomationSettings", () => {
       document.body.querySelectorAll("button"),
     ).find((button) => button.textContent?.includes("看这轮结果"));
     await act(async () => {
-      governanceButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      governanceButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       await Promise.resolve();
     });
 
@@ -1335,7 +1336,8 @@ describe("AutomationSettings", () => {
         initialProjectFileOpenTarget: expect.objectContaining({
           relativePath: "artifacts/brief.md",
         }),
-        entryBannerMessage: expect.stringContaining("已从自动化详情打开结果包文件"),
+        entryBannerMessage:
+          expect.stringContaining("已从自动化详情打开结果包文件"),
       }),
     );
 

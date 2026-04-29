@@ -16,7 +16,10 @@ const SITE_SKILL_EXAMPLE_BY_ADAPTER: Record<string, string> = {
   "zhihu/search": "帮我去知乎搜一下 AI Agent 相关内容",
 };
 
-const EXPORT_STYLE_CAPABILITIES = new Set(["article_export", "markdown_bundle"]);
+const EXPORT_STYLE_CAPABILITIES = new Set([
+  "article_export",
+  "markdown_bundle",
+]);
 
 function normalizeAdapterName(adapterName?: string | null): string {
   return adapterName?.trim().toLowerCase() || "";

@@ -25,7 +25,8 @@ vi.mock("@/lib/api/oemCloudControlPlane", async (importOriginal) => {
     ...actual,
     createClientDesktopAuthSession:
       controlPlaneMocks.createClientDesktopAuthSession,
-    pollClientDesktopAuthSession: controlPlaneMocks.pollClientDesktopAuthSession,
+    pollClientDesktopAuthSession:
+      controlPlaneMocks.pollClientDesktopAuthSession,
   };
 });
 

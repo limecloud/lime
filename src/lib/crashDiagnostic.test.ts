@@ -479,9 +479,7 @@ describe("buildCrashDiagnosticPayload", () => {
     });
 
     expect(diagnostic.diagnostic_collection_notes).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("API Key 数为 0"),
-      ]),
+      expect.arrayContaining([expect.stringContaining("API Key 数为 0")]),
     );
   });
 

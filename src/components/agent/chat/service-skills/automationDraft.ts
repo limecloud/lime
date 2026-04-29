@@ -260,7 +260,8 @@ function buildServiceSkillAutomationMetadata(input: {
   userInput?: string;
 }): Record<string, unknown> {
   const { skill, slotValues, userInput } = input;
-  const automationProjection = resolveBaseSetupAutomationProjectionForSkill(skill);
+  const automationProjection =
+    resolveBaseSetupAutomationProjectionForSkill(skill);
   const slotSummary = slotValues
     ? buildServiceSkillAutomationSlotSummary(skill, slotValues)
     : [];
@@ -361,7 +362,8 @@ export function buildServiceSkillAutomationInitialValues({
   userInput,
   workspaceId,
 }: BuildServiceSkillAutomationInitialValuesInput): AutomationJobDialogInitialValues {
-  const automationProjection = resolveBaseSetupAutomationProjectionForSkill(skill);
+  const automationProjection =
+    resolveBaseSetupAutomationProjectionForSkill(skill);
   const scheduleValue = resolveScheduleSlotValue(
     skill,
     slotValues,
@@ -396,8 +398,7 @@ export function buildServiceSkillAutomationInitialValues({
             automationProjection.profile.delivery.outputSchema ?? "text",
           delivery_output_format:
             automationProjection.profile.delivery.outputFormat ?? "text",
-          best_effort:
-            automationProjection.profile.delivery.bestEffort ?? true,
+          best_effort: automationProjection.profile.delivery.bestEffort ?? true,
         }
       : {
           delivery_mode: "none" as const,

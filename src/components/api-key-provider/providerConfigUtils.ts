@@ -70,8 +70,7 @@ export const PROMPT_CACHE_MODE_OPTIONS: Array<{
   {
     value: "explicit_only",
     label: "仅显式缓存",
-    description:
-      "默认选项。只有显式写入 cache_control 时才请求上游复用前缀。",
+    description: "默认选项。只有显式写入 cache_control 时才请求上游复用前缀。",
   },
   {
     value: "automatic",

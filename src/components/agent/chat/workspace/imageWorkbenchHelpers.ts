@@ -250,9 +250,7 @@ export function buildImageWorkbenchProcessDescriptor(
   };
 }
 
-export function collapseWhitespace(
-  value: string | null | undefined,
-): string {
+export function collapseWhitespace(value: string | null | undefined): string {
   return (value || "").replace(/\s+/g, " ").trim();
 }
 

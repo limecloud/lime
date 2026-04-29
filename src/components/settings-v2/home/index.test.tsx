@@ -223,9 +223,9 @@ describe("SettingsHomePage", () => {
     const openChannelsButton = Array.from(
       container.querySelectorAll("button"),
     ).find((item) => item.textContent?.includes("打开消息渠道"));
-    const openSkillsButton = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("去我的方法"),
-    );
+    const openSkillsButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((item) => item.textContent?.includes("去我的方法"));
     const openResourcesButton = Array.from(
       container.querySelectorAll("button"),
     ).find((item) => item.textContent?.includes("打开项目资料"));
@@ -237,7 +237,9 @@ describe("SettingsHomePage", () => {
       openChannelsButton?.dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
-      openSkillsButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      openSkillsButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       openResourcesButton?.dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );

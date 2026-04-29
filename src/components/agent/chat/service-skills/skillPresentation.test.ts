@@ -78,7 +78,9 @@ describe("skillPresentation", () => {
           ],
         }),
       ),
-    ).toBe("补一个主题，我先整理一版研究结论。 · 需要：检索词 · 交付：研究摘要");
+    ).toBe(
+      "补一个主题，我先整理一版研究结论。 · 需要：检索词 · 交付：研究摘要",
+    );
 
     expect(
       buildServiceSkillCapabilityDescription(createServiceSkill(), {

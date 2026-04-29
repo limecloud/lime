@@ -293,9 +293,9 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
     skills.length,
   ]);
 
-  const handleSelectCapability = (capability: Parameters<
-    SelectInputCapabilityHandler
-  >[0]) => {
+  const handleSelectCapability = (
+    capability: Parameters<SelectInputCapabilityHandler>[0],
+  ) => {
     onSelectInputCapability(capability);
     setOpen(false);
   };

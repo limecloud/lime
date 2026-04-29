@@ -82,9 +82,9 @@ describe("mockPriorityCommands", () => {
     expect(shouldDisallowMockFallbackInBrowser("session_files_save_file")).toBe(
       true,
     );
-    expect(
-      shouldDisallowMockFallbackInBrowser("read_file_preview_cmd"),
-    ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("read_file_preview_cmd")).toBe(
+      true,
+    );
     expect(
       shouldDisallowMockFallbackInBrowser("session_files_resolve_file_path"),
     ).toBe(true);

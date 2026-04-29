@@ -174,7 +174,9 @@ describe("sceneapp API", () => {
             memoryRefs: ["workspace:workspace-default"],
             toolRefs: ["cloud_scene", "workspace_storage", "cloud_session"],
             referenceCount: 1,
-            notes: ["当前场景基线已写入项目级 Context Snapshot，后续 planning 会优先复用。"],
+            notes: [
+              "当前场景基线已写入项目级 Context Snapshot，后续 planning 会优先复用。",
+            ],
           },
           snapshot: {
             workspaceId: "workspace-default",

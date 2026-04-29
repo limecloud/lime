@@ -228,9 +228,7 @@ describe("toolProcessSummary", () => {
     expect(serviceSkillNarrative.preSummary).toBe(
       "先走服务技能兼容执行 渠道预览",
     );
-    expect(serviceSkillNarrative.summary).toBe(
-      "先走服务技能兼容执行 渠道预览",
-    );
+    expect(serviceSkillNarrative.summary).toBe("先走服务技能兼容执行 渠道预览");
     expect(siteRecommendNarrative.preSummary).toBe(
       "先推荐适合 GitHub issue 搜索 的站点能力",
     );
@@ -275,12 +273,8 @@ describe("toolProcessSummary", () => {
     expect(transcriptionNarrative.postSummary).toBe(
       "已发起 /tmp/interview.mp4 的转写",
     );
-    expect(resourceNarrative.preSummary).toBe(
-      "先发起 科技播客 BGM 的素材检索",
-    );
-    expect(resourceNarrative.summary).toBe(
-      "先发起 科技播客 BGM 的素材检索",
-    );
+    expect(resourceNarrative.preSummary).toBe("先发起 科技播客 BGM 的素材检索");
+    expect(resourceNarrative.summary).toBe("先发起 科技播客 BGM 的素材检索");
     expect(urlParseNarrative.postSummary).toBe(
       "已发起 https://example.com/report 的链接解析",
     );

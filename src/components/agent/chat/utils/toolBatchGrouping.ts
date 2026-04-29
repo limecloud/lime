@@ -50,7 +50,10 @@ type ThreadProcessBatchItem = Extract<
   { type: "tool_call" | "command_execution" | "web_search" }
 >;
 
-function shorten(value: string | null | undefined, maxLength = 72): string | null {
+function shorten(
+  value: string | null | undefined,
+  maxLength = 72,
+): string | null {
   const normalized = value?.trim();
   if (!normalized) {
     return null;
@@ -225,7 +228,14 @@ function resolveLatestHint(
 
   if (operationKind === "browser") {
     return shorten(
-      readString(args, ["url", "pageUrl", "page_url", "selector", "target", "label"]),
+      readString(args, [
+        "url",
+        "pageUrl",
+        "page_url",
+        "selector",
+        "target",
+        "label",
+      ]),
       56,
     );
   }
@@ -235,9 +245,7 @@ function resolveLatestHint(
   return shorten(command, 56);
 }
 
-function accumulateBatch(
-  entries: ToolLikeDescriptor[],
-): ToolBatchAccumulator {
+function accumulateBatch(entries: ToolLikeDescriptor[]): ToolBatchAccumulator {
   const accumulator: ToolBatchAccumulator = {
     readCount: 0,
     searchCount: 0,
@@ -325,7 +333,8 @@ function buildExplorationDescriptor(
     countParts.push(`列 ${listCount}`);
   }
 
-  const supportingLines = detailParts.length > 0 ? [detailParts.join("，")] : [];
+  const supportingLines =
+    detailParts.length > 0 ? [detailParts.join("，")] : [];
   if (accumulator.latestHint) {
     supportingLines.push(`最新线索：${accumulator.latestHint}`);
   }

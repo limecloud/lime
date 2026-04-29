@@ -14,7 +14,9 @@ export interface SceneAppsPageParams {
   patternFilter?: SceneAppPattern;
 }
 
-export function normalizeSceneAppTypeFilter(value: unknown): SceneAppType | undefined {
+export function normalizeSceneAppTypeFilter(
+  value: unknown,
+): SceneAppType | undefined {
   switch (value) {
     case "local_instant":
     case "local_durable":
@@ -26,7 +28,9 @@ export function normalizeSceneAppTypeFilter(value: unknown): SceneAppType | unde
   }
 }
 
-export function normalizeOptionalText(value?: string | null): string | undefined {
+export function normalizeOptionalText(
+  value?: string | null,
+): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }

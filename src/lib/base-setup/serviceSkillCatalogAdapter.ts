@@ -52,26 +52,40 @@ function readValue(record: UnknownRecord, ...keys: string[]): unknown {
   return undefined;
 }
 
-function readString(record: UnknownRecord, ...keys: string[]): string | undefined {
+function readString(
+  record: UnknownRecord,
+  ...keys: string[]
+): string | undefined {
   const value = readValue(record, ...keys);
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
-function readBoolean(record: UnknownRecord, ...keys: string[]): boolean | undefined {
+function readBoolean(
+  record: UnknownRecord,
+  ...keys: string[]
+): boolean | undefined {
   const value = readValue(record, ...keys);
   return typeof value === "boolean" ? value : undefined;
 }
 
-function readStringArray(record: UnknownRecord, ...keys: string[]): string[] | undefined {
+function readStringArray(
+  record: UnknownRecord,
+  ...keys: string[]
+): string[] | undefined {
   const value = readValue(record, ...keys);
   if (!Array.isArray(value)) {
     return undefined;
   }
-  const strings = value.filter((item): item is string => typeof item === "string");
+  const strings = value.filter(
+    (item): item is string => typeof item === "string",
+  );
   return strings.length === value.length ? strings : undefined;
 }
 
-function readArray(record: UnknownRecord, ...keys: string[]): unknown[] | undefined {
+function readArray(
+  record: UnknownRecord,
+  ...keys: string[]
+): unknown[] | undefined {
   const value = readValue(record, ...keys);
   return Array.isArray(value) ? value : undefined;
 }
@@ -99,7 +113,13 @@ function toSlotDefinition(value: unknown): ServiceSkillSlotDefinition | null {
   const placeholder = readString(record, "placeholder");
   const requiredValue = readValue(record, "required");
 
-  if (!key || !label || !type || !placeholder || typeof requiredValue !== "boolean") {
+  if (
+    !key ||
+    !label ||
+    !type ||
+    !placeholder ||
+    typeof requiredValue !== "boolean"
+  ) {
     return null;
   }
 
@@ -135,7 +155,9 @@ function toSlotDefinition(value: unknown): ServiceSkillSlotDefinition | null {
   };
 }
 
-function toBundleRef(value: unknown): BaseSetupPackage["bundleRefs"][number] | null {
+function toBundleRef(
+  value: unknown,
+): BaseSetupPackage["bundleRefs"][number] | null {
   const record = asRecord(value);
   if (!record) {
     return null;
@@ -166,7 +188,9 @@ function toBundleRef(value: unknown): BaseSetupPackage["bundleRefs"][number] | n
   };
 }
 
-function toSlotProfile(value: unknown): BaseSetupPackage["slotProfiles"][number] | null {
+function toSlotProfile(
+  value: unknown,
+): BaseSetupPackage["slotProfiles"][number] | null {
   const record = asRecord(value);
   if (!record) {
     return null;
@@ -241,7 +265,11 @@ function toArtifactProfile(
     "delivery_contract",
   );
   const viewerKind = readString(record, "viewerKind", "viewer_kind");
-  const requiredParts = readStringArray(record, "requiredParts", "required_parts");
+  const requiredParts = readStringArray(
+    record,
+    "requiredParts",
+    "required_parts",
+  );
 
   if (!id || !deliveryContract || !viewerKind || !requiredParts) {
     return null;
@@ -249,9 +277,11 @@ function toArtifactProfile(
 
   return {
     id,
-    deliveryContract: deliveryContract as BaseSetupPackage["artifactProfiles"][number]["deliveryContract"],
+    deliveryContract:
+      deliveryContract as BaseSetupPackage["artifactProfiles"][number]["deliveryContract"],
     requiredParts,
-    viewerKind: viewerKind as BaseSetupPackage["artifactProfiles"][number]["viewerKind"],
+    viewerKind:
+      viewerKind as BaseSetupPackage["artifactProfiles"][number]["viewerKind"],
     defaultArtifactKind: readString(
       record,
       "defaultArtifactKind",
@@ -282,7 +312,11 @@ function toScorecardProfile(
   return {
     id,
     metrics,
-    failureSignals: readStringArray(record, "failureSignals", "failure_signals"),
+    failureSignals: readStringArray(
+      record,
+      "failureSignals",
+      "failure_signals",
+    ),
   };
 }
 
@@ -363,9 +397,7 @@ function toAutomationProfile(
       "enabledByDefault",
       "enabled_by_default",
     ),
-    schedule: toAutomationSchedulePreset(
-      readValue(record, "schedule"),
-    ),
+    schedule: toAutomationSchedulePreset(readValue(record, "schedule")),
     delivery:
       deliveryRecord && deliveryMode
         ? {
@@ -504,7 +536,11 @@ function toCatalogProjection(
   const category = readString(record, "category");
   const outputHint = readString(record, "outputHint", "output_hint");
   const bundleRefId = readString(record, "bundleRefId", "bundle_ref_id");
-  const slotProfileRef = readString(record, "slotProfileRef", "slot_profile_ref");
+  const slotProfileRef = readString(
+    record,
+    "slotProfileRef",
+    "slot_profile_ref",
+  );
   const bindingProfileRef = readString(
     record,
     "bindingProfileRef",
@@ -556,7 +592,8 @@ function toCatalogProjection(
 
   return {
     id,
-    targetCatalog: targetCatalog as BaseSetupPackage["catalogProjections"][number]["targetCatalog"],
+    targetCatalog:
+      targetCatalog as BaseSetupPackage["catalogProjections"][number]["targetCatalog"],
     entryKey,
     title,
     summary,
@@ -694,7 +731,11 @@ export function parseBaseSetupPackage(value: unknown): BaseSetupPackage | null {
   const slotProfiles = readArray(record, "slotProfiles", "slot_profiles")
     ?.map((entry) => toSlotProfile(entry))
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-  const bindingProfiles = readArray(record, "bindingProfiles", "binding_profiles")
+  const bindingProfiles = readArray(
+    record,
+    "bindingProfiles",
+    "binding_profiles",
+  )
     ?.map((entry) => toBindingProfile(entry))
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
   const artifactProfiles = readArray(
@@ -728,9 +769,7 @@ export function parseBaseSetupPackage(value: unknown): BaseSetupPackage | null {
   )
     ?.map((entry) => toCompositionBlueprint(entry))
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-  const compatibilityRecord = asRecord(
-    readValue(record, "compatibility"),
-  );
+  const compatibilityRecord = asRecord(readValue(record, "compatibility"));
 
   if (
     !id ||

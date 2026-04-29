@@ -118,7 +118,10 @@ function doesArtifactPathReferenceMatch(
     return false;
   }
 
-  return areArtifactProtocolPathsEquivalent(normalizedCandidate, normalizedTarget);
+  return areArtifactProtocolPathsEquivalent(
+    normalizedCandidate,
+    normalizedTarget,
+  );
 }
 
 function extensionFromPath(path: string): string {

@@ -63,6 +63,8 @@ describe("parseCompetitorWorkbenchCommand", () => {
   });
 
   it("非竞品命令应返回空", () => {
-    expect(parseCompetitorWorkbenchCommand("@研报 AI Agent 竞争格局")).toBeNull();
+    expect(
+      parseCompetitorWorkbenchCommand("@研报 AI Agent 竞争格局"),
+    ).toBeNull();
   });
 });

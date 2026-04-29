@@ -21,13 +21,17 @@ use crate::commands::modality_runtime_contracts::{
     assess_image_generation_model_capability_from_registry, image_generation_runtime_contract,
     looks_like_text_model_for_image_generation, normalize_image_generation_contract_key,
     normalize_image_generation_modality, normalize_image_generation_required_capabilities,
-    normalize_image_generation_routing_slot, ImageGenerationModelCapabilityAssessment,
-    IMAGE_GENERATION_CONTRACT_KEY, IMAGE_GENERATION_ROUTING_SLOT,
+    normalize_image_generation_routing_slot, normalize_voice_generation_contract_key,
+    normalize_voice_generation_modality, normalize_voice_generation_required_capabilities,
+    normalize_voice_generation_routing_slot, voice_generation_runtime_contract,
+    ImageGenerationModelCapabilityAssessment, IMAGE_GENERATION_CONTRACT_KEY,
+    IMAGE_GENERATION_ROUTING_SLOT, VOICE_GENERATION_CONTRACT_KEY,
 };
 use crate::commands::model_registry_cmd::ModelRegistryState;
 use crate::config::GlobalConfigManagerState;
 
 const IMAGE_TASK_RUNNER_WORKER_ID: &str = "lime-image-api-worker";
+const AUDIO_TASK_DEFAULT_MIME_TYPE: &str = "audio/mpeg";
 
 static ACTIVE_IMAGE_TASK_EXECUTIONS: Lazy<Mutex<HashSet<String>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
@@ -56,7 +60,7 @@ pub struct CreateImageGenerationTaskArtifactRequest {
     pub title_generation_result: Option<serde_json::Value>,
     #[serde(default)]
     pub mode: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "raw_text")]
     pub raw_text: Option<String>,
     #[serde(default)]
     pub layout_hint: Option<String>,
@@ -114,6 +118,56 @@ pub struct CreateImageGenerationTaskArtifactRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CreateAudioGenerationTaskArtifactRequest {
+    pub project_root_path: String,
+    #[serde(alias = "source_text", alias = "prompt", alias = "text")]
+    pub source_text: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub raw_text: Option<String>,
+    #[serde(default)]
+    pub voice: Option<String>,
+    #[serde(default, alias = "voice_style")]
+    pub voice_style: Option<String>,
+    #[serde(default, alias = "target_language")]
+    pub target_language: Option<String>,
+    #[serde(default, alias = "mime_type")]
+    pub mime_type: Option<String>,
+    #[serde(default, alias = "audio_path")]
+    pub audio_path: Option<String>,
+    #[serde(default, alias = "duration_ms")]
+    pub duration_ms: Option<u64>,
+    #[serde(default, alias = "provider_id")]
+    pub provider_id: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default, alias = "session_id")]
+    pub session_id: Option<String>,
+    #[serde(default, alias = "project_id")]
+    pub project_id: Option<String>,
+    #[serde(default, alias = "content_id")]
+    pub content_id: Option<String>,
+    #[serde(default, alias = "entry_source")]
+    pub entry_source: Option<String>,
+    #[serde(default, alias = "modality_contract_key")]
+    pub modality_contract_key: Option<String>,
+    #[serde(default)]
+    pub modality: Option<String>,
+    #[serde(default, alias = "required_capabilities")]
+    pub required_capabilities: Vec<String>,
+    #[serde(default, alias = "routing_slot")]
+    pub routing_slot: Option<String>,
+    #[serde(default, alias = "runtime_contract")]
+    pub runtime_contract: Option<serde_json::Value>,
+    #[serde(default, alias = "requested_target")]
+    pub requested_target: Option<String>,
+    #[serde(default, alias = "output_path")]
+    pub output_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MediaTaskLookupRequest {
     pub project_root_path: String,
     pub task_ref: String,
@@ -130,6 +184,12 @@ pub struct ListMediaTaskArtifactsRequest {
     #[serde(default)]
     pub task_type: Option<String>,
     #[serde(default)]
+    #[serde(alias = "modality_contract_key")]
+    pub modality_contract_key: Option<String>,
+    #[serde(default)]
+    #[serde(alias = "routing_outcome")]
+    pub routing_outcome: Option<String>,
+    #[serde(default)]
     pub limit: Option<usize>,
 }
 
@@ -138,7 +198,41 @@ pub struct MediaTaskListFilters {
     pub status: Option<String>,
     pub task_family: Option<String>,
     pub task_type: Option<String>,
+    pub modality_contract_key: Option<String>,
+    pub routing_outcome: Option<String>,
     pub limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MediaTaskModalityRuntimeContractIndexEntry {
+    pub task_id: String,
+    pub task_type: String,
+    pub normalized_status: String,
+    pub contract_key: Option<String>,
+    pub routing_slot: Option<String>,
+    pub provider_id: Option<String>,
+    pub model: Option<String>,
+    pub routing_event: String,
+    pub routing_outcome: String,
+    pub failure_code: Option<String>,
+    pub model_capability_assessment_source: Option<String>,
+    pub model_supports_image_generation: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MediaTaskRoutingOutcomeCount {
+    pub outcome: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MediaTaskModalityRuntimeContractIndex {
+    pub snapshot_count: usize,
+    pub contract_keys: Vec<String>,
+    pub blocked_count: usize,
+    pub routing_outcomes: Vec<MediaTaskRoutingOutcomeCount>,
+    pub model_registry_assessment_count: usize,
+    pub snapshots: Vec<MediaTaskModalityRuntimeContractIndexEntry>,
 }
 
 #[derive(Debug, Serialize)]
@@ -148,6 +242,7 @@ pub struct ListMediaTaskArtifactsResponse {
     pub artifact_root: String,
     pub filters: MediaTaskListFilters,
     pub total: usize,
+    pub modality_runtime_contracts: MediaTaskModalityRuntimeContractIndex,
     pub tasks: Vec<MediaTaskOutput>,
 }
 
@@ -358,6 +453,35 @@ fn build_image_task_idempotency_key(
     Ok(format!("image-task-{}", hex::encode(&digest[..16])))
 }
 
+fn build_audio_task_idempotency_key(
+    request: &CreateAudioGenerationTaskArtifactRequest,
+    source_text: &str,
+    voice: Option<&str>,
+    voice_style: Option<&str>,
+    target_language: Option<&str>,
+    provider_id: Option<&str>,
+    model: Option<&str>,
+) -> Result<String, String> {
+    let fingerprint = json!({
+        "session_id": normalize_optional_string(request.session_id.clone()),
+        "project_id": normalize_optional_string(request.project_id.clone()),
+        "content_id": normalize_optional_string(request.content_id.clone()),
+        "entry_source": normalize_optional_string(request.entry_source.clone()),
+        "source_text": source_text,
+        "voice": voice,
+        "voice_style": voice_style,
+        "target_language": target_language,
+        "provider_id": provider_id,
+        "model": model,
+    });
+    let serialized = serde_json::to_vec(&fingerprint)
+        .map_err(|error| format!("序列化音频任务幂等指纹失败: {error}"))?;
+    let mut hasher = Sha256::new();
+    hasher.update(&serialized);
+    let digest = hasher.finalize();
+    Ok(format!("audio-task-{}", hex::encode(&digest[..16])))
+}
+
 #[derive(Debug, Clone)]
 struct ImageGenerationRunnerConfig {
     endpoint: String,
@@ -468,6 +592,163 @@ fn read_image_task_payload_string_array(
                 .map(ToString::to_string)
                 .collect()
         })
+}
+
+fn read_image_task_payload_bool(payload: &serde_json::Value, keys: &[&str]) -> Option<bool> {
+    keys.iter()
+        .filter_map(|key| payload.get(*key))
+        .find_map(serde_json::Value::as_bool)
+}
+
+fn is_image_generation_contract_routing_failure_code(code: &str) -> bool {
+    matches!(
+        code.trim(),
+        "image_generation_contract_mismatch"
+            | "image_generation_capability_gap"
+            | "image_generation_routing_slot_mismatch"
+            | "image_generation_model_capability_gap"
+    )
+}
+
+fn media_task_contract_key(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(&output.record.payload, &["modality_contract_key"])
+        .or_else(|| {
+            output
+                .record
+                .payload
+                .get("runtime_contract")
+                .and_then(|value| value.get("contract_key"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        })
+        .map(ToString::to_string)
+}
+
+fn media_task_routing_outcome(output: &MediaTaskOutput) -> (&'static str, &'static str) {
+    let is_contract_routing_failure = output
+        .last_error
+        .as_ref()
+        .map(|error| is_image_generation_contract_routing_failure_code(&error.code))
+        .unwrap_or(false);
+
+    if is_contract_routing_failure {
+        ("routing_not_possible", "blocked")
+    } else if media_task_contract_key(output).as_deref() == Some(VOICE_GENERATION_CONTRACT_KEY) {
+        if output.normalized_status == "failed" {
+            ("executor_invoked", "failed")
+        } else {
+            ("executor_invoked", "accepted")
+        }
+    } else if output.normalized_status == "failed" {
+        ("model_routing_decision", "failed")
+    } else {
+        ("model_routing_decision", "accepted")
+    }
+}
+
+fn image_task_matches_modality_contract_filters(
+    output: &MediaTaskOutput,
+    modality_contract_key: Option<&str>,
+    routing_outcome: Option<&str>,
+) -> bool {
+    let contract_matches = modality_contract_key
+        .map(|expected| {
+            media_task_contract_key(output)
+                .map(|actual| actual == expected)
+                .unwrap_or(false)
+        })
+        .unwrap_or(true);
+    let (_, actual_routing_outcome) = media_task_routing_outcome(output);
+    let routing_matches = routing_outcome
+        .map(|expected| actual_routing_outcome == expected)
+        .unwrap_or(true);
+    contract_matches && routing_matches
+}
+
+fn push_unique_string(values: &mut Vec<String>, value: Option<String>) {
+    let Some(value) = value else {
+        return;
+    };
+    if values.iter().any(|existing| existing == &value) {
+        return;
+    }
+    values.push(value);
+}
+
+fn increment_routing_outcome_count(counts: &mut Vec<MediaTaskRoutingOutcomeCount>, outcome: &str) {
+    if let Some(item) = counts.iter_mut().find(|item| item.outcome == outcome) {
+        item.count += 1;
+        return;
+    }
+    counts.push(MediaTaskRoutingOutcomeCount {
+        outcome: outcome.to_string(),
+        count: 1,
+    });
+}
+
+fn build_modality_runtime_contract_index(
+    tasks: &[MediaTaskOutput],
+) -> MediaTaskModalityRuntimeContractIndex {
+    let mut contract_keys = Vec::new();
+    let mut blocked_count = 0;
+    let mut routing_outcomes = Vec::new();
+    let mut model_registry_assessment_count = 0;
+    let mut snapshots = Vec::new();
+
+    for output in tasks {
+        let contract_key = media_task_contract_key(output);
+        if contract_key.is_none() {
+            continue;
+        }
+
+        push_unique_string(&mut contract_keys, contract_key.clone());
+        let (routing_event, routing_outcome) = media_task_routing_outcome(output);
+        if routing_outcome == "blocked" {
+            blocked_count += 1;
+        }
+        increment_routing_outcome_count(&mut routing_outcomes, routing_outcome);
+
+        let payload = &output.record.payload;
+        let model_capability_assessment = payload.get("model_capability_assessment");
+        let model_capability_assessment_source = model_capability_assessment
+            .and_then(|value| value.get("source"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string);
+        if model_capability_assessment_source.as_deref() == Some("model_registry") {
+            model_registry_assessment_count += 1;
+        }
+
+        snapshots.push(MediaTaskModalityRuntimeContractIndexEntry {
+            task_id: output.task_id.clone(),
+            task_type: output.task_type.clone(),
+            normalized_status: output.normalized_status.clone(),
+            contract_key,
+            routing_slot: read_image_task_payload_string(payload, &["routing_slot"])
+                .map(ToString::to_string),
+            provider_id: read_image_task_payload_string(payload, &["provider_id", "providerId"])
+                .map(ToString::to_string),
+            model: read_image_task_payload_string(payload, &["model"]).map(ToString::to_string),
+            routing_event: routing_event.to_string(),
+            routing_outcome: routing_outcome.to_string(),
+            failure_code: output.last_error.as_ref().map(|error| error.code.clone()),
+            model_capability_assessment_source,
+            model_supports_image_generation: model_capability_assessment.and_then(|value| {
+                read_image_task_payload_bool(value, &["supports_image_generation"])
+            }),
+        });
+    }
+
+    MediaTaskModalityRuntimeContractIndex {
+        snapshot_count: snapshots.len(),
+        contract_keys,
+        blocked_count,
+        routing_outcomes,
+        model_registry_assessment_count,
+        snapshots,
+    }
 }
 
 fn validate_image_generation_task_execution_contract(
@@ -758,6 +1039,13 @@ pub(crate) fn finalize_image_generation_task_creation(
     }
 }
 
+pub(crate) fn finalize_audio_generation_task_creation(
+    app: Option<&AppHandle>,
+    output: &MediaTaskOutput,
+) {
+    emit_creation_task_event_if_needed(app, output);
+}
+
 pub(crate) fn create_image_generation_task_artifact_inner(
     request: CreateImageGenerationTaskArtifactRequest,
 ) -> Result<MediaTaskOutput, String> {
@@ -880,6 +1168,101 @@ pub(crate) fn create_image_generation_task_artifact_inner(
     .map_err(|error| format!("创建图片任务 artifact 失败: {error}"))
 }
 
+pub(crate) fn create_audio_generation_task_artifact_inner(
+    request: CreateAudioGenerationTaskArtifactRequest,
+) -> Result<MediaTaskOutput, String> {
+    let project_root_path =
+        normalize_required_string(&request.project_root_path, "projectRootPath")?;
+    let source_text = normalize_required_string(&request.source_text, "sourceText")?;
+    let raw_text = normalize_optional_string(request.raw_text.clone());
+    let voice = normalize_optional_string(request.voice.clone());
+    let voice_style = normalize_optional_string(request.voice_style.clone());
+    let target_language = normalize_optional_string(request.target_language.clone());
+    let mime_type = normalize_optional_string(request.mime_type.clone())
+        .unwrap_or_else(|| AUDIO_TASK_DEFAULT_MIME_TYPE.to_string());
+    let audio_path = normalize_optional_string(request.audio_path.clone());
+    let provider_id = normalize_optional_string(request.provider_id.clone());
+    let model = normalize_optional_string(request.model.clone());
+    let session_id = normalize_optional_string(request.session_id.clone());
+    let project_id = normalize_optional_string(request.project_id.clone());
+    let content_id = normalize_optional_string(request.content_id.clone());
+    let entry_source = normalize_optional_string(request.entry_source.clone())
+        .or_else(|| Some("at_voice_command".to_string()));
+    let runtime_contract_key = request
+        .runtime_contract
+        .as_ref()
+        .and_then(|value| value.get("contract_key"))
+        .and_then(serde_json::Value::as_str)
+        .map(ToString::to_string);
+    if let Some(runtime_contract_key) = runtime_contract_key {
+        normalize_voice_generation_contract_key(Some(runtime_contract_key))?;
+    }
+    let modality_contract_key =
+        normalize_voice_generation_contract_key(request.modality_contract_key.clone())?;
+    let modality = normalize_voice_generation_modality(request.modality.clone())?;
+    let required_capabilities =
+        normalize_voice_generation_required_capabilities(request.required_capabilities.clone())?;
+    let routing_slot = normalize_voice_generation_routing_slot(request.routing_slot.clone())?;
+    let requested_target = normalize_optional_string(request.requested_target.clone())
+        .or_else(|| Some("voice".to_string()));
+    let output_path = normalize_optional_string(request.output_path.clone());
+    let idempotency_key = build_audio_task_idempotency_key(
+        &request,
+        &source_text,
+        voice.as_deref(),
+        voice_style.as_deref(),
+        target_language.as_deref(),
+        provider_id.as_deref(),
+        model.as_deref(),
+    )?;
+
+    write_task_artifact(
+        std::path::Path::new(project_root_path.as_str()),
+        MediaTaskType::AudioGenerate,
+        normalize_optional_string(request.title),
+        json!({
+            "prompt": source_text.as_str(),
+            "source_text": source_text.as_str(),
+            "raw_text": raw_text,
+            "voice": voice.clone(),
+            "voice_style": voice_style,
+            "target_language": target_language,
+            "mime_type": mime_type.clone(),
+            "audio_path": audio_path.clone(),
+            "duration_ms": request.duration_ms,
+            "provider_id": provider_id,
+            "model": model,
+            "session_id": session_id,
+            "project_id": project_id,
+            "content_id": content_id,
+            "entry_source": entry_source,
+            "modality_contract_key": modality_contract_key,
+            "modality": modality,
+            "required_capabilities": required_capabilities,
+            "routing_slot": routing_slot,
+            "runtime_contract": voice_generation_runtime_contract(),
+            "requested_target": requested_target,
+            "audio_output": {
+                "kind": "audio_output",
+                "status": "pending",
+                "audio_path": audio_path,
+                "mime_type": mime_type,
+                "duration_ms": request.duration_ms,
+                "source_text": source_text.clone(),
+                "voice": voice,
+            }
+        }),
+        TaskWriteOptions {
+            status: Some("pending_submit".to_string()),
+            output_path: output_path.as_deref(),
+            artifact_dir: None,
+            idempotency_key: Some(idempotency_key.as_str()),
+            relationships: TaskRelationships::default(),
+        },
+    )
+    .map_err(|error| format!("创建音频任务 artifact 失败: {error}"))
+}
+
 pub(crate) fn get_media_task_artifact_inner(
     request: MediaTaskLookupRequest,
 ) -> Result<MediaTaskOutput, String> {
@@ -902,6 +1285,8 @@ pub(crate) fn list_media_task_artifacts_inner(
     let status_filter = normalize_optional_string(request.status);
     let task_family_filter = normalize_optional_string(request.task_family);
     let task_type_filter = normalize_optional_string(request.task_type);
+    let modality_contract_key_filter = normalize_optional_string(request.modality_contract_key);
+    let routing_outcome_filter = normalize_optional_string(request.routing_outcome);
     let parsed_task_type = task_type_filter
         .as_deref()
         .map(|value| {
@@ -910,15 +1295,26 @@ pub(crate) fn list_media_task_artifacts_inner(
                 .map_err(|_| format!("不支持的 taskType: {value}"))
         })
         .transpose()?;
-    let tasks = list_task_outputs(
+    let mut tasks = list_task_outputs(
         std::path::Path::new(project_root_path.as_str()),
         None,
         status_filter.as_deref(),
         task_family_filter.as_deref(),
         parsed_task_type,
-        request.limit,
+        None,
     )
     .map_err(|error| format!("列出媒体任务 artifact 失败: {error}"))?;
+    tasks.retain(|output| {
+        image_task_matches_modality_contract_filters(
+            output,
+            modality_contract_key_filter.as_deref(),
+            routing_outcome_filter.as_deref(),
+        )
+    });
+    if let Some(limit) = request.limit {
+        tasks.truncate(limit);
+    }
+    let modality_runtime_contracts = build_modality_runtime_contract_index(&tasks);
 
     Ok(ListMediaTaskArtifactsResponse {
         success: true,
@@ -931,9 +1327,12 @@ pub(crate) fn list_media_task_artifacts_inner(
             status: status_filter,
             task_family: task_family_filter,
             task_type: parsed_task_type.map(|value| value.as_str().to_string()),
+            modality_contract_key: modality_contract_key_filter,
+            routing_outcome: routing_outcome_filter,
             limit: request.limit,
         },
         total: tasks.len(),
+        modality_runtime_contracts,
         tasks,
     })
 }
@@ -961,6 +1360,16 @@ pub fn create_image_generation_task_artifact(
     let project_root_path = request.project_root_path.trim().to_string();
     let output = create_image_generation_task_artifact_inner(request)?;
     finalize_image_generation_task_creation(Some(&app), &project_root_path, &output);
+    Ok(output)
+}
+
+#[tauri::command]
+pub fn create_audio_generation_task_artifact(
+    app: AppHandle,
+    request: CreateAudioGenerationTaskArtifactRequest,
+) -> Result<MediaTaskOutput, String> {
+    let output = create_audio_generation_task_artifact_inner(request)?;
+    finalize_audio_generation_task_creation(Some(&app), &output);
     Ok(output)
 }
 
@@ -1257,6 +1666,156 @@ mod tests {
     }
 
     #[test]
+    fn create_audio_generation_task_artifact_inner_should_write_voice_contract_payload() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let request = CreateAudioGenerationTaskArtifactRequest {
+            project_root_path: temp_dir.path().to_string_lossy().to_string(),
+            source_text: "这是一段需要生成温暖旁白的发布文案。".to_string(),
+            title: Some("发布配音".to_string()),
+            raw_text: Some("@配音 风格: 温暖 这是一段发布文案".to_string()),
+            voice: Some("warm_narrator".to_string()),
+            voice_style: Some("温暖".to_string()),
+            target_language: Some("zh-CN".to_string()),
+            mime_type: None,
+            audio_path: None,
+            duration_ms: None,
+            provider_id: Some("limecore".to_string()),
+            model: Some("voice-pro".to_string()),
+            session_id: Some("session-voice-1".to_string()),
+            project_id: Some("project-voice-1".to_string()),
+            content_id: Some("content-voice-1".to_string()),
+            entry_source: None,
+            modality_contract_key: None,
+            modality: None,
+            required_capabilities: Vec::new(),
+            routing_slot: None,
+            runtime_contract: None,
+            requested_target: None,
+            output_path: None,
+        };
+
+        let first = create_audio_generation_task_artifact_inner(request)
+            .expect("create audio generation task");
+        let second =
+            create_audio_generation_task_artifact_inner(CreateAudioGenerationTaskArtifactRequest {
+                project_root_path: temp_dir.path().to_string_lossy().to_string(),
+                source_text: "这是一段需要生成温暖旁白的发布文案。".to_string(),
+                title: Some("发布配音".to_string()),
+                raw_text: Some("@配音 风格: 温暖 这是一段发布文案".to_string()),
+                voice: Some("warm_narrator".to_string()),
+                voice_style: Some("温暖".to_string()),
+                target_language: Some("zh-CN".to_string()),
+                mime_type: None,
+                audio_path: None,
+                duration_ms: None,
+                provider_id: Some("limecore".to_string()),
+                model: Some("voice-pro".to_string()),
+                session_id: Some("session-voice-1".to_string()),
+                project_id: Some("project-voice-1".to_string()),
+                content_id: Some("content-voice-1".to_string()),
+                entry_source: None,
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
+                requested_target: None,
+                output_path: None,
+            })
+            .expect("reuse audio generation task");
+
+        assert_eq!(first.task_id, second.task_id);
+        assert!(second.reused_existing);
+        assert!(first.path.starts_with(".lime/tasks/audio_generate/"));
+        assert_eq!(first.task_type, "audio_generate");
+        assert_eq!(first.task_family, "audio");
+        assert_eq!(
+            first
+                .record
+                .payload
+                .get("entry_source")
+                .and_then(Value::as_str),
+            Some("at_voice_command")
+        );
+        assert_eq!(
+            first
+                .record
+                .payload
+                .get("modality_contract_key")
+                .and_then(Value::as_str),
+            Some(VOICE_GENERATION_CONTRACT_KEY)
+        );
+        assert_eq!(
+            first.record.payload.get("modality").and_then(Value::as_str),
+            Some("audio")
+        );
+        assert_eq!(
+            first.record.payload.get("required_capabilities"),
+            Some(&json!(["text_generation", "voice_generation"]))
+        );
+        assert_eq!(
+            first
+                .record
+                .payload
+                .get("routing_slot")
+                .and_then(Value::as_str),
+            Some(crate::commands::modality_runtime_contracts::VOICE_GENERATION_ROUTING_SLOT)
+        );
+        assert_eq!(
+            first
+                .record
+                .payload
+                .pointer("/runtime_contract/executor_binding/binding_key")
+                .and_then(Value::as_str),
+            Some("voice_runtime")
+        );
+        assert_eq!(
+            first
+                .record
+                .payload
+                .pointer("/audio_output/kind")
+                .and_then(Value::as_str),
+            Some("audio_output")
+        );
+        assert_eq!(
+            first
+                .record
+                .payload
+                .pointer("/audio_output/status")
+                .and_then(Value::as_str),
+            Some("pending")
+        );
+        assert_eq!(
+            first
+                .record
+                .payload
+                .pointer("/audio_output/mime_type")
+                .and_then(Value::as_str),
+            Some(AUDIO_TASK_DEFAULT_MIME_TYPE)
+        );
+
+        let listed = list_media_task_artifacts_inner(ListMediaTaskArtifactsRequest {
+            project_root_path: temp_dir.path().to_string_lossy().to_string(),
+            status: Some("pending".to_string()),
+            task_family: Some("audio".to_string()),
+            task_type: Some("audio_generate".to_string()),
+            modality_contract_key: Some(VOICE_GENERATION_CONTRACT_KEY.to_string()),
+            routing_outcome: Some("accepted".to_string()),
+            limit: Some(10),
+        })
+        .expect("list audio generation tasks");
+
+        assert_eq!(listed.total, 1);
+        assert_eq!(listed.modality_runtime_contracts.snapshot_count, 1);
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .routing_event
+                .as_str(),
+            "executor_invoked"
+        );
+    }
+
+    #[test]
     fn validate_image_generation_task_execution_contract_should_reject_text_model_candidate() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
         let created =
@@ -1472,11 +2031,24 @@ mod tests {
             status: Some("pending".to_string()),
             task_family: Some("image".to_string()),
             task_type: Some("image_generate".to_string()),
+            modality_contract_key: None,
+            routing_outcome: None,
             limit: Some(10),
         })
         .expect("list tasks");
         assert_eq!(listed.total, 1);
         assert_eq!(listed.tasks[0].task_id, created.task_id);
+        assert_eq!(listed.modality_runtime_contracts.snapshot_count, 1);
+        assert_eq!(
+            listed.modality_runtime_contracts.contract_keys,
+            vec![IMAGE_GENERATION_CONTRACT_KEY.to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .routing_outcome
+                .as_str(),
+            "accepted"
+        );
 
         let cancelled = cancel_media_task_artifact_inner(MediaTaskLookupRequest {
             project_root_path: temp_dir.path().to_string_lossy().to_string(),
@@ -1485,6 +2057,85 @@ mod tests {
         .expect("cancel task");
         assert_eq!(cancelled.normalized_status, "cancelled");
         assert!(cancelled.record.cancelled_at.is_some());
+    }
+
+    #[test]
+    fn list_media_task_artifacts_inner_should_index_modality_contract_routing_blocks() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("gpt-5.2"),
+            ))
+            .expect("create task");
+        let assessment = ImageGenerationModelCapabilityAssessment {
+            model_id: "gpt-5.2".to_string(),
+            provider_id: Some("openai".to_string()),
+            source: "model_registry",
+            supports_image_generation: false,
+            reason: "registry_missing_image_generation_capability",
+        };
+        patch_image_task_model_capability_assessment(
+            temp_dir.path(),
+            &created.task_id,
+            &assessment,
+        )
+        .expect("patch model capability assessment");
+        patch_image_task(
+            temp_dir.path(),
+            &created.task_id,
+            TaskArtifactPatch {
+                status: Some("failed".to_string()),
+                last_error: Some(Some(build_task_error(
+                    "image_generation_model_capability_gap",
+                    "model registry 显示当前模型不具备图片生成能力。",
+                    false,
+                    "routing",
+                ))),
+                ..TaskArtifactPatch::default()
+            },
+        )
+        .expect("mark task failed");
+
+        let listed = list_media_task_artifacts_inner(ListMediaTaskArtifactsRequest {
+            project_root_path: temp_dir.path().to_string_lossy().to_string(),
+            status: Some("failed".to_string()),
+            task_family: Some("image".to_string()),
+            task_type: Some("image_generate".to_string()),
+            modality_contract_key: Some(IMAGE_GENERATION_CONTRACT_KEY.to_string()),
+            routing_outcome: Some("blocked".to_string()),
+            limit: Some(10),
+        })
+        .expect("list contract routing blocks");
+
+        assert_eq!(listed.total, 1);
+        assert_eq!(
+            listed.filters.modality_contract_key.as_deref(),
+            Some(IMAGE_GENERATION_CONTRACT_KEY)
+        );
+        assert_eq!(listed.filters.routing_outcome.as_deref(), Some("blocked"));
+        assert_eq!(listed.modality_runtime_contracts.snapshot_count, 1);
+        assert_eq!(listed.modality_runtime_contracts.blocked_count, 1);
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .model_registry_assessment_count,
+            1
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.routing_outcomes[0].outcome,
+            "blocked"
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .model_capability_assessment_source
+                .as_deref(),
+            Some("model_registry")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].model_supports_image_generation,
+            Some(false)
+        );
     }
 
     #[test]

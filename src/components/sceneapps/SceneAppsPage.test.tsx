@@ -833,186 +833,186 @@ describe("SceneAppsPage", () => {
             },
           ]
         : sceneappId === "story-video-suite"
-        ? [
-            {
-              runId: "story-video-suite-run-2",
-              sceneappId,
-              status: "running",
-              source: "chat",
-              sourceRef: "agent-runtime-submit-turn",
-              sessionId: "session-story-video-2",
-              serviceSceneRuntimeRef: {
-                sceneKey: "story-video-suite",
-                skillId: "sceneapp-service-story-video",
-                projectId: "project-1",
-                contentId: "content-story-video-2",
-                workspaceId: "project-1",
-                entrySource: "sceneapp_plan",
-                userInput: "生成一个 30 秒短视频方案",
-                slots: {
-                  duration: "30 秒",
-                },
-              },
-              startedAt: "2026-04-15T00:05:00.000Z",
-              finishedAt: null,
-              artifactCount: 1,
-              deliveryRequiredParts: [
-                "brief",
-                "storyboard",
-                "script",
-                "music_refs",
-                "video_draft",
-                "review_note",
-              ],
-              deliveryCompletedParts: [],
-              deliveryMissingParts: [],
-              deliveryCompletionRate: null,
-              deliveryPartCoverageKnown: false,
-              failureSignal: null,
-            },
-            {
-              runId: "story-video-suite-run-1",
-              sceneappId,
-              status: "success",
-              source: "automation",
-              sourceRef: "automation-job-story-video-1",
-              sessionId: "session-story-video-1",
-              startedAt: "2026-04-15T00:00:00.000Z",
-              finishedAt: "2026-04-15T00:03:00.000Z",
-              artifactCount: 5,
-              deliveryArtifactRefs: [
-                {
-                  relativePath: "exports/story-video-suite/latest/brief.md",
-                  absolutePath:
-                    "/workspace/exports/story-video-suite/latest/brief.md",
-                  partKey: "brief",
-                  projectId: "project-1",
-                  workspaceId: "project-1",
-                  source: "runtime_evidence",
-                },
-                {
-                  relativePath:
-                    "exports/story-video-suite/latest/video_draft.mp4",
-                  absolutePath:
-                    "/workspace/exports/story-video-suite/latest/video_draft.mp4",
-                  partKey: "video_draft",
-                  projectId: "project-1",
-                  workspaceId: "project-1",
-                  source: "runtime_evidence",
-                },
-              ],
-              governanceArtifactRefs: [
-                {
-                  kind: "evidence_summary",
-                  label: "证据摘要",
-                  relativePath:
-                    ".lime/harness/sessions/session-story-video-1/evidence/summary.md",
-                  absolutePath:
-                    "/workspace/.lime/harness/sessions/session-story-video-1/evidence/summary.md",
-                  projectId: "project-1",
-                  workspaceId: "project-1",
-                  source: "session_governance",
-                },
-                {
-                  kind: "review_decision_markdown",
-                  label: "人工复核记录",
-                  relativePath:
-                    ".lime/harness/sessions/session-story-video-1/review/review-decision.md",
-                  absolutePath:
-                    "/workspace/.lime/harness/sessions/session-story-video-1/review/review-decision.md",
-                  projectId: "project-1",
-                  workspaceId: "project-1",
-                  source: "session_governance",
-                },
-                {
-                  kind: "review_decision_json",
-                  label: "复核 JSON",
-                  relativePath:
-                    ".lime/harness/sessions/session-story-video-1/review/review-decision.json",
-                  absolutePath:
-                    "/workspace/.lime/harness/sessions/session-story-video-1/review/review-decision.json",
-                  projectId: "project-1",
-                  workspaceId: "project-1",
-                  source: "session_governance",
-                },
-              ],
-              deliveryRequiredParts: [
-                "brief",
-                "storyboard",
-                "script",
-                "music_refs",
-                "video_draft",
-                "review_note",
-              ],
-              deliveryCompletedParts: [
-                "brief",
-                "storyboard",
-                "script",
-                "music_refs",
-                "video_draft",
-              ],
-              deliveryMissingParts: ["review_note"],
-              deliveryCompletionRate: 83.3,
-              deliveryPartCoverageKnown: true,
-              failureSignal: "review_blocked",
-            },
-          ]
-        : sceneappId === "x-article-export"
           ? [
               {
-                runId: "x-article-export-run-1",
+                runId: "story-video-suite-run-2",
+                sceneappId,
+                status: "running",
+                source: "chat",
+                sourceRef: "agent-runtime-submit-turn",
+                sessionId: "session-story-video-2",
+                serviceSceneRuntimeRef: {
+                  sceneKey: "story-video-suite",
+                  skillId: "sceneapp-service-story-video",
+                  projectId: "project-1",
+                  contentId: "content-story-video-2",
+                  workspaceId: "project-1",
+                  entrySource: "sceneapp_plan",
+                  userInput: "生成一个 30 秒短视频方案",
+                  slots: {
+                    duration: "30 秒",
+                  },
+                },
+                startedAt: "2026-04-15T00:05:00.000Z",
+                finishedAt: null,
+                artifactCount: 1,
+                deliveryRequiredParts: [
+                  "brief",
+                  "storyboard",
+                  "script",
+                  "music_refs",
+                  "video_draft",
+                  "review_note",
+                ],
+                deliveryCompletedParts: [],
+                deliveryMissingParts: [],
+                deliveryCompletionRate: null,
+                deliveryPartCoverageKnown: false,
+                failureSignal: null,
+              },
+              {
+                runId: "story-video-suite-run-1",
                 sceneappId,
                 status: "success",
-                source: "skill",
-                sourceRef: "service-skill:x-article-export",
-                sessionId: "agent-session-article-export-1",
-                browserRuntimeRef: {
-                  profileKey: "general_browser_assist",
-                  sessionId: "browser-session-article-export-1",
-                  targetId: "target-article-export-1",
-                },
-                startedAt: "2026-04-15T00:08:00.000Z",
-                finishedAt: "2026-04-15T00:10:00.000Z",
-                artifactCount: 2,
+                source: "automation",
+                sourceRef: "automation-job-story-video-1",
+                sessionId: "session-story-video-1",
+                startedAt: "2026-04-15T00:00:00.000Z",
+                finishedAt: "2026-04-15T00:03:00.000Z",
+                artifactCount: 5,
+                deliveryArtifactRefs: [
+                  {
+                    relativePath: "exports/story-video-suite/latest/brief.md",
+                    absolutePath:
+                      "/workspace/exports/story-video-suite/latest/brief.md",
+                    partKey: "brief",
+                    projectId: "project-1",
+                    workspaceId: "project-1",
+                    source: "runtime_evidence",
+                  },
+                  {
+                    relativePath:
+                      "exports/story-video-suite/latest/video_draft.mp4",
+                    absolutePath:
+                      "/workspace/exports/story-video-suite/latest/video_draft.mp4",
+                    partKey: "video_draft",
+                    projectId: "project-1",
+                    workspaceId: "project-1",
+                    source: "runtime_evidence",
+                  },
+                ],
+                governanceArtifactRefs: [
+                  {
+                    kind: "evidence_summary",
+                    label: "证据摘要",
+                    relativePath:
+                      ".lime/harness/sessions/session-story-video-1/evidence/summary.md",
+                    absolutePath:
+                      "/workspace/.lime/harness/sessions/session-story-video-1/evidence/summary.md",
+                    projectId: "project-1",
+                    workspaceId: "project-1",
+                    source: "session_governance",
+                  },
+                  {
+                    kind: "review_decision_markdown",
+                    label: "人工复核记录",
+                    relativePath:
+                      ".lime/harness/sessions/session-story-video-1/review/review-decision.md",
+                    absolutePath:
+                      "/workspace/.lime/harness/sessions/session-story-video-1/review/review-decision.md",
+                    projectId: "project-1",
+                    workspaceId: "project-1",
+                    source: "session_governance",
+                  },
+                  {
+                    kind: "review_decision_json",
+                    label: "复核 JSON",
+                    relativePath:
+                      ".lime/harness/sessions/session-story-video-1/review/review-decision.json",
+                    absolutePath:
+                      "/workspace/.lime/harness/sessions/session-story-video-1/review/review-decision.json",
+                    projectId: "project-1",
+                    workspaceId: "project-1",
+                    source: "session_governance",
+                  },
+                ],
+                deliveryRequiredParts: [
+                  "brief",
+                  "storyboard",
+                  "script",
+                  "music_refs",
+                  "video_draft",
+                  "review_note",
+                ],
+                deliveryCompletedParts: [
+                  "brief",
+                  "storyboard",
+                  "script",
+                  "music_refs",
+                  "video_draft",
+                ],
+                deliveryMissingParts: ["review_note"],
+                deliveryCompletionRate: 83.3,
+                deliveryPartCoverageKnown: true,
+                failureSignal: "review_blocked",
               },
             ]
-          : sceneappId === "project-analysis-copilot"
+          : sceneappId === "x-article-export"
             ? [
                 {
-                  runId: "project-analysis-copilot-run-1",
+                  runId: "x-article-export-run-1",
                   sceneappId,
                   status: "success",
                   source: "skill",
-                  sourceRef: "service-skill:project-analysis",
-                  sessionId: null,
-                  nativeSkillRuntimeRef: {
-                    skillId: "sceneapp-service-analysis",
-                    skillKey: "project-analysis",
-                    projectId: "project-1",
-                    workspaceId: "project-1",
-                    userInput: "请分析当前项目结构",
-                    slots: {
-                      focus: "架构",
-                      depth: "高",
-                    },
+                  sourceRef: "service-skill:x-article-export",
+                  sessionId: "agent-session-article-export-1",
+                  browserRuntimeRef: {
+                    profileKey: "general_browser_assist",
+                    sessionId: "browser-session-article-export-1",
+                    targetId: "target-article-export-1",
                   },
-                  startedAt: "2026-04-15T00:11:00.000Z",
-                  finishedAt: "2026-04-15T00:13:00.000Z",
-                  artifactCount: 1,
+                  startedAt: "2026-04-15T00:08:00.000Z",
+                  finishedAt: "2026-04-15T00:10:00.000Z",
+                  artifactCount: 2,
                 },
               ]
-            : [
-                {
-                  runId: `${sceneappId}-run-1`,
-                  sceneappId,
-                  status: "running",
-                  source: "automation",
-                  sourceRef: `automation-job-${sceneappId}`,
-                  startedAt: "2026-04-15T00:00:00.000Z",
-                  finishedAt: null,
-                  artifactCount: 1,
-                },
-              ],
+            : sceneappId === "project-analysis-copilot"
+              ? [
+                  {
+                    runId: "project-analysis-copilot-run-1",
+                    sceneappId,
+                    status: "success",
+                    source: "skill",
+                    sourceRef: "service-skill:project-analysis",
+                    sessionId: null,
+                    nativeSkillRuntimeRef: {
+                      skillId: "sceneapp-service-analysis",
+                      skillKey: "project-analysis",
+                      projectId: "project-1",
+                      workspaceId: "project-1",
+                      userInput: "请分析当前项目结构",
+                      slots: {
+                        focus: "架构",
+                        depth: "高",
+                      },
+                    },
+                    startedAt: "2026-04-15T00:11:00.000Z",
+                    finishedAt: "2026-04-15T00:13:00.000Z",
+                    artifactCount: 1,
+                  },
+                ]
+              : [
+                  {
+                    runId: `${sceneappId}-run-1`,
+                    sceneappId,
+                    status: "running",
+                    source: "automation",
+                    sourceRef: `automation-job-${sceneappId}`,
+                    startedAt: "2026-04-15T00:00:00.000Z",
+                    finishedAt: null,
+                    artifactCount: 1,
+                  },
+                ],
     );
     mockGetSceneAppRunSummary.mockImplementation(async (runId: string) => {
       if (runId === "story-video-suite-run-2") {
@@ -1387,7 +1387,9 @@ describe("SceneAppsPage", () => {
     });
     await flushEffects();
 
-    expect(container.querySelector(".lime-workbench-theme-scope")).not.toBeNull();
+    expect(
+      container.querySelector(".lime-workbench-theme-scope"),
+    ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="sceneapps-view-catalog"]')
         ?.className,
@@ -1405,7 +1407,9 @@ describe("SceneAppsPage", () => {
     expect(container.textContent).toContain(
       "这套做法已经接住当前上下文，这轮信息和最近结果都能直接续上。",
     );
-    expect(container.textContent).not.toContain("全部做法 · 进入生成前的准备层");
+    expect(container.textContent).not.toContain(
+      "全部做法 · 进入生成前的准备层",
+    );
     expect(container.textContent).not.toContain("当前目录");
     expect(container.textContent).not.toContain("最近继续");
     expect(container.textContent).not.toContain("当前焦点");
@@ -2283,7 +2287,9 @@ describe("SceneAppsPage", () => {
             memoryRefs: [],
             toolRefs: [],
             referenceCount: 1,
-            notes: ["当前做法基线已写入项目级 Context Snapshot，后续 planning 会优先复用。"],
+            notes: [
+              "当前做法基线已写入项目级 Context Snapshot，后续 planning 会优先复用。",
+            ],
           },
           snapshot: {
             skillRefs: [],
@@ -2635,7 +2641,9 @@ describe("SceneAppsPage", () => {
     const scorecardBanner = container.querySelector(
       '[data-testid="sceneapp-scorecard-review-feedback-banner"]',
     );
-    expect(scorecardBanner?.textContent).toContain("最近判断已更新：短视频编排 · 可继续复用");
+    expect(scorecardBanner?.textContent).toContain(
+      "最近判断已更新：短视频编排 · 可继续复用",
+    );
     expect(scorecardBanner?.textContent).toContain("内容主稿生成");
     expect(scorecardBanner?.textContent).toContain("复盘这个账号/项目");
     expect(
@@ -2659,7 +2667,9 @@ describe("SceneAppsPage", () => {
     const governanceBanner = container.querySelector(
       '[data-testid="sceneapp-governance-review-feedback-banner"]',
     );
-    expect(governanceBanner?.textContent).toContain("最近判断已更新：短视频编排 · 可继续复用");
+    expect(governanceBanner?.textContent).toContain(
+      "最近判断已更新：短视频编排 · 可继续复用",
+    );
     expect(
       container.querySelector(
         '[data-testid="sceneapp-governance-review-feedback-banner-action"]',
@@ -2669,7 +2679,9 @@ describe("SceneAppsPage", () => {
     const runDetailBanner = container.querySelector(
       '[data-testid="sceneapp-run-detail-review-feedback-banner"]',
     );
-    expect(runDetailBanner?.textContent).toContain("最近判断已更新：短视频编排 · 可继续复用");
+    expect(runDetailBanner?.textContent).toContain(
+      "最近判断已更新：短视频编排 · 可继续复用",
+    );
     expect(
       container.querySelector(
         '[data-testid="sceneapp-run-detail-review-feedback-banner-action"]',

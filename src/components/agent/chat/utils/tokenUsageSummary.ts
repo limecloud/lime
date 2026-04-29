@@ -43,9 +43,7 @@ export function resolveUsageInputOutputSummary(
   )}`;
 }
 
-export function resolvePromptCacheMetaText(
-  usage?: TokenUsage,
-): string | null {
+export function resolvePromptCacheMetaText(usage?: TokenUsage): string | null {
   const hasCachedRead = Number.isFinite(usage?.cached_input_tokens);
   const hasCacheCreation = Number.isFinite(usage?.cache_creation_input_tokens);
 

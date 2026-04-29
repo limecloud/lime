@@ -26,6 +26,23 @@ export interface ImageStoryboardSlot {
   status?: string | null;
 }
 
+export type ImageRuntimeContractRoutingOutcome =
+  | "accepted"
+  | "failed"
+  | "blocked";
+
+export interface ImageRuntimeContractSnapshot {
+  contractKey?: string | null;
+  routingSlot?: string | null;
+  providerId?: string | null;
+  model?: string | null;
+  routingEvent?: string | null;
+  routingOutcome?: ImageRuntimeContractRoutingOutcome | string | null;
+  failureCode?: string | null;
+  modelCapabilityAssessmentSource?: string | null;
+  modelSupportsImageGeneration?: boolean | null;
+}
+
 export interface MessageImageWorkbenchPreview {
   taskId: string;
   prompt: string;
@@ -51,6 +68,7 @@ export interface MessageImageWorkbenchPreview {
   retryable?: boolean;
   attemptCount?: number;
   placeholderText?: string | null;
+  runtimeContract?: ImageRuntimeContractSnapshot | null;
 }
 
 export type MessageTaskPreviewStatus = MessageImageWorkbenchPreview["status"];

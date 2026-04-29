@@ -7,20 +7,19 @@ import { SettingModelSelectorField } from "./SettingModelSelectorField";
 
 type SelectorFieldProps = ComponentProps<typeof SettingModelSelectorField>;
 
-interface MediaPreferenceSectionProps
-  extends Pick<
-    SelectorFieldProps,
-    | "activeTheme"
-    | "disabled"
-    | "emptyStateDescription"
-    | "emptyStateTitle"
-    | "model"
-    | "modelFilter"
-    | "providerFilter"
-    | "providerType"
-    | "setModel"
-    | "setProviderType"
-  > {
+interface MediaPreferenceSectionProps extends Pick<
+  SelectorFieldProps,
+  | "activeTheme"
+  | "disabled"
+  | "emptyStateDescription"
+  | "emptyStateTitle"
+  | "model"
+  | "modelFilter"
+  | "providerFilter"
+  | "providerType"
+  | "setModel"
+  | "setProviderType"
+> {
   title: string;
   description: string;
   selectorLabel: string;

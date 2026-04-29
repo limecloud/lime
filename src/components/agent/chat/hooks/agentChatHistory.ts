@@ -400,6 +400,15 @@ function imageWorkbenchPreviewSignature(
     preview.retryable,
     preview.attemptCount,
     preview.placeholderText,
+    preview.runtimeContract?.contractKey,
+    preview.runtimeContract?.routingSlot,
+    preview.runtimeContract?.providerId,
+    preview.runtimeContract?.model,
+    preview.runtimeContract?.routingEvent,
+    preview.runtimeContract?.routingOutcome,
+    preview.runtimeContract?.failureCode,
+    preview.runtimeContract?.modelCapabilityAssessmentSource,
+    preview.runtimeContract?.modelSupportsImageGeneration,
   ]
     .map(normalizePreviewSignatureValue)
     .join(":");

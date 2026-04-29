@@ -1667,13 +1667,13 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor).toBeTruthy();
     expect(monitor?.classification).toBe("dead-candidate");
     expect(monitor?.patterns).toEqual([
-      "from \"@/components/image-gen\"",
+      'from "@/components/image-gen"',
       "from '@/components/image-gen'",
-      "import(\"@/components/image-gen\")",
+      'import("@/components/image-gen")',
       "import('@/components/image-gen')",
-      "from \"@/components/image-gen/index\"",
+      'from "@/components/image-gen/index"',
       "from '@/components/image-gen/index'",
-      "import(\"@/components/image-gen/index\")",
+      'import("@/components/image-gen/index")',
       "import('@/components/image-gen/index')",
     ]);
     expect(monitor?.allowedPaths).toEqual([]);

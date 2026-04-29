@@ -56,7 +56,8 @@ export function SceneAppScorecardPanel({
         </div>
         {scorecardView?.aggregate?.actionLabel || scorecardView?.actionLabel ? (
           <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-            {scorecardView?.aggregate?.actionLabel ?? scorecardView?.actionLabel}
+            {scorecardView?.aggregate?.actionLabel ??
+              scorecardView?.actionLabel}
           </span>
         ) : null}
       </div>
@@ -238,7 +239,9 @@ export function SceneAppScorecardPanel({
               ) : null}
               {scorecardView.topFailureSignalLabel ? (
                 <div className="mt-3 text-sm text-slate-700">
-                  <span className="font-medium text-slate-900">当前最卡的一点：</span>
+                  <span className="font-medium text-slate-900">
+                    当前最卡的一点：
+                  </span>
                   {scorecardView.topFailureSignalLabel}
                 </div>
               ) : null}
@@ -271,12 +274,16 @@ export function SceneAppScorecardPanel({
                     data-testid="sceneapp-scorecard-context-reference-count"
                     className="mt-2 text-sm text-slate-700"
                   >
-                    <span className="font-medium text-slate-900">参考对象：</span>
+                    <span className="font-medium text-slate-900">
+                      参考对象：
+                    </span>
                     {scorecardView.contextBaseline.referenceCount} 条
                   </div>
                   {scorecardView.contextBaseline.scopeLabel ? (
                     <div className="mt-2 text-sm text-slate-700">
-                      <span className="font-medium text-slate-900">作用范围：</span>
+                      <span className="font-medium text-slate-900">
+                        作用范围：
+                      </span>
                       {scorecardView.contextBaseline.scopeLabel}
                     </div>
                   ) : null}
@@ -306,7 +313,9 @@ export function SceneAppScorecardPanel({
                       data-testid="sceneapp-scorecard-context-taste-summary"
                       className="mt-3 text-sm leading-6 text-slate-700"
                     >
-                      <span className="font-medium text-slate-900">风格方向：</span>
+                      <span className="font-medium text-slate-900">
+                        风格方向：
+                      </span>
                       {scorecardView.contextBaseline.tasteSummary}
                     </div>
                   ) : null}

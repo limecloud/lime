@@ -181,12 +181,9 @@ describe("CrashRecoveryPanel", () => {
     );
 
     expect(reloadUrl).toContain("__lime_resource_reload=");
-    finalizeModuleImportAutoReload(
-      reloadUrl!,
-      "1.19.0",
-      storage,
-      { replaceState },
-    );
+    finalizeModuleImportAutoReload(reloadUrl!, "1.19.0", storage, {
+      replaceState,
+    });
 
     expect(replaceState).toHaveBeenCalledWith(
       null,

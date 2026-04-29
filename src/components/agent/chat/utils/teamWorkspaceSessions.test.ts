@@ -86,9 +86,9 @@ describe("teamWorkspaceSessions", () => {
     const duplicated = createSessionCard({ id: "s-1", name: "成员 1 重复" });
     const second = createSessionCard({ id: "s-2", name: "成员 2" });
 
-    expect(dedupeSessions([first, null, duplicated, second, undefined])).toEqual(
-      [first, second],
-    );
+    expect(
+      dedupeSessions([first, null, duplicated, second, undefined]),
+    ).toEqual([first, second]);
   });
 
   it("应把 API 会话映射为 Team 会话卡片", () => {

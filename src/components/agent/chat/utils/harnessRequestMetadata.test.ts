@@ -335,6 +335,54 @@ describe("harnessRequestMetadata", () => {
     });
   });
 
+  it("应保留 Browser Assist 已注入的运行合同快照", () => {
+    const metadata = buildHarnessRequestMetadata({
+      base: {
+        browser_assist: {
+          enabled: true,
+          modality_contract_key: "browser_control",
+          modality: "browser",
+          required_capabilities: [
+            "text_generation",
+            "browser_reasoning",
+            "browser_control_planning",
+          ],
+          routing_slot: "browser_reasoning_model",
+          runtime_contract: {
+            contract_key: "browser_control",
+          },
+          launch_url: "https://example.com",
+        },
+      },
+      theme: "general",
+      preferences: {
+        webSearch: false,
+        thinking: true,
+        task: true,
+        subagent: true,
+      },
+      sessionMode: "default",
+      browserAssistProfileKey: "general_browser_assist",
+    });
+
+    expect(metadata).toMatchObject({
+      browser_assist: {
+        enabled: true,
+        profile_key: "general_browser_assist",
+        modality_contract_key: "browser_control",
+        modality: "browser",
+        required_capabilities: expect.arrayContaining([
+          "browser_control_planning",
+        ]),
+        routing_slot: "browser_reasoning_model",
+        runtime_contract: expect.objectContaining({
+          contract_key: "browser_control",
+        }),
+        launch_url: "https://example.com",
+      },
+    });
+  });
+
   it("未显式指定浏览器后端时不应强制写入 cdp_direct", () => {
     const metadata = buildHarnessRequestMetadata({
       theme: "general",

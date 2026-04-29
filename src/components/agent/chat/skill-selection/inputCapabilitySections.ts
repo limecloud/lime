@@ -44,15 +44,18 @@ import {
   normalizeCuratedTaskReferenceMemoryIds,
   type CuratedTaskReferenceEntry,
 } from "../utils/curatedTaskReferenceSelection";
-import {
-  buildSceneAppExecutionReviewPrefillSnapshot,
-} from "../utils/sceneAppCuratedTaskReference";
+import { buildSceneAppExecutionReviewPrefillSnapshot } from "../utils/sceneAppCuratedTaskReference";
 import { buildReviewFeedbackProjection } from "../utils/reviewFeedbackProjection";
 
 const FEATURED_SERVICE_SKILL_LIMIT = 4;
 const RECENT_REPLAY_TEXT_PREVIEW_LIMIT = 48;
 
-type InputCapabilityIcon = "command" | "image-plus" | "sparkles" | "user" | "zap";
+type InputCapabilityIcon =
+  | "command"
+  | "image-plus"
+  | "sparkles"
+  | "user"
+  | "zap";
 
 type InputCapabilityBase = {
   key: string;
@@ -426,9 +429,9 @@ function resolveRecentSlashEntryDescription(params: {
 function resolveInputCommandSectionMeta(
   command: Pick<BuiltinInputCommand, "key">,
 ): InputCommandSectionMeta {
-  return (
-    INPUT_COMMAND_SECTION_META[INPUT_COMMAND_GROUP_BY_KEY[command.key] ?? "other"]
-  );
+  return INPUT_COMMAND_SECTION_META[
+    INPUT_COMMAND_GROUP_BY_KEY[command.key] ?? "other"
+  ];
 }
 
 function resolveSlashCommandSectionMeta(
@@ -449,7 +452,10 @@ function groupItemsBySectionMeta<T>(
   items: T[],
   resolveMeta: (item: T) => InputCommandSectionMeta,
 ): Array<{ meta: InputCommandSectionMeta; items: T[] }> {
-  const groups = new Map<string, { meta: InputCommandSectionMeta; items: T[] }>();
+  const groups = new Map<
+    string,
+    { meta: InputCommandSectionMeta; items: T[] }
+  >();
 
   for (const item of items) {
     const meta = resolveMeta(item);
@@ -533,7 +539,7 @@ function resolveCuratedTaskLaunchContext(params: {
   const mergedReferenceMemoryIds =
     normalizeCuratedTaskReferenceMemoryIds([
       ...(params.referenceEntries
-        ? extractCuratedTaskReferenceMemoryIds(params.referenceEntries) ?? []
+        ? (extractCuratedTaskReferenceMemoryIds(params.referenceEntries) ?? [])
         : []),
       ...(launchPrefill?.referenceMemoryIds ?? []),
       ...(extractCuratedTaskReferenceMemoryIds(mergedReferenceEntries) ?? []),
@@ -588,7 +594,9 @@ function buildCuratedTaskSlashDescription(params: {
     params.reasonSummary,
     params.fallbackDescription,
   ]
-    .filter((value): value is string => Boolean(value && value.trim().length > 0))
+    .filter((value): value is string =>
+      Boolean(value && value.trim().length > 0),
+    )
     .join(" · ");
 }
 
@@ -766,7 +774,8 @@ function buildMentionCapabilitySections(
   );
   const mentionRegistryBanner =
     isEmptyQuery &&
-    (visibleBuiltinCommands.length > 0 || visibleRecentMentionEntries.length > 0)
+    (visibleBuiltinCommands.length > 0 ||
+      visibleRecentMentionEntries.length > 0)
       ? buildMentionRegistryBanner({
           hasRecent: visibleRecentMentionEntries.length > 0,
           hasServiceSkills:
@@ -795,89 +804,93 @@ function buildMentionCapabilitySections(
   const sections: InputCapabilitySection[] = [];
 
   if (visibleRecentMentionEntries.length > 0) {
-    sections.push(attachMentionRegistryBanner({
-      key: "recent-mention",
-      heading: "最近调用",
-      items: visibleRecentMentionEntries.flatMap<InputCapabilityDescriptor>(
-        (entry) => {
-          if (entry.kind === "builtin_command") {
-            const command = params.builtinCommands.find(
-              (item) => item.key === entry.commandKey,
-            );
-            const meta = command
-              ? resolveInputCommandSectionMeta(command)
-              : null;
-            return command
-              ? [
-                {
-                  key: entry.key,
-                  kind: "builtin_command" as const,
-                  title: entry.commandPrefix || command.commandPrefix,
-                  description: entry.description,
-                  icon: meta?.icon ?? "command",
-                  iconClassName:
-                    meta?.iconClassName ?? "mr-2 h-4 w-4 text-sky-600",
-                  kindLabel: entry.kindLabel,
-                  command,
-                  replayText: entry.replayText,
-                },
-              ]
-              : [];
-          }
+    sections.push(
+      attachMentionRegistryBanner({
+        key: "recent-mention",
+        heading: "最近调用",
+        items: visibleRecentMentionEntries.flatMap<InputCapabilityDescriptor>(
+          (entry) => {
+            if (entry.kind === "builtin_command") {
+              const command = params.builtinCommands.find(
+                (item) => item.key === entry.commandKey,
+              );
+              const meta = command
+                ? resolveInputCommandSectionMeta(command)
+                : null;
+              return command
+                ? [
+                    {
+                      key: entry.key,
+                      kind: "builtin_command" as const,
+                      title: entry.commandPrefix || command.commandPrefix,
+                      description: entry.description,
+                      icon: meta?.icon ?? "command",
+                      iconClassName:
+                        meta?.iconClassName ?? "mr-2 h-4 w-4 text-sky-600",
+                      kindLabel: entry.kindLabel,
+                      command,
+                      replayText: entry.replayText,
+                    },
+                  ]
+                : [];
+            }
 
-          const skill = params.mentionServiceSkills.find(
-            (item) => item.id === entry.skillId,
-          );
-          return skill
-            ? [
-                {
-                  key: entry.key,
-                  kind: "service_skill" as const,
-                  title: entry.title,
-                  description: entry.description,
-                  icon: "sparkles" as const,
-                  iconClassName: "mr-2 h-4 w-4 text-emerald-600",
-                  skill,
-                },
-              ]
-            : [];
-        },
-      ),
-    }));
+            const skill = params.mentionServiceSkills.find(
+              (item) => item.id === entry.skillId,
+            );
+            return skill
+              ? [
+                  {
+                    key: entry.key,
+                    kind: "service_skill" as const,
+                    title: entry.title,
+                    description: entry.description,
+                    icon: "sparkles" as const,
+                    iconClassName: "mr-2 h-4 w-4 text-emerald-600",
+                    skill,
+                  },
+                ]
+              : [];
+          },
+        ),
+      }),
+    );
   }
 
   for (const group of groupItemsBySectionMeta(
     visibleBuiltinCommands,
     resolveInputCommandSectionMeta,
   )) {
-    sections.push(attachMentionRegistryBanner({
-      key: `builtin-commands:${group.meta.key}`,
-      heading: group.meta.heading,
-      items: group.items.map((command) => {
-        const recentRecord = mentionUsageMap.get(
-          getMentionEntryUsageRecordKey("builtin_command", command.key),
-        );
-        const resolvedReplayText = resolveBuiltinCommandPrefillReplayText({
-          command,
-          replayText: recentRecord?.replayText,
-          slotValues: recentRecord?.slotValues,
-        });
-
-        return {
-          key: command.key,
-          kind: "builtin_command" as const,
-          title: command.commandPrefix,
-          description: resolveRecentBuiltinCommandDescription(
+    sections.push(
+      attachMentionRegistryBanner({
+        key: `builtin-commands:${group.meta.key}`,
+        heading: group.meta.heading,
+        items: group.items.map((command) => {
+          const recentRecord = mentionUsageMap.get(
+            getMentionEntryUsageRecordKey("builtin_command", command.key),
+          );
+          const resolvedReplayText = resolveBuiltinCommandPrefillReplayText({
             command,
-            resolvedReplayText,
-          ),
-          icon: group.meta.icon,
-          iconClassName: group.meta.iconClassName,
-          command,
-          replayText: resolvedReplayText,
-        };
+            replayText: recentRecord?.replayText,
+            slotValues: recentRecord?.slotValues,
+          });
+
+          return {
+            key: command.key,
+            kind: "builtin_command" as const,
+            title: command.commandPrefix,
+            description: resolveRecentBuiltinCommandDescription(
+              command,
+              resolvedReplayText,
+            ),
+            icon: group.meta.icon,
+            iconClassName: group.meta.iconClassName,
+            command,
+            replayText: resolvedReplayText,
+          };
+        }),
       }),
-    }));
+    );
   }
 
   if (visibleFeaturedServiceSkills.length > 0) {
@@ -984,7 +997,9 @@ function buildSlashCapabilitySections(
     (item) => item.template,
   );
   const featuredCuratedTaskTemplateMap = new Map(
-    featuredCuratedTaskTemplates.map((item) => [item.template.id, item] as const),
+    featuredCuratedTaskTemplates.map(
+      (item) => [item.template.id, item] as const,
+    ),
   );
   const latestReviewSignal = listCuratedTaskRecommendationSignals({
     projectId: params.projectId,
@@ -1085,12 +1100,15 @@ function buildSlashCapabilitySections(
             prefill: launchPrefill,
           }),
           resolveRecentSlashEntryDescription({
-            fallbackDescription: buildCuratedTaskCapabilityDescription(template, {
-              includeSummary: false,
-              includeResultDestination: true,
-              includeFollowUpActions: true,
-              followUpLimit: 1,
-            }),
+            fallbackDescription: buildCuratedTaskCapabilityDescription(
+              template,
+              {
+                includeSummary: false,
+                includeResultDestination: true,
+                includeFollowUpActions: true,
+                followUpLimit: 1,
+              },
+            ),
             fallbackTitle: template.title,
           }),
         ]
@@ -1138,7 +1156,9 @@ function buildSlashCapabilitySections(
       isEmptyQuery ? compareSlashCommandsForEmptyQuery(left, right) : 0,
     );
   const visibleUnsupportedSlashCommands = !isEmptyQuery
-    ? params.slashCommands.filter((command) => command.support === "unsupported")
+    ? params.slashCommands.filter(
+        (command) => command.support === "unsupported",
+      )
     : [];
   const visibleSceneCommands = params.sceneCommands.filter(
     (command) => !recentSlashSceneKeys.has(command.commandPrefix),
@@ -1149,7 +1169,9 @@ function buildSlashCapabilitySections(
       )
     : params.installedSkills;
   const visibleCuratedTaskTemplates = isEmptyQuery
-    ? curatedTaskTemplates.filter((template) => !recentCuratedTaskIds.has(template.id))
+    ? curatedTaskTemplates.filter(
+        (template) => !recentCuratedTaskIds.has(template.id),
+      )
     : curatedTaskTemplates;
   const highlightedReviewTemplates = visibleCuratedTaskTemplates
     .filter(
@@ -1180,7 +1202,10 @@ function buildSlashCapabilitySections(
                 icon: meta?.icon ?? "command",
                 iconClassName:
                   meta?.iconClassName ?? "mr-2 h-4 w-4 text-emerald-600",
-                kindLabel: entry.kindLabel ?? entry.commandPrefix ?? command.commandPrefix,
+                kindLabel:
+                  entry.kindLabel ??
+                  entry.commandPrefix ??
+                  command.commandPrefix,
                 command,
                 replayText: entry.replayText,
               },
@@ -1209,7 +1234,9 @@ function buildSlashCapabilitySections(
       }
 
       if (entry.kind === "curated_task") {
-        const task = curatedTaskTemplates.find((item) => item.id === entry.taskId);
+        const task = curatedTaskTemplates.find(
+          (item) => item.id === entry.taskId,
+        );
         if (!task) {
           return [];
         }
@@ -1301,7 +1328,8 @@ function buildSlashCapabilitySections(
         title: task.title,
         description: buildCuratedTaskSlashDescription({
           task,
-          reasonSummary: featuredCuratedTaskTemplateMap.get(task.id)?.reasonSummary,
+          reasonSummary: featuredCuratedTaskTemplateMap.get(task.id)
+            ?.reasonSummary,
           referenceEntries: launchContext.mergedReferenceEntries,
           fallbackDescription: buildCuratedTaskCapabilityDescription(task, {
             includeResultDestination: true,
@@ -1321,47 +1349,48 @@ function buildSlashCapabilitySections(
   const resultTemplatesSection: InputCapabilitySection | null =
     visibleResultTemplateItems.length > 0
       ? {
-      key: "result-templates",
-      heading: isEmptyQuery ? "先拿结果" : "结果模板",
-      items: visibleResultTemplateItems,
-      ...(latestReviewSignal && highlightedReviewTemplates.length > 0
-        ? {
-            banner: (() => {
-              const projection = buildReviewFeedbackProjection({
-                signal: latestReviewSignal,
-              });
-              const primarySuggestedItem =
-                (projection?.suggestedTasks[0]
-                  ? visibleResultTemplateItems.find(
-                      (item) => item.key === projection.suggestedTasks[0]?.taskId,
-                    )
-                  : null) ??
-                visibleResultTemplateItems.find(
-                  (item) => item.key === highlightedReviewTemplates[0]?.id,
-                ) ??
-                null;
+          key: "result-templates",
+          heading: isEmptyQuery ? "先拿结果" : "结果模板",
+          items: visibleResultTemplateItems,
+          ...(latestReviewSignal && highlightedReviewTemplates.length > 0
+            ? {
+                banner: (() => {
+                  const projection = buildReviewFeedbackProjection({
+                    signal: latestReviewSignal,
+                  });
+                  const primarySuggestedItem =
+                    (projection?.suggestedTasks[0]
+                      ? visibleResultTemplateItems.find(
+                          (item) =>
+                            item.key === projection.suggestedTasks[0]?.taskId,
+                        )
+                      : null) ??
+                    visibleResultTemplateItems.find(
+                      (item) => item.key === highlightedReviewTemplates[0]?.id,
+                    ) ??
+                    null;
 
-              return {
-                title: `最近判断已更新：${latestReviewSignal.title}`,
-                summary: truncateSectionBannerText(
-                  [
-                    latestReviewSignal.summary,
-                    projection?.suggestionText ?? "",
-                  ]
-                    .filter((segment) => segment.trim().length > 0)
-                    .join(" "),
-                ),
-                footnote: `更适合继续：${highlightedReviewTemplates
-                  .map((task) => task.title)
-                  .join(" / ")}`,
-                actionLabel: primarySuggestedItem
-                  ? `继续去「${primarySuggestedItem.title}」`
-                  : undefined,
-                actionItemKey: primarySuggestedItem?.key,
-              };
-            })(),
-          }
-        : {}),
+                  return {
+                    title: `最近判断已更新：${latestReviewSignal.title}`,
+                    summary: truncateSectionBannerText(
+                      [
+                        latestReviewSignal.summary,
+                        projection?.suggestionText ?? "",
+                      ]
+                        .filter((segment) => segment.trim().length > 0)
+                        .join(" "),
+                    ),
+                    footnote: `更适合继续：${highlightedReviewTemplates
+                      .map((task) => task.title)
+                      .join(" / ")}`,
+                    actionLabel: primarySuggestedItem
+                      ? `继续去「${primarySuggestedItem.title}」`
+                      : undefined,
+                    actionItemKey: primarySuggestedItem?.key,
+                  };
+                })(),
+              }
+            : {}),
         }
       : null;
 

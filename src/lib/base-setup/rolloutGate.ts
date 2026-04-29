@@ -37,11 +37,13 @@ export function evaluateBaseSetupRollout(
     return input.seededFallbackAvailable
       ? {
           decision: "fallback_seeded",
-          reason: "Base Setup Package 结构或引用校验未通过，退回 seeded fallback。",
+          reason:
+            "Base Setup Package 结构或引用校验未通过，退回 seeded fallback。",
         }
       : {
           decision: "reject_invalid_package",
-          reason: "Base Setup Package 结构或引用校验未通过，且当前没有 seeded fallback。",
+          reason:
+            "Base Setup Package 结构或引用校验未通过，且当前没有 seeded fallback。",
         };
   }
 
@@ -83,9 +85,10 @@ export function evaluateBaseSetupRollout(
   const supportedKernelCapabilitySet = new Set<string>(
     supportedKernelCapabilities,
   );
-  const unsupportedCapability = pkg.compatibility.requiredKernelCapabilities.find(
-    (capability) => !supportedKernelCapabilitySet.has(capability),
-  );
+  const unsupportedCapability =
+    pkg.compatibility.requiredKernelCapabilities.find(
+      (capability) => !supportedKernelCapabilitySet.has(capability),
+    );
   if (unsupportedCapability) {
     return {
       decision: "reject_upgrade_required",

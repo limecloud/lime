@@ -96,9 +96,7 @@ describe("toolDisplayInfo", () => {
     expect(resolveToolDisplayLabel("lime_run_service_skill")).toBe(
       "服务技能兼容执行",
     );
-    expect(resolveToolDisplayLabel("lime_site_recommend")).toBe(
-      "站点能力推荐",
-    );
+    expect(resolveToolDisplayLabel("lime_site_recommend")).toBe("站点能力推荐");
     expect(resolveToolDisplayLabel("mcp__github__search_code")).toBe(
       "MCP 搜索",
     );
@@ -123,9 +121,9 @@ describe("toolDisplayInfo", () => {
       "完成 MCP 授权",
     );
     expect(resolveUserFacingToolDisplayLabel("REPLTool")).toBe("运行命令");
-    expect(
-      resolveUserFacingToolDisplayLabel("lime_run_service_skill"),
-    ).toBe("运行兼容服务技能");
+    expect(resolveUserFacingToolDisplayLabel("lime_run_service_skill")).toBe(
+      "运行兼容服务技能",
+    );
     expect(resolveUserFacingToolDisplayLabel("lime_site_recommend")).toBe(
       "推荐站点能力",
     );
@@ -167,9 +165,9 @@ describe("toolDisplayInfo", () => {
     expect(resolveToolPrimarySubject("lime_site_list", {}, null)).toBe(
       "站点能力目录",
     );
-    expect(getToolDisplayInfo("lime_create_typesetting_task", "running").family).toBe(
-      "task",
-    );
+    expect(
+      getToolDisplayInfo("lime_create_typesetting_task", "running").family,
+    ).toBe("task");
   });
 
   it("应隐藏 ToolSearch 中的内部协议查询词", () => {

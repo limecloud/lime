@@ -229,9 +229,8 @@ async function openSkillSelector(container: HTMLElement) {
 
 describe("SkillSelector", () => {
   it("选择已安装技能时应走统一 capability 回调", async () => {
-    const onSelectInputCapability = vi.fn<
-      (capability: InputCapabilitySelection) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<(capability: InputCapabilitySelection) => void>();
     const installedSkill = createSkill("写作助手", "writer", true);
     const container = renderSkillSelector({
       skills: [installedSkill],
@@ -359,9 +358,8 @@ describe("SkillSelector", () => {
   });
 
   it("应复用同一面板渲染服务技能并走统一 capability 回调", async () => {
-    const onSelectInputCapability = vi.fn<
-      (capability: InputCapabilitySelection) => void
-    >();
+    const onSelectInputCapability =
+      vi.fn<(capability: InputCapabilitySelection) => void>();
     const serviceSkill = createServiceSkill(
       "github-repo-radar",
       "GitHub 仓库线索检索",

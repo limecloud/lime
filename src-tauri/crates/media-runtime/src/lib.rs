@@ -68,6 +68,7 @@ pub fn build_image_generation_endpoint(host: &str, port: u16) -> String {
 #[serde(rename_all = "snake_case")]
 pub enum TaskType {
     ImageGenerate,
+    AudioGenerate,
     CoverGenerate,
     VideoGenerate,
     TranscriptionGenerate,
@@ -81,6 +82,7 @@ impl TaskType {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::ImageGenerate => "image_generate",
+            Self::AudioGenerate => "audio_generate",
             Self::CoverGenerate => "cover_generate",
             Self::VideoGenerate => "video_generate",
             Self::TranscriptionGenerate => "transcription_generate",
@@ -94,6 +96,7 @@ impl TaskType {
     pub fn command_name(self) -> &'static str {
         match self {
             Self::ImageGenerate => "image",
+            Self::AudioGenerate => "audio",
             Self::CoverGenerate => "cover",
             Self::VideoGenerate => "video",
             Self::TranscriptionGenerate => "transcription",
@@ -108,6 +111,7 @@ impl TaskType {
         match self {
             Self::VideoGenerate => "queued",
             Self::ImageGenerate
+            | Self::AudioGenerate
             | Self::CoverGenerate
             | Self::TranscriptionGenerate
             | Self::BroadcastGenerate
@@ -120,6 +124,7 @@ impl TaskType {
     pub fn family(self) -> &'static str {
         match self {
             Self::ImageGenerate | Self::CoverGenerate => "image",
+            Self::AudioGenerate => "audio",
             Self::VideoGenerate => "video",
             Self::TranscriptionGenerate
             | Self::BroadcastGenerate
@@ -132,6 +137,7 @@ impl TaskType {
     pub fn all() -> &'static [Self] {
         &[
             Self::ImageGenerate,
+            Self::AudioGenerate,
             Self::CoverGenerate,
             Self::VideoGenerate,
             Self::TranscriptionGenerate,
@@ -149,6 +155,7 @@ impl FromStr for TaskType {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value.trim().to_ascii_lowercase().as_str() {
             "image" | "image_generate" => Ok(Self::ImageGenerate),
+            "audio" | "audio_generate" | "voice" | "voice_generate" => Ok(Self::AudioGenerate),
             "cover" | "cover_generate" => Ok(Self::CoverGenerate),
             "video" | "video_generate" => Ok(Self::VideoGenerate),
             "transcription" | "transcribe" | "transcription_generate" => {
@@ -671,6 +678,7 @@ fn task_family_for_type(task_type: &str) -> String {
         .map(|value| value.family().to_string())
         .unwrap_or_else(|| match task_type.trim().to_ascii_lowercase().as_str() {
             value if value.contains("image") || value.contains("cover") => "image".to_string(),
+            value if value.contains("audio") || value.contains("voice") => "audio".to_string(),
             value if value.contains("video") => "video".to_string(),
             value if value.contains("resource") => "resource".to_string(),
             "transcription_generate" | "broadcast_generate" | "url_parse" | "typesetting" => {
@@ -711,6 +719,9 @@ fn derive_task_summary(task_type: &str, title: Option<&str>, payload: &Value) ->
                 "image_generate" | "cover_generate" | "video_generate" => {
                     payload_string(payload, &["prompt", "usage"])
                 }
+                "audio_generate" => {
+                    payload_string(payload, &["source_text", "prompt", "voice", "voice_style"])
+                }
                 "transcription_generate" => {
                     payload_string(payload, &["prompt", "source_path", "source_url"])
                 }
@@ -738,6 +749,12 @@ fn derive_task_ui_hints(task_family: &str, summary: Option<&str>) -> TaskUiHints
             placeholder_text: Some(format!("[video:{}]", summary.unwrap_or("视频任务"))),
             preferred_surface: Some("claw_chat".to_string()),
             open_action: Some("open_video_workbench".to_string()),
+        },
+        "audio" => TaskUiHints {
+            render_mode: Some("media_placeholder_card".to_string()),
+            placeholder_text: Some(format!("[audio:{}]", summary.unwrap_or("音频任务"))),
+            preferred_surface: Some("claw_chat".to_string()),
+            open_action: Some("open_audio_player".to_string()),
         },
         _ => TaskUiHints {
             render_mode: Some("task_status_card".to_string()),
@@ -2870,6 +2887,40 @@ mod tests {
         assert_eq!(
             output.ui_hints.open_action.as_deref(),
             Some("open_task_panel")
+        );
+    }
+
+    #[test]
+    fn write_task_artifact_supports_audio_generate() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let output = write_task_artifact(
+            temp_dir.path(),
+            TaskType::AudioGenerate,
+            Some("配音".to_string()),
+            serde_json::json!({
+                "source_text": "这是需要配音的文案",
+                "voice": "warm_narrator",
+                "audio_output": {
+                    "status": "pending",
+                    "mime_type": "audio/mpeg"
+                }
+            }),
+            TaskWriteOptions::default(),
+        )
+        .expect("write audio task");
+
+        assert!(output.path.starts_with(".lime/tasks/audio_generate/"));
+        assert_eq!(output.task_type, "audio_generate");
+        assert_eq!(output.task_family, "audio");
+        assert_eq!(output.status, "pending_submit");
+        assert_eq!(output.normalized_status, "pending");
+        assert_eq!(
+            output.ui_hints.open_action.as_deref(),
+            Some("open_audio_player")
+        );
+        assert_eq!(
+            output.record.payload.pointer("/audio_output/status"),
+            Some(&serde_json::json!("pending"))
         );
     }
 

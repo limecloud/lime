@@ -228,10 +228,45 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     await flushEffects();
 
     expect(container.querySelector('[data-testid="provider-list"]')).toBeNull();
-    expect(container.querySelector('[data-testid="enabled-model-list"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="enabled-model-list"]'),
+    ).not.toBeNull();
     expect(container.textContent ?? "").toContain("启用的模型");
     expect(container.textContent ?? "").toContain("DeepSeek");
     expect(container.textContent ?? "").not.toContain("OpenAI");
+  });
+
+  it("本地模型管理列表不展示云端托管的 Lime Hub Provider", async () => {
+    const limeHub = createProvider({
+      id: "lime-hub",
+      name: "Lime Hub",
+      group: "cloud",
+      sort_order: 0,
+      custom_models: ["gpt-5.2-pro"],
+    });
+    const deepseek = createProvider();
+    const hookState = createHookState({
+      providers: [limeHub, deepseek],
+      selectedProviderId: "lime-hub",
+      selectedProvider: null,
+      filteredProviders: [deepseek],
+    });
+
+    const container = renderSection();
+    await flushEffects();
+
+    expect(
+      container.querySelector(
+        '[data-testid="enabled-model-item"][data-provider-id="lime-hub"]',
+      ),
+    ).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="enabled-model-item"][data-provider-id="deepseek"]',
+      ),
+    ).not.toBeNull();
+    expect(hookState.selectProvider).toHaveBeenCalledWith("deepseek");
+    expect(container.textContent ?? "").not.toContain("默认 (Lime Hub)");
   });
 
   it("点击添加模型后，右侧进入可筛选的服务商目录", async () => {
@@ -243,10 +278,16 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-testid="model-add-catalog"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="model-add-catalog"]'),
+    ).not.toBeNull();
     expect(container.textContent ?? "").toContain("推荐服务");
-    expect(container.querySelector('[data-testid="custom-provider-template-card"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-setting-stub"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="custom-provider-template-card"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="provider-setting-stub"]'),
+    ).toBeNull();
   });
 
   it("添加流程中点击左侧已有模型，应退出目录并展开该模型配置", async () => {
@@ -257,7 +298,9 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
       findByTestId<HTMLButtonElement>("add-model-button").click();
       await Promise.resolve();
     });
-    expect(container.querySelector('[data-testid="model-add-catalog"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="model-add-catalog"]'),
+    ).not.toBeNull();
 
     await act(async () => {
       const item = container.querySelector<HTMLButtonElement>(
@@ -268,8 +311,12 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     });
 
     expect(hookState.selectProvider).toHaveBeenCalledWith("deepseek");
-    expect(container.querySelector('[data-testid="model-add-catalog"]')).toBeNull();
-    expect(container.querySelector('[data-testid="provider-setting-stub"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="model-add-catalog"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="provider-setting-stub"]'),
+    ).not.toBeNull();
   });
 
   it("国内分类应展示 DeepSeek，资源模型目录里的渠道也应进入添加列表", async () => {
@@ -291,19 +338,25 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     expect(container.textContent ?? "").toContain("Kimi API（国内按量）");
     expect(container.textContent ?? "").toContain("GLM Coding Plan（国内）");
     expect(container.textContent ?? "").not.toContain("Kimi Code 会员（订阅）");
-    expect(container.textContent ?? "").not.toContain("Z.AI Coding Plan（海外）");
-    expect(container.querySelector('[data-testid="model-add-catalog"]')?.className).toContain(
-      "overflow-y-auto",
+    expect(container.textContent ?? "").not.toContain(
+      "Z.AI Coding Plan（海外）",
     );
+    expect(
+      container.querySelector('[data-testid="model-add-catalog"]')?.className,
+    ).toContain("overflow-y-auto");
 
     await act(async () => {
       container
-        .querySelector<HTMLButtonElement>('[data-template-id="glm-cn-coding-plan"]')
+        .querySelector<HTMLButtonElement>(
+          '[data-template-id="glm-cn-coding-plan"]',
+        )
         ?.click();
       await Promise.resolve();
     });
 
-    expect(container.textContent ?? "").toContain("https://open.bigmodel.cn/api/anthropic");
+    expect(container.textContent ?? "").toContain(
+      "https://open.bigmodel.cn/api/anthropic",
+    );
   });
 
   it("海外分类应展示国内厂商的国际订阅入口", async () => {
@@ -317,7 +370,9 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     });
 
     await act(async () => {
-      findByTestId<HTMLButtonElement>("model-catalog-category-overseas").click();
+      findByTestId<HTMLButtonElement>(
+        "model-catalog-category-overseas",
+      ).click();
       await Promise.resolve();
     });
 
@@ -335,20 +390,28 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
       container.querySelector('[data-template-id="zai-coding-plan"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector('[data-template-id="minimax-coding-plan-global"]'),
+      container.querySelector(
+        '[data-template-id="minimax-coding-plan-global"]',
+      ),
     ).not.toBeNull();
     expect(
-      container.querySelector('[data-template-id="alibaba-coding-plan-global"]'),
+      container.querySelector(
+        '[data-template-id="alibaba-coding-plan-global"]',
+      ),
     ).not.toBeNull();
 
     await act(async () => {
       container
-        .querySelector<HTMLButtonElement>('[data-template-id="kimi-code-subscription"]')
+        .querySelector<HTMLButtonElement>(
+          '[data-template-id="kimi-code-subscription"]',
+        )
         ?.click();
       await Promise.resolve();
     });
 
-    expect(container.textContent ?? "").toContain("https://api.kimi.com/coding/");
+    expect(container.textContent ?? "").toContain(
+      "https://api.kimi.com/coding/",
+    );
   });
 
   it("自定义供应商可在添加流程内完成创建、加 Key、写入模型并激活", async () => {
@@ -366,13 +429,22 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     });
 
     await act(async () => {
-      setInputValue(findByTestId<HTMLInputElement>("model-provider-name-input"), "My API");
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-provider-name-input"),
+        "My API",
+      );
       setInputValue(
         findByTestId<HTMLInputElement>("model-api-host-input"),
         "https://api.example.com/v1",
       );
-      setInputValue(findByTestId<HTMLInputElement>("model-api-key-input"), "sk-test");
-      setInputValue(findByTestId<HTMLInputElement>("model-draft-input"), "my-model");
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-api-key-input"),
+        "sk-test",
+      );
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-draft-input"),
+        "my-model",
+      );
     });
 
     await act(async () => {
@@ -401,7 +473,11 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
         custom_models: ["my-model"],
       }),
     );
-    expect(hookState.addApiKey).toHaveBeenCalledWith("custom-1", "sk-test", undefined);
+    expect(hookState.addApiKey).toHaveBeenCalledWith(
+      "custom-1",
+      "sk-test",
+      undefined,
+    );
     expect(mockTestConnection).toHaveBeenCalledWith("custom-1", "my-model");
     expect(hookState.selectProvider).toHaveBeenCalledWith("custom-1");
   });

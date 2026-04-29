@@ -125,9 +125,7 @@ function collectNormalizedSceneAppBindingFamilies(
             : undefined,
         )
         .filter(
-          (
-            bindingFamily,
-          ): bindingFamily is SceneAppExecutorBindingFamily =>
+          (bindingFamily): bindingFamily is SceneAppExecutorBindingFamily =>
             Boolean(bindingFamily),
         ),
       ...(Array.isArray(descriptor.capabilityRefs)
@@ -136,10 +134,7 @@ function collectNormalizedSceneAppBindingFamilies(
       )
         .filter(isSceneAppCompatOrExecutorBindingFamily)
         .map(normalizeCompatSceneAppBindingFamily),
-      ...(Array.isArray(descriptor.infraProfile)
-        ? descriptor.infraProfile
-        : []
-      )
+      ...(Array.isArray(descriptor.infraProfile) ? descriptor.infraProfile : [])
         .filter(isSceneAppCompatOrExecutorBindingFamily)
         .map(normalizeCompatSceneAppBindingFamily),
     ]),
@@ -329,8 +324,12 @@ function normalizeSceneAppPlanResult(
     contextOverlay: normalizeSceneAppContextOverlay(result.contextOverlay),
     plan: {
       ...result.plan,
-      executorKind: normalizeCompatSceneAppBindingFamily(result.plan.executorKind),
-      bindingFamily: normalizeCompatSceneAppBindingFamily(result.plan.bindingFamily),
+      executorKind: normalizeCompatSceneAppBindingFamily(
+        result.plan.executorKind,
+      ),
+      bindingFamily: normalizeCompatSceneAppBindingFamily(
+        result.plan.bindingFamily,
+      ),
       stepPlan: result.plan.stepPlan.map((step) => ({
         ...step,
         bindingFamily: normalizeCompatSceneAppBindingFamily(step.bindingFamily),

@@ -135,7 +135,10 @@ function collectFieldMatches(text: string): GrowthFieldMatch[] {
   });
 }
 
-function stripExplicitFields(text: string, matches: GrowthFieldMatch[]): string {
+function stripExplicitFields(
+  text: string,
+  matches: GrowthFieldMatch[],
+): string {
   if (matches.length === 0) {
     return text;
   }
@@ -182,7 +185,8 @@ function extractGrowthFields(text: string): ExtractedGrowthFields {
 
     if (match.key === "platform") {
       const normalizedPlatform = normalizeContentPostPlatform(rawValue);
-      extracted.platformType = extracted.platformType || normalizedPlatform.platformType;
+      extracted.platformType =
+        extracted.platformType || normalizedPlatform.platformType;
       extracted.platformLabel =
         extracted.platformLabel || normalizedPlatform.platformLabel;
       return;

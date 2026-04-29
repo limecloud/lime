@@ -24,7 +24,10 @@ describe("runtimeStateReconciler", () => {
 
   it("应在 baseFingerprint 追平时仅重置 liveRuntime，而不误删仍活跃 session", () => {
     const activeSessionIds = new Set(["child-1", "child-2"]);
-    const liveRuntimeBySessionId: Record<string, TeamWorkspaceLiveRuntimeState> = {
+    const liveRuntimeBySessionId: Record<
+      string,
+      TeamWorkspaceLiveRuntimeState
+    > = {
       "child-1": {
         runtimeStatus: "running",
         latestTurnStatus: "running",

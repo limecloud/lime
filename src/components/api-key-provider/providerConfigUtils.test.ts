@@ -225,7 +225,7 @@ describe("Property 7: Provider 类型处理正确性", () => {
       expect(fields).toEqual(["apiHost"]);
     });
 
-  test("new-api 类型只需要 apiHost", () => {
+    test("new-api 类型只需要 apiHost", () => {
       const fields = getFieldsForProviderType("new-api");
       expect(fields).toEqual(["apiHost"]);
     });

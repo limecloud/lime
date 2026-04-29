@@ -6,13 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  BarChart3,
-  Brain,
-  CalendarDays,
-  Coins,
-  RefreshCw,
-} from "lucide-react";
+import { BarChart3, Brain, CalendarDays, Coins, RefreshCw } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import {

@@ -6,9 +6,7 @@ import {
 } from "@/lib/filesystem-event-protocol";
 import type { AgentThreadItem, AgentThreadItemStatus } from "../types";
 import { resolveInternalImageTaskDisplayName } from "./internalImagePlaceholder";
-import {
-  resolveUserFacingToolDisplayLabel,
-} from "./toolDisplayInfo";
+import { resolveUserFacingToolDisplayLabel } from "./toolDisplayInfo";
 import { isInternalRoutingTurnSummaryText } from "./turnSummaryPresentation";
 import { summarizeThreadProcessBatch } from "./toolBatchGrouping";
 import { resolveAgentThreadToolProcessPreview } from "./toolProcessSummary";

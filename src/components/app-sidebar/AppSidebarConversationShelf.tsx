@@ -171,9 +171,7 @@ const ConversationItemRow = styled.div<{
   width: 100%;
   border-radius: 12px;
   background: ${({ $active }) =>
-    $active
-      ? "var(--lime-sidebar-active, #e6f8ea)"
-      : "transparent"};
+    $active ? "var(--lime-sidebar-active, #e6f8ea)" : "transparent"};
   transition:
     background-color 0.18s ease,
     color 0.18s ease;
@@ -411,7 +409,10 @@ export function AppSidebarConversationShelf({
                 })
               : renderEmptyState("还没有开始对话")}
           {hasMoreRecent ? (
-            <ConversationListMoreButton type="button" onClick={onShowMoreRecent}>
+            <ConversationListMoreButton
+              type="button"
+              onClick={onShowMoreRecent}
+            >
               查看更多对话
             </ConversationListMoreButton>
           ) : null}
@@ -436,7 +437,8 @@ export function AppSidebarConversationShelf({
               ? renderEmptyState("正在加载归档")
               : archivedSessions.length > 0
                 ? archivedSessions.map((session) => {
-                    const isCurrentConversation = currentSessionId === session.id;
+                    const isCurrentConversation =
+                      currentSessionId === session.id;
                     return (
                       <ConversationItemRow
                         key={session.id}
@@ -452,7 +454,9 @@ export function AppSidebarConversationShelf({
                           onClick={() => onNavigateToConversation(session)}
                           title={resolveSidebarSessionTitle(session)}
                         >
-                          <ConversationItemDot $active={isCurrentConversation} />
+                          <ConversationItemDot
+                            $active={isCurrentConversation}
+                          />
                           <ConversationItemLabel>
                             {resolveSidebarSessionTitle(session)}
                           </ConversationItemLabel>

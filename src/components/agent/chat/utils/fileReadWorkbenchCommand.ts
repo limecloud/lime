@@ -254,7 +254,8 @@ function extractFileReadFields(text: string): ExtractedFileReadFields {
     if (match.key === "sourcePath") {
       const normalized = normalizeFilePath(rawValue);
       extracted.sourcePath =
-        extracted.sourcePath || (looksLikeFilePath(normalized) ? normalized : rawValue);
+        extracted.sourcePath ||
+        (looksLikeFilePath(normalized) ? normalized : rawValue);
       return;
     }
 
@@ -272,7 +273,9 @@ function extractFileReadFields(text: string): ExtractedFileReadFields {
   );
 
   return {
-    sourcePath: looksLikeFilePath(detectedPath) ? detectedPath : extracted.sourcePath,
+    sourcePath: looksLikeFilePath(detectedPath)
+      ? detectedPath
+      : extracted.sourcePath,
     focus: extracted.focus,
     length: extracted.length,
     style: extracted.style,

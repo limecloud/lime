@@ -46,9 +46,8 @@ export function VideoGenSettings() {
 
   const videoProviders = useMemo(
     () =>
-      providers.filter(
-        (provider) =>
-          isVideoProvider(provider.providerId ?? provider.key),
+      providers.filter((provider) =>
+        isVideoProvider(provider.providerId ?? provider.key),
       ),
     [providers],
   );

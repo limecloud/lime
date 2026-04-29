@@ -50,12 +50,9 @@ export function createExportClient({
     sessionId: string,
   ): Promise<AgentRuntimeReviewDecisionTemplate> {
     return normalizeReviewDecisionTemplate(
-      await invokeCommand(
-        AGENT_RUNTIME_COMMANDS.exportReviewDecisionTemplate,
-        {
-          sessionId,
-        },
-      ),
+      await invokeCommand(AGENT_RUNTIME_COMMANDS.exportReviewDecisionTemplate, {
+        sessionId,
+      }),
     );
   }
 

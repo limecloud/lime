@@ -1433,7 +1433,9 @@ const EditInspectorPanel: React.FC<{
                   {isDirty ? (
                     <Badge
                       variant={isActive ? "secondary" : "outline"}
-                      className={isActive ? ARTIFACT_ACTIVE_BADGE_CLASSNAME : undefined}
+                      className={
+                        isActive ? ARTIFACT_ACTIVE_BADGE_CLASSNAME : undefined
+                      }
                     >
                       未保存
                     </Badge>
@@ -2491,7 +2493,11 @@ export function useArtifactWorkbenchDocumentController({
         return;
       }
       candidates.forEach((candidate) => {
-        candidate.classList.remove("ring-2", "ring-emerald-200", "rounded-[28px]");
+        candidate.classList.remove(
+          "ring-2",
+          "ring-emerald-200",
+          "rounded-[28px]",
+        );
       });
       matched.scrollIntoView({
         behavior: "smooth",
@@ -2499,7 +2505,11 @@ export function useArtifactWorkbenchDocumentController({
       });
       matched.classList.add("ring-2", "ring-emerald-200", "rounded-[28px]");
       globalThis.setTimeout(() => {
-        matched.classList.remove("ring-2", "ring-emerald-200", "rounded-[28px]");
+        matched.classList.remove(
+          "ring-2",
+          "ring-emerald-200",
+          "rounded-[28px]",
+        );
       }, 1800);
     },
     [viewportRef],

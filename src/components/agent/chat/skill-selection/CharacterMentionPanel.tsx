@@ -78,51 +78,52 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   onSelectCapability,
   onNavigateToSettings,
 }) => {
-  const sections = React.useMemo(
-    () => {
-      void curatedTaskTemplatesVersion;
-      void curatedTaskRecommendationSignalsVersion;
-      void mentionEntryUsageVersion;
-      void slashEntryUsageVersion;
-      return buildInputCapabilitySections({
-        mode,
-        mentionQuery,
-        builtinCommands,
-        slashCommands,
-        sceneCommands,
-        mentionServiceSkills,
-        serviceSkillGroups,
-        filteredCharacters,
-        installedSkills,
-        availableSkills,
-        projectId,
-        sessionId,
-        referenceEntries,
-      });
-    },
-    [
-      availableSkills,
+  const sections = React.useMemo(() => {
+    void curatedTaskTemplatesVersion;
+    void curatedTaskRecommendationSignalsVersion;
+    void mentionEntryUsageVersion;
+    void slashEntryUsageVersion;
+    return buildInputCapabilitySections({
+      mode,
+      mentionQuery,
       builtinCommands,
-      curatedTaskTemplatesVersion,
-      curatedTaskRecommendationSignalsVersion,
+      slashCommands,
+      sceneCommands,
+      mentionServiceSkills,
+      serviceSkillGroups,
       filteredCharacters,
       installedSkills,
-      mentionEntryUsageVersion,
-      mentionQuery,
-      mentionServiceSkills,
-      mode,
+      availableSkills,
       projectId,
-      referenceEntries,
-      sceneCommands,
-      serviceSkillGroups,
       sessionId,
-      slashEntryUsageVersion,
-      slashCommands,
-    ],
+      referenceEntries,
+    });
+  }, [
+    availableSkills,
+    builtinCommands,
+    curatedTaskTemplatesVersion,
+    curatedTaskRecommendationSignalsVersion,
+    filteredCharacters,
+    installedSkills,
+    mentionEntryUsageVersion,
+    mentionQuery,
+    mentionServiceSkills,
+    mode,
+    projectId,
+    referenceEntries,
+    sceneCommands,
+    serviceSkillGroups,
+    sessionId,
+    slashEntryUsageVersion,
+    slashCommands,
+  ]);
+  const hasFilteredResults = sections.some(
+    (section) => section.items.length > 0,
   );
-  const hasFilteredResults = sections.some((section) => section.items.length > 0);
-  const isEmptySlashQuery = mode === "slash" && mentionQuery.trim().length === 0;
-  const isEmptyMentionQuery = mode === "mention" && mentionQuery.trim().length === 0;
+  const isEmptySlashQuery =
+    mode === "slash" && mentionQuery.trim().length === 0;
+  const isEmptyMentionQuery =
+    mode === "mention" && mentionQuery.trim().length === 0;
   const isRegistryLanding = isEmptySlashQuery || isEmptyMentionQuery;
 
   const resolveSectionTone = (sectionKey: string) => {
@@ -214,7 +215,8 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   };
 
   const shouldCompactSectionItems = (sectionKey: string): boolean =>
-    isEmptySlashQuery && sectionKey === "supported-slash-commands:workspace-action";
+    isEmptySlashQuery &&
+    sectionKey === "supported-slash-commands:workspace-action";
 
   const shouldSubdueMethodItems = (sectionKey: string): boolean =>
     (isEmptySlashQuery && sectionKey === "installed-skills") ||
@@ -243,7 +245,9 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
       return null;
     }
 
-    return normalizedKindLabel === item.title.trim() ? null : normalizedKindLabel;
+    return normalizedKindLabel === item.title.trim()
+      ? null
+      : normalizedKindLabel;
   };
 
   const handleSelectCapability = (item: InputCapabilityDescriptor) => {
@@ -348,7 +352,8 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
                       </div>
                     ) : null}
                   </div>
-                  {section.banner.actionLabel && section.banner.actionItemKey ? (
+                  {section.banner.actionLabel &&
+                  section.banner.actionItemKey ? (
                     <button
                       type="button"
                       className="rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-medium leading-5 text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50"

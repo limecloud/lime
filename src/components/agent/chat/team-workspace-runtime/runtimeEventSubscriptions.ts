@@ -256,7 +256,10 @@ export async function subscribeTeamWorkspaceStreamEvents(
 
       const liveRuntimePatch = projection.liveRuntimePatch;
       if (liveRuntimePatch) {
-        const baseFingerprint = deps.getBaseFingerprint(sessionId, matchingSession);
+        const baseFingerprint = deps.getBaseFingerprint(
+          sessionId,
+          matchingSession,
+        );
 
         deps.setLiveRuntimeBySessionId((previous) => {
           const current = previous[sessionId];

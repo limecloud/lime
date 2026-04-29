@@ -176,7 +176,9 @@ function stripInternalContinuationResidue(text: string): string {
     if (
       !normalized ||
       INTERNAL_CONTINUATION_LIST_LINE_RE.test(normalized) ||
-      INTERNAL_PROTOCOL_LINE_PATTERNS.some((pattern) => pattern.test(normalized))
+      INTERNAL_PROTOCOL_LINE_PATTERNS.some((pattern) =>
+        pattern.test(normalized),
+      )
     ) {
       continue;
     }
@@ -269,7 +271,10 @@ function stripProviderTraceResidue(text: string): string {
 }
 
 export function containsAssistantProtocolResidue(text: string): boolean {
-  if (TOOL_PROTOCOL_DETECT_RE.test(text) || containsProviderTraceResidue(text)) {
+  if (
+    TOOL_PROTOCOL_DETECT_RE.test(text) ||
+    containsProviderTraceResidue(text)
+  ) {
     return true;
   }
 
@@ -278,7 +283,9 @@ export function containsAssistantProtocolResidue(text: string): boolean {
     .some(
       (paragraph) =>
         isAssistantProtocolResidueParagraph(paragraph) ||
-        paragraph.split(/\r?\n/).some((line) => isAssistantProtocolResidueLine(line)),
+        paragraph
+          .split(/\r?\n/)
+          .some((line) => isAssistantProtocolResidueLine(line)),
     );
 }
 
@@ -288,9 +295,8 @@ export function stripAssistantProtocolResidue(text: string): string {
   }
 
   const withoutProviderTrace = stripProviderTraceResidue(text);
-  const withoutInternalContinuation = stripInternalContinuationResidue(
-    withoutProviderTrace,
-  );
+  const withoutInternalContinuation =
+    stripInternalContinuationResidue(withoutProviderTrace);
   const withoutBlocks = withoutInternalContinuation.replace(
     TOOL_PROTOCOL_BLOCK_RE,
     "\n",
@@ -305,7 +311,10 @@ export function stripAssistantProtocolResidue(text: string): string {
         .join("\n")
         .trim(),
     )
-    .filter((paragraph) => paragraph && !isAssistantProtocolResidueParagraph(paragraph));
+    .filter(
+      (paragraph) =>
+        paragraph && !isAssistantProtocolResidueParagraph(paragraph),
+    );
 
   return normalizeProtocolStripWhitespace(sanitizedParagraphs.join("\n\n"));
 }

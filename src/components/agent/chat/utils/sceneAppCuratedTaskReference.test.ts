@@ -334,7 +334,8 @@ describe("sceneAppCuratedTaskReference", () => {
 
     expect(action).not.toBeNull();
     expect(action).toMatchObject({
-      bannerMessage: "已切到“复盘这个账号/项目”这条下一步，并带着当前结果继续进入生成。",
+      bannerMessage:
+        "已切到“复盘这个账号/项目”这条下一步，并带着当前结果继续进入生成。",
       capabilityRoute: {
         kind: "curated_task",
         taskId: "account-project-review",
@@ -380,7 +381,8 @@ describe("sceneAppCuratedTaskReference", () => {
 
     expect(action).not.toBeNull();
     expect(action).toMatchObject({
-      bannerMessage: "已切到“拆解一条爆款内容”这条下一步，并带着当前结果继续进入生成。",
+      bannerMessage:
+        "已切到“拆解一条爆款内容”这条下一步，并带着当前结果继续进入生成。",
       capabilityRoute: {
         kind: "curated_task",
         taskId: "viral-content-breakdown",

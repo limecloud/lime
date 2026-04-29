@@ -23,10 +23,9 @@ vi.mock("@/lib/api/skillCatalog", () => ({
 }));
 
 vi.mock("@/lib/api/serviceSkills", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/serviceSkills")>(
-      "@/lib/api/serviceSkills",
-    );
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/serviceSkills")
+  >("@/lib/api/serviceSkills");
   return {
     ...actual,
     listServiceSkills: () => mockListServiceSkills(),
@@ -215,7 +214,8 @@ describe("serviceSkillSceneLaunch", () => {
     ]);
 
     const request = await resolveRuntimeSceneLaunchRequest({
-      rawText: "/x转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
+      rawText:
+        "/x转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
       serviceSkills: [createXArticleExportSkill()],
       projectId: "project-1",
       contentId: "content-1",
@@ -386,9 +386,7 @@ describe("serviceSkillSceneLaunch", () => {
     }
 
     expect(capturedError).toBeInstanceOf(RuntimeSceneLaunchValidationError);
-    expect(capturedError?.message).toBe(
-      "还需要选择项目工作区，补齐后再继续。",
-    );
+    expect(capturedError?.message).toBe("还需要选择项目工作区，补齐后再继续。");
     expect(capturedError?.gateRequest).toMatchObject({
       sceneKey: "x-article-export",
       commandPrefix: "/x文章转存",

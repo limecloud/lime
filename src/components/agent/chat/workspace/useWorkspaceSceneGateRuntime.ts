@@ -297,13 +297,17 @@ export function useWorkspaceSceneGateRuntime({
           error instanceof RuntimeSceneLaunchValidationError &&
           error.gateRequest
         ) {
-          toast.info(formatRuntimeSceneGateValidationMessage(error.gateRequest));
+          toast.info(
+            formatRuntimeSceneGateValidationMessage(error.gateRequest),
+          );
           await openRuntimeSceneGate(error.gateRequest);
           return false;
         }
 
         const message =
-          error instanceof Error ? error.message : "结果模板启动失败，请稍后重试";
+          error instanceof Error
+            ? error.message
+            : "结果模板启动失败，请稍后重试";
         toast.error(message);
         return false;
       }

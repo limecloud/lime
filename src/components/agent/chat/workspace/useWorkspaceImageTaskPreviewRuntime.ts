@@ -30,6 +30,7 @@ import {
 } from "@/components/workspace/document/utils/imageTaskPlaceholder";
 import type {
   ContentPart,
+  ImageRuntimeContractSnapshot,
   ImageStoryboardSlot,
   Message,
   MessageImageWorkbenchPreview,
@@ -51,6 +52,13 @@ const IMAGE_TASK_RESTORE_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const IMAGE_TASK_RESTORE_LIMIT = 8;
 const IMAGE_TASKS_RESTORE_SCAN_DEPTH = 2;
 const EMPTY_MESSAGES: Message[] = [];
+const IMAGE_GENERATION_CONTRACT_KEY = "image_generation";
+const IMAGE_GENERATION_CONTRACT_ROUTING_FAILURE_CODES = new Set([
+  "image_generation_contract_mismatch",
+  "image_generation_capability_gap",
+  "image_generation_routing_slot_mismatch",
+  "image_generation_model_capability_gap",
+]);
 
 interface CreationTaskSubmittedPayload {
   task_id?: string;
@@ -347,6 +355,85 @@ function readStringArray(
     }
   }
   return values;
+}
+
+function isImageGenerationContractRoutingFailureCode(
+  value?: string | null,
+): boolean {
+  return Boolean(
+    value && IMAGE_GENERATION_CONTRACT_ROUTING_FAILURE_CODES.has(value.trim()),
+  );
+}
+
+function resolveImageRuntimeContractSnapshot(params: {
+  taskRecord: Record<string, unknown>;
+  normalizedStatus: string;
+}): ImageRuntimeContractSnapshot | null {
+  const payload = asRecord(params.taskRecord.payload);
+  const runtimeContract = asRecord(payload?.runtime_contract);
+  const modelCapabilityAssessment = asRecord(
+    payload?.model_capability_assessment,
+  );
+  const lastErrorRecord = asRecord(params.taskRecord.last_error);
+  const failureCode = readString([lastErrorRecord], ["code"]);
+  const requiredCapabilities = readStringArray(
+    [payload],
+    ["required_capabilities", "requiredCapabilities"],
+  );
+  const contractKey =
+    readString([payload], ["modality_contract_key", "modalityContractKey"]) ||
+    readString([runtimeContract], ["contract_key", "contractKey"]) ||
+    null;
+  const routingSlot =
+    readString([payload, runtimeContract], ["routing_slot", "routingSlot"]) ||
+    null;
+  const modelCapabilityAssessmentSource =
+    readString([modelCapabilityAssessment], ["source"]) || null;
+  const hasRuntimeContractSignal = Boolean(
+    contractKey ||
+    routingSlot ||
+    requiredCapabilities.includes(IMAGE_GENERATION_CONTRACT_KEY) ||
+    modelCapabilityAssessmentSource ||
+    isImageGenerationContractRoutingFailureCode(failureCode),
+  );
+
+  if (!hasRuntimeContractSignal) {
+    return null;
+  }
+
+  const isRoutingBlocked =
+    isImageGenerationContractRoutingFailureCode(failureCode);
+  const routingOutcome = isRoutingBlocked
+    ? "blocked"
+    : params.normalizedStatus === "failed"
+      ? "failed"
+      : "accepted";
+
+  return {
+    contractKey,
+    routingSlot,
+    providerId:
+      readString(
+        [payload, modelCapabilityAssessment],
+        ["provider_id", "providerId"],
+      ) || null,
+    model:
+      readString(
+        [payload, modelCapabilityAssessment],
+        ["model", "model_id", "modelId"],
+      ) || null,
+    routingEvent: isRoutingBlocked
+      ? "routing_not_possible"
+      : "model_routing_decision",
+    routingOutcome,
+    failureCode: failureCode || null,
+    modelCapabilityAssessmentSource,
+    modelSupportsImageGeneration:
+      readBoolean(
+        [modelCapabilityAssessment],
+        ["supports_image_generation", "supportsImageGeneration"],
+      ) ?? null,
+  };
 }
 
 function sanitizeStoryboardSlotText(value?: string | null): string | null {
@@ -1344,6 +1431,10 @@ function buildParsedImageTaskSnapshot(params: {
         ? params.taskRecord.status
         : undefined,
   );
+  const runtimeContract = resolveImageRuntimeContractSnapshot({
+    taskRecord: params.taskRecord,
+    normalizedStatus,
+  });
   const prompt = sanitizePreviewPrompt(
     readString(
       [payload, params.taskRecord, uiHintsRecord],
@@ -1523,6 +1614,7 @@ function buildParsedImageTaskSnapshot(params: {
     placeholderText:
       readString([uiHintsRecord], ["placeholder_text", "placeholderText"]) ||
       null,
+    runtimeContract,
   };
 
   const runtimeStatus =
@@ -1619,6 +1711,7 @@ function buildParsedImageTaskSnapshot(params: {
       sourceImageCount,
       createdAt,
       failureMessage: lastError,
+      runtimeContract,
       hookImageIds: outputs.map((output) => output.hookImageId),
       applyTarget,
       taskFilePath,
@@ -2223,6 +2316,7 @@ function buildImageWorkbenchPreviewMessageFromTask(params: {
         : params.task.status === "error" || params.task.status === "cancelled"
           ? params.task.failureMessage || null
           : null,
+    runtimeContract: params.task.runtimeContract ?? null,
   };
 
   return {
@@ -2371,6 +2465,10 @@ function mergeImageTaskSnapshot(
           snapshot.task.taskFilePath ?? previousTask?.taskFilePath ?? null,
         artifactPath:
           snapshot.task.artifactPath ?? previousTask?.artifactPath ?? null,
+        runtimeContract:
+          snapshot.task.runtimeContract ??
+          previousTask?.runtimeContract ??
+          null,
       },
       ...current.tasks.filter((task) => task.id !== snapshot.taskId),
     ],
@@ -2500,6 +2598,7 @@ function patchMessagesWithImageWorkbenchState(params: {
           : task.status === "error" || task.status === "cancelled"
             ? task.failureMessage || preview.statusMessage || null
             : null,
+      runtimeContract: task.runtimeContract ?? preview.runtimeContract ?? null,
       retryable:
         typeof preview.retryable === "boolean"
           ? preview.retryable

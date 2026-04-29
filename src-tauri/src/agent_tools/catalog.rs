@@ -6,6 +6,7 @@ pub const LIST_MCP_RESOURCES_TOOL_NAME: &str = "ListMcpResourcesTool";
 pub const READ_MCP_RESOURCE_TOOL_NAME: &str = "ReadMcpResourceTool";
 pub const SOCIAL_IMAGE_TOOL_NAME: &str = "social_generate_cover_image";
 pub const LIME_CREATE_VIDEO_TASK_TOOL_NAME: &str = "lime_create_video_generation_task";
+pub const LIME_CREATE_AUDIO_TASK_TOOL_NAME: &str = "lime_create_audio_generation_task";
 pub const LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME: &str = "lime_create_transcription_task";
 pub const LIME_CREATE_BROADCAST_TASK_TOOL_NAME: &str = "lime_create_broadcast_generation_task";
 pub const LIME_CREATE_COVER_TASK_TOOL_NAME: &str = "lime_create_cover_generation_task";
@@ -514,6 +515,15 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
     },
     ToolCatalogEntry {
         name: LIME_CREATE_VIDEO_TASK_TOOL_NAME,
+        profiles: WORKBENCH_PROFILES,
+        capabilities: CONTENT_CAP,
+        lifecycle: ToolLifecycle::Current,
+        source: ToolSourceKind::LimeInjected,
+        permission_plane: ToolPermissionPlane::SessionAllowlist,
+        workspace_default_allow: true,
+    },
+    ToolCatalogEntry {
+        name: LIME_CREATE_AUDIO_TASK_TOOL_NAME,
         profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
         lifecycle: ToolLifecycle::Current,
@@ -1038,6 +1048,7 @@ mod tests {
         let names = workspace_default_allowed_tool_names(WorkspaceToolSurface::workbench());
         assert!(names.contains(&SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(&LIME_CREATE_VIDEO_TASK_TOOL_NAME));
+        assert!(names.contains(&LIME_CREATE_AUDIO_TASK_TOOL_NAME));
         assert!(names.contains(&LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME));
     }
 
@@ -1098,9 +1109,10 @@ mod tests {
     #[test]
     fn test_workbench_tool_names_only_returns_workbench_increment() {
         let names = workbench_tool_names().into_iter().collect::<BTreeSet<_>>();
-        assert_eq!(names.len(), 11);
+        assert_eq!(names.len(), 12);
         assert!(names.contains(SOCIAL_IMAGE_TOOL_NAME));
         assert!(names.contains(LIME_CREATE_VIDEO_TASK_TOOL_NAME));
+        assert!(names.contains(LIME_CREATE_AUDIO_TASK_TOOL_NAME));
         assert!(names.contains(LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME));
         assert!(names.contains(LIME_RUN_SERVICE_SKILL_TOOL_NAME));
         assert!(names.contains(LIME_SEARCH_WEB_IMAGES_TOOL_NAME));
@@ -1130,6 +1142,7 @@ mod tests {
         assert!(names.contains(&"TeamCreate"));
         assert!(names.contains(&"TeamDelete"));
         assert!(names.contains(&LIME_CREATE_TRANSCRIPTION_TASK_TOOL_NAME));
+        assert!(names.contains(&LIME_CREATE_AUDIO_TASK_TOOL_NAME));
         assert!(names.contains(&LIME_SEARCH_WEB_IMAGES_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RECOMMEND_TOOL_NAME));
         assert!(names.contains(&LIME_SITE_RUN_TOOL_NAME));

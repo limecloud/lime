@@ -1,9 +1,7 @@
 import type { ParsedAnalysisWorkbenchCommand } from "./analysisWorkbenchCommand";
 import type { ParsedBroadcastWorkbenchCommand } from "./broadcastWorkbenchCommand";
 import type { ParsedBrowserWorkbenchCommand } from "./browserWorkbenchCommand";
-import type {
-  ParsedChannelPreviewWorkbenchCommand,
-} from "./channelPreviewWorkbenchCommand";
+import type { ParsedChannelPreviewWorkbenchCommand } from "./channelPreviewWorkbenchCommand";
 import type {
   CodeWorkbenchTaskType,
   ParsedCodeWorkbenchCommand,
@@ -11,13 +9,12 @@ import type {
 import type { ParsedComplianceWorkbenchCommand } from "./complianceWorkbenchCommand";
 import type { ParsedCompetitorWorkbenchCommand } from "./competitorWorkbenchCommand";
 import type { ParsedCoverWorkbenchCommand } from "./coverWorkbenchCommand";
+import type { ParsedDeepSearchWorkbenchCommand } from "./deepSearchWorkbenchCommand";
+import type { ParsedFileReadWorkbenchCommand } from "./fileReadWorkbenchCommand";
 import type {
-  ParsedDeepSearchWorkbenchCommand,
-} from "./deepSearchWorkbenchCommand";
-import type {
-  ParsedFileReadWorkbenchCommand,
-} from "./fileReadWorkbenchCommand";
-import type { FormType, ParsedFormWorkbenchCommand } from "./formWorkbenchCommand";
+  FormType,
+  ParsedFormWorkbenchCommand,
+} from "./formWorkbenchCommand";
 import type { ParsedGrowthWorkbenchCommand } from "./growthWorkbenchCommand";
 import type { ParsedImageWorkbenchCommand } from "./imageWorkbenchCommand";
 import type { ParsedPdfWorkbenchCommand } from "./pdfWorkbenchCommand";
@@ -52,7 +49,10 @@ import type {
 import type { ParsedVideoWorkbenchCommand } from "./videoWorkbenchCommand";
 import type { ParsedVoiceWorkbenchCommand } from "./voiceWorkbenchCommand";
 import type { ParsedWritingWorkbenchCommand } from "./writingWorkbenchCommand";
-import type { ParsedWebpageWorkbenchCommand, WebpageType } from "./webpageWorkbenchCommand";
+import type {
+  ParsedWebpageWorkbenchCommand,
+  WebpageType,
+} from "./webpageWorkbenchCommand";
 import type { ServiceSkillSlotValues } from "../service-skills/types";
 import { normalizeContentPostPlatform } from "./contentPostPlatform";
 
@@ -218,7 +218,9 @@ function normalizeEnumValue<T extends string>(
   return values.includes(normalized as T) ? (normalized as T) : undefined;
 }
 
-function normalizeNumericSlotValue(value: string | undefined): number | undefined {
+function normalizeNumericSlotValue(
+  value: string | undefined,
+): number | undefined {
   const normalized = normalizeText(value);
   if (!normalized) {
     return undefined;
@@ -228,7 +230,9 @@ function normalizeNumericSlotValue(value: string | undefined): number | undefine
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function normalizeBooleanSlotValue(value: string | undefined): boolean | undefined {
+function normalizeBooleanSlotValue(
+  value: string | undefined,
+): boolean | undefined {
   const normalized = normalizeText(value)?.toLowerCase();
   if (!normalized) {
     return undefined;
@@ -385,7 +389,8 @@ function buildSiteSearchReplayText(
   const site = normalizeText(parsedCommand.site);
   const query = normalizeText(parsedCommand.query);
   const limit =
-    typeof parsedCommand.limit === "number" && Number.isFinite(parsedCommand.limit)
+    typeof parsedCommand.limit === "number" &&
+    Number.isFinite(parsedCommand.limit)
       ? `${parsedCommand.limit}`
       : undefined;
 
@@ -527,7 +532,13 @@ function buildTranslationReplayText(
   const style = normalizeText(parsedCommand.style);
   const outputFormat = normalizeText(parsedCommand.outputFormat);
 
-  if (!content && !sourceLanguage && !targetLanguage && !style && !outputFormat) {
+  if (
+    !content &&
+    !sourceLanguage &&
+    !targetLanguage &&
+    !style &&
+    !outputFormat
+  ) {
     return normalizeText(parsedCommand.body);
   }
 
@@ -686,13 +697,7 @@ function buildImageReplayText(
     return normalizeText(parsedCommand.body);
   }
 
-  return joinReplayFields([
-    targetRef,
-    aspectOrSize,
-    layoutHint,
-    prompt,
-    count,
-  ]);
+  return joinReplayFields([targetRef, aspectOrSize, layoutHint, prompt, count]);
 }
 
 function buildPosterReplayText(
@@ -800,7 +805,14 @@ function buildBroadcastReplayText(
   const prompt = normalizeText(parsedCommand.prompt);
   const content = normalizeText(parsedCommand.content);
 
-  if (!title && !audience && !tone && !durationHintMinutes && !prompt && !content) {
+  if (
+    !title &&
+    !audience &&
+    !tone &&
+    !durationHintMinutes &&
+    !prompt &&
+    !content
+  ) {
     return normalizeText(parsedCommand.body);
   }
 
@@ -824,7 +836,8 @@ function buildResourceSearchReplayText(
   const query = normalizeText(parsedCommand.query);
   const usage = normalizeText(parsedCommand.usage);
   const count =
-    typeof parsedCommand.count === "number" && Number.isFinite(parsedCommand.count)
+    typeof parsedCommand.count === "number" &&
+    Number.isFinite(parsedCommand.count)
       ? `${parsedCommand.count}`
       : undefined;
 
@@ -947,7 +960,13 @@ function buildGrowthReplayText(
   const alertThreshold = normalizeText(parsedCommand.alertThreshold);
   const prompt = normalizeText(parsedCommand.prompt);
 
-  if (!platform && !accountList && !reportCadence && !alertThreshold && !prompt) {
+  if (
+    !platform &&
+    !accountList &&
+    !reportCadence &&
+    !alertThreshold &&
+    !prompt
+  ) {
     return normalizeText(parsedCommand.body);
   }
 
@@ -963,7 +982,9 @@ function buildGrowthReplayText(
 function buildBrowserReplayText(
   parsedCommand: ParsedBrowserWorkbenchCommand,
 ): string | undefined {
-  const launchUrl = normalizeText(parsedCommand.explicitUrl || parsedCommand.launchUrl);
+  const launchUrl = normalizeText(
+    parsedCommand.explicitUrl || parsedCommand.launchUrl,
+  );
   let prompt = normalizeText(parsedCommand.prompt);
 
   if (prompt && launchUrl) {
@@ -1010,7 +1031,9 @@ export function buildMentionCommandReplayText(
     input.commandKey === "image_edit" ||
     input.commandKey === "image_variation"
   ) {
-    return buildImageReplayText(input.parsedCommand as ParsedImageWorkbenchCommand);
+    return buildImageReplayText(
+      input.parsedCommand as ParsedImageWorkbenchCommand,
+    );
   }
 
   if (input.commandKey === "poster_generate") {
@@ -1020,11 +1043,15 @@ export function buildMentionCommandReplayText(
   }
 
   if (input.commandKey === "cover_generate") {
-    return buildCoverReplayText(input.parsedCommand as ParsedCoverWorkbenchCommand);
+    return buildCoverReplayText(
+      input.parsedCommand as ParsedCoverWorkbenchCommand,
+    );
   }
 
   if (input.commandKey === "video_generate") {
-    return buildVideoReplayText(input.parsedCommand as ParsedVideoWorkbenchCommand);
+    return buildVideoReplayText(
+      input.parsedCommand as ParsedVideoWorkbenchCommand,
+    );
   }
 
   if (input.commandKey === "broadcast_generate") {
@@ -1093,7 +1120,9 @@ export function buildMentionCommandReplayText(
   }
 
   if (input.commandKey === "form_generate") {
-    return buildFormReplayText(input.parsedCommand as ParsedFormWorkbenchCommand);
+    return buildFormReplayText(
+      input.parsedCommand as ParsedFormWorkbenchCommand,
+    );
   }
 
   if (input.commandKey === "webpage_generate") {
@@ -1143,7 +1172,9 @@ export function buildMentionCommandReplayText(
   }
 
   if (input.commandKey === "code_runtime") {
-    return buildCodeReplayText(input.parsedCommand as ParsedCodeWorkbenchCommand);
+    return buildCodeReplayText(
+      input.parsedCommand as ParsedCodeWorkbenchCommand,
+    );
   }
 
   if (input.commandKey === "channel_preview_runtime") {
@@ -1177,7 +1208,9 @@ export function buildMentionCommandReplayText(
   }
 
   if (input.commandKey === "voice_runtime") {
-    return buildVoiceReplayText(input.parsedCommand as ParsedVoiceWorkbenchCommand);
+    return buildVoiceReplayText(
+      input.parsedCommand as ParsedVoiceWorkbenchCommand,
+    );
   }
 
   if (input.commandKey === "growth_runtime") {
@@ -1307,7 +1340,10 @@ function buildMentionCommandReplayTextFromSlotValues(params: {
     );
   }
 
-  if (commandKey === "research_report" || commandKey === "competitor_research") {
+  if (
+    commandKey === "research_report" ||
+    commandKey === "competitor_research"
+  ) {
     return buildReportReplayText({
       body: "",
       query: slotValues.query,
@@ -1374,7 +1410,10 @@ function buildMentionCommandReplayTextFromSlotValues(params: {
   if (commandKey === "presentation_generate") {
     return buildPresentationReplayText({
       body: "",
-      deckType: normalizeEnumValue(slotValues.deck_type, PRESENTATION_DECK_TYPE_VALUES),
+      deckType: normalizeEnumValue(
+        slotValues.deck_type,
+        PRESENTATION_DECK_TYPE_VALUES,
+      ),
       style: slotValues.style,
       audience: slotValues.audience,
       slideCount: normalizeNumericSlotValue(slotValues.slide_count),
@@ -1582,7 +1621,8 @@ export function resolveMentionCommandMergedPrefillReplayText(input: {
   }
 
   if (commandKey === "deep_search") {
-    const parsedCommand = input.parsedCommand as ParsedDeepSearchWorkbenchCommand;
+    const parsedCommand =
+      input.parsedCommand as ParsedDeepSearchWorkbenchCommand;
     return buildSearchReplayText(
       {
         body: "",
@@ -1627,14 +1667,13 @@ export function resolveMentionCommandMergedPrefillReplayText(input: {
   }
 
   if (commandKey === "site_search") {
-    const parsedCommand = input.parsedCommand as ParsedSiteSearchWorkbenchCommand;
+    const parsedCommand =
+      input.parsedCommand as ParsedSiteSearchWorkbenchCommand;
     return buildSiteSearchReplayText({
       body: "",
       site: resolvePreferredText(parsedCommand.site, slotValues.site),
       query: resolvePreferredText(parsedCommand.query, slotValues.query),
-      limit:
-        parsedCommand.limit ??
-        normalizeNumericSlotValue(slotValues.limit),
+      limit: parsedCommand.limit ?? normalizeNumericSlotValue(slotValues.limit),
     } as ParsedSiteSearchWorkbenchCommand);
   }
 

@@ -11,6 +11,11 @@
 - `P2` 已推进：加载更多历史已从递增 tail window 改为分页加载；首屏返回最近 `40` 条并带 `history_cursor.oldest_message_id`，加载更早历史时优先用 `historyBeforeMessageId` cursor，每次请求 `50` 条，`historyOffset` 保留为兼容 fallback；历史会话的 MessageList 首帧先渲染文本，timeline 在 idle 后补齐；timeline turn 绑定减少中间数组分配；折叠的 `AgentThreadTimeline` 明细改为展开时再物化；旧历史中已完成的单步 timeline 明细默认只渲染摘要，展开时再物化；已排序的 turn/thread item 不再重复复制排序。
 - `2026-04-29` 追加收口：过大的旧会话 transient / persisted snapshot 在恢复前直接丢弃；读取命中的会话快照不再同步刷新 `lastAccessedAt` 以避免点击时重写整张 snapshot map；历史消息与流式 text_delta 统一做 overlap 合并，修复累计快照式 delta 导致的重复吐字；完成态旧消息的执行过程与正文视觉分离，历史 timeline 默认折叠明细；浏览器 DevBridge 模式下跳过低优先级 metadata backfill，并且仅在活跃运行时订阅 team SSE，避免旧会话点击后抢占 bridge 连接。
 
+- `2026-04-29` 追加 GUI 收口：复现旧会话顶部 `+` 新建后新 tab 仍显示旧消息的问题；`createFreshSession` 现在显式清空新建会话消息快照，同时 `ensureSession` 的首轮发送保留本地草稿，避免发送链路回归；旧会话 MessageList 仅在活跃发送/等待态底部锚定，已完成历史默认吸顶。
+- `2026-04-29` 追加任务中心收口：复现旧会话中点击侧栏会话/顶部标签后被 `initialSessionId` 路由抢回的问题；任务中心本地切换现在在 `switchTopic` 前先标记 local override，失败时再回滚，避免异步切换期间显示旧 tab 或空态。
+- `2026-04-29` 追加发送中吸顶收口：复现用户首条消息发送中仍贴近输入区、完成后才跳到上方的问题；MessageList 现在无论发送中、排队中还是完成态都保持 `justify-start`，避免完成前后布局跳动。
+- `2026-04-29` 追加一级新建任务收口：任务中心内点击侧栏一级 `新建任务` 现在与对话架 `新建对话` 复用同一个可取消草稿事件；只有任务中心真实接管后才阻止路由，避免旧会话 A 新增草稿、切到旧会话 B 后再次点击侧栏新建时误跳回 `new-task-home`。
+
 ## 剩余事项
 
 - Cursor 分页已完成：`agent_runtime_get_session` 继续作为 current 主链，新增 `historyBeforeMessageId` 请求字段与 `history_cursor` 响应字段；无 cursor 或缓存恢复缺少 cursor 时继续 fallback 到 `historyOffset`。
@@ -61,3 +66,68 @@
 - `npx eslint "src/components/agent/chat/hooks/useAgentSession.ts" "src/components/agent/chat/hooks/useAgentRuntimeSyncEffects.ts" "src/components/agent/chat/hooks/useAgentRuntimeSyncEffects.test.tsx" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" "src/components/agent/chat/hooks/agentChatHistory.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/skillCommand.ts" "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/AgentThreadTimeline.tsx" "src/components/agent/chat/hooks/agentChatStorage.ts" "src/components/agent/chat/hooks/agentSessionScopedStorage.ts" "src/components/agent/chat/hooks/agentChatHistory.test.ts" "src/components/agent/chat/components/MessageList.test.tsx" "src/components/agent/chat/components/AgentThreadTimeline.test.tsx" "src/components/agent/chat/hooks/agentChatStorage.test.ts" "src/components/agent/chat/hooks/agentSessionScopedStorage.test.ts" --max-warnings 0` 通过。
 - `npm run bridge:health -- --timeout-ms 120000` 通过，DevBridge `/health` 约 `20ms` 就绪。
 - Playwright E2E（`http://127.0.0.1:1420/`）：连续切换 `E2E layout anchor -> 你好！👋 很高兴见到你！ -> 你好！有什么我可以帮你的吗？😊 -> E2E layout anchor`，每次 `restoring=0`，耗时约 `109-425ms`，`body/html cursor=auto`，最终 `heap≈121MB`；`assistant-primary-timeline-shell` 高度 `94px`，`openDetails=0`，最终正文不在执行过程 shell 内，未检测到 assistant greeting 重复；等待 `9s` 后 `eventRequests=0`，控制台 `0 error / 1 warning`（仅浏览器模式 i18n 默认语言提示）。
+- `npx vitest run "src/components/agent/chat/components/MessageList.test.tsx" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx"` 通过（2 files / 230 tests），覆盖旧会话吸顶、新建任务清空旧消息与首轮发送草稿保留。
+- `npx eslint "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "src/components/agent/chat/hooks/useAgentSession.ts" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" --max-warnings 0` 通过。
+- Playwright E2E（`http://127.0.0.1:1420/`）：从新建空态点击侧边栏 `E2E layout anchor`，旧会话约 `237-331ms` 可见且 `message-list-column` 为 `justify-start`；再点击顶部 `+` 或侧边栏 `新建任务` 均回到 `青柠一下，灵感即来` 空态，旧会话文本不可见，`body cursor=auto`。本轮仅剩 DevBridge 偶发 `get_local_skills_for_app` / `project_memory_get` 1800ms timeout 控制台噪音，主交互未阻塞。
+- Playwright E2E（`http://127.0.0.1:1420/`）：从首页点击侧栏 `E2E layout anchor` 约 `419ms` 可见旧会话；从空态点击顶部旧会话标签约 `304ms` 可见旧会话；旧会话中点击顶部 `+` 约 `124ms` 回到新建空态；旧会话中点击侧栏 `新建任务` 约 `106ms` 回到新建空态；旧会话 `message-list-column` 保持 `justify-start`，`cursor=auto`，控制台 `0 error / 0 warning`。
+- `npx vitest run "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签"` 通过（7 tests），覆盖任务中心切到非路由会话时不被 `initialSessionId` 抢回。
+- `npx vitest run "src/components/agent/chat/index.test.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx"` 通过（3 files / 326 tests）。
+- `npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/index.test.tsx" "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "src/components/agent/chat/hooks/useAgentSession.ts" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" --max-warnings 0` 通过。
+- `npm run typecheck` 通过。
+- `npm run verify:gui-smoke` 通过。
+- `git diff --check -- src/components/agent/chat/AgentChatWorkspace.tsx src/components/agent/chat/index.test.tsx src/components/agent/chat/components/MessageList.tsx src/components/agent/chat/components/MessageList.test.tsx src/components/agent/chat/hooks/useAgentSession.ts src/components/agent/chat/hooks/useAsterAgentChat.test.tsx docs/exec-plans/old-session-open-performance-plan.md` 通过。
+- `npm run verify:local` 通过；覆盖 `verify:app-version`、`lint`、`typecheck`、全量前端测试、`test:contracts`、全量 Rust 测试与内嵌 `verify:gui-smoke`。
+- Playwright E2E 复测（`http://127.0.0.1:1420/`）：刷新后控制台 `0 error / 1 warning`（仅浏览器模式 i18n 默认语言提示）；点击侧栏 `E2E layout anchor` 约 `133ms` 可见旧会话且 `message-list-column` 为 `justify-start`；随后点击侧栏 `新建任务` 约 `118ms` 回到 `青柠一下，灵感即来` 空态，旧消息不可见，`body/html cursor=auto`。
+- `npx vitest run "src/components/agent/chat/components/MessageList.test.tsx" -t "短对话发送首帧|任务中心发送首帧|旧会话短消息"` 通过，覆盖发送中短消息与任务中心发送首帧均吸顶。
+- `npx vitest run "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签"` 通过（7 tests），并将顶部加号测试改为等待按钮就绪后点击，降低慢机环境下的偶发失败。
+- Playwright E2E 复测（`http://127.0.0.1:1420/`）：发送 `吸顶测试，请只回复 OK。` 后立即采样、`250ms`、`1250ms` 均为 `message-list-column` `justify-start`，首条消息距滚动视口顶部约 `22px`，`scrollTop=0`，`body/html cursor=auto`，确认发送中首帧不再贴底；旧会话 `E2E layout anchor` 打开后 `message-list-column` 同样为 `justify-start`；侧栏 `新建任务` 约 `97ms` 回到 `青柠一下，灵感即来` 空态且旧消息不可见。刷新后控制台保持 `0 error / 1 warning`（仅浏览器模式 i18n 默认语言提示）。
+- `npx vitest run "src/components/agent/chat/components/MessageList.test.tsx" "src/lib/api/memory.test.ts" -t "短对话发送首帧|任务中心发送首帧|旧会话短消息|project_memory_get|项目记忆|短时间重复|并发读取"` 通过（2 files / 6 tests）。
+- `npx vitest run "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签"` 通过（7 tests）。
+- `npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/index.test.tsx" "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "src/lib/api/memory.ts" "src/lib/api/memory.test.ts" --max-warnings 0` 通过。
+- `npm run verify:gui-smoke` 通过；复用现有 headless Tauri 与 DevBridge，workspace / browser-runtime / site-adapters / service-skill-entry / runtime tool-surface page smoke 均通过。
+- `2026-04-29` 追加浏览器式 Tab 收口：任务中心顶部 `+` 改为本地 `task-draft-*` 草稿 tab，点击阶段不再创建真实 session；`CustomEvent` 新建请求改为可取消事件，只有任务中心工作区实际接管后侧栏才停止路由跳转，避免侧栏 `新建任务` 在任务中心内误跳回 `new-task-home`。
+- `npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/index.test.tsx" "src/components/agent/chat/taskCenterDraftTaskEvents.ts" "src/components/AppSidebar.tsx" "src/components/agent/chat/components/EmptyState.tsx" --max-warnings 0` 通过。
+- `npx vitest run "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签"` 通过（8 tests），覆盖顶部加号和侧栏事件新建草稿 tab，不触发 `createFreshSession` / 路由跳出。
+- `npx tsc --noEmit --pretty false` 通过；同时修复本轮 E2E 中暴露的 `EmptyState` 首页组件 HMR 崩溃，刷新后控制台恢复到 `0 error / 1 warning`（浏览器模式 i18n 默认语言提示）。
+- Playwright E2E（`http://127.0.0.1:1420/`）：从旧会话点击顶部 `+`，`task-center-tab-task-draft-*` 约 `77ms` active，`青柠一下，灵感即来` 约 `95ms` 可见；旧 `message-list-column` 不再渲染，旧消息不可见；invoke trace `10` 条，`createSessionCalls=0`，无 invoke error。
+- 本轮 GUI smoke 未完成：`npm run bridge:health -- --timeout-ms 120000` 因当前工作区并行 Rust 改动导致 DevBridge 未就绪而等待，`tauri:dev:headless` 日志显示 `src-tauri/src/commands/aster_agent_cmd/service_skill_launch.rs` 存在非本轮编译错误（`ServiceSceneLaunchContext` 缺字段、mutable borrow 冲突），需先收口该 Rust 改动后再重跑 `npm run verify:gui-smoke`。
+- `2026-04-29` 追加多旧会话切换复现：新增回归覆盖 `旧会话 A -> 顶部 + 新增草稿 -> 路由切到旧会话 B -> 再次顶部 +`。根因是路由 `initialSessionId` 切到真实旧会话时只替换真实 tab，没有清掉仍 active 的本地 draft id，导致旧会话 B tab 不是 active，后续新增状态被旧 draft 干扰；现在切到真实路由会话时仅取消 active draft，保留草稿 tab 列表。
+- `npx vitest run "src/components/agent/chat/index.test.tsx" -t "切到另一条旧会话后仍应继续新增本地草稿标签"` 通过。
+- `npx vitest run "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签"` 通过（9 tests），覆盖顶部 +、侧栏事件、旧会话 A/B 切换后再次新增、路由抢回防护。
+- `npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/index.test.tsx" "src/components/agent/chat/taskCenterDraftTaskEvents.ts" "src/components/AppSidebar.tsx" --max-warnings 0` 通过。
+- `npx tsc --noEmit --pretty false` 通过。
+- Playwright 真实旧会话 A/B 复测当前仍被 DevBridge 阻塞：页面控制台为 bridge 连接错误，`npm run bridge:health -- --timeout-ms 120000` 超时；阻塞仍来自非本轮 Rust 编译错误，需先恢复 `src-tauri/src/commands/aster_agent_cmd/service_skill_launch.rs` 后重测。
+- `npx vitest run "src/components/AppSidebar.test.tsx" -t "任务中心内点击一级新建任务"` 通过，覆盖任务中心内一级主导航 `新建任务` 被草稿事件接管且不触发路由跳转。
+- `npx vitest run "src/components/AppSidebar.test.tsx"` 通过（34 tests）。
+- `npx vitest run "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签"` 通过（9 tests）；首次与 AppSidebar 全量测试并行时出现一次顶部 `+` 慢机 transition 偶发断言，单独重跑与整组重跑均通过。
+- `npx eslint "src/components/AppSidebar.tsx" "src/components/AppSidebar.test.tsx" --max-warnings 0` 通过。
+- `npx tsc --noEmit --pretty false` 通过。
+- `git diff --check -- src/components/AppSidebar.tsx src/components/AppSidebar.test.tsx src/components/agent/chat/AgentChatWorkspace.tsx src/components/agent/chat/index.test.tsx src/components/agent/chat/taskCenterDraftTaskEvents.ts` 通过。
+- `npm run bridge:health -- --timeout-ms 120000` 重新通过；本轮先清理了当前仓库残留的并发 Tauri/Cargo dev 进程，随后 `DevBridge` 在 `http://127.0.0.1:3030/health` 返回 `status=ok`。
+- Playwright E2E（`http://127.0.0.1:1420/`）：刷新首页后执行 `旧会话 A(E2E layout anchor) -> 侧栏一级新建任务 -> 旧会话 B(Lime 助手) -> 侧栏一级新建任务`；打开 A 约 `669ms`，A 后新建草稿约 `63ms`，打开 B 约 `213ms`，B 后新建草稿约 `50ms`。两次新建均激活 `task-center-tab-task-draft-*`，不会出现 active `task-center-tab-new-task-home`；第二次后保留 `2` 个 draft tab，旧会话 tab inactive，首页空态可见，`body/html cursor=auto`。
+- 同轮 Playwright invoke trace：总 `/invoke` `16` 次，`agent_runtime_create_session=0`；两次 `agent_runtime_get_session` 均携带 `historyLimit: 40`；侧栏列表仅一次 `agent_runtime_list_sessions`，`limit=37`；无 invoke error。控制台 `0 error / 2 warning`，warning 为浏览器模式事件流中止与 i18n 默认语言提示，均非主链阻塞。
+- `npm run verify:gui-smoke` 通过；复用现有 headless Tauri 与 DevBridge，workspace-ready、browser-runtime、site-adapters、service-skill-entry、runtime tool-surface 与 runtime tool-surface page smoke 均通过。
+- `npm run verify:local` 已执行到前端全量测试第 `26/43` 批后失败，失败集中在 `src/components/agent/chat/components/EmptyState.test.tsx` 的 `18` 条旧首页断言；实际渲染已切到新的 `HomeStartSurface` / `HomeSkillGallery` 首页文案与结构，属于本轮侧栏 tab 修复之外的首页改版测试漂移，需后续单独收口 EmptyState 测试或恢复对应首页能力。
+- `2026-04-30` 追加修复“无法打开两个历史对话”：根因是外层 `AppSidebar` 点击历史会话只做路由跳转，任务中心没有本地打开意图；随后 `AgentChatWorkspace` 的 `initialSessionId` 同步 effect 将 open tab map 替换为单个目标会话。现在侧栏点击历史会话会先发送 `lime:task-center:open-task` 事件，任务中心先乐观 upsert 目标 tab 并记录本地路由追平意图；路由追平时仅激活/前置目标 tab，不再替换掉已有历史 tab。
+- 同轮收口：任务中心内部 `handleOpenSidebarTaskTopic` / `handleResumeSidebarTask` / `handleResumeRecentSession` / fallback restore 默认走追加/激活语义，只有外部直达会话仍保留 replace 语义，避免旧缓存污染首开深链。
+- `2026-04-30` 追加旧会话卡顿收口：MessageList 对恢复中或已分页旧会话使用更小的首屏批次（20 条）和 idle 小批量补齐；已完成的旧会话最后一个 turn 不再按 current turn 处理，避免历史 timeline 在首帧被当作活跃执行过程同步展开。
+- `2026-04-30` 追加 invoke 降噪：`workspace_get` 增加 1s 短 TTL 与同 id in-flight 合并，避免旧会话切换期间工作区详情重复抢占 bridge；打开旧会话时自动回填的 `recent_preferences` / `recent_team_selection` 改为同 session 后台合并队列，12s 后 idle 再写，若期间已切走则直接丢弃，手动偏好修改仍保持即时低延迟同步。
+- `npx vitest run "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签"` 通过（11 tests），新增覆盖任务中心内部连续打开旧会话、外层侧栏事件 + 路由追平后保留两个历史 tab。
+- `npx vitest run "src/components/AppSidebar.test.tsx"` 通过（35 tests），新增覆盖任务中心内点击已有会话会先通知本地标签栏，再继续导航。
+- `npx eslint "src/components/AppSidebar.tsx" "src/components/AppSidebar.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/index.test.tsx" "src/components/agent/chat/taskCenterDraftTaskEvents.ts" --max-warnings 0` 通过。
+- `npx tsc --noEmit --pretty false` 通过。
+- `npm run bridge:health -- --timeout-ms 120000` 通过，DevBridge `/health` 约 `22ms` 就绪。
+- Playwright E2E（`http://127.0.0.1:1420/`）：刷新后点击侧栏 `E2E layout anchor`，顶部仅显示并激活该旧会话；随后点击侧栏 `你好！👋 我是 Lime 助手，很高...`，顶部同时保留 `你好！👋 ...` 与 `E2E layout anchor` 两个历史 tab，目标会话 active，旧会话 inactive；页面停留 `http://127.0.0.1:1420/`，标题 `Lime`。
+- 同轮 Playwright invoke trace：两次 `agent_runtime_get_session` 均携带 `historyLimit: 40`；侧栏 list 请求为 `agent_runtime_list_sessions` `limit=37/60`；全部 `/invoke` 为 `200 OK`，控制台 `0 error / 0 warning`。
+- `npm run verify:gui-smoke` 通过；复用现有 headless Tauri 与 DevBridge，workspace-ready、browser-runtime、site-adapters、service-skill-entry、runtime tool-surface 与 runtime tool-surface page smoke 均通过。
+- `npx vitest run "src/components/agent/chat/components/MessageList.test.tsx"` 通过（77 tests）；新增覆盖已分页旧会话首帧只挂载更小尾部批次、已完成旧 turn 不再作为 active current turn 展开历史 timeline。
+- `npx eslint "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" --max-warnings 0` 通过。
+- `npx tsc --noEmit --pretty false` 通过。
+- Playwright 性能复测（`http://127.0.0.1:1420/`）：打开 `AI Trends Task`（188 总消息 / 最近 40）约 `567ms`，`longTasks=[]`，DOM 节点约 `637`；打开 `Slow typing E2E`（170 总消息 / 最近 40）约 `706ms`，`longTasks=[]`，DOM 节点约 `644`，控制台 `0 error / 0 warning`。
+- `npm run verify:gui-smoke` 通过；复用现有 headless Tauri 与 DevBridge，workspace-ready、browser-runtime、site-adapters、service-skill-entry、runtime tool-surface 与 runtime tool-surface page smoke 均通过。
+- `npm run verify:local` 本轮执行到 `lint` 阶段失败，失败点为非本轮文件 `src/components/agent/chat/home/HomeSceneSkillManagerDialog.tsx:388` 的 `react-hooks/exhaustive-deps` warning（`open` 为不必要依赖），本轮 touched 文件的定向 eslint 已通过。
+- Playwright 预优化采样（`http://127.0.0.1:1420/`）：打开 `Slow typing E2E` 约 `393ms` 可见，早期 invoke 为 `agent_runtime_update_session` ×2 + `agent_runtime_get_session` ×1，且两次 metadata 回填排在 `get_session` 前；本轮据此将自动 metadata 回填降为后台合并。
+- `npx vitest run "src/lib/api/project.test.ts"` 通过（59 tests），覆盖 `workspace_get` 短缓存与并发去重。
+- `npx vitest run "src/components/agent/chat/hooks/useSelectedTeamPreference.test.tsx"` 通过（13 tests），覆盖自动 fallback Team 回填走后台同步、手动切换仍即时回写。
+- `npx eslint "src/lib/api/project.ts" "src/lib/api/project.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/hooks/useSelectedTeamPreference.ts" "src/components/agent/chat/hooks/useSelectedTeamPreference.test.tsx" --max-warnings 0` 通过。
+- GUI smoke / Playwright 后置复测暂被本地并发 Cargo/Tauri 构建阻塞：`tauri:dev:headless` 首次暴露非本轮 `creation_tools.rs` 大型 `serde_json::json!` 递归限制，已在 `src-tauri/src/lib.rs` 补 `recursion_limit = "256"` 解除；随后仍有多个非本轮 `cargo test` / `cargo check` 并发进程占用 target/package lock，需环境空闲后重跑 `npm run bridge:health -- --timeout-ms 120000`、`npm run verify:gui-smoke` 与 Playwright 旧会话性能采样。

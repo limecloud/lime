@@ -4,7 +4,12 @@ import type {
   AgentRuntimeThreadReadModel,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import type { ActionRequired, AgentThreadItem, AgentThreadTurn, Message } from "../types";
+import type {
+  ActionRequired,
+  AgentThreadItem,
+  AgentThreadTurn,
+  Message,
+} from "../types";
 import {
   summarizeStreamingToolBatch,
   summarizeThreadProcessBatch,
@@ -108,7 +113,10 @@ function resolveLatestTurn(
 }
 
 function resolveLatestAssistantMessage(messages: Message[]): Message | null {
-  return [...messages].reverse().find((message) => message.role === "assistant") || null;
+  return (
+    [...messages].reverse().find((message) => message.role === "assistant") ||
+    null
+  );
 }
 
 function resolveLatestUserMessage(messages: Message[]): Message | null {
@@ -129,9 +137,7 @@ function resolveLatestUsage(messages: Message[]): AgentTokenUsage | undefined {
     .reverse()
     .find(
       (message) =>
-        message.role === "assistant" &&
-        !message.isThinking &&
-        message.usage,
+        message.role === "assistant" && !message.isThinking && message.usage,
     )?.usage;
 }
 
@@ -321,10 +327,13 @@ export function buildAgentTaskRuntimeCardModel({
     : [];
   const latestProcessItems = latestTurnItems.filter(isProcessItem);
   const visibleToolCalls =
-    latestAssistant?.toolCalls?.filter((toolCall) => toolCall.status !== "failed") ||
-    [];
-  const streamingBatchDescriptor = summarizeStreamingToolBatch(visibleToolCalls);
-  const persistedBatchDescriptor = summarizeThreadProcessBatch(latestProcessItems);
+    latestAssistant?.toolCalls?.filter(
+      (toolCall) => toolCall.status !== "failed",
+    ) || [];
+  const streamingBatchDescriptor =
+    summarizeStreamingToolBatch(visibleToolCalls);
+  const persistedBatchDescriptor =
+    summarizeThreadProcessBatch(latestProcessItems);
   const batchDescriptor = streamingBatchDescriptor || persistedBatchDescriptor;
   const status = resolveTaskStatus({
     latestTurn,
@@ -359,7 +368,8 @@ export function buildAgentTaskRuntimeCardModel({
     .reverse()
     .find((item) => Boolean(resolveAgentThreadToolProcessPreview(item)));
   const latestPreview =
-    (latestPreviewItem && resolveAgentThreadToolProcessPreview(latestPreviewItem)) ||
+    (latestPreviewItem &&
+      resolveAgentThreadToolProcessPreview(latestPreviewItem)) ||
     shorten(firstMeaningfulLine(latestAssistant?.runtimeStatus?.detail), 96) ||
     null;
 
@@ -376,7 +386,11 @@ export function buildAgentTaskRuntimeCardModel({
   } else if (phase === "tool_batch" && batchDescriptor) {
     detail = batchDescriptor.title;
     supportingLines.push(...batchDescriptor.supportingLines);
-  } else if (status === "completed" || status === "failed" || status === "aborted") {
+  } else if (
+    status === "completed" ||
+    status === "failed" ||
+    status === "aborted"
+  ) {
     detail = resolveCompletedSummary(latestAssistant, latestTurnItems);
     if (batchDescriptor) {
       supportingLines.push(...batchDescriptor.supportingLines);

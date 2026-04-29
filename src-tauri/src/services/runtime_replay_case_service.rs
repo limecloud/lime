@@ -6,6 +6,10 @@
 
 use crate::agent::SessionDetail;
 use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
+use crate::commands::modality_runtime_contracts::{
+    BROWSER_CONTROL_CONTRACT_KEY, PDF_EXTRACT_CONTRACT_KEY, TEXT_TRANSFORM_CONTRACT_KEY,
+    VOICE_GENERATION_CONTRACT_KEY, WEB_RESEARCH_CONTRACT_KEY,
+};
 use crate::services::runtime_evidence_pack_service::{
     export_runtime_evidence_pack, RuntimeEvidencePackExportResult,
 };
@@ -685,6 +689,36 @@ fn build_success_criteria(
             )
         ));
     }
+    if modality_contract_has_browser_control(modality_runtime_contracts) {
+        criteria.push(
+            "浏览器控制任务必须继续走 Browser Assist / `mcp__lime-browser__*` 主链，不能用 WebSearch 或普通聊天替代真实浏览器动作。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_pdf_extract(modality_runtime_contracts) {
+        criteria.push(
+            "PDF 读取任务必须继续走 `Skill(pdf_read)` 或真实 `list_directory` / `read_file` 证据链，不能用 `frontend_direct_pdf_parse`、`generic_chat_summary_only`、WebSearch 或普通聊天替代真实读 PDF。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_voice_generation(modality_runtime_contracts) {
+        criteria.push(
+            "配音任务必须继续走 `service_scene_launch(scene_key=voice_runtime)` / 本地 ServiceSkill runtime 主链，不能用 `legacy_tts_test_command`、伪造云端已提交、普通聊天文本或通用文件卡替代真实语音生成合同。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_web_research(modality_runtime_contracts) {
+        criteria.push(
+            "联网研究任务必须继续走 `Skill(research)` / `Skill(site_search)` / `Skill(report_generate)` 与真实 search_query / lime_site_* 工具时间线，不能用模型记忆、本地文件搜索或普通聊天替代真实联网研究。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_text_transform(modality_runtime_contracts) {
+        criteria.push(
+            "文本/文档转换任务必须继续走 `Skill(summary)` / `Skill(translation)` / `Skill(analysis)`，显式文件路径场景可保留 `list_directory` / `read_file` 证据，不能用 `frontend_direct_text_transform`、ToolSearch、WebSearch 或普通聊天替代底层合同。"
+                .to_string(),
+        );
+    }
 
     if criteria.is_empty() {
         criteria.push("结果应与 input.json 描述的任务目标一致。".to_string());
@@ -736,6 +770,46 @@ fn build_blocking_checks(
             )
         ));
     }
+    if modality_contract_has_browser_control(modality_runtime_contracts)
+        && !modality_contract_has_browser_action_trace(modality_runtime_contracts)
+    {
+        checks.push(
+            "`browser_control` 合同缺少 browser action trace；除非 replay 重新产生 Browser Assist 工具调用证据，否则不能判 PASS。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_pdf_extract(modality_runtime_contracts)
+        && !modality_contract_has_pdf_skill_trace(modality_runtime_contracts)
+    {
+        checks.push(
+            "`pdf_extract` 合同缺少 Skill(pdf_read) / 文件读取 trace；除非 replay 重新产生 Skill(pdf_read)、list_directory 或 read_file 证据，否则不能判 PASS。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_voice_generation(modality_runtime_contracts)
+        && !modality_contract_has_voice_generation_service_trace(modality_runtime_contracts)
+    {
+        checks.push(
+            "`voice_generation` 合同缺少 voice_runtime service scene trace；除非 replay 重新产生 service_scene_launch(scene_key=voice_runtime) 或 audio_task/audio_output 证据，否则不能判 PASS。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_web_research(modality_runtime_contracts)
+        && !modality_contract_has_web_research_skill_trace(modality_runtime_contracts)
+    {
+        checks.push(
+            "`web_research` 合同缺少 Skill(research) / Skill(site_search) / Skill(report_generate) trace；除非 replay 重新产生 Skill 调用与 search_query 或 lime_site_* 证据，否则不能判 PASS。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_text_transform(modality_runtime_contracts)
+        && !modality_contract_has_text_transform_skill_trace(modality_runtime_contracts)
+    {
+        checks.push(
+            "`text_transform` 合同缺少 Skill(summary) / Skill(translation) / Skill(analysis) trace；除非 replay 重新产生文本转换 Skill 调用，必要时保留 list_directory / read_file 证据，否则不能判 PASS。"
+                .to_string(),
+        );
+    }
 
     if checks.is_empty() {
         checks.push("当前没有额外阻塞检查项，按结果与证据判定即可。".to_string());
@@ -783,6 +857,56 @@ fn build_modality_contract_checks(modality_runtime_contracts: &Value) -> Vec<Str
         ));
     } else {
         checks.push("确认没有把多模态任务降级为普通文本模型或通用文件卡兜底。".to_string());
+    }
+    if modality_contract_has_browser_control(modality_runtime_contracts) {
+        checks.push(
+            "确认 `browser_control` replay 使用 Browser Assist / `mcp__lime-browser__*`，而不是把网页动作降级为 WebSearch、普通聊天总结或 Playwright 旁路。"
+                .to_string(),
+        );
+        checks.push(
+            "确认 evidence 中存在 `browser_action_trace` 或 `browser_action_requested` 快照，能证明浏览器执行器真实被调用。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_pdf_extract(modality_runtime_contracts) {
+        checks.push(
+            "确认 `pdf_extract` replay 使用 `Skill(pdf_read)`，或在 timeline 中保留真实 `list_directory` / `read_file` 文件读取证据。"
+                .to_string(),
+        );
+        checks.push(
+            "确认没有把 PDF 读取降级为 `frontend_direct_pdf_parse`、`generic_chat_summary_only`、ToolSearch、WebSearch 或 Grep 目录检索替代；最终结论必须能回溯到实际读取内容。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_voice_generation(modality_runtime_contracts) {
+        checks.push(
+            "确认 `voice_generation` replay 使用 `service_scene_launch(scene_key=voice_runtime)` / 本地 ServiceSkill runtime，并保留 voice_runtime service scene trace 或 audio_task/audio_output 产物证据。"
+                .to_string(),
+        );
+        checks.push(
+            "确认没有把配音降级为 `legacy_tts_test_command`、`fake_cloud_scene_submitted`、普通聊天文案、通用文件卡或只展示文本结果。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_web_research(modality_runtime_contracts) {
+        checks.push(
+            "确认 `web_research` replay 使用 `Skill(research)`、`Skill(site_search)` 或 `Skill(report_generate)`，并保留真实 search_query / lime_site_* 工具时间线。"
+                .to_string(),
+        );
+        checks.push(
+            "确认没有把联网研究降级为 `model_memory_only_answer`、`local_file_search_before_research_skill`、ToolSearch、通用 WebSearch 绕过站点搜索，或普通聊天摘要。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_text_transform(modality_runtime_contracts) {
+        checks.push(
+            "确认 `text_transform` replay 使用 `Skill(summary)`、`Skill(translation)` 或 `Skill(analysis)`，并在显式文件路径场景保留真实 list_directory / read_file 证据。"
+                .to_string(),
+        );
+        checks.push(
+            "确认没有把文本/文档转换降级为 `frontend_direct_text_transform`、`tool_search_before_text_transform_skill`、`web_search_before_text_transform_skill`、通用 WebSearch 或普通聊天摘要。"
+                .to_string(),
+        );
     }
 
     checks
@@ -851,6 +975,41 @@ fn infer_replay_suite_tags(
     if modality_contract_has_routing_block(modality_runtime_contracts) {
         push_unique_text_tag(&mut tags, "routing-not-possible");
     }
+    if modality_contract_has_browser_control(modality_runtime_contracts) {
+        push_unique_text_tag(&mut tags, "browser-control");
+        push_unique_text_tag(&mut tags, "browser-assist");
+        if modality_contract_has_browser_action_trace(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "browser-action-trace");
+        }
+    }
+    if modality_contract_has_pdf_extract(modality_runtime_contracts) {
+        push_unique_text_tag(&mut tags, "pdf-extract");
+        push_unique_text_tag(&mut tags, "pdf-read-skill");
+        if modality_contract_has_pdf_skill_trace(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "pdf-read-trace");
+        }
+    }
+    if modality_contract_has_voice_generation(modality_runtime_contracts) {
+        push_unique_text_tag(&mut tags, "voice-generation");
+        push_unique_text_tag(&mut tags, "voice-runtime");
+        if modality_contract_has_voice_generation_service_trace(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "voice-generation-trace");
+        }
+    }
+    if modality_contract_has_web_research(modality_runtime_contracts) {
+        push_unique_text_tag(&mut tags, "web-research");
+        push_unique_text_tag(&mut tags, "research-skill");
+        if modality_contract_has_web_research_skill_trace(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "web-research-trace");
+        }
+    }
+    if modality_contract_has_text_transform(modality_runtime_contracts) {
+        push_unique_text_tag(&mut tags, "text-transform");
+        push_unique_text_tag(&mut tags, "text-transform-skill");
+        if modality_contract_has_text_transform_skill_trace(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "text-transform-trace");
+        }
+    }
 
     tags
 }
@@ -917,6 +1076,31 @@ fn infer_replay_failure_modes(
     if modality_contract_has_routing_block(modality_runtime_contracts) {
         push_unique_text_tag(&mut failure_modes, "modality_contract_routing_blocked");
     }
+    if modality_contract_has_browser_control(modality_runtime_contracts)
+        && !modality_contract_has_browser_action_trace(modality_runtime_contracts)
+    {
+        push_unique_text_tag(&mut failure_modes, "browser_control_missing_action_trace");
+    }
+    if modality_contract_has_pdf_extract(modality_runtime_contracts)
+        && !modality_contract_has_pdf_skill_trace(modality_runtime_contracts)
+    {
+        push_unique_text_tag(&mut failure_modes, "pdf_extract_missing_skill_trace");
+    }
+    if modality_contract_has_voice_generation(modality_runtime_contracts)
+        && !modality_contract_has_voice_generation_service_trace(modality_runtime_contracts)
+    {
+        push_unique_text_tag(&mut failure_modes, "voice_generation_missing_service_trace");
+    }
+    if modality_contract_has_web_research(modality_runtime_contracts)
+        && !modality_contract_has_web_research_skill_trace(modality_runtime_contracts)
+    {
+        push_unique_text_tag(&mut failure_modes, "web_research_missing_skill_trace");
+    }
+    if modality_contract_has_text_transform(modality_runtime_contracts)
+        && !modality_contract_has_text_transform_skill_trace(modality_runtime_contracts)
+    {
+        push_unique_text_tag(&mut failure_modes, "text_transform_missing_skill_trace");
+    }
     for failure_code in modality_contract_failure_codes(modality_runtime_contracts) {
         push_unique_owned_tag(&mut failure_modes, failure_code);
     }
@@ -950,6 +1134,187 @@ fn modality_contract_models(modality_runtime_contracts: &Value) -> Vec<String> {
 
 fn modality_contract_failure_codes(modality_runtime_contracts: &Value) -> Vec<String> {
     collect_unique_snapshot_strings(modality_runtime_contracts, "failureCode")
+}
+
+fn modality_contract_has_browser_control(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == BROWSER_CONTROL_CONTRACT_KEY)
+                .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_browser_action_trace(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            snapshot
+                .get("source")
+                .and_then(Value::as_str)
+                .map(|value| value.contains("browser_action_trace"))
+                .unwrap_or(false)
+                || snapshot
+                    .get("routingEvent")
+                    .and_then(Value::as_str)
+                    .map(|value| value == "browser_action_requested")
+                    .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_pdf_extract(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == PDF_EXTRACT_CONTRACT_KEY)
+                .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_pdf_skill_trace(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            snapshot
+                .get("source")
+                .and_then(Value::as_str)
+                .map(|value| {
+                    value.contains("pdf_read_skill_trace")
+                        || value.contains("pdf_extract_file_trace")
+                })
+                .unwrap_or(false)
+                || snapshot
+                    .get("routingEvent")
+                    .and_then(Value::as_str)
+                    .map(|value| value == "executor_invoked")
+                    .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_voice_generation(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == VOICE_GENERATION_CONTRACT_KEY)
+                .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_voice_generation_service_trace(
+    modality_runtime_contracts: &Value,
+) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            let is_voice_generation = snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == VOICE_GENERATION_CONTRACT_KEY)
+                .unwrap_or(false);
+            if !is_voice_generation {
+                return false;
+            }
+
+            snapshot
+                .get("source")
+                .and_then(Value::as_str)
+                .map(|value| {
+                    value.contains("voice_generation_service_scene_trace")
+                        || value.contains("audio_task")
+                        || value.contains("audio_output")
+                })
+                .unwrap_or(false)
+                || snapshot
+                    .get("routingEvent")
+                    .and_then(Value::as_str)
+                    .map(|value| value == "executor_invoked")
+                    .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_web_research(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == WEB_RESEARCH_CONTRACT_KEY)
+                .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_web_research_skill_trace(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            let is_web_research = snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == WEB_RESEARCH_CONTRACT_KEY)
+                .unwrap_or(false);
+            if !is_web_research {
+                return false;
+            }
+
+            snapshot
+                .get("source")
+                .and_then(Value::as_str)
+                .map(|value| value.contains("web_research_skill_trace"))
+                .unwrap_or(false)
+                || snapshot
+                    .get("routingEvent")
+                    .and_then(Value::as_str)
+                    .map(|value| value == "executor_invoked")
+                    .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_text_transform(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == TEXT_TRANSFORM_CONTRACT_KEY)
+                .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_text_transform_skill_trace(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            let is_text_transform = snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == TEXT_TRANSFORM_CONTRACT_KEY)
+                .unwrap_or(false);
+            if !is_text_transform {
+                return false;
+            }
+
+            snapshot
+                .get("source")
+                .and_then(Value::as_str)
+                .map(|value| value.contains("text_transform_skill_trace"))
+                .unwrap_or(false)
+                || snapshot
+                    .get("routingEvent")
+                    .and_then(Value::as_str)
+                    .map(|value| value == "executor_invoked")
+                    .unwrap_or(false)
+        })
 }
 
 fn modality_contract_model_capability_assessment_sources(
@@ -1607,6 +1972,77 @@ mod tests {
         .expect("write failed image task");
     }
 
+    fn write_audio_contract_task_fixture(root: &Path, relative_path: &str) {
+        let absolute_path = root.join(relative_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        fs::create_dir_all(
+            absolute_path
+                .parent()
+                .expect("audio task path should have parent"),
+        )
+        .expect("create audio task dir");
+        fs::write(
+            absolute_path,
+            serde_json::to_string_pretty(&json!({
+                "task_id": "task-audio-1",
+                "task_type": "audio_generate",
+                "task_family": "audio",
+                "title": "发布旁白",
+                "payload": {
+                    "prompt": "请为这段文案生成温暖旁白",
+                    "source_text": "请为这段文案生成温暖旁白",
+                    "voice": "warm_narrator",
+                    "provider_id": "limecore",
+                    "model": "voice-pro",
+                    "entry_source": "at_voice_command",
+                    "modality_contract_key": VOICE_GENERATION_CONTRACT_KEY,
+                    "modality": "audio",
+                    "required_capabilities": ["text_generation", "voice_generation"],
+                    "routing_slot": "voice_generation_model",
+                    "runtime_contract": {
+                        "contract_key": VOICE_GENERATION_CONTRACT_KEY,
+                        "modality": "audio",
+                        "required_capabilities": ["text_generation", "voice_generation"],
+                        "routing_slot": "voice_generation_model",
+                        "executor_binding": {
+                            "executor_kind": "service_skill",
+                            "binding_key": "voice_runtime"
+                        },
+                        "truth_source": ["audio_task_artifact", "runtime_timeline_event"]
+                    },
+                    "audio_output": {
+                        "kind": "audio_output",
+                        "status": "pending",
+                        "audio_path": null,
+                        "mime_type": "audio/mpeg",
+                        "duration_ms": null,
+                        "source_text": "请为这段文案生成温暖旁白",
+                        "voice": "warm_narrator"
+                    }
+                },
+                "status": "pending_submit",
+                "normalized_status": "pending",
+                "created_at": "2026-04-30T10:00:00Z",
+                "updated_at": null,
+                "submitted_at": null,
+                "started_at": null,
+                "completed_at": null,
+                "cancelled_at": null,
+                "idempotency_key": null,
+                "retry_count": 0,
+                "source_task_id": null,
+                "result": null,
+                "last_error": null,
+                "current_attempt_id": "attempt-audio-1",
+                "attempts": [],
+                "relationships": {},
+                "progress": {},
+                "ui_hints": {}
+            }))
+            .expect("serialize audio task"),
+        )
+        .expect("write audio task");
+    }
+
     #[test]
     fn should_export_runtime_replay_case_to_workspace() {
         let temp_dir = TempDir::new().expect("temp dir");
@@ -1772,6 +2208,690 @@ mod tests {
                 .pointer("/modalityRuntimeContracts/snapshots/0/failureCode")
                 .and_then(Value::as_str),
             Some("image_generation_model_capability_gap")
+        );
+    }
+
+    #[test]
+    fn should_carry_browser_control_contract_into_replay_grader_checks() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "browser-contract-tool-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:40Z".to_string()),
+            updated_at: "2026-03-27T10:00:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "mcp__lime-browser__navigate".to_string(),
+                arguments: Some(json!({
+                    "url": "https://example.com"
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: Some(json!({
+                    "tool_family": "browser",
+                    "modality_contract_key": BROWSER_CONTROL_CONTRACT_KEY,
+                    "modality": "browser",
+                    "required_capabilities": [
+                        "text_generation",
+                        "browser_reasoning",
+                        "browser_control_planning"
+                    ],
+                    "routing_slot": "browser_reasoning_model",
+                    "runtime_contract": {
+                        "contract_key": BROWSER_CONTROL_CONTRACT_KEY,
+                        "routing_slot": "browser_reasoning_model"
+                    },
+                    "entry_source": "at_browser_command"
+                })),
+            },
+        });
+
+        export_runtime_replay_case(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let input_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/input.json");
+        let expected_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/expected.json");
+        let grader_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/grader.md");
+        let links_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/evidence-links.json");
+
+        let input =
+            serde_json::from_str::<Value>(fs::read_to_string(input_path).expect("input").as_str())
+                .expect("parse input");
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(BROWSER_CONTROL_CONTRACT_KEY)
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("browser_action_requested")
+        );
+        let suite_tags = input
+            .pointer("/classification/suiteTags")
+            .and_then(Value::as_array)
+            .expect("suite tags");
+        for expected_tag in [
+            "modality-browser_control",
+            "browser-control",
+            "browser-assist",
+            "browser-action-trace",
+        ] {
+            assert!(suite_tags
+                .iter()
+                .any(|item| item.as_str() == Some(expected_tag)));
+        }
+
+        let expected = fs::read_to_string(expected_path).expect("expected");
+        assert!(expected.contains("Browser Assist"));
+        assert!(expected.contains("mcp__lime-browser__*"));
+        assert!(expected.contains("WebSearch"));
+        assert!(expected.contains("browser_action_trace"));
+        assert!(expected.contains("\"requiresHumanReview\": false"));
+
+        let grader = fs::read_to_string(grader_path).expect("grader");
+        assert!(grader.contains("多模态运行合同检查"));
+        assert!(grader.contains("browser_action_requested"));
+        assert!(grader.contains("WebSearch"));
+
+        let links =
+            serde_json::from_str::<Value>(fs::read_to_string(links_path).expect("links").as_str())
+                .expect("parse links");
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("browser_action_trace.modality_runtime_contract")
+        );
+    }
+
+    #[test]
+    fn should_carry_pdf_extract_contract_into_replay_grader_checks() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "pdf-contract-skill-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 5,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:01:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:01:40Z".to_string()),
+            updated_at: "2026-03-27T10:01:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "Skill".to_string(),
+                arguments: Some(json!({
+                    "skill": "pdf_read",
+                    "args": "{\"pdf_read_request\":{\"source_path\":\"/tmp/agent-report.pdf\"}}"
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: Some(json!({
+                    "modality_contract_key": PDF_EXTRACT_CONTRACT_KEY,
+                    "modality": "document",
+                    "required_capabilities": [
+                        "text_generation",
+                        "local_file_read",
+                        "long_context"
+                    ],
+                    "routing_slot": "base_model",
+                    "runtime_contract": {
+                        "contract_key": PDF_EXTRACT_CONTRACT_KEY,
+                        "routing_slot": "base_model",
+                        "executor_binding": {
+                            "executor_kind": "skill",
+                            "binding_key": "pdf_read"
+                        }
+                    },
+                    "entry_source": "at_pdf_read_command"
+                })),
+            },
+        });
+
+        export_runtime_replay_case(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let input_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/input.json");
+        let expected_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/expected.json");
+        let grader_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/grader.md");
+        let links_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/evidence-links.json");
+
+        let input =
+            serde_json::from_str::<Value>(fs::read_to_string(input_path).expect("input").as_str())
+                .expect("parse input");
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(PDF_EXTRACT_CONTRACT_KEY)
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("executor_invoked")
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/traceCount",
+                )
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executorBindingKey",
+                )
+                .and_then(Value::as_str),
+            Some("pdf_read")
+        );
+        let suite_tags = input
+            .pointer("/classification/suiteTags")
+            .and_then(Value::as_array)
+            .expect("suite tags");
+        for expected_tag in [
+            "modality-pdf_extract",
+            "pdf-extract",
+            "pdf-read-skill",
+            "pdf-read-trace",
+        ] {
+            assert!(suite_tags
+                .iter()
+                .any(|item| item.as_str() == Some(expected_tag)));
+        }
+
+        let expected = fs::read_to_string(expected_path).expect("expected");
+        assert!(expected.contains("Skill(pdf_read)"));
+        assert!(expected.contains("list_directory"));
+        assert!(expected.contains("read_file"));
+        assert!(expected.contains("frontend_direct_pdf_parse"));
+        assert!(expected.contains("generic_chat_summary_only"));
+        assert!(expected.contains("WebSearch"));
+        assert!(expected.contains("\"requiresHumanReview\": false"));
+
+        let grader = fs::read_to_string(grader_path).expect("grader");
+        assert!(grader.contains("多模态运行合同检查"));
+        assert!(grader.contains("Skill(pdf_read)"));
+        assert!(grader.contains("frontend_direct_pdf_parse"));
+        assert!(grader.contains("generic_chat_summary_only"));
+
+        let links =
+            serde_json::from_str::<Value>(fs::read_to_string(links_path).expect("links").as_str())
+                .expect("parse links");
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("pdf_read_skill_trace.modality_runtime_contract")
+        );
+    }
+
+    #[test]
+    fn should_carry_voice_generation_contract_into_replay_grader_checks() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "voice-contract-service-scene-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 5,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:01:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:01:40Z".to_string()),
+            updated_at: "2026-03-27T10:01:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "voice_runtime".to_string(),
+                arguments: Some(json!({
+                    "service_scene_launch": {
+                        "kind": "local_service_skill",
+                        "service_scene_run": {
+                            "skill_id": "voice-runtime",
+                            "scene_key": "voice_runtime",
+                            "user_input": "请为这段文案生成温暖旁白",
+                            "entry_source": "at_voice_command",
+                            "modality_contract_key": VOICE_GENERATION_CONTRACT_KEY,
+                            "modality": "audio",
+                            "required_capabilities": [
+                                "text_generation",
+                                "voice_generation"
+                            ],
+                            "routing_slot": "voice_generation_model",
+                            "runtime_contract": {
+                                "contract_key": VOICE_GENERATION_CONTRACT_KEY,
+                                "routing_slot": "voice_generation_model",
+                                "executor_binding": {
+                                    "executor_kind": "service_skill",
+                                    "binding_key": "voice_runtime"
+                                }
+                            }
+                        }
+                    }
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: None,
+            },
+        });
+
+        export_runtime_replay_case(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let input_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/input.json");
+        let expected_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/expected.json");
+        let grader_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/grader.md");
+        let links_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/evidence-links.json");
+
+        let input =
+            serde_json::from_str::<Value>(fs::read_to_string(input_path).expect("input").as_str())
+                .expect("parse input");
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(VOICE_GENERATION_CONTRACT_KEY)
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("voice_generation_service_scene_trace.modality_runtime_contract")
+        );
+        let suite_tags = input
+            .pointer("/classification/suiteTags")
+            .and_then(Value::as_array)
+            .expect("suite tags");
+        for expected_tag in [
+            "modality-voice_generation",
+            "voice-generation",
+            "voice-runtime",
+            "voice-generation-trace",
+        ] {
+            assert!(suite_tags
+                .iter()
+                .any(|item| item.as_str() == Some(expected_tag)));
+        }
+
+        let expected = fs::read_to_string(expected_path).expect("expected");
+        assert!(expected.contains("service_scene_launch(scene_key=voice_runtime)"));
+        assert!(expected.contains("ServiceSkill runtime"));
+        assert!(expected.contains("legacy_tts_test_command"));
+        assert!(expected.contains("fake_cloud_scene_submitted"));
+        assert!(expected.contains("audio_task/audio_output"));
+        assert!(expected.contains("\"requiresHumanReview\": false"));
+
+        let grader = fs::read_to_string(grader_path).expect("grader");
+        assert!(grader.contains("多模态运行合同检查"));
+        assert!(grader.contains("voice_generation"));
+        assert!(grader.contains("voice_runtime"));
+        assert!(grader.contains("legacy_tts_test_command"));
+
+        let links =
+            serde_json::from_str::<Value>(fs::read_to_string(links_path).expect("links").as_str())
+                .expect("parse links");
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("voice_generation_service_scene_trace.modality_runtime_contract")
+        );
+    }
+
+    #[test]
+    fn should_carry_voice_generation_audio_task_into_replay_grader_checks() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+        let audio_task_relative_path = ".lime/tasks/audio_generate/task-audio-1.json";
+
+        write_audio_contract_task_fixture(temp_dir.path(), audio_task_relative_path);
+        if let AgentThreadItemPayload::FileArtifact { path, metadata, .. } =
+            &mut detail.items[2].payload
+        {
+            *path = audio_task_relative_path.to_string();
+            *metadata = Some(json!({
+                "task_type": "audio_generate"
+            }));
+        }
+
+        export_runtime_replay_case(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let input_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/input.json");
+        let expected_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/expected.json");
+        let links_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/evidence-links.json");
+
+        let input =
+            serde_json::from_str::<Value>(fs::read_to_string(input_path).expect("input").as_str())
+                .expect("parse input");
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("audio_task.modality_runtime_contract")
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/taskType")
+                .and_then(Value::as_str),
+            Some("audio_generate")
+        );
+        let suite_tags = input
+            .pointer("/classification/suiteTags")
+            .and_then(Value::as_array)
+            .expect("suite tags");
+        assert!(suite_tags
+            .iter()
+            .any(|item| item.as_str() == Some("voice-generation-trace")));
+        let failure_modes = input
+            .pointer("/classification/failureModes")
+            .and_then(Value::as_array)
+            .expect("failure modes");
+        assert!(!failure_modes
+            .iter()
+            .any(|item| { item.as_str() == Some("voice_generation_missing_service_trace") }));
+
+        let expected = fs::read_to_string(expected_path).expect("expected");
+        assert!(expected.contains("audio_task/audio_output"));
+        assert!(expected.contains("\"requiresHumanReview\": false"));
+
+        let links =
+            serde_json::from_str::<Value>(fs::read_to_string(links_path).expect("links").as_str())
+                .expect("parse links");
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("audio_task.modality_runtime_contract")
+        );
+    }
+
+    #[test]
+    fn should_carry_web_research_contract_into_replay_grader_checks() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "web-research-contract-skill-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 5,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:01:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:01:40Z".to_string()),
+            updated_at: "2026-03-27T10:01:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "Skill".to_string(),
+                arguments: Some(json!({
+                    "skill": "report_generate",
+                    "args": serde_json::to_string(&json!({
+                        "report_request": {
+                            "query": "AI Agent 融资",
+                            "modality_contract_key": WEB_RESEARCH_CONTRACT_KEY,
+                            "modality": "mixed",
+                            "required_capabilities": [
+                                "text_generation",
+                                "web_search",
+                                "structured_document_generation",
+                                "long_context"
+                            ],
+                            "routing_slot": "report_generation_model",
+                            "runtime_contract": {
+                                "contract_key": WEB_RESEARCH_CONTRACT_KEY,
+                                "routing_slot": "report_generation_model",
+                                "executor_binding": {
+                                    "executor_kind": "skill",
+                                    "binding_key": "research"
+                                }
+                            },
+                            "entry_source": "at_report_command"
+                        }
+                    })).expect("serialize args")
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: None,
+            },
+        });
+
+        export_runtime_replay_case(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let input_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/input.json");
+        let expected_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/expected.json");
+        let grader_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/grader.md");
+        let links_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/evidence-links.json");
+
+        let input =
+            serde_json::from_str::<Value>(fs::read_to_string(input_path).expect("input").as_str())
+                .expect("parse input");
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(WEB_RESEARCH_CONTRACT_KEY)
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("executor_invoked")
+        );
+        let suite_tags = input
+            .pointer("/classification/suiteTags")
+            .and_then(Value::as_array)
+            .expect("suite tags");
+        for expected_tag in [
+            "modality-web_research",
+            "web-research",
+            "research-skill",
+            "web-research-trace",
+        ] {
+            assert!(suite_tags
+                .iter()
+                .any(|item| item.as_str() == Some(expected_tag)));
+        }
+
+        let expected = fs::read_to_string(expected_path).expect("expected");
+        assert!(expected.contains("Skill(research)"));
+        assert!(expected.contains("Skill(site_search)"));
+        assert!(expected.contains("Skill(report_generate)"));
+        assert!(expected.contains("search_query"));
+        assert!(expected.contains("lime_site_*"));
+        assert!(expected.contains("model_memory_only_answer"));
+        assert!(expected.contains("local_file_search_before_research_skill"));
+        assert!(expected.contains("\"requiresHumanReview\": false"));
+
+        let grader = fs::read_to_string(grader_path).expect("grader");
+        assert!(grader.contains("多模态运行合同检查"));
+        assert!(grader.contains("Skill(research)"));
+        assert!(grader.contains("Skill(report_generate)"));
+        assert!(grader.contains("model_memory_only_answer"));
+        assert!(grader.contains("local_file_search_before_research_skill"));
+
+        let links =
+            serde_json::from_str::<Value>(fs::read_to_string(links_path).expect("links").as_str())
+                .expect("parse links");
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("web_research_skill_trace.modality_runtime_contract")
+        );
+    }
+
+    #[test]
+    fn should_carry_text_transform_contract_into_replay_grader_checks() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "text-transform-contract-skill-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 5,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:01:45Z".to_string(),
+            completed_at: Some("2026-03-27T10:01:45Z".to_string()),
+            updated_at: "2026-03-27T10:01:45Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "Skill".to_string(),
+                arguments: Some(json!({
+                    "skill": "summary",
+                    "args": serde_json::to_string(&json!({
+                        "summary_request": {
+                            "source_path": "/tmp/meeting-notes.md",
+                            "instruction": "总结成三点行动项",
+                            "modality_contract_key": TEXT_TRANSFORM_CONTRACT_KEY,
+                            "modality": "document",
+                            "required_capabilities": [
+                                "text_generation",
+                                "local_file_read",
+                                "long_context"
+                            ],
+                            "routing_slot": "base_model",
+                            "runtime_contract": {
+                                "contract_key": TEXT_TRANSFORM_CONTRACT_KEY,
+                                "routing_slot": "base_model",
+                                "executor_binding": {
+                                    "executor_kind": "skill",
+                                    "binding_key": "text_transform"
+                                }
+                            },
+                            "entry_source": "at_summary_command"
+                        }
+                    })).expect("serialize args")
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: None,
+            },
+        });
+
+        export_runtime_replay_case(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let input_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/input.json");
+        let expected_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/expected.json");
+        let grader_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/grader.md");
+        let links_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/evidence-links.json");
+
+        let input =
+            serde_json::from_str::<Value>(fs::read_to_string(input_path).expect("input").as_str())
+                .expect("parse input");
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(TEXT_TRANSFORM_CONTRACT_KEY)
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("executor_invoked")
+        );
+        let suite_tags = input
+            .pointer("/classification/suiteTags")
+            .and_then(Value::as_array)
+            .expect("suite tags");
+        for expected_tag in [
+            "modality-text_transform",
+            "text-transform",
+            "text-transform-skill",
+            "text-transform-trace",
+        ] {
+            assert!(suite_tags
+                .iter()
+                .any(|item| item.as_str() == Some(expected_tag)));
+        }
+
+        let expected = fs::read_to_string(expected_path).expect("expected");
+        assert!(expected.contains("Skill(summary)"));
+        assert!(expected.contains("Skill(translation)"));
+        assert!(expected.contains("Skill(analysis)"));
+        assert!(expected.contains("list_directory"));
+        assert!(expected.contains("read_file"));
+        assert!(expected.contains("frontend_direct_text_transform"));
+        assert!(expected.contains("tool_search_before_text_transform_skill"));
+        assert!(expected.contains("web_search_before_text_transform_skill"));
+        assert!(expected.contains("\"requiresHumanReview\": false"));
+
+        let grader = fs::read_to_string(grader_path).expect("grader");
+        assert!(grader.contains("多模态运行合同检查"));
+        assert!(grader.contains("Skill(summary)"));
+        assert!(grader.contains("Skill(translation)"));
+        assert!(grader.contains("Skill(analysis)"));
+        assert!(grader.contains("frontend_direct_text_transform"));
+
+        let links =
+            serde_json::from_str::<Value>(fs::read_to_string(links_path).expect("links").as_str())
+                .expect("parse links");
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("text_transform_skill_trace.modality_runtime_contract")
         );
     }
 }

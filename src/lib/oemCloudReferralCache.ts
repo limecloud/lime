@@ -31,12 +31,16 @@ function normalizeText(value: unknown): string | undefined {
   return normalized ? normalized : undefined;
 }
 
-function isReferralDashboard(value: unknown): value is OemCloudReferralDashboard {
+function isReferralDashboard(
+  value: unknown,
+): value is OemCloudReferralDashboard {
   if (!isRecord(value) || !isRecord(value.share) || !isRecord(value.code)) {
     return false;
   }
 
-  return Boolean(normalizeText(value.share.code) || normalizeText(value.code.code));
+  return Boolean(
+    normalizeText(value.share.code) || normalizeText(value.code.code),
+  );
 }
 
 function readStore(): ReferralCacheStore {
@@ -101,10 +105,13 @@ export function readCachedOemCloudReferralState(
     return normalizeCachedState(store[normalizedTenantId]);
   }
 
-  return Object.values(store)
-    .map(normalizeCachedState)
-    .filter((item): item is OemCloudReferralCachedState => Boolean(item))
-    .sort((left, right) => right.cachedAt.localeCompare(left.cachedAt))[0] ?? null;
+  return (
+    Object.values(store)
+      .map(normalizeCachedState)
+      .filter((item): item is OemCloudReferralCachedState => Boolean(item))
+      .sort((left, right) => right.cachedAt.localeCompare(left.cachedAt))[0] ??
+    null
+  );
 }
 
 export function cacheOemCloudReferralState(

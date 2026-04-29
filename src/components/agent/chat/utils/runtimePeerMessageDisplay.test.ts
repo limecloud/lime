@@ -126,10 +126,7 @@ describe("runtimePeerMessageDisplay", () => {
     const hiddenOnly = `<teammate-message teammate_id="researcher">
 {"type":"shutdown_approved","request_id":"req-1","from":"researcher"}
 </teammate-message>`;
-    const hiddenAndVisible = [
-      hiddenOnly,
-      pureText,
-    ].join("\n");
+    const hiddenAndVisible = [hiddenOnly, pureText].join("\n");
 
     expect(isPureRuntimePeerMessageText(pureText)).toBe(true);
     expect(isPureRuntimePeerMessageText(mixedText)).toBe(false);

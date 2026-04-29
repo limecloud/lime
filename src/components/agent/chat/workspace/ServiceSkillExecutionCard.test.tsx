@@ -113,12 +113,8 @@ describe("ServiceSkillExecutionCard", () => {
       },
     });
 
-    expect(container.textContent).toContain(
-      "结果文件：index.md",
-    );
-    expect(container.textContent).toContain(
-      "图片：7 张",
-    );
+    expect(container.textContent).toContain("结果文件：index.md");
+    expect(container.textContent).toContain("图片：7 张");
     expect(
       container.querySelector(
         '[data-testid="service-skill-execution-open-browser-runtime"]',

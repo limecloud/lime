@@ -305,12 +305,14 @@ describe("runtimeMemoryPrefetchHistory", () => {
       removedLayers: [],
       previewChanged: false,
     });
-    expect(formatRuntimeMemoryPrefetchHistoryDiffStatusLabel(strongerAssessment.status)).toBe(
-      "补强",
-    );
-    expect(describeRuntimeMemoryPrefetchHistoryDiffAssessment(strongerAssessment)).toBe(
-      "补强层：规则层、工作层、Team 层。",
-    );
+    expect(
+      formatRuntimeMemoryPrefetchHistoryDiffStatusLabel(
+        strongerAssessment.status,
+      ),
+    ).toBe("补强");
+    expect(
+      describeRuntimeMemoryPrefetchHistoryDiffAssessment(strongerAssessment),
+    ).toBe("补强层：规则层、工作层、Team 层。");
 
     const weakerAssessment = assessRuntimeMemoryPrefetchHistoryDiff({
       layerChanges: {
@@ -329,9 +331,9 @@ describe("runtimeMemoryPrefetchHistory", () => {
       removedLayers: ["working", "durable", "compaction"],
       previewChanged: true,
     });
-    expect(describeRuntimeMemoryPrefetchHistoryDiffAssessment(weakerAssessment)).toBe(
-      "退化层：工作层、持久层、压缩层。 摘要内容也有更新。",
-    );
+    expect(
+      describeRuntimeMemoryPrefetchHistoryDiffAssessment(weakerAssessment),
+    ).toBe("退化层：工作层、持久层、压缩层。 摘要内容也有更新。");
 
     const mixedAssessment = assessRuntimeMemoryPrefetchHistoryDiff({
       layerChanges: {
@@ -350,12 +352,12 @@ describe("runtimeMemoryPrefetchHistory", () => {
       removedLayers: ["durable"],
       previewChanged: false,
     });
-    expect(formatRuntimeMemoryPrefetchHistoryDiffStatusLabel(mixedAssessment.status)).toBe(
-      "波动",
-    );
-    expect(describeRuntimeMemoryPrefetchHistoryDiffAssessment(mixedAssessment)).toBe(
-      "补强层：规则层；退化层：持久层。",
-    );
+    expect(
+      formatRuntimeMemoryPrefetchHistoryDiffStatusLabel(mixedAssessment.status),
+    ).toBe("波动");
+    expect(
+      describeRuntimeMemoryPrefetchHistoryDiffAssessment(mixedAssessment),
+    ).toBe("补强层：规则层；退化层：持久层。");
 
     const sameAssessment = assessRuntimeMemoryPrefetchHistoryDiff({
       layerChanges: {
@@ -374,12 +376,12 @@ describe("runtimeMemoryPrefetchHistory", () => {
       removedLayers: [],
       previewChanged: true,
     });
-    expect(formatRuntimeMemoryPrefetchHistoryDiffStatusLabel(sameAssessment.status)).toBe(
-      "持平",
-    );
-    expect(describeRuntimeMemoryPrefetchHistoryDiffAssessment(sameAssessment)).toBe(
-      "命中层级持平，但摘要内容有更新。",
-    );
+    expect(
+      formatRuntimeMemoryPrefetchHistoryDiffStatusLabel(sameAssessment.status),
+    ).toBe("持平");
+    expect(
+      describeRuntimeMemoryPrefetchHistoryDiffAssessment(sameAssessment),
+    ).toBe("命中层级持平，但摘要内容有更新。");
   });
 
   it("应汇总当前范围内的层级命中覆盖和变化次数", () => {

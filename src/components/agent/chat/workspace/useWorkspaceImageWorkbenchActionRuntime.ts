@@ -214,9 +214,7 @@ function readTaskPayloadTitleGenerationResult(
     (typeof result.session_id === "string" && result.session_id.trim()) ||
     null;
   const executionRuntime =
-    result.executionRuntime ??
-    result.execution_runtime ??
-    null;
+    result.executionRuntime ?? result.execution_runtime ?? null;
   const usedFallback =
     typeof result.usedFallback === "boolean"
       ? result.usedFallback
@@ -359,7 +357,10 @@ export function useWorkspaceImageWorkbenchActionRuntime({
     }
 
     const preferredProviderId = imageWorkbenchPreferredProviderId?.trim();
-    if (!preferredProviderId || preferredProviderId === imageWorkbenchRequestProviderId) {
+    if (
+      !preferredProviderId ||
+      preferredProviderId === imageWorkbenchRequestProviderId
+    ) {
       return preferredModelId;
     }
 
@@ -466,9 +467,8 @@ export function useWorkspaceImageWorkbenchActionRuntime({
           originalTask.record,
         );
         const anchorText = resolveTaskRecordAnchorText(originalTask.record);
-        const titleGenerationResult = readTaskPayloadTitleGenerationResult(
-          payload,
-        );
+        const titleGenerationResult =
+          readTaskPayloadTitleGenerationResult(payload);
 
         await createImageGenerationTask({
           projectRootPath: originalTaskLookup.projectRootPath,

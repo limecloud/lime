@@ -6,7 +6,10 @@
 use crate::agent::SessionDetail;
 use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
 use crate::commands::modality_runtime_contracts::{
-    IMAGE_GENERATION_CONTRACT_KEY, IMAGE_GENERATION_ROUTING_SLOT,
+    BROWSER_CONTROL_CONTRACT_KEY, BROWSER_CONTROL_ROUTING_SLOT, IMAGE_GENERATION_CONTRACT_KEY,
+    IMAGE_GENERATION_ROUTING_SLOT, PDF_EXTRACT_CONTRACT_KEY, PDF_EXTRACT_ROUTING_SLOT,
+    TEXT_TRANSFORM_CONTRACT_KEY, TEXT_TRANSFORM_ROUTING_SLOT, VOICE_GENERATION_CONTRACT_KEY,
+    VOICE_GENERATION_ROUTING_SLOT, WEB_RESEARCH_CONTRACT_KEY, WEB_RESEARCH_ROUTING_SLOT,
 };
 use crate::database::DbConnection;
 use crate::services::artifact_document_validator::ARTIFACT_DOCUMENT_SCHEMA_VERSION;
@@ -200,6 +203,7 @@ pub fn export_runtime_evidence_pack(
     let auxiliary_runtime =
         collect_auxiliary_runtime_snapshots(Some(workspace_root.as_path()), &recent_artifacts);
     let modality_runtime_contracts = collect_modality_runtime_contract_snapshots(
+        detail,
         Some(workspace_root.as_path()),
         &recent_artifacts,
     );
@@ -357,7 +361,7 @@ pub(crate) fn build_runtime_evidence_sceneapp_snapshot(
         .unwrap_or_default();
     let auxiliary_runtime = collect_auxiliary_runtime_snapshots(workspace_root, &recent_artifacts);
     let modality_runtime_contracts =
-        collect_modality_runtime_contract_snapshots(workspace_root, &recent_artifacts);
+        collect_modality_runtime_contract_snapshots(detail, workspace_root, &recent_artifacts);
     let verification = collect_runtime_verification(detail, workspace_root, &recent_artifacts);
     let signal_coverage = build_signal_coverage(
         thread_read,
@@ -746,8 +750,92 @@ fn build_modality_runtime_contracts_json(
     json!({
         "applicableArtifactCount": summary.applicable_count,
         "snapshotCount": summary.snapshots.len(),
+        "snapshotIndex": build_modality_runtime_contract_snapshot_index(&summary.snapshots),
         "snapshots": summary.snapshots.clone()
     })
+}
+
+fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value {
+    let mut contract_keys = BTreeSet::new();
+    let mut sources: BTreeMap<String, usize> = BTreeMap::new();
+    let mut routing_outcomes: BTreeMap<String, usize> = BTreeMap::new();
+    let mut expected_routing_slots = BTreeSet::new();
+    let mut trace_items = Vec::new();
+
+    for snapshot in snapshots {
+        let contract_key = snapshot_string(snapshot, "contractKey");
+        let source = snapshot_string(snapshot, "source");
+        let routing_outcome = snapshot_string(snapshot, "routingOutcome");
+        let expected_routing_slot = snapshot_string(snapshot, "expectedRoutingSlot");
+
+        if let Some(contract_key) = contract_key.as_deref() {
+            contract_keys.insert(contract_key.to_string());
+        }
+        if let Some(source) = source.as_deref() {
+            *sources.entry(source.to_string()).or_insert(0) += 1;
+        }
+        if let Some(routing_outcome) = routing_outcome.as_deref() {
+            *routing_outcomes
+                .entry(routing_outcome.to_string())
+                .or_insert(0) += 1;
+        }
+        if let Some(expected_routing_slot) = expected_routing_slot.as_deref() {
+            expected_routing_slots.insert(expected_routing_slot.to_string());
+        }
+
+        if source
+            .as_deref()
+            .map(is_runtime_contract_tool_trace_source)
+            .unwrap_or(false)
+        {
+            trace_items.push(json!({
+                "artifactPath": snapshot.get("artifactPath").cloned().unwrap_or(Value::Null),
+                "source": source,
+                "contractKey": contract_key,
+                "routingEvent": snapshot.get("routingEvent").cloned().unwrap_or(Value::Null),
+                "routingOutcome": snapshot.get("routingOutcome").cloned().unwrap_or(Value::Null),
+                "expectedRoutingSlot": snapshot.get("expectedRoutingSlot").cloned().unwrap_or(Value::Null),
+                "entrySource": snapshot.get("entrySource").cloned().unwrap_or(Value::Null),
+                "executorBindingKey": snapshot
+                    .pointer("/runtimeContract/executor_binding/binding_key")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            }));
+        }
+    }
+
+    json!({
+        "contractKeys": contract_keys.into_iter().collect::<Vec<_>>(),
+        "sourceCounts": sources
+            .into_iter()
+            .map(|(source, count)| json!({ "source": source, "count": count }))
+            .collect::<Vec<_>>(),
+        "routingOutcomeCounts": routing_outcomes
+            .into_iter()
+            .map(|(outcome, count)| json!({ "outcome": outcome, "count": count }))
+            .collect::<Vec<_>>(),
+        "expectedRoutingSlots": expected_routing_slots.into_iter().collect::<Vec<_>>(),
+        "toolTraceIndex": {
+            "traceCount": trace_items.len(),
+            "items": trace_items,
+        }
+    })
+}
+
+fn snapshot_string(snapshot: &Value, field_name: &str) -> Option<String> {
+    snapshot
+        .get(field_name)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn is_runtime_contract_tool_trace_source(source: &str) -> bool {
+    source.contains("skill_trace")
+        || source.contains("browser_action_trace")
+        || source.contains("service_scene_trace")
+        || source.contains("audio_task")
 }
 
 fn build_known_gaps(
@@ -1233,6 +1321,7 @@ fn collect_auxiliary_runtime_snapshots(
 }
 
 fn collect_modality_runtime_contract_snapshots(
+    detail: &SessionDetail,
     workspace_root: Option<&Path>,
     recent_artifacts: &[RuntimeRecentArtifact],
 ) -> RuntimeModalityContractSnapshotSummary {
@@ -1270,6 +1359,66 @@ fn collect_modality_runtime_contract_snapshots(
             extract_modality_runtime_contract_snapshot(&document, artifact.path.as_str())
         {
             summary.snapshots.push(snapshot);
+        }
+    }
+
+    for item in detail.items.iter().rev() {
+        let AgentThreadItemPayload::ToolCall {
+            tool_name,
+            arguments,
+            success,
+            metadata,
+            ..
+        } = &item.payload
+        else {
+            continue;
+        };
+        let artifact_path = format!("runtime_timeline/{}/{}", item.id, tool_name);
+        let snapshot = if is_browser_tool_name(tool_name.as_str()) {
+            metadata.as_ref().and_then(|metadata| {
+                extract_modality_runtime_contract_snapshot(metadata, artifact_path.as_str())
+            })
+        } else {
+            extract_pdf_read_skill_contract_snapshot(
+                tool_name.as_str(),
+                arguments.as_ref(),
+                metadata.as_ref(),
+                *success,
+                artifact_path.as_str(),
+            )
+            .or_else(|| {
+                extract_voice_generation_service_contract_snapshot(
+                    tool_name.as_str(),
+                    arguments.as_ref(),
+                    metadata.as_ref(),
+                    *success,
+                    artifact_path.as_str(),
+                )
+            })
+            .or_else(|| {
+                extract_web_research_skill_contract_snapshot(
+                    tool_name.as_str(),
+                    arguments.as_ref(),
+                    metadata.as_ref(),
+                    *success,
+                    artifact_path.as_str(),
+                )
+            })
+            .or_else(|| {
+                extract_text_transform_skill_contract_snapshot(
+                    tool_name.as_str(),
+                    arguments.as_ref(),
+                    metadata.as_ref(),
+                    *success,
+                    artifact_path.as_str(),
+                )
+            })
+        };
+        let Some(snapshot) = snapshot else { continue };
+        summary.applicable_count += 1;
+        summary.snapshots.push(snapshot);
+        if summary.snapshots.len() >= MAX_RECENT_ARTIFACTS {
+            break;
         }
     }
 
@@ -1509,15 +1658,15 @@ fn build_signal_coverage(
             } else {
                 "exported"
             },
-            source: "image_task.modality_runtime_contract",
+            source: "task_or_tool_trace.modality_runtime_contract",
             detail: if modality_runtime_contracts.snapshots.is_empty() {
                 format!(
-                    "当前检测到 {} 个多模态任务工件，但未从稳定 task artifact 中提取到底层 ModalityRuntimeContract 快照。",
+                    "当前检测到 {} 个多模态任务或工具 trace，但未从稳定事实源中提取到底层 ModalityRuntimeContract 快照。",
                     modality_runtime_contracts.applicable_count
                 )
             } else {
                 format!(
-                    "当前证据包已从 {} 个多模态任务工件中导出 {} 条 ModalityRuntimeContract / routing 决策快照。",
+                    "当前证据包已从 {} 个多模态任务或工具 trace 中导出 {} 条 ModalityRuntimeContract / routing 决策快照。",
                     modality_runtime_contracts.applicable_count,
                     modality_runtime_contracts.snapshots.len()
                 )
@@ -1847,7 +1996,9 @@ fn is_auxiliary_runtime_applicable(artifact: &RuntimeRecentArtifact) -> bool {
 
 fn is_modality_runtime_contract_applicable(artifact: &RuntimeRecentArtifact) -> bool {
     let normalized_path = artifact.path.replace('\\', "/").to_ascii_lowercase();
-    if normalized_path.contains(".lime/tasks/image_generate/") {
+    if normalized_path.contains(".lime/tasks/image_generate/")
+        || normalized_path.contains(".lime/tasks/audio_generate/")
+    {
         return true;
     }
 
@@ -1874,10 +2025,560 @@ fn is_modality_runtime_contract_applicable(artifact: &RuntimeRecentArtifact) -> 
                         &["artifactType"][..],
                     ],
                 )
-                .map(|value| value.eq_ignore_ascii_case("image_generate"))
+                .map(|value| {
+                    value.eq_ignore_ascii_case("image_generate")
+                        || value.eq_ignore_ascii_case("audio_generate")
+                })
                 .unwrap_or(false)
         })
         .unwrap_or(false)
+}
+
+fn extract_pdf_read_skill_contract_snapshot(
+    tool_name: &str,
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+    success: Option<bool>,
+    artifact_path: &str,
+) -> Option<Value> {
+    if !is_pdf_read_skill_tool_call(tool_name, arguments, metadata) {
+        return None;
+    }
+
+    for mut document in collect_pdf_extract_contract_documents(arguments, metadata) {
+        apply_tool_call_status_to_contract_document(&mut document, success);
+        if let Some(snapshot) = extract_modality_runtime_contract_snapshot(&document, artifact_path)
+        {
+            return Some(snapshot);
+        }
+    }
+
+    None
+}
+
+fn is_pdf_read_skill_tool_call(
+    tool_name: &str,
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+) -> bool {
+    let normalized_tool_name = tool_name.trim().to_ascii_lowercase();
+    let tool_is_skill = normalized_tool_name == "skill" || normalized_tool_name.contains("skill");
+    let tool_is_pdf_read = normalized_tool_name == "pdf_read"
+        || normalized_tool_name.contains("pdf_read")
+        || normalized_tool_name.contains("pdf-read");
+    let argument_skill_is_pdf_read = arguments
+        .and_then(|arguments| {
+            read_json_string(
+                arguments,
+                &[
+                    &["skill"][..],
+                    &["skill_name"][..],
+                    &["skillName"][..],
+                    &["name"][..],
+                ],
+            )
+        })
+        .map(|value| value == "pdf_read")
+        .unwrap_or(false);
+    let has_pdf_contract = !collect_pdf_extract_contract_documents(arguments, metadata).is_empty();
+
+    tool_is_pdf_read || (tool_is_skill && (argument_skill_is_pdf_read || has_pdf_contract))
+}
+
+fn collect_pdf_extract_contract_documents(
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+) -> Vec<Value> {
+    let mut documents = Vec::new();
+
+    if let Some(metadata) = metadata {
+        push_pdf_extract_contract_candidates(metadata, &mut documents);
+    }
+
+    if let Some(arguments) = arguments {
+        push_pdf_extract_contract_candidates(arguments, &mut documents);
+        if let Some(skill_args) = arguments.get("args") {
+            match skill_args {
+                Value::Object(_) => {
+                    push_pdf_extract_contract_candidates(skill_args, &mut documents)
+                }
+                Value::String(text) => {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(text.trim()) {
+                        push_pdf_extract_contract_candidates(&parsed, &mut documents);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    documents
+        .into_iter()
+        .filter(has_pdf_extract_contract)
+        .collect()
+}
+
+fn push_pdf_extract_contract_candidates(source: &Value, documents: &mut Vec<Value>) {
+    documents.push(source.clone());
+    for path in [
+        &["harness", "pdf_read_skill_launch"][..],
+        &["harness", "pdfReadSkillLaunch"][..],
+        &["harness", "pdf_read_skill_launch", "pdf_read_request"][..],
+        &["harness", "pdfReadSkillLaunch", "pdfReadRequest"][..],
+        &["pdf_read_skill_launch"][..],
+        &["pdfReadSkillLaunch"][..],
+        &["pdf_read_skill_launch", "pdf_read_request"][..],
+        &["pdfReadSkillLaunch", "pdfReadRequest"][..],
+        &["pdf_read_request"][..],
+        &["pdfReadRequest"][..],
+    ] {
+        if let Some(candidate) = find_json_value(source, path) {
+            documents.push(candidate.clone());
+        }
+    }
+}
+
+fn has_pdf_extract_contract(document: &Value) -> bool {
+    read_json_string(
+        document,
+        &[
+            &["modality_contract_key"][..],
+            &["modalityContractKey"][..],
+            &["runtime_contract", "contract_key"][..],
+            &["runtimeContract", "contractKey"][..],
+        ],
+    )
+    .map(|value| value == PDF_EXTRACT_CONTRACT_KEY)
+    .unwrap_or(false)
+}
+
+fn extract_voice_generation_service_contract_snapshot(
+    tool_name: &str,
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+    success: Option<bool>,
+    artifact_path: &str,
+) -> Option<Value> {
+    if !is_voice_generation_service_tool_call(tool_name, arguments, metadata) {
+        return None;
+    }
+
+    for mut document in collect_voice_generation_contract_documents(arguments, metadata) {
+        apply_tool_call_status_to_contract_document(&mut document, success);
+        if let Some(snapshot) = extract_modality_runtime_contract_snapshot(&document, artifact_path)
+        {
+            return Some(snapshot);
+        }
+    }
+
+    None
+}
+
+fn is_voice_generation_service_tool_call(
+    tool_name: &str,
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+) -> bool {
+    let normalized_tool_name = tool_name.trim().to_ascii_lowercase();
+    let tool_is_voice_generation = normalized_tool_name == "voice_runtime"
+        || normalized_tool_name.contains("voice_runtime")
+        || normalized_tool_name.contains("voice-generation")
+        || normalized_tool_name.contains("voice_generation");
+    let tool_is_service_scene = normalized_tool_name.contains("service_scene")
+        || normalized_tool_name.contains("service-skill")
+        || normalized_tool_name.contains("service_skill")
+        || normalized_tool_name.contains("lime_run_service_skill");
+    let has_voice_contract =
+        !collect_voice_generation_contract_documents(arguments, metadata).is_empty();
+
+    tool_is_voice_generation || (tool_is_service_scene && has_voice_contract)
+}
+
+fn collect_voice_generation_contract_documents(
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+) -> Vec<Value> {
+    let mut documents = Vec::new();
+
+    if let Some(metadata) = metadata {
+        push_voice_generation_contract_candidates(metadata, &mut documents);
+    }
+
+    if let Some(arguments) = arguments {
+        push_voice_generation_contract_candidates(arguments, &mut documents);
+        if let Some(skill_args) = arguments.get("args") {
+            match skill_args {
+                Value::Object(_) => {
+                    push_voice_generation_contract_candidates(skill_args, &mut documents)
+                }
+                Value::String(text) => {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(text.trim()) {
+                        push_voice_generation_contract_candidates(&parsed, &mut documents);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    documents
+        .into_iter()
+        .filter(has_voice_generation_contract)
+        .collect()
+}
+
+fn push_voice_generation_contract_candidates(source: &Value, documents: &mut Vec<Value>) {
+    documents.push(source.clone());
+    for path in [
+        &["harness", "service_scene_launch"][..],
+        &["harness", "serviceSceneLaunch"][..],
+        &["harness", "service_scene_launch", "service_scene_run"][..],
+        &["harness", "serviceSceneLaunch", "serviceSceneRun"][..],
+        &["service_scene_launch"][..],
+        &["serviceSceneLaunch"][..],
+        &["service_scene_launch", "service_scene_run"][..],
+        &["serviceSceneLaunch", "serviceSceneRun"][..],
+        &["service_scene_run"][..],
+        &["serviceSceneRun"][..],
+        &["result"][..],
+        &["result", "service_scene_launch"][..],
+        &["result", "serviceSceneLaunch"][..],
+        &["result", "service_scene_launch", "service_scene_run"][..],
+        &["result", "serviceSceneLaunch", "serviceSceneRun"][..],
+        &["result", "service_scene_run"][..],
+        &["result", "serviceSceneRun"][..],
+    ] {
+        if let Some(candidate) = find_json_value(source, path) {
+            documents.push(candidate.clone());
+        }
+    }
+}
+
+fn has_voice_generation_contract(document: &Value) -> bool {
+    read_json_string(
+        document,
+        &[
+            &["modality_contract_key"][..],
+            &["modalityContractKey"][..],
+            &["runtime_contract", "contract_key"][..],
+            &["runtimeContract", "contractKey"][..],
+        ],
+    )
+    .map(|value| value == VOICE_GENERATION_CONTRACT_KEY)
+    .unwrap_or(false)
+}
+
+fn extract_web_research_skill_contract_snapshot(
+    tool_name: &str,
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+    success: Option<bool>,
+    artifact_path: &str,
+) -> Option<Value> {
+    if !is_web_research_skill_tool_call(tool_name, arguments, metadata) {
+        return None;
+    }
+
+    for mut document in collect_web_research_contract_documents(arguments, metadata) {
+        apply_tool_call_status_to_contract_document(&mut document, success);
+        if let Some(snapshot) = extract_modality_runtime_contract_snapshot(&document, artifact_path)
+        {
+            return Some(snapshot);
+        }
+    }
+
+    None
+}
+
+fn is_web_research_skill_tool_call(
+    tool_name: &str,
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+) -> bool {
+    let normalized_tool_name = tool_name.trim().to_ascii_lowercase();
+    let tool_is_skill = normalized_tool_name == "skill" || normalized_tool_name.contains("skill");
+    let tool_is_research = normalized_tool_name == "research"
+        || normalized_tool_name.contains("research")
+        || normalized_tool_name == "site_search"
+        || normalized_tool_name.contains("site_search")
+        || normalized_tool_name.contains("site-search")
+        || normalized_tool_name == "report_generate"
+        || normalized_tool_name.contains("report_generate")
+        || normalized_tool_name.contains("report-generate");
+    let argument_skill_is_web_research = arguments
+        .and_then(|arguments| {
+            read_json_string(
+                arguments,
+                &[
+                    &["skill"][..],
+                    &["skill_name"][..],
+                    &["skillName"][..],
+                    &["name"][..],
+                ],
+            )
+        })
+        .map(|value| value == "research" || value == "site_search" || value == "report_generate")
+        .unwrap_or(false);
+    let has_web_research_contract =
+        !collect_web_research_contract_documents(arguments, metadata).is_empty();
+
+    tool_is_research
+        || (tool_is_skill && (argument_skill_is_web_research || has_web_research_contract))
+}
+
+fn collect_web_research_contract_documents(
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+) -> Vec<Value> {
+    let mut documents = Vec::new();
+
+    if let Some(metadata) = metadata {
+        push_web_research_contract_candidates(metadata, &mut documents);
+    }
+
+    if let Some(arguments) = arguments {
+        push_web_research_contract_candidates(arguments, &mut documents);
+        if let Some(skill_args) = arguments.get("args") {
+            match skill_args {
+                Value::Object(_) => {
+                    push_web_research_contract_candidates(skill_args, &mut documents)
+                }
+                Value::String(text) => {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(text.trim()) {
+                        push_web_research_contract_candidates(&parsed, &mut documents);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    documents
+        .into_iter()
+        .filter(has_web_research_contract)
+        .collect()
+}
+
+fn push_web_research_contract_candidates(source: &Value, documents: &mut Vec<Value>) {
+    documents.push(source.clone());
+    for path in [
+        &["harness", "research_skill_launch"][..],
+        &["harness", "researchSkillLaunch"][..],
+        &["harness", "research_skill_launch", "research_request"][..],
+        &["harness", "researchSkillLaunch", "researchRequest"][..],
+        &["harness", "deep_search_skill_launch"][..],
+        &["harness", "deepSearchSkillLaunch"][..],
+        &["harness", "deep_search_skill_launch", "deep_search_request"][..],
+        &["harness", "deepSearchSkillLaunch", "deepSearchRequest"][..],
+        &["harness", "site_search_skill_launch"][..],
+        &["harness", "siteSearchSkillLaunch"][..],
+        &["harness", "site_search_skill_launch", "site_search_request"][..],
+        &["harness", "siteSearchSkillLaunch", "siteSearchRequest"][..],
+        &["harness", "report_skill_launch"][..],
+        &["harness", "reportSkillLaunch"][..],
+        &["harness", "report_skill_launch", "report_request"][..],
+        &["harness", "reportSkillLaunch", "reportRequest"][..],
+        &["research_skill_launch"][..],
+        &["researchSkillLaunch"][..],
+        &["research_skill_launch", "research_request"][..],
+        &["researchSkillLaunch", "researchRequest"][..],
+        &["deep_search_skill_launch"][..],
+        &["deepSearchSkillLaunch"][..],
+        &["deep_search_skill_launch", "deep_search_request"][..],
+        &["deepSearchSkillLaunch", "deepSearchRequest"][..],
+        &["site_search_skill_launch"][..],
+        &["siteSearchSkillLaunch"][..],
+        &["site_search_skill_launch", "site_search_request"][..],
+        &["siteSearchSkillLaunch", "siteSearchRequest"][..],
+        &["report_skill_launch"][..],
+        &["reportSkillLaunch"][..],
+        &["report_skill_launch", "report_request"][..],
+        &["reportSkillLaunch", "reportRequest"][..],
+        &["research_request"][..],
+        &["researchRequest"][..],
+        &["deep_search_request"][..],
+        &["deepSearchRequest"][..],
+        &["site_search_request"][..],
+        &["siteSearchRequest"][..],
+        &["report_request"][..],
+        &["reportRequest"][..],
+    ] {
+        if let Some(candidate) = find_json_value(source, path) {
+            documents.push(candidate.clone());
+        }
+    }
+}
+
+fn has_web_research_contract(document: &Value) -> bool {
+    read_json_string(
+        document,
+        &[
+            &["modality_contract_key"][..],
+            &["modalityContractKey"][..],
+            &["runtime_contract", "contract_key"][..],
+            &["runtimeContract", "contractKey"][..],
+        ],
+    )
+    .map(|value| value == WEB_RESEARCH_CONTRACT_KEY)
+    .unwrap_or(false)
+}
+
+fn extract_text_transform_skill_contract_snapshot(
+    tool_name: &str,
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+    success: Option<bool>,
+    artifact_path: &str,
+) -> Option<Value> {
+    if !is_text_transform_skill_tool_call(tool_name, arguments, metadata) {
+        return None;
+    }
+
+    for mut document in collect_text_transform_contract_documents(arguments, metadata) {
+        apply_tool_call_status_to_contract_document(&mut document, success);
+        if let Some(snapshot) = extract_modality_runtime_contract_snapshot(&document, artifact_path)
+        {
+            return Some(snapshot);
+        }
+    }
+
+    None
+}
+
+fn is_text_transform_skill_tool_call(
+    tool_name: &str,
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+) -> bool {
+    let normalized_tool_name = tool_name.trim().to_ascii_lowercase();
+    let tool_is_skill = normalized_tool_name == "skill" || normalized_tool_name.contains("skill");
+    let tool_is_text_transform = normalized_tool_name == "summary"
+        || normalized_tool_name.contains("summary")
+        || normalized_tool_name == "translation"
+        || normalized_tool_name.contains("translation")
+        || normalized_tool_name == "analysis"
+        || normalized_tool_name.contains("analysis");
+    let argument_skill_is_text_transform = arguments
+        .and_then(|arguments| {
+            read_json_string(
+                arguments,
+                &[
+                    &["skill"][..],
+                    &["skill_name"][..],
+                    &["skillName"][..],
+                    &["name"][..],
+                ],
+            )
+        })
+        .map(|value| value == "summary" || value == "translation" || value == "analysis")
+        .unwrap_or(false);
+    let has_text_transform_contract =
+        !collect_text_transform_contract_documents(arguments, metadata).is_empty();
+
+    tool_is_text_transform
+        || (tool_is_skill && (argument_skill_is_text_transform || has_text_transform_contract))
+}
+
+fn collect_text_transform_contract_documents(
+    arguments: Option<&Value>,
+    metadata: Option<&Value>,
+) -> Vec<Value> {
+    let mut documents = Vec::new();
+
+    if let Some(metadata) = metadata {
+        push_text_transform_contract_candidates(metadata, &mut documents);
+    }
+
+    if let Some(arguments) = arguments {
+        push_text_transform_contract_candidates(arguments, &mut documents);
+        if let Some(skill_args) = arguments.get("args") {
+            match skill_args {
+                Value::Object(_) => {
+                    push_text_transform_contract_candidates(skill_args, &mut documents)
+                }
+                Value::String(text) => {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(text.trim()) {
+                        push_text_transform_contract_candidates(&parsed, &mut documents);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    documents
+        .into_iter()
+        .filter(has_text_transform_contract)
+        .collect()
+}
+
+fn push_text_transform_contract_candidates(source: &Value, documents: &mut Vec<Value>) {
+    documents.push(source.clone());
+    for path in [
+        &["harness", "summary_skill_launch"][..],
+        &["harness", "summarySkillLaunch"][..],
+        &["harness", "summary_skill_launch", "summary_request"][..],
+        &["harness", "summarySkillLaunch", "summaryRequest"][..],
+        &["harness", "translation_skill_launch"][..],
+        &["harness", "translationSkillLaunch"][..],
+        &["harness", "translation_skill_launch", "translation_request"][..],
+        &["harness", "translationSkillLaunch", "translationRequest"][..],
+        &["harness", "analysis_skill_launch"][..],
+        &["harness", "analysisSkillLaunch"][..],
+        &["harness", "analysis_skill_launch", "analysis_request"][..],
+        &["harness", "analysisSkillLaunch", "analysisRequest"][..],
+        &["summary_skill_launch"][..],
+        &["summarySkillLaunch"][..],
+        &["summary_skill_launch", "summary_request"][..],
+        &["summarySkillLaunch", "summaryRequest"][..],
+        &["translation_skill_launch"][..],
+        &["translationSkillLaunch"][..],
+        &["translation_skill_launch", "translation_request"][..],
+        &["translationSkillLaunch", "translationRequest"][..],
+        &["analysis_skill_launch"][..],
+        &["analysisSkillLaunch"][..],
+        &["analysis_skill_launch", "analysis_request"][..],
+        &["analysisSkillLaunch", "analysisRequest"][..],
+        &["summary_request"][..],
+        &["summaryRequest"][..],
+        &["translation_request"][..],
+        &["translationRequest"][..],
+        &["analysis_request"][..],
+        &["analysisRequest"][..],
+    ] {
+        if let Some(candidate) = find_json_value(source, path) {
+            documents.push(candidate.clone());
+        }
+    }
+}
+
+fn has_text_transform_contract(document: &Value) -> bool {
+    read_json_string(
+        document,
+        &[
+            &["modality_contract_key"][..],
+            &["modalityContractKey"][..],
+            &["runtime_contract", "contract_key"][..],
+            &["runtimeContract", "contractKey"][..],
+        ],
+    )
+    .map(|value| value == TEXT_TRANSFORM_CONTRACT_KEY)
+    .unwrap_or(false)
+}
+
+fn apply_tool_call_status_to_contract_document(document: &mut Value, success: Option<bool>) {
+    let Some(map) = document.as_object_mut() else {
+        return;
+    };
+    let status = match success {
+        Some(false) => "failed",
+        Some(true) => "completed",
+        None => return,
+    };
+    map.entry("status".to_string())
+        .or_insert_with(|| Value::String(status.to_string()));
+    map.entry("normalized_status".to_string())
+        .or_insert_with(|| Value::String(status.to_string()));
 }
 
 fn extract_modality_runtime_contract_snapshot(
@@ -1941,8 +2642,27 @@ fn extract_modality_runtime_contract_snapshot(
         .map(is_modality_contract_routing_failure_code)
         .unwrap_or(false);
     let is_image_generation_contract = contract_key == IMAGE_GENERATION_CONTRACT_KEY;
+    let is_browser_control_contract = contract_key == BROWSER_CONTROL_CONTRACT_KEY;
+    let is_pdf_extract_contract = contract_key == PDF_EXTRACT_CONTRACT_KEY;
+    let is_voice_generation_contract = contract_key == VOICE_GENERATION_CONTRACT_KEY;
+    let is_web_research_contract = contract_key == WEB_RESEARCH_CONTRACT_KEY;
+    let is_text_transform_contract = contract_key == TEXT_TRANSFORM_CONTRACT_KEY;
+    let is_audio_task_artifact = is_voice_generation_contract
+        && (task_type.as_deref() == Some("audio_generate")
+            || artifact_path
+                .replace('\\', "/")
+                .to_ascii_lowercase()
+                .contains(".lime/tasks/audio_generate/"));
     let routing_event = if is_contract_routing_failure {
         "routing_not_possible"
+    } else if is_browser_control_contract {
+        "browser_action_requested"
+    } else if is_pdf_extract_contract
+        || is_voice_generation_contract
+        || is_web_research_contract
+        || is_text_transform_contract
+    {
+        "executor_invoked"
     } else {
         "model_routing_decision"
     };
@@ -1956,7 +2676,21 @@ fn extract_modality_runtime_contract_snapshot(
 
     Some(json!({
         "artifactPath": artifact_path,
-        "source": "image_task.modality_runtime_contract",
+        "source": if is_browser_control_contract {
+            "browser_action_trace.modality_runtime_contract"
+        } else if is_pdf_extract_contract {
+            "pdf_read_skill_trace.modality_runtime_contract"
+        } else if is_audio_task_artifact {
+            "audio_task.modality_runtime_contract"
+        } else if is_voice_generation_contract {
+            "voice_generation_service_scene_trace.modality_runtime_contract"
+        } else if is_web_research_contract {
+            "web_research_skill_trace.modality_runtime_contract"
+        } else if is_text_transform_contract {
+            "text_transform_skill_trace.modality_runtime_contract"
+        } else {
+            "image_task.modality_runtime_contract"
+        },
         "taskId": read_json_string(
             document,
             &[
@@ -1976,12 +2710,33 @@ fn extract_modality_runtime_contract_snapshot(
         ),
         "normalizedStatus": normalized_status,
         "contractKey": contract_key,
-        "contractMatchedExpected": is_image_generation_contract,
+        "contractMatchedExpected": is_image_generation_contract || is_browser_control_contract || is_pdf_extract_contract || is_voice_generation_contract || is_web_research_contract || is_text_transform_contract,
         "expectedRoutingSlot": if is_image_generation_contract {
             Some(IMAGE_GENERATION_ROUTING_SLOT)
+        } else if is_browser_control_contract {
+            Some(BROWSER_CONTROL_ROUTING_SLOT)
+        } else if is_pdf_extract_contract {
+            Some(PDF_EXTRACT_ROUTING_SLOT)
+        } else if is_voice_generation_contract {
+            Some(VOICE_GENERATION_ROUTING_SLOT)
+        } else if is_web_research_contract {
+            Some(WEB_RESEARCH_ROUTING_SLOT)
+        } else if is_text_transform_contract {
+            Some(TEXT_TRANSFORM_ROUTING_SLOT)
         } else {
             None
         },
+        "entrySource": read_json_string(
+            document,
+            &[
+                &["entry_source"][..],
+                &["entrySource"][..],
+                &["payload", "entry_source"][..],
+                &["payload", "entrySource"][..],
+                &["record", "payload", "entry_source"][..],
+                &["record", "payload", "entrySource"][..],
+            ],
+        ),
         "modality": read_json_string(
             document,
             &[
@@ -2017,18 +2772,30 @@ fn extract_modality_runtime_contract_snapshot(
             &[
                 &["provider_id"][..],
                 &["providerId"][..],
+                &["preferred_provider_id"][..],
+                &["preferredProviderId"][..],
                 &["payload", "provider_id"][..],
                 &["payload", "providerId"][..],
+                &["payload", "preferred_provider_id"][..],
+                &["payload", "preferredProviderId"][..],
                 &["record", "payload", "provider_id"][..],
                 &["record", "payload", "providerId"][..],
+                &["record", "payload", "preferred_provider_id"][..],
+                &["record", "payload", "preferredProviderId"][..],
             ],
         ),
         "model": read_json_string(
             document,
             &[
                 &["model"][..],
+                &["preferred_model_id"][..],
+                &["preferredModelId"][..],
                 &["payload", "model"][..],
+                &["payload", "preferred_model_id"][..],
+                &["payload", "preferredModelId"][..],
                 &["record", "payload", "model"][..],
+                &["record", "payload", "preferred_model_id"][..],
+                &["record", "payload", "preferredModelId"][..],
             ],
         ),
         "modelCapabilityAssessment": find_json_value_at_paths(
@@ -3028,6 +3795,78 @@ mod tests {
         .expect("write failed image task");
     }
 
+    fn write_audio_task_fixture(root: &Path, relative_path: &str) {
+        let absolute_path = root.join(relative_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        fs::create_dir_all(
+            absolute_path
+                .parent()
+                .expect("audio task path should have parent"),
+        )
+        .expect("create audio task dir");
+        fs::write(
+            absolute_path,
+            serde_json::to_string_pretty(&json!({
+                "task_id": "task-audio-1",
+                "task_type": "audio_generate",
+                "task_family": "audio",
+                "title": "发布旁白",
+                "summary": "发布旁白音频任务",
+                "payload": {
+                    "prompt": "请为这段文案生成温暖旁白",
+                    "source_text": "请为这段文案生成温暖旁白",
+                    "voice": "warm_narrator",
+                    "provider_id": "limecore",
+                    "model": "voice-pro",
+                    "entry_source": "at_voice_command",
+                    "modality_contract_key": VOICE_GENERATION_CONTRACT_KEY,
+                    "modality": "audio",
+                    "required_capabilities": ["text_generation", "voice_generation"],
+                    "routing_slot": VOICE_GENERATION_ROUTING_SLOT,
+                    "runtime_contract": {
+                        "contract_key": VOICE_GENERATION_CONTRACT_KEY,
+                        "modality": "audio",
+                        "required_capabilities": ["text_generation", "voice_generation"],
+                        "routing_slot": VOICE_GENERATION_ROUTING_SLOT,
+                        "executor_binding": {
+                            "executor_kind": "service_skill",
+                            "binding_key": "voice_runtime"
+                        },
+                        "truth_source": ["audio_task_artifact", "runtime_timeline_event"]
+                    },
+                    "audio_output": {
+                        "kind": "audio_output",
+                        "status": "pending",
+                        "audio_path": null,
+                        "mime_type": "audio/mpeg",
+                        "duration_ms": null,
+                        "source_text": "请为这段文案生成温暖旁白",
+                        "voice": "warm_narrator"
+                    }
+                },
+                "status": "pending_submit",
+                "normalized_status": "pending",
+                "created_at": "2026-04-30T10:00:00Z",
+                "updated_at": null,
+                "submitted_at": null,
+                "started_at": null,
+                "completed_at": null,
+                "cancelled_at": null,
+                "idempotency_key": null,
+                "retry_count": 0,
+                "source_task_id": null,
+                "result": null,
+                "last_error": null,
+                "current_attempt_id": "attempt-audio-1",
+                "attempts": [],
+                "relationships": {},
+                "progress": {},
+                "ui_hints": {}
+            }))
+            .expect("serialize audio task"),
+        )
+        .expect("write audio task");
+    }
+
     #[allow(dead_code)]
     fn write_auxiliary_runtime_projection_fixture(
         root: &Path,
@@ -3631,6 +4470,721 @@ mod tests {
                 .pointer("/modalityRuntimeContracts/snapshots/0/runtimeContract/contract_key")
                 .and_then(Value::as_str),
             Some(IMAGE_GENERATION_CONTRACT_KEY)
+        );
+    }
+
+    #[test]
+    fn should_export_browser_control_contract_snapshot_from_tool_metadata() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "browser-contract-tool-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:40Z".to_string()),
+            updated_at: "2026-03-27T10:00:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "mcp__lime-browser__navigate".to_string(),
+                arguments: Some(json!({
+                    "url": "https://example.com"
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: Some(json!({
+                    "tool_family": "browser",
+                    "modality_contract_key": BROWSER_CONTROL_CONTRACT_KEY,
+                    "modality": "browser",
+                    "required_capabilities": [
+                        "text_generation",
+                        "browser_reasoning",
+                        "browser_control_planning"
+                    ],
+                    "routing_slot": BROWSER_CONTROL_ROUTING_SLOT,
+                    "runtime_contract": {
+                        "contract_key": BROWSER_CONTROL_CONTRACT_KEY,
+                        "routing_slot": BROWSER_CONTROL_ROUTING_SLOT
+                    },
+                    "entry_source": "at_browser_command"
+                })),
+            },
+        });
+
+        let result =
+            export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        assert!(result
+            .known_gaps
+            .iter()
+            .all(|gap| !gap.contains("ModalityRuntimeContract")));
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(BROWSER_CONTROL_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("browser_action_trace.modality_runtime_contract")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("browser_action_requested")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingOutcome")
+                .and_then(Value::as_str),
+            Some("accepted")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/expectedRoutingSlot")
+                .and_then(Value::as_str),
+            Some(BROWSER_CONTROL_ROUTING_SLOT)
+        );
+    }
+
+    #[test]
+    fn should_export_pdf_extract_contract_snapshot_from_skill_metadata() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "pdf-contract-skill-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:40Z".to_string()),
+            updated_at: "2026-03-27T10:00:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "Skill".to_string(),
+                arguments: Some(json!({
+                    "skill": "pdf_read",
+                    "args": {
+                        "pdf_read_request": {
+                            "source_path": "/tmp/agent-report.pdf"
+                        }
+                    }
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: Some(json!({
+                    "modality_contract_key": PDF_EXTRACT_CONTRACT_KEY,
+                    "modality": "document",
+                    "required_capabilities": [
+                        "text_generation",
+                        "local_file_read",
+                        "long_context"
+                    ],
+                    "routing_slot": PDF_EXTRACT_ROUTING_SLOT,
+                    "runtime_contract": {
+                        "contract_key": PDF_EXTRACT_CONTRACT_KEY,
+                        "routing_slot": PDF_EXTRACT_ROUTING_SLOT,
+                        "executor_binding": {
+                            "executor_kind": "skill",
+                            "binding_key": "pdf_read"
+                        }
+                    },
+                    "entry_source": "at_pdf_read_command"
+                })),
+            },
+        });
+
+        let result =
+            export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        assert!(result
+            .known_gaps
+            .iter()
+            .all(|gap| !gap.contains("ModalityRuntimeContract")));
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(PDF_EXTRACT_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("pdf_read_skill_trace.modality_runtime_contract")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("executor_invoked")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingOutcome")
+                .and_then(Value::as_str),
+            Some("accepted")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/expectedRoutingSlot")
+                .and_then(Value::as_str),
+            Some(PDF_EXTRACT_ROUTING_SLOT)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractMatchedExpected")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn should_export_voice_generation_contract_snapshot_from_service_scene_trace() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "voice-contract-service-scene-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:40Z".to_string()),
+            updated_at: "2026-03-27T10:00:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "voice_runtime".to_string(),
+                arguments: Some(json!({
+                    "service_scene_launch": {
+                        "kind": "local_service_skill",
+                        "service_scene_run": {
+                            "skill_id": "voice-runtime",
+                            "scene_key": "voice_runtime",
+                            "user_input": "请为这段文案生成温暖旁白",
+                            "entry_source": "at_voice_command",
+                            "preferred_provider_id": "limecore",
+                            "preferred_model_id": "voice-pro",
+                            "modality_contract_key": VOICE_GENERATION_CONTRACT_KEY,
+                            "modality": "audio",
+                            "required_capabilities": [
+                                "text_generation",
+                                "voice_generation"
+                            ],
+                            "routing_slot": VOICE_GENERATION_ROUTING_SLOT,
+                            "runtime_contract": {
+                                "contract_key": VOICE_GENERATION_CONTRACT_KEY,
+                                "routing_slot": VOICE_GENERATION_ROUTING_SLOT,
+                                "executor_binding": {
+                                    "executor_kind": "service_skill",
+                                    "binding_key": "voice_runtime"
+                                }
+                            }
+                        }
+                    }
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: None,
+            },
+        });
+
+        export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(VOICE_GENERATION_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("voice_generation_service_scene_trace.modality_runtime_contract")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("executor_invoked")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/expectedRoutingSlot")
+                .and_then(Value::as_str),
+            Some(VOICE_GENERATION_ROUTING_SLOT)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/entrySource")
+                .and_then(Value::as_str),
+            Some("at_voice_command")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/traceCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executorBindingKey"
+                )
+                .and_then(Value::as_str),
+            Some("voice_runtime")
+        );
+    }
+
+    #[test]
+    fn should_export_voice_generation_contract_snapshot_from_audio_task_artifact() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+        let audio_task_relative_path = ".lime/tasks/audio_generate/task-audio-1.json";
+
+        write_audio_task_fixture(temp_dir.path(), audio_task_relative_path);
+
+        if let AgentThreadItemPayload::FileArtifact { path, metadata, .. } =
+            &mut detail.items[1].payload
+        {
+            *path = audio_task_relative_path.to_string();
+            *metadata = Some(json!({
+                "task_type": "audio_generate"
+            }));
+        }
+
+        export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("audio_task.modality_runtime_contract")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(VOICE_GENERATION_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/taskType")
+                .and_then(Value::as_str),
+            Some("audio_generate")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/entrySource")
+                .and_then(Value::as_str),
+            Some("at_voice_command")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("executor_invoked")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executorBindingKey")
+                .and_then(Value::as_str),
+            Some("voice_runtime")
+        );
+    }
+
+    #[test]
+    fn should_export_web_research_contract_snapshot_from_skill_args() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "web-research-contract-skill-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:40Z".to_string()),
+            updated_at: "2026-03-27T10:00:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "Skill".to_string(),
+                arguments: Some(json!({
+                    "skill": "research",
+                    "args": serde_json::to_string(&json!({
+                        "research_request": {
+                            "query": "AI Agent 融资",
+                            "modality_contract_key": WEB_RESEARCH_CONTRACT_KEY,
+                            "modality": "mixed",
+                            "required_capabilities": [
+                                "text_generation",
+                                "web_search",
+                                "structured_document_generation",
+                                "long_context"
+                            ],
+                            "routing_slot": WEB_RESEARCH_ROUTING_SLOT,
+                            "runtime_contract": {
+                                "contract_key": WEB_RESEARCH_CONTRACT_KEY,
+                                "routing_slot": WEB_RESEARCH_ROUTING_SLOT,
+                                "executor_binding": {
+                                    "executor_kind": "skill",
+                                    "binding_key": "research"
+                                }
+                            },
+                            "entry_source": "at_search_command"
+                        }
+                    })).expect("serialize args")
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: None,
+            },
+        });
+
+        let result =
+            export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        assert!(result
+            .known_gaps
+            .iter()
+            .all(|gap| !gap.contains("ModalityRuntimeContract")));
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(WEB_RESEARCH_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("web_research_skill_trace.modality_runtime_contract")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("executor_invoked")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingOutcome")
+                .and_then(Value::as_str),
+            Some("accepted")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/expectedRoutingSlot")
+                .and_then(Value::as_str),
+            Some(WEB_RESEARCH_ROUTING_SLOT)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/contractKeys/0")
+                .and_then(Value::as_str),
+            Some(WEB_RESEARCH_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/sourceCounts/0/source")
+                .and_then(Value::as_str),
+            Some("web_research_skill_trace.modality_runtime_contract")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/routingOutcomeCounts/0/outcome")
+                .and_then(Value::as_str),
+            Some("accepted")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/traceCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/entrySource",
+                )
+                .and_then(Value::as_str),
+            Some("at_search_command")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executorBindingKey",
+                )
+                .and_then(Value::as_str),
+            Some("research")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractMatchedExpected")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn should_export_web_research_contract_snapshot_from_report_skill_args() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "web-research-contract-report-skill-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:40Z".to_string()),
+            updated_at: "2026-03-27T10:00:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "Skill".to_string(),
+                arguments: Some(json!({
+                    "skill": "report_generate",
+                    "args": serde_json::to_string(&json!({
+                        "report_request": {
+                            "query": "AI Agent 融资",
+                            "modality_contract_key": WEB_RESEARCH_CONTRACT_KEY,
+                            "modality": "mixed",
+                            "required_capabilities": [
+                                "text_generation",
+                                "web_search",
+                                "structured_document_generation",
+                                "long_context"
+                            ],
+                            "routing_slot": WEB_RESEARCH_ROUTING_SLOT,
+                            "runtime_contract": {
+                                "contract_key": WEB_RESEARCH_CONTRACT_KEY,
+                                "routing_slot": WEB_RESEARCH_ROUTING_SLOT,
+                                "executor_binding": {
+                                    "executor_kind": "skill",
+                                    "binding_key": "research"
+                                }
+                            },
+                            "entry_source": "at_report_command"
+                        }
+                    })).expect("serialize args")
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: None,
+            },
+        });
+
+        export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(WEB_RESEARCH_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/entrySource")
+                .and_then(Value::as_str),
+            Some("at_report_command")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executorBindingKey")
+                .and_then(Value::as_str),
+            Some("research")
+        );
+    }
+
+    #[test]
+    fn should_export_text_transform_contract_snapshot_from_summary_skill_args() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "text-transform-contract-summary-skill-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:40Z".to_string()),
+            updated_at: "2026-03-27T10:00:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "Skill".to_string(),
+                arguments: Some(json!({
+                    "skill": "summary",
+                    "args": serde_json::to_string(&json!({
+                        "summary_request": {
+                            "content": "AI Agent 融资长文",
+                            "modality_contract_key": TEXT_TRANSFORM_CONTRACT_KEY,
+                            "modality": "document",
+                            "required_capabilities": [
+                                "text_generation",
+                                "local_file_read",
+                                "long_context"
+                            ],
+                            "routing_slot": TEXT_TRANSFORM_ROUTING_SLOT,
+                            "runtime_contract": {
+                                "contract_key": TEXT_TRANSFORM_CONTRACT_KEY,
+                                "routing_slot": TEXT_TRANSFORM_ROUTING_SLOT,
+                                "executor_binding": {
+                                    "executor_kind": "skill",
+                                    "binding_key": "text_transform"
+                                }
+                            },
+                            "entry_source": "at_summary_command"
+                        }
+                    })).expect("serialize args")
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: None,
+            },
+        });
+
+        export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(TEXT_TRANSFORM_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("text_transform_skill_trace.modality_runtime_contract")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/entrySource"
+                )
+                .and_then(Value::as_str),
+            Some("at_summary_command")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executorBindingKey")
+                .and_then(Value::as_str),
+            Some("text_transform")
         );
     }
 }

@@ -46,7 +46,9 @@ describe("buildMentionCommandReplayText", () => {
         commandKey: "research",
         parsedCommand: parsedCommand!,
       }),
-    ).toBe("关键词:openai agents sdk issue 讨论 站点:GitHub 时间:最近一周 深度:标准");
+    ).toBe(
+      "关键词:openai agents sdk issue 讨论 站点:GitHub 时间:最近一周 深度:标准",
+    );
   });
 
   it("应把 @深搜 回放固定成深度字段骨架", () => {
@@ -59,7 +61,9 @@ describe("buildMentionCommandReplayText", () => {
         commandKey: "deep_search",
         parsedCommand: parsedCommand!,
       }),
-    ).toBe("关键词:openai agents sdk issue 讨论 站点:GitHub 时间:最近一周 深度:深度");
+    ).toBe(
+      "关键词:openai agents sdk issue 讨论 站点:GitHub 时间:最近一周 深度:深度",
+    );
   });
 
   it("应把 @配图 回放整理成可再次解析的参数顺序", () => {
@@ -178,7 +182,9 @@ describe("buildMentionCommandReplayText", () => {
         commandKey: "transcription_generate",
         parsedCommand: parsedCommand!,
       }),
-    ).toBe("https://example.com/interview.mp4 格式:srt 区分说话人 带时间戳 逐字稿");
+    ).toBe(
+      "https://example.com/interview.mp4 格式:srt 区分说话人 带时间戳 逐字稿",
+    );
   });
 
   it("应把 @配音 回放整理成运行时参数骨架", () => {
@@ -329,7 +335,9 @@ describe("buildMentionCommandReplayText", () => {
         commandKey: "webpage_generate",
         parsedCommand: parsedCommand!,
       }),
-    ).toBe("类型:落地页 风格:未来感 技术:原生 HTML 要求:帮我做一个 AI 代码助手官网");
+    ).toBe(
+      "类型:落地页 风格:未来感 技术:原生 HTML 要求:帮我做一个 AI 代码助手官网",
+    );
   });
 
   it("应把带字段的 @总结 回放整理成固定顺序", () => {
@@ -370,7 +378,9 @@ describe("buildMentionCommandReplayText", () => {
         commandKey: "translation",
         parsedCommand: parsedCommand!,
       }),
-    ).toBe("内容:hello world 原语言:英语 目标语言:中文 风格:产品文案 输出:只输出译文");
+    ).toBe(
+      "内容:hello world 原语言:英语 目标语言:中文 风格:产品文案 输出:只输出译文",
+    );
   });
 
   it("自然语句的 @翻译 应保守回退正文", () => {
@@ -441,9 +451,8 @@ describe("buildMentionCommandReplayText", () => {
   });
 
   it("自然语句的 @发布合规 应保留默认合规骨架", () => {
-    const parsedCommand = parseComplianceWorkbenchCommand(
-      "@发布合规 帮我看看这条内容能不能发",
-    );
+    const parsedCommand =
+      parseComplianceWorkbenchCommand("@发布合规 帮我看看这条内容能不能发");
 
     expect(
       buildMentionCommandReplayText({
@@ -480,9 +489,7 @@ describe("buildMentionCommandReplayText", () => {
         commandKey: "webpage_read",
         parsedCommand: parsedCommand!,
       }),
-    ).toBe(
-      "链接:https://example.com/post 提取:摘要 要求:整理成三条结论",
-    );
+    ).toBe("链接:https://example.com/post 提取:摘要 要求:整理成三条结论");
   });
 
   it("应把 @代码 回放整理成任务字段骨架", () => {
@@ -625,11 +632,14 @@ describe("resolveMentionCommandMergedPrefillReplayText", () => {
           output_format: "投资人摘要",
         },
       }),
-    ).toBe("文件:/tmp/agent-report.pdf 重点:融资情况与发布时间 输出:投资人摘要");
+    ).toBe(
+      "文件:/tmp/agent-report.pdf 重点:融资情况与发布时间 输出:投资人摘要",
+    );
   });
 
   it("部分 @读文件 输入应补齐最近一次成功的文件与偏好", () => {
-    const parsedCommand = parseFileReadWorkbenchCommand("@读文件 输出:三点要点");
+    const parsedCommand =
+      parseFileReadWorkbenchCommand("@读文件 输出:三点要点");
 
     expect(
       resolveMentionCommandMergedPrefillReplayText({

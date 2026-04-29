@@ -105,6 +105,68 @@ export type RawProject = Partial<Project> & {
   default_persona_id?: string;
 };
 
+interface ProjectDetailCacheEntry {
+  value: Project | null;
+  expiresAt: number;
+}
+
+const PROJECT_DETAIL_CACHE_TTL_MS = 1_000;
+const projectDetailCache = new Map<string, ProjectDetailCacheEntry>();
+const projectDetailInflight = new Map<string, Promise<Project | null>>();
+
+function resolveProjectDetailCacheKey(id: string): string {
+  return id.trim() || id;
+}
+
+function cloneProject(project: Project | null): Project | null {
+  if (!project) {
+    return null;
+  }
+
+  return {
+    ...project,
+    settings: project.settings ? { ...project.settings } : undefined,
+    stats: project.stats ? { ...project.stats } : undefined,
+    tags: [...project.tags],
+  };
+}
+
+function readCachedProjectDetail(key: string):
+  | {
+      hit: true;
+      value: Project | null;
+    }
+  | { hit: false } {
+  const entry = projectDetailCache.get(key);
+  if (!entry) {
+    return { hit: false };
+  }
+
+  if (entry.expiresAt <= Date.now()) {
+    projectDetailCache.delete(key);
+    return { hit: false };
+  }
+
+  return { hit: true, value: cloneProject(entry.value) };
+}
+
+function writeCachedProjectDetail(key: string, value: Project | null): void {
+  projectDetailCache.set(key, {
+    value: cloneProject(value),
+    expiresAt: Date.now() + PROJECT_DETAIL_CACHE_TTL_MS,
+  });
+}
+
+function invalidateProjectDetailCache(id: string): void {
+  projectDetailCache.delete(resolveProjectDetailCacheKey(id));
+  projectDetailInflight.delete(resolveProjectDetailCacheKey(id));
+}
+
+export function clearProjectDetailCacheForTests(): void {
+  projectDetailCache.clear();
+  projectDetailInflight.clear();
+}
+
 /** 内容列表项 */
 export interface ContentListItem {
   id: string;
@@ -296,8 +358,29 @@ export async function getProjectByRootPath(
 
 /** 获取项目详情 */
 export async function getProject(id: string): Promise<Project | null> {
-  const project = await safeInvoke<RawProject | null>("workspace_get", { id });
-  return project ? normalizeProject(project) : null;
+  const cacheKey = resolveProjectDetailCacheKey(id);
+  const cached = readCachedProjectDetail(cacheKey);
+  if (cached.hit) {
+    return cached.value;
+  }
+
+  const inflight = projectDetailInflight.get(cacheKey);
+  if (inflight) {
+    return cloneProject(await inflight);
+  }
+
+  const request = safeInvoke<RawProject | null>("workspace_get", { id })
+    .then((project) => {
+      const normalized = project ? normalizeProject(project) : null;
+      writeCachedProjectDetail(cacheKey, normalized);
+      return normalized;
+    })
+    .finally(() => {
+      projectDetailInflight.delete(cacheKey);
+    });
+  projectDetailInflight.set(cacheKey, request);
+
+  return cloneProject(await request);
 }
 
 /** 更新项目 */
@@ -305,10 +388,12 @@ export async function updateProject(
   id: string,
   request: UpdateProjectRequest,
 ): Promise<Project> {
+  invalidateProjectDetailCache(id);
   const project = await safeInvoke<RawProject>("workspace_update", {
     id,
     request,
   });
+  invalidateProjectDetailCache(id);
   return normalizeProject(project);
 }
 
@@ -317,7 +402,13 @@ export async function deleteProject(
   id: string,
   deleteDirectory?: boolean,
 ): Promise<boolean> {
-  return safeInvoke<boolean>("workspace_delete", { id, deleteDirectory });
+  invalidateProjectDetailCache(id);
+  const deleted = await safeInvoke<boolean>("workspace_delete", {
+    id,
+    deleteDirectory,
+  });
+  invalidateProjectDetailCache(id);
+  return deleted;
 }
 
 // ==================== 内容 API ====================

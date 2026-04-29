@@ -118,7 +118,9 @@ function appendLiveActivityDraft(previous: string | undefined, chunk: string) {
   const maxOverlap = Math.min(base.length, chunk.length);
   for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
     if (base.slice(-overlap) === chunk.slice(0, overlap)) {
-      return normalizeLiveActivityText(`${base}${chunk.slice(overlap)}`) ?? undefined;
+      return (
+        normalizeLiveActivityText(`${base}${chunk.slice(overlap)}`) ?? undefined
+      );
     }
   }
 
@@ -408,7 +410,8 @@ export function areLiveRuntimeStatesEqual(
   left: TeamWorkspaceLiveRuntimeState | undefined,
   right: TeamWorkspaceLiveRuntimeState,
 ) {
-  return !!left &&
+  return (
+    !!left &&
     left.runtimeStatus === right.runtimeStatus &&
     left.latestTurnStatus === right.latestTurnStatus &&
     left.queuedTurnCount === right.queuedTurnCount &&
@@ -420,7 +423,8 @@ export function areLiveRuntimeStatesEqual(
     left.providerParallelBudget === right.providerParallelBudget &&
     left.queueReason === right.queueReason &&
     left.retryableOverload === right.retryableOverload &&
-    left.baseFingerprint === right.baseFingerprint;
+    left.baseFingerprint === right.baseFingerprint
+  );
 }
 
 function getQueuedTurnCount(
@@ -485,7 +489,8 @@ export function buildStatusChangedProjection(params: {
     normalizedStatus === "closed" ||
     normalizedStatus === "idle"
       ? 0
-      : (params.currentRuntime?.queuedTurnCount ?? params.session.queuedTurnCount);
+      : (params.currentRuntime?.queuedTurnCount ??
+        params.session.queuedTurnCount);
 
   return {
     entry: buildStatusEventActivityEntry(params.sessionId, params.status),

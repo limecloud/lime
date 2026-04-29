@@ -9,10 +9,13 @@ describe("buildSkillsPageParamsFromMessage", () => {
   it("应从结果消息生成技能页脚手架草稿参数", () => {
     vi.spyOn(Date, "now").mockReturnValue(1234567890);
 
-    const result = buildSkillsPageParamsFromMessage({
-      messageId: "msg-assistant-42",
-      content: `# 小红书选题研究\n\n请围绕春季露营主题，输出 10 个可执行选题和各自切入角度。`,
-    }, { creationProjectId: "project-demo" });
+    const result = buildSkillsPageParamsFromMessage(
+      {
+        messageId: "msg-assistant-42",
+        content: `# 小红书选题研究\n\n请围绕春季露营主题，输出 10 个可执行选题和各自切入角度。`,
+      },
+      { creationProjectId: "project-demo" },
+    );
 
     expect(result?.creationProjectId).toBe("project-demo");
     expect(result?.initialScaffoldDraft).toMatchObject({
@@ -97,7 +100,9 @@ describe("buildSkillsPageParamsFromMessage", () => {
       directory: "saved-skill-existing",
       whenToUse: expect.arrayContaining(["优先复用这条已经验证过的工作流。"]),
       inputs: expect.arrayContaining(["历史输入骨架：目标、平台、限制。"]),
-      outputs: expect.arrayContaining(["保留原有交付结构，并输出一版更完整结果。"]),
+      outputs: expect.arrayContaining([
+        "保留原有交付结构，并输出一版更完整结果。",
+      ]),
       steps: expect.arrayContaining(["先检查哪些步骤必须保留。"]),
       fallbackStrategy: expect.arrayContaining([
         "如果信息不足，先追问缺失参数。",

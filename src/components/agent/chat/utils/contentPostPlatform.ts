@@ -106,12 +106,12 @@ export function normalizeContentPostPlatform(value?: string): {
 export function parseContentPostPlatform(
   body: string,
 ): ParsedContentPostPlatform {
-  const explicitPlatformText = body.match(
-    CONTENT_POST_EXPLICIT_PLATFORM_REGEX,
-  )?.[1]?.trim();
-  const leadingPlatformText = body.match(
-    CONTENT_POST_LEADING_PLATFORM_REGEX,
-  )?.[1]?.trim();
+  const explicitPlatformText = body
+    .match(CONTENT_POST_EXPLICIT_PLATFORM_REGEX)?.[1]
+    ?.trim();
+  const leadingPlatformText = body
+    .match(CONTENT_POST_LEADING_PLATFORM_REGEX)?.[1]
+    ?.trim();
   const { platformType, platformLabel } = normalizeContentPostPlatform(
     explicitPlatformText || leadingPlatformText,
   );

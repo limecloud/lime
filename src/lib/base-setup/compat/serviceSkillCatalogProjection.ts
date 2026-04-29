@@ -39,7 +39,10 @@ function inferSkillType(
   if (projection.skillType) {
     return projection.skillType;
   }
-  if (projection.siteCapabilityBinding || bindingProfile.bindingFamily === "browser_assist") {
+  if (
+    projection.siteCapabilityBinding ||
+    bindingProfile.bindingFamily === "browser_assist"
+  ) {
     return "site";
   }
   return "service";
@@ -121,7 +124,8 @@ function buildBundleSummary(
   }
   if (
     projection.siteCapabilityBinding?.adapterMatch?.requiredCapabilities &&
-    projection.siteCapabilityBinding.adapterMatch.requiredCapabilities.length > 0
+    projection.siteCapabilityBinding.adapterMatch.requiredCapabilities.length >
+      0
   ) {
     metadata.Lime_site_adapter_match_capabilities = JSON.stringify(
       projection.siteCapabilityBinding.adapterMatch.requiredCapabilities,
@@ -187,7 +191,9 @@ function createServiceSkillItem(params: {
     aliases: projection.aliases ? [...projection.aliases] : undefined,
     category: projection.category,
     outputHint: projection.outputHint,
-    triggerHints: projection.triggerHints ? [...projection.triggerHints] : undefined,
+    triggerHints: projection.triggerHints
+      ? [...projection.triggerHints]
+      : undefined,
     source: projection.source ?? mapBundleSourceToServiceSkillSource(bundleRef),
     runnerType: bindingProfile.runnerType ?? "instant",
     defaultExecutorBinding: normalizeExecutorBinding(bindingProfile),
@@ -203,8 +209,7 @@ function createServiceSkillItem(params: {
       ? [...projection.setupRequirements]
       : undefined,
     examples: projection.examples ? [...projection.examples] : undefined,
-    outputDestination:
-      artifactProfile.outputDestination ?? undefined,
+    outputDestination: artifactProfile.outputDestination ?? undefined,
     siteCapabilityBinding: projection.siteCapabilityBinding
       ? cloneJsonValue(projection.siteCapabilityBinding)
       : undefined,
@@ -234,13 +239,22 @@ function buildProjectionIndex(
 ): BaseSetupProjectionIndex {
   return {
     artifactProfileRefsByProjectionId: Object.fromEntries(
-      projections.map((projection) => [projection.id, projection.artifactProfileRef]),
+      projections.map((projection) => [
+        projection.id,
+        projection.artifactProfileRef,
+      ]),
     ),
     scorecardProfileRefsByProjectionId: Object.fromEntries(
-      projections.map((projection) => [projection.id, projection.scorecardProfileRef]),
+      projections.map((projection) => [
+        projection.id,
+        projection.scorecardProfileRef,
+      ]),
     ),
     policyProfileRefsByProjectionId: Object.fromEntries(
-      projections.map((projection) => [projection.id, projection.policyProfileRef]),
+      projections.map((projection) => [
+        projection.id,
+        projection.policyProfileRef,
+      ]),
     ),
     automationProfileRefsByProjectionId: Object.fromEntries(
       projections
@@ -268,8 +282,12 @@ export function compileServiceSkillCatalogProjection(
   catalog: ServiceSkillCatalog;
   projectionIndex: BaseSetupProjectionIndex;
 } {
-  const bundleRefs = new Map(pkg.bundleRefs.map((entry) => [entry.id, entry] as const));
-  const slotProfiles = new Map(pkg.slotProfiles.map((entry) => [entry.id, entry] as const));
+  const bundleRefs = new Map(
+    pkg.bundleRefs.map((entry) => [entry.id, entry] as const),
+  );
+  const slotProfiles = new Map(
+    pkg.slotProfiles.map((entry) => [entry.id, entry] as const),
+  );
   const bindingProfiles = new Map(
     pkg.bindingProfiles.map((entry) => [entry.id, entry] as const),
   );
@@ -291,7 +309,13 @@ export function compileServiceSkillCatalogProjection(
     const artifactProfile = artifactProfiles.get(projection.artifactProfileRef);
     const policyProfile = policyProfiles.get(projection.policyProfileRef);
 
-    if (!bundleRef || !slotProfile || !bindingProfile || !artifactProfile || !policyProfile) {
+    if (
+      !bundleRef ||
+      !slotProfile ||
+      !bindingProfile ||
+      !artifactProfile ||
+      !policyProfile
+    ) {
       throw new Error(`无法编译 projection ${projection.id}：存在未解析的引用`);
     }
 

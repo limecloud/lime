@@ -104,7 +104,9 @@ function resolveBooleanValue(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
-function parseStructuredPeerMessageBody(content: string): RuntimePeerMessageBody {
+function parseStructuredPeerMessageBody(
+  content: string,
+): RuntimePeerMessageBody {
   const trimmed = content.trim();
   if (!trimmed) {
     return {
@@ -247,7 +249,9 @@ function collectAllEnvelopeMatches(text: string): RuntimePeerEnvelopeMatch[] {
   ].sort((left, right) => left.index - right.index);
 }
 
-function shouldHideRuntimePeerMessageBody(body: RuntimePeerMessageBody): boolean {
+function shouldHideRuntimePeerMessageBody(
+  body: RuntimePeerMessageBody,
+): boolean {
   switch (body.kind) {
     case "shutdown_approved":
     case "idle_notification":
@@ -388,5 +392,8 @@ export function formatRuntimePeerMessageText(text: string): string {
     parts.push(trailingText);
   }
 
-  return parts.join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
+  return parts
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

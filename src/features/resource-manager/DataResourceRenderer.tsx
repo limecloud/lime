@@ -145,8 +145,7 @@ function countDataPreviewMatches(
     (rowTotal, row) =>
       rowTotal +
       row.reduce(
-        (cellTotal, cell) =>
-          cellTotal + countPreviewSearchMatches(cell, query),
+        (cellTotal, cell) => cellTotal + countPreviewSearchMatches(cell, query),
         0,
       ),
     0,
@@ -174,22 +173,19 @@ export function DataResourceRenderer({
     binaryError: "该文件被识别为二进制内容，不能按数据文本预览。",
   });
 
-  const preview = useMemo(
-    () => {
-      if (state.content === null) {
-        return null;
-      }
-      if (viewMode === "raw") {
-        return {
-          mode: "code",
-          content: state.content,
-          rows: null,
-        } satisfies DataPreviewModel;
-      }
-      return buildDataPreviewModel(item, state.content);
-    },
-    [item, state.content, viewMode],
-  );
+  const preview = useMemo(() => {
+    if (state.content === null) {
+      return null;
+    }
+    if (viewMode === "raw") {
+      return {
+        mode: "code",
+        content: state.content,
+        rows: null,
+      } satisfies DataPreviewModel;
+    }
+    return buildDataPreviewModel(item, state.content);
+  }, [item, state.content, viewMode]);
   const matchCount = useMemo(
     () => countDataPreviewMatches(preview, searchQuery),
     [preview, searchQuery],

@@ -58,7 +58,10 @@ describe("slotFormA2UI", () => {
       "field:platform": ["douyin"],
     });
     expect(
-      readServiceSkillSlotValueFromA2UIFormData(formData, "field:reference_video"),
+      readServiceSkillSlotValueFromA2UIFormData(
+        formData,
+        "field:reference_video",
+      ),
     ).toBe("https://example.com/video");
     expect(
       readServiceSkillSlotValueFromA2UIFormData(formData, "field:platform"),

@@ -149,9 +149,7 @@ export function useSceneAppLaunchRuntime({
         }
 
         if (!onNavigate) {
-          toast.error(
-            "当前入口暂不支持切换到做法工作区，请从桌面主界面重试。",
-          );
+          toast.error("当前入口暂不支持切换到做法工作区，请从桌面主界面重试。");
           return;
         }
 

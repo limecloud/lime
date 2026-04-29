@@ -2,9 +2,8 @@ import { safeListen } from "@/lib/dev-bridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { AgentEvent } from "@/lib/api/agentProtocol";
 
-export type AgentRuntimeEventHandler<TPayload = AgentEvent | unknown> = (
-  event: { payload: TPayload | unknown },
-) => void;
+export type AgentRuntimeEventHandler<TPayload = AgentEvent | unknown> =
+  (event: { payload: TPayload | unknown }) => void;
 
 export type AgentRuntimeEventListener = <TPayload = AgentEvent | unknown>(
   eventName: string,
@@ -15,8 +14,7 @@ export interface AgentRuntimeEventTransportDeps {
   listen?: typeof safeListen;
 }
 
-export interface AgentRuntimeEventSourceDeps
-  extends AgentRuntimeEventTransportDeps {
+export interface AgentRuntimeEventSourceDeps extends AgentRuntimeEventTransportDeps {
   listenEvent?: AgentRuntimeEventListener;
 }
 

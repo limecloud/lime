@@ -359,8 +359,7 @@ const EmptyStateCard = styled.section`
   border: 1px solid var(--lime-surface-border, rgba(226, 232, 240, 0.96));
   border-radius: 24px;
   background: var(--lime-surface, #ffffff);
-  box-shadow: 0 18px 52px -34px
-    var(--lime-shadow-color, rgba(15, 23, 42, 0.24));
+  box-shadow: 0 18px 52px -34px var(--lime-shadow-color, rgba(15, 23, 42, 0.24));
 `;
 
 const EmptyStateBody = styled.div`

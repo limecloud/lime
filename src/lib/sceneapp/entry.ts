@@ -11,9 +11,7 @@ interface ResolveSceneAppsPageEntryParamsOptions {
   mode?: SceneAppsPageEntryMode;
 }
 
-function hasParams(
-  params: SceneAppsPageParams,
-): boolean {
+function hasParams(params: SceneAppsPageParams): boolean {
   return Object.keys(params).length > 0;
 }
 

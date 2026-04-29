@@ -55,7 +55,9 @@ function extractSkillCatalogPayloadFromBootstrapPayload(
     return null;
   }
 
-  return extractSkillCatalogPayloadFromRecord(payload as Record<string, unknown>);
+  return extractSkillCatalogPayloadFromRecord(
+    payload as Record<string, unknown>,
+  );
 }
 
 export function extractSkillCatalogFromBootstrapPayload(

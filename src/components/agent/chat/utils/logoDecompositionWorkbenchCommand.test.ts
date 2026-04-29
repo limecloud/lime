@@ -42,8 +42,8 @@ describe("parseLogoDecompositionWorkbenchCommand", () => {
   });
 
   it("非 Logo 拆解命令应返回空", () => {
-    expect(parseLogoDecompositionWorkbenchCommand("@分析 某个品牌为什么火")).toBe(
-      null,
-    );
+    expect(
+      parseLogoDecompositionWorkbenchCommand("@分析 某个品牌为什么火"),
+    ).toBe(null);
   });
 });

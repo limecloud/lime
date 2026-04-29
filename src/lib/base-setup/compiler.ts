@@ -1,8 +1,5 @@
 import { compileServiceSkillCatalogProjection } from "./compat/serviceSkillCatalogProjection";
-import type {
-  BaseSetupPackage,
-  CompiledBaseSetupPackage,
-} from "./types";
+import type { BaseSetupPackage, CompiledBaseSetupPackage } from "./types";
 import { validateBaseSetupPackage } from "./validator";
 
 export interface CompileBaseSetupPackageOptions {
@@ -14,7 +11,10 @@ function formatValidationIssues(pkg: BaseSetupPackage): string {
   const result = validateBaseSetupPackage(pkg);
   return result.issues
     .filter((issue) => issue.severity === "error")
-    .map((issue) => `${issue.code}${issue.path ? `(${issue.path})` : ""}: ${issue.message}`)
+    .map(
+      (issue) =>
+        `${issue.code}${issue.path ? `(${issue.path})` : ""}: ${issue.message}`,
+    )
     .join("; ");
 }
 

@@ -442,7 +442,9 @@ export function validateBaseSetupReferences(
   const issues: BaseSetupValidationIssue[] = [];
   const bundleRefIds = new Set(pkg.bundleRefs.map((entry) => entry.id));
   const slotProfileIds = new Set(pkg.slotProfiles.map((entry) => entry.id));
-  const bindingProfileIds = new Set(pkg.bindingProfiles.map((entry) => entry.id));
+  const bindingProfileIds = new Set(
+    pkg.bindingProfiles.map((entry) => entry.id),
+  );
   const artifactProfiles = new Map(
     pkg.artifactProfiles.map((entry) => [entry.id, entry] as const),
   );
@@ -454,7 +456,9 @@ export function validateBaseSetupReferences(
   );
   const policyProfileIds = new Set(pkg.policyProfiles.map((entry) => entry.id));
   const compositionBlueprints = new Map(
-    (pkg.compositionBlueprints ?? []).map((entry) => [entry.id, entry] as const),
+    (pkg.compositionBlueprints ?? []).map(
+      (entry) => [entry.id, entry] as const,
+    ),
   );
 
   pkg.catalogProjections.forEach((projection, index) => {
@@ -463,8 +467,16 @@ export function validateBaseSetupReferences(
       ["bundleRefId", projection.bundleRefId, bundleRefIds],
       ["slotProfileRef", projection.slotProfileRef, slotProfileIds],
       ["bindingProfileRef", projection.bindingProfileRef, bindingProfileIds],
-      ["artifactProfileRef", projection.artifactProfileRef, new Set(artifactProfiles.keys())],
-      ["scorecardProfileRef", projection.scorecardProfileRef, scorecardProfileIds],
+      [
+        "artifactProfileRef",
+        projection.artifactProfileRef,
+        new Set(artifactProfiles.keys()),
+      ],
+      [
+        "scorecardProfileRef",
+        projection.scorecardProfileRef,
+        scorecardProfileIds,
+      ],
       ["policyProfileRef", projection.policyProfileRef, policyProfileIds],
     ] as const;
 
@@ -508,7 +520,10 @@ export function validateBaseSetupReferences(
   });
 
   for (const [blueprintId, blueprint] of compositionBlueprints.entries()) {
-    if (blueprint.artifactProfileRef && !artifactProfiles.has(blueprint.artifactProfileRef)) {
+    if (
+      blueprint.artifactProfileRef &&
+      !artifactProfiles.has(blueprint.artifactProfileRef)
+    ) {
       pushIssue(issues, {
         level: "L1",
         severity: "error",
@@ -520,7 +535,10 @@ export function validateBaseSetupReferences(
 
     if (blueprint.steps?.length) {
       blueprint.steps.forEach((step, stepIndex) => {
-        if (step.bindingProfileRef && !bindingProfileIds.has(step.bindingProfileRef)) {
+        if (
+          step.bindingProfileRef &&
+          !bindingProfileIds.has(step.bindingProfileRef)
+        ) {
           pushIssue(issues, {
             level: "L1",
             severity: "error",
@@ -536,10 +554,14 @@ export function validateBaseSetupReferences(
       blueprint.artifactProfileRef &&
       blueprint.deliveryContract?.requiredParts?.length
     ) {
-      const artifactProfile = artifactProfiles.get(blueprint.artifactProfileRef);
+      const artifactProfile = artifactProfiles.get(
+        blueprint.artifactProfileRef,
+      );
       if (artifactProfile) {
         const artifactParts = [...artifactProfile.requiredParts].sort();
-        const deliveryParts = [...blueprint.deliveryContract.requiredParts].sort();
+        const deliveryParts = [
+          ...blueprint.deliveryContract.requiredParts,
+        ].sort();
         if (artifactParts.join("|") !== deliveryParts.join("|")) {
           pushIssue(issues, {
             level: "L1",

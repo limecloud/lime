@@ -41,9 +41,7 @@ function resolveInitialTarget(
   return getDefaultTarget(allowProjectTarget);
 }
 
-function normalizeStructuredItems(
-  value?: string[],
-): string[] | undefined {
+function normalizeStructuredItems(value?: string[]): string[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -140,7 +138,9 @@ export function SkillScaffoldDialog({
   };
   const canBringBackToCreation = Boolean(
     onBringBackToCreation &&
-      (sourceHint || initialValues?.sourceExcerpt || initialValues?.sourceMessageId),
+    (sourceHint ||
+      initialValues?.sourceExcerpt ||
+      initialValues?.sourceMessageId),
   );
 
   const handleBringBackToCreation = () => {

@@ -43,11 +43,11 @@ describe("isHiddenInternalArtifactPath", () => {
         "/workspace/demo/.lime/artifacts/thread-1/report.artifact.json",
       ),
     ).toBe(true);
-    expect(isHiddenConversationArtifactPath("content-posts/demo.publish-pack.json")).toBe(
-      false,
-    );
-    expect(isHiddenConversationArtifactPath("exports/x-article/google/index.md")).toBe(
-      false,
-    );
+    expect(
+      isHiddenConversationArtifactPath("content-posts/demo.publish-pack.json"),
+    ).toBe(false);
+    expect(
+      isHiddenConversationArtifactPath("exports/x-article/google/index.md"),
+    ).toBe(false);
   });
 });

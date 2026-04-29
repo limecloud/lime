@@ -87,7 +87,8 @@ function formatProviderHost(apiHost: string): string {
 
 function getFirstVisibleApiKey(provider: ProviderWithKeysDisplay): string {
   const key =
-    provider.api_keys?.find((apiKey) => apiKey.enabled) ?? provider.api_keys?.[0];
+    provider.api_keys?.find((apiKey) => apiKey.enabled) ??
+    provider.api_keys?.[0];
   return key?.api_key_masked ?? "";
 }
 
@@ -187,14 +188,16 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
   const [modelDraft, setModelDraft] = useState("");
   const [apiModelIds, setApiModelIds] = useState<string[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
-  const [modelFetchStatus, setModelFetchStatus] =
-    useState<InlineStatus | null>(null);
+  const [modelFetchStatus, setModelFetchStatus] = useState<InlineStatus | null>(
+    null,
+  );
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [apiKeyDirty, setApiKeyDirty] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] =
-    useState<InlineStatus | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<InlineStatus | null>(
+    null,
+  );
 
   useEffect(() => {
     setModelList(provider?.custom_models ?? []);
@@ -522,7 +525,10 @@ const ProviderSettingBody: React.FC<ProviderSettingBodyProps> = ({
           <div className="mt-6 space-y-6">
             <div className="space-y-2" data-testid="api-key-section">
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="provider-api-key" className="text-sm text-slate-600">
+                <Label
+                  htmlFor="provider-api-key"
+                  className="text-sm text-slate-600"
+                >
                   API 密钥{apiKeyRequired ? "" : "（可选）"}
                 </Label>
                 {hasApiKey ? (

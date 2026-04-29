@@ -35,16 +35,15 @@ export function resolveImageTaskWorkspaceRoot(params: {
     return normalizeImageTaskPath(params.fallbackProjectRootPath);
   }
 
-  const normalizedAbsolutePath = normalizePathSeparators(normalizedTaskFilePath);
+  const normalizedAbsolutePath = normalizePathSeparators(
+    normalizedTaskFilePath,
+  );
   const normalizedArtifactPath = normalizeImageTaskPath(params.artifactPath);
   if (normalizedArtifactPath) {
     const artifactSuffix = trimLeadingSlashes(
       normalizePathSeparators(trimLeadingDotSlash(normalizedArtifactPath)),
     );
-    if (
-      artifactSuffix &&
-      normalizedAbsolutePath.endsWith(artifactSuffix)
-    ) {
+    if (artifactSuffix && normalizedAbsolutePath.endsWith(artifactSuffix)) {
       const root = trimTrailingSlashes(
         normalizedAbsolutePath.slice(
           0,
@@ -58,7 +57,9 @@ export function resolveImageTaskWorkspaceRoot(params: {
   }
 
   const normalizedArtifactRoot = trimLeadingSlashes(
-    normalizePathSeparators(trimLeadingDotSlash(IMAGE_TASKS_ROOT_RELATIVE_PATH)),
+    normalizePathSeparators(
+      trimLeadingDotSlash(IMAGE_TASKS_ROOT_RELATIVE_PATH),
+    ),
   );
   const marker = `/${normalizedArtifactRoot}/`;
   const markerIndex = normalizedAbsolutePath.lastIndexOf(marker);

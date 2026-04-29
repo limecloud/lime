@@ -460,9 +460,7 @@ describe("useWorkspaceArtifactPreviewActions", () => {
     });
 
     expect(readSessionFile).toHaveBeenCalledWith("result.md");
-    expect(setSelectedFileId).toHaveBeenCalledWith(
-      "session-file:result.md",
-    );
+    expect(setSelectedFileId).toHaveBeenCalledWith("session-file:result.md");
     expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
 
     const taskFilesUpdater = setTaskFiles.mock.calls[0]?.[0];

@@ -66,7 +66,9 @@ export function resolveGeneralCanvasFileContentType(
   language?: string;
 } {
   const extension = extractExtension(filePath);
-  const language = extension ? CODE_LANGUAGE_BY_EXTENSION[extension] : undefined;
+  const language = extension
+    ? CODE_LANGUAGE_BY_EXTENSION[extension]
+    : undefined;
 
   if (MARKDOWN_EXTENSIONS.has(extension) || looksLikeMarkdown(content)) {
     return { contentType: "markdown" };

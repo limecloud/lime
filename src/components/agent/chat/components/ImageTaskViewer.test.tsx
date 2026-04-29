@@ -262,6 +262,86 @@ describe("ImageTaskViewer", () => {
     expect(outputGrid?.textContent).toContain("2");
   });
 
+  it("任务 viewer 应展示已按多模态运行合同路由的状态", () => {
+    const { container } = renderComponent({
+      tasks: [
+        {
+          id: "task-contract-accepted-1",
+          mode: "generate",
+          status: "complete",
+          prompt: "青柠品牌主视觉",
+          rawText: "@配图 青柠品牌主视觉",
+          expectedCount: 1,
+          outputIds: ["output-contract-accepted-1"],
+          createdAt: 1,
+          runtimeContract: {
+            contractKey: "image_generation",
+            routingSlot: "image_task",
+            routingEvent: "model_routing_decision",
+            routingOutcome: "accepted",
+          },
+        },
+      ],
+      outputs: [
+        {
+          id: "output-contract-accepted-1",
+          refId: "img-contract-accepted-1",
+          taskId: "task-contract-accepted-1",
+          url: "https://example.com/contract-accepted.png",
+          prompt: "青柠品牌主视觉",
+          createdAt: 1,
+        },
+      ],
+      selectedOutputId: "output-contract-accepted-1",
+    });
+
+    const badge = container.querySelector(
+      '[data-testid="image-task-viewer-runtime-contract"]',
+    );
+
+    expect(badge?.textContent).toContain(
+      "运行合同 · 已按 image_generation 路由",
+    );
+  });
+
+  it("任务 viewer 应展示合同阻止与 registry 能力缺口", () => {
+    const { container } = renderComponent({
+      tasks: [
+        {
+          id: "task-contract-blocked-1",
+          mode: "generate",
+          status: "error",
+          prompt: "青柠品牌主视觉",
+          rawText: "@配图 青柠品牌主视觉",
+          expectedCount: 1,
+          outputIds: [],
+          createdAt: 1,
+          failureMessage: "model registry 显示当前模型不具备图片生成能力。",
+          runtimeContract: {
+            contractKey: "image_generation",
+            routingSlot: "image_task",
+            providerId: "openai",
+            model: "gpt-5.2",
+            routingEvent: "routing_not_possible",
+            routingOutcome: "blocked",
+            failureCode: "image_generation_model_capability_gap",
+            modelCapabilityAssessmentSource: "model_registry",
+            modelSupportsImageGeneration: false,
+          },
+        },
+      ],
+      outputs: [],
+      selectedOutputId: null,
+    });
+
+    expect(container.textContent).toContain(
+      "运行合同阻止 · image_generation_model_capability_gap",
+    );
+    expect(container.textContent).toContain(
+      "模型能力来自 model_registry · 不支持图片生成",
+    );
+  });
+
   it("3x3 分镜任务应使用九宫格缩略布局并展示编号", () => {
     const outputs = Array.from({ length: 9 }, (_, index) => ({
       id: `output-storyboard-${index + 1}`,

@@ -68,7 +68,10 @@ type MockReferenceMemoryFixture = {
   uri?: string | null;
 };
 
-const mockSceneAppContextStore = new Map<string, MockPersistedSceneAppContext>();
+const mockSceneAppContextStore = new Map<
+  string,
+  MockPersistedSceneAppContext
+>();
 
 const MOCK_SCENEAPP_REFERENCE_MEMORY_FIXTURES: Record<
   string,
@@ -91,10 +94,13 @@ const MOCK_SCENEAPP_REFERENCE_MEMORY_FIXTURES: Record<
   },
 };
 
-function normalizeMockMediaTaskId(taskRef?: string): string {
-  const raw = (taskRef || "task-image-mock-1").trim();
+function normalizeMockMediaTaskId(
+  taskRef?: string,
+  fallbackTaskId = "task-image-mock-1",
+): string {
+  const raw = (taskRef || fallbackTaskId).trim();
   if (!raw) {
-    return "task-image-mock-1";
+    return fallbackTaskId;
   }
 
   const normalizedPath = raw.replace(/\\/g, "/");
@@ -102,7 +108,75 @@ function normalizeMockMediaTaskId(taskRef?: string): string {
     normalizedPath.split("/").filter(Boolean).pop()?.trim() || normalizedPath;
   const baseName = lastSegment.replace(/\.json$/i, "").trim() || lastSegment;
   const normalized = baseName.replace(/[^a-zA-Z0-9_-]+/g, "-");
-  return normalized || "task-image-mock-1";
+  return normalized || fallbackTaskId;
+}
+
+function resolveMockMediaTaskProtocol(
+  request: Record<string, any>,
+  overrides?: Partial<Record<string, unknown>>,
+) {
+  const requestedTaskType =
+    typeof overrides?.task_type === "string"
+      ? overrides.task_type
+      : (request.taskType ?? request.task_type);
+  const requestedTaskFamily = request.taskFamily ?? request.task_family;
+  const requestedContractKey =
+    request.modalityContractKey ?? request.modality_contract_key;
+  const requestedModality = request.modality;
+  const requestedTaskRef =
+    typeof request.taskRef === "string" ? request.taskRef.toLowerCase() : "";
+  const isAudio =
+    requestedTaskType === "audio_generate" ||
+    requestedTaskFamily === "audio" ||
+    requestedContractKey === "voice_generation" ||
+    requestedModality === "audio" ||
+    requestedTaskRef.includes("audio_generate");
+
+  if (isAudio) {
+    return {
+      taskType: "audio_generate",
+      taskFamily: "audio",
+      defaultTaskId: "task-audio-mock-1",
+      contractKey: "voice_generation",
+      modality: "audio",
+      requiredCapabilities: ["text_generation", "voice_generation"],
+      routingSlot: "voice_generation_model",
+      runtimeContract: {
+        contract_key: "voice_generation",
+        modality: "audio",
+        required_capabilities: ["text_generation", "voice_generation"],
+        routing_slot: "voice_generation_model",
+        executor_binding: {
+          executor_kind: "service_skill",
+          binding_key: "voice_runtime",
+        },
+      },
+    };
+  }
+
+  return {
+    taskType: "image_generate",
+    taskFamily: "image",
+    defaultTaskId: "task-image-mock-1",
+    contractKey: "image_generation",
+    modality: "image",
+    requiredCapabilities: [
+      "text_generation",
+      "image_generation",
+      "vision_input",
+    ],
+    routingSlot: "image_generation_model",
+    runtimeContract: {
+      contract_key: "image_generation",
+      modality: "image",
+      required_capabilities: [
+        "text_generation",
+        "image_generation",
+        "vision_input",
+      ],
+      routing_slot: "image_generation_model",
+    },
+  };
 }
 
 function buildMockMediaTaskOutput(
@@ -110,18 +184,27 @@ function buildMockMediaTaskOutput(
   overrides?: Partial<Record<string, unknown>>,
 ) {
   const request = args?.request ?? args ?? {};
+  const protocol = resolveMockMediaTaskProtocol(request, overrides);
   const taskId = normalizeMockMediaTaskId(
     typeof request.taskRef === "string" ? request.taskRef : undefined,
+    protocol.defaultTaskId,
   );
   const projectRootPath =
     typeof request.projectRootPath === "string" &&
     request.projectRootPath.trim()
       ? request.projectRootPath.trim()
       : "/mock/workspace";
+  const promptCandidates = [
+    request.prompt,
+    request.sourceText,
+    request.source_text,
+    request.text,
+  ];
   const prompt =
-    typeof request.prompt === "string" && request.prompt.trim()
-      ? request.prompt.trim()
-      : "mock image task";
+    promptCandidates
+      .find((value) => typeof value === "string" && value.trim())
+      ?.trim() ??
+    (protocol.taskFamily === "audio" ? "mock audio task" : "mock image task");
   const status =
     typeof overrides?.status === "string" ? overrides.status : "pending_submit";
   const normalizedStatus =
@@ -139,48 +222,84 @@ function buildMockMediaTaskOutput(
       ? overrides.current_attempt_id
       : `attempt-${attemptCount}`;
   const createdAt = "2026-04-04T00:00:00.000Z";
-  const path = `.lime/tasks/image_generate/${taskId}.json`;
+  const path = `.lime/tasks/${protocol.taskType}/${taskId}.json`;
+  const runtimeContract =
+    request.runtimeContract ??
+    request.runtime_contract ??
+    protocol.runtimeContract;
+  const payload =
+    protocol.taskFamily === "audio"
+      ? {
+          prompt,
+          source_text: prompt,
+          raw_text: request.rawText ?? request.raw_text ?? null,
+          voice: request.voice ?? null,
+          voice_style: request.voiceStyle ?? request.voice_style ?? null,
+          target_language:
+            request.targetLanguage ?? request.target_language ?? null,
+          provider_id: request.providerId ?? request.provider_id ?? null,
+          model: request.model ?? null,
+          entry_source:
+            request.entrySource ?? request.entry_source ?? "at_voice_command",
+          modality_contract_key:
+            request.modalityContractKey ??
+            request.modality_contract_key ??
+            protocol.contractKey,
+          modality: request.modality ?? protocol.modality,
+          required_capabilities:
+            request.requiredCapabilities ??
+            request.required_capabilities ??
+            protocol.requiredCapabilities,
+          routing_slot:
+            request.routingSlot ?? request.routing_slot ?? protocol.routingSlot,
+          runtime_contract: runtimeContract,
+          audio_output: {
+            kind: "audio_output",
+            status: "pending",
+            audio_path: request.audioPath ?? request.audio_path ?? null,
+            mime_type: request.mimeType ?? request.mime_type ?? "audio/mpeg",
+            duration_ms: request.durationMs ?? request.duration_ms ?? null,
+            source_text: prompt,
+            voice: request.voice ?? null,
+          },
+        }
+      : {
+          prompt,
+          mode: request.mode ?? "generate",
+          size: request.size ?? "1024x1024",
+          count: request.count ?? 1,
+          provider_id: request.providerId ?? request.provider_id ?? null,
+          model: request.model ?? null,
+          modality_contract_key:
+            request.modalityContractKey ??
+            request.modality_contract_key ??
+            protocol.contractKey,
+          modality: request.modality ?? protocol.modality,
+          required_capabilities:
+            request.requiredCapabilities ??
+            request.required_capabilities ??
+            protocol.requiredCapabilities,
+          routing_slot:
+            request.routingSlot ?? request.routing_slot ?? protocol.routingSlot,
+          runtime_contract: runtimeContract,
+          model_capability_assessment:
+            request.modelCapabilityAssessment ??
+            request.model_capability_assessment ??
+            null,
+        };
   const record = {
     task_id: taskId,
-    task_type: "image_generate",
-    task_family: "image",
+    task_type: protocol.taskType,
+    task_family: protocol.taskFamily,
     title: request.title ?? null,
     summary: "mock media task",
-    payload: {
-      prompt,
-      mode: request.mode ?? "generate",
-      size: request.size ?? "1024x1024",
-      count: request.count ?? 1,
-      modality_contract_key:
-        request.modalityContractKey ??
-        request.modality_contract_key ??
-        "image_generation",
-      modality: request.modality ?? "image",
-      required_capabilities:
-        request.requiredCapabilities ??
-        request.required_capabilities ??
-        ["text_generation", "image_generation", "vision_input"],
-      routing_slot:
-        request.routingSlot ?? request.routing_slot ?? "image_generation_model",
-      runtime_contract:
-        request.runtimeContract ??
-        request.runtime_contract ??
-        {
-          contract_key: "image_generation",
-          modality: "image",
-          required_capabilities: [
-            "text_generation",
-            "image_generation",
-            "vision_input",
-          ],
-          routing_slot: "image_generation_model",
-        },
-    },
+    payload,
     status,
     normalized_status: normalizedStatus,
     created_at: createdAt,
     current_attempt_id: currentAttemptId,
     retry_count: Math.max(attemptCount - 1, 0),
+    last_error: overrides?.last_error ?? null,
     attempts: Array.from({ length: attemptCount }, (_, index) => ({
       attempt_id: `attempt-${index + 1}`,
       attempt_index: index + 1,
@@ -194,8 +313,8 @@ function buildMockMediaTaskOutput(
   return {
     success: true,
     task_id: taskId,
-    task_type: "image_generate",
-    task_family: "image",
+    task_type: protocol.taskType,
+    task_family: protocol.taskFamily,
     status,
     normalized_status: normalizedStatus,
     current_attempt_id: currentAttemptId,
@@ -1360,9 +1479,7 @@ function findMockSceneAppDescriptor(id?: string): SceneAppDescriptor | null {
   );
 }
 
-function extractMockSceneAppUrlCandidate(
-  text?: string,
-): string | undefined {
+function extractMockSceneAppUrlCandidate(text?: string): string | undefined {
   if (typeof text !== "string") {
     return undefined;
   }
@@ -1424,7 +1541,9 @@ function resolveMockSceneAppRuntimeContext(intent: Record<string, unknown>) {
   return {};
 }
 
-function resolveMockSceneAppReferenceMemoryIds(intent: Record<string, unknown>) {
+function resolveMockSceneAppReferenceMemoryIds(
+  intent: Record<string, unknown>,
+) {
   const result: string[] = [];
   for (const candidate of [
     intent.referenceMemoryIds,
@@ -1493,7 +1612,9 @@ function stableMockSceneAppReferenceItemId(
   return `${prefix}-${key}-${(hash >>> 0).toString(16)}`;
 }
 
-function buildMockSceneAppExplicitReferenceItems(intent: Record<string, unknown>) {
+function buildMockSceneAppExplicitReferenceItems(
+  intent: Record<string, unknown>,
+) {
   return resolveMockSceneAppReferenceMemoryIds(intent).flatMap((memoryId) => {
     const fixture = MOCK_SCENEAPP_REFERENCE_MEMORY_FIXTURES[memoryId];
     if (!fixture) {
@@ -1596,7 +1717,9 @@ function mergeMockSceneAppReferenceItems(
 function buildMockSceneAppTasteProfile(
   descriptor: SceneAppDescriptor,
   intent: Record<string, unknown>,
-  referenceItems: NonNullable<SceneAppContextOverlay["snapshot"]["referenceItems"]>,
+  referenceItems: NonNullable<
+    SceneAppContextOverlay["snapshot"]["referenceItems"]
+  >,
   persistedContext?: MockPersistedSceneAppContext | null,
 ) {
   const userInput = resolveMockSceneAppUserInput(intent);
@@ -1610,7 +1733,10 @@ function buildMockSceneAppTasteProfile(
     pushUniqueMock(keywords, keyword);
   }
   for (const item of referenceItems) {
-    if (item.sourceKind === "reference_library" || item.sourceKind === "project") {
+    if (
+      item.sourceKind === "reference_library" ||
+      item.sourceKind === "project"
+    ) {
       pushUniqueMock(keywords, item.label);
     }
   }
@@ -1624,9 +1750,14 @@ function buildMockSceneAppTasteProfile(
     }
     const normalizedKey = key.trim().toLowerCase();
     if (
-      !["style", "tone", "mood", "platform", "target_language", "duration"].includes(
-        normalizedKey,
-      )
+      ![
+        "style",
+        "tone",
+        "mood",
+        "platform",
+        "target_language",
+        "duration",
+      ].includes(normalizedKey)
     ) {
       continue;
     }
@@ -1694,7 +1825,9 @@ function buildMockSceneAppContextOverlay(
     descriptor.linkedServiceSkillId,
     descriptor.linkedSceneKey,
     descriptor.compositionProfile?.blueprintRef,
-  ].filter((value): value is string => typeof value === "string" && Boolean(value));
+  ].filter(
+    (value): value is string => typeof value === "string" && Boolean(value),
+  );
 
   pushUniqueMock(
     memoryRefs,
@@ -1767,7 +1900,9 @@ function buildMockSceneAppContextOverlay(
       `本次新增 ${inputReferenceItems.length} 条参考输入，当前 planning 共带上 ${referenceItems.length} 条参考。`,
     );
   } else if (referenceItems.length > 0) {
-    notes.push(`当前 planning 直接复用了 ${referenceItems.length} 条项目级参考。`);
+    notes.push(
+      `当前 planning 直接复用了 ${referenceItems.length} 条项目级参考。`,
+    );
   }
   if (persistedContext?.tasteProfile) {
     notes.push("当前已复用项目级 TasteProfile，并按最新输入继续更新。");
@@ -2166,7 +2301,8 @@ function buildMockSceneAppPlanResult(
   const intent =
     (args?.intent as Record<string, unknown> | undefined) ?? args ?? {};
   const referenceMemoryIds = resolveMockSceneAppReferenceMemoryIds(intent);
-  const explicitReferenceItems = buildMockSceneAppExplicitReferenceItems(intent);
+  const explicitReferenceItems =
+    buildMockSceneAppExplicitReferenceItems(intent);
   const persistedContextKey = resolveMockSceneAppContextStoreKey(
     resolvedDescriptor.id,
     intent,
@@ -2232,13 +2368,12 @@ function buildMockSceneAppPlanResult(
   }
 
   const warnings =
-    unmetRequirements.length > 0
-      ? ["当前做法仍有未满足的启动前置条件。"]
-      : [];
+    unmetRequirements.length > 0 ? ["当前做法仍有未满足的启动前置条件。"] : [];
   if (shouldPersistContext && !persistedContextKey) {
     warnings.push("当前未解析到项目目录，暂未写入项目级 Context Snapshot。");
   }
-  const missingReferenceCount = referenceMemoryIds.length - explicitReferenceItems.length;
+  const missingReferenceCount =
+    referenceMemoryIds.length - explicitReferenceItems.length;
   if (missingReferenceCount > 0) {
     warnings.push(
       `已选中的 ${missingReferenceCount} 条灵感条目未找到，planning 仅继续使用当前可解析的参考。`,
@@ -2293,10 +2428,9 @@ function buildMockSceneAppProjectPackPlan(
 ): SceneAppProjectPackPlan {
   const requiredParts = Array.from(
     new Set(
-      (
-        descriptor.deliveryProfile?.requiredParts.length
-          ? descriptor.deliveryProfile.requiredParts
-          : descriptor.compositionProfile?.steps.map((step) => step.id) ?? []
+      (descriptor.deliveryProfile?.requiredParts.length
+        ? descriptor.deliveryProfile.requiredParts
+        : (descriptor.compositionProfile?.steps.map((step) => step.id) ?? [])
       )
         .map((part) => part.trim())
         .filter(Boolean),
@@ -2364,8 +2498,7 @@ function buildMockSceneAppScorecard(sceneappId: string): SceneAppScorecard {
   return {
     sceneappId,
     updatedAt: "2026-04-15T00:00:00.000Z",
-    summary:
-      "该 SceneApp 已具备最近结果入口，下一步重点是继续优化交付稳定性。",
+    summary: "该 SceneApp 已具备最近结果入口，下一步重点是继续优化交付稳定性。",
     metrics: [
       {
         key: "delivery_readiness",
@@ -5671,21 +5804,101 @@ const defaultMocks: Record<string, any> = {
   cancel_video_generation_task: () => null,
   create_image_generation_task_artifact: (args: any) =>
     buildMockMediaTaskOutput(args),
+  create_audio_generation_task_artifact: (args: any) =>
+    buildMockMediaTaskOutput(args, {
+      task_type: "audio_generate",
+    }),
   get_media_task_artifact: (args: any) => buildMockMediaTaskOutput(args),
   list_media_task_artifacts: (args: any) => {
     const request = args?.request ?? args ?? {};
+    const task = buildMockMediaTaskOutput(args);
+    const contractKey =
+      task.record?.payload?.modality_contract_key ?? "image_generation";
+    const routingOutcome =
+      task.normalized_status === "failed" ? "failed" : "accepted";
+    const requestedContractKey =
+      request.modalityContractKey ?? request.modality_contract_key;
+    const requestedRoutingOutcome =
+      request.routingOutcome ?? request.routing_outcome;
+    const requestedTaskFamily = request.taskFamily ?? request.task_family;
+    const requestedTaskType = request.taskType ?? request.task_type;
+    const matchesContract =
+      !requestedContractKey || requestedContractKey === contractKey;
+    const matchesRouting =
+      !requestedRoutingOutcome || requestedRoutingOutcome === routingOutcome;
+    const matchesTaskFamily =
+      !requestedTaskFamily || requestedTaskFamily === task.task_family;
+    const matchesTaskType =
+      !requestedTaskType || requestedTaskType === task.task_type;
+    const tasks =
+      matchesContract && matchesRouting && matchesTaskFamily && matchesTaskType
+        ? [task]
+        : [];
+    const snapshots = tasks.map((item) => {
+      const payload = item.record?.payload as Record<string, any> | undefined;
+      const lastError = item.record?.last_error as
+        | { code?: string }
+        | null
+        | undefined;
+      const assessment = payload?.model_capability_assessment as
+        | Record<string, any>
+        | null
+        | undefined;
+      return {
+        task_id: item.task_id,
+        task_type: item.task_type,
+        normalized_status: item.normalized_status,
+        contract_key: payload?.modality_contract_key ?? null,
+        routing_slot: payload?.routing_slot ?? null,
+        provider_id: payload?.provider_id ?? null,
+        model: payload?.model ?? null,
+        routing_event:
+          payload?.modality_contract_key === "voice_generation"
+            ? "executor_invoked"
+            : "model_routing_decision",
+        routing_outcome:
+          item.normalized_status === "failed" ? "failed" : "accepted",
+        failure_code: lastError?.code ?? null,
+        model_capability_assessment_source: assessment?.source ?? null,
+        model_supports_image_generation:
+          payload?.modality_contract_key === "image_generation"
+            ? (assessment?.supports_image_generation ?? null)
+            : null,
+      };
+    });
     return {
       success: true,
       workspace_root: request.projectRootPath ?? "/mock/workspace",
       artifact_root: `${request.projectRootPath ?? "/mock/workspace"}/.lime/tasks`,
       filters: {
         status: request.status ?? null,
-        task_family: request.taskFamily ?? null,
-        task_type: request.taskType ?? null,
+        task_family: requestedTaskFamily ?? null,
+        task_type: requestedTaskType ?? null,
+        modality_contract_key: requestedContractKey ?? null,
+        routing_outcome: requestedRoutingOutcome ?? null,
         limit: request.limit ?? null,
       },
-      total: 1,
-      tasks: [buildMockMediaTaskOutput(args)],
+      total: tasks.length,
+      modality_runtime_contracts: {
+        snapshot_count: snapshots.length,
+        contract_keys: [
+          ...new Set(
+            snapshots.map((item) => item.contract_key).filter(Boolean),
+          ),
+        ],
+        blocked_count: snapshots.filter(
+          (item) => item.routing_outcome === "blocked",
+        ).length,
+        routing_outcomes: snapshots.length
+          ? [{ outcome: snapshots[0].routing_outcome, count: snapshots.length }]
+          : [],
+        model_registry_assessment_count: snapshots.filter(
+          (item) =>
+            item.model_capability_assessment_source === "model_registry",
+        ).length,
+        snapshots,
+      },
+      tasks,
     };
   },
   cancel_media_task_artifact: (args: any) =>
@@ -5997,7 +6210,6 @@ const defaultMocks: Record<string, any> = {
   session_files_delete_file: () => undefined,
   save_exported_document: () => undefined,
 
-
   // 模型相关
   get_model_registry: () => [],
   get_model_registry_provider_ids: () => [
@@ -6303,7 +6515,7 @@ const defaultMocks: Record<string, any> = {
 
   // Update 相关
   check_update: () => ({
-    current_version: "1.23.0",
+    current_version: "1.24.0",
     latest_version: null,
     has_update: false,
     download_url: "https://github.com/limecloud/lime/releases",
@@ -6314,7 +6526,7 @@ const defaultMocks: Record<string, any> = {
     error: null,
   }),
   check_for_updates: () => ({
-    current: "1.23.0",
+    current: "1.24.0",
     latest: null,
     hasUpdate: false,
     downloadUrl: "https://github.com/limecloud/lime/releases",
@@ -6691,6 +6903,39 @@ const defaultMocks: Record<string, any> = {
   }),
 };
 
+async function invokeDefaultMock<T = any>(
+  cmd: string,
+  args?: Record<string, unknown>,
+  options: { log?: boolean } = {},
+): Promise<T> {
+  if (options.log !== false) {
+    logMockInfo(`[Mock] invoke: ${cmd}`, args);
+  }
+
+  if (mockCommands.has(cmd)) {
+    const handler = mockCommands.get(cmd)!;
+    return handler(args);
+  }
+
+  if (cmd in defaultMocks) {
+    return defaultMocks[cmd](args);
+  }
+
+  console.warn(`[Mock] Unhandled command: ${cmd}`);
+  return undefined as T;
+}
+
+/**
+ * 显式 mock 入口，供 DevBridge 失败后的 fallback 使用。
+ * 这里不能再次探测 HTTP bridge，否则会把一次后端未就绪放大成多条 console error。
+ */
+export async function invokeMockOnly<T = any>(
+  cmd: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  return invokeDefaultMock<T>(cmd, args);
+}
+
 /**
  * Mock invoke function
  */
@@ -6700,7 +6945,6 @@ export async function invoke<T = any>(
 ): Promise<T> {
   logMockInfo(`[Mock] invoke: ${cmd}`, args);
 
-  // 检查是否有自定义 mock
   if (mockCommands.has(cmd)) {
     const handler = mockCommands.get(cmd)!;
     return handler(args);
@@ -6720,13 +6964,7 @@ export async function invoke<T = any>(
     }
   }
 
-  // 使用默认 mock
-  if (cmd in defaultMocks) {
-    return defaultMocks[cmd](args);
-  }
-
-  console.warn(`[Mock] Unhandled command: ${cmd}`);
-  return undefined as T;
+  return invokeDefaultMock<T>(cmd, args, { log: false });
 }
 
 /**

@@ -204,9 +204,7 @@ function resolveSceneAppNotes(result: SceneAppPlanResult): string[] {
     ...(result.projectPackPlan?.notes ?? []).map(normalizeSceneAppNote),
     ...result.plan.warnings.map(normalizeSceneAppNote),
     ...result.plan.adapterPlan.notes.map(normalizeSceneAppNote),
-    result.readiness.ready
-      ? undefined
-      : "当前做法仍有未满足的启动前置条件。",
+    result.readiness.ready ? undefined : "当前做法仍有未满足的启动前置条件。",
   ]);
 }
 

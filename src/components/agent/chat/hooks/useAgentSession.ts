@@ -5,7 +5,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type MutableRefObject,
+  type SetStateAction,
 } from "react";
 import { toast } from "sonner";
 import type {
@@ -246,14 +248,10 @@ function selectActiveSessionTransientItems(
   }
   scopedItems.reverse();
 
-  return filterConversationThreadItems(
-    normalizeLegacyThreadItems(scopedItems),
-  );
+  return filterConversationThreadItems(normalizeLegacyThreadItems(scopedItems));
 }
 
-function scheduleActiveSessionTransientSave(
-  task: () => void,
-): () => void {
+function scheduleActiveSessionTransientSave(task: () => void): () => void {
   if (typeof window === "undefined") {
     task();
     return () => undefined;
@@ -488,9 +486,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const skipAutoRestoreRef = useRef(false);
   const sessionSwitchRequestVersionRef = useRef(0);
   const deferredSessionHydrationCancelRef = useRef<(() => void) | null>(null);
-  const pendingSessionMetadataSyncCancelRef = useRef<(() => void) | null>(
-    null,
-  );
+  const pendingSessionMetadataSyncCancelRef = useRef<(() => void) | null>(null);
   const createFreshSessionPromiseRef = useRef<Promise<string | null> | null>(
     null,
   );
@@ -526,6 +522,17 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     currentAssistantMsgIdRef.current = null;
     currentStreamingSessionIdRef.current = null;
   }, [currentAssistantMsgIdRef, currentStreamingSessionIdRef]);
+  const setMessagesState = useCallback<Dispatch<SetStateAction<Message[]>>>(
+    (value) => {
+      const nextMessages =
+        typeof value === "function"
+          ? (value as (previous: Message[]) => Message[])(messagesRef.current)
+          : value;
+      messagesRef.current = nextMessages;
+      setMessages(nextMessages);
+    },
+    [],
+  );
 
   const persistSessionRestoreCandidate = useCallback(
     (nextSessionId: string | null) => {
@@ -1015,7 +1022,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   }, [listWorkspaceTopics, workspaceId]);
 
   const createFreshSession = useCallback(
-    async (sessionName?: string): Promise<string | null> => {
+    async (
+      sessionName?: string,
+      createOptions?: { preserveCurrentSnapshot?: boolean },
+    ): Promise<string | null> => {
       if (createFreshSessionPromiseRef.current) {
         return createFreshSessionPromiseRef.current;
       }
@@ -1041,19 +1051,24 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             executionStrategy,
           );
 
-          sessionIdRef.current = newSessionId;
-
           const now = new Date();
-          setSessionId(newSessionId);
+          applySessionSnapshot({
+            ...createEmptyAgentSessionSnapshot(),
+            sessionId: newSessionId,
+            messages:
+              createOptions?.preserveCurrentSnapshot === true
+                ? messagesRef.current
+                : [],
+            threadTurns:
+              createOptions?.preserveCurrentSnapshot === true
+                ? threadTurnsRef.current
+                : [],
+            threadItems:
+              createOptions?.preserveCurrentSnapshot === true
+                ? threadItemsRef.current
+                : [],
+          });
           setSessionHistoryWindow(null);
-          setThreadTurns([]);
-          setThreadItems([]);
-          setCurrentTurnId(null);
-          setQueuedTurns([]);
-          setThreadRead(null);
-          setTodoItems([]);
-          setChildSubagentSessions([]);
-          setSubagentParentContext(null);
           setIsAutoRestoringSession(false);
           setIsSessionHydrating(false);
           setTopics((prev) => [
@@ -1130,6 +1145,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     },
     [
       accessMode,
+      applySessionSnapshot,
       executionStrategy,
       invalidatePendingSessionSwitches,
       modelRef,
@@ -1141,7 +1157,6 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       resetPendingActions,
       resetStreamingRefs,
       runtime,
-      sessionIdRef,
       scopedKeys,
       workspaceId,
     ],
@@ -1188,17 +1203,23 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     ],
   );
 
-  const deleteMessage = useCallback((id: string) => {
-    setMessages((prev) => prev.filter((msg) => msg.id !== id));
-  }, []);
+  const deleteMessage = useCallback(
+    (id: string) => {
+      setMessagesState((prev) => prev.filter((msg) => msg.id !== id));
+    },
+    [setMessagesState],
+  );
 
-  const editMessage = useCallback((id: string, newContent: string) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === id ? { ...msg, content: newContent } : msg,
-      ),
-    );
-  }, []);
+  const editMessage = useCallback(
+    (id: string, newContent: string) => {
+      setMessagesState((prev) =>
+        prev.map((msg) =>
+          msg.id === id ? { ...msg, content: newContent } : msg,
+        ),
+      );
+    },
+    [setMessagesState],
+  );
 
   const applySessionDetail = useCallback(
     (
@@ -2255,7 +2276,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       }
     }
 
-    return createFreshSession();
+    return createFreshSession(undefined, { preserveCurrentSnapshot: true });
   }, [
     createFreshSession,
     disableSessionRestore,
@@ -2788,7 +2809,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     sessionId,
     setSessionId,
     messages,
-    setMessages,
+    setMessages: setMessagesState,
     threadTurns,
     setThreadTurns,
     threadItems,

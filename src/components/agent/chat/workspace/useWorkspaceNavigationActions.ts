@@ -100,11 +100,7 @@ export function useWorkspaceNavigationActions({
 
   const handleOpenRuntimeMemoryWorkbench = useCallback(
     (params?: OpenRuntimeMemoryWorkbenchParams) => {
-      const {
-      sessionId,
-      workingDir,
-      userMessage,
-      } = params || {};
+      const { sessionId, workingDir, userMessage } = params || {};
       const nextParams: MemoryPageParams = {
         section: "home",
         runtimeSessionId: sessionId?.trim() || undefined,

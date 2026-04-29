@@ -26,10 +26,7 @@ describe("seededServiceSkillPackage", () => {
       ]),
     );
     expect(pkg.bindingProfiles.map((profile) => profile.id)).toEqual(
-      expect.arrayContaining([
-        "agent-turn-instant",
-        "automation-job-managed",
-      ]),
+      expect.arrayContaining(["agent-turn-instant", "automation-job-managed"]),
     );
     expect(pkg.compatibility.requiredKernelCapabilities).not.toContain(
       "cloud_scene",

@@ -95,14 +95,18 @@ describe("safeInvoke", () => {
     ]);
   });
 
-  it("HTTP bridge 失败时会回退到 mock/baseInvoke", async () => {
+  it("HTTP bridge 失败时会直接回退到显式 mock，避免二次探测 HTTP", async () => {
     mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
-    mocks.baseInvoke.mockResolvedValueOnce(["mocked"]);
+    mocks.explicitMockInvoke.mockResolvedValueOnce(["mocked"]);
 
     await expect(safeInvoke("workspace_list")).resolves.toEqual(["mocked"]);
 
     expect(mocks.normalizeDevBridgeError).toHaveBeenCalled();
-    expect(mocks.baseInvoke).toHaveBeenCalledWith("workspace_list", undefined);
+    expect(mocks.baseInvoke).not.toHaveBeenCalled();
+    expect(mocks.explicitMockInvoke).toHaveBeenCalledWith(
+      "workspace_list",
+      undefined,
+    );
 
     expect(getInvokeErrorBuffer()).toEqual([
       expect.objectContaining({
@@ -160,7 +164,6 @@ describe("safeInvoke", () => {
 
   it("HTTP bridge 与 mock 都失败时抛出 bridge 错误", async () => {
     mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
-    mocks.baseInvoke.mockRejectedValueOnce(new Error("mock failed"));
     mocks.explicitMockInvoke.mockRejectedValueOnce(new Error("mock failed"));
 
     await expect(safeInvoke("workspace_list")).rejects.toThrow(
@@ -189,16 +192,17 @@ describe("safeInvoke", () => {
     );
   });
 
-  it("HTTP bridge 失败且真实 invoke 缺失时会退回显式 mock", async () => {
+  it("HTTP bridge 失败后不会再调用真实 invoke 探测", async () => {
     mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
-    mocks.baseInvoke.mockRejectedValueOnce(
-      new TypeError("Cannot read properties of undefined (reading 'invoke')"),
-    );
     mocks.explicitMockInvoke.mockResolvedValueOnce([]);
 
     await expect(safeInvoke("workspace_list")).resolves.toEqual([]);
 
-    expect(mocks.invokeViaHttp).toHaveBeenCalledWith("workspace_list", undefined);
+    expect(mocks.invokeViaHttp).toHaveBeenCalledWith(
+      "workspace_list",
+      undefined,
+    );
+    expect(mocks.baseInvoke).not.toHaveBeenCalled();
     expect(mocks.explicitMockInvoke).toHaveBeenCalledWith(
       "workspace_list",
       undefined,
@@ -294,9 +298,9 @@ describe("safeInvoke", () => {
       true,
     );
 
-    await expect(
-      safeListen("aster_stream_session-1", vi.fn()),
-    ).rejects.toThrow('事件 "aster_stream_session-1" 监听失败');
+    await expect(safeListen("aster_stream_session-1", vi.fn())).rejects.toThrow(
+      '事件 "aster_stream_session-1" 监听失败',
+    );
 
     expect(mocks.explicitMockListen).not.toHaveBeenCalled();
   });
@@ -311,9 +315,9 @@ describe("safeInvoke", () => {
       true,
     );
 
-    await expect(
-      safeListen("aster_stream_session-1", vi.fn()),
-    ).rejects.toThrow('事件 "aster_stream_session-1" 监听失败');
+    await expect(safeListen("aster_stream_session-1", vi.fn())).rejects.toThrow(
+      '事件 "aster_stream_session-1" 监听失败',
+    );
 
     expect(mocks.baseListen).not.toHaveBeenCalled();
     expect(mocks.explicitMockListen).not.toHaveBeenCalled();
@@ -384,8 +388,8 @@ describe("safeInvoke", () => {
       ),
     );
 
-    await expect(
-      safeListen("aster_stream_session-1", vi.fn()),
-    ).rejects.toThrow('事件 "aster_stream_session-1" 监听失败');
+    await expect(safeListen("aster_stream_session-1", vi.fn())).rejects.toThrow(
+      '事件 "aster_stream_session-1" 监听失败',
+    );
   });
 });

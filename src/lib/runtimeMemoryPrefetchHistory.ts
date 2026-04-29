@@ -4,10 +4,7 @@ export type RuntimeMemoryPrefetchHistorySource =
   | "thread_reliability"
   | "memory_page";
 
-export type RuntimeMemoryPrefetchHistoryScope =
-  | "all"
-  | "workspace"
-  | "session";
+export type RuntimeMemoryPrefetchHistoryScope = "all" | "workspace" | "session";
 
 export type RuntimeMemoryPrefetchHistoryLayerKey =
   | "rules"
@@ -104,13 +101,8 @@ interface RecordRuntimeMemoryPrefetchHistoryInput {
 const RUNTIME_MEMORY_PREFETCH_HISTORY_KEY =
   "lime:memory-runtime-prefetch-history:v1";
 const MAX_RUNTIME_MEMORY_PREFETCH_HISTORY = 12;
-const RUNTIME_MEMORY_PREFETCH_HISTORY_LAYER_KEYS: RuntimeMemoryPrefetchHistoryLayerKey[] = [
-  "rules",
-  "working",
-  "durable",
-  "team",
-  "compaction",
-];
+const RUNTIME_MEMORY_PREFETCH_HISTORY_LAYER_KEYS: RuntimeMemoryPrefetchHistoryLayerKey[] =
+  ["rules", "working", "durable", "team", "compaction"];
 const RUNTIME_MEMORY_PREFETCH_HISTORY_LAYER_LABELS: Record<
   RuntimeMemoryPrefetchHistoryLayerKey,
   string
@@ -165,11 +157,13 @@ function buildRuntimeMemoryPrefetchHistoryEntry(
       null,
     workingExcerpt: normalizeText(input.result.working_memory_excerpt, 320),
     durableTitle:
-      input.result.durable_memories.find((entry) => entry.title.trim().length > 0)
-        ?.title || null,
+      input.result.durable_memories.find(
+        (entry) => entry.title.trim().length > 0,
+      )?.title || null,
     teamKey:
-      input.result.team_memory_entries.find((entry) => entry.key.trim().length > 0)
-        ?.key || null,
+      input.result.team_memory_entries.find(
+        (entry) => entry.key.trim().length > 0,
+      )?.key || null,
     compactionSummary: normalizeText(
       input.result.latest_compaction?.summary_preview,
       320,
@@ -517,7 +511,9 @@ export function formatRuntimeMemoryPrefetchHistoryDiffStatusLabel(
 function joinRuntimeMemoryPrefetchHistoryLayerLabels(
   layers: RuntimeMemoryPrefetchHistoryLayerKey[],
 ): string {
-  return layers.map((layer) => formatRuntimeMemoryPrefetchHistoryLayerLabel(layer)).join("、");
+  return layers
+    .map((layer) => formatRuntimeMemoryPrefetchHistoryLayerLabel(layer))
+    .join("、");
 }
 
 export function describeRuntimeMemoryPrefetchHistoryDiffAssessment(
@@ -551,57 +547,60 @@ export function summarizeRuntimeMemoryPrefetchHistory(
 ): RuntimeMemoryPrefetchHistorySummary {
   const uniqueSessions = new Set<string>();
   const uniqueWorkingDirs = new Set<string>();
-  const layerEntryHits: RuntimeMemoryPrefetchHistorySummary["layerEntryHits"] = {
-    rules: 0,
-    working: 0,
-    durable: 0,
-    team: 0,
-    compaction: 0,
-  };
+  const layerEntryHits: RuntimeMemoryPrefetchHistorySummary["layerEntryHits"] =
+    {
+      rules: 0,
+      working: 0,
+      durable: 0,
+      team: 0,
+      compaction: 0,
+    };
 
   let changedEntries = 0;
 
-  const layerStability = RUNTIME_MEMORY_PREFETCH_HISTORY_LAYER_KEYS.map((key) => {
-    const values = entries.map((entry) => {
-      switch (key) {
-        case "rules":
-          return entry.counts.rules;
-        case "working":
-          return entry.counts.working ? 1 : 0;
-        case "durable":
-          return entry.counts.durable;
-        case "team":
-          return entry.counts.team;
-        case "compaction":
-          return entry.counts.compaction ? 1 : 0;
-        default:
-          return 0;
-      }
-    });
+  const layerStability = RUNTIME_MEMORY_PREFETCH_HISTORY_LAYER_KEYS.map(
+    (key) => {
+      const values = entries.map((entry) => {
+        switch (key) {
+          case "rules":
+            return entry.counts.rules;
+          case "working":
+            return entry.counts.working ? 1 : 0;
+          case "durable":
+            return entry.counts.durable;
+          case "team":
+            return entry.counts.team;
+          case "compaction":
+            return entry.counts.compaction ? 1 : 0;
+          default:
+            return 0;
+        }
+      });
 
-    const hitEntries = values.filter((value) => value > 0).length;
-    const missEntries = values.length - hitEntries;
-    const valueChanges = values.reduce((count, value, index) => {
-      if (index === 0) {
-        return count;
-      }
-      return count + (value !== values[index - 1] ? 1 : 0);
-    }, 0);
+      const hitEntries = values.filter((value) => value > 0).length;
+      const missEntries = values.length - hitEntries;
+      const valueChanges = values.reduce((count, value, index) => {
+        if (index === 0) {
+          return count;
+        }
+        return count + (value !== values[index - 1] ? 1 : 0);
+      }, 0);
 
-    return {
-      key,
-      latestValue: values[0] || 0,
-      hitEntries,
-      missEntries,
-      valueChanges,
-      state:
-        hitEntries === 0
-          ? "steady_miss"
-          : missEntries === 0 && valueChanges === 0
-            ? "steady_hit"
-            : "varying",
-    } satisfies RuntimeMemoryPrefetchHistoryLayerStability;
-  });
+      return {
+        key,
+        latestValue: values[0] || 0,
+        hitEntries,
+        missEntries,
+        valueChanges,
+        state:
+          hitEntries === 0
+            ? "steady_miss"
+            : missEntries === 0 && valueChanges === 0
+              ? "steady_hit"
+              : "varying",
+      } satisfies RuntimeMemoryPrefetchHistoryLayerStability;
+    },
+  );
 
   entries.forEach((entry, index) => {
     uniqueSessions.add(entry.sessionId);

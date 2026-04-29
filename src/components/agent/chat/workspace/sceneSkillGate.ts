@@ -151,7 +151,9 @@ function buildProjectChoiceOptions(projects: Project[]): Array<{
 }> {
   return projects.map((project) => {
     const descriptionParts = [
-      project.workspaceType === "general" ? "通用工作区" : project.workspaceType,
+      project.workspaceType === "general"
+        ? "通用工作区"
+        : project.workspaceType,
       project.isDefault ? "默认项目" : undefined,
       normalizeOptionalText(project.rootPath),
     ].filter((part): part is string => Boolean(part));
@@ -164,14 +166,17 @@ function buildProjectChoiceOptions(projects: Project[]): Array<{
   });
 }
 
-function buildFieldHelperText(field: RuntimeSceneGateField): string | undefined {
+function buildFieldHelperText(
+  field: RuntimeSceneGateField,
+): string | undefined {
   if (field.kind === "project") {
     return field.description;
   }
 
-  const parts = [normalizeOptionalText(field.helpText), normalizeOptionalText(field.placeholder)].filter(
-    (part): part is string => Boolean(part),
-  );
+  const parts = [
+    normalizeOptionalText(field.helpText),
+    normalizeOptionalText(field.placeholder),
+  ].filter((part): part is string => Boolean(part));
   return parts.join(" · ") || undefined;
 }
 
@@ -255,8 +260,7 @@ function buildProjectFieldComponent(
     label: field.label,
     value: prefillProjectId || "",
     placeholder: "输入项目 ID",
-    helperText:
-      helperText || "当前未读取到项目列表，可手动输入目标项目 ID。",
+    helperText: helperText || "当前未读取到项目列表，可手动输入目标项目 ID。",
   });
   childIds.push(fieldId);
 }
@@ -284,8 +288,7 @@ export function buildRuntimeSceneGateA2UIForm(params: {
     id: descriptionId,
     component: "Text",
     text:
-      request.sceneSummary ||
-      "补齐后会继续当前结果流程，不用重新输入命令。",
+      request.sceneSummary || "补齐后会继续当前结果流程，不用重新输入命令。",
     variant: "caption",
   });
   childIds.push(descriptionId);
@@ -304,7 +307,13 @@ export function buildRuntimeSceneGateA2UIForm(params: {
 
   for (const field of request.fields) {
     if (field.kind === "project") {
-      buildProjectFieldComponent(field, projects, prefill, components, childIds);
+      buildProjectFieldComponent(
+        field,
+        projects,
+        prefill,
+        components,
+        childIds,
+      );
       continue;
     }
 
@@ -380,7 +389,9 @@ export function formatRuntimeSceneGateValidationMessage(
     )
     .map((field) => field.label.trim())
     .filter(Boolean);
-  const requiresProject = request.fields.some((field) => field.kind === "project");
+  const requiresProject = request.fields.some(
+    (field) => field.kind === "project",
+  );
 
   if (slotLabels.length > 0 && requiresProject) {
     return `还差${slotLabels.join("、")}和项目工作区，补齐后再继续。`;

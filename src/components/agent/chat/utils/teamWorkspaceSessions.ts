@@ -391,8 +391,9 @@ export function buildTeamWorkspaceMemberCanvasSessions(params: {
       session,
       index,
       priority:
-        TEAM_WORKSPACE_TASK_SCHEDULE_PRIORITY[session.runtimeStatus ?? "idle"] ??
-        TEAM_WORKSPACE_TASK_SCHEDULE_PRIORITY.idle,
+        TEAM_WORKSPACE_TASK_SCHEDULE_PRIORITY[
+          session.runtimeStatus ?? "idle"
+        ] ?? TEAM_WORKSPACE_TASK_SCHEDULE_PRIORITY.idle,
     }))
     .sort((left, right) => {
       if (left.priority !== right.priority) {

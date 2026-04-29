@@ -30,8 +30,10 @@ describe("curatedTaskRecommendationSignals", () => {
         memory_type: "project",
         category: "experience",
         title: "账号复盘结论",
-        summary: "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
-        content: "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
+        summary:
+          "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
+        content:
+          "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
         tags: ["复盘", "反馈", "增长"],
         metadata: {
           confidence: 0.92,
@@ -123,7 +125,8 @@ describe("curatedTaskRecommendationSignals", () => {
       {
         session_id: "session-review-2",
         decision_status: "needs_more_evidence",
-        decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+        decision_summary:
+          "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
         chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
         risk_level: "medium",
         risk_tags: ["证据不足", "需要复盘"],
@@ -147,7 +150,9 @@ describe("curatedTaskRecommendationSignals", () => {
     expect(featured[0]?.badgeLabel).toBe("围绕最近判断");
     expect(featured[0]?.reasonSummary).toContain("短视频编排");
     expect(
-      featured.map((item) => item.template.id).indexOf("account-project-review"),
+      featured
+        .map((item) => item.template.id)
+        .indexOf("account-project-review"),
     ).toBeLessThan(
       featured.map((item) => item.template.id).indexOf("daily-trend-briefing"),
     );
@@ -155,9 +160,8 @@ describe("curatedTaskRecommendationSignals", () => {
 
   it("统一订阅入口应同时响应自定义事件与 storage 变更", () => {
     const callback = vi.fn();
-    const unsubscribe = subscribeCuratedTaskRecommendationSignalsChanged(
-      callback,
-    );
+    const unsubscribe =
+      subscribeCuratedTaskRecommendationSignalsChanged(callback);
 
     window.dispatchEvent(
       new CustomEvent(CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT),

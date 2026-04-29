@@ -136,6 +136,7 @@ const bridgeTruthCommands = new Set<string>([
   "refresh_model_registry",
   "fetch_provider_models_auto",
   "create_image_generation_task_artifact",
+  "create_audio_generation_task_artifact",
   "get_media_task_artifact",
   "list_media_task_artifacts",
   "cancel_media_task_artifact",

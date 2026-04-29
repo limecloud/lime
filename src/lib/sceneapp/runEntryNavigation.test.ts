@@ -92,7 +92,6 @@ describe("resolveSceneAppRunEntryNavigationTarget", () => {
         }),
       }),
     );
-
   });
 
   it("缺少 sceneappId 时应返回空", () => {

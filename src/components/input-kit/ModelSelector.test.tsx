@@ -334,6 +334,35 @@ describe("ModelSelector", () => {
       ],
       loading: false,
     });
+    mockUseProviderModels.mockReturnValue({
+      modelIds: ["gpt-5.5", "deepseek-v4-flash"],
+      models: [
+        {
+          id: "gpt-5.5",
+          capabilities: {
+            vision: true,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+        },
+        {
+          id: "deepseek-v4-flash",
+          capabilities: {
+            vision: false,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: false,
+          },
+        },
+      ],
+      loading: false,
+      error: null,
+    });
 
     const { container } = renderModelSelector({
       providerType: "lime-hub",
@@ -356,6 +385,9 @@ describe("ModelSelector", () => {
     expect(pageText).toContain("本地与自定义");
     expect(pageText).toContain("Lime 云端");
     expect(pageText).toContain("Codex Custom");
+    expect(pageText).toContain("gpt-5.5");
+    expect(pageText).toContain("deepseek-v4-flash");
+    expect(pageText).not.toContain("暂无可用模型");
   });
 
   it("未知 anthropic-compatible Provider 应在选择器中展示显式缓存提示", () => {

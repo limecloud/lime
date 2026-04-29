@@ -185,9 +185,7 @@ function StepItem({ step }: { step: StepDisplayInfo }) {
           <p className="mt-1 text-xs text-red-600">{step.error}</p>
         )}
         {step.status === "retrying" && (
-          <p className="mt-1 text-xs text-yellow-600">
-            正在重试...
-          </p>
+          <p className="mt-1 text-xs text-yellow-600">正在重试...</p>
         )}
       </div>
     </div>
@@ -283,9 +281,7 @@ export function WorkflowProgress({
                 执行失败: {failedCount} 个步骤出错
               </span>
             ) : completedCount === effectiveTotalSteps ? (
-              <span className="text-green-600">
-                执行完成
-              </span>
+              <span className="text-green-600">执行完成</span>
             ) : (
               <>
                 已完成: {completedCount}/{effectiveTotalSteps}

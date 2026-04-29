@@ -1,4 +1,9 @@
 use super::*;
+use crate::commands::modality_runtime_contracts::{
+    insert_pdf_extract_contract_fields, pdf_extract_required_capabilities,
+    pdf_extract_runtime_contract, PDF_EXTRACT_CONTRACT_KEY, PDF_EXTRACT_MODALITY,
+    PDF_EXTRACT_ROUTING_SLOT,
+};
 
 const PDF_READ_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_PDF_READ_SKILL_LAUNCH_HINT>>";
 const PDF_READ_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
@@ -19,6 +24,62 @@ fn extract_object_string(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+}
+
+fn extract_object_string_array(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Vec<String> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(serde_json::Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_object_value(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<serde_json::Value> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find(|value| value.is_object())
+        .cloned()
+}
+
+fn extract_harness_nested_object_mut<'a>(
+    value: &'a mut serde_json::Value,
+    keys: &[&str],
+) -> Option<&'a mut serde_json::Map<String, serde_json::Value>> {
+    let root = value.as_object_mut()?;
+    let harness = if root.contains_key("harness") {
+        root.get_mut("harness")
+            .and_then(serde_json::Value::as_object_mut)?
+    } else {
+        root
+    };
+
+    for key in keys.iter().copied() {
+        let exists = harness
+            .get(key)
+            .and_then(serde_json::Value::as_object)
+            .is_some();
+        if exists {
+            return harness
+                .get_mut(key)
+                .and_then(serde_json::Value::as_object_mut);
+        }
+    }
+
+    None
 }
 
 fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys: &[&str]) {
@@ -53,6 +114,16 @@ fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys
     );
 }
 
+fn ensure_pdf_extract_contract_metadata(launch: &mut serde_json::Map<String, serde_json::Value>) {
+    insert_pdf_extract_contract_fields(launch);
+    if let Some(pdf_read_request) = launch
+        .get_mut("pdf_read_request")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        insert_pdf_extract_contract_fields(pdf_read_request);
+    }
+}
+
 fn truncate_prompt_text(value: String, max_chars: usize) -> String {
     let total_chars = value.chars().count();
     if total_chars <= max_chars {
@@ -71,6 +142,12 @@ pub(crate) fn prepare_pdf_read_skill_launch_request_metadata(
         &mut metadata,
         &["pdf_read_skill_launch", "pdfReadSkillLaunch"],
     );
+    if let Some(launch) = extract_harness_nested_object_mut(
+        &mut metadata,
+        &["pdf_read_skill_launch", "pdfReadSkillLaunch"],
+    ) {
+        ensure_pdf_extract_contract_metadata(launch);
+    }
 
     Some(metadata)
 }
@@ -194,6 +271,29 @@ fn build_pdf_read_skill_launch_system_prompt(
     let content_id = extract_object_string(pdf_read_request, &["content_id", "contentId"]);
     let entry_source = extract_object_string(pdf_read_request, &["entry_source", "entrySource"])
         .unwrap_or_else(|| "at_pdf_read_command".to_string());
+    let modality_contract_key = extract_object_string(
+        pdf_read_request,
+        &["modality_contract_key", "modalityContractKey"],
+    )
+    .unwrap_or_else(|| PDF_EXTRACT_CONTRACT_KEY.to_string());
+    let modality = extract_object_string(pdf_read_request, &["modality"])
+        .unwrap_or_else(|| PDF_EXTRACT_MODALITY.to_string());
+    let routing_slot = extract_object_string(pdf_read_request, &["routing_slot", "routingSlot"])
+        .unwrap_or_else(|| PDF_EXTRACT_ROUTING_SLOT.to_string());
+    let required_capabilities = {
+        let values = extract_object_string_array(
+            pdf_read_request,
+            &["required_capabilities", "requiredCapabilities"],
+        );
+        if values.is_empty() {
+            pdf_extract_required_capabilities()
+        } else {
+            values
+        }
+    };
+    let runtime_contract =
+        extract_object_value(pdf_read_request, &["runtime_contract", "runtimeContract"])
+            .unwrap_or_else(pdf_extract_runtime_contract);
     let args_payload = serde_json::json!({
         "user_input": raw_text.clone().unwrap_or_else(|| prompt.clone()),
         "pdf_read_request": serde_json::Value::Object(pdf_read_request.clone()),
@@ -220,6 +320,21 @@ fn build_pdf_read_skill_launch_system_prompt(
     let mut lines = vec![
         PDF_READ_SKILL_LAUNCH_PROMPT_MARKER.to_string(),
         "- 当前回合来自读 PDF 技能启动，不要把它当成普通聊天回答。".to_string(),
+        format!(
+            "- 当前底层运行合同：modality_contract_key={modality_contract_key}, modality={modality}, routing_slot={routing_slot}；后续读取与产物必须原样保留 contract 字段。"
+        ),
+        format!(
+            "- 当前合同所需能力：{}；不得退回 frontend_direct_pdf_parse 或 generic_chat_summary_only。",
+            required_capabilities.join(", ")
+        ),
+        format!(
+            "- 当前 runtime_contract(JSON)：{}",
+            truncate_prompt_text(
+                serde_json::to_string(&runtime_contract)
+                    .unwrap_or_else(|_| "{}".to_string()),
+                1_200,
+            )
+        ),
         "- 先确认 PDF 来源，再立刻把任务交给 Skill 工具；不要在未实际读取文件前直接总结 PDF 内容。"
             .to_string(),
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),

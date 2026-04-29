@@ -19,9 +19,7 @@ export interface SceneAppExecutionPromptAction {
   disabledReason?: string;
 }
 
-function resolvePrimaryResultSummary(
-  detailView: SceneAppRunDetailViewModel,
-): {
+function resolvePrimaryResultSummary(detailView: SceneAppRunDetailViewModel): {
   label: string;
   pathLabel?: string;
 } | null {
@@ -39,7 +37,9 @@ function resolvePrimaryResultSummary(
   };
 }
 
-function buildResultContextSentence(detailView: SceneAppRunDetailViewModel): string {
+function buildResultContextSentence(
+  detailView: SceneAppRunDetailViewModel,
+): string {
   const primaryResult = resolvePrimaryResultSummary(detailView);
   if (!primaryResult) {
     return "当前这轮结果";
@@ -56,7 +56,9 @@ export function buildSceneAppExecutionPromptActions(
   detailView: SceneAppRunDetailViewModel,
 ): SceneAppExecutionPromptAction[] {
   const actions: SceneAppExecutionPromptAction[] = [];
-  const missingParts = detailView.deliveryMissingParts.map((part) => part.label);
+  const missingParts = detailView.deliveryMissingParts.map(
+    (part) => part.label,
+  );
   const missingPartsSummary = missingParts.join("、");
   const resultContext = buildResultContextSentence(detailView);
   const failureSignalLabel = detailView.failureSignalLabel?.trim() || "";

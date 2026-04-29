@@ -233,9 +233,9 @@ function buildCanvasLaneTitleSummary(
           : member.status === "completed"
             ? "这一步已经完成"
             : member.status === "failed"
-                ? "这一步需要重试"
-                : member.sessionId
-                  ? "已连接到真实任务"
+              ? "这一步需要重试"
+              : member.sessionId
+                ? "已连接到真实任务"
                 : "等待任务接手";
 
   return {
@@ -249,7 +249,8 @@ function buildCanvasLaneTitleSummary(
           : member.status === "waiting"
             ? "bg-amber-400"
             : "bg-sky-500",
-    summary: normalizeTeamWorkspaceDisplayValue(member.summary) || member.summary,
+    summary:
+      normalizeTeamWorkspaceDisplayValue(member.summary) || member.summary,
     statusHint,
   };
 }
@@ -457,7 +458,7 @@ function buildSessionCanvasLane(params: {
     plannedRoles,
   );
   const presetLabel = session.teamPresetId
-    ? getTeamPresetOption(session.teamPresetId)?.label ?? session.teamPresetId
+    ? (getTeamPresetOption(session.teamPresetId)?.label ?? session.teamPresetId)
     : undefined;
 
   return {
@@ -568,7 +569,8 @@ export function buildTeamWorkspaceCanvasLanes(params: {
       statusHint: laneSummary.statusHint,
       updatedAtLabel: "计划分工",
       skillLabels: [],
-      previewText: normalizeTeamWorkspaceDisplayValue(role.summary) || role.summary,
+      previewText:
+        normalizeTeamWorkspaceDisplayValue(role.summary) || role.summary,
       previewEntries: [],
     };
   });

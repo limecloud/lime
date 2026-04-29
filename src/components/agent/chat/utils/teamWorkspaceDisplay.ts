@@ -14,14 +14,15 @@ function normalizeInsertedChineseSpacing(value: string): string {
     .replace(/(分工方案|任务|子任务|任务拆分)\s+([\u4e00-\u9fff])/g, "$1$2");
 }
 
-export function normalizeTeamWorkspaceDisplayText(value?: string | null): string {
+export function normalizeTeamWorkspaceDisplayText(
+  value?: string | null,
+): string {
   if (typeof value !== "string") {
     return "";
   }
 
   const replaced = TEAM_WORKSPACE_DISPLAY_REPLACEMENTS.reduce(
-    (current, [pattern, replacement]) =>
-      current.replace(pattern, replacement),
+    (current, [pattern, replacement]) => current.replace(pattern, replacement),
     value,
   );
 

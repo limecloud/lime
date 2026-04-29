@@ -1166,7 +1166,9 @@ export function AutomationSettings({
         return;
       }
       if (!overviewSceneAppExecutionReferenceEntry) {
-        toast.error("这条自动续上的做法还没有足够的结果基线，暂时无法直接继续。");
+        toast.error(
+          "这条自动续上的做法还没有足够的结果基线，暂时无法直接继续。",
+        );
         return;
       }
 
@@ -1813,12 +1815,18 @@ export function AutomationSettings({
                     <Table className="min-w-[1120px]">
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="min-w-[320px]">持续流程</TableHead>
+                          <TableHead className="min-w-[320px]">
+                            持续流程
+                          </TableHead>
                           <TableHead className="min-w-[140px]">归属</TableHead>
                           <TableHead className="min-w-[150px]">节奏</TableHead>
                           <TableHead className="min-w-[110px]">方式</TableHead>
-                          <TableHead className="min-w-[210px]">当前状态</TableHead>
-                          <TableHead className="min-w-[150px]">最近执行</TableHead>
+                          <TableHead className="min-w-[210px]">
+                            当前状态
+                          </TableHead>
+                          <TableHead className="min-w-[150px]">
+                            最近执行
+                          </TableHead>
                           <TableHead className="min-w-[240px] text-right">
                             操作
                           </TableHead>

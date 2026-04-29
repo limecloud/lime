@@ -68,12 +68,18 @@ function isPreviewDerivedTitle(
       typeof message.content === "string" &&
       message.content.trim().length > 0,
   );
-  if (!firstAssistantMessage || typeof firstAssistantMessage.content !== "string") {
+  if (
+    !firstAssistantMessage ||
+    typeof firstAssistantMessage.content !== "string"
+  ) {
     return false;
   }
 
   const normalizedMessage = firstAssistantMessage.content.trim();
-  const messagePrefix = normalizedMessage.slice(0, Math.max(16, normalizedTitle.length));
+  const messagePrefix = normalizedMessage.slice(
+    0,
+    Math.max(16, normalizedTitle.length),
+  );
   return (
     normalizedMessage.startsWith(normalizedTitle) ||
     normalizedTitle.startsWith(messagePrefix)

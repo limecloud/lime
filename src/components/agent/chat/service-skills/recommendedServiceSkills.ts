@@ -100,8 +100,5 @@ export function listPrimaryRecommendedServiceSkills(
   );
   const remainingSlots = Math.max(limit - limitedRecentSkills.length, 0);
 
-  return [
-    ...limitedRecentSkills,
-    ...featuredSkills.slice(0, remainingSlots),
-  ];
+  return [...limitedRecentSkills, ...featuredSkills.slice(0, remainingSlots)];
 }

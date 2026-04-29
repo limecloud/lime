@@ -8,10 +8,7 @@ import {
   type SceneAppAutomationExecutionDraft,
   type SceneAppWorkspaceExecutionDraft,
 } from "./launch";
-import type {
-  SceneAppAutomationIntent,
-  SceneAppPlanResult,
-} from "./types";
+import type { SceneAppAutomationIntent, SceneAppPlanResult } from "./types";
 import type { Page, PageParams } from "@/types/page";
 import type { CreationMode } from "@/components/agent/chat/components/types";
 import type { ChatToolPreferences } from "@/components/agent/chat/utils/chatToolPreferences";
@@ -56,8 +53,7 @@ export type ResolvedSceneAppLaunchAction =
       message: string;
     };
 
-export interface ExecuteSceneAppLaunchActionOptions
-  extends ResolveSceneAppLaunchActionOptions {
+export interface ExecuteSceneAppLaunchActionOptions extends ResolveSceneAppLaunchActionOptions {
   onNavigate?: (page: Page, params?: PageParams) => void;
   onOpenAutomationDialog?: (payload: {
     initialValues: AutomationJobDialogInitialValues;
@@ -168,8 +164,7 @@ export async function executeSceneAppLaunchAction(
         kind: "workspace_entry",
         executionDraft: resolvedAction.executionDraft,
         reason: "missing_navigate",
-        message:
-          "当前入口暂不支持切换到做法工作区，请从桌面主界面重试。",
+        message: "当前入口暂不支持切换到做法工作区，请从桌面主界面重试。",
       };
     }
 
@@ -179,7 +174,8 @@ export async function executeSceneAppLaunchAction(
 
   if (options.onOpenAutomationDialog) {
     options.onOpenAutomationDialog({
-      initialValues: resolvedAction.executionDraft.automationDialogInitialValues,
+      initialValues:
+        resolvedAction.executionDraft.automationDialogInitialValues,
       automationIntent: resolvedAction.executionDraft.automationIntent,
       executionDraft: resolvedAction.executionDraft,
     });

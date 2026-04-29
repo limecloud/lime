@@ -9,9 +9,7 @@ import type {
   TaskSchedule,
 } from "@/lib/api/automation";
 import type { BaseSetupViewerKind } from "@/lib/base-setup/types";
-import type {
-  SceneAppContextOverlay,
-} from "@/lib/context-layer";
+import type { SceneAppContextOverlay } from "@/lib/context-layer";
 
 export type {
   ContextCompilerPlan,
@@ -76,8 +74,10 @@ export interface SceneAppEntryBinding {
   aliases?: string[];
 }
 
-export interface SceneAppCompatEntryBindingInput
-  extends Omit<SceneAppEntryBinding, "bindingFamily"> {
+export interface SceneAppCompatEntryBindingInput extends Omit<
+  SceneAppEntryBinding,
+  "bindingFamily"
+> {
   bindingFamily: SceneAppBindingFamily;
 }
 
@@ -86,8 +86,10 @@ export interface SceneAppLaunchRequirement {
   message: string;
 }
 
-export interface SceneAppCompatLaunchRequirementInput
-  extends Omit<SceneAppLaunchRequirement, "kind"> {
+export interface SceneAppCompatLaunchRequirementInput extends Omit<
+  SceneAppLaunchRequirement,
+  "kind"
+> {
   kind: SceneAppLaunchRequirementKind;
 }
 
@@ -105,8 +107,10 @@ export interface SceneAppCompositionStepDescriptor {
   bindingFamily?: SceneAppExecutorBindingFamily;
 }
 
-export interface SceneAppCompatCompositionStepDescriptorInput
-  extends Omit<SceneAppCompositionStepDescriptor, "bindingFamily"> {
+export interface SceneAppCompatCompositionStepDescriptorInput extends Omit<
+  SceneAppCompositionStepDescriptor,
+  "bindingFamily"
+> {
   bindingFamily?: SceneAppBindingFamily;
 }
 
@@ -116,8 +120,10 @@ export interface SceneAppCompositionProfile {
   steps: SceneAppCompositionStepDescriptor[];
 }
 
-export interface SceneAppCompatCompositionProfileInput
-  extends Omit<SceneAppCompositionProfile, "steps"> {
+export interface SceneAppCompatCompositionProfileInput extends Omit<
+  SceneAppCompositionProfile,
+  "steps"
+> {
   steps: SceneAppCompatCompositionStepDescriptorInput[];
 }
 
@@ -152,11 +158,10 @@ export interface SceneAppDescriptor {
   sourcePackageVersion: string;
 }
 
-export interface SceneAppCompatDescriptorInput
-  extends Omit<
-    SceneAppDescriptor,
-    "sceneappType" | "entryBindings" | "launchRequirements" | "compositionProfile"
-  > {
+export interface SceneAppCompatDescriptorInput extends Omit<
+  SceneAppDescriptor,
+  "sceneappType" | "entryBindings" | "launchRequirements" | "compositionProfile"
+> {
   sceneappType: SceneAppType | SceneAppCompatType;
   entryBindings: SceneAppCompatEntryBindingInput[];
   launchRequirements: SceneAppCompatLaunchRequirementInput[];
@@ -169,8 +174,10 @@ export interface SceneAppCatalog {
   items: SceneAppDescriptor[];
 }
 
-export interface SceneAppCompatCatalogInput
-  extends Omit<SceneAppCatalog, "items"> {
+export interface SceneAppCompatCatalogInput extends Omit<
+  SceneAppCatalog,
+  "items"
+> {
   items: SceneAppCompatDescriptorInput[];
 }
 
@@ -257,8 +264,10 @@ export interface SceneAppRuntimeAdapterPlan {
   notes: string[];
 }
 
-export interface SceneAppCompatRuntimeAdapterPlanInput
-  extends Omit<SceneAppRuntimeAdapterPlan, "adapterKind" | "runtimeAction"> {
+export interface SceneAppCompatRuntimeAdapterPlanInput extends Omit<
+  SceneAppRuntimeAdapterPlan,
+  "adapterKind" | "runtimeAction"
+> {
   adapterKind: SceneAppBindingFamily;
   runtimeAction: SceneAppRuntimeAction;
 }
@@ -275,11 +284,10 @@ export interface SceneAppExecutionPlan {
   warnings: string[];
 }
 
-export interface SceneAppCompatExecutionPlanInput
-  extends Omit<
-    SceneAppExecutionPlan,
-    "executorKind" | "bindingFamily" | "stepPlan" | "adapterPlan"
-  > {
+export interface SceneAppCompatExecutionPlanInput extends Omit<
+  SceneAppExecutionPlan,
+  "executorKind" | "bindingFamily" | "stepPlan" | "adapterPlan"
+> {
   executorKind: SceneAppBindingFamily;
   bindingFamily: SceneAppBindingFamily;
   stepPlan: SceneAppCompatExecutionPlanStepInput[];
@@ -291,8 +299,10 @@ export interface SceneAppReadiness {
   unmetRequirements: SceneAppLaunchRequirement[];
 }
 
-export interface SceneAppCompatReadinessInput
-  extends Omit<SceneAppReadiness, "unmetRequirements"> {
+export interface SceneAppCompatReadinessInput extends Omit<
+  SceneAppReadiness,
+  "unmetRequirements"
+> {
   unmetRequirements: SceneAppCompatLaunchRequirementInput[];
 }
 
@@ -313,15 +323,19 @@ export interface SceneAppPlanResult {
   projectPackPlan?: SceneAppProjectPackPlan;
 }
 
-export interface SceneAppCompatPlanResultInput
-  extends Omit<SceneAppPlanResult, "descriptor" | "readiness" | "plan"> {
+export interface SceneAppCompatPlanResultInput extends Omit<
+  SceneAppPlanResult,
+  "descriptor" | "readiness" | "plan"
+> {
   descriptor: SceneAppCompatDescriptorInput;
   readiness: SceneAppCompatReadinessInput;
   plan: SceneAppCompatExecutionPlanInput;
 }
 
-export interface SceneAppCompatExecutionPlanStepInput
-  extends Omit<SceneAppExecutionPlanStep, "bindingFamily"> {
+export interface SceneAppCompatExecutionPlanStepInput extends Omit<
+  SceneAppExecutionPlanStep,
+  "bindingFamily"
+> {
   bindingFamily: SceneAppBindingFamily;
 }
 

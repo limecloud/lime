@@ -7,7 +7,9 @@ import {
 } from "./automationProjection";
 import type { BaseSetupPackage, BaseSetupProjectionIndex } from "./types";
 
-function createSkill(overrides: Partial<ServiceSkillItem> = {}): ServiceSkillItem {
+function createSkill(
+  overrides: Partial<ServiceSkillItem> = {},
+): ServiceSkillItem {
   return {
     id: "daily-trend-briefing",
     title: "每日趋势摘要",
@@ -166,9 +168,8 @@ describe("automationProjection", () => {
       JSON.stringify(snapshot),
     );
 
-    const resolved = resolveBaseSetupAutomationProjectionForSkill(
-      createSkill(),
-    );
+    const resolved =
+      resolveBaseSetupAutomationProjectionForSkill(createSkill());
 
     expect(resolved.refs).toEqual(
       expect.objectContaining({

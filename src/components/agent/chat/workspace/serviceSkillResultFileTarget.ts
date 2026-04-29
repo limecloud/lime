@@ -16,10 +16,7 @@ function isMarkdownLikePath(path: string): boolean {
   return /\.(md|markdown|mdx|txt|rst|adoc)$/i.test(path);
 }
 
-function scoreResultFileCandidate(
-  path: string,
-  sequence: number,
-): number {
+function scoreResultFileCandidate(path: string, sequence: number): number {
   return sequence + scorePreferredResultFilePath(path);
 }
 
@@ -61,14 +58,8 @@ export function resolvePreferredServiceSkillResultFileTarget(params: {
 
   const preferred = [...candidates].sort((left, right) => {
     const scoreDelta =
-      scoreResultFileCandidate(
-        right.path,
-        right.sequence,
-      ) -
-      scoreResultFileCandidate(
-        left.path,
-        left.sequence,
-      );
+      scoreResultFileCandidate(right.path, right.sequence) -
+      scoreResultFileCandidate(left.path, left.sequence);
     if (scoreDelta !== 0) {
       return scoreDelta;
     }

@@ -49,7 +49,9 @@ function shouldContinuePolling(params: {
   );
 }
 
-async function loadSceneAppExecutionRuntimeSnapshot(sceneappId: string): Promise<{
+async function loadSceneAppExecutionRuntimeSnapshot(
+  sceneappId: string,
+): Promise<{
   runs: SceneAppRunSummary[];
   scorecard: SceneAppScorecard | null;
 }> {
@@ -100,8 +102,8 @@ export function useSceneAppExecutionSummaryRuntime({
 }: UseSceneAppExecutionSummaryRuntimeParams):
   | SceneAppExecutionSummaryRuntimeState
   | undefined {
-  const [state, setState] = useState<SceneAppExecutionSummaryRuntimeState>(() =>
-    ({
+  const [state, setState] = useState<SceneAppExecutionSummaryRuntimeState>(
+    () => ({
       ...createInitialRuntimeState({
         initialSummary,
         sessionId,
@@ -115,15 +117,13 @@ export function useSceneAppExecutionSummaryRuntime({
   }, []);
 
   useEffect(() => {
-    setState(
-      {
-        ...createInitialRuntimeState({
-          initialSummary,
-          sessionId,
-        }),
-        requestRefresh,
-      },
-    );
+    setState({
+      ...createInitialRuntimeState({
+        initialSummary,
+        sessionId,
+      }),
+      requestRefresh,
+    });
   }, [initialSummary, requestRefresh, sessionId]);
 
   useEffect(() => {

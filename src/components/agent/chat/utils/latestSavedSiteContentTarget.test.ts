@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "../types";
 import { resolveLatestProjectFileSavedSiteContentTargetFromMessages } from "./latestSavedSiteContentTarget";
 
-function createAssistantMessage(
-  overrides: Partial<Message> = {},
-): Message {
+function createAssistantMessage(overrides: Partial<Message> = {}): Message {
   return {
     id: overrides.id || "assistant-message",
     role: "assistant",

@@ -17,9 +17,10 @@ type SceneAppPlanResultOverrides = {
 const mockCreateSceneAppAutomationJob = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/sceneapp", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api/sceneapp")>(
-    "@/lib/api/sceneapp",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/sceneapp")>(
+      "@/lib/api/sceneapp",
+    );
   return {
     ...actual,
     createSceneAppAutomationJob: mockCreateSceneAppAutomationJob,

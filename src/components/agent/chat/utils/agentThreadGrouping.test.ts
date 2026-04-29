@@ -274,7 +274,8 @@ describe("agentThreadGrouping", () => {
         type: "tool_call",
         tool_name: "Read",
         arguments: {
-          file_path: "/workspace/src/components/messages/CollapsedReadSearchContent.tsx",
+          file_path:
+            "/workspace/src/components/messages/CollapsedReadSearchContent.tsx",
         },
       },
     ];

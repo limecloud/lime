@@ -354,6 +354,38 @@ impl LimeBrowserMcpTool {
 
         true
     }
+
+    pub(crate) fn attach_modality_runtime_contract_metadata(
+        mut tool_result: ToolResult,
+        session_hint: Option<&BrowserAssistRuntimeHint>,
+    ) -> ToolResult {
+        let Some(contract) = session_hint.and_then(|hint| hint.modality_runtime_contract.as_ref())
+        else {
+            return tool_result;
+        };
+
+        tool_result = tool_result
+            .with_metadata(
+                "modality_contract_key",
+                serde_json::json!(contract.contract_key.clone()),
+            )
+            .with_metadata("modality", serde_json::json!(contract.modality.clone()))
+            .with_metadata(
+                "required_capabilities",
+                serde_json::json!(contract.required_capabilities.clone()),
+            )
+            .with_metadata(
+                "routing_slot",
+                serde_json::json!(contract.routing_slot.clone()),
+            )
+            .with_metadata("runtime_contract", contract.runtime_contract.clone())
+            .with_metadata("modality_runtime_contract", contract.metadata_value());
+        if let Some(entry_source) = contract.entry_source.as_ref() {
+            tool_result =
+                tool_result.with_metadata("entry_source", serde_json::json!(entry_source));
+        }
+        tool_result
+    }
 }
 
 #[async_trait]
@@ -486,6 +518,8 @@ impl Tool for LimeBrowserMcpTool {
             if let Some(browser_session) = browser_session_metadata {
                 tool_result = tool_result.with_metadata("browser_session", browser_session);
             }
+            tool_result =
+                Self::attach_modality_runtime_contract_metadata(tool_result, session_hint.as_ref());
             Ok(tool_result)
         } else {
             let mut tool_result = ToolResult::error(
@@ -505,6 +539,8 @@ impl Tool for LimeBrowserMcpTool {
             if let Some(browser_session) = browser_session_metadata {
                 tool_result = tool_result.with_metadata("browser_session", browser_session);
             }
+            tool_result =
+                Self::attach_modality_runtime_contract_metadata(tool_result, session_hint.as_ref());
             Ok(tool_result)
         }
     }

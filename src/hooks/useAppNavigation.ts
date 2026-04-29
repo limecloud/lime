@@ -81,10 +81,7 @@ export function useAppNavigation(): UseAppNavigationResult {
         currentPageParamsKey: current.requestedPageParamsKey,
       };
     });
-  }, [
-    navigationState.requestedPage,
-    navigationState.requestedPageParamsKey,
-  ]);
+  }, [navigationState.requestedPage, navigationState.requestedPageParamsKey]);
 
   const isNavigating =
     navigationState.currentPage !== navigationState.requestedPage ||

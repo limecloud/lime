@@ -100,6 +100,7 @@ interface SelectedTeamPreferenceSessionSyncOptions {
     sessionId: string,
     team: TeamDefinition | null,
     theme?: string | null,
+    options?: { priority?: "immediate" | "background" },
   ) => Promise<void>;
 }
 
@@ -172,7 +173,13 @@ export function useSelectedTeamPreference(
   const lastHydratedSourceRef = useRef<string | null>(null);
   const lastBackfilledSourceRef = useRef<string | null>(null);
   const pendingSessionTeamSyncRef = useRef(
-    new Map<string, TeamDefinition | null>(),
+    new Map<
+      string,
+      {
+        team: TeamDefinition | null;
+        options?: { priority?: "immediate" | "background" };
+      }
+    >(),
   );
 
   if (lastScopeKeyRef.current !== scopeKey) {
@@ -183,14 +190,26 @@ export function useSelectedTeamPreference(
   }
 
   const scheduleSessionRecentTeamSelectionSync = useCallback(
-    (team: TeamDefinition | null) => {
+    (
+      team: TeamDefinition | null,
+      options?: { priority?: "immediate" | "background" },
+    ) => {
       if (!currentSessionId || !sessionSync?.setSessionRecentTeamSelection) {
         return;
       }
 
       const pending = pendingSessionTeamSyncRef.current;
+      const previous = pending.get(currentSessionId);
       const alreadyQueued = pending.has(currentSessionId);
-      pending.set(currentSessionId, team);
+      const shouldUseBackgroundSync =
+        (!previous || previous.options?.priority === "background") &&
+        options?.priority === "background";
+      pending.set(currentSessionId, {
+        team,
+        options: shouldUseBackgroundSync
+          ? { priority: "background" }
+          : undefined,
+      });
       if (alreadyQueued) {
         return;
       }
@@ -200,13 +219,24 @@ export function useSelectedTeamPreference(
           return;
         }
 
-        const latestTeam = pending.get(currentSessionId) ?? null;
+        const latest = pending.get(currentSessionId);
         pending.delete(currentSessionId);
-        void sessionSync
-          .setSessionRecentTeamSelection(currentSessionId, latestTeam, theme)
-          .catch((error) => {
-            console.warn("[Team] 回写会话 recent_team_selection 失败:", error);
-          });
+        const latestTeam = latest?.team ?? null;
+        const syncPromise = latest?.options
+          ? sessionSync.setSessionRecentTeamSelection(
+              currentSessionId,
+              latestTeam,
+              theme,
+              latest.options,
+            )
+          : sessionSync.setSessionRecentTeamSelection(
+              currentSessionId,
+              latestTeam,
+              theme,
+            );
+        void syncPromise.catch((error) => {
+          console.warn("[Team] 回写会话 recent_team_selection 失败:", error);
+        });
       });
     },
     [currentSessionId, sessionSync, theme],
@@ -227,7 +257,9 @@ export function useSelectedTeamPreference(
       }
 
       if (lastBackfilledSourceRef.current !== fallbackSourceKey) {
-        scheduleSessionRecentTeamSelectionSync(fallbackTeam);
+        scheduleSessionRecentTeamSelectionSync(fallbackTeam, {
+          priority: "background",
+        });
         lastBackfilledSourceRef.current = fallbackSourceKey;
       }
       return;
@@ -266,7 +298,9 @@ export function useSelectedTeamPreference(
     }
 
     if (lastBackfilledSourceRef.current !== fallbackSourceKey) {
-      scheduleSessionRecentTeamSelectionSync(fallbackTeam);
+      scheduleSessionRecentTeamSelectionSync(fallbackTeam, {
+        priority: "background",
+      });
       lastBackfilledSourceRef.current = fallbackSourceKey;
     }
   }, [

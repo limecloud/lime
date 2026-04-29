@@ -1,7 +1,4 @@
-import type {
-  BaseSetupPackage,
-  BaseSetupProjectionIndex,
-} from "./types";
+import type { BaseSetupPackage, BaseSetupProjectionIndex } from "./types";
 
 export const BASE_SETUP_PACKAGE_STORAGE_KEY = "lime:base-setup-package:v1";
 

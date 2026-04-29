@@ -193,12 +193,8 @@ describe("AutomationJobDetailsDialog", () => {
           actionLabel: "建议继续优化",
           topFailureSignalLabel: "复核阻塞",
           profileRef: "story-video-scorecard",
-          metricKeys: [
-            { key: "complete_pack_rate", label: "整包交付率" },
-          ],
-          failureSignals: [
-            { key: "review_blocked", label: "复核阻塞" },
-          ],
+          metricKeys: [{ key: "complete_pack_rate", label: "整包交付率" }],
+          failureSignals: [{ key: "review_blocked", label: "复核阻塞" }],
           observedFailureSignals: [
             { key: "artifact_validation_issue", label: "结果结构校验问题" },
           ],
@@ -369,7 +365,9 @@ describe("AutomationJobDetailsDialog", () => {
     await renderDialog();
 
     expect(getBodyText()).toContain("持续流程详情");
-    expect(getBodyText()).toContain("查看这条持续流程的状态、输出去向和最近运行。");
+    expect(getBodyText()).toContain(
+      "查看这条持续流程的状态、输出去向和最近运行。",
+    );
     expect(getBodyText()).toContain("归属：默认工作区");
     expect(getBodyText()).not.toContain(
       "查看这条持续流程的状态、输出去向和最近运行；需要迁移旧浏览器流程时，也在这里确认遗留配置和风险提示。",

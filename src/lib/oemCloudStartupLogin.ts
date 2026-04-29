@@ -68,8 +68,8 @@ function hasCurrentTenantSession(runtime: OemCloudRuntimeContext): boolean {
   const sessionTenantSlug = storedSession?.session.tenant.slug?.trim();
   return Boolean(
     storedSession?.token &&
-      (sessionTenantId === runtimeTenantId ||
-        sessionTenantSlug === runtimeTenantId),
+    (sessionTenantId === runtimeTenantId ||
+      sessionTenantSlug === runtimeTenantId),
   );
 }
 

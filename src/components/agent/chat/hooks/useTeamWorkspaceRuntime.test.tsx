@@ -67,12 +67,7 @@ async function renderHookProbe(props?: Partial<HookProps>, deps?: HookDeps) {
   const render = async (nextProps?: Partial<HookProps>) => {
     await act(async () => {
       root.render(
-        <HookProbe
-          {...defaultProps}
-          {...props}
-          {...nextProps}
-          deps={deps}
-        />,
+        <HookProbe {...defaultProps} {...props} {...nextProps} deps={deps} />,
       );
       await Promise.resolve();
     });
@@ -180,8 +175,14 @@ describe("useTeamWorkspaceRuntime", () => {
   });
 
   it("注入自定义 eventSource 时，不应再直接依赖默认 safeListen", async () => {
-    const statusListeners = new Map<string, (event: { payload: unknown }) => void>();
-    const streamListeners = new Map<string, (event: { payload: unknown }) => void>();
+    const statusListeners = new Map<
+      string,
+      (event: { payload: unknown }) => void
+    >();
+    const streamListeners = new Map<
+      string,
+      (event: { payload: unknown }) => void
+    >();
     const eventSource = {
       listenSubagentStatus: vi.fn(
         async (

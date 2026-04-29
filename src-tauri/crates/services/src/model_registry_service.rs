@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use url::form_urlencoded;
 
 /// 内嵌的模型资源目录名（相对于 resource_dir）
 /// 对应 tauri.conf.json 中的 "resources/models/**/*"
@@ -27,6 +28,8 @@ const MODELS_RESOURCE_DIR: &str = "resources/models";
 const MODELS_HOST_ALIASES_FILE: &str = "host_aliases.json";
 const MODELS_HOST_ALIASES_USER_FILE: &str = "host_aliases.user.json";
 const DEFAULT_USER_HOST_ALIASES_TEMPLATE: &str = "{\n  \"rules\": []\n}\n";
+const LIME_TENANT_HEADER: &str = "X-Lime-Tenant-ID";
+const LIME_TENANT_PARAM: &str = "lime_tenant_id";
 
 /// 仓库索引文件结构
 #[derive(Debug, Deserialize)]
@@ -2592,6 +2595,77 @@ impl ModelRegistryService {
         }
     }
 
+    fn parse_api_host_url(api_host: &str) -> Option<reqwest::Url> {
+        let trimmed = api_host.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        reqwest::Url::parse(trimmed)
+            .or_else(|_| reqwest::Url::parse(&format!("https://{trimmed}")))
+            .ok()
+    }
+
+    fn api_host_without_query_fragment(api_host: &str) -> String {
+        let trimmed = api_host.trim().trim_end_matches('/');
+        if trimmed.is_empty() {
+            return String::new();
+        }
+
+        let had_scheme = trimmed.starts_with("http://") || trimmed.starts_with("https://");
+        if let Some(mut url) = Self::parse_api_host_url(trimmed) {
+            url.set_query(None);
+            url.set_fragment(None);
+            let normalized = url.to_string().trim_end_matches('/').to_string();
+            return if had_scheme {
+                normalized
+            } else {
+                normalized
+                    .trim_start_matches("https://")
+                    .trim_end_matches('/')
+                    .to_string()
+            };
+        }
+
+        trimmed
+            .split(['?', '#'])
+            .next()
+            .unwrap_or(trimmed)
+            .trim_end_matches('/')
+            .to_string()
+    }
+
+    fn normalize_lime_tenant_id(value: &str) -> Option<String> {
+        let tenant_id = value.trim();
+        if tenant_id.is_empty() {
+            return None;
+        }
+
+        tenant_id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+            .then(|| tenant_id.to_string())
+    }
+
+    fn parse_lime_tenant_id_from_pairs(value: &str) -> Option<String> {
+        form_urlencoded::parse(value.as_bytes()).find_map(|(key, value)| {
+            (key == LIME_TENANT_PARAM)
+                .then(|| Self::normalize_lime_tenant_id(&value))
+                .flatten()
+        })
+    }
+
+    fn lime_tenant_id_from_api_host(api_host: &str) -> Option<String> {
+        let url = Self::parse_api_host_url(api_host)?;
+
+        url.query()
+            .and_then(Self::parse_lime_tenant_id_from_pairs)
+            .or_else(|| {
+                url.fragment()
+                    .and_then(Self::parse_lime_tenant_id_from_pairs)
+            })
+    }
+
     fn build_gemini_models_api_url(api_host: &str) -> String {
         let host = api_host.trim_end_matches('/');
 
@@ -2707,8 +2781,10 @@ impl ModelRegistryService {
 
     fn build_models_api_hint(provider_id: &str, api_host: &str, api_url: &str) -> Option<String> {
         let normalized_host = normalize_openai_model_discovery_host(api_host);
-        let original_host = api_host.trim().trim_end_matches('/');
-        if !original_host.is_empty() && normalized_host.trim_end_matches('/') != original_host {
+        let original_host = Self::api_host_without_query_fragment(api_host);
+        if !original_host.is_empty()
+            && normalized_host.trim_end_matches('/') != original_host.trim_end_matches('/')
+        {
             return Some(format!(
                 "当前 API Host 看起来是具体接口地址而不是基础地址。Lime 已自动回退到 `{api_url}` 尝试模型枚举；如果上游本身不提供 `/models`，请改填基础 API Host，或直接在 Provider 中填写自定义模型。"
             ));
@@ -2815,6 +2891,9 @@ impl ModelRegistryService {
 
         for (name, value) in runtime_spec.extra_headers {
             headers.push(((*name).to_string(), (*value).to_string()));
+        }
+        if let Some(tenant_id) = Self::lime_tenant_id_from_api_host(normalized_host) {
+            headers.push((LIME_TENANT_HEADER.to_string(), tenant_id));
         }
 
         Ok(PreparedModelFetchRequest {
@@ -3445,7 +3524,7 @@ pub struct FetchModelsResult {
 
 #[cfg(test)]
 mod tests {
-    use super::{HostAliasRule, ModelFetchProtocol, ModelRegistryService};
+    use super::{HostAliasRule, ModelFetchProtocol, ModelRegistryService, LIME_TENANT_HEADER};
     use lime_core::database::dao::api_key_provider::ApiProviderType;
     use lime_core::database::DbConnection;
     use rusqlite::Connection;
@@ -3484,6 +3563,38 @@ mod tests {
             ),
             "https://gateway.example.com/proxy/v1/models"
         );
+    }
+
+    #[test]
+    fn test_prepare_model_fetch_request_adds_lime_tenant_header_from_fragment() {
+        let request = ModelRegistryService::prepare_model_fetch_request(
+            "lime-hub",
+            "https://llm.limeai.run#lime_tenant_id=tenant-0001",
+            "sk-lime-test",
+            Some(ApiProviderType::Openai),
+        )
+        .expect("prepare Lime model fetch request");
+
+        assert_eq!(request.url, "https://llm.limeai.run/v1/models");
+        assert!(request
+            .headers
+            .iter()
+            .any(|(name, value)| { name == "Authorization" && value == "Bearer sk-lime-test" }));
+        assert!(request
+            .headers
+            .iter()
+            .any(|(name, value)| { name == LIME_TENANT_HEADER && value == "tenant-0001" }));
+    }
+
+    #[test]
+    fn test_build_models_api_hint_ignores_lime_tenant_fragment() {
+        let hint = ModelRegistryService::build_models_api_hint(
+            "lime-hub",
+            "https://llm.limeai.run#lime_tenant_id=tenant-0001",
+            "https://llm.limeai.run/v1/models",
+        );
+
+        assert_eq!(hint, None);
     }
 
     #[test]

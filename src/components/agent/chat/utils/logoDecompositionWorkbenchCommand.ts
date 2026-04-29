@@ -7,8 +7,10 @@ export type LogoDecompositionWorkbenchCommandTrigger =
   | "@Logo拆解"
   | "@Image Logo Decomposition";
 
-export interface ParsedLogoDecompositionWorkbenchCommand
-  extends Omit<ParsedAnalysisWorkbenchCommand, "trigger"> {
+export interface ParsedLogoDecompositionWorkbenchCommand extends Omit<
+  ParsedAnalysisWorkbenchCommand,
+  "trigger"
+> {
   trigger: LogoDecompositionWorkbenchCommandTrigger;
   analysisMode: "image_logo_decomposition";
 }
@@ -38,14 +40,17 @@ export function parseLogoDecompositionWorkbenchCommand(
   }
 
   const body = (matched[2] || "").trim();
-  const delegatedAnalysisCommand = parseAnalysisWorkbenchCommand(`@分析 ${body}`);
+  const delegatedAnalysisCommand = parseAnalysisWorkbenchCommand(
+    `@分析 ${body}`,
+  );
 
   return {
     rawText: text,
     trigger: normalizeTrigger(matched[1] || ""),
     body,
     prompt:
-      delegatedAnalysisCommand?.prompt.trim() || DEFAULT_LOGO_DECOMPOSITION_PROMPT,
+      delegatedAnalysisCommand?.prompt.trim() ||
+      DEFAULT_LOGO_DECOMPOSITION_PROMPT,
     content: delegatedAnalysisCommand?.content,
     focus: delegatedAnalysisCommand?.focus,
     style: delegatedAnalysisCommand?.style,

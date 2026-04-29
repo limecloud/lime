@@ -54,6 +54,10 @@ import {
   buildHomeAgentParams,
 } from "@/lib/workspace/navigation";
 import {
+  notifyTaskCenterTaskOpen,
+  requestTaskCenterDraftTask,
+} from "@/components/agent/chat/taskCenterDraftTaskEvents";
+import {
   listAgentRuntimeSessions,
   updateAgentRuntimeSession,
   type AsterSessionInfo,
@@ -91,13 +95,16 @@ import { clearSkillCatalogCache } from "@/lib/api/skillCatalog";
 import { clearServiceSkillCatalogCache } from "@/lib/api/serviceSkills";
 import {
   getClientReferralDashboard,
+  getConfiguredOemCloudTarget,
   logoutClient,
   type OemCloudBootstrapResponse,
   type OemCloudReferralDashboard,
 } from "@/lib/api/oemCloudControlPlane";
 import { clearSiteAdapterCatalogCache } from "@/lib/siteAdapterCatalogBootstrap";
 import {
+  buildOemCloudUserCenterUrl,
   createExternalBrowserOpenTarget,
+  openExternalUrl,
   startOemCloudLogin,
 } from "@/lib/oemCloudLoginLauncher";
 import {
@@ -1961,7 +1968,8 @@ export function AppSidebar({
   const agentEntry = (activePageParams as AgentPageParams | undefined)
     ?.agentEntry;
   const activeAgentPageParams = activePageParams as AgentPageParams | undefined;
-  const isClawTaskCenter = activePage === "agent" && agentEntry === "claw";
+  const isAgentWorkspace = activePage === "agent";
+  const isClawTaskCenter = isAgentWorkspace && agentEntry === "claw";
   const isNewTaskHome = activePage === "agent" && agentEntry === "new-task";
   const [rememberedProjectId, setRememberedProjectId] = useState<string | null>(
     () =>
@@ -2815,8 +2823,18 @@ export function AppSidebar({
     return activePage === item.page;
   };
 
+  const tryOpenTaskCenterDraftFromSidebar = useCallback(() => {
+    return (
+      isAgentWorkspace && requestTaskCenterDraftTask({ source: "sidebar" })
+    );
+  }, [isAgentWorkspace]);
+
   const handleNavigate = (item: SidebarNavItem) => {
     if (item.id === "home-general") {
+      if (tryOpenTaskCenterDraftFromSidebar()) {
+        return;
+      }
+
       const targetParams = buildHomeAgentParams({
         projectId: currentProjectId ?? undefined,
       });
@@ -2926,6 +2944,14 @@ export function AppSidebar({
   };
 
   const handleNavigateToConversation = (session: AsterSessionInfo) => {
+    if (isClawTaskCenter) {
+      notifyTaskCenterTaskOpen({
+        sessionId: session.id,
+        workspaceId: session.workspace_id ?? currentProjectId ?? null,
+        source: "sidebar",
+      });
+    }
+
     const targetParams = buildClawAgentParams({
       projectId: session.workspace_id ?? currentProjectId ?? undefined,
       initialSessionId: session.id,
@@ -2951,6 +2977,10 @@ export function AppSidebar({
   };
 
   const handleNavigateToNewTask = () => {
+    if (tryOpenTaskCenterDraftFromSidebar()) {
+      return;
+    }
+
     const targetParams = buildHomeAgentParams({
       projectId: currentProjectId ?? undefined,
     });
@@ -3095,6 +3125,32 @@ export function AppSidebar({
       setAccountLoginPending(false);
     }
   }, [cloudBrandLabel]);
+
+  const handleOpenAccountUserCenter = useCallback(
+    async (path = "/welcome") => {
+      setAccountMenuOpen(false);
+      setLanguageMenuOpen(false);
+
+      try {
+        const target = getConfiguredOemCloudTarget();
+        const browserTarget = createExternalBrowserOpenTarget();
+        await openExternalUrl(
+          buildOemCloudUserCenterUrl(target.baseUrl, path),
+          {
+            browserTarget,
+          },
+        );
+        toast.success(`已打开 ${cloudBrandLabel} 用户中心`);
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message.trim()
+            : `打开 ${cloudBrandLabel} 用户中心失败`;
+        toast.error(message);
+      }
+    },
+    [cloudBrandLabel],
+  );
 
   const handleAccountLogout = useCallback(async () => {
     const tenantId = cloudSessionState?.session.tenant.id;
@@ -3505,10 +3561,7 @@ export function AppSidebar({
                     aria-label="查看套餐详情"
                     data-testid="app-sidebar-cloud-account-card"
                     onClick={() =>
-                      handleAccountMenuNavigate({
-                        tab: SettingsTabs.Providers,
-                        providerView: "cloud",
-                      })
+                      void handleOpenAccountUserCenter("/billing?tab=usage")
                     }
                   >
                     <AccountPlanHeader>
@@ -3680,9 +3733,7 @@ export function AppSidebar({
                       type="button"
                       aria-label="用户中心"
                       onClick={() =>
-                        handleAccountMenuNavigate({
-                          tab: SettingsTabs.Profile,
-                        })
+                        void handleOpenAccountUserCenter("/welcome")
                       }
                     >
                       <AccountMenuItemLeading>
@@ -3713,10 +3764,7 @@ export function AppSidebar({
                       type="button"
                       aria-label={cloudBrandLabel}
                       onClick={() =>
-                        handleAccountMenuNavigate({
-                          tab: SettingsTabs.Providers,
-                          providerView: "cloud",
-                        })
+                        void handleOpenAccountUserCenter("/welcome")
                       }
                     >
                       <AccountMenuItemLeading>

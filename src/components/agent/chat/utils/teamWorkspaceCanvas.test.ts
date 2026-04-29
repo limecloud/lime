@@ -9,7 +9,9 @@ import {
 
 describe("teamWorkspaceCanvas", () => {
   it("应暴露稳定的画布交互常量", () => {
-    expect(TEAM_WORKSPACE_CANVAS_STAGE_HEIGHT).toBe("clamp(540px, 74vh, 920px)");
+    expect(TEAM_WORKSPACE_CANVAS_STAGE_HEIGHT).toBe(
+      "clamp(540px, 74vh, 920px)",
+    );
     expect(TEAM_WORKSPACE_CANVAS_KEYBOARD_PAN_STEP).toBe(72);
     expect(TEAM_WORKSPACE_CANVAS_KEYBOARD_FAST_PAN_STEP).toBe(216);
   });
@@ -20,17 +22,17 @@ describe("teamWorkspaceCanvas", () => {
     const child = document.createElement("button");
     surface.appendChild(child);
 
-    expect(
-      canStartTeamWorkspaceCanvasPanGesture(child, surface, false),
-    ).toBe(true);
+    expect(canStartTeamWorkspaceCanvasPanGesture(child, surface, false)).toBe(
+      true,
+    );
 
     const blocked = document.createElement("div");
     blocked.setAttribute("data-team-workspace-canvas-pan-block", "true");
     surface.appendChild(blocked);
 
-    expect(
-      canStartTeamWorkspaceCanvasPanGesture(blocked, surface, false),
-    ).toBe(false);
+    expect(canStartTeamWorkspaceCanvasPanGesture(blocked, surface, false)).toBe(
+      false,
+    );
     expect(canStartTeamWorkspaceCanvasPanGesture(blocked, surface, true)).toBe(
       true,
     );

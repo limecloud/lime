@@ -1,5 +1,4 @@
-export const OEM_CLOUD_PAYMENT_RETURN_EVENT =
-  "lime:oem-cloud-payment-return";
+export const OEM_CLOUD_PAYMENT_RETURN_EVENT = "lime:oem-cloud-payment-return";
 
 const OEM_CLOUD_PAYMENT_RETURN_STORAGE_KEY =
   "lime:oem-cloud-payment-return:last";
@@ -27,8 +26,7 @@ export interface BuildOemCloudPaymentReturnUrlInput {
   status?: string;
 }
 
-export interface BuildOemCloudPaymentReturnBridgeUrlInput
-  extends BuildOemCloudPaymentReturnUrlInput {
+export interface BuildOemCloudPaymentReturnBridgeUrlInput extends BuildOemCloudPaymentReturnUrlInput {
   controlPlaneBaseUrl: string;
   provider: string;
 }
@@ -158,9 +156,7 @@ export function storeOemCloudPaymentReturn(
   );
 }
 
-export function readStoredOemCloudPaymentReturn():
-  | OemCloudPaymentReturnDetail
-  | null {
+export function readStoredOemCloudPaymentReturn(): OemCloudPaymentReturnDetail | null {
   if (typeof window === "undefined") {
     return null;
   }

@@ -16,10 +16,7 @@ import {
   updateTaskCenterTabIdsForWorkspace,
 } from "./taskCenterTabs";
 
-function createTopic(
-  id: string,
-  overrides?: Partial<Topic>,
-): Topic {
+function createTopic(id: string, overrides?: Partial<Topic>): Topic {
   return {
     id,
     title: id,

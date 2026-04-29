@@ -8,6 +8,17 @@
  */
 
 import { safeInvoke } from "@/lib/dev-bridge";
+import {
+  DEFAULT_OEM_LIME_HUB_PROVIDER_NAME,
+  OEM_LIME_HUB_PROVIDER_ID,
+  buildOemLimeHubApiHost,
+} from "@/lib/oemLimeHubProvider";
+import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
+import {
+  LIME_HUB_LOCAL_DEV_MODEL_IDS,
+  shouldUseLimeHubLocalDevModels,
+} from "@/lib/model/limeHubLocalDevModels";
+import { hasTauriRuntimeMarkers } from "@/lib/tauri-runtime";
 import type { ProviderDeclaredPromptCacheMode } from "@/lib/types/provider";
 
 interface ProviderQueryOptions {
@@ -16,6 +27,8 @@ interface ProviderQueryOptions {
 
 let providersCache: ProviderWithKeysDisplay[] | null = null;
 let providersLoadingPromise: Promise<ProviderWithKeysDisplay[]> | null = null;
+const LOCAL_DEV_LIME_HUB_API_HOST =
+  "https://llm.limeai.run#lime_tenant_id=tenant-0001";
 
 function cloneProviderList(
   providers: ProviderWithKeysDisplay[],
@@ -35,6 +48,47 @@ function cloneProviderList(
 export function invalidateApiKeyProviderCache(): void {
   providersCache = null;
   providersLoadingPromise = null;
+}
+
+function canUseLocalDevProviderMock(): boolean {
+  return shouldUseLimeHubLocalDevModels() && !hasTauriRuntimeMarkers();
+}
+
+function buildLocalDevLimeHubProviders(): ProviderWithKeysDisplay[] {
+  const runtime = resolveOemCloudRuntimeContext();
+  const apiHost =
+    buildOemLimeHubApiHost(runtime) ?? LOCAL_DEV_LIME_HUB_API_HOST;
+  const now = new Date().toISOString();
+
+  return [
+    {
+      id: OEM_LIME_HUB_PROVIDER_ID,
+      name: runtime?.hubProviderName ?? DEFAULT_OEM_LIME_HUB_PROVIDER_NAME,
+      type: "openai",
+      api_host: apiHost,
+      is_system: true,
+      group: "oem_cloud",
+      enabled: true,
+      sort_order: 0,
+      custom_models: [...LIME_HUB_LOCAL_DEV_MODEL_IDS],
+      prompt_cache_mode: null,
+      api_key_count: 1,
+      created_at: now,
+      updated_at: now,
+      api_keys: [
+        {
+          id: "local-dev-lime-hub-key",
+          provider_id: OEM_LIME_HUB_PROVIDER_ID,
+          api_key_masked: "local-dev-mock",
+          alias: "本地开发 mock",
+          enabled: true,
+          usage_count: 0,
+          error_count: 0,
+          created_at: now,
+        },
+      ],
+    },
+  ];
 }
 
 async function loadProviders(
@@ -61,7 +115,16 @@ async function loadProviders(
       });
   }
 
-  return cloneProviderList(await providersLoadingPromise);
+  try {
+    return cloneProviderList(await providersLoadingPromise);
+  } catch (error) {
+    if (!canUseLocalDevProviderMock()) {
+      throw error;
+    }
+
+    providersCache = buildLocalDevLimeHubProviders();
+    return cloneProviderList(providersCache);
+  }
 }
 
 async function invalidateAfterMutation<T>(promise: Promise<T>): Promise<T> {

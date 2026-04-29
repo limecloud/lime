@@ -41,9 +41,7 @@ interface SceneAppExecutionSummaryCardProps {
   quickReviewActions?: SceneAppQuickReviewAction[];
   quickReviewPending?: boolean;
   onOpenHumanReview?: () => void;
-  onApplyQuickReview?: (
-    actionKey: SceneAppQuickReviewAction["key"],
-  ) => void;
+  onApplyQuickReview?: (actionKey: SceneAppQuickReviewAction["key"]) => void;
   onDeliveryArtifactAction?: (
     action: SceneAppRunDetailViewModel["deliveryArtifactEntries"][number],
   ) => void;
@@ -103,7 +101,9 @@ function ReviewFeedbackProjectionBanner({
             size="sm"
             className="h-8 rounded-full border-sky-200 bg-white px-3 text-xs font-medium text-slate-700 hover:border-sky-300 hover:bg-sky-50"
             data-testid="sceneapp-execution-summary-review-feedback-action"
-            onClick={() => onContinueReviewFeedback(primarySuggestedTask.taskId)}
+            onClick={() =>
+              onContinueReviewFeedback(primarySuggestedTask.taskId)
+            }
           >
             继续去「{primarySuggestedTask.title}」
           </Button>
@@ -273,13 +273,13 @@ export function SceneAppExecutionSummaryCard({
       : "待补齐");
   const hasFollowupSection = Boolean(
     onReviewCurrentProject ||
-      onSaveAsInspiration ||
-      onSaveAsSkill ||
-      onOpenSceneAppDetail ||
-      onOpenSceneAppGovernance ||
-      humanReviewAvailable ||
-      quickReviewActions.length ||
-      latestPackResultDetailView,
+    onSaveAsInspiration ||
+    onSaveAsSkill ||
+    onOpenSceneAppDetail ||
+    onOpenSceneAppGovernance ||
+    humanReviewAvailable ||
+    quickReviewActions.length ||
+    latestPackResultDetailView,
   );
   const resolveFollowupDestinationAction = (
     destination: SceneAppExecutionFollowupDestination,
@@ -567,22 +567,30 @@ export function SceneAppExecutionSummaryCard({
               <>
                 <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
                   <div>
-                    <span className="font-medium text-slate-900">结果形态：</span>
+                    <span className="font-medium text-slate-900">
+                      结果形态：
+                    </span>
                     {summary.projectPackPlan.packKindLabel}
                   </div>
                   <div>
-                    <span className="font-medium text-slate-900">完成判断：</span>
+                    <span className="font-medium text-slate-900">
+                      完成判断：
+                    </span>
                     {summary.projectPackPlan.completionStrategyLabel}
                   </div>
                   {summary.projectPackPlan.primaryPart ? (
                     <div>
-                      <span className="font-medium text-slate-900">默认主结果：</span>
+                      <span className="font-medium text-slate-900">
+                        默认主结果：
+                      </span>
                       {summary.projectPackPlan.primaryPart}
                     </div>
                   ) : null}
                   {summary.projectPackPlan.viewerLabel ? (
                     <div>
-                      <span className="font-medium text-slate-900">查看入口：</span>
+                      <span className="font-medium text-slate-900">
+                        查看入口：
+                      </span>
                       {summary.projectPackPlan.viewerLabel}
                     </div>
                   ) : null}
@@ -916,7 +924,9 @@ export function SceneAppExecutionSummaryCard({
                           data-testid="sceneapp-execution-summary-entry-action"
                           className="rounded-[18px] border border-slate-200 bg-white p-3 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
                           onClick={() =>
-                            onEntryAction?.(latestPackResultDetailView.entryAction!)
+                            onEntryAction?.(
+                              latestPackResultDetailView.entryAction!,
+                            )
                           }
                         >
                           <div className="text-sm font-medium text-slate-900">

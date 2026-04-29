@@ -53,4 +53,3 @@ describe("resolveWebsiteOpenNavigation", () => {
     ).toBeNull();
   });
 });
-

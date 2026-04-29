@@ -99,7 +99,9 @@ describe("formationDisplaySelectors", () => {
       },
     });
 
-    expect(state.panelDescription).toBe("Provider 认证失败，无法生成分工方案。");
+    expect(state.panelDescription).toBe(
+      "Provider 认证失败，无法生成分工方案。",
+    );
     expect(state.emptyDetail).toBe("Provider 认证失败，无法生成分工方案。");
     expect(state.noticeText).toBe("Provider 认证失败，无法生成分工方案。");
   });

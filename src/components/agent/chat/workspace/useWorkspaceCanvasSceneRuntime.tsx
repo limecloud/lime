@@ -262,8 +262,7 @@ interface UseWorkspaceCanvasScenePresentationRuntimeParams {
     teamWorkbench: UseWorkspaceCanvasPreviewRuntimeParams["teamWorkbench"];
   };
 }
-interface WorkspaceCanvasScenePresentationRuntimeResult extends
-  WorkspaceCanvasPreviewRuntimeResult {
+interface WorkspaceCanvasScenePresentationRuntimeResult extends WorkspaceCanvasPreviewRuntimeResult {
   canvasRenderTheme: ThemeType;
   shouldShowCanvasLoadingState: boolean;
 }
@@ -387,8 +386,7 @@ export function buildCanvasTeamWorkbenchView({
   const executionSummary = summarizeTeamWorkspaceExecution({
     currentSessionId: surfaceProps.currentSessionId,
     currentSessionRuntimeStatus: surfaceProps.currentSessionRuntimeStatus,
-    currentSessionLatestTurnStatus:
-      surfaceProps.currentSessionLatestTurnStatus,
+    currentSessionLatestTurnStatus: surfaceProps.currentSessionLatestTurnStatus,
     currentSessionQueuedTurnCount: surfaceProps.currentSessionQueuedTurnCount,
     childSubagentSessions: surfaceProps.childSubagentSessions,
     subagentParentContext: surfaceProps.subagentParentContext,
@@ -428,8 +426,7 @@ export function buildCanvasTeamWorkbenchView({
 
   const leadStatus =
     triggerState?.label?.trim() || executionSummary.statusTitle || "待机";
-  const leadDetail =
-    executionSummary.statusTitle || "当前没有活跃的任务执行。";
+  const leadDetail = executionSummary.statusTitle || "当前没有活跃的任务执行。";
   const summaryStats: CanvasWorkbenchSummaryStat[] = [
     {
       key: "team-status",
@@ -764,13 +761,13 @@ function useWorkspaceCanvasPreviewRuntime({
       return Boolean(
         (artifactPreview.currentCanvasArtifact &&
           artifactPreview.displayedCanvasArtifact) ||
-          hasRenderableGeneralCanvasPreview(defaultPreview.generalCanvasState),
+        hasRenderableGeneralCanvasPreview(defaultPreview.generalCanvasState),
       );
     }
 
     return Boolean(
       loading.shouldShowCanvasLoadingState ||
-        defaultPreview.resolvedCanvasState,
+      defaultPreview.resolvedCanvasState,
     );
   }, [
     artifactPreview.currentCanvasArtifact,
@@ -1054,7 +1051,7 @@ function useWorkspaceCanvasScenePresentationRuntime({
       imageWorkbenchProviders.map((provider) => ({
         id: provider.id,
         name: provider.name,
-    })),
+      })),
     [imageWorkbenchProviders],
   );
 
@@ -1086,7 +1083,7 @@ function useWorkspaceCanvasScenePresentationRuntime({
   return {
     canvasRenderTheme,
     shouldShowCanvasLoadingState,
-      ...previewPresentation,
+    ...previewPresentation,
   };
 }
 
@@ -1150,7 +1147,9 @@ interface UseWorkspaceCanvasSceneRuntimeParams {
   handleDocumentTextStylizeRun: CanvasFactoryParams["onTextStylizeRun"];
   preferContentReviewInRightRail: CanvasFactoryParams["preferContentReviewInRightRail"];
   teamWorkspaceEnabled: TeamWorkbenchParams["enabled"];
-  liveActivityBySessionId: NonNullable<TeamWorkbenchParams["liveActivityBySessionId"]>;
+  liveActivityBySessionId: NonNullable<
+    TeamWorkbenchParams["liveActivityBySessionId"]
+  >;
   teamWaitSummary: TeamWorkbenchParams["teamWaitSummary"];
   teamControlSummary: TeamWorkbenchParams["teamControlSummary"];
   teamWorkbenchAutoFocusToken: TeamWorkbenchParams["autoFocusToken"];

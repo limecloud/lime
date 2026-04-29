@@ -473,6 +473,30 @@ fn build_service_scene_launch_system_prompt(
             }
         ));
     }
+    if let Some(contract_key) = context.modality_contract_key.as_deref() {
+        lines.push(format!(
+            "- 当前底层运行合同：modality_contract_key={contract_key}, modality={}, routing_slot={}；后续执行与产物必须原样保留 contract 字段。",
+            context.modality.as_deref().unwrap_or("未提供"),
+            context.routing_slot.as_deref().unwrap_or("未提供")
+        ));
+    }
+    if !context.required_capabilities.is_empty() {
+        lines.push(format!(
+            "- 当前合同所需能力：{}。",
+            context.required_capabilities.join(", ")
+        ));
+    }
+    if let Some(runtime_contract) = render_json_inline(context.runtime_contract.as_ref()) {
+        lines.push(format!(
+            "- 当前 runtime_contract(JSON)：{runtime_contract}。"
+        ));
+    }
+    if context.modality_contract_key.as_deref() == Some("voice_generation") {
+        lines.push(
+            "- 当前配音任务必须继续走 voice_generation / voice_runtime 主链；需要沉淀产物时使用 lime_create_audio_generation_task 写入 audio_task/audio_output，不要退回 legacy_tts_test_command，也不要伪造云端已提交。"
+                .to_string(),
+        );
+    }
     if let Some(value) = render_json_inline(context.slot_values.as_ref()) {
         lines.push(format!("- 当前 slot_values(JSON)：{value}。"));
     }

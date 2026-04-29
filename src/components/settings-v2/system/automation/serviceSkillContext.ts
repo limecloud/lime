@@ -1,7 +1,5 @@
 import type { AutomationPayload } from "@/lib/api/automation";
-import {
-  resolveServiceSkillExecutionLocationPresentation,
-} from "@/lib/api/serviceSkills";
+import { resolveServiceSkillExecutionLocationPresentation } from "@/lib/api/serviceSkills";
 
 export {
   LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL,

@@ -118,7 +118,8 @@ function inferCategory(text: string): MemoryCategory {
 function resolveTitle(text: string, category: MemoryCategory): string {
   const lines = getMeaningfulLines(text);
   const sentences = getMeaningfulSentences(text);
-  const titleCandidate = lines[0] || sentences[0] || DEFAULT_TITLE_BY_CATEGORY[category];
+  const titleCandidate =
+    lines[0] || sentences[0] || DEFAULT_TITLE_BY_CATEGORY[category];
 
   return truncate(titleCandidate, 28);
 }

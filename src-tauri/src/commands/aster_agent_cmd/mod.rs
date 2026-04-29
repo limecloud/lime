@@ -333,7 +333,8 @@ pub(crate) use browser_assist::{
 };
 #[cfg(test)]
 pub(crate) use browser_assist::{
-    extract_browser_assist_runtime_hint, BROWSER_ASSIST_ALLOW_PATTERN,
+    extract_browser_assist_runtime_hint, BrowserAssistModalityRuntimeContract,
+    BROWSER_ASSIST_ALLOW_PATTERN,
 };
 #[allow(unused_imports)]
 pub(crate) use command_api::{

@@ -34,10 +34,7 @@ describe("internalImagePlaceholder", () => {
       sanitizeContentPartsForDisplay(contentParts, {
         role: "assistant",
       }),
-    ).toEqual([
-      contentParts[1],
-      contentParts[2],
-    ]);
+    ).toEqual([contentParts[1], contentParts[2]]);
   });
 
   it("应清理紧邻工具调用的页面操作自述", () => {
@@ -67,10 +64,7 @@ describe("internalImagePlaceholder", () => {
       sanitizeContentPartsForDisplay(contentParts, {
         role: "assistant",
       }),
-    ).toEqual([
-      contentParts[0],
-      contentParts[2],
-    ]);
+    ).toEqual([contentParts[0], contentParts[2]]);
   });
 
   it("带结论的正常说明不应被误删", () => {
@@ -119,8 +113,7 @@ describe("internalImagePlaceholder", () => {
   });
 
   it("普通消息文本清洗仍不应误删工具说明", () => {
-    const text =
-      "ToolSearch 用于查询当前可用工具，这里是在给用户解释概念。";
+    const text = "ToolSearch 用于查询当前可用工具，这里是在给用户解释概念。";
 
     expect(
       sanitizeMessageTextForDisplay(text, {

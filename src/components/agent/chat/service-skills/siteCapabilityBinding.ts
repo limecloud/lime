@@ -210,7 +210,9 @@ function resolveSkillSiteLabel(
     return explicitLabel;
   }
 
-  const adapterName = normalizeNaturalText(skill.siteCapabilityBinding?.adapterName);
+  const adapterName = normalizeNaturalText(
+    skill.siteCapabilityBinding?.adapterName,
+  );
   if (!adapterName) {
     return null;
   }
@@ -222,7 +224,8 @@ function resolveSkillSiteLabel(
 function readRequiredCapabilities(
   skill: Pick<ServiceSkillItem, "siteCapabilityBinding">,
 ): string[] {
-  const values = skill.siteCapabilityBinding?.adapterMatch?.requiredCapabilities;
+  const values =
+    skill.siteCapabilityBinding?.adapterMatch?.requiredCapabilities;
   if (!values?.length) {
     return [];
   }

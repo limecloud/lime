@@ -151,31 +151,23 @@ function ExecutionResultDisplay({
     <div
       className={cn(
         "rounded-lg border p-4 space-y-2",
-        isSuccess
-          ? "border-green-200 bg-green-50"
-          : "border-red-200 bg-red-50",
+        isSuccess ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50",
       )}
     >
       <div className="flex items-center gap-2">
         {isSuccess ? (
           <>
             <CheckCircle2 className="h-5 w-5 text-green-600" />
-            <span className="font-medium text-green-700">
-              执行成功
-            </span>
+            <span className="font-medium text-green-700">执行成功</span>
           </>
         ) : (
           <>
             <XCircle className="h-5 w-5 text-red-600" />
-            <span className="font-medium text-red-700">
-              执行失败
-            </span>
+            <span className="font-medium text-red-700">执行失败</span>
           </>
         )}
       </div>
-      {displayError && (
-        <p className="text-sm text-red-600">{displayError}</p>
-      )}
+      {displayError && <p className="text-sm text-red-600">{displayError}</p>}
       {displayOutput && (
         <div className="mt-2">
           <p className="text-xs font-medium text-muted-foreground mb-1">

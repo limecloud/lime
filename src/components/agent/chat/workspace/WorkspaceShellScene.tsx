@@ -20,11 +20,15 @@ interface WorkspaceShellSceneProps {
   currentTopicId: ComponentProps<typeof ChatSidebar>["currentTopicId"];
   topics: ComponentProps<typeof ChatSidebar>["topics"];
   onNewChat: ComponentProps<typeof ChatSidebar>["onNewChat"];
-  onOpenTaskCenterHome?: ComponentProps<typeof ChatSidebar>["onOpenTaskCenterHome"];
+  onOpenTaskCenterHome?: ComponentProps<
+    typeof ChatSidebar
+  >["onOpenTaskCenterHome"];
   onOpenSkillsPage?: ComponentProps<typeof ChatSidebar>["onOpenSkillsPage"];
   onOpenMemoryPage?: ComponentProps<typeof ChatSidebar>["onOpenMemoryPage"];
   onSwitchTopic: ComponentProps<typeof ChatSidebar>["onSwitchTopic"];
-  onOpenArchivedTopic?: ComponentProps<typeof ChatSidebar>["onOpenArchivedTopic"];
+  onOpenArchivedTopic?: ComponentProps<
+    typeof ChatSidebar
+  >["onOpenArchivedTopic"];
   onResumeTask: ComponentProps<typeof ChatSidebar>["onResumeTask"];
   onDeleteTopic: ComponentProps<typeof ChatSidebar>["onDeleteTopic"];
   onRenameTopic: ComponentProps<typeof ChatSidebar>["onRenameTopic"];
@@ -82,33 +86,32 @@ export function WorkspaceShellScene({
 }: WorkspaceShellSceneProps) {
   const shouldRenderChatSidebar =
     !isThemeWorkbench && showChatPanel && showSidebar;
-  const chatSidebarProps =
-    shouldRenderChatSidebar
-      ? buildWorkspaceChatSidebarProps({
-          contextVariant: sidebarContextVariant,
-          onNewChat,
-          onOpenTaskCenterHome,
-          onOpenSkillsPage,
-          onOpenMemoryPage,
-          topics,
-          currentTopicId,
-          onSwitchTopic,
-          onOpenArchivedTopic,
-          onResumeTask,
-          onDeleteTopic,
-          onRenameTopic,
-          currentMessages,
-          isSending,
-          pendingActionCount,
-          queuedTurnCount,
-          threadStatus,
-          workspaceError,
-          childSubagentSessions,
-          subagentParentContext,
-          onOpenSubagentSession,
-          onReturnToParentSession,
-        })
-      : null;
+  const chatSidebarProps = shouldRenderChatSidebar
+    ? buildWorkspaceChatSidebarProps({
+        contextVariant: sidebarContextVariant,
+        onNewChat,
+        onOpenTaskCenterHome,
+        onOpenSkillsPage,
+        onOpenMemoryPage,
+        topics,
+        currentTopicId,
+        onSwitchTopic,
+        onOpenArchivedTopic,
+        onResumeTask,
+        onDeleteTopic,
+        onRenameTopic,
+        currentMessages,
+        isSending,
+        pendingActionCount,
+        queuedTurnCount,
+        threadStatus,
+        workspaceError,
+        childSubagentSessions,
+        subagentParentContext,
+        onOpenSubagentSession,
+        onReturnToParentSession,
+      })
+    : null;
 
   return (
     <PageContainer

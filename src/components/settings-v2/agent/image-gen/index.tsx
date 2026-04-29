@@ -48,13 +48,12 @@ export function ImageGenSettings() {
 
   const imageProviders = useMemo(
     () =>
-      providers.filter(
-        (provider) =>
-          isImageProvider(
-            provider.providerId ?? provider.key,
-            provider.type,
-            provider.customModels,
-          ),
+      providers.filter((provider) =>
+        isImageProvider(
+          provider.providerId ?? provider.key,
+          provider.type,
+          provider.customModels,
+        ),
       ),
     [providers],
   );

@@ -584,7 +584,9 @@ describe("SkillsPage", () => {
         ) as HTMLInputElement | null
       )?.value,
     ).toBe("沉淀后的技能");
-    expect(document.body.textContent).toContain("来源结果：一段来自聊天结果的摘要");
+    expect(document.body.textContent).toContain(
+      "来源结果：一段来自聊天结果的摘要",
+    );
   });
 
   it("带着结果草稿进入时应支持带回创作输入", async () => {
@@ -611,9 +613,9 @@ describe("SkillsPage", () => {
       await Promise.resolve();
     });
 
-    const backButton = Array.from(document.body.querySelectorAll("button")).find(
-      (item) => item.textContent?.trim() === "带回创作输入",
-    );
+    const backButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((item) => item.textContent?.trim() === "带回创作输入");
 
     await act(async () => {
       backButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

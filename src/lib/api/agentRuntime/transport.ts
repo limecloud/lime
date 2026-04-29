@@ -15,8 +15,7 @@ export interface AgentRuntimeTransportDeps {
   invoke?: typeof safeInvoke;
 }
 
-export interface AgentRuntimeCommandTransportDeps
-  extends AgentRuntimeTransportDeps {
+export interface AgentRuntimeCommandTransportDeps extends AgentRuntimeTransportDeps {
   bridgeInvoke?: AgentRuntimeBridgeInvoke;
 }
 

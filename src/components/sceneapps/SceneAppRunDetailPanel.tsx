@@ -19,9 +19,7 @@ interface SceneAppRunDetailPanelProps {
   quickReviewActions?: SceneAppQuickReviewAction[];
   quickReviewPending?: boolean;
   onOpenHumanReview?: () => void;
-  onApplyQuickReview?: (
-    actionKey: SceneAppQuickReviewAction["key"],
-  ) => void;
+  onApplyQuickReview?: (actionKey: SceneAppQuickReviewAction["key"]) => void;
   onDeliveryArtifactAction?: (
     action: SceneAppRunDetailViewModel["deliveryArtifactEntries"][number],
   ) => void;
@@ -242,7 +240,9 @@ export function SceneAppRunDetailPanel({
       <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-medium text-slate-500">这轮拿到了什么</div>
+            <div className="text-xs font-medium text-slate-500">
+              这轮拿到了什么
+            </div>
             <div className="mt-2 text-sm font-medium text-slate-900">
               {runDetailView.deliveryCompletionLabel}
             </div>
@@ -377,7 +377,9 @@ export function SceneAppRunDetailPanel({
 
             {runDetailView.plannedDeliveryRequiredParts.length ? (
               <div className="mt-3">
-                <div className="text-xs font-medium text-slate-500">原定必含</div>
+                <div className="text-xs font-medium text-slate-500">
+                  原定必含
+                </div>
                 <div
                   data-testid="sceneapp-run-detail-pack-required-parts"
                   className="mt-2 flex flex-wrap gap-2"
@@ -396,7 +398,9 @@ export function SceneAppRunDetailPanel({
 
             {runDetailView.packPlanNotes.length ? (
               <div className="mt-3">
-                <div className="text-xs font-medium text-slate-500">约定备注</div>
+                <div className="text-xs font-medium text-slate-500">
+                  约定备注
+                </div>
                 <div
                   data-testid="sceneapp-run-detail-pack-notes"
                   className="mt-2 flex flex-wrap gap-2"
@@ -427,7 +431,9 @@ export function SceneAppRunDetailPanel({
                 </div>
                 {runDetailView.contextBaseline.scopeLabel ? (
                   <div className="mt-2 text-sm text-slate-700">
-                    <span className="font-medium text-slate-900">作用范围：</span>
+                    <span className="font-medium text-slate-900">
+                      作用范围：
+                    </span>
                     {runDetailView.contextBaseline.scopeLabel}
                   </div>
                 ) : null}
@@ -455,7 +461,9 @@ export function SceneAppRunDetailPanel({
                     data-testid="sceneapp-run-detail-context-taste-summary"
                     className="mt-3 text-sm leading-6 text-slate-700"
                   >
-                    <span className="font-medium text-slate-900">风格方向：</span>
+                    <span className="font-medium text-slate-900">
+                      风格方向：
+                    </span>
                     {runDetailView.contextBaseline.tasteSummary}
                   </div>
                 ) : null}
@@ -469,7 +477,9 @@ export function SceneAppRunDetailPanel({
                     data-testid="sceneapp-run-detail-context-feedback-summary"
                     className="mt-3 text-sm leading-6 text-slate-700"
                   >
-                    <span className="font-medium text-slate-900">最近反馈：</span>
+                    <span className="font-medium text-slate-900">
+                      最近反馈：
+                    </span>
                     {runDetailView.contextBaseline.feedbackSummary}
                   </div>
                 ) : null}
@@ -588,7 +598,9 @@ export function SceneAppRunDetailPanel({
             ) : null}
             {runDetailView.governanceActionEntries.length ? (
               <div>
-                <div className="text-xs font-medium text-slate-500">继续处理</div>
+                <div className="text-xs font-medium text-slate-500">
+                  继续处理
+                </div>
                 <div className="mt-2 grid gap-3 xl:grid-cols-2">
                   {runDetailView.governanceActionEntries.map((entry) => (
                     <button

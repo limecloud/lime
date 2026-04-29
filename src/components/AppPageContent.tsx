@@ -85,9 +85,7 @@ const SkillsWorkspacePage = lazy(loadSkillsWorkspacePage);
 const BrowserRuntimeWorkspace = lazy(loadBrowserRuntimeWorkspace);
 const AgentChatPage = lazy(loadAgentChatPage);
 
-function serializeInitialInputCapabilityKey(
-  params: AgentPageParams,
-): string {
+function serializeInitialInputCapabilityKey(params: AgentPageParams): string {
   const route = params.initialInputCapability?.capabilityRoute;
   if (!route) {
     return "::0";
@@ -150,11 +148,7 @@ export function AppPageContent({
         ? current
         : activeSceneAppsPageParams,
     );
-  }, [
-    activeSceneAppsPageParams,
-    activeSceneAppsPageParamsKey,
-    activePage,
-  ]);
+  }, [activeSceneAppsPageParams, activeSceneAppsPageParamsKey, activePage]);
 
   const shouldRenderSceneApps =
     hasVisitedSceneApps || activePage === "sceneapps";

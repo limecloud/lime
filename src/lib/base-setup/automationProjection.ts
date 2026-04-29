@@ -115,9 +115,9 @@ export function resolveBaseSetupAutomationProjectionForSkill(
 ): ResolvedBaseSetupAutomationProjection {
   const refs = resolveBaseSetupProjectionRefsForSkill(skill, snapshot);
   const profile = refs.automationProfileRef
-    ? snapshot?.package.automationProfiles?.find(
+    ? (snapshot?.package.automationProfiles?.find(
         (item) => item.id === refs.automationProfileRef,
-      ) ?? null
+      ) ?? null)
     : null;
 
   return {

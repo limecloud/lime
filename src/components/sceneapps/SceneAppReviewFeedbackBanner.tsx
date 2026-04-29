@@ -51,7 +51,9 @@ function SceneAppReviewFeedbackProjectionBanner({
             type="button"
             className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
             data-testid={dataTestId ? `${dataTestId}-action` : undefined}
-            onClick={() => onContinueReviewFeedback(primarySuggestedTask.taskId)}
+            onClick={() =>
+              onContinueReviewFeedback(primarySuggestedTask.taskId)
+            }
           >
             继续去「{primarySuggestedTask.title}」
           </button>

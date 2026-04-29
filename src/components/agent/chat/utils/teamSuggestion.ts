@@ -236,9 +236,7 @@ export function getTeamSuggestion({
   const explicitTeamIntent = matchAny(normalizedInput, EXPLICIT_TEAM_PATTERNS);
   if (explicitTeamIntent) {
     score += 0.52;
-    reasons.push(
-      "你已经显式提到任务拆分或父子线程，这类任务应走任务运行时。",
-    );
+    reasons.push("你已经显式提到任务拆分或父子线程，这类任务应走任务运行时。");
   }
 
   const parallelSignals = countMatchedPatterns(

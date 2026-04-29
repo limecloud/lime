@@ -80,7 +80,7 @@ export function createSessionClient({
               },
               {
                 dedupeKey: "runtimeListSessions.slow",
-                level: "warn",
+                level: "info",
                 throttleMs: 1000,
               },
             );
@@ -181,7 +181,7 @@ export function createSessionClient({
               },
               {
                 dedupeKey: `runtimeGetSession.slow:${sessionId}`,
-                level: "warn",
+                level: "info",
                 throttleMs: 1000,
               },
             );

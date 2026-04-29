@@ -324,9 +324,7 @@ export function readResourceManagerSession(
   }
 }
 
-function cleanupExpiredResourceManagerSessions(
-  storage = getStorage(),
-): void {
+function cleanupExpiredResourceManagerSessions(storage = getStorage()): void {
   if (!storage) return;
 
   const keys = Array.from({ length: storage.length }, (_, index) =>
