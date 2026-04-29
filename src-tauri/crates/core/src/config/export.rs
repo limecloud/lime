@@ -1,13 +1,10 @@
 //! 配置导出服务
 //!
-//! 提供配置和凭证的统一导出功能，支持：
+//! 提供配置导出功能，支持：
 //! - 仅配置导出（YAML 格式）
-//! - 仅凭证导出
-//! - 完整导出（配置 + 凭证 + OAuth Token 文件）
 //! - 敏感信息脱敏
 
-use super::path_utils::expand_tilde;
-use super::types::{ApiKeyEntry, Config, CredentialEntry, CredentialPoolConfig};
+use super::types::Config;
 use super::yaml::{ConfigError, ConfigManager};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -45,7 +42,7 @@ impl ExportOptions {
         }
     }
 
-    /// 创建仅凭证导出选项
+    /// 创建旧凭证导出选项；旧 OAuth token 已退役，导出包不会再写入 token 文件。
     pub fn credentials_only() -> Self {
         Self {
             include_config: false,
@@ -87,7 +84,7 @@ pub struct ExportBundle {
     /// YAML 配置内容（如果包含配置）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config_yaml: Option<String>,
-    /// OAuth Token 文件（base64 编码）
+    /// 旧 OAuth Token 文件（base64 编码），仅用于读取历史导出包结构。
     /// key: 相对于 auth_dir 的路径
     /// value: base64 编码的文件内容
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -195,11 +192,12 @@ impl ExportService {
     /// * `Ok(String)` - YAML 格式的配置字符串
     /// * `Err(ExportError)` - 导出失败
     pub fn export_yaml(config: &Config, redact: bool) -> Result<String, ExportError> {
-        let config_to_export = if redact {
+        let mut config_to_export = if redact {
             Self::redact_config(config)
         } else {
             config.clone()
         };
+        config_to_export.credential_pool = Default::default();
 
         ConfigManager::to_yaml(&config_to_export).map_err(ExportError::from)
     }
@@ -228,57 +226,9 @@ impl ExportService {
             bundle.config_yaml = Some(yaml);
         }
 
-        // 导出凭证（OAuth Token 文件）
-        if options.include_credentials {
-            let token_files = Self::collect_token_files(config, options.redact_secrets)?;
-            bundle.token_files = token_files;
-        }
-
+        // 旧 OAuth token 文件已随凭证池退役，不再导出。
+        let _ = options.include_credentials;
         Ok(bundle)
-    }
-
-    /// 收集 OAuth Token 文件
-    ///
-    /// 从 auth_dir 目录收集所有 OAuth 凭证的 token 文件
-    fn collect_token_files(
-        config: &Config,
-        redact: bool,
-    ) -> Result<HashMap<String, String>, ExportError> {
-        let mut token_files = HashMap::new();
-        let auth_dir = expand_tilde(&config.auth_dir);
-
-        // 收集所有 OAuth 凭证的 token 文件
-        let oauth_credentials = Self::get_oauth_credentials(&config.credential_pool);
-
-        for entry in oauth_credentials {
-            let token_path = auth_dir.join(&entry.token_file);
-
-            if token_path.exists() {
-                let content = std::fs::read(&token_path)
-                    .map_err(|e| ExportError::ReadError(format!("{}: {}", entry.token_file, e)))?;
-
-                let encoded = if redact {
-                    // 脱敏：用占位符替换实际内容
-                    base64::encode(REDACTED_PLACEHOLDER.as_bytes())
-                } else {
-                    base64::encode(&content)
-                };
-
-                token_files.insert(entry.token_file.clone(), encoded);
-            }
-            // 如果文件不存在，跳过（不报错，只是不包含在导出中）
-        }
-
-        Ok(token_files)
-    }
-
-    /// 获取所有 OAuth 凭证条目
-    fn get_oauth_credentials(pool: &CredentialPoolConfig) -> Vec<&CredentialEntry> {
-        let mut credentials = Vec::new();
-        credentials.extend(pool.kiro.iter());
-        credentials.extend(pool.gemini.iter());
-        credentials.extend(pool.qwen.iter());
-        credentials
     }
 
     /// 脱敏配置
@@ -298,45 +248,10 @@ impl ExportService {
             redacted.providers.claude.api_key = Some(REDACTED_PLACEHOLDER.to_string());
         }
 
-        // 脱敏凭证池中的 API Key
-        redacted.credential_pool = Self::redact_credential_pool(&config.credential_pool);
+        // 旧凭证池不再导出。
+        redacted.credential_pool = Default::default();
 
         redacted
-    }
-
-    /// 脱敏凭证池
-    fn redact_credential_pool(pool: &CredentialPoolConfig) -> CredentialPoolConfig {
-        CredentialPoolConfig {
-            kiro: pool.kiro.clone(),
-            gemini: pool.gemini.clone(),
-            qwen: pool.qwen.clone(),
-            openai: pool
-                .openai
-                .iter()
-                .map(|entry| ApiKeyEntry {
-                    id: entry.id.clone(),
-                    api_key: REDACTED_PLACEHOLDER.to_string(),
-                    base_url: entry.base_url.clone(),
-                    disabled: entry.disabled,
-                    proxy_url: entry.proxy_url.clone(),
-                })
-                .collect(),
-            claude: pool
-                .claude
-                .iter()
-                .map(|entry| ApiKeyEntry {
-                    id: entry.id.clone(),
-                    api_key: REDACTED_PLACEHOLDER.to_string(),
-                    base_url: entry.base_url.clone(),
-                    disabled: entry.disabled,
-                    proxy_url: entry.proxy_url.clone(),
-                })
-                .collect(),
-            gemini_api_keys: pool.gemini_api_keys.clone(),
-            vertex_api_keys: pool.vertex_api_keys.clone(),
-            codex: pool.codex.clone(),
-            asr: pool.asr.clone(),
-        }
     }
 
     /// 检查配置是否包含敏感信息
@@ -356,18 +271,6 @@ impl ExportService {
         }
         if let Some(ref key) = config.providers.claude.api_key {
             if !key.is_empty() && key != REDACTED_PLACEHOLDER {
-                return true;
-            }
-        }
-
-        // 检查凭证池中的 API Key
-        for entry in &config.credential_pool.openai {
-            if !entry.api_key.is_empty() && entry.api_key != REDACTED_PLACEHOLDER {
-                return true;
-            }
-        }
-        for entry in &config.credential_pool.claude {
-            if !entry.api_key.is_empty() && entry.api_key != REDACTED_PLACEHOLDER {
                 return true;
             }
         }
@@ -403,110 +306,10 @@ impl ExportService {
     }
 }
 
-// 简单的 base64 编码/解码模块
-mod base64 {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-    pub fn encode(data: &[u8]) -> String {
-        let mut result = String::new();
-        let mut i = 0;
-
-        while i < data.len() {
-            let b0 = data[i] as u32;
-            let b1 = if i + 1 < data.len() {
-                data[i + 1] as u32
-            } else {
-                0
-            };
-            let b2 = if i + 2 < data.len() {
-                data[i + 2] as u32
-            } else {
-                0
-            };
-
-            let triple = (b0 << 16) | (b1 << 8) | b2;
-
-            result.push(ALPHABET[((triple >> 18) & 0x3F) as usize] as char);
-            result.push(ALPHABET[((triple >> 12) & 0x3F) as usize] as char);
-
-            if i + 1 < data.len() {
-                result.push(ALPHABET[((triple >> 6) & 0x3F) as usize] as char);
-            } else {
-                result.push('=');
-            }
-
-            if i + 2 < data.len() {
-                result.push(ALPHABET[(triple & 0x3F) as usize] as char);
-            } else {
-                result.push('=');
-            }
-
-            i += 3;
-        }
-
-        result
-    }
-
-    pub fn decode(data: &str) -> Result<Vec<u8>, String> {
-        let data = data.trim_end_matches('=');
-        let mut result = Vec::new();
-
-        let decode_char = |c: char| -> Result<u32, String> {
-            match c {
-                'A'..='Z' => Ok((c as u32) - ('A' as u32)),
-                'a'..='z' => Ok((c as u32) - ('a' as u32) + 26),
-                '0'..='9' => Ok((c as u32) - ('0' as u32) + 52),
-                '+' => Ok(62),
-                '/' => Ok(63),
-                _ => Err(format!("Invalid base64 character: {c}")),
-            }
-        };
-
-        let chars: Vec<char> = data.chars().collect();
-        let mut i = 0;
-
-        while i < chars.len() {
-            let c0 = decode_char(chars[i])?;
-            let c1 = if i + 1 < chars.len() {
-                decode_char(chars[i + 1])?
-            } else {
-                0
-            };
-            let c2 = if i + 2 < chars.len() {
-                decode_char(chars[i + 2])?
-            } else {
-                0
-            };
-            let c3 = if i + 3 < chars.len() {
-                decode_char(chars[i + 3])?
-            } else {
-                0
-            };
-
-            let triple = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
-
-            result.push(((triple >> 16) & 0xFF) as u8);
-            if i + 2 < chars.len() {
-                result.push(((triple >> 8) & 0xFF) as u8);
-            }
-            if i + 3 < chars.len() {
-                result.push((triple & 0xFF) as u8);
-            }
-
-            i += 4;
-        }
-
-        Ok(result)
-    }
-}
-
-pub use self::base64::decode as base64_decode;
-#[allow(unused_imports)]
-pub use self::base64::encode as base64_encode;
-
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+    use crate::config::ApiKeyEntry;
 
     #[test]
     fn test_export_options_default() {
@@ -645,10 +448,7 @@ mod unit_tests {
             redacted.providers.claude.api_key,
             Some(REDACTED_PLACEHOLDER.to_string())
         );
-        assert_eq!(
-            redacted.credential_pool.openai[0].api_key,
-            REDACTED_PLACEHOLDER
-        );
+        assert!(redacted.credential_pool.is_empty());
     }
 
     #[test]
@@ -663,7 +463,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn test_contains_secrets_with_credential_pool() {
+    fn test_contains_secrets_ignores_retired_credential_pool() {
         let mut config = Config::default();
         config.server.api_key = REDACTED_PLACEHOLDER.to_string();
         config.credential_pool.openai.push(ApiKeyEntry {
@@ -674,7 +474,7 @@ mod unit_tests {
             proxy_url: None,
         });
 
-        assert!(ExportService::contains_secrets(&config));
+        assert!(!ExportService::contains_secrets(&config));
     }
 
     #[test]
@@ -699,35 +499,6 @@ mod unit_tests {
         assert!(!bundle.has_config());
         // 默认配置没有凭证，所以 token_files 为空
         assert!(!bundle.has_credentials());
-    }
-
-    #[test]
-    fn test_base64_encode_decode() {
-        let original = b"Hello, World!";
-        let encoded = base64_encode(original);
-        let decoded = base64_decode(&encoded).expect("解码应成功");
-
-        assert_eq!(decoded, original);
-    }
-
-    #[test]
-    fn test_base64_encode_empty() {
-        let original = b"";
-        let encoded = base64_encode(original);
-        let decoded = base64_decode(&encoded).expect("解码应成功");
-
-        assert_eq!(decoded, original);
-    }
-
-    #[test]
-    fn test_base64_encode_various_lengths() {
-        // 测试不同长度的输入（1, 2, 3 字节边界情况）
-        for len in 1..=10 {
-            let original: Vec<u8> = (0..len).map(|i| i as u8).collect();
-            let encoded = base64_encode(&original);
-            let decoded = base64_decode(&encoded).expect("解码应成功");
-            assert_eq!(decoded, original, "长度 {len} 的数据往返失败");
-        }
     }
 
     #[test]

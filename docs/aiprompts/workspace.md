@@ -240,7 +240,7 @@ pub async fn workspace_create_session(workspace_id: String, name: String) -> Res
 
 ~/Library/Application Support/lime/  # Lime 应用目录
 ├── lime.db                       # 应用数据库（包含 workspaces 表）
-├── credentials/                       # 凭证文件
+├── credentials/                       # 已退役托管凭证副本目录；启动期只做清理
 └── workspaces/                        # workspace 级配置
     ├── default/
     │   └── mcp.json                   # workspace 级 MCP 配置

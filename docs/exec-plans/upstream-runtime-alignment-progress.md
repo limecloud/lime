@@ -385,7 +385,7 @@
   - `npx vitest run "src/components/agent/chat/components/AgentThreadReliabilityPanel.test.tsx" "src/lib/dev-bridge/mockPriorityCommands.test.ts"` 通过（`17 passed`）
   - `npm run test:contracts` 通过
   - `npm run typecheck` 通过
-  - `npx vitest run "src/components/provider-pool/api-key/ProviderConfigForm.ui.test.tsx" "src/components/settings-v2/general/memory/index.test.tsx"` 通过（`19 passed`）
+  - `npx vitest run "src/components/api-key-provider/ProviderConfigForm.ui.test.tsx" "src/components/settings-v2/general/memory/index.test.tsx"` 通过（`19 passed`）
   - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo check --manifest-path "src-tauri/Cargo.toml" --lib` 通过
   - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" runtime_file_checkpoint_service::tests:: --lib -- --nocapture` 通过（`3 passed`）
   - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" should_export_runtime_ --lib -- --nocapture` 通过（`6 passed`）
@@ -393,7 +393,7 @@
   - `npm run verify:local` 通过
 - 当前更高层验证状态：
   - 之前记录里的 `should_export_runtime_` / `SceneAppRunSummary` 阻塞已不再复现；当前仓库中的 `sceneapp` 初始化点已补齐新字段，本轮实际阻塞改为 [claude_custom.rs](../../src-tauri/crates/providers/src/providers/claude_custom.rs) 的 `Default` 实现缺口，现已修复并复测通过
-  - 之前记录里的 `verify:local` TypeScript 阻塞也已修复；[ProviderConfigForm.ui.test.tsx](../../src/components/provider-pool/api-key/ProviderConfigForm.ui.test.tsx) 与 [index.tsx](../../src/components/settings-v2/general/memory/index.tsx) 的类型问题不再复现，本轮已重新从统一入口跑通 `npm run verify:local`
+  - 之前记录里的 `verify:local` TypeScript 阻塞也已修复；[ProviderConfigForm.ui.test.tsx](../../src/components/api-key-provider/ProviderConfigForm.ui.test.tsx) 与 [index.tsx](../../src/components/settings-v2/general/memory/index.tsx) 的类型问题不再复现，本轮已重新从统一入口跑通 `npm run verify:local`
 
 - 在 [auto_memory_service.rs](../../src-tauri/src/services/auto_memory_service.rs) 将自动记忆入口收口为 `memdir` 主链：新增 `user / feedback / project / reference` 四类目录脚手架、最小 provider seam、topic 文件递归索引与 `memory_type / provider / updated_at` 元数据；`feedback / project` 写入现在强制要求 `Why:` 与 `How to apply:` 结构，`project` 同时拒绝 `今天 / tomorrow / next week` 这类相对时间词，避免记忆过期后继续误导执行
 - 在 [memory_source_resolver_service.rs](../../src-tauri/src/services/memory_source_resolver_service.rs) 为来源链读模型补齐 `source_bucket / provider / memory_type / updated_at`，并让 `auto_memory_item` 真正进入 runtime 解析与 prompt 来源链；同时把 `memory_type` 约束到 memdir 来源，不再误打到普通项目规则或其它非 memdir 文件

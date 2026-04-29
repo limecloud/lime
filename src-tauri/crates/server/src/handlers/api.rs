@@ -42,6 +42,7 @@ use aster::session_context::{
 use lime_core::errors::GatewayErrorCode;
 use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::{ChatCompletionRequest, ContentPart, MessageContent};
+use lime_core::models::{RuntimeCredentialData, RuntimeProviderCredential};
 use lime_core::ProviderType;
 use lime_processor::RequestContext;
 use lime_providers::streaming::StreamFormat as StreamingFormat;
@@ -60,7 +61,7 @@ async fn select_credential_for_request(
     explicit_provider_id: Option<&str>,
     log_prefix: &str,
     _include_error_code: bool,
-) -> Result<Option<lime_core::models::provider_pool_model::ProviderCredential>, Response> {
+) -> Result<Option<RuntimeProviderCredential>, Response> {
     let db = match &state.db {
         Some(db) => db,
         None => {
@@ -85,12 +86,12 @@ async fn select_credential_for_request(
 
         if cred.is_none() {
             eprintln!(
-                "[{log_prefix}] X-Provider-Id '{explicit_provider_id}' 没有可用凭证，不进行降级"
+                "[{log_prefix}] X-Provider-Id '{explicit_provider_id}' 没有可用凭证，不切换 Provider"
             );
             state.logs.write().await.add(
                 "error",
                 &format!(
-                    "[ROUTE] No available credentials for explicitly specified provider '{explicit_provider_id}', refusing to fallback"
+                    "[ROUTE] No available credentials for explicitly specified provider '{explicit_provider_id}', refusing provider switch"
                 ),
             );
 
@@ -111,7 +112,7 @@ async fn select_credential_for_request(
 
     if !state.allow_provider_fallback {
         eprintln!(
-            "[{log_prefix}] 已禁用自动降级（retry.auto_switch_provider=false），仅从 API Key Provider 选择"
+            "[{log_prefix}] 已禁用 Provider 自动切换（retry.auto_switch_provider=false），仅从 API Key Provider 选择"
         );
         return match state
             .api_key_service
@@ -128,7 +129,7 @@ async fn select_credential_for_request(
                     eprintln!("[{log_prefix}] 找到凭证: provider={selected_provider}");
                 } else {
                     eprintln!(
-                        "[{log_prefix}] 未找到凭证: provider={selected_provider}（自动降级已禁用）"
+                        "[{log_prefix}] 未找到凭证: provider={selected_provider}（Provider 自动切换已禁用）"
                     );
                 }
                 Ok(cred)
@@ -1720,13 +1721,7 @@ async fn resolve_openai_credential_with_capability_fallback(
     client_type: &ClientType,
     explicit_provider_id: Option<&str>,
     request: &mut ChatCompletionRequest,
-) -> Result<
-    (
-        String,
-        Option<lime_core::models::provider_pool_model::ProviderCredential>,
-    ),
-    Response,
-> {
+) -> Result<(String, Option<RuntimeProviderCredential>), Response> {
     if explicit_provider_id.is_some() {
         let cred = select_credential_for_request(
             state,
@@ -1864,13 +1859,7 @@ async fn resolve_anthropic_credential_with_capability_fallback(
     client_type: &ClientType,
     explicit_provider_id: Option<&str>,
     request: &mut AnthropicMessagesRequest,
-) -> Result<
-    (
-        String,
-        Option<lime_core::models::provider_pool_model::ProviderCredential>,
-    ),
-    Response,
-> {
+) -> Result<(String, Option<RuntimeProviderCredential>), Response> {
     if explicit_provider_id.is_some() {
         let cred = select_credential_for_request(
             state,
@@ -2239,7 +2228,7 @@ pub async fn chat_completions(
         .map(|s| s.to_lowercase());
 
     // 尝试选择凭证（含能力感知 + 跨 Provider 回退）：
-    // 1) X-Provider-Id 指定时仅走精确匹配（不降级）
+    // 1) X-Provider-Id 指定时仅走精确匹配（不切换 Provider）
     // 2) 否则先按 provider 链路做能力过滤，再选择可用凭证
     eprintln!("[CHAT_COMPLETIONS] 开始选择凭证...");
     let (effective_provider, credential) = match resolve_openai_credential_with_capability_fallback(
@@ -2339,16 +2328,8 @@ pub async fn chat_completions(
             .parse::<ProviderType>()
             .unwrap_or(ProviderType::OpenAI);
 
-        // 从凭证名称中提取 Provider 显示名称
-        // 凭证名称格式：Some("[降级] DeepSeek") 或 Some("DeepSeek")
-        let _provider_display_name = cred.name.as_ref().map(|name| {
-            // 去掉 "[降级] " 前缀
-            if name.starts_with("[降级] ") {
-                &name[9..] // "[降级] " 是 9 个字节
-            } else {
-                name.as_str()
-            }
-        });
+        // 从运行时凭证名称中提取 Provider 显示名称。
+        let _provider_display_name = cred.name.as_deref();
 
         // 检查是否需要拦截请求
         // **Validates: Requirements 2.1, 2.3, 2.5**
@@ -2412,12 +2393,12 @@ pub async fn chat_completions(
         );
     }
 
-    // 凭证池和旧 Kiro 单凭证模式已退役，未找到 API Key Provider 时直接返回错误。
+    // 旧 OAuth/local credential 和旧 Kiro 单凭证模式已退役，未找到 API Key Provider 时直接返回错误。
     // **Validates: Requirements 3.2**
     let reason = if !state.allow_provider_fallback {
-        "auto fallback disabled by retry.auto_switch_provider=false"
+        "provider auto switch disabled by retry.auto_switch_provider=false"
     } else {
-        "legacy credential pool fallback retired"
+        "legacy credential runtime retired"
     };
     state.logs.write().await.add(
         "error",
@@ -2427,7 +2408,7 @@ pub async fn chat_completions(
     );
     let message = if !state.allow_provider_fallback {
         format!(
-            "没有找到可用的 '{}' API Key Provider 凭证（已禁用自动降级）。",
+            "没有找到可用的 '{}' API Key Provider 凭证（Provider 自动切换已禁用）。",
             effective_provider
         )
     } else {
@@ -2776,16 +2757,8 @@ pub async fn anthropic_messages(
         // 对于自定义 Provider ID，凭证的 provider_type 已通过数据库查询正确设置
         let _provider_type = cred.provider_type;
 
-        // 从凭证名称中提取 Provider 显示名称
-        // 凭证名称格式：Some("[降级] DeepSeek") 或 Some("DeepSeek")
-        let _provider_display_name = cred.name.as_ref().map(|name| {
-            // 去掉 "[降级] " 前缀
-            if name.starts_with("[降级] ") {
-                &name[9..] // "[降级] " 是 9 个字节
-            } else {
-                name.as_str()
-            }
-        });
+        // 从运行时凭证名称中提取 Provider 显示名称。
+        let _provider_display_name = cred.name.as_deref();
 
         // 检查是否需要拦截请求
         // **Validates: Requirements 2.1, 2.3, 2.5**
@@ -2852,12 +2825,12 @@ pub async fn anthropic_messages(
         );
     }
 
-    // 凭证池和旧 Kiro 单凭证模式已退役，未找到 API Key Provider 时直接返回错误。
+    // 旧 OAuth/local credential 和旧 Kiro 单凭证模式已退役，未找到 API Key Provider 时直接返回错误。
     // **Validates: Requirements 3.2**
     let reason = if !state.allow_provider_fallback {
-        "auto fallback disabled by retry.auto_switch_provider=false"
+        "provider auto switch disabled by retry.auto_switch_provider=false"
     } else {
-        "legacy credential pool fallback retired"
+        "legacy credential runtime retired"
     };
     state.logs.write().await.add(
         "error",
@@ -2867,7 +2840,7 @@ pub async fn anthropic_messages(
     );
     let message = if !state.allow_provider_fallback {
         format!(
-            "没有找到可用的 '{}' API Key Provider 凭证（已禁用自动降级）。",
+            "没有找到可用的 '{}' API Key Provider 凭证（Provider 自动切换已禁用）。",
             effective_provider
         )
     } else {
@@ -2927,16 +2900,12 @@ fn get_target_stream_format(path: &str) -> StreamingFormat {
 /// # 注意
 /// 当前所有 Provider 都返回 false，因为 StreamingProvider trait 尚未实现。
 /// 一旦任务 6 完成，此函数将根据凭证类型返回适当的值。
-fn should_use_true_streaming(
-    credential: &lime_core::models::provider_pool_model::ProviderCredential,
-) -> bool {
-    use lime_core::models::provider_pool_model::CredentialData;
-
+fn should_use_true_streaming(credential: &RuntimeProviderCredential) -> bool {
     match &credential.credential {
         // Claude - 需要实现 StreamingProvider
-        CredentialData::ClaudeKey { .. } => false,
+        RuntimeCredentialData::ClaudeKey { .. } => false,
         // OpenAI - 需要实现 StreamingProvider
-        CredentialData::OpenAIKey { .. } => false,
+        RuntimeCredentialData::OpenAIKey { .. } => false,
         // 其他类型暂不支持流式
         _ => false,
     }

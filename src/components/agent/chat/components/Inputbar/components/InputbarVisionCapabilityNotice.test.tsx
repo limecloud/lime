@@ -119,7 +119,7 @@ describe("InputbarVisionCapabilityNotice", () => {
       providers: [
         {
           key: "openai",
-          label: "OpenAI OAuth",
+          label: "OpenAI",
           registryId: "openai",
           type: "openai",
         },

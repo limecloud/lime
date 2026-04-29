@@ -28,6 +28,10 @@ const controlPlaneMocks = vi.hoisted(() => ({
 }));
 
 const shellOpenMock = vi.hoisted(() => vi.fn());
+const tauriRuntimeMocks = vi.hoisted(() => ({
+  hasTauriInvokeCapability: vi.fn(),
+  hasTauriRuntimeMarkers: vi.fn(),
+}));
 const desktopAuthMocks = vi.hoisted(() => ({
   completeOemCloudDesktopOAuthLogin: vi.fn(),
 }));
@@ -77,6 +81,11 @@ vi.mock("@tauri-apps/plugin-shell", () => ({
   open: shellOpenMock,
 }));
 
+vi.mock("@/lib/tauri-runtime", () => ({
+  hasTauriInvokeCapability: tauriRuntimeMocks.hasTauriInvokeCapability,
+  hasTauriRuntimeMarkers: tauriRuntimeMocks.hasTauriRuntimeMarkers,
+}));
+
 vi.mock("@/lib/oemCloudDesktopAuth", () => ({
   OEM_CLOUD_OAUTH_COMPLETED_EVENT: "lime:oem-cloud-oauth-completed",
   completeOemCloudDesktopOAuthLogin:
@@ -119,6 +128,23 @@ function createDeferred<T>() {
     resolve,
     reject,
   };
+}
+
+function createOpenedWindow() {
+  return {
+    closed: false,
+    opener: {},
+    close: vi.fn(),
+    document: {
+      title: "",
+      body: {
+        innerHTML: "",
+      },
+    },
+    location: {
+      assign: vi.fn(),
+    },
+  } as unknown as Window;
 }
 
 let latestState: ReturnType<typeof useOemCloudAccess> | null = null;
@@ -216,6 +242,9 @@ describe("useOemCloudAccess", () => {
     controlPlaneMocks.sendClientAuthEmailCode.mockResolvedValue(null);
     controlPlaneMocks.verifyClientAuthEmailCode.mockResolvedValue(null);
     desktopAuthMocks.completeOemCloudDesktopOAuthLogin.mockResolvedValue({});
+    shellOpenMock.mockResolvedValue(undefined);
+    tauriRuntimeMocks.hasTauriInvokeCapability.mockReturnValue(true);
+    tauriRuntimeMocks.hasTauriRuntimeMarkers.mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -563,6 +592,125 @@ describe("useOemCloudAccess", () => {
       nextPath: "/welcome",
       error: null,
     });
+  });
+
+  it("Google 桌面登录打开系统浏览器失败时不应提示已打开", async () => {
+    controlPlaneMocks.createClientDesktopAuthSession.mockResolvedValue({
+      authSessionId: "desktop-auth-001",
+      deviceCode: "device-code-001",
+      tenantId: "tenant-0001",
+      clientId: "desktop-client",
+      clientName: "Lime Desktop",
+      provider: "google",
+      desktopRedirectUri: "lime://oauth/callback",
+      status: "pending_login",
+      expiresInSeconds: 600,
+      pollIntervalSeconds: 1,
+      authorizeUrl:
+        "https://user.limeai.run/oauth/desktop/device-code-001/signin",
+    });
+    shellOpenMock.mockRejectedValue(new Error("permission denied"));
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedHarness = { container, root };
+
+    act(() => {
+      root.render(<HookHarness />);
+    });
+    await flushEffects();
+
+    await act(async () => {
+      await latestState?.handleGoogleLogin();
+    });
+
+    expect(shellOpenMock).toHaveBeenCalledWith(
+      "https://user.limeai.run/oauth/desktop/device-code-001/signin",
+    );
+    expect(latestState?.errorMessage).toContain("系统浏览器打开失败");
+    expect(latestState?.errorMessage).toContain("permission denied");
+    expect(latestState?.infoMessage).toBeNull();
+    expect(
+      controlPlaneMocks.pollClientDesktopAuthSession,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("桌面登录会话不可用时应打开带租户和回跳的用户中心登录页", async () => {
+    controlPlaneMocks.createClientDesktopAuthSession.mockRejectedValue(
+      new Error("tenant not found"),
+    );
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedHarness = { container, root };
+
+    act(() => {
+      root.render(<HookHarness />);
+    });
+    await flushEffects();
+
+    await act(async () => {
+      await latestState?.handleGoogleLogin();
+    });
+
+    expect(shellOpenMock).toHaveBeenCalledTimes(1);
+    const openedUrl = shellOpenMock.mock.calls[0]?.[0] as string;
+    const parsedUrl = new URL(openedUrl);
+
+    expect(parsedUrl.origin).toBe("https://user.limeai.run");
+    expect(parsedUrl.pathname).toBe("/login");
+    expect(parsedUrl.searchParams.get("tenant")).toBe("tenant-0001");
+    expect(parsedUrl.searchParams.get("tenantId")).toBe("tenant-0001");
+    expect(parsedUrl.searchParams.get("redirectUrl")).toBe(
+      "lime://oauth/callback",
+    );
+    expect(parsedUrl.searchParams.get("redirect")).toBe("/welcome");
+    expect(latestState?.errorMessage).toBeNull();
+    expect(latestState?.infoMessage).toContain("已打开 Lime 云端登录页");
+  });
+
+  it("浏览器场景桌面登录不可用时应复用预打开空白页导航到用户中心登录页", async () => {
+    tauriRuntimeMocks.hasTauriInvokeCapability.mockReturnValue(false);
+    tauriRuntimeMocks.hasTauriRuntimeMarkers.mockReturnValue(false);
+    controlPlaneMocks.createClientDesktopAuthSession.mockRejectedValue(
+      new Error("desktop client not found"),
+    );
+    shellOpenMock.mockRejectedValue(new Error("not in tauri"));
+    const openedWindow = createOpenedWindow();
+    const windowOpenSpy = vi
+      .spyOn(window, "open")
+      .mockReturnValueOnce(openedWindow);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedHarness = { container, root };
+
+    act(() => {
+      root.render(<HookHarness />);
+    });
+    await flushEffects();
+
+    try {
+      await act(async () => {
+        await latestState?.handleGoogleLogin();
+      });
+
+      expect(windowOpenSpy).toHaveBeenCalledWith("about:blank", "_blank");
+      expect(openedWindow.location.assign).toHaveBeenCalledTimes(1);
+      const openedUrl = (
+        openedWindow.location.assign as ReturnType<typeof vi.fn>
+      ).mock.calls[0]?.[0] as string;
+      const parsedUrl = new URL(openedUrl);
+      expect(parsedUrl.pathname).toBe("/login");
+      expect(parsedUrl.searchParams.get("tenant")).toBe("tenant-0001");
+      expect(openedWindow.close).not.toHaveBeenCalled();
+      expect(latestState?.errorMessage).toBeNull();
+    } finally {
+      windowOpenSpy.mockRestore();
+    }
   });
 
   it("Google 桌面登录不再接受 localhost 本地回调配置", async () => {

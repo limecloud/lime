@@ -130,16 +130,25 @@ function trimCachedSnapshot(
       .map((turn) => (typeof turn.id === "string" ? turn.id.trim() : ""))
       .filter(Boolean),
   );
+  const scopedThreadItems: AgentThreadItem[] = [];
+  for (
+    let index = snapshot.threadItems.length - 1;
+    index >= 0 && scopedThreadItems.length < limits.maxItems;
+    index -= 1
+  ) {
+    const item = snapshot.threadItems[index];
+    if (!item) {
+      continue;
+    }
+
+    const turnId = typeof item.turn_id === "string" ? item.turn_id.trim() : "";
+    if (!turnId || retainedTurnIds.has(turnId)) {
+      scopedThreadItems.push(item);
+    }
+  }
+  scopedThreadItems.reverse();
   const threadItems = filterConversationThreadItems(
-    normalizeLegacyThreadItems(
-      snapshot.threadItems
-        .filter((item) => {
-          const turnId =
-            typeof item.turn_id === "string" ? item.turn_id.trim() : "";
-          return !turnId || retainedTurnIds.has(turnId);
-        })
-        .slice(-limits.maxItems),
-    ),
+    normalizeLegacyThreadItems(scopedThreadItems),
   );
   const currentTurnId =
     typeof snapshot.currentTurnId === "string" &&
@@ -155,12 +164,13 @@ function trimCachedSnapshot(
   };
 }
 
-function normalizeCachedMessages(value: unknown): Message[] {
+function normalizeCachedMessages(value: unknown, limit: number): Message[] {
   if (!Array.isArray(value)) {
     return [];
   }
 
   const normalized = value
+    .slice(-limit)
     .map((message) => {
       if (!message || typeof message !== "object") {
         return null;
@@ -189,20 +199,17 @@ function normalizeCachedMessages(value: unknown): Message[] {
   return normalizeHistoryMessages(normalized);
 }
 
-function normalizeCachedThreadTurns(value: unknown): AgentThreadTurn[] {
+function normalizeCachedThreadTurns(
+  value: unknown,
+  limit: number,
+): AgentThreadTurn[] {
   return Array.isArray(value)
-    ? (value.filter(Boolean) as AgentThreadTurn[])
+    ? (value.slice(-limit).filter(Boolean) as AgentThreadTurn[])
     : [];
 }
 
 function normalizeCachedThreadItems(value: unknown): AgentThreadItem[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return filterConversationThreadItems(
-    normalizeLegacyThreadItems(value as AgentThreadItem[]),
-  );
+  return Array.isArray(value) ? (value as AgentThreadItem[]) : [];
 }
 
 function readFiniteNumber(value: unknown): number | null {
@@ -257,8 +264,14 @@ function normalizeCachedSnapshotRecord(
   const messagesCount = normalizeOptionalCount(record.messagesCount);
   const snapshot = trimCachedSnapshot(
     {
-      messages: normalizeCachedMessages(record.messages),
-      threadTurns: normalizeCachedThreadTurns(record.threadTurns),
+      messages: normalizeCachedMessages(
+        record.messages,
+        policy.limits.maxMessages,
+      ),
+      threadTurns: normalizeCachedThreadTurns(
+        record.threadTurns,
+        policy.limits.maxTurns,
+      ),
       threadItems: normalizeCachedThreadItems(record.threadItems),
       currentTurnId:
         typeof record.currentTurnId === "string" ? record.currentTurnId : null,
@@ -340,6 +353,34 @@ function pruneSnapshotEntries(
     .slice(0, policy.maxEntries);
 }
 
+function hasSnapshotRecord(
+  snapshotMap: Record<string, unknown>,
+  sessionId: string,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(snapshotMap, sessionId);
+}
+
+function removeCachedSnapshotRecord(
+  cacheKey: string,
+  snapshotMap: Record<string, unknown>,
+  sessionId: string,
+  storageKind: AgentSessionCachedSnapshotMetadata["storageKind"],
+) {
+  if (!hasSnapshotRecord(snapshotMap, sessionId)) {
+    return;
+  }
+
+  const nextMap = { ...snapshotMap };
+  delete nextMap[sessionId];
+
+  if (storageKind === "transient") {
+    saveTransient(cacheKey, nextMap);
+    return;
+  }
+
+  savePersisted(cacheKey, nextMap);
+}
+
 export function loadAgentSessionCachedSnapshot(
   workspaceId: string,
   sessionId: string,
@@ -356,28 +397,15 @@ export function loadAgentSessionCachedSnapshot(
   );
 
   if (transientSnapshot) {
-    const refreshedMap = {
-      ...snapshotMap,
-      [sessionId]: {
-        ...transientSnapshot,
-        lastAccessedAt: nowMs,
-      },
-    };
-    saveTransient(
-      cacheKey,
-      Object.fromEntries(
-        pruneSnapshotEntries(refreshedMap, TRANSIENT_SNAPSHOT_POLICY, nowMs),
-      ),
-    );
-    return toCachedSnapshot(
-      {
-        ...transientSnapshot,
-        lastAccessedAt: nowMs,
-      },
-      "transient",
-      nowMs,
-    );
+    return toCachedSnapshot(transientSnapshot, "transient", nowMs);
   }
+
+  removeCachedSnapshotRecord(
+    cacheKey,
+    snapshotMap,
+    sessionId,
+    "transient",
+  );
 
   const persistedCacheKey = getScopedStorageKey(
     workspaceId,
@@ -394,52 +422,18 @@ export function loadAgentSessionCachedSnapshot(
     options,
   );
 
-  if (!persistedSnapshot) {
-    saveTransient(
-      cacheKey,
-      Object.fromEntries(
-        pruneSnapshotEntries(snapshotMap, TRANSIENT_SNAPSHOT_POLICY, nowMs),
-      ),
-    );
-    savePersisted(
-      persistedCacheKey,
-      Object.fromEntries(
-        pruneSnapshotEntries(
-          persistedSnapshotMap,
-          PERSISTED_SNAPSHOT_POLICY,
-          nowMs,
-        ),
-      ),
-    );
-    return null;
+  if (persistedSnapshot) {
+    return toCachedSnapshot(persistedSnapshot, "persisted", nowMs);
   }
 
-  const refreshedPersistedMap = {
-    ...persistedSnapshotMap,
-    [sessionId]: {
-      ...persistedSnapshot,
-      lastAccessedAt: nowMs,
-    },
-  };
-  savePersisted(
+  removeCachedSnapshotRecord(
     persistedCacheKey,
-    Object.fromEntries(
-      pruneSnapshotEntries(
-        refreshedPersistedMap,
-        PERSISTED_SNAPSHOT_POLICY,
-        nowMs,
-      ),
-    ),
+    persistedSnapshotMap,
+    sessionId,
+    "persisted",
   );
 
-  return toCachedSnapshot(
-    {
-      ...persistedSnapshot,
-      lastAccessedAt: nowMs,
-    },
-    "persisted",
-    nowMs,
-  );
+  return null;
 }
 
 export function saveAgentSessionCachedSnapshot(

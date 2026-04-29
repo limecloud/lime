@@ -44,7 +44,6 @@ use crate::tool_io_offload::{
     force_offload_tool_arguments_for_history, maybe_offload_plain_tool_output,
     maybe_offload_tool_arguments,
 };
-#[cfg(test)]
 use lime_core::database::dao::agent::AgentDao;
 
 const RUNTIME_OVERLAY_ACTIVE_WINDOW_SECS: i64 = 30 * 60;
@@ -1058,8 +1057,7 @@ pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDe
 
 pub fn count_session_messages_sync(db: &DbConnection, session_id: &str) -> Result<usize, String> {
     let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-    lime_core::database::dao::agent::AgentDao::get_message_count(&conn, session_id)
-        .map_err(|e| format!("获取会话消息数量失败: {e}"))
+    agent_session_repository::count_session_messages(&conn, session_id)
 }
 
 /// 获取会话详情；传入 history_limit 时只读取末尾历史，用于旧会话首屏恢复。
@@ -1067,6 +1065,27 @@ pub fn get_session_sync_with_history_limit(
     db: &DbConnection,
     session_id: &str,
     history_limit: Option<usize>,
+) -> Result<SessionDetail, String> {
+    get_session_sync_with_history_window(db, session_id, history_limit, 0)
+}
+
+/// 获取会话详情；传入 history_limit/history_offset 时从最新消息向前分页读取历史。
+pub fn get_session_sync_with_history_window(
+    db: &DbConnection,
+    session_id: &str,
+    history_limit: Option<usize>,
+    history_offset: usize,
+) -> Result<SessionDetail, String> {
+    get_session_sync_with_history_page(db, session_id, history_limit, history_offset, None)
+}
+
+/// 获取会话详情；传入 before_message_id 时以稳定消息游标读取更早历史。
+pub fn get_session_sync_with_history_page(
+    db: &DbConnection,
+    session_id: &str,
+    history_limit: Option<usize>,
+    history_offset: usize,
+    before_message_id: Option<i64>,
 ) -> Result<SessionDetail, String> {
     let started_at = Instant::now();
 
@@ -1083,29 +1102,72 @@ pub fn get_session_sync_with_history_limit(
         todo_ms,
     ) = {
         let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-
-        let session_detail = match history_limit {
-            Some(limit) => {
-                agent_session_repository::get_session_with_messages_tail(&conn, session_id, limit)
+        let before_message_timestamp = match (history_limit, before_message_id) {
+            (Some(_), Some(message_id)) => {
+                AgentDao::get_message_timestamp_by_id(&conn, session_id, message_id)
+                    .map_err(|e| format!("读取历史游标消息时间失败: {e}"))?
             }
-            None => agent_session_repository::get_session_with_messages(&conn, session_id),
+            _ => None,
+        };
+
+        let session_detail = match (history_limit, before_message_id) {
+            (Some(limit), Some(message_id)) => {
+                agent_session_repository::get_session_with_messages_before(
+                    &conn, session_id, limit, message_id,
+                )
+            }
+            (Some(limit), None) => agent_session_repository::get_session_with_messages_tail_page(
+                &conn,
+                session_id,
+                limit,
+                history_offset,
+            ),
+            (None, _) => agent_session_repository::get_session_with_messages(&conn, session_id),
         }
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("会话不存在: {session_id}"))?;
         let session_ms = session_started_at.elapsed().as_millis();
 
         let turns_started_at = Instant::now();
-        let turns = match history_limit {
-            Some(limit) => AgentTimelineDao::list_turns_by_thread_tail(&conn, session_id, limit),
-            None => AgentTimelineDao::list_turns_by_thread(&conn, session_id),
+        let turns = match (history_limit, before_message_timestamp.as_deref()) {
+            (Some(limit), Some(before_started_at)) => {
+                AgentTimelineDao::list_turns_by_thread_before(
+                    &conn,
+                    session_id,
+                    limit,
+                    before_started_at,
+                )
+            }
+            (Some(_), None) if before_message_id.is_some() => Ok(Vec::new()),
+            (Some(limit), None) => AgentTimelineDao::list_turns_by_thread_tail_page(
+                &conn,
+                session_id,
+                limit,
+                history_offset,
+            ),
+            (None, _) => AgentTimelineDao::list_turns_by_thread(&conn, session_id),
         }
         .map_err(|e| format!("获取 turn 历史失败: {e}"))?;
         let turns_ms = turns_started_at.elapsed().as_millis();
 
         let items_started_at = Instant::now();
-        let items = match history_limit {
-            Some(limit) => AgentTimelineDao::list_items_by_thread_tail(&conn, session_id, limit),
-            None => AgentTimelineDao::list_items_by_thread(&conn, session_id),
+        let items = match (history_limit, before_message_timestamp.as_deref()) {
+            (Some(limit), Some(before_started_at)) => {
+                AgentTimelineDao::list_items_by_thread_before(
+                    &conn,
+                    session_id,
+                    limit,
+                    before_started_at,
+                )
+            }
+            (Some(_), None) if before_message_id.is_some() => Ok(Vec::new()),
+            (Some(limit), None) => AgentTimelineDao::list_items_by_thread_tail_page(
+                &conn,
+                session_id,
+                limit,
+                history_offset,
+            ),
+            (None, _) => AgentTimelineDao::list_items_by_thread(&conn, session_id),
         }
         .map_err(|e| format!("获取 item 历史失败: {e}"))?;
         let items_ms = items_started_at.elapsed().as_millis();
@@ -1114,8 +1176,13 @@ pub fn get_session_sync_with_history_limit(
         let todo_items = load_session_todo_items_from_conn(&conn, session_id);
         let todo_ms = todo_started_at.elapsed().as_millis();
 
-        let user_visible_flags_result =
-            load_user_visible_message_flags_from_conn(&conn, session_id, history_limit);
+        let user_visible_flags_result = load_user_visible_message_flags_from_conn(
+            &conn,
+            session_id,
+            history_limit,
+            history_offset,
+            before_message_id,
+        );
 
         (
             session_detail,
@@ -1161,7 +1228,7 @@ pub fn get_session_sync_with_history_limit(
     let total_ms = started_at.elapsed().as_millis();
 
     tracing::info!(
-        "[SessionStore] get_session_sync 完成: session_id={}, total_ms={}, session_ms={}, turns_ms={}, items_ms={}, todo_ms={}, messages_ms={}, history_limit={:?}, messages_count={}, turns_count={}, items_count={}, todo_count={}",
+        "[SessionStore] get_session_sync 完成: session_id={}, total_ms={}, session_ms={}, turns_ms={}, items_ms={}, todo_ms={}, messages_ms={}, history_limit={:?}, history_offset={}, before_message_id={:?}, messages_count={}, turns_count={}, items_count={}, todo_count={}",
         session_id,
         total_ms,
         session_ms,
@@ -1170,6 +1237,8 @@ pub fn get_session_sync_with_history_limit(
         todo_ms,
         messages_ms,
         history_limit,
+        history_offset,
+        before_message_id,
         tauri_messages.len(),
         turns.len(),
         items.len(),
@@ -1226,14 +1295,38 @@ fn load_user_visible_message_flags_from_conn(
     conn: &rusqlite::Connection,
     session_id: &str,
     history_limit: Option<usize>,
+    history_offset: usize,
+    before_message_id: Option<i64>,
 ) -> Result<Vec<bool>, String> {
     let visibility_projection = user_visible_projection_sql();
-    let sql = match history_limit {
-        Some(limit) => {
-            if limit == 0 {
-                return Ok(Vec::new());
-            }
-            format!(
+    match (history_limit, before_message_id.filter(|value| *value > 0)) {
+        (Some(0), _) => Ok(Vec::new()),
+        (Some(limit), Some(before_message_id)) => {
+            let sql = format!(
+                "SELECT user_visible
+                 FROM (
+                     SELECT id, {visibility_projection} AS user_visible
+                     FROM agent_messages
+                     WHERE session_id = ?1 AND id < ?2
+                     ORDER BY id DESC
+                     LIMIT ?3
+                 )
+                 ORDER BY id ASC"
+            );
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|e| format!("准备消息可见性查询失败: {e}"))?;
+            let rows = stmt
+                .query_map(
+                    rusqlite::params![session_id, before_message_id, limit as i64],
+                    map_user_visible_flag_row,
+                )
+                .map_err(|e| format!("查询消息可见性失败: {e}"))?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| format!("读取消息可见性失败: {e}"))
+        }
+        (Some(limit), None) => {
+            let sql = format!(
                 "SELECT user_visible
                  FROM (
                      SELECT id, {visibility_projection} AS user_visible
@@ -1241,33 +1334,39 @@ fn load_user_visible_message_flags_from_conn(
                      WHERE session_id = ?1
                      ORDER BY id DESC
                      LIMIT ?2
+                     OFFSET ?3
                  )
                  ORDER BY id ASC"
-            )
+            );
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|e| format!("准备消息可见性查询失败: {e}"))?;
+            let rows = stmt
+                .query_map(
+                    rusqlite::params![session_id, limit as i64, history_offset as i64],
+                    map_user_visible_flag_row,
+                )
+                .map_err(|e| format!("查询消息可见性失败: {e}"))?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| format!("读取消息可见性失败: {e}"))
         }
-        None => format!(
-            "SELECT {visibility_projection} AS user_visible
-             FROM agent_messages
-             WHERE session_id = ?1
-             ORDER BY id ASC"
-        ),
-    };
-
-    let mut stmt = conn
-        .prepare(&sql)
-        .map_err(|e| format!("准备消息可见性查询失败: {e}"))?;
-
-    let rows = match history_limit {
-        Some(limit) => stmt.query_map(
-            rusqlite::params![session_id, limit as i64],
-            map_user_visible_flag_row,
-        ),
-        None => stmt.query_map(rusqlite::params![session_id], map_user_visible_flag_row),
+        (None, _) => {
+            let sql = format!(
+                "SELECT {visibility_projection} AS user_visible
+                 FROM agent_messages
+                 WHERE session_id = ?1
+                 ORDER BY id ASC"
+            );
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|e| format!("准备消息可见性查询失败: {e}"))?;
+            let rows = stmt
+                .query_map(rusqlite::params![session_id], map_user_visible_flag_row)
+                .map_err(|e| format!("查询消息可见性失败: {e}"))?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| format!("读取消息可见性失败: {e}"))
+        }
     }
-    .map_err(|e| format!("查询消息可见性失败: {e}"))?;
-
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("读取消息可见性失败: {e}"))
 }
 
 fn load_chat_user_visible_message_flags_from_conn(
@@ -1361,9 +1460,41 @@ pub async fn get_runtime_session_detail_with_history_limit(
     session_id: &str,
     history_limit: Option<usize>,
 ) -> Result<SessionDetail, String> {
+    get_runtime_session_detail_with_history_window(db, session_id, history_limit, 0).await
+}
+
+pub async fn get_runtime_session_detail_with_history_window(
+    db: &DbConnection,
+    session_id: &str,
+    history_limit: Option<usize>,
+    history_offset: usize,
+) -> Result<SessionDetail, String> {
+    get_runtime_session_detail_with_history_page(
+        db,
+        session_id,
+        history_limit,
+        history_offset,
+        None,
+    )
+    .await
+}
+
+pub async fn get_runtime_session_detail_with_history_page(
+    db: &DbConnection,
+    session_id: &str,
+    history_limit: Option<usize>,
+    history_offset: usize,
+    before_message_id: Option<i64>,
+) -> Result<SessionDetail, String> {
     let started_at = Instant::now();
     let detail_started_at = Instant::now();
-    let mut detail = get_session_sync_with_history_limit(db, session_id, history_limit)?;
+    let mut detail = get_session_sync_with_history_page(
+        db,
+        session_id,
+        history_limit,
+        history_offset,
+        before_message_id,
+    )?;
     let detail_ms = detail_started_at.elapsed().as_millis();
 
     let archive_check_started_at = Instant::now();
@@ -1372,12 +1503,14 @@ pub async fn get_runtime_session_detail_with_history_limit(
     if is_archived {
         let total_ms = started_at.elapsed().as_millis();
         tracing::info!(
-            "[SessionStore] get_runtime_session_detail 归档快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}, history_limit={:?}, messages_count={}, turns_count={}, items_count={}",
+            "[SessionStore] get_runtime_session_detail 归档快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}, history_limit={:?}, history_offset={}, before_message_id={:?}, messages_count={}, turns_count={}, items_count={}",
             session_id,
             total_ms,
             detail_ms,
             archive_check_ms,
             history_limit,
+            history_offset,
+            before_message_id,
             detail.messages.len(),
             detail.turns.len(),
             detail.items.len(),
@@ -1388,17 +1521,21 @@ pub async fn get_runtime_session_detail_with_history_limit(
     if detail.is_persisted_empty() {
         let total_ms = started_at.elapsed().as_millis();
         tracing::info!(
-            "[SessionStore] get_runtime_session_detail 空会话快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}, history_limit={:?}",
+            "[SessionStore] get_runtime_session_detail 空会话快路径完成: session_id={}, total_ms={}, detail_ms={}, archive_check_ms={}, history_limit={:?}, history_offset={}, before_message_id={:?}",
             session_id,
             total_ms,
             detail_ms,
             archive_check_ms,
             history_limit,
+            history_offset,
+            before_message_id,
         );
         return Ok(detail);
     }
 
-    let load_runtime_overlay = should_load_runtime_overlay(&detail, history_limit);
+    let load_runtime_overlay = history_offset == 0
+        && before_message_id.is_none()
+        && should_load_runtime_overlay(&detail, history_limit);
 
     let session_started_at = Instant::now();
     let session = if load_runtime_overlay {
@@ -1495,8 +1632,9 @@ pub async fn get_runtime_session_detail_with_history_limit(
     }
     let apply_snapshot_ms = apply_snapshot_started_at.elapsed().as_millis();
 
-    let load_subagent_runtime_context =
-        should_load_subagent_runtime_context(&detail, history_limit);
+    let load_subagent_runtime_context = history_offset == 0
+        && before_message_id.is_none()
+        && should_load_subagent_runtime_context(&detail, history_limit);
 
     let child_subagents_started_at = Instant::now();
     if load_subagent_runtime_context {
@@ -1534,7 +1672,7 @@ pub async fn get_runtime_session_detail_with_history_limit(
     let total_ms = started_at.elapsed().as_millis();
 
     tracing::info!(
-        "[SessionStore] get_runtime_session_detail 完成: session_id={}, total_ms={}, detail_ms={}, read_runtime_session_ms={}, runtime_snapshot_ms={}, usage_fallback_ms={}, execution_runtime_ms={}, apply_snapshot_ms={}, child_subagents_ms={}, parent_context_ms={}, history_limit={:?}, runtime_overlay_loaded={}, subagent_runtime_context_loaded={}, messages_count={}, turns_count={}, items_count={}, child_subagents_count={}, has_parent_context={}",
+        "[SessionStore] get_runtime_session_detail 完成: session_id={}, total_ms={}, detail_ms={}, read_runtime_session_ms={}, runtime_snapshot_ms={}, usage_fallback_ms={}, execution_runtime_ms={}, apply_snapshot_ms={}, child_subagents_ms={}, parent_context_ms={}, history_limit={:?}, history_offset={}, before_message_id={:?}, runtime_overlay_loaded={}, subagent_runtime_context_loaded={}, messages_count={}, turns_count={}, items_count={}, child_subagents_count={}, has_parent_context={}",
         session_id,
         total_ms,
         detail_ms,
@@ -1546,6 +1684,8 @@ pub async fn get_runtime_session_detail_with_history_limit(
         child_subagents_ms,
         parent_context_ms,
         history_limit,
+        history_offset,
+        before_message_id,
         load_runtime_overlay,
         load_subagent_runtime_context,
         detail.messages.len(),
@@ -2656,9 +2796,14 @@ mod tests {
         )
         .expect("insert hidden message");
 
-        let flags =
-            load_user_visible_message_flags_from_conn(&conn, "session-visibility-flags", None)
-                .expect("load visibility flags");
+        let flags = load_user_visible_message_flags_from_conn(
+            &conn,
+            "session-visibility-flags",
+            None,
+            0,
+            None,
+        )
+        .expect("load visibility flags");
 
         assert_eq!(flags, vec![true, false]);
     }
@@ -2693,11 +2838,38 @@ mod tests {
         )
         .expect("insert visible message");
 
-        let flags =
-            load_user_visible_message_flags_from_conn(&conn, "session-visibility-tail", Some(2))
-                .expect("load visibility flags");
+        let flags = load_user_visible_message_flags_from_conn(
+            &conn,
+            "session-visibility-tail",
+            Some(2),
+            0,
+            None,
+        )
+        .expect("load visibility flags");
 
         assert_eq!(flags, vec![false, true]);
+
+        let older_flags = load_user_visible_message_flags_from_conn(
+            &conn,
+            "session-visibility-tail",
+            Some(1),
+            1,
+            None,
+        )
+        .expect("load visibility flags page");
+
+        assert_eq!(older_flags, vec![false]);
+
+        let cursor_flags = load_user_visible_message_flags_from_conn(
+            &conn,
+            "session-visibility-tail",
+            Some(1),
+            0,
+            Some(3),
+        )
+        .expect("load visibility flags cursor page");
+
+        assert_eq!(cursor_flags, vec![false]);
     }
 
     #[test]
@@ -2729,9 +2901,14 @@ mod tests {
         )
         .expect("insert huge message");
 
-        let flags =
-            load_user_visible_message_flags_from_conn(&conn, "session-visibility-huge", Some(1))
-                .expect("load visibility flags");
+        let flags = load_user_visible_message_flags_from_conn(
+            &conn,
+            "session-visibility-huge",
+            Some(1),
+            0,
+            None,
+        )
+        .expect("load visibility flags");
 
         assert_eq!(flags, vec![true]);
     }
@@ -3181,6 +3358,53 @@ mod tests {
             .iter()
             .any(
                 |part| matches!(part, RuntimeAgentMessageContent::Text { text } if text == "消息 4")
+            ));
+
+        let older_detail = get_session_sync_with_history_window(&db, "session-tail", Some(2), 2)
+            .expect("get older session page");
+
+        assert_eq!(older_detail.messages.len(), 2);
+        assert!(older_detail
+            .messages
+            .first()
+            .expect("first older message")
+            .content
+            .iter()
+            .any(
+                |part| matches!(part, RuntimeAgentMessageContent::Text { text } if text == "消息 1")
+            ));
+        assert!(older_detail
+            .messages
+            .last()
+            .expect("last older message")
+            .content
+            .iter()
+            .any(
+                |part| matches!(part, RuntimeAgentMessageContent::Text { text } if text == "消息 2")
+            ));
+
+        let cursor_detail =
+            get_session_sync_with_history_page(&db, "session-tail", Some(2), 0, Some(3))
+                .expect("get cursor session page");
+
+        assert_eq!(cursor_detail.messages.len(), 2);
+        assert!(cursor_detail
+            .messages
+            .first()
+            .expect("first cursor message")
+            .content
+            .iter()
+            .any(
+                |part| matches!(part, RuntimeAgentMessageContent::Text { text } if text == "消息 1")
+            ));
+        assert!(cursor_detail
+            .messages
+            .last()
+            .expect("last cursor message")
+            .content
+            .iter()
+            .any(
+                |part| matches!(part, RuntimeAgentMessageContent::Text { text } if text == "消息 2")
             ));
     }
 

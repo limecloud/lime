@@ -151,6 +151,30 @@ function buildMockMediaTaskOutput(
       mode: request.mode ?? "generate",
       size: request.size ?? "1024x1024",
       count: request.count ?? 1,
+      modality_contract_key:
+        request.modalityContractKey ??
+        request.modality_contract_key ??
+        "image_generation",
+      modality: request.modality ?? "image",
+      required_capabilities:
+        request.requiredCapabilities ??
+        request.required_capabilities ??
+        ["text_generation", "image_generation", "vision_input"],
+      routing_slot:
+        request.routingSlot ?? request.routing_slot ?? "image_generation_model",
+      runtime_contract:
+        request.runtimeContract ??
+        request.runtime_contract ??
+        {
+          contract_key: "image_generation",
+          modality: "image",
+          required_capabilities: [
+            "text_generation",
+            "image_generation",
+            "vision_input",
+          ],
+          routing_slot: "image_generation_model",
+        },
     },
     status,
     normalized_status: normalizedStatus,
@@ -6279,7 +6303,7 @@ const defaultMocks: Record<string, any> = {
 
   // Update 相关
   check_update: () => ({
-    current_version: "1.22.0",
+    current_version: "1.23.0",
     latest_version: null,
     has_update: false,
     download_url: "https://github.com/limecloud/lime/releases",
@@ -6290,7 +6314,7 @@ const defaultMocks: Record<string, any> = {
     error: null,
   }),
   check_for_updates: () => ({
-    current: "1.22.0",
+    current: "1.23.0",
     latest: null,
     hasUpdate: false,
     downloadUrl: "https://github.com/limecloud/lime/releases",

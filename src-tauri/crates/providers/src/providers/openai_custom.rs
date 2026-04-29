@@ -4,12 +4,15 @@ use lime_core::api_host_utils::{
     normalize_openai_compatible_api_host, normalize_openai_model_discovery_host,
 };
 use lime_core::models::openai::{ChatCompletionRequest, ChatMessage};
-use reqwest::Client;
 use reqwest::StatusCode;
+use reqwest::{Client, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::time::Duration;
-use url::Url;
+use url::{form_urlencoded, Url};
+
+const LIME_TENANT_HEADER: &str = "X-Lime-Tenant-ID";
+const LIME_TENANT_PARAM: &str = "lime_tenant_id";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OpenAICustomConfig {
@@ -255,6 +258,63 @@ impl OpenAICustomProvider {
         }
     }
 
+    fn parse_config_url(base_url: &str) -> Option<Url> {
+        let trimmed = base_url.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        Url::parse(trimmed)
+            .or_else(|_| Url::parse(&format!("https://{trimmed}")))
+            .ok()
+    }
+
+    fn normalize_lime_tenant_id(value: &str) -> Option<String> {
+        let tenant_id = value.trim();
+        if tenant_id.is_empty() {
+            return None;
+        }
+
+        tenant_id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+            .then(|| tenant_id.to_string())
+    }
+
+    fn parse_lime_tenant_id_from_pairs(value: &str) -> Option<String> {
+        form_urlencoded::parse(value.as_bytes()).find_map(|(key, value)| {
+            (key == LIME_TENANT_PARAM)
+                .then(|| Self::normalize_lime_tenant_id(&value))
+                .flatten()
+        })
+    }
+
+    fn lime_tenant_id_from_base_url(&self) -> Option<String> {
+        let base_url = self.config.base_url.as_deref()?;
+        let url = Self::parse_config_url(base_url)?;
+
+        url.query()
+            .and_then(Self::parse_lime_tenant_id_from_pairs)
+            .or_else(|| {
+                url.fragment()
+                    .and_then(Self::parse_lime_tenant_id_from_pairs)
+            })
+    }
+
+    fn apply_auth_headers(&self, request: RequestBuilder, api_key: &str) -> RequestBuilder {
+        let request = request.header("Authorization", format!("Bearer {api_key}"));
+        if let Some(tenant_id) = self.lime_tenant_id_from_base_url() {
+            request.header(LIME_TENANT_HEADER, tenant_id)
+        } else {
+            request
+        }
+    }
+
+    fn apply_json_headers(&self, request: RequestBuilder, api_key: &str) -> RequestBuilder {
+        self.apply_auth_headers(request, api_key)
+            .header("Content-Type", "application/json")
+    }
+
     fn parent_base_url(base: &str) -> Option<String> {
         let base = base.trim();
         if base.is_empty() {
@@ -356,10 +416,7 @@ impl OpenAICustomProvider {
         for url in &urls {
             eprintln!("[OPENAI_CUSTOM] call_api trying URL: {url}");
             let resp = self
-                .client
-                .post(url)
-                .header("Authorization", format!("Bearer {api_key}"))
-                .header("Content-Type", "application/json")
+                .apply_json_headers(self.client.post(url), api_key)
                 .json(&payload)
                 .send()
                 .await?;
@@ -397,10 +454,7 @@ impl OpenAICustomProvider {
         self.normalize_openai_request_payload(&mut payload);
 
         let resp = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {api_key}"))
-            .header("Content-Type", "application/json")
+            .apply_json_headers(self.client.post(&url), api_key)
             .json(&payload)
             .send()
             .await?;
@@ -411,10 +465,7 @@ impl OpenAICustomProvider {
             if let Some(fallback_url) = self.build_url_fallback_without_v1("chat/completions") {
                 if fallback_url != url {
                     let resp2 = self
-                        .client
-                        .post(&fallback_url)
-                        .header("Authorization", format!("Bearer {api_key}"))
-                        .header("Content-Type", "application/json")
+                        .apply_json_headers(self.client.post(&fallback_url), api_key)
                         .json(&payload)
                         .send()
                         .await?;
@@ -442,9 +493,7 @@ impl OpenAICustomProvider {
             eprintln!("[OPENAI_CUSTOM] list_models URL: {url}");
             tried_urls.push(url.clone());
             let r = self
-                .client
-                .get(&url)
-                .header("Authorization", format!("Bearer {api_key}"))
+                .apply_auth_headers(self.client.get(&url), api_key)
                 .send()
                 .await?;
             Self::maybe_log_protocol_mismatch_hint(&url, r.status());
@@ -516,10 +565,7 @@ impl StreamingProvider for OpenAICustomProvider {
         );
 
         let resp = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {api_key}"))
-            .header("Content-Type", "application/json")
+            .apply_json_headers(self.client.post(&url), api_key)
             .header("Accept", "text/event-stream")
             .json(&payload)
             .send()
@@ -529,10 +575,7 @@ impl StreamingProvider for OpenAICustomProvider {
         let resp = if resp.status() == StatusCode::NOT_FOUND {
             if let Some(fallback_url) = self.build_url_fallback_without_v1("chat/completions") {
                 if fallback_url != url {
-                    self.client
-                        .post(&fallback_url)
-                        .header("Authorization", format!("Bearer {api_key}"))
-                        .header("Content-Type", "application/json")
+                    self.apply_json_headers(self.client.post(&fallback_url), api_key)
                         .header("Accept", "text/event-stream")
                         .json(&payload)
                         .send()
@@ -578,7 +621,13 @@ impl StreamingProvider for OpenAICustomProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{extract::State, http::header, response::IntoResponse, routing::post, Json, Router};
+    use axum::{
+        extract::State,
+        http::{header, HeaderMap},
+        response::IntoResponse,
+        routing::post,
+        Json, Router,
+    };
     use futures::StreamExt;
     use lime_core::models::openai::{ChatMessage, FunctionDef, MessageContent, Tool};
     use std::sync::Arc;
@@ -616,6 +665,47 @@ mod tests {
                 }))
                 .into_response()
             }
+        }
+
+        let app = Router::new()
+            .route("/v1/chat/completions", post(handle_chat))
+            .with_state(captured);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock server");
+        let addr = listener.local_addr().expect("read mock server local addr");
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("mock server should run");
+        });
+        (format!("http://{}", addr), server)
+    }
+
+    async fn start_header_capture_server(
+        captured: Arc<Mutex<Vec<Option<String>>>>,
+    ) -> (String, tokio::task::JoinHandle<()>) {
+        async fn handle_chat(
+            State(captured): State<Arc<Mutex<Vec<Option<String>>>>>,
+            headers: HeaderMap,
+            Json(_payload): Json<serde_json::Value>,
+        ) -> impl IntoResponse {
+            captured.lock().await.push(
+                headers
+                    .get(LIME_TENANT_HEADER)
+                    .and_then(|value| value.to_str().ok())
+                    .map(ToString::to_string),
+            );
+
+            Json(serde_json::json!({
+                "id": "chatcmpl-test",
+                "object": "chat.completion",
+                "choices": [{
+                    "index": 0,
+                    "message": {"role":"assistant","content":"ok"},
+                    "finish_reason": "stop"
+                }]
+            }))
         }
 
         let app = Router::new()
@@ -913,6 +1003,44 @@ mod tests {
 
         assert!(urls.contains(&"https://gateway.example.com/proxy/v1/models".to_string()));
         assert!(urls.contains(&"https://gateway.example.com/proxy/models".to_string()));
+    }
+
+    #[test]
+    fn test_lime_tenant_id_from_base_url_fragment() {
+        let provider = OpenAICustomProvider::with_config(
+            "sk-test".to_string(),
+            Some("https://llm.limeai.run#lime_tenant_id=tenant-0001".to_string()),
+        );
+
+        assert_eq!(
+            provider.lime_tenant_id_from_base_url().as_deref(),
+            Some("tenant-0001")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_call_api_adds_lime_tenant_header_from_base_url_fragment() {
+        let captured = Arc::new(Mutex::new(Vec::<Option<String>>::new()));
+        let (base_url, server_handle) = start_header_capture_server(captured.clone()).await;
+        let mut provider = OpenAICustomProvider::with_config(
+            "sk-test".to_string(),
+            Some(format!("{base_url}#lime_tenant_id=tenant-0001")),
+        );
+        provider.client = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .expect("build test client without proxy");
+
+        let resp = provider
+            .call_api(&build_tool_calling_request())
+            .await
+            .expect("call should succeed");
+        assert!(resp.status().is_success());
+
+        let headers = captured.lock().await;
+        assert_eq!(headers.as_slice(), &[Some("tenant-0001".to_string())]);
+
+        server_handle.abort();
     }
 
     #[tokio::test]

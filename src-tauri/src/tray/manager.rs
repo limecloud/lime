@@ -395,7 +395,7 @@ mod tests {
         let manager = SimpleTrayManager::new();
         let state = manager.get_state().await;
         assert_eq!(state.icon_status, TrayIconStatus::Stopped);
-        assert_eq!(state.available_credentials, 0);
+        assert_eq!(state.today_requests, 0);
     }
 
     #[tokio::test]
@@ -404,8 +404,6 @@ mod tests {
 
         let new_state = TrayStateSnapshot {
             icon_status: TrayIconStatus::Running,
-            available_credentials: 3,
-            total_credentials: 5,
             today_requests: 100,
             auto_start_enabled: true,
             ..Default::default()
@@ -415,8 +413,6 @@ mod tests {
 
         let state = manager.get_state().await;
         assert_eq!(state.icon_status, TrayIconStatus::Running);
-        assert_eq!(state.available_credentials, 3);
-        assert_eq!(state.total_credentials, 5);
         assert_eq!(state.today_requests, 100);
         assert!(state.auto_start_enabled);
     }

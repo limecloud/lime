@@ -94,13 +94,27 @@ export function useAgentRuntimeSyncEffects(
   } = options;
   const lastIsSendingRef = useRef(isSending);
   const normalizedParentSessionId = parentSessionId?.trim() || null;
+  const hasTauriRuntimeEventListenerCapability =
+    hasTauriEventListenerCapability();
   const hasRuntimeEventListenerCapability =
-    hasTauriEventListenerCapability() || hasDevBridgeEventListenerCapability();
+    hasTauriRuntimeEventListenerCapability ||
+    hasDevBridgeEventListenerCapability();
+  const hasActiveRuntimeWork = shouldPollRecoveredRuntimeWork({
+    threadReadStatus,
+    queuedTurnCount,
+    threadTurns,
+  });
   const shouldUseDevBridgeRuntimePolling =
     Boolean(sessionId) &&
     isSending &&
     isDevBridgeAvailable() &&
     !hasRuntimeEventListenerCapability;
+  const shouldSubscribeTeamEvents =
+    Boolean(sessionId) &&
+    (hasTauriRuntimeEventListenerCapability ||
+      isSending ||
+      hasActiveRuntimeWork ||
+      Boolean(normalizedParentSessionId));
 
   useEffect(() => {
     const wasSending = lastIsSendingRef.current;
@@ -161,7 +175,7 @@ export function useAgentRuntimeSyncEffects(
   }, [refreshSessionDetail, sessionId, shouldUseDevBridgeRuntimePolling]);
 
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId || !shouldSubscribeTeamEvents) {
       return;
     }
 
@@ -214,5 +228,6 @@ export function useAgentRuntimeSyncEffects(
     runtime,
     sessionId,
     sessionIdRef,
+    shouldSubscribeTeamEvents,
   ]);
 }

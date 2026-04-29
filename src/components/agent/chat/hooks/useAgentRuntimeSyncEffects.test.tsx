@@ -341,4 +341,46 @@ describe("useAgentRuntimeSyncEffects", () => {
       harness.unmount();
     }
   });
+
+  it("浏览器桥接下无活跃工作时不应订阅 team 事件，避免旧会话占满 SSE 连接", async () => {
+    mockHasTauriEventListenerCapability.mockReturnValue(false);
+    mockHasDevBridgeEventListenerCapability.mockReturnValue(true);
+    const runtime = {
+      listenToTeamEvents: vi.fn(async () => () => {}),
+    };
+    const harness = await mountHook({
+      runtime,
+      isSending: false,
+      queuedTurnCount: 0,
+      threadReadStatus: null,
+      threadTurns: [],
+    });
+
+    try {
+      expect(runtime.listenToTeamEvents).not.toHaveBeenCalled();
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("浏览器桥接下存在活跃工作时仍应订阅 team 事件", async () => {
+    mockHasTauriEventListenerCapability.mockReturnValue(false);
+    mockHasDevBridgeEventListenerCapability.mockReturnValue(true);
+    const runtime = {
+      listenToTeamEvents: vi.fn(async () => () => {}),
+    };
+    const harness = await mountHook({
+      runtime,
+      isSending: true,
+    });
+
+    try {
+      expect(runtime.listenToTeamEvents).toHaveBeenCalledWith(
+        "agent_subagent_status:session-1",
+        expect.any(Function),
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
 });

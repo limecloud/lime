@@ -1,5 +1,7 @@
 # Lime AI Agent 改进 - 实施进度报告
 
+> 历史记录：旧凭证池运行时已退役。本文中涉及真实模型调用的后续方案，以 current API Key Provider / configured providers / model registry 为准，不再接入 `ProviderPoolService`。
+
 ## 已完成工作
 
 ### 1. 研究与分析（任务 #1-#4）✅
@@ -60,10 +62,10 @@
 
 #### 2. 集成真实 LLM 调用
 
-**目标**: 替换 `call_llm_mock()` 为真实的 provider pool 调用
+**目标**: 替换 `call_summary_model_stub()` 为真实的 current model runtime 调用
 
 **实现方式**:
-- 注入 `ProviderPoolService` 到 `AISummaryService`
+- 通过 API Key Provider / configured providers / model registry 解析可用模型
 - 使用 Claude Haiku 模型（成本低、速度快）
 - 实现重试机制（最多 3 次）
 - 添加超时控制（5 秒）

@@ -160,7 +160,7 @@ export function VideoGenSettings() {
   const providerHint = providersLoading
     ? "仅展示当前已识别为视频能力的 Provider。"
     : videoProviders.length === 0
-      ? "当前没有可用视频 Provider；请先在凭证管理中配置可生成视频的服务。"
+      ? "当前没有可用视频 Provider；请先在设置 -> AI 服务商中配置可生成视频的服务。"
       : "视频设置和图片、语音共用同一套服务模型骨架，后续新增来源时无需再做第二套页面。";
 
   return (

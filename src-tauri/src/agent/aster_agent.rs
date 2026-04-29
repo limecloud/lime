@@ -99,6 +99,38 @@ impl AsterAgentWrapper {
             .await
     }
 
+    pub async fn get_runtime_session_detail_with_history_window(
+        db: &DbConnection,
+        session_id: &str,
+        history_limit: Option<usize>,
+        history_offset: usize,
+    ) -> Result<SessionDetail, String> {
+        lime_agent::get_runtime_session_detail_with_history_window(
+            db,
+            session_id,
+            history_limit,
+            history_offset,
+        )
+        .await
+    }
+
+    pub async fn get_runtime_session_detail_with_history_page(
+        db: &DbConnection,
+        session_id: &str,
+        history_limit: Option<usize>,
+        history_offset: usize,
+        history_before_message_id: Option<i64>,
+    ) -> Result<SessionDetail, String> {
+        lime_agent::get_runtime_session_detail_with_history_page(
+            db,
+            session_id,
+            history_limit,
+            history_offset,
+            history_before_message_id,
+        )
+        .await
+    }
+
     pub async fn get_runtime_session_execution_runtime(
         db: &DbConnection,
         session_id: &str,

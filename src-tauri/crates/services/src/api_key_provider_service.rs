@@ -6,8 +6,8 @@
 //! **Validates: Requirements 7.3, 9.1, 9.2, 9.3**
 
 use crate::provider_type_mapping::{
-    api_provider_type_to_pool_type, is_custom_provider_id, pool_provider_type_to_api_type,
-    resolve_pool_provider_type_or_default,
+    api_provider_type_to_runtime_provider_type, is_custom_provider_id,
+    resolve_runtime_provider_type, runtime_provider_type_to_api_type,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
@@ -20,8 +20,9 @@ use lime_core::database::dao::api_key_provider::{
 };
 use lime_core::database::system_providers::{get_system_providers, to_api_key_provider};
 use lime_core::database::DbConnection;
-use lime_core::models::{
-    CredentialData, CredentialSource, PoolProviderType, ProviderCredential, ProviderPromptCacheMode,
+use lime_core::models::runtime_provider_model::{
+    runtime_api_key_credential_uuid, ProviderPromptCacheMode, RuntimeCredentialData,
+    RuntimeProviderCredential, RuntimeProviderType,
 };
 use lime_core::provider_prompt_cache_support::is_known_automatic_anthropic_compatible_host;
 use serde::{Deserialize, Serialize};
@@ -2544,11 +2545,11 @@ impl ApiKeyProviderService {
         })
     }
 
-    // ==================== 智能降级 ====================
+    // ==================== 运行时凭证选择 ====================
 
     /// 从 API Key Provider 主路径选择凭证。
     ///
-    /// Provider Pool 已退役；运行时不再先读 `provider_pool_credentials`，只从
+    /// 旧凭证池已退役；运行时不再先读 `provider_pool_credentials`，只从
     /// `api_key_providers` / `api_keys` 选择可用凭证。
     pub async fn select_credential_for_provider(
         &self,
@@ -2556,8 +2557,8 @@ impl ApiKeyProviderService {
         provider_type: &str,
         provider_id_hint: Option<&str>,
         client_type: Option<&lime_core::models::client_type::ClientType>,
-    ) -> Result<Option<ProviderCredential>, String> {
-        let mut pool_type = resolve_pool_provider_type_or_default(provider_type);
+    ) -> Result<Option<RuntimeProviderCredential>, String> {
+        let mut runtime_provider_type = resolve_runtime_provider_type(provider_type);
         let mut resolved_provider_id_hint = provider_id_hint;
 
         if is_custom_provider_id(provider_type) {
@@ -2569,20 +2570,21 @@ impl ApiKeyProviderService {
         {
             match self.get_provider(db, custom_provider_id) {
                 Ok(Some(provider_with_keys)) => {
-                    pool_type =
-                        api_provider_type_to_pool_type(provider_with_keys.provider.provider_type);
+                    runtime_provider_type = Some(api_provider_type_to_runtime_provider_type(
+                        provider_with_keys.provider.provider_type,
+                    ));
                     tracing::debug!(
                         "[API_KEY_PROVIDER] custom provider '{}' 真实类型 {:?} -> {:?}",
                         custom_provider_id,
                         provider_with_keys.provider.provider_type,
-                        pool_type
+                        runtime_provider_type
                     );
                 }
                 Ok(None) => {
                     tracing::debug!(
                         "[API_KEY_PROVIDER] custom provider '{}' 不存在，继续使用解析类型 {:?}",
                         custom_provider_id,
-                        pool_type
+                        runtime_provider_type
                     );
                 }
                 Err(error) => {
@@ -2590,76 +2592,89 @@ impl ApiKeyProviderService {
                         "[API_KEY_PROVIDER] 查询 custom provider '{}' 失败: {}，继续使用解析类型 {:?}",
                         custom_provider_id,
                         error,
-                        pool_type
+                        runtime_provider_type
                     );
                 }
             }
         }
 
-        self.get_fallback_credential(db, &pool_type, resolved_provider_id_hint, client_type)
-            .await
+        self.select_runtime_credential(
+            db,
+            runtime_provider_type.as_ref(),
+            resolved_provider_id_hint,
+            client_type,
+        )
+        .await
     }
 
-    /// 根据 PoolProviderType 获取降级凭证
+    /// 根据 RuntimeProviderType 选择运行时凭证。
     ///
-    /// 用于智能降级场景：当 Provider Pool 无可用凭证时，自动从 API Key Provider 查找
+    /// 从 API Key Provider 查找可用凭证；旧凭证池不参与运行时选择。
     ///
-    /// 降级策略：
-    /// 1. 首先通过类型映射查找 (PoolProviderType → ApiProviderType)
-    /// 2. 如果类型映射失败，尝试通过 provider_id 直接查找 (支持 60+ Provider)
+    /// 选择策略：
+    /// 1. 优先通过 provider_id 直接查找 (支持 60+ Provider)
+    /// 2. 没有 provider_id 命中时，通过类型映射查找 (RuntimeProviderType → ApiProviderType)
     ///
     /// # 参数
     /// - `db`: 数据库连接
-    /// - `pool_type`: Provider Pool 中的 Provider 类型
+    /// - `runtime_provider_type`: 运行时 Provider 类型
     /// - `provider_id_hint`: 可选的 provider_id 提示，如 "deepseek", "dashscope"
     /// - `client_type`: 客户端类型，用于兼容性检查
     ///
     /// # 返回
-    /// - `Ok(Some(credential))`: 找到可用的降级凭证
-    /// - `Ok(None)`: 没有找到可用的降级凭证
+    /// - `Ok(Some(credential))`: 找到可用的运行时凭证
+    /// - `Ok(None)`: 没有找到可用的运行时凭证
     /// - `Err(e)`: 查询过程中发生错误
-    pub async fn get_fallback_credential(
+    pub async fn select_runtime_credential(
         &self,
         db: &DbConnection,
-        pool_type: &PoolProviderType,
+        runtime_provider_type: Option<&RuntimeProviderType>,
         provider_id_hint: Option<&str>,
         client_type: Option<&lime_core::models::client_type::ClientType>,
-    ) -> Result<Option<ProviderCredential>, String> {
+    ) -> Result<Option<RuntimeProviderCredential>, String> {
         eprintln!(
-            "[get_fallback_credential] 开始查找: pool_type={pool_type:?}, provider_id_hint={provider_id_hint:?}"
+            "[select_runtime_credential] 开始查找: runtime_provider_type={runtime_provider_type:?}, provider_id_hint={provider_id_hint:?}"
         );
 
         // 策略 1: 优先通过 provider_id 直接查找 (支持 deepseek, moonshot 等 60+ Provider)
         // 这些 Provider 在 API Key Provider 中有独立配置，应该优先使用
         if let Some(provider_id) = provider_id_hint {
-            eprintln!("[get_fallback_credential] 尝试按 provider_id '{provider_id}' 查找");
+            eprintln!("[select_runtime_credential] 尝试按 provider_id '{provider_id}' 查找");
             if let Some(cred) = self
                 .find_by_provider_id(db, provider_id, client_type)
                 .await?
             {
                 eprintln!(
-                    "[get_fallback_credential] 通过 provider_id '{}' 找到凭证: {:?}",
+                    "[select_runtime_credential] 通过 provider_id '{}' 找到凭证: {:?}",
                     provider_id, cred.name
                 );
                 return Ok(Some(cred));
             }
-            eprintln!("[get_fallback_credential] provider_id '{provider_id}' 未找到凭证");
+            eprintln!("[select_runtime_credential] provider_id '{provider_id}' 未找到凭证");
         }
 
-        // 策略 2: 通过类型映射查找（降级方案）
-        if let Some(api_type) = pool_provider_type_to_api_type(pool_type) {
-            eprintln!("[get_fallback_credential] 尝试类型映射: {pool_type:?} -> {api_type:?}");
-            if let Some(cred) = self.find_by_api_type(db, pool_type, &api_type)? {
-                eprintln!(
-                    "[get_fallback_credential] 通过类型映射找到凭证: {:?}",
-                    cred.name
-                );
-                return Ok(Some(cred));
-            }
+        // 策略 2: 通过类型映射查找。
+        let Some(runtime_provider_type) = runtime_provider_type else {
+            eprintln!(
+                "[select_runtime_credential] provider_id_hint={provider_id_hint:?} 未命中，且 Provider 类型已退役"
+            );
+            return Ok(None);
+        };
+
+        let api_type = runtime_provider_type_to_api_type(runtime_provider_type);
+        eprintln!(
+            "[select_runtime_credential] 尝试类型映射: {runtime_provider_type:?} -> {api_type:?}"
+        );
+        if let Some(cred) = self.find_by_api_type(db, runtime_provider_type, &api_type)? {
+            eprintln!(
+                "[select_runtime_credential] 通过类型映射找到凭证: {:?}",
+                cred.name
+            );
+            return Ok(Some(cred));
         }
 
         eprintln!(
-            "[get_fallback_credential] 未找到 {pool_type:?} 的降级凭证 (provider_id_hint: {provider_id_hint:?})"
+            "[select_runtime_credential] 未找到 {runtime_provider_type:?} 的运行时凭证 (provider_id_hint: {provider_id_hint:?})"
         );
         Ok(None)
     }
@@ -2668,9 +2683,9 @@ impl ApiKeyProviderService {
     fn find_by_api_type(
         &self,
         db: &DbConnection,
-        pool_type: &PoolProviderType,
+        runtime_provider_type: &RuntimeProviderType,
         api_type: &ApiProviderType,
-    ) -> Result<Option<ProviderCredential>, String> {
+    ) -> Result<Option<RuntimeProviderCredential>, String> {
         let conn = lime_core::database::lock_db(db)?;
 
         // 查找该类型的启用的 Provider（按 sort_order 排序）
@@ -2708,9 +2723,9 @@ impl ApiKeyProviderService {
             // 解密 API Key
             let api_key = self.decrypt_api_key_entry_with_migration(&conn, selected_key)?;
 
-            // 转换为 ProviderCredential
+            // 转换为 RuntimeProviderCredential
             let credential = self.convert_to_provider_credential(
-                pool_type,
+                runtime_provider_type,
                 api_type,
                 &provider,
                 &selected_key.id,
@@ -2718,8 +2733,8 @@ impl ApiKeyProviderService {
             )?;
 
             tracing::info!(
-                "[智能降级] 成功找到凭证: {:?} -> {} (key: {})",
-                pool_type,
+                "[运行时凭证] 成功找到凭证: {:?} -> {} (key: {})",
+                runtime_provider_type,
                 provider.name,
                 selected_key.alias.as_deref().unwrap_or(&selected_key.id)
             );
@@ -2738,7 +2753,7 @@ impl ApiKeyProviderService {
         db: &DbConnection,
         provider_id: &str,
         client_type: Option<&lime_core::models::client_type::ClientType>,
-    ) -> Result<Option<ProviderCredential>, String> {
+    ) -> Result<Option<RuntimeProviderCredential>, String> {
         // First, get all data we need while holding the lock
         let (provider, keys) = {
             let conn = lime_core::database::lock_db(db)?;
@@ -2861,12 +2876,12 @@ impl ApiKeyProviderService {
             self.decrypt_api_key_entry_with_migration(&conn, selected_key)?
         };
 
-        // 根据 Provider 类型转换为对应的 ProviderCredential
+        // 根据 Provider 类型转换为对应的 RuntimeProviderCredential
         let credential =
             self.convert_provider_to_credential(&provider, &selected_key.id, &api_key)?;
 
         tracing::info!(
-            "[智能降级] 成功通过 provider_id 找到凭证: {} (key: {}, type: {:?})",
+            "[运行时凭证] 成功通过 provider_id 找到凭证: {} (key: {}, type: {:?})",
             provider.name,
             selected_key.alias.as_deref().unwrap_or(&selected_key.id),
             provider.effective_provider_type()
@@ -2875,135 +2890,97 @@ impl ApiKeyProviderService {
         Ok(Some(credential))
     }
 
-    /// 根据 Provider 类型转换为对应的 ProviderCredential
+    /// 根据 Provider 类型转换为对应的 RuntimeProviderCredential
     fn convert_provider_to_credential(
         &self,
         provider: &ApiKeyProvider,
         key_id: &str,
         api_key: &str,
-    ) -> Result<ProviderCredential, String> {
-        let (credential_data, pool_type) = match provider.effective_provider_type() {
+    ) -> Result<RuntimeProviderCredential, String> {
+        let (credential_data, runtime_provider_type) = match provider.effective_provider_type() {
             ApiProviderType::Anthropic => {
                 // Anthropic 类型使用 ClaudeKey
-                let data = CredentialData::ClaudeKey {
+                let data = RuntimeCredentialData::ClaudeKey {
                     api_key: api_key.to_string(),
                     base_url: Some(provider.api_host.clone()),
                 };
-                (data, PoolProviderType::Claude)
+                (data, RuntimeProviderType::Claude)
             }
             ApiProviderType::AnthropicCompatible => {
                 // Anthropic 兼容格式使用 ClaudeKey（与 Anthropic 相同的凭证数据）
-                // 但使用 AnthropicCompatible 作为 PoolProviderType，以便使用正确的端点
-                let data = CredentialData::ClaudeKey {
+                // 但使用 AnthropicCompatible 作为 RuntimeProviderType，以便使用正确的端点
+                let data = RuntimeCredentialData::ClaudeKey {
                     api_key: api_key.to_string(),
                     base_url: Some(provider.api_host.clone()),
                 };
-                (data, PoolProviderType::AnthropicCompatible)
+                (data, RuntimeProviderType::AnthropicCompatible)
             }
             ApiProviderType::Gemini => {
                 // Gemini 类型使用 GeminiApiKey
-                let data = CredentialData::GeminiApiKey {
+                let data = RuntimeCredentialData::GeminiApiKey {
                     api_key: api_key.to_string(),
                     base_url: Some(provider.api_host.clone()),
                     excluded_models: Vec::new(),
                 };
-                (data, PoolProviderType::GeminiApiKey)
+                (data, RuntimeProviderType::GeminiApiKey)
             }
             _ => {
                 // 其他类型（OpenAI 兼容）使用 OpenAIKey
-                let data = CredentialData::OpenAIKey {
+                let data = RuntimeCredentialData::OpenAIKey {
                     api_key: api_key.to_string(),
                     base_url: Some(provider.api_host.clone()),
                 };
-                (data, PoolProviderType::OpenAI)
+                (data, RuntimeProviderType::OpenAI)
             }
         };
 
-        let now = chrono::Utc::now();
-        Ok(ProviderCredential {
-            uuid: format!("fallback-{key_id}"),
-            provider_type: pool_type,
+        Ok(RuntimeProviderCredential {
+            uuid: runtime_api_key_credential_uuid(key_id),
+            provider_type: runtime_provider_type,
             credential: credential_data,
-            name: Some(format!("[降级] {}", provider.name)),
-            is_healthy: true,
-            is_disabled: false,
-            check_health: false,
-            check_model_name: None,
-            not_supported_models: Vec::new(),
-            supported_models: Vec::new(),
-            usage_count: 0,
-            error_count: 0,
-            last_used: None,
-            last_error_time: None,
-            last_error_message: None,
-            last_health_check_time: None,
-            last_health_check_model: None,
-            created_at: now,
-            updated_at: now,
-            cached_token: None,
-            source: CredentialSource::Imported,
-            proxy_url: None,
+            name: Some(provider.name.clone()),
             prompt_cache_mode_override: provider
                 .effective_prompt_cache_mode()
                 .map(Self::to_credential_prompt_cache_mode),
         })
     }
 
-    /// 转换为 ProviderCredential
+    /// 转换为 RuntimeProviderCredential
     fn convert_to_provider_credential(
         &self,
-        pool_type: &PoolProviderType,
+        runtime_provider_type: &RuntimeProviderType,
         api_type: &ApiProviderType,
         provider: &ApiKeyProvider,
         key_id: &str,
         api_key: &str,
-    ) -> Result<ProviderCredential, String> {
+    ) -> Result<RuntimeProviderCredential, String> {
         let credential_data = match api_type {
-            ApiProviderType::Anthropic => CredentialData::ClaudeKey {
+            ApiProviderType::Anthropic => RuntimeCredentialData::ClaudeKey {
                 api_key: api_key.to_string(),
                 base_url: Some(provider.api_host.clone()),
             },
-            ApiProviderType::Gemini => CredentialData::GeminiApiKey {
+            ApiProviderType::Gemini => RuntimeCredentialData::GeminiApiKey {
                 api_key: api_key.to_string(),
                 base_url: Some(provider.api_host.clone()),
                 excluded_models: Vec::new(),
             },
-            ApiProviderType::Vertexai => CredentialData::VertexKey {
+            ApiProviderType::Vertexai => RuntimeCredentialData::VertexKey {
                 api_key: api_key.to_string(),
                 base_url: Some(provider.api_host.clone()),
                 model_aliases: std::collections::HashMap::new(),
             },
             // 其他类型（包括 Openai, OpenaiResponse 等）都用 OpenAI Key 格式
-            _ => CredentialData::OpenAIKey {
+            _ => RuntimeCredentialData::OpenAIKey {
                 api_key: api_key.to_string(),
                 base_url: Some(provider.api_host.clone()),
             },
         };
 
-        let now = chrono::Utc::now();
-        Ok(ProviderCredential {
-            uuid: format!("fallback-{key_id}"),
-            provider_type: *pool_type,
+        Ok(RuntimeProviderCredential {
+            uuid: runtime_api_key_credential_uuid(key_id),
+            provider_type: *runtime_provider_type,
             credential: credential_data,
-            name: Some(format!("[降级] {}", provider.name)),
-            is_healthy: true,
-            is_disabled: false,
-            check_health: false, // 降级凭证不参与健康检查
-            check_model_name: None,
-            not_supported_models: Vec::new(),
-            supported_models: Vec::new(),
-            usage_count: 0,
-            error_count: 0,
-            last_used: None,
-            last_error_time: None,
-            last_error_message: None,
-            last_health_check_time: None,
-            last_health_check_model: None,
-            created_at: now,
-            updated_at: now,
-            cached_token: None,
-            source: CredentialSource::Imported, // 标记为导入来源
-            proxy_url: None,
+            name: Some(provider.name.clone()),
             prompt_cache_mode_override: provider
                 .effective_prompt_cache_mode()
                 .map(Self::to_credential_prompt_cache_mode),

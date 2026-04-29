@@ -13,8 +13,8 @@ pub mod openai;
 pub mod project_model;
 pub mod prompt_model;
 pub mod provider_model;
-pub mod provider_pool_model;
 pub mod provider_type;
+pub mod runtime_provider_model;
 pub mod skill_model;
 pub mod vertex_model;
 
@@ -29,9 +29,12 @@ pub use openai::*;
 pub use project_model::Persona;
 pub use prompt_model::Prompt;
 pub use provider_model::Provider;
-#[allow(unused_imports)]
-pub use provider_pool_model::*;
 pub use provider_type::ProviderType;
+pub use runtime_provider_model::{
+    runtime_api_key_credential_uuid, runtime_api_key_id_from_credential_uuid,
+    ProviderPromptCacheMode, RuntimeCredentialData, RuntimeProviderCredential, RuntimeProviderType,
+    RUNTIME_API_KEY_CREDENTIAL_UUID_PREFIX,
+};
 pub use skill_model::{
     parse_skill_manifest_from_content, resolve_skill_source_kind, split_skill_frontmatter,
     summarize_skill_resources_dir, ParsedSkillManifest, Skill, SkillCatalogSource, SkillMetadata,

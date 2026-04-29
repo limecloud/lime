@@ -1,27 +1,27 @@
-## Lime v1.22.0
+## Lime v1.23.0
 
 发布日期：`2026-04-29`
 
 ### 发布概览
 
-- 本次发布目标 tag 为 `v1.22.0`。
+- 本次发布目标 tag 为 `v1.23.0`。
 - 本次发布聚焦稳定版 GitHub Release / R2 分发链路收口、lime-cli 独立产物发布、Provider / Credential 旧路径清退、云端用户中心商业边界收口，以及 Agent 会话恢复与模型选择体验稳定性。
 - 本轮待递交内容覆盖 Rust 后端、Tauri 配置、发布工作流、release asset 脚本、Provider / Model / Credential 治理、前端 Workspace / Settings / Provider API Key 主路径、测试覆盖、版本锁文件与执行计划文档。
 
 ### 重点更新
 
-#### 1. 版本号同步到 v1.22.0
+#### 1. 版本号同步到 v1.23.0
 
-- 应用版本已同步为 `1.22.0`：
+- 应用版本已同步为 `1.23.0`：
   - `package.json`
   - `package-lock.json`
   - `src-tauri/Cargo.toml`
   - `src-tauri/Cargo.lock`
   - `src-tauri/tauri.conf.json`
   - `src-tauri/tauri.conf.headless.json`
-- `packages/lime-cli-npm/package.json` 与 `packages/lime-cli-npm/README.md` 已同步到 `1.22.0`，保持 CLI wrapper 与桌面 release 版本一致。
-- 浏览器模式默认 mock 的 update current version 已同步为 `1.22.0`。
-- GitHub release asset staging 测试中的当前发布样例已同步到 `v1.22.0`。
+- `packages/lime-cli-npm/package.json` 与 `packages/lime-cli-npm/README.md` 已同步到 `1.23.0`，保持 CLI wrapper 与桌面 release 版本一致。
+- 浏览器模式默认 mock 的 update current version 已同步为 `1.23.0`。
+- GitHub release asset staging 测试中的当前发布样例已同步到 `v1.23.0`。
 
 #### 2. 稳定版发布与 R2 分发链路
 
@@ -57,7 +57,7 @@
 #### 6. 文档、治理与回归
 
 - `docs/aiprompts/` 下 Provider、Credential Pool、Services、Hooks、Components、Overview 等导航文档同步当前 provider / credential / model registry 事实源。
-- `docs/content/03.providers/1.overview.md` 与 `src/components/provider-pool/api-key/README.md` 更新当前 Provider 配置入口说明。
+- `docs/content/03.providers/1.overview.md` 与 `src/components/api-key-provider/README.md` 更新当前 Provider 配置入口说明。
 - `scripts/release-updater-manifest.test.mjs` 增加 GitHub release asset staging 覆盖，保护 macOS 同名 updater bundle 重命名逻辑。
 - `src-tauri/proptest-regressions/` 已纳入本轮待递交范围，保留 property test 回归种子。
 
@@ -74,23 +74,19 @@
 - 已通过：
   - `npm run verify:app-version`
   - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
-  - `cargo test --manifest-path "src-tauri/Cargo.toml"` — 1070 passed / 0 failed / 2 ignored
-  - `cargo clippy --manifest-path "src-tauri/Cargo.toml" --all-targets --all-features`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" --target-dir "src-tauri/target/codex-release-v123"` — 1085 passed / 0 failed / 2 ignored
+  - `cargo clippy --manifest-path "src-tauri/Cargo.toml" --target-dir "src-tauri/target/codex-release-v123" --all-targets --all-features`
   - `npm run lint`
-  - `npx vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx"`
   - `npm test` — 43 个 Vitest smart 批次通过
   - `npm run test:contracts`
   - `git diff --check`
-- `cargo test` 通过，当前存在 1 条预存 warning：
-  - `write_auxiliary_runtime_projection_fixture` 的 `dead_code`
-- `cargo clippy` 通过，当前存在 6 条 warning：
+- `cargo clippy` 通过，当前存在 5 条预存 warning：
   - `crates/services/src/aster_session_store.rs` 的 `manual_repeat_n`
   - `crates/skills/src/lime_llm_provider.rs` 的 2 处 `too_many_arguments`
   - `crates/agent/src/request_tool_policy.rs` 的 `too_many_arguments`
   - `crates/agent/src/session_execution_runtime.rs` 的 `needless_lifetimes`
-  - `src/services/runtime_evidence_pack_service.rs` 的 `dead_code`
 - GUI 主路径未额外执行 `npm run verify:gui-smoke`；本轮发布收口以版本、发布链路、Provider / Credential 治理和前端 / Rust 回归为主要风险覆盖。
 
 ---
 
-**完整变更**: `v1.21.0` -> `v1.22.0`
+**完整变更**: `v1.22.0` -> `v1.23.0`

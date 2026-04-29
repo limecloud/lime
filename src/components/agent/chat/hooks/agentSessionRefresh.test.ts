@@ -52,11 +52,12 @@ describe("agentSessionRefresh", () => {
       updated_at: 2,
       execution_strategy: "code_orchestrated",
     };
+    const getSession = vi.fn(async () => detail);
 
     await expect(
       refreshAgentSessionDetailState({
         runtime: {
-          getSession: vi.fn(async () => detail),
+          getSession,
         },
         sessionIdRef: {
           current: "session-1",
@@ -66,6 +67,9 @@ describe("agentSessionRefresh", () => {
       }),
     ).resolves.toBe(true);
 
+    expect(getSession).toHaveBeenCalledWith("session-1", {
+      historyLimit: 40,
+    });
     expect(applySessionDetail).toHaveBeenCalledWith(
       "session-1",
       expect.objectContaining({
@@ -97,11 +101,12 @@ describe("agentSessionRefresh", () => {
         source: "session",
       },
     };
+    const getSession = vi.fn(async () => detail);
 
     await expect(
       refreshAgentSessionDetailState({
         runtime: {
-          getSession: vi.fn(async () => detail),
+          getSession,
         },
         sessionIdRef: {
           current: "session-1",
@@ -113,6 +118,9 @@ describe("agentSessionRefresh", () => {
       }),
     ).resolves.toBe(true);
 
+    expect(getSession).toHaveBeenCalledWith("session-1", {
+      historyLimit: 40,
+    });
     expect(persistSessionAccessMode).toHaveBeenCalledWith(
       "session-1",
       "current",

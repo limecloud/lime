@@ -9,7 +9,7 @@ React 组件层，使用 TailwindCSS 和 shadcn/ui。
 ```
 src/components/
 ├── ui/                 # 基础 UI 组件 (shadcn/ui)
-├── provider-pool/api-key/ # API Key Provider 设置（目录名保留历史路径）
+├── api-key-provider/ # API Key Provider 设置
 ├── flow-monitor/       # 流量监控
 ├── general-chat/       # 兼容画布桥接（非对话主入口）
 ├── terminal/           # 已移除的历史终端页面路径（不要恢复）
@@ -44,8 +44,8 @@ export function AppSidebar() {
 API Key Provider 设置组件，是当前设置页的 Provider 配置入口。
 
 ```tsx
-// src/components/provider-pool/api-key/ApiKeyProviderSection.tsx
-import { ApiKeyProviderSection } from "@/components/provider-pool/api-key";
+// src/components/api-key-provider/ApiKeyProviderSection.tsx
+import { ApiKeyProviderSection } from "@/components/api-key-provider";
 ```
 
 旧 `ProviderPoolPage`、凭证卡片、OAuth 表单与 `useProviderPool` 已退役，不允许重新作为设置入口。

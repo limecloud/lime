@@ -22,7 +22,7 @@ type MessageParts = NonNullable<Message["contentParts"]>;
 const STREAM_FIRST_EVENT_TIMEOUT_MS = 12_000;
 const STREAM_FIRST_EVENT_TIMEOUT_MESSAGE =
   "执行已中断：运行时未返回任何进度事件，请重试。";
-const STREAM_INACTIVITY_TIMEOUT_MS = 45_000;
+const STREAM_INACTIVITY_TIMEOUT_MS = 120_000; // 2 分钟，兼容推理模型长时间思考
 const STREAM_INACTIVITY_TIMEOUT_MESSAGE =
   "执行已中断：运行时长时间没有返回新进度，请重试。";
 

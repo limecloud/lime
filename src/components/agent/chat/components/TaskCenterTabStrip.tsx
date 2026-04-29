@@ -59,9 +59,9 @@ interface TaskCenterTabStripProps {
   onCreateTask: () => void;
   showHistoryToggle?: boolean;
   onToggleHistory?: () => void;
-  showCanvasToggle?: boolean;
-  isCanvasOpen?: boolean;
-  onToggleCanvas?: () => void;
+  showWorkbenchToggle?: boolean;
+  workbenchVisible?: boolean;
+  onWorkbenchToggle?: () => void;
 }
 
 function formatTaskTabTitle(item: TaskCenterTabItem): string {
@@ -107,11 +107,11 @@ export function TaskCenterTabStrip({
   onCreateTask,
   showHistoryToggle = false,
   onToggleHistory,
-  showCanvasToggle = false,
-  isCanvasOpen = false,
-  onToggleCanvas,
+  showWorkbenchToggle = false,
+  workbenchVisible = false,
+  onWorkbenchToggle,
 }: TaskCenterTabStripProps) {
-  const showToolbarActions = showHistoryToggle || showCanvasToggle;
+  const showToolbarActions = showHistoryToggle || showWorkbenchToggle;
 
   return (
     <section
@@ -225,20 +225,20 @@ export function TaskCenterTabStrip({
                 <Box className="h-3.5 w-3.5" />
               </button>
             ) : null}
-            {showCanvasToggle ? (
+            {showWorkbenchToggle ? (
               <button
                 type="button"
                 className={cn(
                   tabWorkbenchButtonClassName,
-                  isCanvasOpen &&
+                  workbenchVisible &&
                     "border-[color:var(--lime-chrome-border)] bg-[color:var(--lime-chrome-tab-active-surface)] text-[color:var(--lime-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:bg-slate-700 dark:text-slate-100",
                 )}
                 data-testid="task-center-tab-workbench"
-                aria-label={isCanvasOpen ? "收起工作台" : "展开工作台"}
-                title={isCanvasOpen ? "收起工作台" : "展开工作台"}
-                onClick={onToggleCanvas}
+                aria-label={workbenchVisible ? "收起工作台" : "展开工作台"}
+                title={workbenchVisible ? "收起工作台" : "展开工作台"}
+                onClick={onWorkbenchToggle}
               >
-                {isCanvasOpen ? (
+                {workbenchVisible ? (
                   <PanelRightClose className="h-3.5 w-3.5" />
                 ) : (
                   <PanelRightOpen className="h-3.5 w-3.5" />

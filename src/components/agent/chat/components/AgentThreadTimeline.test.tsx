@@ -227,6 +227,8 @@ function renderTimeline(
     onOpenArtifactFromTimeline?: (target: ArtifactTimelineOpenTarget) => void;
     focusedItemId?: string | null;
     focusRequestKey?: number;
+    deferCompletedSingleDetails?: boolean;
+    collapseInactiveDetails?: boolean;
   },
 ): HTMLDivElement {
   const container = document.createElement("div");
@@ -246,6 +248,8 @@ function renderTimeline(
         onOpenSubagentSession={props?.onOpenSubagentSession}
         focusedItemId={props?.focusedItemId}
         focusRequestKey={props?.focusRequestKey}
+        deferCompletedSingleDetails={props?.deferCompletedSingleDetails}
+        collapseInactiveDetails={props?.collapseInactiveDetails}
       />,
     );
   });
@@ -483,6 +487,50 @@ describe("AgentThreadTimeline", () => {
     );
   });
 
+  it("旧历史单步工具应先只渲染摘要，展开后再物化工具明细", () => {
+    const onOpenSavedSiteContent = vi.fn();
+    const container = renderTimeline(
+      [
+        {
+          ...createBaseItem("site-tool-1", 1),
+          type: "tool_call",
+          tool_name: "lime_site_run",
+          arguments: { adapter_name: "github/search" },
+          output: "ok",
+          metadata: {
+            tool_family: "site",
+            saved_content: {
+              content_id: "content-1",
+              project_id: "project-1",
+              title: "GitHub 搜索结果",
+            },
+          },
+        },
+      ],
+      {
+        deferCompletedSingleDetails: true,
+        onOpenSavedSiteContent,
+      },
+    );
+
+    const block = container.querySelector<HTMLDetailsElement>(
+      '[data-testid="agent-thread-block:1:process"]',
+    );
+    const summary = block?.querySelector("summary");
+
+    expect(block).not.toBeNull();
+    expect(block?.open).toBe(false);
+    expect(mockToolCallItem).not.toHaveBeenCalled();
+
+    act(() => {
+      summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(mockToolCallItem).toHaveBeenCalledWith(
+      expect.objectContaining({ onOpenSavedSiteContent }),
+    );
+  });
+
   it("审批项与技术项都应直接落在消息流中", () => {
     const items: AgentThreadItem[] = [
       {
@@ -596,6 +644,45 @@ describe("AgentThreadTimeline", () => {
     expect(toolRows[0]?.dataset.groupMarker).toBe("└");
     expect(toolRows[1]?.dataset.grouped).toBe("yes");
     expect(toolRows[1]?.dataset.groupMarker).toBe("·");
+  });
+
+  it("历史非活跃过程即使残留运行中状态也应默认折叠明细", () => {
+    const container = renderTimeline(
+      [
+        {
+          ...createBaseItem("browser-1", 1),
+          status: "in_progress",
+          completed_at: undefined,
+          type: "tool_call",
+          tool_name: "browser_navigate",
+          arguments: { url: "https://example.com" },
+        },
+        {
+          ...createBaseItem("browser-2", 2),
+          status: "in_progress",
+          completed_at: undefined,
+          type: "tool_call",
+          tool_name: "browser_click",
+          arguments: { selector: "#publish" },
+        },
+      ],
+      {
+        turn: {
+          status: "completed",
+        },
+        collapseInactiveDetails: true,
+      },
+    );
+
+    const block = container.querySelector<HTMLDetailsElement>(
+      '[data-testid="agent-thread-block:1:process"]',
+    );
+
+    expect(block?.open).toBe(false);
+    expect(block?.querySelector("summary")?.textContent).toContain("2 步");
+    expect(
+      container.querySelectorAll('[data-testid="tool-call-item"]'),
+    ).toHaveLength(0);
   });
 
   it("连续执行流里有运行中步骤时，应聚合为一个高亮过程块", () => {

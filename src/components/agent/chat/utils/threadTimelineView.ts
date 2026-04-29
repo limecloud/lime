@@ -56,8 +56,37 @@ export function filterConversationThreadItems(
   return items.filter((item) => !shouldHideConversationThreadItem(item));
 }
 
+function isSortedBy<T>(items: T[], compare: (left: T, right: T) => number) {
+  for (let index = 1; index < items.length; index += 1) {
+    if (compare(items[index - 1]!, items[index]!) > 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function sortThreadItems(items: AgentThreadItem[]): AgentThreadItem[] {
   return [...filterConversationThreadItems(items)].sort(compareThreadItems);
+}
+
+function resolveSortedThreadTurns(turns: AgentThreadTurn[]): AgentThreadTurn[] {
+  return isSortedBy(turns, compareThreadTurns)
+    ? turns
+    : [...turns].sort(compareThreadTurns);
+}
+
+function resolveTimelineThreadItems(
+  items: AgentThreadItem[],
+): AgentThreadItem[] {
+  const hasHiddenItems = items.some(shouldHideConversationThreadItem);
+  const visibleItems = hasHiddenItems
+    ? filterConversationThreadItems(items)
+    : items;
+
+  return isSortedBy(visibleItems, compareThreadItems)
+    ? visibleItems
+    : [...visibleItems].sort(compareThreadItems);
 }
 
 export function mergeThreadTurns(
@@ -138,81 +167,107 @@ function isSubstantiveAssistantMessage(message: Message): boolean {
   });
 }
 
-function pickClosestAssistantMessage(
-  assistants: Array<{
-    message: Message;
-    index: number;
-    timestampMs: number | null;
-  }>,
+interface AssistantTimelineEntry {
+  message: Message;
+  index: number;
+  timestampMs: number | null;
+}
+
+interface TurnTimelineEntry {
+  turn: AgentThreadTurn;
+  startMs: number | null;
+  targetMs: number | null;
+}
+
+function resolveAssistantDistance(
+  assistant: AssistantTimelineEntry,
   targetMs: number | null,
-) {
-  if (assistants.length === 0) {
-    return null;
+): number {
+  if (assistant.timestampMs === null || targetMs === null) {
+    return Number.POSITIVE_INFINITY;
   }
 
-  if (targetMs === null) {
-    return assistants[assistants.length - 1] || null;
+  return Math.abs(assistant.timestampMs - targetMs);
+}
+
+function pickPreferredAssistantMessage(
+  current: AssistantTimelineEntry,
+  candidate: AssistantTimelineEntry,
+  targetMs: number | null,
+): AssistantTimelineEntry {
+  const currentDistance = resolveAssistantDistance(current, targetMs);
+  const candidateDistance = resolveAssistantDistance(candidate, targetMs);
+
+  if (candidateDistance < currentDistance) {
+    return candidate;
   }
 
-  let best = assistants[0] || null;
-  if (!best) {
-    return null;
+  if (candidateDistance !== currentDistance) {
+    return current;
   }
 
-  let bestDistance =
-    best.timestampMs === null
-      ? Number.POSITIVE_INFINITY
-      : Math.abs(best.timestampMs - targetMs);
+  const candidateSubstantive = isSubstantiveAssistantMessage(
+    candidate.message,
+  );
+  const currentSubstantive = isSubstantiveAssistantMessage(current.message);
 
-  for (const assistant of assistants.slice(1)) {
-    const distance =
-      assistant.timestampMs === null
-        ? Number.POSITIVE_INFINITY
-        : Math.abs(assistant.timestampMs - targetMs);
+  if (candidateSubstantive !== currentSubstantive) {
+    return candidateSubstantive ? candidate : current;
+  }
 
-    if (distance < bestDistance) {
-      best = assistant;
-      bestDistance = distance;
-      continue;
-    }
+  const candidateTimestamp = candidate.timestampMs ?? Number.NEGATIVE_INFINITY;
+  const currentTimestamp = current.timestampMs ?? Number.NEGATIVE_INFINITY;
 
-    if (distance !== bestDistance) {
-      continue;
-    }
+  if (candidateTimestamp > currentTimestamp) {
+    return candidate;
+  }
 
-    const assistantSubstantive = isSubstantiveAssistantMessage(
-      assistant.message,
-    );
-    const bestSubstantive = isSubstantiveAssistantMessage(best.message);
+  if (
+    candidateTimestamp === currentTimestamp &&
+    candidate.index > current.index
+  ) {
+    return candidate;
+  }
 
-    if (assistantSubstantive !== bestSubstantive) {
-      if (assistantSubstantive) {
-        best = assistant;
-        bestDistance = distance;
-      }
-      continue;
-    }
+  return current;
+}
 
+function pickClosestUnassignedAssistantMessage(
+  assistants: AssistantTimelineEntry[],
+  assignedMessageIds: Set<string>,
+  targetMs: number | null,
+  predicate: (assistant: AssistantTimelineEntry) => boolean,
+): AssistantTimelineEntry | null {
+  let best: AssistantTimelineEntry | null = null;
+
+  for (const assistant of assistants) {
     if (
-      (assistant.timestampMs ?? Number.NEGATIVE_INFINITY) >
-      (best.timestampMs ?? Number.NEGATIVE_INFINITY)
+      assignedMessageIds.has(assistant.message.id) ||
+      !predicate(assistant)
     ) {
-      best = assistant;
-      bestDistance = distance;
       continue;
     }
 
-    if (
-      (assistant.timestampMs ?? Number.NEGATIVE_INFINITY) ===
-        (best.timestampMs ?? Number.NEGATIVE_INFINITY) &&
-      assistant.index > best.index
-    ) {
-      best = assistant;
-      bestDistance = distance;
-    }
+    best = best
+      ? pickPreferredAssistantMessage(best, assistant, targetMs)
+      : assistant;
   }
 
   return best;
+}
+
+function pickLastUnassignedAssistantMessage(
+  assistants: AssistantTimelineEntry[],
+  assignedMessageIds: Set<string>,
+): AssistantTimelineEntry | null {
+  for (let index = assistants.length - 1; index >= 0; index -= 1) {
+    const assistant = assistants[index];
+    if (assistant && !assignedMessageIds.has(assistant.message.id)) {
+      return assistant;
+    }
+  }
+
+  return null;
 }
 
 export function buildMessageTurnTimeline(
@@ -220,22 +275,40 @@ export function buildMessageTurnTimeline(
   turns: AgentThreadTurn[],
   items: AgentThreadItem[],
 ): Map<string, MessageTurnTimeline> {
-  const assistantMessages = messages.filter(
-    (message) => message.role === "assistant",
-  );
-  if (assistantMessages.length === 0 || turns.length === 0) {
+  if (turns.length === 0) {
     return new Map();
   }
 
-  const sortedTurns = [...turns].sort(compareThreadTurns);
-  const assistantEntries = assistantMessages.map((message, index) => ({
-    message,
-    index,
-    timestampMs: resolveTimestampMs(message.timestamp),
-  }));
+  const assistantEntries: AssistantTimelineEntry[] = [];
+  for (const message of messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+
+    assistantEntries.push({
+      message,
+      index: assistantEntries.length,
+      timestampMs: resolveTimestampMs(message.timestamp),
+    });
+  }
+
+  if (assistantEntries.length === 0) {
+    return new Map();
+  }
+
+  const turnEntries: TurnTimelineEntry[] = resolveSortedThreadTurns(turns).map(
+    (turn) => {
+      const startMs = resolveTimestampMs(turn.started_at);
+      return {
+        turn,
+        startMs,
+        targetMs: resolveTimestampMs(turn.completed_at) ?? startMs,
+      };
+    },
+  );
 
   const itemsByTurnId = new Map<string, AgentThreadItem[]>();
-  for (const item of sortThreadItems(items)) {
+  for (const item of resolveTimelineThreadItems(items)) {
     const existing = itemsByTurnId.get(item.turn_id);
     if (existing) {
       existing.push(item);
@@ -247,51 +320,50 @@ export function buildMessageTurnTimeline(
   const timelineByMessageId = new Map<string, MessageTurnTimeline>();
   const assignedMessageIds = new Set<string>();
 
-  sortedTurns.forEach((turn, index) => {
-    const unassignedAssistants = assistantEntries.filter(
-      (assistant) => !assignedMessageIds.has(assistant.message.id),
-    );
-    if (unassignedAssistants.length === 0) {
+  turnEntries.forEach((turnEntry, index) => {
+    if (assignedMessageIds.size >= assistantEntries.length) {
       return;
     }
 
-    const turnStartMs = resolveTimestampMs(turn.started_at);
-    const turnTargetMs = resolveTimestampMs(turn.completed_at) ?? turnStartMs;
     const nextTurnStartMs =
-      index < sortedTurns.length - 1
-        ? resolveTimestampMs(sortedTurns[index + 1]?.started_at)
-        : null;
-
-    const assistantsInTurnWindow = unassignedAssistants.filter((assistant) => {
-      if (assistant.timestampMs === null) {
-        return true;
-      }
-      if (turnStartMs !== null && assistant.timestampMs < turnStartMs) {
-        return false;
-      }
-      if (
-        nextTurnStartMs !== null &&
-        assistant.timestampMs >= nextTurnStartMs
-      ) {
-        return false;
-      }
-      return true;
-    });
-
-    const assistantsAfterTurnStart = unassignedAssistants.filter(
-      (assistant) => {
-        if (assistant.timestampMs === null || turnStartMs === null) {
-          return true;
-        }
-        return assistant.timestampMs >= turnStartMs;
-      },
-    );
+      index < turnEntries.length - 1 ? turnEntries[index + 1]?.startMs : null;
 
     const assistantMessage =
-      pickClosestAssistantMessage(assistantsInTurnWindow, turnTargetMs) ||
-      pickClosestAssistantMessage(assistantsAfterTurnStart, turnTargetMs) ||
-      unassignedAssistants[unassignedAssistants.length - 1] ||
-      null;
+      pickClosestUnassignedAssistantMessage(
+        assistantEntries,
+        assignedMessageIds,
+        turnEntry.targetMs,
+        (assistant) => {
+          if (assistant.timestampMs === null) {
+            return true;
+          }
+          if (
+            turnEntry.startMs !== null &&
+            assistant.timestampMs < turnEntry.startMs
+          ) {
+            return false;
+          }
+          if (
+            nextTurnStartMs !== null &&
+            assistant.timestampMs >= nextTurnStartMs
+          ) {
+            return false;
+          }
+          return true;
+        },
+      ) ||
+      pickClosestUnassignedAssistantMessage(
+        assistantEntries,
+        assignedMessageIds,
+        turnEntry.targetMs,
+        (assistant) => {
+          if (assistant.timestampMs === null || turnEntry.startMs === null) {
+            return true;
+          }
+          return assistant.timestampMs >= turnEntry.startMs;
+        },
+      ) ||
+      pickLastUnassignedAssistantMessage(assistantEntries, assignedMessageIds);
 
     if (!assistantMessage) {
       return;
@@ -300,8 +372,8 @@ export function buildMessageTurnTimeline(
     assignedMessageIds.add(assistantMessage.message.id);
     timelineByMessageId.set(assistantMessage.message.id, {
       messageId: assistantMessage.message.id,
-      turn,
-      items: itemsByTurnId.get(turn.id) || [],
+      turn: turnEntry.turn,
+      items: itemsByTurnId.get(turnEntry.turn.id) || [],
     });
   });
 

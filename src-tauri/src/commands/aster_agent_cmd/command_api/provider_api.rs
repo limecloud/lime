@@ -117,7 +117,7 @@ pub async fn aster_agent_status(
 
 /// 重置 Aster Agent
 ///
-/// 清除当前 Provider 配置，下次对话时会重新从凭证池选择凭证。
+/// 清除当前 Provider 配置，下次对话时会重新从 API Key Provider 选择凭证。
 /// 用于切换凭证后无需重启应用即可生效。
 #[tauri::command]
 pub async fn aster_agent_reset(

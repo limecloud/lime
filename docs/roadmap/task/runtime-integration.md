@@ -158,7 +158,7 @@
 | `service_models` | 任务级偏好输入 |
 | `service_scene_launch` | 场景级偏好输入 |
 | OEM `providerPreference/defaultModel` | OEM policy 输入；基础 `quota_low` 已从 bootstrap offer 透传到 turn metadata |
-| provider pool | 本地可用性输入 |
+| configured providers / API Key Provider / model registry | 本地可用性输入 |
 
 固定规则：
 

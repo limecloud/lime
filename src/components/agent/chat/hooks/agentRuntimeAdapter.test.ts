@@ -141,4 +141,30 @@ describe("defaultAgentRuntimeAdapter", () => {
       "user：请整理支付异常",
     );
   });
+
+  it("updateSessionMetadata 应把多个会话元数据合并成一次更新", async () => {
+    const client = {
+      ...mockRuntimeClient,
+      updateAgentRuntimeSession: vi.fn().mockResolvedValue(undefined),
+    };
+    const adapter = createAgentRuntimeAdapter({
+      client,
+    });
+
+    await adapter.updateSessionMetadata?.("session-9", {
+      accessMode: "full-access",
+      providerType: "openai",
+      model: "gpt-5.4-mini",
+      executionStrategy: "auto",
+    });
+
+    expect(client.updateAgentRuntimeSession).toHaveBeenCalledTimes(1);
+    expect(client.updateAgentRuntimeSession).toHaveBeenCalledWith({
+      session_id: "session-9",
+      recent_access_mode: "full-access",
+      provider_selector: "openai",
+      model_name: "gpt-5.4-mini",
+      execution_strategy: "auto",
+    });
+  });
 });

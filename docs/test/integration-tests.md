@@ -1,14 +1,16 @@
 # Lime 集成测试指南
 
-> 测试模块间的协作和数据流
+> 测试 current 模块间的协作和数据流。
 
 ## 概述
 
 集成测试验证多个模块协同工作的正确性，主要覆盖：
-- API 服务器端点
-- 凭证池管理
-- Provider 与服务层交互
-- 数据库操作
+
+- 本地 HTTP Server 的 OpenAI / Anthropic 兼容端点
+- API Key Provider 与模型注册表
+- Provider 调用与协议转换
+- 数据库迁移、文件系统与运行时状态
+- 旧凭证池入口保持下线
 
 ## 测试场景
 
@@ -24,7 +26,7 @@ mod api_integration_tests {
     #[tokio::test]
     async fn test_chat_completion_endpoint() {
         let app = create_test_app().await;
-        
+
         let request = Request::builder()
             .method("POST")
             .uri("/v1/chat/completions")
@@ -35,16 +37,16 @@ mod api_integration_tests {
                 "messages": [{"role": "user", "content": "Hello"}]
             }"#))
             .unwrap();
-        
+
         let response = app.oneshot(request).await.unwrap();
-        
+
         assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
     async fn test_streaming_response() {
         let app = create_test_app().await;
-        
+
         let request = Request::builder()
             .method("POST")
             .uri("/v1/chat/completions")
@@ -55,9 +57,9 @@ mod api_integration_tests {
                 "stream": true
             }"#))
             .unwrap();
-        
+
         let response = app.oneshot(request).await.unwrap();
-        
+
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.headers().get("content-type").unwrap(),
@@ -67,55 +69,71 @@ mod api_integration_tests {
 }
 ```
 
-### 2. 凭证池集成
+### 2. API Key Provider 与模型注册表集成
 
 ```rust
 #[cfg(test)]
-mod credential_pool_tests {
+mod provider_runtime_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_credential_rotation() {
-        let pool = CredentialPool::new();
-        
-        // 添加多个凭证
-        pool.add_credential(create_test_credential("cred1")).await;
-        pool.add_credential(create_test_credential("cred2")).await;
-        pool.add_credential(create_test_credential("cred3")).await;
-        
-        // 验证轮询
-        let first = pool.get_next().await.unwrap();
-        let second = pool.get_next().await.unwrap();
-        let third = pool.get_next().await.unwrap();
-        let fourth = pool.get_next().await.unwrap();
-        
-        // 第四次应该回到第一个
-        assert_eq!(first.id, fourth.id);
+    async fn test_api_key_provider_selection_uses_runtime_credential() {
+        let db = create_test_db().await;
+        seed_api_key_provider(&db, "openai", "sk-test").await;
+
+        let service = ApiKeyProviderService::new();
+        let credential = service
+            .select_credential_for_provider(&db, "openai", Some("openai"), None)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert!(credential.uuid.starts_with("runtime-api-key-"));
     }
 
     #[tokio::test]
-    async fn test_unhealthy_credential_skipped() {
-        let pool = CredentialPool::new();
-        
-        let healthy = create_test_credential("healthy");
-        let unhealthy = create_test_credential("unhealthy");
-        
-        pool.add_credential(healthy.clone()).await;
-        pool.add_credential(unhealthy.clone()).await;
-        
-        // 标记为不健康
-        pool.mark_unhealthy(&unhealthy.id).await;
-        
-        // 应该只返回健康的凭证
-        for _ in 0..10 {
-            let cred = pool.get_next().await.unwrap();
-            assert_eq!(cred.id, healthy.id);
-        }
+    async fn test_model_registry_filters_disabled_provider() {
+        let db = create_test_db().await;
+        seed_disabled_provider(&db, "openai").await;
+
+        let registry = ModelRegistryService::new();
+        let models = registry
+            .get_local_fallback_model_ids_with_hints(&db, "openai", None, None, &[])
+            .await
+            .unwrap();
+
+        assert!(models.is_empty());
     }
 }
 ```
 
-### 3. Provider 与数据库集成
+### 3. 退役凭证入口回归
+
+```rust
+#[cfg(test)]
+mod retired_credential_api_tests {
+    use super::*;
+    use axum::http::StatusCode;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn test_legacy_credentials_http_api_is_not_registered() {
+        let app = create_test_app().await;
+
+        let request = Request::builder()
+            .method("POST")
+            .uri("/v1/credentials/select")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+}
+```
+
+### 4. Provider 与数据库集成
 
 ```rust
 #[cfg(test)]
@@ -123,30 +141,17 @@ mod provider_db_tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_token_persistence() {
+    async fn test_api_key_provider_persists_usage() {
         let db = create_test_db().await;
-        let provider = KiroProvider::new(db.clone());
-        
-        // 刷新 Token
-        let token = provider.refresh_token("test-refresh-token").await.unwrap();
-        
-        // 验证 Token 被保存到数据库
-        let saved = db.get_token("kiro", "test-id").await.unwrap();
-        assert_eq!(saved.access_token, token.access_token);
-    }
+        let key_id = seed_api_key_provider(&db, "openai", "sk-test").await;
 
-    #[tokio::test]
-    async fn test_credential_state_sync() {
-        let db = create_test_db().await;
-        let service = ProviderPoolService::new(db.clone());
-        
-        // 添加凭证
-        service.add_credential(create_test_credential()).await.unwrap();
-        
-        // 验证数据库状态
-        let credentials = db.list_credentials("kiro").await.unwrap();
-        assert_eq!(credentials.len(), 1);
-        assert_eq!(credentials[0].status, "active");
+        let state = create_test_app_state(db.clone()).await;
+        state
+            .record_credential_usage(&db, &runtime_api_key_credential_uuid(&key_id))
+            .unwrap();
+
+        let usage = load_api_key_usage(&db, &key_id).await;
+        assert_eq!(usage.total_requests, 1);
     }
 }
 ```
@@ -156,9 +161,9 @@ mod provider_db_tests {
 ### 测试数据库
 
 ```rust
-async fn create_test_db() -> Database {
-    let db = Database::new(":memory:").await.unwrap();
-    db.run_migrations().await.unwrap();
+async fn create_test_db() -> DbConnection {
+    let db = create_memory_db().await.unwrap();
+    run_startup_migrations(&db).await.unwrap();
     db
 }
 ```
@@ -166,64 +171,27 @@ async fn create_test_db() -> Database {
 ### Mock HTTP 服务
 
 ```rust
-use wiremock::{MockServer, Mock, ResponseTemplate};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 use wiremock::matchers::{method, path};
 
-async fn setup_mock_oauth_server() -> MockServer {
+async fn setup_mock_openai_server() -> MockServer {
     let mock_server = MockServer::start().await;
-    
+
     Mock::given(method("POST"))
-        .and(path("/oauth/token"))
+        .and(path("/v1/chat/completions"))
         .respond_with(ResponseTemplate::new(200)
             .set_body_json(json!({
-                "access_token": "test-token",
-                "expires_in": 3600
+                "id": "chatcmpl-test",
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "ok"
+                    }
+                }]
             })))
         .mount(&mock_server)
         .await;
-    
+
     mock_server
 }
 ```
-
-## 测试数据管理
-
-### Fixtures
-
-```rust
-fn create_test_credential(id: &str) -> Credential {
-    Credential {
-        id: id.to_string(),
-        provider: "kiro".to_string(),
-        email: "test@example.com".to_string(),
-        access_token: Some("test-access-token".to_string()),
-        refresh_token: Some("test-refresh-token".to_string()),
-        expires_at: Some(Utc::now() + Duration::hours(1)),
-        status: "active".to_string(),
-    }
-}
-
-fn create_expired_credential(id: &str) -> Credential {
-    let mut cred = create_test_credential(id);
-    cred.expires_at = Some(Utc::now() - Duration::hours(1));
-    cred
-}
-```
-
-## 运行集成测试
-
-```bash
-# 运行所有集成测试
-cd src-tauri && cargo test --test integration
-
-# 运行特定测试
-cargo test --test integration test_credential_rotation
-
-# 并行运行（注意数据库隔离）
-cargo test --test integration -- --test-threads=1
-```
-
-## 下一步
-
-- [E2E 测试指南](e2e-tests.md)
-- [Agent 评估指南](agent-evaluation.md)

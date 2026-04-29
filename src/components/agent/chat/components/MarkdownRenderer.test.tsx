@@ -624,11 +624,11 @@ describe("MarkdownRenderer", () => {
   it("文本流程代码块应渲染为流程视图而不是语法高亮", () => {
     const content = [
       "```text",
-      '用户操作 -> 点击"添加凭证"',
+      '用户操作 -> 点击"添加模型"',
       "↓",
-      "选择提供商 -> 下拉选择 (OpenAI/Claude/Gemini/Kiro)",
+      "选择服务商 -> 下拉选择 (OpenAI/Claude/自定义 API)",
       "↓",
-      "填写信息 -> API Key、Secret、Endpoint（可选）",
+      "填写信息 -> API Key、Base URL、模型（可选）",
       "```",
     ].join("\n");
 

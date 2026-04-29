@@ -420,7 +420,7 @@ export function VoiceSettings() {
   const providerHint = providersLoading
     ? "正在识别当前可用于配音 / TTS 的 Provider。"
     : voiceProviders.length === 0
-      ? "当前没有可用语音生成 Provider；请先在凭证管理中配置支持 TTS 的服务。"
+      ? "当前没有可用语音生成 Provider；请先在设置 -> AI 服务商中配置支持 TTS 的服务。"
       : "这里只配置配音 / 语音生成任务的默认 Provider、模型与回退策略。";
 
   const llmModelHint = providersLoading
@@ -594,7 +594,7 @@ export function VoiceSettings() {
     <div className="max-w-[820px] space-y-4">
       {voiceConfig?.enabled && !defaultAsrCredential ? (
         <div className="rounded-[22px] border border-amber-200 bg-amber-50/85 px-4 py-3 text-sm text-amber-800">
-          语音输入已启用，但当前没有默认的语音识别凭证；请先在凭证管理的“语音服务”里设置默认 ASR 服务。
+          语音输入已启用，但当前没有默认的语音识别凭证；请先在设置的“语音服务”里设置默认 ASR 服务。
         </div>
       ) : null}
 

@@ -17,6 +17,14 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 use crate::commands::aster_agent_cmd::tool_runtime::media_cli_bridge;
+use crate::commands::modality_runtime_contracts::{
+    assess_image_generation_model_capability_from_registry, image_generation_runtime_contract,
+    looks_like_text_model_for_image_generation, normalize_image_generation_contract_key,
+    normalize_image_generation_modality, normalize_image_generation_required_capabilities,
+    normalize_image_generation_routing_slot, ImageGenerationModelCapabilityAssessment,
+    IMAGE_GENERATION_CONTRACT_KEY, IMAGE_GENERATION_ROUTING_SLOT,
+};
+use crate::commands::model_registry_cmd::ModelRegistryState;
 use crate::config::GlobalConfigManagerState;
 
 const IMAGE_TASK_RUNNER_WORKER_ID: &str = "lime-image-api-worker";
@@ -74,6 +82,16 @@ pub struct CreateImageGenerationTaskArtifactRequest {
     pub content_id: Option<String>,
     #[serde(default)]
     pub entry_source: Option<String>,
+    #[serde(default, alias = "modality_contract_key")]
+    pub modality_contract_key: Option<String>,
+    #[serde(default)]
+    pub modality: Option<String>,
+    #[serde(default, alias = "required_capabilities")]
+    pub required_capabilities: Vec<String>,
+    #[serde(default, alias = "routing_slot")]
+    pub routing_slot: Option<String>,
+    #[serde(default, alias = "runtime_contract")]
+    pub runtime_contract: Option<serde_json::Value>,
     #[serde(default)]
     pub requested_target: Option<String>,
     #[serde(default)]
@@ -423,6 +441,140 @@ fn build_task_error(
     }
 }
 
+fn read_image_task_payload_string<'a>(
+    payload: &'a serde_json::Value,
+    keys: &[&str],
+) -> Option<&'a str> {
+    keys.iter()
+        .filter_map(|key| payload.get(*key))
+        .find_map(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn read_image_task_payload_string_array(
+    payload: &serde_json::Value,
+    key: &str,
+) -> Option<Vec<String>> {
+    payload
+        .get(key)
+        .and_then(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+                .collect()
+        })
+}
+
+fn validate_image_generation_task_execution_contract(
+    output: &MediaTaskOutput,
+    model_capability: Option<&ImageGenerationModelCapabilityAssessment>,
+) -> Result<(), TaskErrorRecord> {
+    if output.task_type != MediaTaskType::ImageGenerate.as_str() {
+        return Ok(());
+    }
+
+    let payload = &output.record.payload;
+    let contract_key =
+        read_image_task_payload_string(payload, &["modality_contract_key"]).or_else(|| {
+            payload
+                .get("runtime_contract")
+                .and_then(|value| value.get("contract_key"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        });
+    if let Some(contract_key) = contract_key {
+        if contract_key != IMAGE_GENERATION_CONTRACT_KEY {
+            return Err(build_task_error(
+                "image_generation_contract_mismatch",
+                format!(
+                    "图片任务 contract_key 必须是 {IMAGE_GENERATION_CONTRACT_KEY}，收到 {contract_key}"
+                ),
+                false,
+                "contract",
+            ));
+        }
+    }
+
+    let required_capabilities =
+        read_image_task_payload_string_array(payload, "required_capabilities").unwrap_or_default();
+    if !required_capabilities.is_empty()
+        && !required_capabilities
+            .iter()
+            .any(|capability| capability == IMAGE_GENERATION_CONTRACT_KEY)
+    {
+        return Err(build_task_error(
+            "image_generation_capability_gap",
+            "图片任务缺少 image_generation required_capability，已阻止进入执行器。",
+            false,
+            "routing",
+        ));
+    }
+
+    if let Some(routing_slot) = read_image_task_payload_string(payload, &["routing_slot"]) {
+        if routing_slot != IMAGE_GENERATION_ROUTING_SLOT {
+            return Err(build_task_error(
+                "image_generation_routing_slot_mismatch",
+                format!(
+                    "图片任务 routing_slot 必须是 {IMAGE_GENERATION_ROUTING_SLOT}，收到 {routing_slot}"
+                ),
+                false,
+                "routing",
+            ));
+        }
+    }
+
+    if let Some(assessment) = model_capability {
+        if !assessment.supports_image_generation {
+            return Err(build_task_error(
+                "image_generation_model_capability_gap",
+                format!(
+                    "image_generation contract 要求图片生成模型，但 model registry 显示当前模型 {} 不具备图片生成能力。",
+                    assessment.model_id
+                ),
+                false,
+                "routing",
+            ));
+        }
+    } else if let Some(model) = read_image_task_payload_string(payload, &["model"]) {
+        if looks_like_text_model_for_image_generation(model) {
+            return Err(build_task_error(
+                "image_generation_model_capability_gap",
+                format!(
+                    "image_generation contract 要求图片生成模型，但当前模型 {model} 看起来是文本模型。"
+                ),
+                false,
+                "routing",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+async fn resolve_image_generation_model_capability_assessment(
+    app: Option<&AppHandle>,
+    output: &MediaTaskOutput,
+) -> Option<ImageGenerationModelCapabilityAssessment> {
+    if output.task_type != MediaTaskType::ImageGenerate.as_str() {
+        return None;
+    }
+
+    let payload = &output.record.payload;
+    let model = read_image_task_payload_string(payload, &["model"])?;
+    let provider_id = read_image_task_payload_string(payload, &["provider_id", "providerId"]);
+    let state = app?.try_state::<ModelRegistryState>()?;
+    let guard = state.inner().read().await;
+    let service = guard.as_ref()?;
+    let catalog = service.get_all_models().await;
+    assess_image_generation_model_capability_from_registry(&catalog, model, provider_id)
+}
+
 fn load_current_image_task(
     workspace_root: &Path,
     task_id: &str,
@@ -440,6 +592,36 @@ fn patch_image_task(
 ) -> Result<MediaTaskOutput, String> {
     patch_task_artifact(workspace_root, task_id, None, patch)
         .map_err(|error| format!("写回图片任务状态失败: {error}"))
+}
+
+fn image_generation_model_capability_assessment_payload(
+    assessment: &ImageGenerationModelCapabilityAssessment,
+) -> serde_json::Value {
+    json!({
+        "model_id": assessment.model_id.as_str(),
+        "provider_id": assessment.provider_id.as_deref(),
+        "source": assessment.source,
+        "supports_image_generation": assessment.supports_image_generation,
+        "reason": assessment.reason,
+    })
+}
+
+fn patch_image_task_model_capability_assessment(
+    workspace_root: &Path,
+    task_id: &str,
+    assessment: &ImageGenerationModelCapabilityAssessment,
+) -> Result<MediaTaskOutput, String> {
+    patch_image_task(
+        workspace_root,
+        task_id,
+        TaskArtifactPatch {
+            payload_patch: Some(json!({
+                "model_capability_assessment": image_generation_model_capability_assessment_payload(assessment)
+            })),
+            ..TaskArtifactPatch::default()
+        },
+    )
+    .map_err(|error| format!("写回图片任务模型能力评估失败: {error}"))
 }
 
 fn emit_image_task_event(app: Option<&AppHandle>, output: &MediaTaskOutput) {
@@ -478,6 +660,21 @@ async fn execute_image_generation_task(
     task_id: String,
     runner_config: ImageGenerationRunnerConfig,
 ) -> Result<MediaTaskOutput, String> {
+    let current = load_current_image_task(&workspace_root, &task_id)?;
+    let model_capability =
+        resolve_image_generation_model_capability_assessment(app.as_ref(), &current).await;
+    let current = match model_capability.as_ref() {
+        Some(assessment) => {
+            patch_image_task_model_capability_assessment(&workspace_root, &task_id, assessment)?
+        }
+        None => current,
+    };
+    if let Err(task_error) =
+        validate_image_generation_task_execution_contract(&current, model_capability.as_ref())
+    {
+        return mark_image_task_failed(app.as_ref(), &workspace_root, &task_id, task_error);
+    }
+
     let emit_app = app.clone();
     lime_media_runtime::execute_image_generation_task_with_hook(
         &workspace_root,
@@ -594,6 +791,21 @@ pub(crate) fn create_image_generation_task_artifact_inner(
     let project_id = normalize_optional_string(request.project_id.clone());
     let content_id = normalize_optional_string(request.content_id.clone());
     let entry_source = normalize_optional_string(request.entry_source.clone());
+    let runtime_contract_key = request
+        .runtime_contract
+        .as_ref()
+        .and_then(|value| value.get("contract_key"))
+        .and_then(serde_json::Value::as_str)
+        .map(ToString::to_string);
+    if let Some(runtime_contract_key) = runtime_contract_key {
+        normalize_image_generation_contract_key(Some(runtime_contract_key))?;
+    }
+    let modality_contract_key =
+        normalize_image_generation_contract_key(request.modality_contract_key.clone())?;
+    let modality = normalize_image_generation_modality(request.modality.clone())?;
+    let required_capabilities =
+        normalize_image_generation_required_capabilities(request.required_capabilities.clone())?;
+    let routing_slot = normalize_image_generation_routing_slot(request.routing_slot.clone())?;
     let requested_target = normalize_optional_string(request.requested_target.clone());
     let slot_id = normalize_optional_string(request.slot_id.clone());
     let anchor_hint = normalize_optional_string(request.anchor_hint.clone());
@@ -638,6 +850,11 @@ pub(crate) fn create_image_generation_task_artifact_inner(
             "project_id": project_id,
             "content_id": content_id,
             "entry_source": entry_source,
+            "modality_contract_key": modality_contract_key,
+            "modality": modality,
+            "required_capabilities": required_capabilities,
+            "routing_slot": routing_slot,
+            "runtime_contract": image_generation_runtime_contract(),
             "requested_target": requested_target,
             "slot_id": slot_id.clone(),
             "anchor_hint": anchor_hint,
@@ -781,6 +998,46 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use tokio::net::TcpListener;
 
+    fn minimal_image_generation_request(
+        project_root_path: String,
+        model: Option<&str>,
+    ) -> CreateImageGenerationTaskArtifactRequest {
+        CreateImageGenerationTaskArtifactRequest {
+            project_root_path,
+            prompt: "未来感青柠实验室".to_string(),
+            title: Some("青柠主视觉".to_string()),
+            title_generation_result: None,
+            mode: Some("generate".to_string()),
+            raw_text: Some("@配图 生成 未来感青柠实验室".to_string()),
+            layout_hint: None,
+            size: Some("1024x1024".to_string()),
+            aspect_ratio: None,
+            count: Some(1),
+            usage: Some("claw-image-workbench".to_string()),
+            style: None,
+            provider_id: Some("fal".to_string()),
+            model: model.map(ToString::to_string),
+            session_id: Some("session-image-contract-1".to_string()),
+            project_id: Some("project-image-contract-1".to_string()),
+            content_id: Some("content-image-contract-1".to_string()),
+            entry_source: Some("at_image_command".to_string()),
+            modality_contract_key: None,
+            modality: None,
+            required_capabilities: Vec::new(),
+            routing_slot: None,
+            runtime_contract: None,
+            requested_target: Some("generate".to_string()),
+            slot_id: None,
+            anchor_hint: None,
+            anchor_section_title: None,
+            anchor_text: None,
+            target_output_id: None,
+            target_output_ref_id: None,
+            reference_images: Vec::new(),
+            storyboard_slots: Vec::new(),
+        }
+    }
+
     #[test]
     fn create_image_generation_task_artifact_inner_should_write_context_payload_and_idempotency() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
@@ -811,6 +1068,11 @@ mod tests {
             project_id: Some("project-1".to_string()),
             content_id: Some("content-1".to_string()),
             entry_source: Some("at_image_command".to_string()),
+            modality_contract_key: None,
+            modality: None,
+            required_capabilities: Vec::new(),
+            routing_slot: None,
+            runtime_contract: None,
             requested_target: Some("generate".to_string()),
             slot_id: Some("document-slot-1".to_string()),
             anchor_hint: Some("section_end".to_string()),
@@ -868,6 +1130,11 @@ mod tests {
                 project_id: Some("project-1".to_string()),
                 content_id: Some("content-1".to_string()),
                 entry_source: Some("at_image_command".to_string()),
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
                 requested_target: Some("generate".to_string()),
                 slot_id: Some("document-slot-1".to_string()),
                 anchor_hint: Some("section_end".to_string()),
@@ -906,6 +1173,33 @@ mod tests {
         assert_eq!(
             first.record.payload.get("entry_source"),
             Some(&json!("at_image_command"))
+        );
+        assert_eq!(
+            first.record.payload.get("modality_contract_key"),
+            Some(&json!("image_generation"))
+        );
+        assert_eq!(first.record.payload.get("modality"), Some(&json!("image")));
+        assert_eq!(
+            first.record.payload.get("required_capabilities"),
+            Some(&json!([
+                "text_generation",
+                "image_generation",
+                "vision_input"
+            ]))
+        );
+        assert_eq!(
+            first.record.payload.get("routing_slot"),
+            Some(&json!("image_generation_model"))
+        );
+        assert_eq!(
+            first
+                .record
+                .payload
+                .get("runtime_contract")
+                .and_then(serde_json::Value::as_object)
+                .and_then(|contract| contract.get("contract_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("image_generation")
         );
         assert_eq!(
             first.record.payload.get("title_generation_result"),
@@ -963,6 +1257,138 @@ mod tests {
     }
 
     #[test]
+    fn validate_image_generation_task_execution_contract_should_reject_text_model_candidate() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("gpt-5.2"),
+            ))
+            .expect("create task");
+
+        let error = validate_image_generation_task_execution_contract(&created, None)
+            .expect_err("text model should be rejected for image generation");
+
+        assert_eq!(error.code, "image_generation_model_capability_gap");
+        assert_eq!(error.stage.as_deref(), Some("routing"));
+        assert!(!error.retryable);
+    }
+
+    #[test]
+    fn validate_image_generation_task_execution_contract_should_accept_image_model_candidate() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("gpt-image-1"),
+            ))
+            .expect("create task");
+
+        validate_image_generation_task_execution_contract(&created, None)
+            .expect("image model should satisfy image_generation contract");
+    }
+
+    #[test]
+    fn validate_image_generation_task_execution_contract_should_reject_registry_text_model() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("lime-text-router"),
+            ))
+            .expect("create task");
+        let assessment = ImageGenerationModelCapabilityAssessment {
+            model_id: "lime-text-router".to_string(),
+            provider_id: Some("lime".to_string()),
+            source: "model_registry",
+            supports_image_generation: false,
+            reason: "registry_missing_image_generation_capability",
+        };
+
+        let error = validate_image_generation_task_execution_contract(&created, Some(&assessment))
+            .expect_err("registry text model should be rejected for image generation");
+
+        assert_eq!(error.code, "image_generation_model_capability_gap");
+        assert!(error.message.contains("model registry"));
+    }
+
+    #[test]
+    fn patch_image_task_model_capability_assessment_should_persist_registry_snapshot() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("lime-text-router"),
+            ))
+            .expect("create task");
+        let assessment = ImageGenerationModelCapabilityAssessment {
+            model_id: "lime-text-router".to_string(),
+            provider_id: Some("lime".to_string()),
+            source: "model_registry",
+            supports_image_generation: false,
+            reason: "registry_missing_image_generation_capability",
+        };
+
+        let patched = patch_image_task_model_capability_assessment(
+            temp_dir.path(),
+            &created.task_id,
+            &assessment,
+        )
+        .expect("patch model capability assessment");
+
+        assert_eq!(
+            patched
+                .record
+                .payload
+                .pointer("/model_capability_assessment/source")
+                .and_then(serde_json::Value::as_str),
+            Some("model_registry")
+        );
+        assert_eq!(
+            patched
+                .record
+                .payload
+                .pointer("/model_capability_assessment/supports_image_generation")
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            patched
+                .record
+                .attempts
+                .first()
+                .and_then(|attempt| {
+                    attempt
+                        .input_snapshot
+                        .pointer("/model_capability_assessment/model_id")
+                })
+                .and_then(serde_json::Value::as_str),
+            Some("lime-text-router")
+        );
+    }
+
+    #[test]
+    fn validate_image_generation_task_execution_contract_should_trust_registry_image_model() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("gpt-5.2"),
+            ))
+            .expect("create task");
+        let assessment = ImageGenerationModelCapabilityAssessment {
+            model_id: "gpt-5.2".to_string(),
+            provider_id: Some("openai".to_string()),
+            source: "model_registry",
+            supports_image_generation: true,
+            reason: "registry_declares_image_generation",
+        };
+
+        validate_image_generation_task_execution_contract(&created, Some(&assessment))
+            .expect("registry image model should satisfy image_generation contract");
+    }
+
+    #[test]
     fn apply_image_generation_preference_defaults_should_fill_missing_provider_and_model() {
         let defaults = ImageGenerationPreferenceDefaults {
             provider_id: Some("custom-f0181b00-35b6-4731-94e2-24f17fd247c9".to_string()),
@@ -1017,6 +1443,11 @@ mod tests {
                 project_id: Some("project-2".to_string()),
                 content_id: Some("content-2".to_string()),
                 entry_source: Some("at_image_command".to_string()),
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
                 requested_target: Some("generate".to_string()),
                 slot_id: Some("document-slot-2".to_string()),
                 anchor_hint: Some("section_end".to_string()),
@@ -1079,6 +1510,11 @@ mod tests {
                 project_id: Some("project-1".to_string()),
                 content_id: Some("content-1".to_string()),
                 entry_source: Some("at_image_command".to_string()),
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
                 requested_target: Some("generate".to_string()),
                 slot_id: Some("document-slot-3".to_string()),
                 anchor_hint: Some("section_end".to_string()),
@@ -1118,6 +1554,11 @@ mod tests {
                 project_id: Some("project-1".to_string()),
                 content_id: Some("content-1".to_string()),
                 entry_source: Some("at_image_command".to_string()),
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
                 requested_target: Some("generate".to_string()),
                 slot_id: Some("document-slot-3".to_string()),
                 anchor_hint: Some("section_end".to_string()),
@@ -1160,6 +1601,11 @@ mod tests {
                 project_id: Some("project-image-worker-1".to_string()),
                 content_id: Some("content-image-worker-1".to_string()),
                 entry_source: Some("at_image_command".to_string()),
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
                 requested_target: Some("generate".to_string()),
                 slot_id: None,
                 anchor_hint: None,
@@ -1328,6 +1774,11 @@ mod tests {
                 project_id: Some("project-image-worker-2".to_string()),
                 content_id: Some("content-image-worker-2".to_string()),
                 entry_source: Some("at_image_command".to_string()),
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
                 requested_target: Some("generate".to_string()),
                 slot_id: None,
                 anchor_hint: None,

@@ -2,7 +2,7 @@
 
 ## 概述
 
-使用 SQLite (rusqlite) 存储凭证元数据、流量记录等。
+使用 SQLite (rusqlite) 存储 API Key Provider、模型注册表、Agent 会话与流量记录等。旧凭证池表只保留为历史迁移和启动清理边界，运行时不得再读取它选择凭证。
 
 ## 目录结构
 
@@ -12,37 +12,63 @@ src-tauri/src/database/
 ├── schema.rs       # 表结构定义
 ├── migrations.rs   # 数据库迁移
 └── dao/            # 数据访问对象
-    ├── credential_dao.rs
+    ├── api_key_provider.rs
     ├── flow_dao.rs
     └── config_dao.rs
 ```
 
 ## 表结构
 
-### credentials
+### api_key_providers
 
 ```sql
-CREATE TABLE credentials (
+CREATE TABLE api_key_providers (
     id TEXT PRIMARY KEY,
-    provider TEXT NOT NULL,
     name TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active',
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    type TEXT NOT NULL,
+    api_host TEXT NOT NULL,
+    is_system INTEGER NOT NULL DEFAULT 0,
+    group_name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    custom_models TEXT,
+    prompt_cache_mode TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 ```
 
-### token_cache
+### api_keys
 
 ```sql
-CREATE TABLE token_cache (
-    credential_id TEXT PRIMARY KEY,
-    access_token TEXT NOT NULL,
-    refresh_token TEXT,
-    expires_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    FOREIGN KEY (credential_id) REFERENCES credentials(id)
+CREATE TABLE api_keys (
+    id TEXT PRIMARY KEY,
+    provider_id TEXT NOT NULL,
+    api_key_encrypted TEXT NOT NULL,
+    alias TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    usage_count INTEGER NOT NULL DEFAULT 0,
+    error_count INTEGER NOT NULL DEFAULT 0,
+    last_used_at TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (provider_id) REFERENCES api_key_providers(id) ON DELETE CASCADE
+);
+```
+
+### model_registry
+
+```sql
+CREATE TABLE model_registry (
+    id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
+    capabilities TEXT NOT NULL DEFAULT '{}',
+    limits TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'active',
+    source TEXT NOT NULL DEFAULT 'local',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
 );
 ```
 
@@ -69,18 +95,21 @@ CREATE INDEX idx_flow_timestamp ON flow_records(timestamp);
 ## DAO 模式
 
 ```rust
-pub struct CredentialDao {
-    conn: Arc<Mutex<Connection>>,
-}
+pub struct ApiKeyProviderDao;
 
-impl CredentialDao {
-    pub fn insert(&self, credential: &Credential) -> Result<()>;
-    pub fn find_by_id(&self, id: &str) -> Result<Option<Credential>>;
-    pub fn find_all(&self) -> Result<Vec<Credential>>;
-    pub fn update(&self, credential: &Credential) -> Result<()>;
-    pub fn delete(&self, id: &str) -> Result<()>;
+impl ApiKeyProviderDao {
+    pub fn get_all_providers(conn: &Connection) -> Result<Vec<ApiKeyProvider>>;
+    pub fn get_provider_by_id(conn: &Connection, id: &str) -> Result<Option<ApiKeyProvider>>;
+    pub fn insert_provider(conn: &Connection, provider: &ApiKeyProvider) -> Result<()>;
+    pub fn update_provider(conn: &Connection, provider: &ApiKeyProvider) -> Result<()>;
+    pub fn delete_provider(conn: &Connection, id: &str) -> Result<bool>;
+    pub fn get_enabled_api_keys_by_provider(conn: &Connection, provider_id: &str) -> Result<Vec<ApiKeyEntry>>;
 }
 ```
+
+## 旧凭证池表边界
+
+`provider_pool_credentials` 分类为 `deprecated` 存储边界：schema、历史迁移和启动期清理可以引用；运行时服务、Tauri 命令、前端 API 和旁路统计不得再读取它做凭证选择。
 
 ## 数据库迁移
 
@@ -91,9 +120,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     if version < 1 {
         conn.execute_batch(include_str!("migrations/001_initial.sql"))?;
     }
-    if version < 2 {
-        conn.execute_batch(include_str!("migrations/002_add_flow.sql"))?;
-    }
+    run_startup_migrations(conn)?;
     
     set_schema_version(conn, CURRENT_VERSION)?;
     Ok(())

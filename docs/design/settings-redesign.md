@@ -22,7 +22,7 @@
 └── ⌨️ 快捷键 (Hotkeys)
 
 📁 智能体 (Agent)
-├── 🧠 AI 服务商 (Providers)      → 现有 Provider Pool
+├── 🧠 AI 服务商 (Providers)      → API Key Provider / configured providers
 ├── 🤖 助理服务 (Assistant)       → Agent 配置
 ├── 🔧 技能管理 (Skills/MCP)      → 现有 MCP 页面
 ├── 🧩 记忆设置 (Memory)          → 新增

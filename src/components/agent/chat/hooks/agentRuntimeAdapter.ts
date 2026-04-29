@@ -34,6 +34,13 @@ export interface AgentRuntimeActionResponse {
   actionScope?: ActionRequiredScope;
 }
 
+export interface AgentSessionMetadataPatch {
+  accessMode?: AgentAccessMode;
+  providerType?: string;
+  model?: string;
+  executionStrategy?: AsterExecutionStrategy;
+}
+
 export interface AgentRuntimeAdapter {
   init(): Promise<AsterAgentStatus>;
   createSession(
@@ -69,6 +76,10 @@ export interface AgentRuntimeAdapter {
     sessionId: string,
     providerType: string,
     model: string,
+  ): Promise<void>;
+  updateSessionMetadata?(
+    sessionId: string,
+    patch: AgentSessionMetadataPatch,
   ): Promise<void>;
   generateSessionTitle?(
     sessionId: string,
@@ -171,6 +182,26 @@ export function createAgentRuntimeAdapter({
         provider_selector: providerType,
         model_name: model,
       });
+    },
+    async updateSessionMetadata(sessionId, patch) {
+      const request: Parameters<
+        AgentRuntimeClient["updateAgentRuntimeSession"]
+      >[0] = {
+        session_id: sessionId,
+      };
+      if (patch.accessMode) {
+        request.recent_access_mode = patch.accessMode;
+      }
+      if (patch.providerType) {
+        request.provider_selector = patch.providerType;
+      }
+      if (patch.model) {
+        request.model_name = patch.model;
+      }
+      if (patch.executionStrategy) {
+        request.execution_strategy = patch.executionStrategy;
+      }
+      await client.updateAgentRuntimeSession(request);
     },
     async generateSessionTitle(sessionId, previewText) {
       return client.generateAgentRuntimeSessionTitle(sessionId, previewText);

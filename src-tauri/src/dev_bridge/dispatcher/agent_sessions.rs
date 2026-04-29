@@ -34,6 +34,21 @@ fn get_optional_usize_arg(
     }
 }
 
+fn get_optional_i64_arg(
+    args: &JsonValue,
+    primary: &str,
+    secondary: &str,
+) -> Result<Option<i64>, DynError> {
+    let value = args.get(primary).or_else(|| args.get(secondary));
+    match value {
+        Some(raw) if raw.is_null() => Ok(None),
+        Some(raw) => serde_json::from_value::<i64>(raw.clone())
+            .map(Some)
+            .map_err(|error| format!("参数 {primary}/{secondary} 解析失败: {error}").into()),
+        None => Ok(None),
+    }
+}
+
 pub(super) async fn try_handle(
     state: &DevBridgeState,
     cmd: &str,
@@ -245,6 +260,9 @@ pub(super) async fn try_handle(
                 "resume_session_start_hooks",
             );
             let history_limit = get_optional_usize_arg(&args, "historyLimit", "history_limit")?;
+            let history_offset = get_optional_usize_arg(&args, "historyOffset", "history_offset")?;
+            let history_before_message_id =
+                get_optional_i64_arg(&args, "historyBeforeMessageId", "history_before_message_id")?;
             let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
             let db = app_handle.state::<crate::database::DbConnection>();
             let api_key_provider_service =
@@ -269,6 +287,8 @@ pub(super) async fn try_handle(
                     session_id,
                     resume_session_start_hooks,
                     history_limit,
+                    history_offset,
+                    history_before_message_id,
                 )
                 .await?,
             )?

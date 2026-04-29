@@ -120,7 +120,8 @@ pub use session_state_snapshot::SessionStateSnapshot;
 pub use session_store::{
     count_session_messages_sync, create_session_sync, delete_session,
     get_persisted_session_metadata_sync, get_runtime_session_detail,
-    get_runtime_session_detail_with_history_limit, get_session_sync, list_sessions_sync,
+    get_runtime_session_detail_with_history_limit, get_runtime_session_detail_with_history_page,
+    get_runtime_session_detail_with_history_window, get_session_sync, list_sessions_sync,
     list_title_preview_messages_sync, rename_session_sync, update_session_archived_state_sync,
     update_session_execution_strategy_sync, update_session_provider_config_sync,
     update_session_working_dir_sync, ChildSubagentRuntimeStatus, ChildSubagentSession,

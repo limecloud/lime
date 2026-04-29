@@ -5757,6 +5757,28 @@ mod tests {
             .get("image_task")
             .and_then(serde_json::Value::as_object)
             .expect("image task");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("image_generation")
+        );
+        assert_eq!(
+            launch.get("modality").and_then(serde_json::Value::as_str),
+            Some("image")
+        );
+        assert_eq!(
+            image_task
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("image_generation")
+        );
+        assert_eq!(
+            image_task
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("image_generation_model")
+        );
         let reference_image_path = image_task
             .get("reference_images")
             .and_then(serde_json::Value::as_array)
@@ -5807,6 +5829,26 @@ mod tests {
         assert_eq!(
             harness.get("chat_mode").and_then(serde_json::Value::as_str),
             Some("workbench")
+        );
+        let launch = harness
+            .get("image_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("image skill launch");
+        let image_task = launch
+            .get("image_task")
+            .and_then(serde_json::Value::as_object)
+            .expect("image task");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("image_generation")
+        );
+        assert_eq!(
+            image_task
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("image_generation")
         );
     }
 

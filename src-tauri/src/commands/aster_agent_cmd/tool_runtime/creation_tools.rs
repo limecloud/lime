@@ -3,6 +3,10 @@ use crate::commands::media_task_cmd::{
     create_image_generation_task_artifact_inner, finalize_image_generation_task_creation,
     CreateImageGenerationTaskArtifactRequest, ImageStoryboardSlotInput,
 };
+use crate::commands::modality_runtime_contracts::{
+    image_generation_required_capabilities, IMAGE_GENERATION_CONTRACT_KEY,
+    IMAGE_GENERATION_MODALITY, IMAGE_GENERATION_ROUTING_SLOT,
+};
 use lime_media_runtime::{
     write_task_artifact, MediaTaskType, TaskRelationships, TaskType, TaskWriteOptions,
 };
@@ -475,6 +479,10 @@ fn canonicalize_image_task_alias_fields(record: &mut serde_json::Map<String, ser
         ("projectId", "project_id"),
         ("contentId", "content_id"),
         ("entrySource", "entry_source"),
+        ("modalityContractKey", "modality_contract_key"),
+        ("requiredCapabilities", "required_capabilities"),
+        ("routingSlot", "routing_slot"),
+        ("runtimeContract", "runtime_contract"),
         ("requestedTarget", "requested_target"),
         ("slotId", "slot_id"),
         ("anchorHint", "anchor_hint"),
@@ -556,6 +564,16 @@ struct ImageTaskInput {
     content_id: Option<String>,
     #[serde(default, alias = "entry_source")]
     entry_source: Option<String>,
+    #[serde(default, alias = "modality_contract_key")]
+    modality_contract_key: Option<String>,
+    #[serde(default)]
+    modality: Option<String>,
+    #[serde(default, alias = "required_capabilities")]
+    required_capabilities: Vec<String>,
+    #[serde(default, alias = "routing_slot")]
+    routing_slot: Option<String>,
+    #[serde(default, alias = "runtime_contract")]
+    runtime_contract: Option<serde_json::Value>,
     #[serde(default, alias = "requested_target")]
     requested_target: Option<String>,
     #[serde(default, alias = "slot_id")]
@@ -794,6 +812,78 @@ fn image_task_input_schema() -> serde_json::Value {
         serde_json::json!({ "type": "string", "description": "入口来源（snake_case 兼容，可选）。" }),
     );
     insert_property(
+        "modalityContractKey",
+        serde_json::json!({
+            "type": "string",
+            "enum": [IMAGE_GENERATION_CONTRACT_KEY],
+            "description": "底层多模态运行合同键（可选，默认 image_generation）。"
+        }),
+    );
+    insert_property(
+        "modality_contract_key",
+        serde_json::json!({
+            "type": "string",
+            "enum": [IMAGE_GENERATION_CONTRACT_KEY],
+            "description": "底层多模态运行合同键（snake_case 兼容，可选）。"
+        }),
+    );
+    insert_property(
+        "modality",
+        serde_json::json!({
+            "type": "string",
+            "enum": [IMAGE_GENERATION_MODALITY],
+            "description": "底层模态（可选，默认 image）。"
+        }),
+    );
+    insert_property(
+        "requiredCapabilities",
+        serde_json::json!({
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "运行合同要求的能力集合（可选，运行时会补齐 image_generation contract 全量能力）。"
+        }),
+    );
+    insert_property(
+        "required_capabilities",
+        serde_json::json!({
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "运行合同要求的能力集合（snake_case 兼容，可选）。"
+        }),
+    );
+    insert_property(
+        "routingSlot",
+        serde_json::json!({
+            "type": "string",
+            "enum": [IMAGE_GENERATION_ROUTING_SLOT],
+            "description": "模型路由槽位（可选，默认 image_generation_model）。"
+        }),
+    );
+    insert_property(
+        "routing_slot",
+        serde_json::json!({
+            "type": "string",
+            "enum": [IMAGE_GENERATION_ROUTING_SLOT],
+            "description": "模型路由槽位（snake_case 兼容，可选）。"
+        }),
+    );
+    insert_property(
+        "runtimeContract",
+        serde_json::json!({
+            "type": "object",
+            "description": "运行合同快照（可选；运行时以 image_generation contract 事实源重写）。",
+            "additionalProperties": true
+        }),
+    );
+    insert_property(
+        "runtime_contract",
+        serde_json::json!({
+            "type": "object",
+            "description": "运行合同快照（snake_case 兼容，可选；运行时以 image_generation contract 事实源重写）。",
+            "additionalProperties": true
+        }),
+    );
+    insert_property(
         "requestedTarget",
         serde_json::json!({ "type": "string", "description": "目标类型 generate/cover（可选）。" }),
     );
@@ -898,6 +988,11 @@ fn build_image_generation_task_request(
         project_id,
         content_id,
         entry_source,
+        modality_contract_key,
+        modality,
+        required_capabilities,
+        routing_slot,
+        runtime_contract,
         requested_target,
         slot_id,
         anchor_hint,
@@ -941,6 +1036,12 @@ fn build_image_generation_task_request(
         })
     });
     let entry_source = entry_source.or_else(|| Some(IMAGE_TASK_DEFAULT_ENTRY_SOURCE.to_string()));
+    let modality_contract_key =
+        modality_contract_key.or_else(|| Some(IMAGE_GENERATION_CONTRACT_KEY.to_string()));
+    let modality = modality.or_else(|| Some(IMAGE_GENERATION_MODALITY.to_string()));
+    let _provided_required_capabilities = required_capabilities;
+    let required_capabilities = image_generation_required_capabilities();
+    let routing_slot = routing_slot.or_else(|| Some(IMAGE_GENERATION_ROUTING_SLOT.to_string()));
 
     CreateImageGenerationTaskArtifactRequest {
         project_root_path: context.working_directory.to_string_lossy().to_string(),
@@ -961,6 +1062,11 @@ fn build_image_generation_task_request(
         project_id,
         content_id,
         entry_source,
+        modality_contract_key,
+        modality,
+        required_capabilities,
+        routing_slot,
+        runtime_contract,
         requested_target,
         slot_id,
         anchor_hint,
@@ -1548,6 +1654,8 @@ mod tests {
             .expect("schema properties");
 
         assert!(properties.contains_key("model"));
+        assert!(properties.contains_key("modality_contract_key"));
+        assert!(properties.contains_key("required_capabilities"));
         assert!(!properties.contains_key("outputPath"));
     }
 
@@ -1593,6 +1701,11 @@ mod tests {
                 project_id: None,
                 content_id: None,
                 entry_source: None,
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
                 requested_target: Some("generate".to_string()),
                 slot_id: Some("slot-1".to_string()),
                 anchor_hint: Some("section_end".to_string()),
@@ -1624,6 +1737,23 @@ mod tests {
             Some("content-image-compat-1")
         );
         assert_eq!(request.entry_source.as_deref(), Some("at_image_command"));
+        assert_eq!(
+            request.modality_contract_key.as_deref(),
+            Some("image_generation")
+        );
+        assert_eq!(request.modality.as_deref(), Some("image"));
+        assert_eq!(
+            request.required_capabilities,
+            vec![
+                "text_generation".to_string(),
+                "image_generation".to_string(),
+                "vision_input".to_string()
+            ]
+        );
+        assert_eq!(
+            request.routing_slot.as_deref(),
+            Some("image_generation_model")
+        );
         assert_eq!(
             request.title_generation_result,
             Some(serde_json::json!({
@@ -1666,6 +1796,24 @@ mod tests {
                 .get("content_id")
                 .and_then(Value::as_str),
             Some("content-image-compat-1")
+        );
+        assert_eq!(
+            output
+                .record
+                .payload
+                .get("modality_contract_key")
+                .and_then(Value::as_str),
+            Some("image_generation")
+        );
+        assert_eq!(
+            output
+                .record
+                .payload
+                .get("runtime_contract")
+                .and_then(Value::as_object)
+                .and_then(|contract| contract.get("contract_key"))
+                .and_then(Value::as_str),
+            Some("image_generation")
         );
         assert_eq!(
             output

@@ -1,7 +1,7 @@
 window.__LIME_OEM_CLOUD__ = {
   enabled: true,
   baseUrl: "https://user.limeai.run",
-  gatewayBaseUrl: "https://gateway-api.limeai.run",
+  gatewayBaseUrl: "https://llm.limeai.run",
   hubProviderName: "Lime Hub",
   tenantId: "tenant-0001",
   loginPath: "/login",

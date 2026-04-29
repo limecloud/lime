@@ -2,7 +2,7 @@
 //!
 //! 提供基于 Aster 框架的 Tauri 命令
 //! 这是新的对话系统实现，与 native_agent_cmd.rs 并行存在
-//! 支持从 Lime 凭证池自动选择凭证
+//! 支持从 Lime API Key Provider 自动选择凭证
 
 use crate::agent::aster_state::{ProviderConfig, SessionConfigBuilder};
 use crate::agent::runtime_queue_service::{

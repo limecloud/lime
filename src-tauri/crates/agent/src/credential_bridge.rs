@@ -11,8 +11,10 @@ use aster::model::ModelConfig;
 use aster::providers::base::Provider;
 use lime_core::database::dao::api_key_provider::{infer_managed_runtime_spec, ApiProviderType};
 use lime_core::database::DbConnection;
-use lime_core::models::provider_pool_model::{CredentialData, ProviderCredential};
 use lime_core::models::provider_type::is_custom_provider_id;
+use lime_core::models::{
+    runtime_api_key_id_from_credential_uuid, RuntimeCredentialData, RuntimeProviderCredential,
+};
 use lime_services::api_key_provider_service::ApiKeyProviderService;
 use std::sync::Arc;
 
@@ -27,8 +29,6 @@ pub enum CredentialBridgeError {
     UnsupportedCredentialType(String),
     /// Provider 创建失败
     ProviderCreationFailed(String),
-    /// Token 刷新失败
-    TokenRefreshFailed(String),
     /// 数据库错误
     DatabaseError(String),
 }
@@ -39,7 +39,6 @@ impl std::fmt::Display for CredentialBridgeError {
             Self::NoCredentials(msg) => write!(f, "没有可用凭证: {msg}"),
             Self::UnsupportedCredentialType(msg) => write!(f, "不支持的凭证类型: {msg}"),
             Self::ProviderCreationFailed(msg) => write!(f, "Provider 创建失败: {msg}"),
-            Self::TokenRefreshFailed(msg) => write!(f, "Token 刷新失败: {msg}"),
             Self::DatabaseError(msg) => write!(f, "数据库错误: {msg}"),
         }
     }
@@ -52,7 +51,7 @@ impl std::error::Error for CredentialBridgeError {}
 pub struct AsterProviderConfig {
     /// Provider 名称 (openai, anthropic, google 等)
     pub provider_name: String,
-    /// Provider 选择器（优先保留前端 provider_id / pool provider_type）
+    /// Provider 选择器（优先保留前端 provider_id / runtime_provider_type）
     pub provider_selector: Option<String>,
     /// 模型名称
     pub model_name: String,
@@ -90,9 +89,8 @@ impl CredentialBridge {
         }
     }
 
-    fn resolve_fallback_api_key_id<'a>(&self, uuid: &'a str) -> Option<&'a str> {
-        uuid.strip_prefix("fallback-")
-            .filter(|value| !value.is_empty())
+    fn resolve_runtime_api_key_id<'a>(&self, uuid: &'a str) -> Option<&'a str> {
+        runtime_api_key_id_from_credential_uuid(uuid)
     }
 
     /// 从 API Key Provider 选择凭证并创建 Aster Provider 配置
@@ -162,7 +160,7 @@ impl CredentialBridge {
     /// 将 Lime 凭证转换为 Aster Provider 配置
     async fn credential_to_config(
         &self,
-        credential: &ProviderCredential,
+        credential: &RuntimeProviderCredential,
         model: &str,
         provider_type_hint: &str,
         db: &DbConnection,
@@ -175,7 +173,7 @@ impl CredentialBridge {
 
         let (provider_name, api_key, base_url, force_responses_api) = match &credential.credential {
             // OpenAI API Key - 根据 provider_type_hint 确定实际的 Provider
-            CredentialData::OpenAIKey { api_key, base_url } => {
+            RuntimeCredentialData::OpenAIKey { api_key, base_url } => {
                 let resolved_api_type = self.resolve_api_provider_type_hint(db, provider_type_hint);
                 let provider =
                     map_provider_type_to_aster_with_api_type(provider_type_hint, resolved_api_type);
@@ -194,8 +192,8 @@ impl CredentialBridge {
             }
 
             // Claude/Anthropic API Key
-            CredentialData::ClaudeKey { api_key, base_url }
-            | CredentialData::AnthropicKey { api_key, base_url } => (
+            RuntimeCredentialData::ClaudeKey { api_key, base_url }
+            | RuntimeCredentialData::AnthropicKey { api_key, base_url } => (
                 "anthropic".to_string(),
                 Some(api_key.clone()),
                 base_url.clone(),
@@ -203,7 +201,7 @@ impl CredentialBridge {
             ),
 
             // Gemini API Key
-            CredentialData::GeminiApiKey {
+            RuntimeCredentialData::GeminiApiKey {
                 api_key, base_url, ..
             } => (
                 "google".to_string(),
@@ -213,7 +211,7 @@ impl CredentialBridge {
             ),
 
             // Vertex AI
-            CredentialData::VertexKey {
+            RuntimeCredentialData::VertexKey {
                 api_key, base_url, ..
             } => (
                 "gcpvertexai".to_string(),
@@ -221,13 +219,6 @@ impl CredentialBridge {
                 base_url.clone(),
                 false,
             ),
-
-            unsupported => {
-                return Err(CredentialBridgeError::UnsupportedCredentialType(format!(
-                    "凭证池/OAuth 凭证已退役，当前只支持 API Key Provider 凭证: {:?}",
-                    unsupported
-                )));
-            }
         };
 
         Ok(AsterProviderConfig {
@@ -245,14 +236,17 @@ impl CredentialBridge {
 
     /// 记录凭证使用
     pub fn record_usage(&self, db: &DbConnection, uuid: &str) -> Result<(), CredentialBridgeError> {
-        if let Some(api_key_id) = self.resolve_fallback_api_key_id(uuid) {
+        if let Some(api_key_id) = self.resolve_runtime_api_key_id(uuid) {
             return self
                 .api_key_service
                 .record_usage(db, api_key_id)
                 .map_err(CredentialBridgeError::DatabaseError);
         }
 
-        tracing::debug!("[CredentialBridge] 忽略已退役的凭证池使用记录: {}", uuid);
+        tracing::debug!(
+            "[CredentialBridge] 忽略已退役的旧 credential 使用记录: {}",
+            uuid
+        );
         Ok(())
     }
 
@@ -263,12 +257,15 @@ impl CredentialBridge {
         uuid: &str,
         model: Option<&str>,
     ) -> Result<(), CredentialBridgeError> {
-        if self.resolve_fallback_api_key_id(uuid).is_some() {
+        if self.resolve_runtime_api_key_id(uuid).is_some() {
             return Ok(());
         }
 
         let _ = (db, model);
-        tracing::debug!("[CredentialBridge] 忽略已退役的凭证池健康标记: {}", uuid);
+        tracing::debug!(
+            "[CredentialBridge] 忽略已退役的旧 credential 健康标记: {}",
+            uuid
+        );
         Ok(())
     }
 
@@ -279,12 +276,15 @@ impl CredentialBridge {
         uuid: &str,
         error: Option<&str>,
     ) -> Result<(), CredentialBridgeError> {
-        if self.resolve_fallback_api_key_id(uuid).is_some() {
+        if self.resolve_runtime_api_key_id(uuid).is_some() {
             return Ok(());
         }
 
         let _ = (db, error);
-        tracing::debug!("[CredentialBridge] 忽略已退役的凭证池失败标记: {}", uuid);
+        tracing::debug!(
+            "[CredentialBridge] 忽略已退役的旧 credential 失败标记: {}",
+            uuid
+        );
         Ok(())
     }
 }

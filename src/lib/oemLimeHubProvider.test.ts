@@ -12,8 +12,18 @@ describe("oemLimeHubProvider", () => {
     expect(
       buildOemLimeHubApiHost({
         gatewayBaseUrl: "https://user.limeai.run/gateway-api/",
+        tenantId: "tenant-0001",
       }),
-    ).toBe("https://user.limeai.run/gateway-api");
+    ).toBe("https://user.limeai.run/gateway-api#lime_tenant_id=tenant-0001");
+  });
+
+  it("应在缺少租户时只返回网关地址", () => {
+    expect(
+      buildOemLimeHubApiHost({
+        gatewayBaseUrl: "https://llm.limeai.run/",
+        tenantId: "",
+      }),
+    ).toBe("https://llm.limeai.run");
   });
 
   it("应在未配置品牌名时回退默认 Lime Hub 名称", () => {

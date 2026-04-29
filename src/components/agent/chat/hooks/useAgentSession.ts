@@ -31,7 +31,11 @@ import {
   loadStoredSessionWorkspaceIdRaw,
   savePersistedSessionWorkspaceId,
 } from "./agentProjectStorage";
-import { normalizeHistoryMessages } from "./agentChatHistory";
+import {
+  hydrateSessionDetailMessages,
+  mergeHydratedMessagesWithLocalState,
+  normalizeHistoryMessages,
+} from "./agentChatHistory";
 import {
   getAgentSessionScopedKeys,
   loadAgentSessionCachedSnapshot,
@@ -50,7 +54,11 @@ import {
 import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import { isAuxiliaryAgentSessionId } from "@/lib/api/agentRuntime/sessionIdentity";
-import { filterConversationThreadItems } from "../utils/threadTimelineView";
+import {
+  filterConversationThreadItems,
+  mergeThreadItems,
+  mergeThreadTurns,
+} from "../utils/threadTimelineView";
 import { shouldResumeTaskSession } from "../utils/taskCenterTabs";
 import {
   createSessionAccessModeFromExecutionRuntime,
@@ -75,9 +83,18 @@ import {
 import type { AgentAccessMode } from "./agentChatStorage";
 import { hasRecoverableSilentTurnActivity } from "./agentSilentTurnRecovery";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 
 const INITIAL_TOPICS_IDLE_TIMEOUT_MS = 1_500;
 const INITIAL_TOPICS_SESSION_REQUEST_LIMIT = 60;
+const SESSION_HISTORY_LOAD_PAGE_SIZE = 50;
+const ACTIVE_SESSION_TRANSIENT_MESSAGES_LIMIT = 48;
+const ACTIVE_SESSION_TRANSIENT_TURNS_LIMIT = 48;
+const ACTIVE_SESSION_TRANSIENT_ITEMS_LIMIT = 160;
+const ACTIVE_SESSION_TRANSIENT_SAVE_DELAY_MS = 180;
+const ACTIVE_SESSION_TRANSIENT_SAVE_IDLE_TIMEOUT_MS = 1_800;
+const SESSION_METADATA_SYNC_DELAY_MS = 8_000;
+const SESSION_METADATA_SYNC_IDLE_TIMEOUT_MS = 15_000;
 
 function mapSessionDetailToTopic(
   sessionId: string,
@@ -132,8 +149,145 @@ function upsertTopicFromSessionDetail(
 export interface AgentSessionHistoryWindow {
   loadedMessages: number;
   totalMessages: number;
+  historyBeforeMessageId?: number | null;
+  historyStartIndex?: number | null;
   isLoadingFull: boolean;
   error: string | null;
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.trunc(value)
+    : null;
+}
+
+function normalizeNonNegativeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.trunc(value)
+    : null;
+}
+
+function resolveDetailHistoryLoadedMessages(
+  detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>,
+): number {
+  const totalMessages =
+    normalizeNonNegativeInteger(detail.messages_count) ??
+    detail.messages.length;
+  const cursorStartIndex = normalizeNonNegativeInteger(
+    detail.history_cursor?.start_index,
+  );
+  if (cursorStartIndex !== null) {
+    return Math.min(
+      totalMessages,
+      Math.max(detail.messages.length, totalMessages - cursorStartIndex),
+    );
+  }
+  const historyLimit =
+    normalizeNonNegativeInteger(detail.history_limit) ?? null;
+  const historyOffset = normalizeNonNegativeInteger(detail.history_offset) ?? 0;
+
+  if (historyLimit === null) {
+    return detail.messages.length;
+  }
+
+  return Math.min(totalMessages, historyOffset + historyLimit);
+}
+
+function takeTail<T>(items: T[], limit: number): T[] {
+  if (items.length <= limit) {
+    return items;
+  }
+
+  return items.slice(-limit);
+}
+
+function selectActiveSessionTransientTurns(
+  turns: AgentThreadTurn[],
+): AgentThreadTurn[] {
+  return takeTail(turns, ACTIVE_SESSION_TRANSIENT_TURNS_LIMIT);
+}
+
+function selectActiveSessionTransientMessages(messages: Message[]): Message[] {
+  return takeTail(messages, ACTIVE_SESSION_TRANSIENT_MESSAGES_LIMIT);
+}
+
+function selectActiveSessionTransientItems(
+  items: AgentThreadItem[],
+  turns: AgentThreadTurn[],
+): AgentThreadItem[] {
+  const retainedTurnIds = new Set(
+    selectActiveSessionTransientTurns(turns)
+      .map((turn) => (typeof turn.id === "string" ? turn.id.trim() : ""))
+      .filter(Boolean),
+  );
+  if (retainedTurnIds.size === 0) {
+    return filterConversationThreadItems(
+      normalizeLegacyThreadItems(
+        takeTail(items, ACTIVE_SESSION_TRANSIENT_ITEMS_LIMIT),
+      ),
+    );
+  }
+
+  const scopedItems: AgentThreadItem[] = [];
+  for (
+    let index = items.length - 1;
+    index >= 0 && scopedItems.length < ACTIVE_SESSION_TRANSIENT_ITEMS_LIMIT;
+    index -= 1
+  ) {
+    const item = items[index];
+    if (!item) {
+      continue;
+    }
+
+    const turnId = typeof item.turn_id === "string" ? item.turn_id.trim() : "";
+    if (!turnId || retainedTurnIds.has(turnId)) {
+      scopedItems.push(item);
+    }
+  }
+  scopedItems.reverse();
+
+  return filterConversationThreadItems(
+    normalizeLegacyThreadItems(scopedItems),
+  );
+}
+
+function scheduleActiveSessionTransientSave(
+  task: () => void,
+): () => void {
+  if (typeof window === "undefined") {
+    task();
+    return () => undefined;
+  }
+
+  let cancelled = false;
+  let idleId: number | null = null;
+  const delayId = window.setTimeout(() => {
+    if (cancelled) {
+      return;
+    }
+
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(
+        () => {
+          if (!cancelled) {
+            task();
+          }
+        },
+        { timeout: ACTIVE_SESSION_TRANSIENT_SAVE_IDLE_TIMEOUT_MS },
+      );
+      return;
+    }
+
+    task();
+  }, ACTIVE_SESSION_TRANSIENT_SAVE_DELAY_MS);
+
+  return () => {
+    cancelled = true;
+    window.clearTimeout(delayId);
+    if (idleId !== null && typeof window.cancelIdleCallback === "function") {
+      window.cancelIdleCallback(idleId);
+    }
+  };
 }
 
 interface UseAgentSessionOptions {
@@ -327,12 +481,16 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const [isAutoRestoringSession, setIsAutoRestoringSession] = useState(
     () => !disableSessionRestore && Boolean(workspaceId?.trim()),
   );
+  const [isSessionHydrating, setIsSessionHydrating] = useState(false);
 
   const restoredWorkspaceRef = useRef<string | null>(null);
   const hydratedSessionRef = useRef<string | null>(null);
   const skipAutoRestoreRef = useRef(false);
   const sessionSwitchRequestVersionRef = useRef(0);
   const deferredSessionHydrationCancelRef = useRef<(() => void) | null>(null);
+  const pendingSessionMetadataSyncCancelRef = useRef<(() => void) | null>(
+    null,
+  );
   const createFreshSessionPromiseRef = useRef<Promise<string | null> | null>(
     null,
   );
@@ -345,6 +503,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const messagesRef = useRef<Message[]>(messages);
   const threadTurnsRef = useRef<AgentThreadTurn[]>(threadTurns);
   const threadItemsRef = useRef<AgentThreadItem[]>(threadItems);
+  const sessionHistoryWindowRef = useRef<AgentSessionHistoryWindow | null>(
+    sessionHistoryWindow,
+  );
   const executionRuntimeRef = useRef<AsterSessionExecutionRuntime | null>(
     executionRuntime,
   );
@@ -353,6 +514,13 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   );
 
   sessionIdRef.current = sessionId;
+
+  useEffect(() => {
+    return () => {
+      pendingSessionMetadataSyncCancelRef.current?.();
+      pendingSessionMetadataSyncCancelRef.current = null;
+    };
+  }, []);
 
   const resetStreamingRefs = useCallback(() => {
     currentAssistantMsgIdRef.current = null;
@@ -375,6 +543,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const invalidatePendingSessionSwitches = useCallback(() => {
     deferredSessionHydrationCancelRef.current?.();
     deferredSessionHydrationCancelRef.current = null;
+    pendingSessionMetadataSyncCancelRef.current?.();
+    pendingSessionMetadataSyncCancelRef.current = null;
     sessionSwitchRequestVersionRef.current += 1;
     return sessionSwitchRequestVersionRef.current;
   }, []);
@@ -438,7 +608,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         return null;
       }
 
-      const loadedMessages = detail.messages.length;
+      const loadedMessages = resolveDetailHistoryLoadedMessages(detail);
       const totalMessages = Math.max(
         loadedMessages,
         typeof detail.messages_count === "number" &&
@@ -454,6 +624,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       return {
         loadedMessages,
         totalMessages,
+        historyBeforeMessageId: normalizePositiveInteger(
+          detail.history_cursor?.oldest_message_id,
+        ),
+        historyStartIndex: normalizeNonNegativeInteger(
+          detail.history_cursor?.start_index,
+        ),
         isLoadingFull: false,
         error: null,
       };
@@ -464,6 +640,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    sessionHistoryWindowRef.current = sessionHistoryWindow;
+  }, [sessionHistoryWindow]);
 
   useEffect(() => {
     setMessages((prev) => {
@@ -513,7 +693,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     ) {
       return;
     }
-    saveTransient(scopedKeys.messagesKey, messages);
+    const transientMessages = selectActiveSessionTransientMessages(messages);
+    return scheduleActiveSessionTransientSave(() => {
+      saveTransient(scopedKeys.messagesKey, transientMessages);
+    });
   }, [messages, scopedKeys, workspaceId]);
 
   useEffect(() => {
@@ -524,7 +707,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     ) {
       return;
     }
-    saveTransient(scopedKeys.turnsKey, threadTurns);
+    const transientTurns = selectActiveSessionTransientTurns(threadTurns);
+    return scheduleActiveSessionTransientSave(() => {
+      saveTransient(scopedKeys.turnsKey, transientTurns);
+    });
   }, [scopedKeys, threadTurns, workspaceId]);
 
   useEffect(() => {
@@ -539,8 +725,14 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     ) {
       return;
     }
-    saveTransient(scopedKeys.itemsKey, threadItems);
-  }, [scopedKeys, threadItems, workspaceId]);
+    const transientItems = selectActiveSessionTransientItems(
+      threadItems,
+      threadTurnsRef.current,
+    );
+    return scheduleActiveSessionTransientSave(() => {
+      saveTransient(scopedKeys.itemsKey, transientItems);
+    });
+  }, [scopedKeys, threadItems, threadTurns, workspaceId]);
 
   useEffect(() => {
     threadItemsRef.current = threadItems;
@@ -585,17 +777,39 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       sessionHistoryWindow?.totalMessages ??
       activeTopic?.messagesCount ??
       messages.length;
-    saveAgentSessionCachedSnapshot(resolvedWorkspaceId, resolvedSessionId, {
-      messages,
-      threadTurns,
+    const transientMessages = selectActiveSessionTransientMessages(messages);
+    const transientThreadTurns = selectActiveSessionTransientTurns(threadTurns);
+    const transientTurnIds = new Set(
+      transientThreadTurns
+        .map((turn) => (typeof turn.id === "string" ? turn.id.trim() : ""))
+        .filter(Boolean),
+    );
+    const transientCurrentTurnId =
+      currentTurnId && transientTurnIds.has(currentTurnId)
+        ? currentTurnId
+        : null;
+    const transientThreadItems = selectActiveSessionTransientItems(
       threadItems,
-      currentTurnId,
-    }, {
-      sessionUpdatedAt: activeTopic?.updatedAt ?? Date.now(),
-      messagesCount: totalMessages,
-      historyTruncated:
-        (sessionHistoryWindow?.totalMessages ?? totalMessages) >
-        (sessionHistoryWindow?.loadedMessages ?? messages.length),
+      transientThreadTurns,
+    );
+    return scheduleActiveSessionTransientSave(() => {
+      saveAgentSessionCachedSnapshot(
+        resolvedWorkspaceId,
+        resolvedSessionId,
+        {
+          messages: transientMessages,
+          threadTurns: transientThreadTurns,
+          threadItems: transientThreadItems,
+          currentTurnId: transientCurrentTurnId,
+        },
+        {
+          sessionUpdatedAt: activeTopic?.updatedAt ?? Date.now(),
+          messagesCount: totalMessages,
+          historyTruncated:
+            (sessionHistoryWindow?.totalMessages ?? totalMessages) >
+            (sessionHistoryWindow?.loadedMessages ?? messages.length),
+        },
+      );
     });
   }, [
     currentTurnId,
@@ -614,6 +828,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       applySessionSnapshot(createEmptyAgentSessionSnapshot());
       setSessionHistoryWindow(null);
       setIsAutoRestoringSession(false);
+      setIsSessionHydrating(false);
       resetPendingActions();
       resetStreamingRefs();
       restoredWorkspaceRef.current = null;
@@ -625,6 +840,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
     sessionStateWorkspaceRef.current = workspaceId.trim();
     setIsAutoRestoringSession(true);
+    setIsSessionHydrating(false);
     const scopedSessionCandidate = loadScopedSessionRestoreCandidate();
     const scopedMessages = loadTransient<Message[]>(scopedKeys.messagesKey, []);
     const scopedTurns = loadTransient<AgentThreadTurn[]>(
@@ -839,6 +1055,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           setChildSubagentSessions([]);
           setSubagentParentContext(null);
           setIsAutoRestoringSession(false);
+          setIsSessionHydrating(false);
           setTopics((prev) => [
             {
               id: newSessionId,
@@ -944,6 +1161,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       setSessionHistoryWindow(null);
       invalidatePendingSessionSwitches();
       setIsAutoRestoringSession(false);
+      setIsSessionHydrating(false);
       resetPendingActions();
       restoredWorkspaceRef.current = null;
       hydratedSessionRef.current = null;
@@ -1247,6 +1465,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         hydratedSessionRef.current = null;
         restoredWorkspaceRef.current = null;
         skipAutoRestoreRef.current = false;
+        setIsSessionHydrating(false);
         return false;
       }
 
@@ -1306,29 +1525,24 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         markSessionExecutionStrategySynced(topicId, runtimeExecutionStrategy);
       }
 
+      const sessionMetadataPatch: Parameters<
+        NonNullable<AgentRuntimeAdapter["updateSessionMetadata"]>
+      >[1] = {};
+      let fallbackProviderPreference: SessionModelPreference | null = null;
+      let fallbackExecutionStrategy: AsterExecutionStrategy | null = null;
+
       if (runtimeAccessMode) {
         setAccessModeState(runtimeAccessMode);
         persistSessionAccessMode(topicId, runtimeAccessMode);
       } else if (shadowAccessMode) {
         setAccessModeState(shadowAccessMode);
-        void runtime
-          .setSessionAccessMode?.(topicId, shadowAccessMode)
-          .catch((error) => {
-            console.warn(
-              "[AsterChat] 迁移会话 accessMode fallback 失败:",
-              error,
-            );
-          });
+        sessionMetadataPatch.accessMode = shadowAccessMode;
       } else {
         const workspaceDefaultAccessMode =
           resolvePersistedAccessMode(workspaceId);
         setAccessModeState(workspaceDefaultAccessMode);
         persistSessionAccessMode(topicId, workspaceDefaultAccessMode);
-        void runtime
-          .setSessionAccessMode?.(topicId, workspaceDefaultAccessMode)
-          .catch((error) => {
-            console.warn("[AsterChat] 回填会话默认 accessMode 失败:", error);
-          });
+        sessionMetadataPatch.accessMode = workspaceDefaultAccessMode;
       }
 
       logAgentDebug("useAgentSession", "switchTopic.success", {
@@ -1376,56 +1590,146 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       if (topicPreference) {
         applySessionModelPreference(topicId, topicPreference);
         if (!runtimePreference) {
-          void runtime
-            .setSessionProviderSelection(
-              topicId,
-              topicPreference.providerType,
-              topicPreference.model,
-            )
-            .then(() => {
-              markSessionModelPreferenceSynced(
-                topicId,
-                topicPreference.providerType,
-                topicPreference.model,
-              );
-            })
-            .catch((error) => {
-              console.warn(
-                "[AsterChat] 迁移会话 provider/model fallback 失败:",
-                error,
-              );
-            });
+          fallbackProviderPreference = topicPreference;
+          sessionMetadataPatch.providerType = topicPreference.providerType;
+          sessionMetadataPatch.model = topicPreference.model;
         }
       }
 
       if (shadowExecutionStrategyFallback) {
-        void runtime
-          .setSessionExecutionStrategy(topicId, shadowExecutionStrategyFallback)
-          .then(() => {
-            markSessionExecutionStrategySynced(
+        fallbackExecutionStrategy = shadowExecutionStrategyFallback;
+        sessionMetadataPatch.executionStrategy =
+          shadowExecutionStrategyFallback;
+      }
+
+      const hasSessionMetadataPatch = Boolean(
+        sessionMetadataPatch.accessMode ||
+        sessionMetadataPatch.providerType ||
+        sessionMetadataPatch.model ||
+        sessionMetadataPatch.executionStrategy,
+      );
+      if (hasSessionMetadataPatch) {
+        if (!hasTauriInvokeCapability()) {
+          logAgentDebug(
+            "useAgentSession",
+            "switchTopic.metadataSyncSkipped",
+            {
+              reason: "browser_bridge_low_priority_backfill",
               topicId,
-              shadowExecutionStrategyFallback,
-            );
-            setTopics((prev) =>
-              prev.map((topic) =>
-                topic.id === topicId
-                  ? {
-                      ...topic,
-                      executionStrategy: shadowExecutionStrategyFallback,
+              workspaceId,
+            },
+            { throttleMs: 1000 },
+          );
+        } else {
+          const syncSessionMetadata = () => {
+            if (runtime.updateSessionMetadata) {
+              return runtime.updateSessionMetadata(
+                topicId,
+                sessionMetadataPatch,
+              );
+            }
+
+            const tasks: Promise<void>[] = [];
+            if (
+              sessionMetadataPatch.accessMode &&
+              runtime.setSessionAccessMode
+            ) {
+              tasks.push(
+                runtime.setSessionAccessMode(
+                  topicId,
+                  sessionMetadataPatch.accessMode,
+                ),
+              );
+            }
+            if (fallbackProviderPreference) {
+              tasks.push(
+                runtime.setSessionProviderSelection(
+                  topicId,
+                  fallbackProviderPreference.providerType,
+                  fallbackProviderPreference.model,
+                ),
+              );
+            }
+            if (fallbackExecutionStrategy) {
+              tasks.push(
+                runtime.setSessionExecutionStrategy(
+                  topicId,
+                  fallbackExecutionStrategy,
+                ),
+              );
+            }
+
+            return Promise.all(tasks).then(() => undefined);
+          };
+
+          pendingSessionMetadataSyncCancelRef.current?.();
+          pendingSessionMetadataSyncCancelRef.current =
+            scheduleMinimumDelayIdleTask(
+              () => {
+                pendingSessionMetadataSyncCancelRef.current = null;
+
+                if (
+                  sessionSwitchRequestVersionRef.current !==
+                    switchRequestVersion ||
+                  sessionIdRef.current !== topicId
+                ) {
+                  logAgentDebug(
+                    "useAgentSession",
+                    "switchTopic.metadataSyncSkipped",
+                    {
+                      currentSessionId: sessionIdRef.current,
+                      switchRequestVersion,
+                      topicId,
+                      workspaceId,
+                    },
+                    { throttleMs: 1000 },
+                  );
+                  return;
+                }
+
+                void syncSessionMetadata()
+                  .then(() => {
+                    if (fallbackProviderPreference) {
+                      markSessionModelPreferenceSynced(
+                        topicId,
+                        fallbackProviderPreference.providerType,
+                        fallbackProviderPreference.model,
+                      );
                     }
-                  : topic,
-              ),
+                    if (fallbackExecutionStrategy) {
+                      markSessionExecutionStrategySynced(
+                        topicId,
+                        fallbackExecutionStrategy,
+                      );
+                      setTopics((prev) =>
+                        prev.map((topic) =>
+                          topic.id === topicId
+                            ? {
+                                ...topic,
+                                executionStrategy: fallbackExecutionStrategy,
+                              }
+                            : topic,
+                        ),
+                      );
+                    }
+                  })
+                  .catch((error) => {
+                    console.warn(
+                      "[AsterChat] 迁移会话 metadata fallback 失败:",
+                      error,
+                    );
+                  });
+              },
+              {
+                minimumDelayMs: SESSION_METADATA_SYNC_DELAY_MS,
+                idleTimeoutMs: SESSION_METADATA_SYNC_IDLE_TIMEOUT_MS,
+              },
             );
-          })
-          .catch((error) => {
-            console.warn(
-              "[AsterChat] 迁移会话 executionStrategy fallback 失败:",
-              error,
-            );
-          });
+        }
       }
 
       setIsAutoRestoringSession(false);
+      setIsSessionHydrating(false);
       return true;
     },
     [
@@ -1473,6 +1777,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         hydratedSessionRef.current = null;
         void loadTopics();
         setIsAutoRestoringSession(false);
+        setIsSessionHydrating(false);
         return;
       }
 
@@ -1484,6 +1789,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       }
 
       setIsAutoRestoringSession(false);
+      setIsSessionHydrating(false);
       toast.error(
         `加载对话历史失败: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -1530,6 +1836,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         detachedSessionIdRef.current = null;
       }
       const switchRequestVersion = invalidatePendingSessionSwitches();
+      setIsSessionHydrating(false);
       if (options?.restoreSource !== "auto") {
         setIsAutoRestoringSession(false);
       }
@@ -1574,6 +1881,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           applyCachedTopicChromeState(topicId);
           persistSessionRestoreCandidate(topicId);
           setIsAutoRestoringSession(false);
+          setIsSessionHydrating(false);
           logAgentDebug("useAgentSession", "switchTopic.deferHydration", {
             cacheFreshness: cachedSnapshotMetadata?.freshness ?? null,
             cacheStorageKind: cachedSnapshotMetadata?.storageKind ?? null,
@@ -1642,6 +1950,28 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           return;
         }
 
+        if (currentSessionId !== topicId && !cachedTargetSnapshot) {
+          hydratedSessionRef.current = topicId;
+          applySessionSnapshot({
+            ...createEmptyAgentSessionSnapshot(),
+            sessionId: topicId,
+          });
+          setExecutionStrategyState(
+            normalizeExecutionStrategy(
+              selectedTopic?.executionStrategy || executionStrategy,
+            ),
+          );
+          setSessionHistoryWindow(null);
+          applyCachedTopicChromeState(topicId);
+          persistSessionRestoreCandidate(topicId);
+          setIsSessionHydrating(true);
+          logAgentDebug("useAgentSession", "switchTopic.pendingShellApplied", {
+            currentSessionId,
+            topicId,
+            workspaceId,
+          });
+        }
+
         const detail = await loadRuntimeSessionDetail({
           topicId,
           startedAt,
@@ -1668,6 +1998,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           switchRequestVersion,
         });
       } catch (error) {
+        if (sessionSwitchRequestVersionRef.current !== switchRequestVersion) {
+          return;
+        }
         handleSwitchTopicError(error, topicId);
       }
     },
@@ -1679,11 +2012,14 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       messages.length,
       modelRef,
       applyCachedTopicSnapshot,
+      applySessionSnapshot,
+      executionStrategy,
       invalidatePendingSessionSwitches,
       persistSessionModelPreference,
       persistSessionRestoreCandidate,
       providerTypeRef,
       sessionIdRef,
+      setExecutionStrategyState,
       topics,
       workspaceId,
     ],
@@ -1695,27 +2031,59 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       return false;
     }
 
+    const currentHistoryWindow = sessionHistoryWindowRef.current;
+    if (currentHistoryWindow?.isLoadingFull) {
+      return false;
+    }
+    const loadedMessagesCount =
+      currentHistoryWindow?.loadedMessages ?? messagesRef.current.length;
+    const totalMessagesCount =
+      currentHistoryWindow?.totalMessages ?? loadedMessagesCount;
+    const nextHistoryOffset = loadedMessagesCount;
+    const historyBeforeMessageId =
+      normalizePositiveInteger(currentHistoryWindow?.historyBeforeMessageId) ??
+      null;
+    const nextHistoryLimit =
+      totalMessagesCount > loadedMessagesCount
+        ? Math.min(
+            SESSION_HISTORY_LOAD_PAGE_SIZE,
+            totalMessagesCount - loadedMessagesCount,
+          )
+        : SESSION_HISTORY_LOAD_PAGE_SIZE;
+
+    if (nextHistoryLimit <= 0) {
+      return false;
+    }
+
     const switchRequestVersion = sessionSwitchRequestVersionRef.current;
     const startedAt = Date.now();
     setSessionHistoryWindow((current) =>
       current
         ? { ...current, isLoadingFull: true, error: null }
         : {
-            loadedMessages: messagesRef.current.length,
-            totalMessages: messagesRef.current.length,
+            loadedMessages: loadedMessagesCount,
+            totalMessages: totalMessagesCount,
+            historyBeforeMessageId,
+            historyStartIndex: currentHistoryWindow?.historyStartIndex ?? null,
             isLoadingFull: true,
             error: null,
           },
     );
     logAgentDebug("useAgentSession", "loadFullHistory.start", {
-      loadedMessagesCount: messagesRef.current.length,
+      historyBeforeMessageId,
+      loadedMessagesCount,
+      nextHistoryLimit,
+      nextHistoryOffset,
       sessionId: targetSessionId,
+      totalMessagesCount,
       workspaceId,
     });
 
     try {
       const detail = await runtime.getSession(targetSessionId, {
-        historyLimit: 0,
+        historyLimit: nextHistoryLimit,
+        historyOffset: nextHistoryOffset,
+        ...(historyBeforeMessageId !== null ? { historyBeforeMessageId } : {}),
       });
       if (
         sessionIdRef.current !== targetSessionId ||
@@ -1724,21 +2092,102 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         return false;
       }
 
-      const applied = finalizeResolvedTopicDetail({
-        topicId: targetSessionId,
+      const incomingMessages = hydrateSessionDetailMessages(
         detail,
-        startedAt,
-        switchRequestVersion,
-        useTransition: true,
+        targetSessionId,
+      );
+      const mergedMessages = mergeHydratedMessagesWithLocalState(
+        messagesRef.current,
+        incomingMessages,
+      );
+      const mergedThreadTurns = mergeThreadTurns(
+        threadTurnsRef.current,
+        detail.turns || [],
+      );
+      const mergedThreadItems = filterConversationThreadItems(
+        mergeThreadItems(
+          threadItemsRef.current,
+          normalizeLegacyThreadItems(detail.items || []),
+        ),
+      );
+      const detailLoadedMessages = resolveDetailHistoryLoadedMessages(detail);
+      const detailTotalMessages =
+        typeof detail.messages_count === "number" &&
+        Number.isFinite(detail.messages_count)
+          ? Math.trunc(detail.messages_count)
+          : totalMessagesCount;
+      const nextLoadedMessages = Math.min(
+        detailTotalMessages,
+        Math.max(detailLoadedMessages, nextHistoryOffset + nextHistoryLimit),
+      );
+      const resolvedTotalMessages = Math.max(
+        nextLoadedMessages,
+        detailTotalMessages,
+      );
+      const nextHistoryBeforeMessageId = normalizePositiveInteger(
+        detail.history_cursor?.oldest_message_id,
+      );
+      const nextHistoryStartIndex = normalizeNonNegativeInteger(
+        detail.history_cursor?.start_index,
+      );
+      const nextHistoryWindow =
+        resolvedTotalMessages > nextLoadedMessages
+          ? {
+              loadedMessages: nextLoadedMessages,
+              totalMessages: resolvedTotalMessages,
+              historyBeforeMessageId:
+                nextHistoryBeforeMessageId ?? historyBeforeMessageId,
+              historyStartIndex: nextHistoryStartIndex,
+              isLoadingFull: false,
+              error: null,
+            }
+          : null;
+
+      startTransition(() => {
+        applySessionSnapshot({
+          sessionId: targetSessionId,
+          messages: mergedMessages,
+          threadTurns: mergedThreadTurns,
+          threadItems: mergedThreadItems,
+          currentTurnId:
+            mergedThreadTurns.length > 0
+              ? mergedThreadTurns[mergedThreadTurns.length - 1]?.id || null
+              : currentTurnId,
+          queuedTurns,
+          threadRead,
+          executionRuntime: executionRuntimeRef.current,
+          todoItems,
+          childSubagentSessions,
+          subagentParentContext,
+        });
       });
-      setSessionHistoryWindow(null);
+      setSessionHistoryWindow(nextHistoryWindow);
+      setTopics((prev) =>
+        upsertTopicFromSessionDetail(
+          prev,
+          mapSessionDetailToTopic(
+            targetSessionId,
+            detail,
+            normalizeProjectId(detail.workspace_id) ||
+              normalizeProjectId(workspaceId),
+          ),
+        ),
+      );
       logAgentDebug("useAgentSession", "loadFullHistory.success", {
         durationMs: Date.now() - startedAt,
-        messagesCount: detail.messages.length,
+        historyBeforeMessageId,
+        historyTruncated: detail.history_truncated === true,
+        historyOffset: detail.history_offset ?? nextHistoryOffset,
+        incomingMessagesCount: incomingMessages.length,
+        loadedMessagesCount: nextLoadedMessages,
+        messagesCount: mergedMessages.length,
+        nextHistoryLimit,
+        nextHistoryOffset,
         sessionId: targetSessionId,
+        totalMessagesCount: resolvedTotalMessages,
         workspaceId,
       });
-      return applied;
+      return true;
     } catch (error) {
       if (sessionIdRef.current !== targetSessionId) {
         return false;
@@ -1754,15 +2203,29 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         {
           durationMs: Date.now() - startedAt,
           error,
+          historyBeforeMessageId,
+          nextHistoryLimit,
+          nextHistoryOffset,
           sessionId: targetSessionId,
           workspaceId,
         },
         { level: "error" },
       );
-      toast.error(`加载完整历史失败: ${message}`);
+      toast.error(`加载历史失败: ${message}`);
       return false;
     }
-  }, [finalizeResolvedTopicDetail, runtime, sessionIdRef, workspaceId]);
+  }, [
+    applySessionSnapshot,
+    childSubagentSessions,
+    currentTurnId,
+    queuedTurns,
+    runtime,
+    sessionIdRef,
+    subagentParentContext,
+    threadRead,
+    todoItems,
+    workspaceId,
+  ]);
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (sessionIdRef.current) {
@@ -1853,7 +2316,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       }
 
       try {
-        const detail = await runtime.getSession(resolvedSessionId);
+        const detail = await runtime.getSession(resolvedSessionId, {
+          historyLimit: 40,
+        });
         if (sessionIdRef.current !== resolvedSessionId) {
           return false;
         }
@@ -1911,6 +2376,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     );
     if (!targetSessionId) {
       setIsAutoRestoringSession(false);
+      setIsSessionHydrating(false);
       logAgentDebug(
         "useAgentSession",
         "autoRestore.skipWithoutTarget",
@@ -1926,6 +2392,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
     let cancelled = false;
     setIsAutoRestoringSession(true);
+    setIsSessionHydrating(false);
     logAgentDebug("useAgentSession", "autoRestore.start", {
       candidateSessionId: scopedCandidate,
       targetSessionId,
@@ -2035,7 +2502,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       );
 
       runtime
-        .getSession(sessionId)
+        .getSession(sessionId, { historyLimit: 40 })
         .then((detail) => {
           if (sessionIdRef.current !== sessionId) {
             return;
@@ -2341,6 +2808,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     topicsReady,
     sessionHistoryWindow,
     isAutoRestoringSession,
+    isSessionHydrating,
     isDetachedActiveSession: detachedSessionIdRef.current === sessionId,
     loadTopics,
     createFreshSession,

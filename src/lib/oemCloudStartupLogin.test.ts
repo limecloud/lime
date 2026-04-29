@@ -110,6 +110,22 @@ describe("oemCloudStartupLogin", () => {
     expect(mockStartOemCloudLogin).not.toHaveBeenCalled();
   });
 
+  it("后端返回内部租户 ID 但 slug 命中运行时租户时不应重复登录", async () => {
+    configureRuntime();
+    setStoredOemCloudSessionState({
+      token: "session-token",
+      tenant: { id: "tenant-0514", slug: "tenant-0001" },
+      user: { id: "user-001" },
+      session: { id: "session-001", provider: "google" },
+    });
+
+    const result = await startOemCloudStartupLoginIfRequired();
+
+    expect(result.status).toBe("has_session");
+    expect(mockGetPublicAuthCatalog).not.toHaveBeenCalled();
+    expect(mockStartOemCloudLogin).not.toHaveBeenCalled();
+  });
+
   it("后端未下发 Google Provider 时保持开源默认使用", async () => {
     configureRuntime();
     mockGetPublicAuthCatalog.mockResolvedValue({

@@ -74,7 +74,10 @@ import type {
   AgentRuntimeThreadReadModel,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import { buildMessageTurnTimeline } from "../utils/threadTimelineView";
+import {
+  buildMessageTurnTimeline,
+  type MessageTurnTimeline,
+} from "../utils/threadTimelineView";
 import { buildMessageTurnGroups } from "../utils/messageTurnGrouping";
 import { resolveLatestProjectFileSavedSiteContentTargetFromMessage } from "../utils/latestSavedSiteContentTarget";
 import {
@@ -187,6 +190,8 @@ const MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD = 72;
 const MESSAGE_LIST_INITIAL_RENDER_COUNT = 36;
 const MESSAGE_LIST_RENDER_BATCH_SIZE = 48;
 const MESSAGE_LIST_TIMELINE_ITEMS_FACTOR = 4;
+const MESSAGE_LIST_TIMELINE_DEFER_MESSAGE_THRESHOLD = 24;
+const MESSAGE_LIST_TIMELINE_DEFER_ITEM_THRESHOLD = 24;
 
 function normalizeRuntimeStatusMetaText(value?: string | null): string {
   return (value || "").trim().replace(/\s+/g, " ");
@@ -688,14 +693,62 @@ const MessageListInner: React.FC<MessageListProps> = ({
         : threadItems,
     [hiddenHistoryCount, renderedMessageCount, threadItems],
   );
+  const timelineHydrationKey = [
+    renderedMessages[renderedMessages.length - 1]?.id ?? "no-message",
+    renderedTurns[renderedTurns.length - 1]?.id ?? "no-turn",
+    renderedThreadItems[renderedThreadItems.length - 1]?.id ?? "no-item",
+  ].join("|");
+  const shouldDeferHistoricalTimeline =
+    !isSending &&
+    !currentTurnId &&
+    !focusedTimelineItemId &&
+    renderedMessages.length >= MESSAGE_LIST_TIMELINE_DEFER_MESSAGE_THRESHOLD &&
+    renderedThreadItems.length >= MESSAGE_LIST_TIMELINE_DEFER_ITEM_THRESHOLD;
+  const shouldDeferHistoricalTimelineDetails =
+    !focusedTimelineItemId &&
+    (shouldDeferHistoricalTimeline ||
+      hiddenHistoryCount > 0 ||
+      persistedHiddenHistoryCount > 0);
+  const [isHistoricalTimelineReady, setIsHistoricalTimelineReady] = useState(
+    () => !shouldDeferHistoricalTimeline,
+  );
+  useEffect(() => {
+    if (!shouldDeferHistoricalTimeline) {
+      setIsHistoricalTimelineReady(true);
+      return;
+    }
+
+    setIsHistoricalTimelineReady(false);
+    return scheduleMinimumDelayIdleTask(
+      () => {
+        setIsHistoricalTimelineReady(true);
+      },
+      {
+        minimumDelayMs: 80,
+        idleTimeoutMs: 900,
+      },
+    );
+  }, [shouldDeferHistoricalTimeline, timelineHydrationKey]);
+  const canBuildHistoricalTimeline =
+    !shouldDeferHistoricalTimeline || isHistoricalTimelineReady;
   const timelineByMessageId = useMemo(
-    () =>
-      buildMessageTurnTimeline(
+    () => {
+      if (!canBuildHistoricalTimeline) {
+        return new Map<string, MessageTurnTimeline>();
+      }
+
+      return buildMessageTurnTimeline(
         renderedMessages,
         renderedTurns,
         renderedThreadItems,
-      ),
-    [renderedMessages, renderedThreadItems, renderedTurns],
+      );
+    },
+    [
+      canBuildHistoricalTimeline,
+      renderedMessages,
+      renderedThreadItems,
+      renderedTurns,
+    ],
   );
   const lastAssistantMessageId = useMemo(
     () =>
@@ -770,8 +823,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const shouldBottomAnchorMessageStack =
     messageGroups.length > 0 &&
     !hasStickyTopContent &&
-    !isRestoringSession &&
-    !isTaskCenterEmptyState;
+    !isRestoringSession;
   const renderGroups = useMemo(
     () =>
       messageGroups.map((group) => {
@@ -839,6 +891,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
         );
       const hasActiveRuntimeStatus =
         Boolean(message.runtimeStatus) &&
+        (message.isThinking || isSending) &&
         message.runtimeStatus?.phase !== "failed" &&
         message.runtimeStatus?.phase !== "cancelled";
 
@@ -846,7 +899,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
         hasRunningToolCall || hasPendingActionRequest || hasActiveRuntimeStatus
       );
     },
-    [],
+    [isSending],
   );
   const handleExpandAllHistory = useCallback(() => {
     setRenderedMessageCount(visibleMessages.length);
@@ -1183,6 +1236,35 @@ const MessageListInner: React.FC<MessageListProps> = ({
       return null;
     }
 
+    const primaryTimelineNode =
+      msg.role === "assistant" && primaryTimeline ? (
+        <AgentThreadTimeline
+          turn={primaryTimeline.turn}
+          items={primaryTimeline.items}
+          threadRead={threadRead}
+          actionRequests={primaryActionRequests}
+          isCurrentTurn={primaryTimeline.turn.id === currentTurnId}
+          collapseInactiveDetails={!isSending}
+          deferCompletedSingleDetails={
+            shouldDeferHistoricalTimelineDetails &&
+            primaryTimeline.turn.id !== currentTurnId
+          }
+          placement="leading"
+          onFileClick={onFileClick}
+          onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
+          onOpenSavedSiteContent={onOpenSavedSiteContent}
+          onOpenSubagentSession={onOpenSubagentSession}
+          onPermissionResponse={onPermissionResponse}
+          focusedItemId={focusedTimelineItemId}
+          focusRequestKey={timelineFocusRequestKey}
+        />
+      ) : null;
+    const shouldRenderPrimaryTimelineOutsideBubble =
+      msg.role === "assistant" &&
+      Boolean(primaryTimelineNode) &&
+      hasVisibleAssistantText &&
+      !msg.isThinking;
+
     return (
       <MessageWrapper
         key={msg.id}
@@ -1190,6 +1272,14 @@ const MessageListInner: React.FC<MessageListProps> = ({
         $compactLeadingSpacing={compactLeadingSpacing}
       >
         <ContentColumn $isUser={msg.role === "user"}>
+          {shouldRenderPrimaryTimelineOutsideBubble ? (
+            <div
+              className="mb-2"
+              data-testid="assistant-primary-timeline-shell"
+            >
+              {primaryTimelineNode}
+            </div>
+          ) : null}
           {hasAssistantBodyContent ? (
             <MessageBubble
               $isUser={msg.role === "user"}
@@ -1197,23 +1287,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
             >
               {msg.role === "assistant" ? (
                 <>
-                  {primaryTimeline ? (
-                    <AgentThreadTimeline
-                      turn={primaryTimeline.turn}
-                      items={primaryTimeline.items}
-                      threadRead={threadRead}
-                      actionRequests={primaryActionRequests}
-                      isCurrentTurn={primaryTimeline.turn.id === currentTurnId}
-                      placement="leading"
-                      onFileClick={onFileClick}
-                      onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
-                      onOpenSavedSiteContent={onOpenSavedSiteContent}
-                      onOpenSubagentSession={onOpenSubagentSession}
-                      onPermissionResponse={onPermissionResponse}
-                      focusedItemId={focusedTimelineItemId}
-                      focusRequestKey={timelineFocusRequestKey}
-                    />
-                  ) : null}
+                  {shouldRenderPrimaryTimelineOutsideBubble
+                    ? null
+                    : primaryTimelineNode}
 
                   <StreamingRenderer
                     content={displayContent}
@@ -1373,6 +1449,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
                   threadRead={threadRead}
                   actionRequests={trailingActionRequests}
                   isCurrentTurn={trailingTimeline.turn.id === currentTurnId}
+                  collapseInactiveDetails={!isSending}
+                  deferCompletedSingleDetails={
+                    shouldDeferHistoricalTimelineDetails &&
+                    trailingTimeline.turn.id !== currentTurnId
+                  }
                   placement="trailing"
                   onFileClick={onFileClick}
                   onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
@@ -1578,8 +1659,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
               }}
             >
               {sessionHistoryWindow?.isLoadingFull
-                ? "正在加载完整历史"
-                : "加载完整历史"}
+                ? "正在加载更多历史"
+                : "加载更多历史"}
             </button>
           </div>
         ) : null}

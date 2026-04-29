@@ -1843,6 +1843,7 @@ export function AgentChatWorkspace({
     topics = [],
     sessionHistoryWindow = null,
     isAutoRestoringSession = false,
+    isSessionHydrating = false,
     sessionId,
     createFreshSession,
     ensureSession = async () => null,
@@ -4377,7 +4378,8 @@ export function AgentChatWorkspace({
     if (
       agentEntry !== "claw" ||
       !taskCenterWorkspaceId ||
-      isAutoRestoringSession
+      isAutoRestoringSession ||
+      isSessionHydrating
     ) {
       return;
     }
@@ -4451,6 +4453,7 @@ export function AgentChatWorkspace({
     handleOpenTaskTopic,
     hasDisplayMessages,
     isAutoRestoringSession,
+    isSessionHydrating,
     normalizedInitialSessionId,
     sessionId,
     shouldHideDetachedTaskCenterTabs,
@@ -4478,9 +4481,9 @@ export function AgentChatWorkspace({
         onCreateTask={() => {
           handleOpenTaskCenterNewTaskPage();
         }}
-        showCanvasToggle={!isThemeWorkbench}
-        isCanvasOpen={layoutMode !== "chat"}
-        onToggleCanvas={handleToggleCanvas}
+        showWorkbenchToggle={!isThemeWorkbench}
+        workbenchVisible={layoutMode !== "chat"}
+        onWorkbenchToggle={handleToggleCanvas}
       />
     );
   }, [
@@ -4979,19 +4982,20 @@ export function AgentChatWorkspace({
     projectId,
   ]);
   const serviceSkillExecutionCard = useMemo(
-    () => (
-      <ServiceSkillExecutionCard
-        state={siteSkillExecutionState}
-        onOpenBrowserRuntime={
-          siteSkillExecutionState?.phase === "blocked"
-            ? handleOpenBrowserRuntimeForSiteSkillExecution
-            : undefined
-        }
-        preferredResultFileTarget={preferredServiceSkillResultFileTarget}
-        onOpenResultFile={handleOpenServiceSkillResultFile}
-        onOpenSavedSiteContent={handleOpenSavedSiteContent}
-      />
-    ),
+    () =>
+      siteSkillExecutionState ? (
+        <ServiceSkillExecutionCard
+          state={siteSkillExecutionState}
+          onOpenBrowserRuntime={
+            siteSkillExecutionState.phase === "blocked"
+              ? handleOpenBrowserRuntimeForSiteSkillExecution
+              : undefined
+          }
+          preferredResultFileTarget={preferredServiceSkillResultFileTarget}
+          onOpenResultFile={handleOpenServiceSkillResultFile}
+          onOpenSavedSiteContent={handleOpenSavedSiteContent}
+        />
+      ) : null,
     [
       handleOpenServiceSkillResultFile,
       handleOpenBrowserRuntimeForSiteSkillExecution,
@@ -5714,45 +5718,46 @@ export function AgentChatWorkspace({
       .filter((signal) => signal.source === "review_feedback")
       .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
   const sceneAppExecutionSummaryCard = useMemo(
-    () => (
-      <SceneAppExecutionSummaryCard
-        summary={sceneAppExecutionSummaryState?.summary}
-        latestPackResultDetailView={
-          sceneAppExecutionSummaryState?.latestPackResultDetailView
-        }
-        latestPackResultLoading={sceneAppExecutionSummaryState?.loading}
-        latestPackResultUsesFallback={
-          sceneAppExecutionSummaryState?.latestPackResultUsesFallback
-        }
-        latestReviewFeedbackSignal={latestReviewFeedbackSignal}
-        onContinueReviewFeedback={handleContinueSceneAppReviewFeedback}
-        onReviewCurrentProject={handleReviewCurrentSceneAppExecution}
-        savedAsInspiration={sceneAppExecutionSavedAsInspiration}
-        onSaveAsInspiration={handleSaveSceneAppExecutionAsInspiration}
-        onOpenInspirationLibrary={handleOpenInspirationLibrary}
-        onSaveAsSkill={handleSaveSceneAppExecutionAsSkill}
-        onOpenSceneAppDetail={handleOpenSceneAppExecutionDetail}
-        onOpenSceneAppGovernance={handleOpenSceneAppExecutionGovernance}
-        humanReviewAvailable={canOpenSceneAppExecutionHumanReview}
-        humanReviewLoading={sceneAppReviewDecisionLoading}
-        quickReviewActions={SCENEAPP_QUICK_REVIEW_ACTIONS}
-        quickReviewPending={
-          sceneAppReviewDecisionLoading || sceneAppReviewDecisionSaving
-        }
-        onOpenHumanReview={handleOpenSceneAppExecutionHumanReview}
-        onApplyQuickReview={handleApplySceneAppExecutionQuickReview}
-        onDeliveryArtifactAction={handleOpenSceneAppExecutionDeliveryArtifact}
-        onGovernanceAction={handleRunSceneAppExecutionGovernanceAction}
-        onGovernanceArtifactAction={
-          handleOpenSceneAppExecutionGovernanceArtifact
-        }
-        onEntryAction={handleOpenSceneAppExecutionEntryAction}
-        contentPostEntries={sceneAppExecutionContentPostEntries}
-        onContentPostAction={handleOpenSceneAppExecutionContentPost}
-        promptActionPending={isSending || queuedTurns.length > 0}
-        onPromptAction={handleRunSceneAppExecutionPromptAction}
-      />
-    ),
+    () =>
+      sceneAppExecutionSummaryState?.summary ? (
+        <SceneAppExecutionSummaryCard
+          summary={sceneAppExecutionSummaryState.summary}
+          latestPackResultDetailView={
+            sceneAppExecutionSummaryState.latestPackResultDetailView
+          }
+          latestPackResultLoading={sceneAppExecutionSummaryState.loading}
+          latestPackResultUsesFallback={
+            sceneAppExecutionSummaryState.latestPackResultUsesFallback
+          }
+          latestReviewFeedbackSignal={latestReviewFeedbackSignal}
+          onContinueReviewFeedback={handleContinueSceneAppReviewFeedback}
+          onReviewCurrentProject={handleReviewCurrentSceneAppExecution}
+          savedAsInspiration={sceneAppExecutionSavedAsInspiration}
+          onSaveAsInspiration={handleSaveSceneAppExecutionAsInspiration}
+          onOpenInspirationLibrary={handleOpenInspirationLibrary}
+          onSaveAsSkill={handleSaveSceneAppExecutionAsSkill}
+          onOpenSceneAppDetail={handleOpenSceneAppExecutionDetail}
+          onOpenSceneAppGovernance={handleOpenSceneAppExecutionGovernance}
+          humanReviewAvailable={canOpenSceneAppExecutionHumanReview}
+          humanReviewLoading={sceneAppReviewDecisionLoading}
+          quickReviewActions={SCENEAPP_QUICK_REVIEW_ACTIONS}
+          quickReviewPending={
+            sceneAppReviewDecisionLoading || sceneAppReviewDecisionSaving
+          }
+          onOpenHumanReview={handleOpenSceneAppExecutionHumanReview}
+          onApplyQuickReview={handleApplySceneAppExecutionQuickReview}
+          onDeliveryArtifactAction={handleOpenSceneAppExecutionDeliveryArtifact}
+          onGovernanceAction={handleRunSceneAppExecutionGovernanceAction}
+          onGovernanceArtifactAction={
+            handleOpenSceneAppExecutionGovernanceArtifact
+          }
+          onEntryAction={handleOpenSceneAppExecutionEntryAction}
+          contentPostEntries={sceneAppExecutionContentPostEntries}
+          onContentPostAction={handleOpenSceneAppExecutionContentPost}
+          promptActionPending={isSending || queuedTurns.length > 0}
+          onPromptAction={handleRunSceneAppExecutionPromptAction}
+        />
+      ) : null,
     [
       canOpenSceneAppExecutionHumanReview,
       handleApplySceneAppExecutionQuickReview,
@@ -6701,7 +6706,9 @@ export function AgentChatWorkspace({
       ? undefined
       : harnessToggleLabel,
     isAutoRestoringSession:
-      isAutoRestoringSession || taskCenterSessionSwitchPending,
+      isAutoRestoringSession ||
+      isSessionHydrating ||
+      taskCenterSessionSwitchPending,
     sessionId,
     syncStatus,
     pendingA2UIForm: effectivePendingA2UIForm,

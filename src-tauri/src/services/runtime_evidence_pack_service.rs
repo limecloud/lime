@@ -5,6 +5,9 @@
 
 use crate::agent::SessionDetail;
 use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
+use crate::commands::modality_runtime_contracts::{
+    IMAGE_GENERATION_CONTRACT_KEY, IMAGE_GENERATION_ROUTING_SLOT,
+};
 use crate::database::DbConnection;
 use crate::services::artifact_document_validator::ARTIFACT_DOCUMENT_SCHEMA_VERSION;
 use crate::services::runtime_file_checkpoint_service::list_file_checkpoints;
@@ -140,6 +143,12 @@ struct RuntimeAuxiliaryRuntimeSnapshotSummary {
     snapshots: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+struct RuntimeModalityContractSnapshotSummary {
+    applicable_count: usize,
+    snapshots: Vec<Value>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeEvidenceSignalCoverageEntry {
     signal: &'static str,
@@ -190,11 +199,16 @@ pub fn export_runtime_evidence_pack(
         collect_runtime_verification(detail, Some(workspace_root.as_path()), &recent_artifacts);
     let auxiliary_runtime =
         collect_auxiliary_runtime_snapshots(Some(workspace_root.as_path()), &recent_artifacts);
+    let modality_runtime_contracts = collect_modality_runtime_contract_snapshots(
+        Some(workspace_root.as_path()),
+        &recent_artifacts,
+    );
     let signal_coverage = build_signal_coverage(
         thread_read,
         &recent_artifacts,
         &request_telemetry,
         &auxiliary_runtime,
+        &modality_runtime_contracts,
         &verification,
     );
     let known_gaps = build_known_gaps(&recent_artifacts, &signal_coverage);
@@ -204,6 +218,7 @@ pub fn export_runtime_evidence_pack(
         &recent_artifact_paths,
         &request_telemetry,
         &auxiliary_runtime,
+        &modality_runtime_contracts,
         &verification,
         &signal_coverage,
         &known_gaps,
@@ -239,6 +254,7 @@ pub fn export_runtime_evidence_pack(
                 &recent_artifact_paths,
                 &file_checkpoints.checkpoints,
                 &auxiliary_runtime,
+                &modality_runtime_contracts,
                 &observability_summary,
                 &known_gaps,
                 exported_at.as_str(),
@@ -264,6 +280,7 @@ pub fn export_runtime_evidence_pack(
                 &recent_artifact_paths,
                 &file_checkpoints.checkpoints,
                 &auxiliary_runtime,
+                &modality_runtime_contracts,
                 &observability_summary,
                 &request_telemetry,
                 &verification,
@@ -339,12 +356,15 @@ pub(crate) fn build_runtime_evidence_sceneapp_snapshot(
         .map(|root| collect_request_telemetry(detail, root))
         .unwrap_or_default();
     let auxiliary_runtime = collect_auxiliary_runtime_snapshots(workspace_root, &recent_artifacts);
+    let modality_runtime_contracts =
+        collect_modality_runtime_contract_snapshots(workspace_root, &recent_artifacts);
     let verification = collect_runtime_verification(detail, workspace_root, &recent_artifacts);
     let signal_coverage = build_signal_coverage(
         thread_read,
         &recent_artifacts,
         &request_telemetry,
         &auxiliary_runtime,
+        &modality_runtime_contracts,
         &verification,
     );
     let known_gaps = build_known_gaps(&recent_artifacts, &signal_coverage);
@@ -525,6 +545,7 @@ fn build_runtime_json(
     recent_artifacts: &[String],
     file_checkpoints: &[crate::commands::aster_agent_cmd::AgentRuntimeFileCheckpointSummary],
     auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
+    modality_runtime_contracts: &RuntimeModalityContractSnapshotSummary,
     observability_summary: &Value,
     known_gaps: &[String],
     exported_at: &str,
@@ -610,6 +631,7 @@ fn build_runtime_json(
         }).collect::<Vec<_>>(),
         "observabilitySummary": observability_summary,
         "auxiliaryRuntimeSnapshots": build_auxiliary_runtime_snapshots_json(auxiliary_runtime),
+        "modalityRuntimeContracts": build_modality_runtime_contracts_json(modality_runtime_contracts),
         "recentArtifacts": recent_artifacts,
         "fileCheckpointCount": file_checkpoints.len(),
         "fileCheckpoints": file_checkpoints,
@@ -658,6 +680,7 @@ fn build_artifacts_json(
     recent_artifacts: &[String],
     file_checkpoints: &[crate::commands::aster_agent_cmd::AgentRuntimeFileCheckpointSummary],
     auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
+    modality_runtime_contracts: &RuntimeModalityContractSnapshotSummary,
     observability_summary: &Value,
     request_telemetry: &RuntimeRequestTelemetrySummary,
     verification: &RuntimeEvidenceVerificationSummary,
@@ -672,6 +695,7 @@ fn build_artifacts_json(
         "fileCheckpointCount": file_checkpoints.len(),
         "fileCheckpoints": file_checkpoints,
         "auxiliaryRuntimeSnapshots": build_auxiliary_runtime_snapshots_json(auxiliary_runtime),
+        "modalityRuntimeContracts": build_modality_runtime_contracts_json(modality_runtime_contracts),
         "observabilitySummary": observability_summary,
         "threadRuntimeFacts": build_thread_runtime_facts_json(thread_read),
         "requests": {
@@ -708,6 +732,16 @@ fn build_artifacts_json(
 
 fn build_auxiliary_runtime_snapshots_json(
     summary: &RuntimeAuxiliaryRuntimeSnapshotSummary,
+) -> Value {
+    json!({
+        "applicableArtifactCount": summary.applicable_count,
+        "snapshotCount": summary.snapshots.len(),
+        "snapshots": summary.snapshots.clone()
+    })
+}
+
+fn build_modality_runtime_contracts_json(
+    summary: &RuntimeModalityContractSnapshotSummary,
 ) -> Value {
     json!({
         "applicableArtifactCount": summary.applicable_count,
@@ -1087,6 +1121,7 @@ fn build_runtime_observability_summary_json(
     recent_artifacts: &[String],
     request_telemetry: &RuntimeRequestTelemetrySummary,
     auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
+    modality_runtime_contracts: &RuntimeModalityContractSnapshotSummary,
     verification: &RuntimeEvidenceVerificationSummary,
     signal_coverage: &[RuntimeEvidenceSignalCoverageEntry],
     known_gaps: &[String],
@@ -1122,7 +1157,8 @@ fn build_runtime_observability_summary_json(
             "failedCommandCount": diagnostics.map(|value| value.failed_command_count).unwrap_or(0),
             "subagentCount": detail.child_subagent_sessions.len(),
             "recentArtifactCount": recent_artifacts.len(),
-            "auxiliaryRuntimeSnapshotCount": auxiliary_runtime.snapshots.len()
+            "auxiliaryRuntimeSnapshotCount": auxiliary_runtime.snapshots.len(),
+            "modalityRuntimeContractCount": modality_runtime_contracts.snapshots.len()
         },
         "latest": {
             "warning": latest_warning_json(diagnostics),
@@ -1188,6 +1224,50 @@ fn collect_auxiliary_runtime_snapshots(
         };
 
         if let Some(snapshot) = extract_auxiliary_runtime_snapshot(document, artifact.path.as_str())
+        {
+            summary.snapshots.push(snapshot);
+        }
+    }
+
+    summary
+}
+
+fn collect_modality_runtime_contract_snapshots(
+    workspace_root: Option<&Path>,
+    recent_artifacts: &[RuntimeRecentArtifact],
+) -> RuntimeModalityContractSnapshotSummary {
+    let mut summary = RuntimeModalityContractSnapshotSummary::default();
+
+    for artifact in recent_artifacts {
+        if !is_modality_runtime_contract_applicable(artifact) {
+            continue;
+        }
+
+        summary.applicable_count += 1;
+
+        if let Some(metadata) = artifact.metadata.as_ref() {
+            if let Some(snapshot) =
+                extract_modality_runtime_contract_snapshot(metadata, artifact.path.as_str())
+            {
+                summary.snapshots.push(snapshot);
+                continue;
+            }
+        }
+
+        let Some(workspace_root) = workspace_root else {
+            continue;
+        };
+
+        let absolute_path = resolve_workspace_path(workspace_root, artifact.path.as_str());
+        let Ok(raw) = fs::read_to_string(&absolute_path) else {
+            continue;
+        };
+        let Ok(document) = serde_json::from_str::<Value>(raw.as_str()) else {
+            continue;
+        };
+
+        if let Some(snapshot) =
+            extract_modality_runtime_contract_snapshot(&document, artifact.path.as_str())
         {
             summary.snapshots.push(snapshot);
         }
@@ -1341,6 +1421,7 @@ fn build_signal_coverage(
     recent_artifacts: &[RuntimeRecentArtifact],
     request_telemetry: &RuntimeRequestTelemetrySummary,
     auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
+    modality_runtime_contracts: &RuntimeModalityContractSnapshotSummary,
     verification: &RuntimeEvidenceVerificationSummary,
 ) -> Vec<RuntimeEvidenceSignalCoverageEntry> {
     let diagnostics = thread_read.diagnostics.as_ref();
@@ -1415,6 +1496,30 @@ fn build_signal_coverage(
                     "当前证据包已从 {} 个图片任务工件中导出 {} 条辅助标题生成 runtime 快照。",
                     auxiliary_runtime.applicable_count,
                     auxiliary_runtime.snapshots.len()
+                )
+            },
+        });
+    }
+
+    if modality_runtime_contracts.applicable_count > 0 {
+        coverage.push(RuntimeEvidenceSignalCoverageEntry {
+            signal: "modalityRuntimeContract",
+            status: if modality_runtime_contracts.snapshots.is_empty() {
+                "known_gap"
+            } else {
+                "exported"
+            },
+            source: "image_task.modality_runtime_contract",
+            detail: if modality_runtime_contracts.snapshots.is_empty() {
+                format!(
+                    "当前检测到 {} 个多模态任务工件，但未从稳定 task artifact 中提取到底层 ModalityRuntimeContract 快照。",
+                    modality_runtime_contracts.applicable_count
+                )
+            } else {
+                format!(
+                    "当前证据包已从 {} 个多模态任务工件中导出 {} 条 ModalityRuntimeContract / routing 决策快照。",
+                    modality_runtime_contracts.applicable_count,
+                    modality_runtime_contracts.snapshots.len()
                 )
             },
         });
@@ -1738,6 +1843,234 @@ fn is_auxiliary_runtime_applicable(artifact: &RuntimeRecentArtifact) -> bool {
                 || value.eq_ignore_ascii_case("auxiliary_runtime_projection")
         })
         .unwrap_or(false)
+}
+
+fn is_modality_runtime_contract_applicable(artifact: &RuntimeRecentArtifact) -> bool {
+    let normalized_path = artifact.path.replace('\\', "/").to_ascii_lowercase();
+    if normalized_path.contains(".lime/tasks/image_generate/") {
+        return true;
+    }
+
+    artifact
+        .metadata
+        .as_ref()
+        .map(|metadata| {
+            read_json_string(
+                metadata,
+                &[
+                    &["modality_contract_key"][..],
+                    &["modalityContractKey"][..],
+                    &["runtime_contract", "contract_key"][..],
+                    &["runtimeContract", "contractKey"][..],
+                ],
+            )
+            .is_some()
+                || read_json_string(
+                    metadata,
+                    &[
+                        &["task_type"][..],
+                        &["taskType"][..],
+                        &["type"][..],
+                        &["artifactType"][..],
+                    ],
+                )
+                .map(|value| value.eq_ignore_ascii_case("image_generate"))
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
+}
+
+fn extract_modality_runtime_contract_snapshot(
+    document: &Value,
+    artifact_path: &str,
+) -> Option<Value> {
+    let contract_key = read_json_string(
+        document,
+        &[
+            &["modality_contract_key"][..],
+            &["modalityContractKey"][..],
+            &["payload", "modality_contract_key"][..],
+            &["payload", "modalityContractKey"][..],
+            &["record", "payload", "modality_contract_key"][..],
+            &["record", "payload", "modalityContractKey"][..],
+            &["runtime_contract", "contract_key"][..],
+            &["runtimeContract", "contractKey"][..],
+            &["payload", "runtime_contract", "contract_key"][..],
+            &["payload", "runtimeContract", "contractKey"][..],
+            &["record", "payload", "runtime_contract", "contract_key"][..],
+            &["record", "payload", "runtimeContract", "contractKey"][..],
+        ],
+    )?;
+    let task_type = read_json_string(
+        document,
+        &[
+            &["task_type"][..],
+            &["taskType"][..],
+            &["record", "task_type"][..],
+            &["record", "taskType"][..],
+        ],
+    );
+    let normalized_status = read_json_string(
+        document,
+        &[
+            &["normalized_status"][..],
+            &["normalizedStatus"][..],
+            &["record", "normalized_status"][..],
+            &["record", "normalizedStatus"][..],
+        ],
+    );
+    let last_error = find_json_value_at_paths(
+        document,
+        &[
+            &["last_error"][..],
+            &["lastError"][..],
+            &["record", "last_error"][..],
+            &["record", "lastError"][..],
+        ],
+    )
+    .filter(|value| !value.is_null())
+    .cloned();
+    let failure_code = last_error
+        .as_ref()
+        .and_then(|error| read_json_string(error, &[&["code"][..]]));
+    let failure_stage = last_error
+        .as_ref()
+        .and_then(|error| read_json_string(error, &[&["stage"][..]]));
+    let is_contract_routing_failure = failure_code
+        .as_deref()
+        .map(is_modality_contract_routing_failure_code)
+        .unwrap_or(false);
+    let is_image_generation_contract = contract_key == IMAGE_GENERATION_CONTRACT_KEY;
+    let routing_event = if is_contract_routing_failure {
+        "routing_not_possible"
+    } else {
+        "model_routing_decision"
+    };
+    let routing_outcome = if is_contract_routing_failure {
+        "blocked"
+    } else if normalized_status.as_deref() == Some("failed") {
+        "failed"
+    } else {
+        "accepted"
+    };
+
+    Some(json!({
+        "artifactPath": artifact_path,
+        "source": "image_task.modality_runtime_contract",
+        "taskId": read_json_string(
+            document,
+            &[
+                &["task_id"][..],
+                &["taskId"][..],
+                &["record", "task_id"][..],
+                &["record", "taskId"][..],
+            ],
+        ),
+        "taskType": task_type,
+        "status": read_json_string(
+            document,
+            &[
+                &["status"][..],
+                &["record", "status"][..],
+            ],
+        ),
+        "normalizedStatus": normalized_status,
+        "contractKey": contract_key,
+        "contractMatchedExpected": is_image_generation_contract,
+        "expectedRoutingSlot": if is_image_generation_contract {
+            Some(IMAGE_GENERATION_ROUTING_SLOT)
+        } else {
+            None
+        },
+        "modality": read_json_string(
+            document,
+            &[
+                &["modality"][..],
+                &["payload", "modality"][..],
+                &["record", "payload", "modality"][..],
+            ],
+        ),
+        "requiredCapabilities": read_json_string_array(
+            document,
+            &[
+                &["required_capabilities"][..],
+                &["requiredCapabilities"][..],
+                &["payload", "required_capabilities"][..],
+                &["payload", "requiredCapabilities"][..],
+                &["record", "payload", "required_capabilities"][..],
+                &["record", "payload", "requiredCapabilities"][..],
+            ],
+        ),
+        "routingSlot": read_json_string(
+            document,
+            &[
+                &["routing_slot"][..],
+                &["routingSlot"][..],
+                &["payload", "routing_slot"][..],
+                &["payload", "routingSlot"][..],
+                &["record", "payload", "routing_slot"][..],
+                &["record", "payload", "routingSlot"][..],
+            ],
+        ),
+        "providerId": read_json_string(
+            document,
+            &[
+                &["provider_id"][..],
+                &["providerId"][..],
+                &["payload", "provider_id"][..],
+                &["payload", "providerId"][..],
+                &["record", "payload", "provider_id"][..],
+                &["record", "payload", "providerId"][..],
+            ],
+        ),
+        "model": read_json_string(
+            document,
+            &[
+                &["model"][..],
+                &["payload", "model"][..],
+                &["record", "payload", "model"][..],
+            ],
+        ),
+        "modelCapabilityAssessment": find_json_value_at_paths(
+            document,
+            &[
+                &["model_capability_assessment"][..],
+                &["modelCapabilityAssessment"][..],
+                &["payload", "model_capability_assessment"][..],
+                &["payload", "modelCapabilityAssessment"][..],
+                &["record", "payload", "model_capability_assessment"][..],
+                &["record", "payload", "modelCapabilityAssessment"][..],
+            ],
+        )
+        .cloned(),
+        "routingEvent": routing_event,
+        "routingOutcome": routing_outcome,
+        "failureCode": failure_code,
+        "failureStage": failure_stage,
+        "lastError": last_error,
+        "runtimeContract": find_json_value_at_paths(
+            document,
+            &[
+                &["runtime_contract"][..],
+                &["runtimeContract"][..],
+                &["payload", "runtime_contract"][..],
+                &["payload", "runtimeContract"][..],
+                &["record", "payload", "runtime_contract"][..],
+                &["record", "payload", "runtimeContract"][..],
+            ],
+        )
+        .cloned()
+    }))
+}
+
+fn is_modality_contract_routing_failure_code(code: &str) -> bool {
+    matches!(
+        code.trim(),
+        "image_generation_contract_mismatch"
+            | "image_generation_capability_gap"
+            | "image_generation_routing_slot_mismatch"
+            | "image_generation_model_capability_gap"
+    )
 }
 
 fn extract_auxiliary_runtime_snapshot(document: Value, artifact_path: &str) -> Option<Value> {
@@ -2113,6 +2446,27 @@ fn read_json_string(value: &Value, paths: &[&[&str]]) -> Option<String> {
         Value::String(text) => normalize_optional_text(Some(text.clone())),
         Value::Number(number) => Some(number.to_string()),
         _ => None,
+    }
+}
+
+fn read_json_string_array(value: &Value, paths: &[&[&str]]) -> Vec<String> {
+    let Some(resolved) = find_json_value_at_paths(value, paths) else {
+        return Vec::new();
+    };
+
+    match resolved {
+        Value::Array(items) => items
+            .iter()
+            .filter_map(|item| match item {
+                Value::String(text) => normalize_optional_text(Some(text.clone())),
+                Value::Number(number) => Some(number.to_string()),
+                _ => None,
+            })
+            .collect(),
+        Value::String(text) => normalize_optional_text(Some(text.clone()))
+            .map(|value| vec![value])
+            .unwrap_or_default(),
+        _ => Vec::new(),
     }
 }
 
@@ -2532,11 +2886,28 @@ mod tests {
                 "task_type": "image_generate",
                 "task_family": "image",
                 "title": "城市夜景主视觉",
-                "summary": "城市夜景图片任务",
-                "payload": {
-                    "prompt": "赛博朋克风城市夜景主视觉",
-                    "title_generation_result": {
-                        "title": "城市夜景主视觉",
+                    "summary": "城市夜景图片任务",
+                    "payload": {
+                        "prompt": "赛博朋克风城市夜景主视觉",
+                        "provider_id": "openai",
+                        "model": "gpt-image-1",
+                        "modality_contract_key": IMAGE_GENERATION_CONTRACT_KEY,
+                        "modality": "image",
+                        "required_capabilities": ["text_generation", "image_generation", "vision_input"],
+                        "routing_slot": IMAGE_GENERATION_ROUTING_SLOT,
+                        "runtime_contract": {
+                            "contract_key": IMAGE_GENERATION_CONTRACT_KEY,
+                            "modality": "image",
+                            "required_capabilities": ["text_generation", "image_generation", "vision_input"],
+                            "routing_slot": IMAGE_GENERATION_ROUTING_SLOT,
+                            "executor_binding": {
+                                "executor_kind": "skill",
+                                "binding_key": "image_generate"
+                            },
+                            "truth_source": ["image_task_artifact", "runtime_timeline_event"]
+                        },
+                        "title_generation_result": {
+                            "title": "城市夜景主视觉",
                         "sessionId": "title-gen-1",
                         "usedFallback": false,
                         "fallbackReason": null,
@@ -2583,6 +2954,81 @@ mod tests {
         .expect("write image task");
     }
 
+    fn write_failed_image_contract_task_fixture(root: &Path, relative_path: &str) {
+        let absolute_path = root.join(relative_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        fs::create_dir_all(
+            absolute_path
+                .parent()
+                .expect("image task path should have parent"),
+        )
+        .expect("create image task dir");
+        fs::write(
+            absolute_path,
+            serde_json::to_string_pretty(&json!({
+                "task_id": "task-image-failed",
+                "task_type": "image_generate",
+                "task_family": "image",
+                "title": "图片模型路由失败",
+                "summary": "图片任务被 contract preflight 阻止",
+                "payload": {
+                    "prompt": "生成一张产品海报",
+                    "provider_id": "openai",
+                    "model": "gpt-5.2",
+                    "model_capability_assessment": {
+                        "model_id": "gpt-5.2",
+                        "provider_id": "openai",
+                        "source": "model_registry",
+                        "supports_image_generation": false,
+                        "reason": "registry_missing_image_generation_capability"
+                    },
+                    "modality_contract_key": IMAGE_GENERATION_CONTRACT_KEY,
+                    "modality": "image",
+                    "required_capabilities": ["text_generation", "image_generation", "vision_input"],
+                    "routing_slot": IMAGE_GENERATION_ROUTING_SLOT,
+                    "runtime_contract": {
+                        "contract_key": IMAGE_GENERATION_CONTRACT_KEY,
+                        "modality": "image",
+                        "required_capabilities": ["text_generation", "image_generation", "vision_input"],
+                        "routing_slot": IMAGE_GENERATION_ROUTING_SLOT,
+                        "executor_binding": {
+                            "executor_kind": "skill",
+                            "binding_key": "image_generate"
+                        },
+                        "truth_source": ["image_task_artifact", "runtime_timeline_event"]
+                    }
+                },
+                "status": "failed",
+                "normalized_status": "failed",
+                "created_at": "2026-04-24T10:00:00Z",
+                "updated_at": "2026-04-24T10:00:05Z",
+                "submitted_at": null,
+                "started_at": null,
+                "completed_at": "2026-04-24T10:00:05Z",
+                "cancelled_at": null,
+                "idempotency_key": null,
+                "retry_count": 0,
+                "source_task_id": null,
+                "result": null,
+                "last_error": {
+                    "code": "image_generation_model_capability_gap",
+                    "message": "image_generation contract 要求图片生成模型，但当前模型 gpt-5.2 看起来是文本模型。",
+                    "retryable": false,
+                    "stage": "routing",
+                    "provider_code": null,
+                    "occurred_at": "2026-04-24T10:00:05Z"
+                },
+                "current_attempt_id": "attempt-1",
+                "attempts": [],
+                "relationships": {},
+                "progress": {},
+                "ui_hints": {}
+            }))
+            .expect("serialize failed image task"),
+        )
+        .expect("write failed image task");
+    }
+
+    #[allow(dead_code)]
     fn write_auxiliary_runtime_projection_fixture(
         root: &Path,
         relative_path: &str,
@@ -3058,6 +3504,133 @@ mod tests {
                 .pointer("/auxiliaryRuntimeSnapshots/snapshots/0/route")
                 .and_then(Value::as_str),
             Some("auxiliary.generate_title")
+        );
+    }
+
+    #[test]
+    fn should_export_modality_runtime_contract_snapshot_from_failed_image_task() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+        let image_task_relative_path = ".lime/tasks/image_generate/task-image-failed.json";
+
+        write_request_telemetry_fixture(temp_dir.path());
+        write_failed_image_contract_task_fixture(temp_dir.path(), image_task_relative_path);
+
+        if let AgentThreadItemPayload::FileArtifact { path, metadata, .. } =
+            &mut detail.items[1].payload
+        {
+            *path = image_task_relative_path.to_string();
+            *metadata = Some(json!({
+                "task_type": "image_generate"
+            }));
+        }
+
+        let result =
+            export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        assert!(result
+            .known_gaps
+            .iter()
+            .all(|gap| !gap.contains("ModalityRuntimeContract")));
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let artifacts_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/artifacts.json");
+
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/observabilitySummary/counts/modalityRuntimeContractCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(IMAGE_GENERATION_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/model")
+                .and_then(Value::as_str),
+            Some("gpt-5.2")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("routing_not_possible")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingOutcome")
+                .and_then(Value::as_str),
+            Some("blocked")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/failureCode")
+                .and_then(Value::as_str),
+            Some("image_generation_model_capability_gap")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/modelCapabilityAssessment/source")
+                .and_then(Value::as_str),
+            Some("model_registry")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/modelCapabilityAssessment/supports_image_generation")
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/observabilitySummary/signalCoverage")
+                .and_then(Value::as_array)
+                .and_then(|items| {
+                    items.iter().find(|item| {
+                        item.get("signal").and_then(Value::as_str)
+                            == Some("modalityRuntimeContract")
+                    })
+                })
+                .and_then(|item| item.get("status"))
+                .and_then(Value::as_str),
+            Some("exported")
+        );
+
+        let artifacts = serde_json::from_str::<Value>(
+            fs::read_to_string(artifacts_path)
+                .expect("artifacts")
+                .as_str(),
+        )
+        .expect("parse artifacts json");
+        assert_eq!(
+            artifacts
+                .pointer("/modalityRuntimeContracts/snapshots/0/failureStage")
+                .and_then(Value::as_str),
+            Some("routing")
+        );
+        assert_eq!(
+            artifacts
+                .pointer("/modalityRuntimeContracts/snapshots/0/runtimeContract/contract_key")
+                .and_then(Value::as_str),
+            Some(IMAGE_GENERATION_CONTRACT_KEY)
         );
     }
 }

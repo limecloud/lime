@@ -23,6 +23,7 @@ const {
   mockSetI18nLanguage,
   mockScheduleMinimumDelayIdleTask,
   mockLogoutClient,
+  mockCreateExternalBrowserOpenTarget,
   mockStartOemCloudLogin,
   mockGetClientReferralDashboard,
   mockClearSiteAdapterCatalogCache,
@@ -42,6 +43,7 @@ const {
     return () => undefined;
   }),
   mockLogoutClient: vi.fn(),
+  mockCreateExternalBrowserOpenTarget: vi.fn(() => null),
   mockStartOemCloudLogin: vi.fn(),
   mockGetClientReferralDashboard: vi.fn(),
   mockClearSiteAdapterCatalogCache: vi.fn(),
@@ -78,6 +80,7 @@ vi.mock("@/lib/api/oemCloudControlPlane", () => ({
 }));
 
 vi.mock("@/lib/oemCloudLoginLauncher", () => ({
+  createExternalBrowserOpenTarget: mockCreateExternalBrowserOpenTarget,
   startOemCloudLogin: mockStartOemCloudLogin,
 }));
 
@@ -1097,6 +1100,41 @@ describe("AppSidebar", () => {
     expect(container.textContent).toContain("最近对话");
     expect(container.textContent).toContain("还没有开始对话");
     expect(mockListAgentRuntimeSessions).not.toHaveBeenCalled();
+  });
+
+  it("窗口重新聚焦时应低优先级刷新会话列表", async () => {
+    localStorage.setItem("agent_last_project_id", JSON.stringify("project-1"));
+    const cancelFocusRefresh = vi.fn();
+    mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
+      task();
+      return cancelFocusRefresh;
+    });
+
+    mountSidebarContainer({
+      currentPage: "settings",
+    });
+    await flushEffects(2);
+    mockScheduleMinimumDelayIdleTask.mockClear();
+    mockListAgentRuntimeSessions.mockClear();
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+
+    expect(mockScheduleMinimumDelayIdleTask).toHaveBeenCalledTimes(1);
+    expect(mockScheduleMinimumDelayIdleTask).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        minimumDelayMs: expect.any(Number),
+        idleTimeoutMs: expect.any(Number),
+      }),
+    );
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
+      limit: 37,
+      workspaceId: "project-1",
+    });
   });
 
   it("最近对话应限制初始渲染数量，并保留当前会话可见", async () => {

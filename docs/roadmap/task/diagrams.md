@@ -21,7 +21,7 @@ flowchart TB
     Task --> Candidate[Candidate Resolution Layer<br/>CandidateModelSet]
     Settings --> Candidate
     OEM[OEM Control Plane] --> Candidate
-    Pool[Provider Pool and Model Registry] --> Candidate
+    Providers[API Key Provider and Model Registry] --> Candidate
 
     Candidate --> Router[Model Routing Layer<br/>RoutingDecision]
     Limits[Cost and Limit State] --> Router
@@ -40,7 +40,7 @@ flowchart TB
 flowchart TD
     A[agent_runtime_submit_turn] --> B[TaskProfile 构建]
     B --> C[读取会话模型 / service_models / request_metadata]
-    C --> D[读取 OEM policy / provider pool / model registry]
+    C --> D[读取 OEM policy / configured providers / model registry]
     D --> E[生成 CandidateModelSet]
     E --> F{candidate_count}
 
@@ -108,13 +108,13 @@ sequenceDiagram
     participant OEM as OEM Control Plane
     participant Candidate as Candidate Resolver
     participant Router as Routing Layer
-    participant Pool as Local Provider Pool
+    participant Providers as Local API Key Provider
     participant Exec as Runtime
 
     FE->>OEM: 读取 bootstrap / offers / preference
     OEM-->>FE: routingMode + allowlist + quotaPolicy
     FE->>Candidate: 提交 turn 与 OEM 上下文
-    Candidate->>Pool: 读取本地可用 provider/model
+    Candidate->>Providers: 读取本地可用 provider/model
     Candidate-->>Router: 合成 CandidateModelSet
     Router-->>Router: 应用 OEM managed / hybrid / advisory 规则
     Router-->>Exec: 最终 provider/model 或 fallback 结果
@@ -166,7 +166,7 @@ flowchart TD
     E --> F
 
     F -- 是 --> G[在 OEM 允许范围内解析候选]
-    F -- 否 --> H[合并本地 provider pool 与会话偏好]
+    F -- 否 --> H[合并本地 Provider 候选与会话偏好]
 
     G --> I{候选数量}
     H --> I

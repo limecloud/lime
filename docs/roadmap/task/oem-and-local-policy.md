@@ -2,7 +2,7 @@
 
 > 状态：提案
 > 更新时间：2026-04-23
-> 作用：定义 OEM 控制面、本地 provider pool、会话模型与任务级设置之间的协同规则。
+> 作用：定义 OEM 控制面、configured providers / API Key Provider、会话模型与任务级设置之间的协同规则。
 > 依赖文档：
 > - `./model-routing.md`
 > - `./runtime-integration.md`
@@ -15,7 +15,7 @@ Lime 和参考运行时的关键差异在于：
 - Lime 不只是本地模型客户端
 - 也不只是 OEM 云端壳
 - 它同时存在：
-  - 本地 provider pool
+  - configured providers / API Key Provider
   - OEM control plane
   - 会话模型设置
   - `service_models`
@@ -148,7 +148,7 @@ Lime 和参考运行时的关键差异在于：
 - `service_models` 在 `hybrid` 场景下可作为优选输入
 - 自动策略永远排在设置与 OEM 之后
 
-## 7. OEM 与本地 provider pool 的合并规则
+## 7. OEM 与本地 Provider 候选的合并规则
 
 候选合并时统一遵守：
 

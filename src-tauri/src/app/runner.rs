@@ -777,8 +777,6 @@ pub fn run() {
 
                         let snapshot = TrayStateSnapshot {
                             icon_status,
-                            available_credentials: current_state.available_credentials,
-                            total_credentials: current_state.total_credentials,
                             today_requests: current_state.today_requests,
                             auto_start_enabled: current_state.auto_start_enabled,
                             current_model_provider_type: current_state.current_model_provider_type,

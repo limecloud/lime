@@ -12,7 +12,10 @@ import type {
 } from "@/lib/api/agentRuntime";
 import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import type { ActionRequired, Message } from "../types";
-import { appendTextToParts } from "./agentChatHistory";
+import {
+  appendTextToParts,
+  appendTextWithOverlapDetection,
+} from "./agentChatHistory";
 import { updateMessageArtifactsStatus } from "../utils/messageArtifacts";
 import { WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE } from "./agentChatCoreUtils";
 import {
@@ -53,20 +56,6 @@ import {
   buildTaskPreviewFromToolResult,
   buildToolResultArtifactFromToolResult,
 } from "../utils/taskPreviewFromToolResult";
-
-function appendWithOverlapDetection(base: string, chunk: string): string {
-  if (!base) return chunk;
-  if (!chunk) return base;
-  if (chunk.startsWith(base)) return chunk;
-  if (base.endsWith(chunk)) return base;
-  const maxOverlap = Math.min(base.length, chunk.length);
-  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
-    if (base.slice(-overlap) === chunk.slice(0, overlap)) {
-      return base + chunk.slice(overlap);
-    }
-  }
-  return base + chunk;
-}
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 
@@ -574,7 +563,7 @@ export function handleTurnStreamEvent({
             ? {
                 ...msg,
                 isThinking: true,
-                thinkingContent: appendWithOverlapDetection(
+                thinkingContent: appendTextWithOverlapDetection(
                   msg.thinkingContent || "",
                   data.text,
                 ),
@@ -591,7 +580,10 @@ export function handleTurnStreamEvent({
     case "text_delta":
       activateStream();
       clearOptimisticItem();
-      requestState.accumulatedContent += data.text;
+      requestState.accumulatedContent = appendTextWithOverlapDetection(
+        requestState.accumulatedContent,
+        data.text,
+      );
       observer?.onTextDelta?.(data.text, requestState.accumulatedContent);
       playTypewriterSound();
       setMessages((prev) =>

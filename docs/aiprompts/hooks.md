@@ -72,8 +72,8 @@ export function useDeepLink() {
     const unlisten = listen<string>("deep-link", async (event) => {
       const url = new URL(event.payload);
 
-      if (url.pathname === "/oauth/callback") {
-        await handleOAuthCallback(url.searchParams);
+      if (url.pathname === "/oem-cloud/auth/callback") {
+        await handleOemCloudAuthCallback(url.searchParams);
       }
     });
 
@@ -83,6 +83,8 @@ export function useDeepLink() {
   }, []);
 }
 ```
+
+`useDeepLink` 可以处理 OEM 云登录、外部连接器回调等独立流程，但不得恢复旧 Provider OAuth / 凭证池授权回调。
 
 ## Hook 规范
 

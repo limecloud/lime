@@ -218,8 +218,8 @@ export async function fetchProviderModelsAuto(
 
 /**
  * 获取指定 Provider 的别名配置
- * 用于获取 Kiro、Codex、Gemini 等 Provider 的模型别名映射
- * @param provider Provider ID（如 "kiro"、"codex"）
+ * 用于获取中转服务或协议转换相关的模型别名映射
+ * @param provider Provider ID
  */
 export async function getProviderAliasConfig(
   provider: string,

@@ -61,7 +61,9 @@ export async function refreshAgentSessionDetailState(
   }
 
   try {
-    const detail = await runtime.getSession(resolvedSessionId);
+    const detail = await runtime.getSession(resolvedSessionId, {
+      historyLimit: 40,
+    });
     if (sessionIdRef.current !== resolvedSessionId) {
       return false;
     }

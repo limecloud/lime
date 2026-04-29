@@ -1221,7 +1221,7 @@ fn arb_api_key_entry() -> impl Strategy<Value = ApiKeyEntry> {
         })
 }
 
-/// 生成随机的凭证池配置
+/// 生成随机的旧凭证池配置，用于验证退役边界。
 fn arb_credential_pool_config() -> impl Strategy<Value = CredentialPoolConfig> {
     (
         proptest::collection::vec(arb_credential_entry(), 0..3),
@@ -1240,12 +1240,11 @@ fn arb_credential_pool_config() -> impl Strategy<Value = CredentialPoolConfig> {
                 gemini_api_keys: vec![],
                 vertex_api_keys: vec![],
                 codex: vec![],
-                asr: vec![],
             },
         )
 }
 
-/// 生成带凭证池的配置
+/// 生成带旧凭证池的配置
 fn arb_config_with_credentials() -> impl Strategy<Value = Config> {
     (arb_valid_config(), arb_credential_pool_config()).prop_map(|(mut config, pool)| {
         config.credential_pool = pool;
@@ -1429,32 +1428,17 @@ proptest! {
     }
 
     /// **Feature: config-credential-export, Property 5: Redaction Completeness**
-    /// *For any* configuration with API keys in credential pool, redaction should
-    /// replace all API keys with placeholder markers.
+    /// *For any* configuration with legacy credential pool entries, redaction
+    /// should drop the retired pool entirely instead of exporting placeholders.
     /// **Validates: Requirements 3.4**
     #[test]
-    fn prop_redaction_credential_pool_api_keys(config in arb_config_with_secrets()) {
+    fn prop_redaction_drops_legacy_credential_pool(config in arb_config_with_secrets()) {
         let redacted = ExportService::redact_config(&config);
 
-        // 验证 OpenAI 凭证池中的 API 密钥已脱敏
-        for (i, entry) in redacted.credential_pool.openai.iter().enumerate() {
-            prop_assert_eq!(
-                &entry.api_key,
-                REDACTED_PLACEHOLDER,
-                "OpenAI 凭证池条目 {} 的 API 密钥应被脱敏",
-                i
-            );
-        }
-
-        // 验证 Claude 凭证池中的 API 密钥已脱敏
-        for (i, entry) in redacted.credential_pool.claude.iter().enumerate() {
-            prop_assert_eq!(
-                &entry.api_key,
-                REDACTED_PLACEHOLDER,
-                "Claude 凭证池条目 {} 的 API 密钥应被脱敏",
-                i
-            );
-        }
+        prop_assert!(
+            redacted.credential_pool.is_empty(),
+            "旧凭证池已退役，脱敏导出应直接丢弃"
+        );
     }
 
     /// **Feature: config-credential-export, Property 5: Redaction Completeness**
@@ -1497,7 +1481,7 @@ proptest! {
             }
         }
 
-        // 检查凭证池中的 API 密钥
+        // 检查旧凭证池中的 API 密钥不会出现在导出内容中
         for entry in &config.credential_pool.openai {
             if !entry.api_key.is_empty() && entry.api_key != REDACTED_PLACEHOLDER {
                 prop_assert!(
@@ -1556,21 +1540,9 @@ proptest! {
             "日志配置应保持不变"
         );
 
-        // 验证 OAuth 凭证条目保持不变（它们不包含敏感信息）
-        prop_assert_eq!(
-            config.credential_pool.kiro,
-            redacted.credential_pool.kiro,
-            "Kiro 凭证条目应保持不变"
-        );
-        prop_assert_eq!(
-            config.credential_pool.gemini,
-            redacted.credential_pool.gemini,
-            "Gemini 凭证条目应保持不变"
-        );
-        prop_assert_eq!(
-            config.credential_pool.qwen,
-            redacted.credential_pool.qwen,
-            "Qwen 凭证条目应保持不变"
+        prop_assert!(
+            redacted.credential_pool.is_empty(),
+            "旧凭证池已退役，脱敏配置不应保留"
         );
     }
 
@@ -1815,11 +1787,11 @@ proptest! {
     }
 
     /// **Feature: config-credential-export, Property 7: Import Merge vs Replace**
-    /// *For any* import operation in merge mode, the resulting configuration
-    /// should combine new data with existing data.
+    /// *For any* import operation in merge mode, the retired credential pool
+    /// should be dropped instead of merged back into runtime config.
     /// **Validates: Requirements 4.3**
     #[test]
-    fn prop_import_merge_mode_combines_credentials(
+    fn prop_import_merge_mode_drops_legacy_credentials(
         current_config in arb_config_with_credentials(),
         imported_config in arb_config_with_credentials()
     ) {
@@ -1829,39 +1801,9 @@ proptest! {
         let result = ImportService::import_yaml(&yaml, &current_config, &options)
             .expect("导入应成功");
 
-        // 合并模式下，凭证池应包含两边的凭证（按 ID 去重）
-        // 计算预期的凭证数量（去重后）
-        let expected_kiro_ids: std::collections::HashSet<_> = current_config
-            .credential_pool
-            .kiro
-            .iter()
-            .chain(imported_config.credential_pool.kiro.iter())
-            .map(|e| e.id.clone())
-            .collect();
-
-        prop_assert_eq!(
-            result.config.credential_pool.kiro.len(),
-            expected_kiro_ids.len(),
-            "合并模式下 Kiro 凭证数量应为去重后的总数"
-        );
-
-        let expected_openai_ids: std::collections::HashSet<_> = current_config
-            .credential_pool
-            .openai
-            .iter()
-            .chain(imported_config.credential_pool.openai.iter())
-            .filter(|e| e.api_key != REDACTED_PLACEHOLDER)
-            .map(|e| e.id.clone())
-            .collect();
-
-        // OpenAI 凭证数量应包含所有非脱敏的凭证
         prop_assert!(
-            result.config.credential_pool.openai.len() >= expected_openai_ids.len().saturating_sub(
-                imported_config.credential_pool.openai.iter()
-                    .filter(|e| e.api_key == REDACTED_PLACEHOLDER)
-                    .count()
-            ),
-            "合并模式下 OpenAI 凭证应包含所有非脱敏的凭证"
+            result.config.credential_pool.is_empty(),
+            "合并模式下旧凭证池不应再导入或合并"
         );
     }
 
@@ -1982,37 +1924,19 @@ proptest! {
             result.config.logging,
             "日志配置往返不一致"
         );
+        prop_assert!(
+            result.config.credential_pool.is_empty(),
+            "旧凭证池已退役，不应通过 bundle 导入恢复"
+        );
         prop_assert_eq!(
             config.auth_dir,
             result.config.auth_dir,
             "auth_dir 往返不一致"
         );
 
-        // 验证凭证池往返一致性
-        prop_assert_eq!(
-            config.credential_pool.kiro,
-            result.config.credential_pool.kiro,
-            "Kiro 凭证池往返不一致"
-        );
-        prop_assert_eq!(
-            config.credential_pool.gemini,
-            result.config.credential_pool.gemini,
-            "Gemini 凭证池往返不一致"
-        );
-        prop_assert_eq!(
-            config.credential_pool.qwen,
-            result.config.credential_pool.qwen,
-            "Qwen 凭证池往返不一致"
-        );
-        prop_assert_eq!(
-            config.credential_pool.openai,
-            result.config.credential_pool.openai,
-            "OpenAI 凭证池往返不一致"
-        );
-        prop_assert_eq!(
-            config.credential_pool.claude,
-            result.config.credential_pool.claude,
-            "Claude 凭证池往返不一致"
+        prop_assert!(
+            result.config.credential_pool.is_empty(),
+            "旧凭证池已退役，不应通过导出导入往返恢复"
         );
     }
 
@@ -2161,7 +2085,7 @@ proptest! {
 }
 
 // ============================================================================
-// Property 1: OAuth Token Storage Round-Trip (CLIProxyAPI Parity)
+// Property 1: Legacy Credential Config Read Boundary
 // ============================================================================
 
 /// 生成随机的 OAuth 凭证条目（用于 Codex/iFlow）
@@ -2235,7 +2159,7 @@ fn arb_vertex_api_key_entry() -> impl Strategy<Value = crate::config::VertexApiK
         })
 }
 
-/// 生成包含新 Provider 凭证的凭证池配置
+/// 生成覆盖旧 OAuth / API Key 形态的历史凭证池配置
 fn arb_extended_credential_pool_config() -> impl Strategy<Value = CredentialPoolConfig> {
     (
         proptest::collection::vec(arb_credential_entry(), 0..3),
@@ -2258,7 +2182,6 @@ fn arb_extended_credential_pool_config() -> impl Strategy<Value = CredentialPool
                     gemini_api_keys,
                     vertex_api_keys,
                     codex,
-                    asr: vec![],
                 }
             },
         )
@@ -2267,12 +2190,12 @@ fn arb_extended_credential_pool_config() -> impl Strategy<Value = CredentialPool
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]
 
-    /// **Feature: cliproxyapi-parity, Property 1: OAuth Token Storage Round-Trip**
-    /// *For any* valid OAuth response containing access_token, refresh_token, and expires_at,
-    /// storing and then loading the credentials SHALL produce equivalent values.
+    /// **Feature: retired-credential-pool, Property 1: Legacy Config Read Boundary**
+    /// *For any* legacy credential pool in memory, writing current config should drop
+    /// the retired field while direct legacy YAML parsing still accepts historical data.
     /// **Validates: Requirements 1.1, 2.1**
     #[test]
-    fn prop_oauth_token_storage_roundtrip(pool in arb_extended_credential_pool_config()) {
+    fn prop_legacy_credential_pool_not_serialized_from_current_config(pool in arb_extended_credential_pool_config()) {
         let config = Config {
             credential_pool: pool.clone(),
             ..Config::default()
@@ -2282,66 +2205,78 @@ proptest! {
         let yaml = ConfigManager::to_yaml(&config)
             .expect("序列化应成功");
 
-        // 反序列化回 Config
+        prop_assert!(
+            !yaml.contains("credential_pool:"),
+            "当前配置序列化不应继续写出旧凭证池"
+        );
+
+        let legacy_yaml = serde_yaml::to_string(&pool)
+            .expect("旧凭证池序列化应成功");
+
+        // 旧配置字段仍可直接反序列化，供历史配置读取和启动期清理使用。
         let parsed = ConfigManager::parse_yaml(&yaml)
             .expect("反序列化应成功");
+        prop_assert!(parsed.credential_pool.is_empty());
 
-        // 验证 OAuth 凭证往返一致性
+        let parsed_pool: CredentialPoolConfig = serde_yaml::from_str(&legacy_yaml)
+            .expect("旧凭证池反序列化应成功");
+
+        // 验证旧凭证池类型仍能读取历史数据。
         prop_assert_eq!(
             pool.kiro.len(),
-            parsed.credential_pool.kiro.len(),
-            "Kiro OAuth 凭证数量往返不一致"
+            parsed_pool.kiro.len(),
+            "Kiro OAuth 凭证数量读取不一致"
         );
         prop_assert_eq!(
             pool.gemini.len(),
-            parsed.credential_pool.gemini.len(),
-            "Gemini OAuth 凭证数量往返不一致"
+            parsed_pool.gemini.len(),
+            "Gemini OAuth 凭证数量读取不一致"
         );
 
-        // 验证 Gemini API Key 多账号配置往返一致性
+        // 验证 Gemini API Key 多账号配置读取一致性
         prop_assert_eq!(
             pool.gemini_api_keys.len(),
-            parsed.credential_pool.gemini_api_keys.len(),
-            "Gemini API Key 凭证数量往返不一致"
+            parsed_pool.gemini_api_keys.len(),
+            "Gemini API Key 凭证数量读取不一致"
         );
 
-        // 验证 Vertex AI 配置往返一致性
+        // 验证 Vertex AI 配置读取一致性
         prop_assert_eq!(
             pool.vertex_api_keys.len(),
-            parsed.credential_pool.vertex_api_keys.len(),
-            "Vertex AI 凭证数量往返不一致"
+            parsed_pool.vertex_api_keys.len(),
+            "Vertex AI 凭证数量读取不一致"
         );
 
         // 验证每个 Gemini API Key 的详细内容
-        for (original, parsed_entry) in pool.gemini_api_keys.iter().zip(parsed.credential_pool.gemini_api_keys.iter()) {
+        for (original, parsed_entry) in pool.gemini_api_keys.iter().zip(parsed_pool.gemini_api_keys.iter()) {
             prop_assert_eq!(
                 &original.id,
                 &parsed_entry.id,
-                "Gemini API Key ID 往返不一致"
+                "Gemini API Key ID 读取不一致"
             );
             prop_assert_eq!(
                 &original.api_key,
                 &parsed_entry.api_key,
-                "Gemini API Key 往返不一致"
+                "Gemini API Key 读取不一致"
             );
             prop_assert_eq!(
                 &original.excluded_models,
                 &parsed_entry.excluded_models,
-                "Gemini 排除模型列表往返不一致"
+                "Gemini 排除模型列表读取不一致"
             );
         }
 
         // 验证每个 Vertex AI 凭证的详细内容
-        for (original, parsed_entry) in pool.vertex_api_keys.iter().zip(parsed.credential_pool.vertex_api_keys.iter()) {
+        for (original, parsed_entry) in pool.vertex_api_keys.iter().zip(parsed_pool.vertex_api_keys.iter()) {
             prop_assert_eq!(
                 &original.id,
                 &parsed_entry.id,
-                "Vertex AI 凭证 ID 往返不一致"
+                "Vertex AI 凭证 ID 读取不一致"
             );
             prop_assert_eq!(
                 original.models.len(),
                 parsed_entry.models.len(),
-                "Vertex AI 模型别名数量往返不一致"
+                "Vertex AI 模型别名数量读取不一致"
             );
         }
     }

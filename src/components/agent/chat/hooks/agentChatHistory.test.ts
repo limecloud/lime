@@ -2,12 +2,50 @@ import { describe, expect, it } from "vitest";
 
 import type { AsterSessionDetail } from "@/lib/api/agentRuntime";
 import {
+  appendTextToParts,
   extractThinkingContentFromParts,
   hydrateSessionDetailMessages,
   mergeHydratedMessagesWithLocalState,
 } from "./agentChatHistory";
 
 describe("agentChatHistory", () => {
+  it("追加累计 text_delta 时不应重复吐字", () => {
+    expect(
+      appendTextToParts([{ type: "text", text: "你好" }], "你好！我是 Lime"),
+    ).toEqual([{ type: "text", text: "你好！我是 Lime" }]);
+  });
+
+  it("历史 output_text 以累计快照存储时应恢复为单份正文", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-cumulative-text",
+      created_at: 1,
+      updated_at: 2,
+      messages: [
+        {
+          role: "assistant",
+          timestamp: 1710000201,
+          content: [
+            { type: "output_text", text: "你好" } as never,
+            { type: "output_text", text: "你好！我是 Lime 助手。" } as never,
+          ],
+        },
+      ],
+    };
+
+    const messages = hydrateSessionDetailMessages(
+      detail,
+      "session-cumulative-text",
+    );
+
+    expect(messages[0]?.content).toBe("你好！我是 Lime 助手。");
+    expect(messages[0]?.contentParts).toEqual([
+      {
+        type: "text",
+        text: "你好！我是 Lime 助手。",
+      },
+    ]);
+  });
+
   it("应清理仅用于内部展示的图片占位文本", () => {
     const detail: AsterSessionDetail = {
       id: "session-image-placeholder",
@@ -95,6 +133,76 @@ describe("agentChatHistory", () => {
         type: "text",
         text: "下面是整理好的 Prompt。",
       },
+    ]);
+  });
+
+  it("分页历史消息应使用历史窗口绝对位置生成稳定 ID", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-page",
+      created_at: 1,
+      updated_at: 2,
+      messages_count: 100,
+      history_limit: 2,
+      history_offset: 40,
+      history_truncated: true,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1710000000,
+          content: [{ type: "text", text: "更早问题" }],
+        },
+        {
+          role: "assistant",
+          timestamp: 1710000005,
+          content: [{ type: "text", text: "更早回答" }],
+        },
+      ],
+    };
+
+    const messages = hydrateSessionDetailMessages(detail, "session-page");
+
+    expect(messages.map((message) => message.id)).toEqual([
+      "session-page-58",
+      "session-page-59",
+    ]);
+  });
+
+  it("Cursor 分页历史消息应优先使用游标起始位置生成稳定 ID", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-cursor-page",
+      created_at: 1,
+      updated_at: 2,
+      messages_count: 100,
+      history_limit: 2,
+      history_offset: 40,
+      history_cursor: {
+        oldest_message_id: 21,
+        start_index: 20,
+        loaded_count: 2,
+      },
+      history_truncated: true,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1710000000,
+          content: [{ type: "text", text: "Cursor 更早问题" }],
+        },
+        {
+          role: "assistant",
+          timestamp: 1710000005,
+          content: [{ type: "text", text: "Cursor 更早回答" }],
+        },
+      ],
+    };
+
+    const messages = hydrateSessionDetailMessages(
+      detail,
+      "session-cursor-page",
+    );
+
+    expect(messages.map((message) => message.id)).toEqual([
+      "session-cursor-page-20",
+      "session-cursor-page-21",
     ]);
   });
 

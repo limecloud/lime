@@ -18,11 +18,35 @@ function normalizeBaseUrl(value: unknown): string {
   return normalizeText(value).replace(/\/+$/, "");
 }
 
+function withLimeTenantFragment(baseUrl: string, tenantId: string): string {
+  const normalizedTenantId = normalizeText(tenantId);
+  if (!baseUrl || !normalizedTenantId) {
+    return baseUrl;
+  }
+
+  const url = new URL(baseUrl);
+  const params = new URLSearchParams(url.hash.replace(/^#/, ""));
+  params.set("lime_tenant_id", normalizedTenantId);
+  url.hash = params.toString();
+  return url.toString().replace(/\/#/, "#");
+}
+
 export function buildOemLimeHubApiHost(
-  runtime: Pick<OemCloudRuntimeContext, "gatewayBaseUrl"> | null | undefined,
+  runtime:
+    | Pick<OemCloudRuntimeContext, "gatewayBaseUrl" | "tenantId">
+    | null
+    | undefined,
 ): string | null {
   const gatewayBaseUrl = normalizeBaseUrl(runtime?.gatewayBaseUrl);
-  return gatewayBaseUrl || null;
+  if (!gatewayBaseUrl) {
+    return null;
+  }
+
+  try {
+    return withLimeTenantFragment(gatewayBaseUrl, runtime?.tenantId ?? "");
+  } catch {
+    return gatewayBaseUrl;
+  }
 }
 
 export function resolveOemLimeHubProviderName(

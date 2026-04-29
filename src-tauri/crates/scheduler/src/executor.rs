@@ -109,7 +109,7 @@ impl TaskExecutor for AgentExecutor {
             task.model
         );
 
-        // 1. 从凭证池选择凭证
+        // 1. 从 API Key Provider 选择凭证
         let aster_config = self
             .credential_bridge
             .select_and_configure(db, &task.provider_type, &task.model)
@@ -547,7 +547,7 @@ mod tests {
             Utc::now(),
         );
 
-        // 由于缺少凭证池数据，这里会在选择凭证时失败
+        // 由于缺少 API Key Provider 数据，这里会在选择凭证时失败
         // 但我们可以测试参数验证逻辑
         let result = executor.execute(&task, &db).await;
         assert!(result.is_err());

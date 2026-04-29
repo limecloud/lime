@@ -244,7 +244,7 @@ export function OpenClawConfigurePage({
                     onClick={onGoProviderSettings}
                     className="font-medium text-slate-900 underline-offset-4 hover:underline"
                   >
-                    前往凭证管理
+                    前往 AI 服务商
                   </button>
                 </div>
               </div>

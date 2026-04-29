@@ -146,7 +146,6 @@ export default defineConfig(({ mode }) => {
       exclude: [
         "**/node_modules/**",
         "**/dist/**",
-        "**/scripts/playwright-login/**",
         "**/src-tauri/target/**",
       ],
     },

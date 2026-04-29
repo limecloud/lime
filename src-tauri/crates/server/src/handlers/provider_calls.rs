@@ -44,7 +44,7 @@ use crate::AppState;
 use lime_core::database::dao::api_key_provider::ApiProviderType;
 use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::ChatCompletionRequest;
-use lime_core::models::provider_pool_model::{CredentialData, ProviderCredential};
+use lime_core::models::{RuntimeCredentialData, RuntimeProviderCredential};
 use lime_providers::converter::anthropic_to_openai::convert_anthropic_to_openai;
 use lime_providers::providers::{
     ClaudeCustomProvider, OpenAICustomProvider, PromptCacheMode, VertexProvider,
@@ -59,18 +59,6 @@ use lime_server_utils::{
     build_anthropic_response, build_anthropic_stream_response, CWParsedResponse,
 };
 
-fn retired_credential_response(kind: &str) -> Response {
-    (
-        StatusCode::GONE,
-        Json(serde_json::json!({
-            "error": {
-                "message": format!("{kind} 已退役。请改用 API Key Provider / configured providers。")
-            }
-        })),
-    )
-        .into_response()
-}
-
 /// 根据凭证调用 Provider (Anthropic 格式)
 ///
 /// # 参数
@@ -80,16 +68,12 @@ fn retired_credential_response(kind: &str) -> Response {
 /// - `flow_id`: Flow ID（可选，用于流式响应处理）
 pub async fn call_provider_anthropic(
     state: &AppState,
-    credential: &ProviderCredential,
+    credential: &RuntimeProviderCredential,
     request: &AnthropicMessagesRequest,
     _flow_id: Option<&str>,
 ) -> Response {
     match &credential.credential {
-        CredentialData::KiroOAuth { .. } => {
-            retired_credential_response("Kiro OAuth/local CLI credential")
-        }
-        CredentialData::GeminiOAuth { .. } => retired_credential_response("Gemini OAuth credential"),
-        CredentialData::OpenAIKey { api_key, base_url } => {
+        RuntimeCredentialData::OpenAIKey { api_key, base_url } => {
             let openai = OpenAICustomProvider::with_config(api_key.clone(), base_url.clone());
             let openai_request = convert_anthropic_to_openai(request);
             match openai.call_api(&openai_request).await {
@@ -198,7 +182,7 @@ pub async fn call_provider_anthropic(
                 }
             }
         }
-        CredentialData::ClaudeKey { api_key, base_url } => {
+        RuntimeCredentialData::ClaudeKey { api_key, base_url } => {
             // 打印 Claude 代理 URL 用于调试
             let actual_base_url = base_url.as_deref().unwrap_or("https://api.anthropic.com");
             let prompt_cache_mode = if matches!(
@@ -375,7 +359,7 @@ pub async fn call_provider_anthropic(
                 }
             }
         }
-        CredentialData::VertexKey { api_key, base_url, .. } => {
+        RuntimeCredentialData::VertexKey { api_key, base_url, .. } => {
             // Vertex AI uses Gemini-compatible API, convert Anthropic to OpenAI format first
             let openai_request = convert_anthropic_to_openai(request);
             let vertex = VertexProvider::with_config(api_key.clone(), base_url.clone());
@@ -420,19 +404,15 @@ pub async fn call_provider_anthropic(
             }
         }
         // Gemini API Key credentials - not supported for Anthropic format
-        CredentialData::GeminiApiKey { .. } => {
+        RuntimeCredentialData::GeminiApiKey { .. } => {
             (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({"error": {"message": "Gemini API Key credentials do not support Anthropic format"}})),
             )
                 .into_response()
         }
-        CredentialData::CodexOAuth { .. } => retired_credential_response("Codex OAuth credential"),
-        CredentialData::ClaudeOAuth { .. } => {
-            retired_credential_response("Claude OAuth credential")
-        }
         // Anthropic API Key - 根据 base_url 决定调用方式
-        CredentialData::AnthropicKey { api_key, base_url } => {
+        RuntimeCredentialData::AnthropicKey { api_key, base_url } => {
             // 使用 Anthropic 原生格式调用（无论是否有自定义 base_url）
             let claude = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
                 api_key.clone(),
@@ -577,7 +557,7 @@ pub async fn call_provider_anthropic(
 /// - `flow_id`: Flow ID（可选，用于流式响应处理）
 pub async fn call_provider_openai(
     state: &AppState,
-    credential: &ProviderCredential,
+    credential: &RuntimeProviderCredential,
     request: &ChatCompletionRequest,
     _flow_id: Option<&str>,
 ) -> Response {
@@ -585,13 +565,11 @@ pub async fn call_provider_openai(
 
     // 调试：打印凭证类型
     let cred_type = match &credential.credential {
-        CredentialData::KiroOAuth { .. } => "RetiredKiroOAuth",
-        CredentialData::ClaudeKey { .. } => "ClaudeKey",
-        CredentialData::OpenAIKey { .. } => "OpenAIKey",
-        CredentialData::GeminiOAuth { .. } => "RetiredGeminiOAuth",
-        CredentialData::GeminiApiKey { .. } => "GeminiApiKey",
-        CredentialData::VertexKey { .. } => "VertexKey",
-        _ => "Other",
+        RuntimeCredentialData::ClaudeKey { .. } => "ClaudeKey",
+        RuntimeCredentialData::OpenAIKey { .. } => "OpenAIKey",
+        RuntimeCredentialData::GeminiApiKey { .. } => "GeminiApiKey",
+        RuntimeCredentialData::VertexKey { .. } => "VertexKey",
+        RuntimeCredentialData::AnthropicKey { .. } => "AnthropicKey",
     };
     tracing::info!(
         "[CALL_PROVIDER_OPENAI] 凭证类型={}, 凭证名称={:?}, provider_type={}, uuid={}",
@@ -602,11 +580,7 @@ pub async fn call_provider_openai(
     );
 
     match &credential.credential {
-        CredentialData::KiroOAuth { .. } => {
-            retired_credential_response("Kiro OAuth/local CLI credential")
-        }
-        CredentialData::GeminiOAuth { .. } => retired_credential_response("Gemini OAuth credential"),
-        CredentialData::OpenAIKey { api_key, base_url } => {
+        RuntimeCredentialData::OpenAIKey { api_key, base_url } => {
             let openai = OpenAICustomProvider::with_config(api_key.clone(), base_url.clone());
 
             tracing::info!("[OPENAI_KEY] request.stream = {}, model = {}", request.stream, request.model);
@@ -692,7 +666,7 @@ pub async fn call_provider_openai(
                     .into_response(),
             }
         }
-        CredentialData::ClaudeKey { api_key, base_url } => {
+        RuntimeCredentialData::ClaudeKey { api_key, base_url } => {
             // 打印 Claude 代理 URL 用于调试
             let actual_base_url = base_url.as_deref().unwrap_or("https://api.anthropic.com");
             tracing::info!(
@@ -816,7 +790,7 @@ pub async fn call_provider_openai(
                     .into_response(),
             }
         }
-        CredentialData::VertexKey { api_key, base_url, model_aliases } => {
+        RuntimeCredentialData::VertexKey { api_key, base_url, model_aliases } => {
             // Resolve model alias if present
             let resolved_model = model_aliases.get(&request.model).cloned().unwrap_or_else(|| request.model.clone());
             let mut modified_request = request.clone();
@@ -844,7 +818,7 @@ pub async fn call_provider_openai(
             }
         }
         // Gemini API Key credentials - not supported for OpenAI format yet
-        CredentialData::GeminiApiKey { .. } => {
+        RuntimeCredentialData::GeminiApiKey { .. } => {
             (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({"error": {"message": "Gemini API Key credentials do not support OpenAI format yet"}})),
@@ -852,7 +826,7 @@ pub async fn call_provider_openai(
                 .into_response()
         }
         // AnthropicKey - 如果有自定义 base_url，使用 OpenAI 兼容格式调用
-        CredentialData::AnthropicKey { api_key, base_url } => {
+        RuntimeCredentialData::AnthropicKey { api_key, base_url } => {
             // 如果有自定义 base_url，假设是 OpenAI 兼容的代理服务器
             if let Some(custom_url) = base_url {
                 let openai = OpenAICustomProvider::with_config(api_key.clone(), Some(custom_url.clone()));
@@ -998,10 +972,6 @@ pub async fn call_provider_openai(
                     .into_response()
             }
         }
-        CredentialData::CodexOAuth { .. } => retired_credential_response("Codex OAuth credential"),
-        CredentialData::ClaudeOAuth { .. } => {
-            retired_credential_response("Claude OAuth credential")
-        }
     }
 }
 
@@ -1018,13 +988,13 @@ pub async fn call_provider_openai(
 ///
 /// # 返回
 /// 流式格式枚举
-pub fn get_stream_format_for_credential(credential: &ProviderCredential) -> StreamingFormat {
+pub fn get_stream_format_for_credential(credential: &RuntimeProviderCredential) -> StreamingFormat {
     match &credential.credential {
-        CredentialData::ClaudeKey { .. } => StreamingFormat::AnthropicSse,
-        CredentialData::OpenAIKey { .. } => StreamingFormat::OpenAiSse,
-        CredentialData::GeminiApiKey { .. } => StreamingFormat::OpenAiSse,
-        CredentialData::VertexKey { .. } => StreamingFormat::OpenAiSse,
-        _ => StreamingFormat::OpenAiSse,
+        RuntimeCredentialData::ClaudeKey { .. } => StreamingFormat::AnthropicSse,
+        RuntimeCredentialData::OpenAIKey { .. } => StreamingFormat::OpenAiSse,
+        RuntimeCredentialData::GeminiApiKey { .. } => StreamingFormat::OpenAiSse,
+        RuntimeCredentialData::VertexKey { .. } => StreamingFormat::OpenAiSse,
+        RuntimeCredentialData::AnthropicKey { .. } => StreamingFormat::OpenAiSse,
     }
 }
 

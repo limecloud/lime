@@ -26,8 +26,9 @@ pub fn save_voice_config(voice_config: VoiceInputConfig) -> Result<(), String> {
 pub fn get_default_asr_credential() -> Result<Option<AsrCredentialEntry>, String> {
     let config = load_config().map_err(|e| e.to_string())?;
     Ok(config
-        .credential_pool
-        .asr
+        .experimental
+        .voice_input
+        .asr_credentials
         .into_iter()
         .find(|credential| credential.is_default && !credential.disabled))
 }
@@ -36,8 +37,9 @@ pub fn get_default_asr_credential() -> Result<Option<AsrCredentialEntry>, String
 pub fn get_asr_credential(id: &str) -> Result<Option<AsrCredentialEntry>, String> {
     let config = load_config().map_err(|e| e.to_string())?;
     Ok(config
-        .credential_pool
-        .asr
+        .experimental
+        .voice_input
+        .asr_credentials
         .into_iter()
         .find(|credential| credential.id == id))
 }
@@ -45,7 +47,7 @@ pub fn get_asr_credential(id: &str) -> Result<Option<AsrCredentialEntry>, String
 /// 列出所有 ASR 凭证
 pub fn list_asr_credentials() -> Result<Vec<AsrCredentialEntry>, String> {
     let config = load_config().map_err(|e| e.to_string())?;
-    Ok(config.credential_pool.asr)
+    Ok(config.experimental.voice_input.asr_credentials)
 }
 
 /// 获取首个启用的指定 Provider 凭证
@@ -54,8 +56,9 @@ pub fn get_enabled_asr_credential_by_provider(
 ) -> Result<Option<AsrCredentialEntry>, String> {
     let config = load_config().map_err(|e| e.to_string())?;
     Ok(config
-        .credential_pool
-        .asr
+        .experimental
+        .voice_input
+        .asr_credentials
         .into_iter()
         .find(|credential| credential.provider == provider && !credential.disabled))
 }

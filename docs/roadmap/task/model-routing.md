@@ -36,7 +36,7 @@
 3. 当前任务命中的 `service_models`
 4. `service_scene_launch` 指定首选
 5. OEM `providerPreference/defaultModel` 与 offer
-6. 本地 provider pool
+6. configured providers / API Key Provider
 7. 模型注册表能力与定价信息
 
 ### 2.3 候选集必须考虑的过滤条件

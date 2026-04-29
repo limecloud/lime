@@ -149,6 +149,18 @@ export function createSessionClient({
       options.historyLimit >= 0
         ? Math.trunc(options.historyLimit)
         : undefined;
+    const historyOffset =
+      typeof options?.historyOffset === "number" &&
+      Number.isFinite(options.historyOffset) &&
+      options.historyOffset >= 0
+        ? Math.trunc(options.historyOffset)
+        : undefined;
+    const historyBeforeMessageId =
+      typeof options?.historyBeforeMessageId === "number" &&
+      Number.isFinite(options.historyBeforeMessageId) &&
+      options.historyBeforeMessageId > 0
+        ? Math.trunc(options.historyBeforeMessageId)
+        : undefined;
     const slowTimer: number | null =
       typeof window !== "undefined"
         ? window.setTimeout(() => {
@@ -162,6 +174,8 @@ export function createSessionClient({
               {
                 elapsedMs: Date.now() - startedAt,
                 historyLimit: historyLimit ?? null,
+                historyOffset: historyOffset ?? null,
+                historyBeforeMessageId: historyBeforeMessageId ?? null,
                 resumeSessionStartHooks,
                 sessionId,
               },
@@ -176,6 +190,8 @@ export function createSessionClient({
 
     logAgentDebug("AgentApi", "runtimeGetSession.start", {
       historyLimit: historyLimit ?? null,
+      historyOffset: historyOffset ?? null,
+      historyBeforeMessageId: historyBeforeMessageId ?? null,
       resumeSessionStartHooks,
       sessionId,
     });
@@ -187,6 +203,10 @@ export function createSessionClient({
           sessionId,
           ...(resumeSessionStartHooks ? { resumeSessionStartHooks: true } : {}),
           ...(typeof historyLimit === "number" ? { historyLimit } : {}),
+          ...(typeof historyOffset === "number" ? { historyOffset } : {}),
+          ...(typeof historyBeforeMessageId === "number"
+            ? { historyBeforeMessageId }
+            : {}),
         },
       );
       const normalizedDetail = detail as AsterSessionDetail | null | undefined;
@@ -207,7 +227,9 @@ export function createSessionClient({
         subagent_parent_context: normalizeSubagentParentContext(
           normalizedDetail?.subagent_parent_context,
         ),
-        queued_turns: normalizeQueuedTurnSnapshots(normalizedDetail?.queued_turns),
+        queued_turns: normalizeQueuedTurnSnapshots(
+          normalizedDetail?.queued_turns,
+        ),
         thread_read: normalizeThreadReadModel(normalizedDetail?.thread_read),
       };
       settled = true;
@@ -216,6 +238,8 @@ export function createSessionClient({
           normalizedSessionDetail.child_subagent_sessions?.length ?? 0,
         durationMs: Date.now() - startedAt,
         historyLimit: historyLimit ?? null,
+        historyOffset: historyOffset ?? null,
+        historyBeforeMessageId: historyBeforeMessageId ?? null,
         itemsCount: normalizedSessionDetail.items?.length ?? 0,
         messagesCount: normalizedSessionDetail.messages?.length ?? 0,
         queuedTurnsCount: normalizedSessionDetail.queued_turns?.length ?? 0,
@@ -233,6 +257,8 @@ export function createSessionClient({
           durationMs: Date.now() - startedAt,
           error,
           historyLimit: historyLimit ?? null,
+          historyOffset: historyOffset ?? null,
+          historyBeforeMessageId: historyBeforeMessageId ?? null,
           resumeSessionStartHooks,
           sessionId,
         },

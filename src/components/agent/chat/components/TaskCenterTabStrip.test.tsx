@@ -208,13 +208,13 @@ describe("TaskCenterTabStrip", () => {
 
   it("应在右侧保留轻量工具按钮，并显示明确的工作台入口", () => {
     const onToggleHistory = vi.fn();
-    const onToggleCanvas = vi.fn();
+    const onWorkbenchToggle = vi.fn();
     const { container } = renderTabStrip({
       showHistoryToggle: true,
       onToggleHistory,
-      showCanvasToggle: true,
-      isCanvasOpen: true,
-      onToggleCanvas,
+      showWorkbenchToggle: true,
+      workbenchVisible: true,
+      onWorkbenchToggle,
     });
 
     act(() => {
@@ -233,7 +233,7 @@ describe("TaskCenterTabStrip", () => {
     });
 
     expect(onToggleHistory).toHaveBeenCalledTimes(1);
-    expect(onToggleCanvas).toHaveBeenCalledTimes(1);
+    expect(onWorkbenchToggle).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("工作台");
     expect(
       container.querySelector('[data-testid="task-center-tab-toolbar"]'),

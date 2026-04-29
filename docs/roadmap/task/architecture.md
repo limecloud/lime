@@ -27,7 +27,7 @@
 | --- | --- | --- | --- |
 | Product / UX Layer | 收集用户意图与显式设置 | 用户输入、模型选择器、设置页、OEM 状态展示 | 提交请求、显式锁定、展示解释 |
 | Task Layer | 识别任务类型与能力需求 | 用户输入、工作台命令、服务任务入口、`service_models` | `TaskProfile` |
-| Candidate Resolution Layer | 解析真实候选空间 | `TaskProfile`、会话状态、设置、OEM、provider pool | `CandidateModelSet` |
+| Candidate Resolution Layer | 解析真实候选空间 | `TaskProfile`、会话状态、设置、OEM、configured providers、模型注册表 | `CandidateModelSet` |
 | Model Routing Layer | 决定最终执行模型或降级模式 | `TaskProfile`、`CandidateModelSet`、限额与成本状态 | `RoutingDecision`、`ConfigureProviderRequest` |
 | Runtime Execution Layer | 真正执行 turn 与副作用 | `ConfigureProviderRequest`、Query Loop 输入 | 运行时事件、timeline、artifact、usage |
 | Cost / Limit / Telemetry Layer | 记录经济与约束信号 | usage、quota、rate limit、并发预算 | `RoutingEvent`、`LimitState`、RequestLog、thread read |

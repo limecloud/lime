@@ -17,7 +17,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
-import { ApiKeyProviderSection } from "@/components/provider-pool/api-key";
+import { ApiKeyProviderSection } from "@/components/api-key-provider";
 import { openUrl } from "@/components/openclaw/openUrl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -48,6 +48,7 @@ import {
   type CompanionProviderOverviewPayload,
 } from "@/lib/provider/companionProviderOverview";
 import { createOemCloudModelMetadata } from "@/lib/model/oemCloudModelMetadata";
+import { buildOemCloudLoginUrl } from "@/lib/oemCloudLoginLauncher";
 import type { SettingsProviderView } from "@/types/page";
 import { cn } from "@/lib/utils";
 import { CompanionCapabilityPreferencesCard } from "./CompanionCapabilityPreferencesCard";
@@ -1628,6 +1629,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
   const sdkModelId = resolveSdkModelId(selectedModels);
   const canRenderSdkSnippets = Boolean(sdkModelId && openAIBaseUrl);
   const canRenderAnthropicSnippet = Boolean(sdkModelId && anthropicBaseUrl);
+  const cloudLoginUrl = runtime ? buildOemCloudLoginUrl(runtime) : "";
   const filteredSelectedModels = useMemo(() => {
     const keyword = modelSearch.trim().toLowerCase();
     if (!keyword) {
@@ -1675,11 +1677,28 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <h3 className="text-lg font-semibold text-slate-900">
-              正在打开 {cloudBrandLabel} 登录
+              {errorMessage
+                ? `${cloudBrandLabel} 登录页未打开`
+                : `正在打开 ${cloudBrandLabel} 登录`}
             </h3>
             <p className="text-sm leading-6 text-slate-600">
-              登录完成后自动同步套餐、积分、API Key 和模型目录。
+              {errorMessage
+                ? "如果浏览器没有弹出，请重新打开；仍失败时可复制链接到浏览器。"
+                : "登录完成后自动同步套餐、积分、API Key 和模型目录。"}
             </p>
+            {errorMessage && cloudLoginUrl ? (
+              <div className="flex flex-col gap-2 rounded-[16px] border border-rose-100 bg-rose-50/70 p-3 text-sm text-rose-700 sm:flex-row sm:items-center sm:justify-between">
+                <span className="min-w-0 break-all">{cloudLoginUrl}</span>
+                <button
+                  type="button"
+                  onClick={() => copyTextToClipboard(cloudLoginUrl)}
+                  className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  复制链接
+                </button>
+              </div>
+            ) : null}
           </div>
           <button
             type="button"

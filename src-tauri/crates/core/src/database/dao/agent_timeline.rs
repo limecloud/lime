@@ -385,6 +385,15 @@ impl AgentTimelineDao {
         thread_id: &str,
         limit: usize,
     ) -> Result<Vec<AgentThreadTurn>, rusqlite::Error> {
+        Self::list_turns_by_thread_tail_page(conn, thread_id, limit, 0)
+    }
+
+    pub fn list_turns_by_thread_tail_page(
+        conn: &Connection,
+        thread_id: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<AgentThreadTurn>, rusqlite::Error> {
         if limit == 0 {
             return Ok(Vec::new());
         }
@@ -399,11 +408,58 @@ impl AgentTimelineDao {
                  WHERE session_id = ?1
                  ORDER BY started_at DESC, id DESC
                  LIMIT ?2
+                 OFFSET ?3
              )
              ORDER BY started_at ASC, id ASC",
         )?;
 
-        let rows = stmt.query_map(params![thread_id, limit as i64], |row| {
+        let rows = stmt.query_map(params![thread_id, limit as i64, offset as i64], |row| {
+            let status_raw: String = row.get(3)?;
+            let status = AgentThreadTurnStatus::try_from(status_raw.as_str()).map_err(|_| {
+                rusqlite::Error::InvalidColumnType(3, "status".into(), rusqlite::types::Type::Text)
+            })?;
+
+            Ok(AgentThreadTurn {
+                id: row.get(0)?,
+                thread_id: row.get(1)?,
+                prompt_text: row.get(2)?,
+                status,
+                started_at: row.get(4)?,
+                completed_at: row.get(5)?,
+                error_message: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })?;
+
+        rows.collect()
+    }
+
+    pub fn list_turns_by_thread_before(
+        conn: &Connection,
+        thread_id: &str,
+        limit: usize,
+        before_started_at: &str,
+    ) -> Result<Vec<AgentThreadTurn>, rusqlite::Error> {
+        if limit == 0 || before_started_at.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut stmt = conn.prepare(
+            "SELECT id, session_id, prompt_text, status, started_at, completed_at,
+                    error_message, created_at, updated_at
+             FROM (
+                 SELECT id, session_id, prompt_text, status, started_at, completed_at,
+                        error_message, created_at, updated_at
+                 FROM agent_thread_turns
+                 WHERE session_id = ?1 AND started_at < ?2
+                 ORDER BY started_at DESC, id DESC
+                 LIMIT ?3
+             )
+             ORDER BY started_at ASC, id ASC",
+        )?;
+
+        let rows = stmt.query_map(params![thread_id, before_started_at, limit as i64], |row| {
             let status_raw: String = row.get(3)?;
             let status = AgentThreadTurnStatus::try_from(status_raw.as_str()).map_err(|_| {
                 rusqlite::Error::InvalidColumnType(3, "status".into(), rusqlite::types::Type::Text)
@@ -504,6 +560,15 @@ impl AgentTimelineDao {
         thread_id: &str,
         limit: usize,
     ) -> Result<Vec<AgentThreadItem>, rusqlite::Error> {
+        Self::list_items_by_thread_tail_page(conn, thread_id, limit, 0)
+    }
+
+    pub fn list_items_by_thread_tail_page(
+        conn: &Connection,
+        thread_id: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<AgentThreadItem>, rusqlite::Error> {
         if limit == 0 {
             return Ok(Vec::new());
         }
@@ -527,12 +592,65 @@ impl AgentTimelineDao {
                  WHERE session_id = ?1
                  ORDER BY sort_started_at DESC, sequence DESC, id DESC
                  LIMIT ?2
+                 OFFSET ?3
              )
              ORDER BY sort_started_at ASC, sequence ASC, id ASC",
         );
         let mut stmt = conn.prepare(&sql)?;
 
-        let rows = stmt.query_map(params![thread_id, limit as i64], Self::row_to_item)?;
+        let rows = stmt.query_map(
+            params![thread_id, limit as i64, offset as i64],
+            Self::row_to_item,
+        )?;
+        rows.collect()
+    }
+
+    pub fn list_items_by_thread_before(
+        conn: &Connection,
+        thread_id: &str,
+        limit: usize,
+        before_started_at: &str,
+    ) -> Result<Vec<AgentThreadItem>, rusqlite::Error> {
+        if limit == 0 || before_started_at.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let payload_json_projection = history_item_payload_json_projection_sql();
+        let sql = format!(
+            "SELECT id, session_id, turn_id, sequence, status, started_at, completed_at,
+                    updated_at, payload_json, sort_started_at
+             FROM (
+                 SELECT id, session_id, turn_id, sequence, status, started_at, completed_at,
+                        updated_at, {payload_json_projection} AS payload_json,
+                        COALESCE(
+                            (
+                                SELECT started_at
+                                FROM agent_thread_turns
+                                WHERE agent_thread_turns.id = agent_thread_items.turn_id
+                            ),
+                            started_at
+                        ) AS sort_started_at
+                 FROM agent_thread_items
+                 WHERE session_id = ?1
+                   AND COALESCE(
+                         (
+                             SELECT started_at
+                             FROM agent_thread_turns
+                             WHERE agent_thread_turns.id = agent_thread_items.turn_id
+                         ),
+                         started_at
+                       ) < ?2
+                 ORDER BY sort_started_at DESC, sequence DESC, id DESC
+                 LIMIT ?3
+             )
+             ORDER BY sort_started_at ASC, sequence ASC, id ASC",
+        );
+        let mut stmt = conn.prepare(&sql)?;
+
+        let rows = stmt.query_map(
+            params![thread_id, before_started_at, limit as i64],
+            Self::row_to_item,
+        )?;
         rows.collect()
     }
 
@@ -676,6 +794,26 @@ mod tests {
                 .map(|item| item.id.as_str())
                 .collect::<Vec<_>>(),
             vec!["item-3", "item-4"],
+        );
+
+        let older_turns =
+            AgentTimelineDao::list_turns_by_thread_tail_page(&conn, "thread-1", 2, 2).unwrap();
+        let older_items =
+            AgentTimelineDao::list_items_by_thread_tail_page(&conn, "thread-1", 2, 2).unwrap();
+
+        assert_eq!(
+            older_turns
+                .iter()
+                .map(|turn| turn.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["turn-1", "turn-2"],
+        );
+        assert_eq!(
+            older_items
+                .iter()
+                .map(|item| item.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["item-1", "item-2"],
         );
     }
 

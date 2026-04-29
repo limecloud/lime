@@ -9,6 +9,15 @@ import {
   type SessionImageWorkbenchState,
 } from "./imageWorkbenchHelpers";
 
+const IMAGE_GENERATION_CONTRACT_KEY = "image_generation";
+const IMAGE_GENERATION_MODALITY = "image";
+const IMAGE_GENERATION_ROUTING_SLOT = "image_generation_model";
+const IMAGE_GENERATION_REQUIRED_CAPABILITIES = [
+  "text_generation",
+  "image_generation",
+  "vision_input",
+] as const;
+
 export interface ImageWorkbenchSkillRequest {
   images: MessageImage[];
   requestContext: Record<string, unknown>;
@@ -242,6 +251,10 @@ export function resolveImageWorkbenchSkillRequest(
       project_id: params.projectId,
       content_id: params.contentId || undefined,
       entry_source: params.entrySource || "at_image_command",
+      modality_contract_key: IMAGE_GENERATION_CONTRACT_KEY,
+      modality: IMAGE_GENERATION_MODALITY,
+      required_capabilities: [...IMAGE_GENERATION_REQUIRED_CAPABILITIES],
+      routing_slot: IMAGE_GENERATION_ROUTING_SLOT,
       requested_target: requestedTarget,
       slot_id: documentInlineSlotId,
       anchor_hint: documentInlineAnchorHint,

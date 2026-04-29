@@ -130,7 +130,7 @@
     {
       "command": "agent_runtime_get_session",
       "domain": "session",
-      "requestType": "{ sessionId: string; resumeSessionStartHooks?: boolean; historyLimit?: number }",
+      "requestType": "{ sessionId: string; resumeSessionStartHooks?: boolean; historyLimit?: number; historyOffset?: number; historyBeforeMessageId?: number }",
       "responseType": "AsterSessionDetail",
       "lifecycle": "current",
       "mockStrategy": "bridge-only",

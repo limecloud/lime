@@ -2,14 +2,6 @@
 //!
 //! 提供托盘菜单文本的格式化函数
 
-/// 格式化凭证状态文本
-///
-/// # 示例输出
-/// - "◐ 可用账号：3/5"
-pub fn format_credential_status(available: usize, total: usize) -> String {
-    format!("◐ 可用账号：{available}/{total}")
-}
-
 /// 格式化请求统计文本
 ///
 /// # 示例输出
@@ -54,24 +46,12 @@ mod tests {
         /// **Validates: Requirements 2.2, 2.3, 2.4**
         #[test]
         fn prop_menu_content_formatting(
-            available in 0usize..100,
-            total in 0usize..100,
             requests in 0u64..1000000
         ) {
-            let cred_status = format_credential_status(available, total);
-            prop_assert!(cred_status.contains(&available.to_string()), "凭证状态应包含可用数");
-            prop_assert!(cred_status.contains(&total.to_string()), "凭证状态应包含总数");
-
             let req_status = format_request_count(requests);
             prop_assert!(req_status.contains(&requests.to_string()), "请求统计应包含请求次数");
         }
 
-    }
-
-    #[test]
-    fn test_format_credential_status() {
-        let status = format_credential_status(3, 5);
-        assert_eq!(status, "◐ 可用账号：3/5");
     }
 
     #[test]

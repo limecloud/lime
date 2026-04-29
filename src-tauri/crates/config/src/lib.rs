@@ -9,9 +9,9 @@ pub mod observer;
 // 重新导出观察者模块的核心类型
 pub use observer::emitter::ConfigEventEmit;
 pub use observer::events::{
-    AmpConfigChangeEvent, ConfigChangeEvent, ConfigChangeSource, CredentialPoolChangeEvent,
-    EndpointProvidersChangeEvent, FullReloadEvent, InjectionChangeEvent, LoggingChangeEvent,
-    NativeAgentChangeEvent, RetryChangeEvent, RoutingChangeEvent, ServerChangeEvent,
+    AmpConfigChangeEvent, ConfigChangeEvent, ConfigChangeSource, EndpointProvidersChangeEvent,
+    FullReloadEvent, InjectionChangeEvent, LoggingChangeEvent, NativeAgentChangeEvent,
+    RetryChangeEvent, RoutingChangeEvent, ServerChangeEvent,
 };
 pub use observer::manager::GlobalConfigManager;
 pub use observer::observers::{

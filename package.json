@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "private": true,
-  "version": "1.22.0",
+  "version": "1.23.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -18,6 +18,7 @@
     "check:extension-site-adapters": "node scripts/generate-extension-site-adapter-runners.mjs --check",
     "heatmap:project": "node scripts/project-heatmap.mjs",
     "governance:graph": "node scripts/governance-graph.mjs",
+    "governance:modality-contracts": "node scripts/check-modality-runtime-contracts.mjs",
     "predev": "npm run generate:agent-runtime-clients && npm run generate:extension-site-adapters && npm run verify:app-version && node scripts/ensure-dev-port.mjs",
     "dev": "vite",
     "build": "npm run generate:agent-runtime-clients && npm run generate:extension-site-adapters && npm run verify:app-version && tsc && vite build",
@@ -41,7 +42,7 @@
     "test:watch": "node --max-old-space-size=8192 ./node_modules/vitest/vitest.mjs",
     "test:frontend": "npm run lint && npm run typecheck && npm test",
     "test:bridge": "npm test -- src/lib/dev-bridge/safeInvoke.test.ts src/lib/tauri-mock/core.test.ts",
-    "test:contracts": "npm run check:agent-runtime-clients && node scripts/check-command-contracts.mjs && node scripts/check-harness-contracts.mjs && npm run harness:cleanup-report:check",
+    "test:contracts": "npm run check:agent-runtime-clients && node scripts/check-command-contracts.mjs && node scripts/check-harness-contracts.mjs && npm run governance:modality-contracts && npm run harness:cleanup-report:check",
     "test:rust": "cargo test --manifest-path \"src-tauri/Cargo.toml\"",
     "harness:analysis": "node scripts/harness-analysis-brief.mjs",
     "harness:eval": "node scripts/harness-eval-runner.mjs",

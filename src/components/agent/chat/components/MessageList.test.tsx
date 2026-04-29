@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageList } from "./MessageList";
-import type { Message } from "../types";
+import type { AgentThreadItem, AgentThreadTurn, Message } from "../types";
 
 const IMAGE_WORKBENCH_FOCUS_EVENT = "lime:image-workbench-focus";
 const VIDEO_WORKBENCH_TASK_ACTION_EVENT = "lime:video-workbench-task-action";
@@ -147,6 +147,7 @@ const mockAgentThreadTimeline = vi.fn(
       contentId: string;
       title?: string;
     }) => void;
+    deferCompletedSingleDetails?: boolean;
     placement?: "leading" | "trailing" | "default";
   }) => (
     <div
@@ -178,6 +179,7 @@ vi.mock("./TokenUsageDisplay", () => ({
 vi.mock("./AgentThreadTimeline", () => ({
   AgentThreadTimeline: (props: {
     actionRequests?: Array<Record<string, unknown>>;
+    deferCompletedSingleDetails?: boolean;
     placement?: "leading" | "trailing" | "default";
   }) => mockAgentThreadTimeline(props),
 }));
@@ -209,6 +211,7 @@ afterEach(() => {
     });
     mounted.container.remove();
   }
+  vi.useRealTimers();
   vi.clearAllMocks();
   mockUseConfiguredProviders.mockImplementation(() => ({
     providers: [],
@@ -293,6 +296,29 @@ describe("MessageList", () => {
     expect(messageColumn?.className).toContain("justify-end");
   });
 
+  it("任务中心进入对话后也应将短消息贴近输入区底部", () => {
+    const container = render(
+      [
+        {
+          id: "msg-user-task-center-first-frame",
+          role: "user",
+          content: "从任务中心开始对话",
+          timestamp: new Date("2026-04-25T10:00:00.000Z"),
+        } as Message,
+      ],
+      {
+        emptyStateVariant: "task-center",
+      },
+    );
+
+    const messageColumn = container.querySelector(
+      '[data-testid="message-list-column"]',
+    );
+
+    expect(messageColumn?.textContent).toContain("从任务中心开始对话");
+    expect(messageColumn?.className).toContain("justify-end");
+  });
+
   it("自动恢复生成会话时应展示恢复占位而不是空白引导", () => {
     const container = render([], { isRestoringSession: true });
 
@@ -306,7 +332,7 @@ describe("MessageList", () => {
     expect(container.textContent).not.toContain("开始一段新的对话吧");
   });
 
-  it("旧会话首屏只加载尾部历史时应提供完整历史入口", () => {
+  it("旧会话首屏只加载尾部历史时应提供继续加载入口", () => {
     const onLoadFullHistory = vi.fn();
     const container = render(createConversationMessages(2), {
       sessionHistoryWindow: {
@@ -329,12 +355,61 @@ describe("MessageList", () => {
       '[data-testid="message-list-load-full-history"]',
     ) as HTMLButtonElement | null;
     expect(button).not.toBeNull();
+    expect(button?.textContent).toContain("加载更多历史");
 
     act(() => {
       button?.click();
     });
 
     expect(onLoadFullHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("旧会话首帧应先渲染消息文本并延后历史 timeline", () => {
+    vi.useFakeTimers();
+    const messages = createConversationMessages(60);
+    const turns: AgentThreadTurn[] = Array.from({ length: 30 }, (_, index) => {
+      const startMinute = String(index * 2).padStart(2, "0");
+      const completedMinute = String(index * 2 + 1).padStart(2, "0");
+      return {
+        id: `turn-${index + 1}`,
+        thread_id: "thread-history",
+        prompt_text: `消息 ${index * 2 + 1}`,
+        status: "completed",
+        started_at: `2026-04-25T10:${startMinute}:00.000Z`,
+        completed_at: `2026-04-25T10:${completedMinute}:00.000Z`,
+        created_at: `2026-04-25T10:${startMinute}:00.000Z`,
+        updated_at: `2026-04-25T10:${completedMinute}:00.000Z`,
+      };
+    });
+    const threadItems: AgentThreadItem[] = turns.map((turn, index) => ({
+      id: `reasoning-${index + 1}`,
+      thread_id: turn.thread_id,
+      turn_id: turn.id,
+      sequence: 1,
+      status: "completed",
+      started_at: turn.started_at,
+      completed_at: turn.completed_at,
+      updated_at: turn.updated_at,
+      type: "reasoning",
+      text: `历史执行轨迹 ${index + 1}`,
+    }));
+
+    const container = render(messages, { turns, threadItems });
+
+    expect(container.textContent).toContain("消息 60");
+    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(mockAgentThreadTimeline).toHaveBeenCalled();
+    expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({ deferCompletedSingleDetails: true }),
+    );
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).not.toBeNull();
   });
 
   it("任务中心空列表时应展示最近对话空态而不是普通新对话文案", () => {
@@ -1988,6 +2063,43 @@ describe("MessageList", () => {
     );
   });
 
+  it("已完成旧消息残留 runtimeStatus 时不应把思考过程重复塞回正文", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-stale-runtime",
+        role: "assistant",
+        content: "这是最终回答。",
+        timestamp: now,
+        runtimeStatus: {
+          phase: "routing",
+          title: "历史运行态",
+          detail: "旧版本残留的运行态不应影响正文。",
+        },
+        thinkingContent: "这段思考只应留在执行轨迹里。",
+        contentParts: [
+          {
+            type: "thinking",
+            text: "这段思考只应留在执行轨迹里。",
+          },
+          {
+            type: "text",
+            text: "这是最终回答。",
+          },
+        ],
+      },
+    ];
+
+    render(messages);
+
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinkingContent: undefined,
+        contentParts: [{ type: "text", text: "这是最终回答。" }],
+      }),
+    );
+  });
+
   it("已完成工具调用应回到消息顶部执行轨迹展示，不再占用正文主视觉", () => {
     const now = new Date();
     const messages: Message[] = [
@@ -2053,6 +2165,9 @@ describe("MessageList", () => {
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="assistant-primary-timeline-shell"]'),
     ).not.toBeNull();
     expect(mockStreamingRenderer).toHaveBeenCalledWith(
       expect.objectContaining({

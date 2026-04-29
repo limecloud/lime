@@ -104,4 +104,4 @@
 
 这套文档的直接主线收益只有一句话：
 
-**它把 Lime 当前分散在会话模型选择、服务模型设置、OEM offer、本地 provider pool 和 runtime 恢复链里的模型决策，收敛成一条可解释、可落盘、可验收的 current 设计主线。**
+**它把 Lime 当前分散在会话模型选择、服务模型设置、OEM offer、configured providers / API Key Provider / 模型注册表和 runtime 恢复链里的模型决策，收敛成一条可解释、可落盘、可验收的 current 设计主线。**

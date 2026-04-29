@@ -64,7 +64,7 @@
 - `runtime_turn.rs`
 - `request_model_resolution.rs`
 - OEM runtime / control plane
-- provider pool
+- configured providers / API Key Provider / model registry
 
 关键工作：
 

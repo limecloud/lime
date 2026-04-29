@@ -15,6 +15,11 @@ import {
   OEM_CLOUD_OAUTH_COMPLETED_EVENT,
   type OemCloudDesktopOAuthCompletedDetail,
 } from "@/lib/oemCloudDesktopAuth";
+import { getStoredOemCloudSessionState } from "@/lib/oemCloudSession";
+import {
+  hasTauriInvokeCapability,
+  hasTauriRuntimeMarkers,
+} from "@/lib/tauri-runtime";
 
 const DESKTOP_AUTH_LEGACY_CLIENT_IDS: Record<string, string[]> = {
   "limehub-desktop": ["lobehub-desktop"],
@@ -25,18 +30,129 @@ export interface OemCloudLoginLaunchResult {
   openedUrl: string;
 }
 
-export async function openExternalUrl(url: string): Promise<void> {
+export interface ExternalBrowserOpenTarget {
+  navigate: (url: string) => boolean;
+  close: () => void;
+}
+
+export interface OpenExternalUrlOptions {
+  browserTarget?: ExternalBrowserOpenTarget | null;
+}
+
+export interface OemCloudLoginLaunchOptions {
+  browserTarget?: ExternalBrowserOpenTarget | null;
+}
+
+function buildOpenExternalUrlError(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return new Error(`系统浏览器打开失败：${error.message.trim()}`);
+  }
+  return new Error("系统浏览器打开失败。");
+}
+
+function buildPopupBlockedError() {
+  return new Error(
+    "登录页没有被浏览器打开，可能被弹窗拦截。请点击“重新打开登录页”，或复制登录链接到浏览器打开。",
+  );
+}
+
+function tryOpenBrowserWindow(url: string): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const opened = window.open(url, "_blank");
+  if (!opened) {
+    return false;
+  }
+
+  try {
+    opened.opener = null;
+  } catch {
+    // 仅用于降低浏览器 fallback 的 opener 暴露风险，不影响打开结果。
+  }
+
+  return !opened.closed;
+}
+
+export function createExternalBrowserOpenTarget(): ExternalBrowserOpenTarget | null {
+  if (
+    hasTauriInvokeCapability() ||
+    hasTauriRuntimeMarkers() ||
+    typeof window === "undefined"
+  ) {
+    return null;
+  }
+
+  const opened = window.open("about:blank", "_blank");
+  if (!opened) {
+    return null;
+  }
+
+  try {
+    opened.opener = null;
+    opened.document.title = "正在打开登录页...";
+    opened.document.body.innerHTML = "正在打开登录页，请稍候...";
+  } catch {
+    // 某些浏览器不允许写入预打开窗口，后续仍可尝试导航。
+  }
+
+  return {
+    navigate: (url) => {
+      if (opened.closed) {
+        return false;
+      }
+      try {
+        opened.location.assign(url);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    close: () => {
+      try {
+        if (!opened.closed) {
+          opened.close();
+        }
+      } catch {
+        // 关闭失败不影响后续登录流程。
+      }
+    },
+  };
+}
+
+export async function openExternalUrl(
+  url: string,
+  options: OpenExternalUrlOptions = {},
+): Promise<void> {
+  const shouldUseTauriShell =
+    hasTauriInvokeCapability() || hasTauriRuntimeMarkers();
   try {
     const { open } = await import("@tauri-apps/plugin-shell");
     await open(url);
+    options.browserTarget?.close();
     return;
-  } catch {
+  } catch (error) {
+    if (shouldUseTauriShell) {
+      options.browserTarget?.close();
+      throw buildOpenExternalUrlError(error);
+    }
+
     if (typeof window === "undefined") {
       throw new Error("当前环境不支持打开外部浏览器");
     }
   }
 
-  window.open(url, "_blank", "noopener,noreferrer");
+  if (options.browserTarget) {
+    if (options.browserTarget.navigate(url)) {
+      return;
+    }
+    options.browserTarget.close();
+  }
+
+  if (!tryOpenBrowserWindow(url)) {
+    throw buildPopupBlockedError();
+  }
 }
 
 export function buildOemCloudUserCenterUrl(baseUrl: string, path = "") {
@@ -52,10 +168,57 @@ export function buildOemCloudUserCenterUrl(baseUrl: string, path = "") {
   return `${baseUrl}${targetPath.startsWith("/") ? targetPath : `/${targetPath}`}`;
 }
 
-export function buildOemCloudLoginUrl(
-  runtime: Pick<OemCloudRuntimeContext, "baseUrl" | "loginPath">,
+function setMissingSearchParam(
+  searchParams: URLSearchParams,
+  key: string,
+  value?: string | null,
 ) {
-  return buildOemCloudUserCenterUrl(runtime.baseUrl, runtime.loginPath);
+  const normalized = value?.trim();
+  if (!normalized || searchParams.has(key)) {
+    return;
+  }
+
+  searchParams.set(key, normalized);
+}
+
+export function buildOemCloudLoginUrl(
+  runtime: Pick<
+    OemCloudRuntimeContext,
+    | "baseUrl"
+    | "loginPath"
+    | "tenantId"
+    | "desktopOauthRedirectUrl"
+    | "desktopOauthNextPath"
+  >,
+) {
+  const loginUrl = buildOemCloudUserCenterUrl(
+    runtime.baseUrl,
+    runtime.loginPath,
+  );
+
+  try {
+    const parsedUrl = new URL(loginUrl);
+    setMissingSearchParam(parsedUrl.searchParams, "tenant", runtime.tenantId);
+    setMissingSearchParam(parsedUrl.searchParams, "tenantId", runtime.tenantId);
+    setMissingSearchParam(
+      parsedUrl.searchParams,
+      "redirectUrl",
+      runtime.desktopOauthRedirectUrl,
+    );
+    setMissingSearchParam(
+      parsedUrl.searchParams,
+      "redirect",
+      runtime.desktopOauthNextPath,
+    );
+    setMissingSearchParam(
+      parsedUrl.searchParams,
+      "next",
+      runtime.desktopOauthNextPath,
+    );
+    return parsedUrl.toString();
+  } catch {
+    return loginUrl;
+  }
 }
 
 function sleep(ms: number) {
@@ -229,14 +392,17 @@ function subscribeOauthCompleted(
       event instanceof CustomEvent
         ? (event.detail as OemCloudDesktopOAuthCompletedDetail)
         : null;
-    if (detail?.provider !== "google" || detail.tenantId !== runtime.tenantId) {
+    if (!isGoogleOauthCompletionForRuntime(detail, runtime)) {
       return;
     }
 
     onComplete();
   };
 
-  window.addEventListener(OEM_CLOUD_OAUTH_COMPLETED_EVENT, handleOauthCompleted);
+  window.addEventListener(
+    OEM_CLOUD_OAUTH_COMPLETED_EVENT,
+    handleOauthCompleted,
+  );
   return () => {
     window.removeEventListener(
       OEM_CLOUD_OAUTH_COMPLETED_EVENT,
@@ -245,11 +411,41 @@ function subscribeOauthCompleted(
   };
 }
 
+function isGoogleOauthCompletionForRuntime(
+  detail: OemCloudDesktopOAuthCompletedDetail | null,
+  runtime: OemCloudRuntimeContext,
+) {
+  if (detail?.provider !== "google") {
+    return false;
+  }
+
+  const callbackTenantId = detail.tenantId.trim();
+  const runtimeTenantId = runtime.tenantId.trim();
+  if (callbackTenantId === "" || runtimeTenantId === "") {
+    return false;
+  }
+  if (callbackTenantId === runtimeTenantId) {
+    return true;
+  }
+
+  const storedSession = getStoredOemCloudSessionState();
+  const sessionTenantId = storedSession?.session.tenant.id?.trim();
+  const sessionTenantSlug = storedSession?.session.tenant.slug?.trim();
+  return Boolean(
+    sessionTenantId === callbackTenantId &&
+      (sessionTenantId === runtimeTenantId ||
+        sessionTenantSlug === runtimeTenantId),
+  );
+}
+
 export async function openConfiguredOemCloudLoginUrl(
   runtime: OemCloudRuntimeContext,
+  options: OemCloudLoginLaunchOptions = {},
 ): Promise<OemCloudLoginLaunchResult> {
   const loginUrl = buildOemCloudLoginUrl(runtime);
-  await openExternalUrl(loginUrl);
+  await openExternalUrl(loginUrl, {
+    browserTarget: options.browserTarget,
+  });
   return {
     mode: "login_url",
     openedUrl: loginUrl,
@@ -258,6 +454,7 @@ export async function openConfiguredOemCloudLoginUrl(
 
 export async function startOemCloudLogin(
   runtime = resolveOemCloudRuntimeContext(),
+  options: OemCloudLoginLaunchOptions = {},
 ): Promise<OemCloudLoginLaunchResult> {
   if (!runtime) {
     throw new Error("当前版本未配置云端登录入口。");
@@ -269,11 +466,14 @@ export async function startOemCloudLogin(
     typeof window === "undefined"
       ? new Promise<void>(() => undefined)
       : new Promise<void>((resolve) => {
-          disposeOauthCompletedListener = subscribeOauthCompleted(runtime, () => {
-            oauthCompleted = true;
-            disposeOauthCompletedListener();
-            resolve();
-          });
+          disposeOauthCompletedListener = subscribeOauthCompleted(
+            runtime,
+            () => {
+              oauthCompleted = true;
+              disposeOauthCompletedListener();
+              resolve();
+            },
+          );
         });
 
   let authSession: OemCloudDesktopAuthSessionStartResponse | null = null;
@@ -281,16 +481,16 @@ export async function startOemCloudLogin(
     authSession = await createGoogleDesktopAuthSession(runtime);
   } catch (error) {
     disposeOauthCompletedListener();
-    if (
-      error instanceof Error &&
-      /localhost 本地回调/.test(error.message)
-    ) {
+    if (error instanceof Error && /localhost 本地回调/.test(error.message)) {
+      options.browserTarget?.close();
       throw error;
     }
-    return openConfiguredOemCloudLoginUrl(runtime);
+    return openConfiguredOemCloudLoginUrl(runtime, options);
   }
 
-  await openExternalUrl(authSession.authorizeUrl);
+  await openExternalUrl(authSession.authorizeUrl, {
+    browserTarget: options.browserTarget,
+  });
 
   const pollPromise = pollGoogleDesktopAuthSession(
     runtime,

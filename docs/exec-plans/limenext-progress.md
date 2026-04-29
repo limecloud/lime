@@ -439,7 +439,7 @@
     - 定向 `eslint` 通过
     - `verify:gui-smoke` 未通过，但当前失败点仍停留在既有 `smoke:browser-runtime` 链路：`launch_browser_session / close_chrome_profile_session` 持续 `fetch failed`；前置 `DevBridge / workspace-ready` 已正常，不按本次 `SceneApps` 首屏改动回归处理
     - `verify:local` 未通过，当前阻塞仍是仓库既有无关 warning：
-      - `src/components/provider-pool/api-key/ProviderSetting.tsx:174` `react-hooks/exhaustive-deps`
+      - `src/components/api-key-provider/ProviderSetting.tsx:174` `react-hooks/exhaustive-deps`
 
 - 把 `人工复盘 -> 首页 / 我的方法 / slash 结果模板横幅` 从“首屏可解释”继续推进成“首屏可直接续接”，避免三处横幅虽然都已经能说明“这轮为什么更适合这样继续”，但用户仍然要自己再去点下一层目录才能真正开工：
   - 已更新：
@@ -562,7 +562,7 @@
     - 定向 `eslint` 通过
     - `verify:gui-smoke` 通过：复用已运行的 headless 环境，完整跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
     - `verify:local` 未通过；当前阻塞来自仓库既有无关 lint warning：
-      - `src/components/provider-pool/api-key/ProviderSetting.tsx:174` 的 `react-hooks/exhaustive-deps` warning
+      - `src/components/api-key-provider/ProviderSetting.tsx:174` 的 `react-hooks/exhaustive-deps` warning
     - 因此本轮结论应更新为：`我的方法` 页这刀 current UI 收口已通过定向回归与 GUI smoke，仓库级统一入口仍受一条与本刀无关的存量 warning 阻塞
 
 ## 2026-04-23
@@ -608,7 +608,7 @@
     - `src/lib/api/agentRuntime/types.ts`
     - `src/lib/api/agentProtocol.test.ts`
     - `src/components/agent/chat/hooks/useAgentSession.ts`
-    - `src/components/provider-pool/api-key/ProviderModelList.tsx`
+    - `src/components/api-key-provider/ProviderModelList.tsx`
     - `src/components/settings-v2/system/automation/index.tsx`
     - `src/components/workspace/video/VideoCanvas.tsx`
     - `src/lib/mediaGeneration.ts`
@@ -734,7 +734,7 @@
     - `verify:gui-smoke` 通过
     - 本轮未重复执行 `npm run verify:local`；仓库级统一入口当前仍有既有无关阻塞：
       - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
-      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+      - `src/components/api-key-provider/ProviderModelList.tsx`：既有 hooks warning
 
 - 把“当前续接成果”真正接进下一轮推荐，而不只是让它在成果分区里高亮可见：
   - 已更新：
@@ -759,7 +759,7 @@
     - `verify:gui-smoke` 通过
     - `verify:local` 未通过；当前阻塞仍是仓库既有无关问题：
       - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
-      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+      - `src/components/api-key-provider/ProviderModelList.tsx`：既有 hooks warning
 
 - 把 `去灵感库继续` 从泛化首页跳转推进成“成果分区 + 当前续接对准”，避免用户刚从结果页返回灵感库时又得自己重找那条成果：
   - 已更新：
@@ -790,7 +790,7 @@
     - `verify:gui-smoke` 通过
     - `verify:local` 未通过；当前阻塞仍是仓库既有无关问题：
       - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
-      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+      - `src/components/api-key-provider/ProviderModelList.tsx`：既有 hooks warning
 
 - 把 `保存到灵感库` 的前台反馈从 toast-only 收成“信号驱动的已收进灵感库”稳定状态，避免结果虽然已经沉淀成功，用户在结果面里却仍看到可重复点击的旧按钮：
   - 已更新：
@@ -825,7 +825,7 @@
     - `verify:gui-smoke` 通过
     - `verify:local` 未通过；当前阻塞仍是仓库既有无关问题：
       - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
-      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+      - `src/components/api-key-provider/ProviderModelList.tsx`：既有 hooks warning
 
 - 把 `保存到灵感库` 从单一聊天结果卡扩到 `sceneapps` 深层结果面与自动化详情，避免高价值结果仍然只在一个结果入口里才能沉淀：
   - 已更新：
@@ -856,7 +856,7 @@
     - `verify:gui-smoke` 通过
     - `verify:local` 未通过；当前阻塞来自仓库既有无关 lint 问题：
       - `src/components/agent/chat/hooks/useAgentSession.ts`：`normalizeLegacyThreadItems` 未定义
-      - `src/components/provider-pool/api-key/ProviderModelList.tsx`：既有 hooks warning
+      - `src/components/api-key-provider/ProviderModelList.tsx`：既有 hooks warning
 
 - 把 `结果工作台 -> 灵感库` 这条主链补回 `SceneAppExecutionSummaryCard`，避免高价值结果仍然只停留在消息区或结果摘要里：
   - 已更新：
@@ -5198,7 +5198,7 @@
     - `rustfmt --check "src-tauri/src/sceneapp/dto.rs" "src-tauri/src/sceneapp/catalog.rs"`
   - 当前仓库级阻塞仍存在：
     - `npm run typecheck` 会被无关现有错误挡住：
-      - `src/components/provider-pool/api-key/ProviderConfigForm.ui.test.tsx`
+      - `src/components/api-key-provider/ProviderConfigForm.ui.test.tsx`
       - `src/components/settings-v2/general/memory/index.tsx`
     - `npm run verify:gui-smoke` 在 `smoke:browser-runtime` 阶段被现有环境问题挡住：
       - `launch_browser_session` 持续超时，`180000ms` 内未收到 DevBridge 响应

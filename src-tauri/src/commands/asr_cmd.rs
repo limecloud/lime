@@ -14,7 +14,7 @@ use uuid::Uuid;
 #[command]
 pub async fn get_asr_credentials() -> Result<Vec<AsrCredentialEntry>, String> {
     let config = load_config().map_err(|e| e.to_string())?;
-    Ok(config.credential_pool.asr)
+    Ok(config.experimental.voice_input.asr_credentials)
 }
 
 /// 添加 ASR 凭证的请求参数
@@ -76,12 +76,16 @@ pub async fn add_asr_credential(
     tracing::info!("[ASR] 生成新 ID: {}", new_entry.id);
 
     // 如果是第一个凭证，设为默认
-    if config.credential_pool.asr.is_empty() {
+    if config.experimental.voice_input.asr_credentials.is_empty() {
         new_entry.is_default = true;
         tracing::info!("[ASR] 设为默认凭证");
     }
 
-    config.credential_pool.asr.push(new_entry.clone());
+    config
+        .experimental
+        .voice_input
+        .asr_credentials
+        .push(new_entry.clone());
 
     save_config(&config).map_err(|e| {
         tracing::error!("[ASR] 保存配置失败: {}", e);
@@ -98,13 +102,14 @@ pub async fn update_asr_credential(entry: AsrCredentialEntry) -> Result<(), Stri
     let mut config = load_config().map_err(|e| e.to_string())?;
 
     let idx = config
-        .credential_pool
-        .asr
+        .experimental
+        .voice_input
+        .asr_credentials
         .iter()
         .position(|c| c.id == entry.id)
         .ok_or_else(|| format!("凭证不存在: {}", entry.id))?;
 
-    config.credential_pool.asr[idx] = entry;
+    config.experimental.voice_input.asr_credentials[idx] = entry;
     save_config(&config).map_err(|e| e.to_string())?;
 
     Ok(())
@@ -116,18 +121,19 @@ pub async fn delete_asr_credential(id: String) -> Result<(), String> {
     let mut config = load_config().map_err(|e| e.to_string())?;
 
     let idx = config
-        .credential_pool
-        .asr
+        .experimental
+        .voice_input
+        .asr_credentials
         .iter()
         .position(|c| c.id == id)
         .ok_or_else(|| format!("凭证不存在: {id}"))?;
 
-    let was_default = config.credential_pool.asr[idx].is_default;
-    config.credential_pool.asr.remove(idx);
+    let was_default = config.experimental.voice_input.asr_credentials[idx].is_default;
+    config.experimental.voice_input.asr_credentials.remove(idx);
 
     // 如果删除的是默认凭证，将第一个设为默认
-    if was_default && !config.credential_pool.asr.is_empty() {
-        config.credential_pool.asr[0].is_default = true;
+    if was_default && !config.experimental.voice_input.asr_credentials.is_empty() {
+        config.experimental.voice_input.asr_credentials[0].is_default = true;
     }
 
     save_config(&config).map_err(|e| e.to_string())?;
@@ -141,13 +147,18 @@ pub async fn set_default_asr_credential(id: String) -> Result<(), String> {
     let mut config = load_config().map_err(|e| e.to_string())?;
 
     // 检查凭证是否存在
-    let exists = config.credential_pool.asr.iter().any(|c| c.id == id);
+    let exists = config
+        .experimental
+        .voice_input
+        .asr_credentials
+        .iter()
+        .any(|c| c.id == id);
     if !exists {
         return Err(format!("凭证不存在: {id}"));
     }
 
     // 更新默认状态
-    for cred in &mut config.credential_pool.asr {
+    for cred in &mut config.experimental.voice_input.asr_credentials {
         cred.is_default = cred.id == id;
     }
 
@@ -162,8 +173,9 @@ pub async fn test_asr_credential(id: String) -> Result<TestResult, String> {
     let config = load_config().map_err(|e| e.to_string())?;
 
     let credential = config
-        .credential_pool
-        .asr
+        .experimental
+        .voice_input
+        .asr_credentials
         .iter()
         .find(|c| c.id == id)
         .ok_or_else(|| format!("凭证不存在: {id}"))?;

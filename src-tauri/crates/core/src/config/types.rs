@@ -7,11 +7,11 @@ use crate::models::injection_types::{InjectionMode, InjectionRule};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// ============ 凭证池配置类型 ============
+// ============ 已退役的旧凭证池配置类型 ============
 
-/// 凭证池配置
+/// 旧凭证池配置。
 ///
-/// 管理多个 Provider 的多个凭证，支持负载均衡
+/// 仅用于读取历史配置和启动期清理，不再作为运行时凭证来源。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct CredentialPoolConfig {
     /// Kiro 凭证列表（OAuth）
@@ -38,9 +38,6 @@ pub struct CredentialPoolConfig {
     /// Codex OAuth 凭证列表
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub codex: Vec<CredentialEntry>,
-    /// ASR 语音服务凭证列表
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub asr: Vec<AsrCredentialEntry>,
 }
 
 // ============ ASR 语音服务配置类型 ============
@@ -355,8 +352,8 @@ pub struct Config {
     /// 认证目录路径（存储 OAuth Token 文件，支持 ~ 展开）
     #[serde(default = "default_auth_dir")]
     pub auth_dir: String,
-    /// 凭证池配置
-    #[serde(default)]
+    /// 已退役的旧凭证池配置，仅用于读取历史配置和启动期清理，不再序列化新配置。
+    #[serde(default, skip_serializing)]
     pub credential_pool: CredentialPoolConfig,
     /// 远程管理配置
     #[serde(default)]
@@ -1036,6 +1033,9 @@ pub struct VoiceInputConfig {
     /// 自定义指令列表
     #[serde(default)]
     pub instructions: Vec<VoiceInstruction>,
+    /// ASR 语音服务凭证列表
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub asr_credentials: Vec<AsrCredentialEntry>,
     /// 选择的麦克风设备 ID（为空时使用系统默认设备）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_device_id: Option<String>,
@@ -1070,11 +1070,25 @@ impl Default for VoiceInputConfig {
             processor: VoiceProcessorConfig::default(),
             output: VoiceOutputConfig::default(),
             instructions: default_instructions(),
+            asr_credentials: Vec::new(),
             selected_device_id: None,
             sound_enabled: default_sound_enabled(),
             translate_shortcut: None,
             translate_instruction_id: default_translate_instruction_id(),
         }
+    }
+}
+
+impl CredentialPoolConfig {
+    pub fn is_empty(&self) -> bool {
+        self.kiro.is_empty()
+            && self.gemini.is_empty()
+            && self.qwen.is_empty()
+            && self.openai.is_empty()
+            && self.claude.is_empty()
+            && self.gemini_api_keys.is_empty()
+            && self.vertex_api_keys.is_empty()
+            && self.codex.is_empty()
     }
 }
 
@@ -2683,8 +2697,8 @@ mod unit_tests {
         );
         assert!(config.providers.kiro.enabled);
         assert!(!config.providers.gemini.enabled);
-        assert_eq!(config.default_provider, "kiro");
-        assert_eq!(config.routing.default_provider, "kiro");
+        assert_eq!(config.default_provider, "openai");
+        assert_eq!(config.routing.default_provider, "openai");
         assert_eq!(config.retry.max_retries, 3);
         assert!(config.logging.enabled);
         assert!(!config.injection.enabled);
@@ -3081,7 +3095,6 @@ mod unit_tests {
             gemini_api_keys: vec![],
             vertex_api_keys: vec![],
             codex: vec![],
-            asr: vec![],
         };
 
         let yaml = serde_yaml::to_string(&pool).unwrap();
@@ -3140,7 +3153,7 @@ mod unit_tests {
     #[test]
     fn test_routing_config_default() {
         let config = RoutingConfig::default();
-        assert_eq!(config.default_provider, "kiro");
+        assert_eq!(config.default_provider, "openai");
         assert!(config.model_aliases.is_empty());
     }
 
@@ -3414,17 +3427,9 @@ mod unit_tests {
     }
 
     #[test]
-    fn test_credential_pool_with_asr() {
-        let pool = CredentialPoolConfig {
-            kiro: vec![],
-            gemini: vec![],
-            qwen: vec![],
-            openai: vec![],
-            claude: vec![],
-            gemini_api_keys: vec![],
-            vertex_api_keys: vec![],
-            codex: vec![],
-            asr: vec![AsrCredentialEntry {
+    fn test_voice_input_with_asr_credentials() {
+        let voice_input = VoiceInputConfig {
+            asr_credentials: vec![AsrCredentialEntry {
                 id: "xunfei-1".to_string(),
                 provider: AsrProviderType::Xunfei,
                 name: Some("讯飞语音".to_string()),
@@ -3440,15 +3445,16 @@ mod unit_tests {
                 baidu_config: None,
                 openai_config: None,
             }],
+            ..VoiceInputConfig::default()
         };
 
-        let yaml = serde_yaml::to_string(&pool).unwrap();
-        assert!(yaml.contains("asr:"));
+        let yaml = serde_yaml::to_string(&voice_input).unwrap();
+        assert!(yaml.contains("asr_credentials:"));
         assert!(yaml.contains("provider: xunfei"));
 
-        let parsed: CredentialPoolConfig = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(parsed.asr.len(), 1);
-        assert_eq!(parsed.asr[0].provider, AsrProviderType::Xunfei);
+        let parsed: VoiceInputConfig = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(parsed.asr_credentials.len(), 1);
+        assert_eq!(parsed.asr_credentials[0].provider, AsrProviderType::Xunfei);
     }
 }
 

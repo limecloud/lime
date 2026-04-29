@@ -50,6 +50,52 @@
       "allowedPaths": []
     },
     {
+      "id": "docs-provider-oauth-plugin-guides",
+      "classification": "dead-candidate",
+      "description": "已删除的 OAuth Provider 插件长文档；旧凭证池插件不得作为 runtime 凭证入口恢复，协议转换器另走 converter 文档",
+      "targets": [
+        "docs/plugins/antigravity-provider.md",
+        "docs/plugins/claude-provider.md",
+        "docs/plugins/codex-provider.md",
+        "docs/plugins/droid-provider.md",
+        "docs/plugins/gemini-provider.md",
+        "docs/plugins/kiro-provider.md"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "scripts-provider-oauth-playwright-login",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 Provider OAuth Playwright 登录自动化脚本；OEM 云登录和浏览器自动化不得复用该凭证池授权码流程",
+      "targets": [
+        "scripts/playwright-login/README.md",
+        "scripts/playwright-login/browser-context.js",
+        "scripts/playwright-login/index.js",
+        "scripts/playwright-login/oauth-handler.js",
+        "scripts/playwright-login/package-lock.json",
+        "scripts/playwright-login/package.json",
+        "scripts/playwright-login/test/browser-config.property.test.js",
+        "scripts/playwright-login/test/oauth-url.property.test.js"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-model-file",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 provider_pool_model 运行时 / 展示 DTO；历史配置清理不得恢复凭证池模型模块",
+      "targets": ["src-tauri/crates/core/src/models/provider_pool_model.rs"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-plugin-dead-credential-monitor-example",
+      "classification": "dead-candidate",
+      "description": "已删除的旧凭证监控示例插件；插件示例不得恢复凭证池状态 UI",
+      "targets": [
+        "src-tauri/crates/core/src/plugin/examples/credential_monitor.rs"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "agent-legacy-hook-entry",
       "classification": "dead-candidate",
       "description": "旧 Agent Chat Hook 入口",
@@ -498,6 +544,33 @@
         "src/components/provider-pool/api-key/ProviderModelList.test.tsx",
         "src/components/provider-pool/api-key/providerModelListCache.ts",
         "src/components/provider-pool/api-key/SectionInfoButton.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "provider-pool-api-key-old-current-directory",
+      "classification": "dead-candidate",
+      "description": "API Key Provider 当前组件已迁到 src/components/api-key-provider；旧 provider-pool/api-key 目录名不得恢复",
+      "targets": [
+        "src/components/provider-pool/api-key/ApiKeyProviderSection.helpers.ts",
+        "src/components/provider-pool/api-key/ApiKeyProviderSection.test.ts",
+        "src/components/provider-pool/api-key/ApiKeyProviderSection.tsx",
+        "src/components/provider-pool/api-key/ApiKeyProviderSection.ui.test.tsx",
+        "src/components/provider-pool/api-key/ImportExportDialog.tsx",
+        "src/components/provider-pool/api-key/ModelAddPanel.tsx",
+        "src/components/provider-pool/api-key/ModelProviderList.test.ts",
+        "src/components/provider-pool/api-key/ModelProviderList.tsx",
+        "src/components/provider-pool/api-key/ModelProviderList.utils.ts",
+        "src/components/provider-pool/api-key/ProviderSetting.test.ts",
+        "src/components/provider-pool/api-key/ProviderSetting.tsx",
+        "src/components/provider-pool/api-key/ProviderSetting.ui.test.tsx",
+        "src/components/provider-pool/api-key/README.md",
+        "src/components/provider-pool/api-key/connectionTestTypes.ts",
+        "src/components/provider-pool/api-key/index.ts",
+        "src/components/provider-pool/api-key/providerConfigUtils.test.ts",
+        "src/components/provider-pool/api-key/providerConfigUtils.ts",
+        "src/components/provider-pool/api-key/providerTypeMapping.test.ts",
+        "src/components/provider-pool/api-key/providerTypeMapping.ts"
       ],
       "allowedPaths": []
     },
@@ -2042,6 +2115,18 @@
   ],
   "frontendText": [
     {
+      "id": "frontend-provider-pool-api-key-old-imports",
+      "classification": "dead-candidate",
+      "description": "前端不得继续 import 旧 provider-pool/api-key 路径；API Key Provider 当前目录为 src/components/api-key-provider",
+      "patterns": [
+        "@/components/provider-pool/api-key",
+        "components/provider-pool/api-key",
+        "provider-pool/api-key"
+      ],
+      "includePathPrefixes": ["src"],
+      "allowedPaths": []
+    },
+    {
       "id": "agent-legacy-session-api-helpers",
       "classification": "dead-candidate",
       "description": "已零引用的旧 Agent session compat helper 回流",
@@ -3284,7 +3369,9 @@
         "TokenManager",
         "ProviderResult",
         "refresh_token_with_retry",
-        "ensure_valid_token"
+        "ensure_valid_token",
+        "TokenExpired",
+        "create_token_refresh_error"
       ],
       "includePathPrefixes": ["src-tauri/crates/providers/src/providers"],
       "allowedPaths": []
@@ -3326,6 +3413,225 @@
         "provider_pool_credentials"
       ],
       "includePathPrefixes": ["src-tauri/crates/core/src/database/dao"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-model-module",
+      "classification": "dead-candidate",
+      "description": "旧 provider_pool_model 模块已删除；current 运行时模型只允许走 runtime_provider_model",
+      "patterns": [
+        "pub mod provider_pool_model;",
+        "pub use provider_pool_model::*",
+        "models::provider_pool_model::",
+        "provider_pool_model::"
+      ],
+      "includePathPrefixes": ["src-tauri"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-plugin-dead-credential-monitor-example-module",
+      "classification": "dead-candidate",
+      "description": "旧凭证监控示例插件已删除，不允许重新注册或导出 CredentialMonitorPlugin",
+      "patterns": [
+        "pub mod credential_monitor;",
+        "CredentialMonitorPlugin",
+        "凭证监控"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/core/src/plugin"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-runtime-model-direct-import",
+      "classification": "dead-candidate",
+      "description": "运行时 crate 不允许 direct 引用已删除的 provider_pool_model；API Key Provider 主链应通过 Runtime* DTO 进入",
+      "patterns": ["models::provider_pool_model::", "provider_pool_model::"],
+      "includePathPrefixes": [
+        "src-tauri/crates/agent/src",
+        "src-tauri/crates/server/src",
+        "src-tauri/crates/services/src",
+        "src-tauri/crates/skills/src"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-runtime-alias-in-legacy-model",
+      "classification": "dead-candidate",
+      "description": "Runtime* DTO 必须停留在 current runtime_provider_model 模块；若有人恢复 provider_pool_model，不允许放回 Runtime 别名",
+      "patterns": [
+        "pub type RuntimeProviderType",
+        "pub type RuntimeProviderCredential",
+        "pub type RuntimeCredentialData"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/core/src/models/provider_pool_model.rs"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-runtime-provider-type-no-provider-type-alias",
+      "classification": "dead-candidate",
+      "description": "Current RuntimeProviderType 必须是 API Key Provider 专用枚举，不允许重新别名到含旧凭证池 Provider 的 ProviderType",
+      "patterns": [
+        "pub type RuntimeProviderType = ProviderType",
+        "use super::provider_type::ProviderType"
+      ],
+      "includePathPrefixes": [
+        "src-tauri/crates/core/src/models/runtime_provider_model.rs"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-runtime-naming-leak",
+      "classification": "dead-candidate",
+      "description": "API Key Provider 运行时不允许恢复 PoolProviderType / pool_type 命名；current 主链使用 RuntimeProviderType / runtime_provider_type",
+      "patterns": [
+        "PoolProviderType",
+        "pool_type",
+        "api_provider_type_to_pool_type",
+        "pool_provider_type_to_api_type",
+        "resolve_pool_provider_type_or_default",
+        "map_skill_provider_to_pool_type",
+        "get_fallback_credential",
+        "get_runtime_fallback_credential",
+        "resolve_fallback_api_key_id",
+        "strip_prefix(\"fallback-\")",
+        "uuid: format!(\"fallback-",
+        "[降级]",
+        "智能降级",
+        "自动降级",
+        "auto fallback disabled",
+        "legacy credential fallback retired",
+        "pool provider_type"
+      ],
+      "includePathPrefixes": [
+        "src-tauri/crates/agent/src/credential_bridge.rs",
+        "src-tauri/crates/server/src/handlers/api.rs",
+        "src-tauri/crates/server/src/handlers/credentials_api.rs",
+        "src-tauri/crates/server/src/lib.rs",
+        "src-tauri/crates/services/src/ai_summary_service.rs",
+        "src-tauri/crates/services/src/provider_type_mapping.rs",
+        "src-tauri/crates/services/src/api_key_provider_service.rs",
+        "src-tauri/crates/skills/src/lime_llm_provider.rs"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-ai-summary-provider-pool-runtime-leak",
+      "classification": "dead-candidate",
+      "description": "AI 摘要真实模型调用不得接入旧 ProviderPoolService；只能走 current API Key Provider / model registry runtime",
+      "patterns": [
+        "ProviderPoolService",
+        "provider pool",
+        "call_llm_mock"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/services/src/ai_summary_service.rs"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-credential-api-http-runtime-route",
+      "classification": "dead-candidate",
+      "description": "旧完整凭证 HTTP runtime API 已下线；Provider 调用只允许通过 API Key Provider current 服务选择 Runtime* 凭证",
+      "patterns": [
+        "/v1/credentials/select",
+        "/v1/credentials/{uuid}/token",
+        "credentials_api_routes",
+        "pub mod api_key_provider_utils",
+        "api_key_provider_utils::",
+        "pub mod credentials_api",
+        "pub use credentials_api::*",
+        "pub async fn credentials_select",
+        "pub async fn credentials_get_token",
+        "SelectCredentialRequest",
+        "CredentialResponse"
+      ],
+      "includePathPrefixes": ["src-tauri/crates/server/src"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-tray-token-surfaces",
+      "classification": "dead-candidate",
+      "description": "托盘不再承载旧凭证池 Token 刷新、健康检查、凭证计数或凭证池图标状态",
+      "patterns": [
+        "CREDENTIAL_INFO",
+        "REFRESH_TOKENS",
+        "tray-refresh-tokens",
+        "tray-health-check",
+        "format_credential_status",
+        "CredentialHealth",
+        "available_credentials",
+        "total_credentials",
+        "get_credential_health_from_pool"
+      ],
+      "includePathPrefixes": [
+        "src-tauri/src/tray",
+        "src-tauri/src/app/runner.rs",
+        "src-tauri/crates/core/src/tray_menu_meta.rs",
+        "src-tauri/crates/core/src/tray_state.rs",
+        "src-tauri/crates/core/src/tray_format.rs"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-dead-token-refresh-error",
+      "classification": "dead-candidate",
+      "description": "CredentialBridge 已收口到 API Key Provider，不允许恢复旧 OAuth Token 刷新错误分支",
+      "patterns": ["TokenRefreshFailed", "Token 刷新失败"],
+      "includePathPrefixes": ["src-tauri/crates/agent/src/credential_bridge.rs"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-runtime-api-key-uuid-helper-boundary",
+      "classification": "dead-candidate",
+      "description": "运行时代码不允许手写 runtime-api-key 临时 UUID 前缀；拼接与解析必须通过 runtime_provider_model helper，避免恢复旧 fallback 凭证选择语义",
+      "patterns": [
+        "strip_prefix(\"runtime-api-key-\")",
+        "format!(\"runtime-api-key-",
+        "\"runtime-api-key-\""
+      ],
+      "includePathPrefixes": [
+        "src-tauri/crates/agent/src",
+        "src-tauri/crates/server/src",
+        "src-tauri/crates/services/src",
+        "src-tauri/crates/skills/src"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-provider-pool-runtime-credential-dto-name-leak",
+      "classification": "dead-candidate",
+      "description": "API Key Provider 运行时不允许恢复 ProviderCredential / CredentialData 旧 DTO 名；current 主链使用 RuntimeProviderCredential / RuntimeCredentialData",
+      "patterns": [
+        "regex:\\bProviderCredential\\b",
+        "regex:\\bCredentialData\\b"
+      ],
+      "includePathPrefixes": [
+        "src-tauri/crates/agent/src/credential_bridge.rs",
+        "src-tauri/crates/server/src/handlers/api.rs",
+        "src-tauri/crates/server/src/handlers/provider_calls.rs",
+        "src-tauri/crates/server/src/handlers/websocket.rs",
+        "src-tauri/crates/services/src/api_key_provider_service.rs",
+        "src-tauri/crates/skills/src/lime_llm_provider.rs"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-runtime-provider-oauth-credential-variants",
+      "classification": "dead-candidate",
+      "description": "Current RuntimeCredentialData 只允许 API Key Provider 凭证形态，不允许恢复 Kiro/Gemini/Codex/Claude OAuth 或本地 CLI 凭证变体",
+      "patterns": [
+        "KiroOAuth",
+        "GeminiOAuth",
+        "CodexOAuth",
+        "ClaudeOAuth",
+        "creds_file_path"
+      ],
+      "includePathPrefixes": [
+        "src-tauri/crates/core/src/models/runtime_provider_model.rs",
+        "src-tauri/crates/agent/src/credential_bridge.rs",
+        "src-tauri/crates/server/src/handlers/api.rs",
+        "src-tauri/crates/server/src/handlers/provider_calls.rs",
+        "src-tauri/crates/server/src/handlers/websocket.rs",
+        "src-tauri/crates/services/src/api_key_provider_service.rs",
+        "src-tauri/crates/skills/src/lime_llm_provider.rs"
+      ],
       "allowedPaths": []
     },
     {

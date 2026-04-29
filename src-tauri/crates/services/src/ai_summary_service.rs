@@ -51,7 +51,7 @@ impl Default for AISummaryConfig {
 
 /// AI 摘要服务
 ///
-/// 使用 Lime 的 provider pool 调用 AI 模型生成摘要
+/// 使用 Lime current model runtime 生成摘要。
 pub struct AISummaryService {
     config: AISummaryConfig,
 }
@@ -81,8 +81,8 @@ impl AISummaryService {
         // 1. 构建摘要提示词
         let prompt = self.build_summary_prompt(messages);
 
-        // 2. 调用 AI 模型（TODO: 集成 provider pool）
-        let response = self.call_llm_mock(&prompt).await?;
+        // 2. 调用摘要模型（当前为本地 stub，真实调用必须走 API Key Provider / model registry 主路径）
+        let response = self.call_summary_model_stub(&prompt).await?;
 
         // 3. 解析响应
         self.parse_summary_response(&response)
@@ -135,11 +135,11 @@ impl AISummaryService {
             .join("\n\n")
     }
 
-    /// 调用 LLM（临时 mock 实现）
+    /// 调用摘要模型（临时 stub 实现）
     ///
-    /// TODO: 集成 Lime 的 provider pool
-    async fn call_llm_mock(&self, _prompt: &str) -> Result<String, String> {
-        // 临时返回 mock 数据，后续集成真实的 LLM 调用
+    /// TODO: 接入 Lime current API Key Provider / model registry runtime。
+    async fn call_summary_model_stub(&self, _prompt: &str) -> Result<String, String> {
+        // 临时返回 stub 数据，后续接入真实的模型调用。
         Ok(r#"{
   "summary": "本次对话主要讨论了 Lime AI Agent 的上下文管理改进方案，包括引入 AI 驱动的摘要生成、渐进式工具响应移除等策略。",
   "key_topics": ["上下文管理", "AI 摘要", "工具响应移除", "性能优化"],

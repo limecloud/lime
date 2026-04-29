@@ -23,6 +23,7 @@ let toolcallAudio: HTMLAudioElement | null = null;
 let typewriterAudio: HTMLAudioElement | null = null;
 let lastTypewriterTime = 0;
 const TYPEWRITER_INTERVAL = 120;
+const MAX_AGENT_STATE_RESTORE_BYTES = 1_500_000;
 
 const initAudio = () => {
   if (!toolcallAudio) {
@@ -66,6 +67,14 @@ export const loadPersisted = <T>(key: string, defaultValue: T): T => {
   try {
     const stored = localStorage.getItem(key);
     if (stored) {
+      if (
+        isOversizedAgentRestoreState(key, stored) &&
+        typeof localStorage.removeItem === "function"
+      ) {
+        localStorage.removeItem(key);
+        return defaultValue;
+      }
+
       return JSON.parse(stored);
     }
   } catch (e) {
@@ -86,6 +95,14 @@ export const loadTransient = <T>(key: string, defaultValue: T): T => {
   try {
     const stored = sessionStorage.getItem(key);
     if (stored) {
+      if (
+        isOversizedAgentRestoreState(key, stored) &&
+        typeof sessionStorage.removeItem === "function"
+      ) {
+        sessionStorage.removeItem(key);
+        return defaultValue;
+      }
+
       const parsed = JSON.parse(stored);
       if (key.startsWith("aster_messages") && Array.isArray(parsed)) {
         const normalizedMessages = parsed.map((msg: any) => ({
@@ -105,6 +122,20 @@ export const loadTransient = <T>(key: string, defaultValue: T): T => {
   }
   return defaultValue;
 };
+
+function isOversizedAgentRestoreState(key: string, stored: string): boolean {
+  if (stored.length <= MAX_AGENT_STATE_RESTORE_BYTES) {
+    return false;
+  }
+
+  return (
+    key.startsWith("aster_messages_") ||
+    key.startsWith("aster_thread_turns_") ||
+    key.startsWith("aster_thread_items_") ||
+    key.startsWith("aster_session_snapshots_") ||
+    key.startsWith("aster_session_snapshots_persisted_")
+  );
+}
 
 export const saveTransient = (key: string, value: unknown) => {
   try {

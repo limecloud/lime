@@ -1,5 +1,7 @@
 # P0 实施方案：分阶段升级上下文管理
 
+> 历史记录：旧凭证池运行时已退役。AI 摘要若接入真实模型调用，只能走 current API Key Provider / configured providers / model registry 主路径。
+
 ## 决策：采用混合策略
 
 基于当前分析，我决定采用**分阶段混合策略**：
@@ -36,8 +38,8 @@ pub struct AISummaryResponse {
 }
 
 pub struct AISummaryService {
-    // 使用 Lime 的 provider pool
-    provider_pool: Arc<ProviderPoolService>,
+    // 使用 Lime current model runtime，不接入旧凭证池
+    runtime: Arc<ModelRuntime>,
 }
 
 impl AISummaryService {

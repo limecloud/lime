@@ -469,8 +469,8 @@ CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge
 如果本轮修改了 Provider 类型与 Prompt Cache 能力边界，还应额外确认：
 
 - `anthropic-compatible` 不会再被 UI 或运行时误显示成“自动 Prompt Cache”
-- Provider Pool 的列表、详情、创建和编辑入口中，受影响落点会继续提示“显式 cache_control”
-- 聊天侧 `ModelSelector / Inputbar / MessageList / TokenUsageDisplay` 与 Provider Pool 的口径保持一致
+- `设置 -> AI 服务商` 的列表、详情、创建和编辑入口中，受影响落点会继续提示“显式 cache_control”
+- 聊天侧 `ModelSelector / Inputbar / MessageList / TokenUsageDisplay` 与 API Key Provider / model registry 的口径保持一致
 
 ### Layer 4：交互型 E2E
 

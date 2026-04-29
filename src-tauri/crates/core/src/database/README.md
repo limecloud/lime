@@ -53,7 +53,7 @@
 
 旧 `migrate_api_keys_to_pool()` 只属于历史迁移链。当前启动期会清理 `provider_pool_credentials`，运行时不再读取该表选择凭证。
 
-- 根据 provider_type 自动转换为对应的 CredentialData 类型
+- 当前运行时不再把 `provider_pool_credentials` 自动转换为凭证 DTO；历史记录只服务清理与迁移验证
 - 保留使用统计和错误计数
 - 标记来源为 `imported`
 - 迁移完成后设置 `migrated_api_keys_to_pool` 标记，避免重复迁移

@@ -44,10 +44,6 @@ pub enum ProcessError {
     #[error("参数注入错误: {0}")]
     InjectionError(String),
 
-    /// 凭证池错误
-    #[error("凭证池错误: {0}")]
-    CredentialPoolError(String),
-
     /// 配置错误
     #[error("配置错误: {0}")]
     ConfigError(String),
@@ -73,7 +69,6 @@ impl ProcessError {
             ProcessError::StreamIdleTimeout { .. } => 408,
             ProcessError::PluginError { .. } => 500,
             ProcessError::InjectionError(_) => 400,
-            ProcessError::CredentialPoolError(_) => 503,
             ProcessError::ConfigError(_) => 500,
             ProcessError::InternalError(_) => 500,
             ProcessError::Cancelled => 499,
@@ -94,9 +89,7 @@ impl ProcessError {
     pub fn should_failover(&self) -> bool {
         matches!(
             self,
-            ProcessError::ProviderError(_)
-                | ProcessError::RetriesExhausted { .. }
-                | ProcessError::CredentialPoolError(_)
+            ProcessError::ProviderError(_) | ProcessError::RetriesExhausted { .. }
         )
     }
 
@@ -122,7 +115,6 @@ impl ProcessError {
             ProcessError::StreamIdleTimeout { .. } => "stream_idle_timeout",
             ProcessError::PluginError { .. } => "plugin_error",
             ProcessError::InjectionError(_) => "injection_error",
-            ProcessError::CredentialPoolError(_) => "credential_pool_error",
             ProcessError::ConfigError(_) => "config_error",
             ProcessError::InternalError(_) => "internal_error",
             ProcessError::Cancelled => "cancelled",

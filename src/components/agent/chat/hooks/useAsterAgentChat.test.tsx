@@ -138,6 +138,14 @@ vi.mock("@/lib/api/appConfig", () => ({
   getDefaultProvider: mockGetDefaultProvider,
 }));
 
+vi.mock("@/lib/tauri-runtime", () => ({
+  getTauriGlobal: vi.fn(() => null),
+  hasTauriEventCapability: vi.fn(() => true),
+  hasTauriEventListenerCapability: vi.fn(() => true),
+  hasTauriInvokeCapability: vi.fn(() => true),
+  hasTauriRuntimeMarkers: vi.fn(() => true),
+}));
+
 vi.mock("@/lib/utils/scheduleMinimumDelayIdleTask", () => ({
   scheduleMinimumDelayIdleTask: mockScheduleMinimumDelayIdleTask,
 }));
@@ -641,7 +649,7 @@ describe("useAsterAgentChat 首页新会话", () => {
       await flushEffects();
       expect(mockGetAgentRuntimeSession).not.toHaveBeenCalledWith(
         "session-live-missing",
-        undefined,
+        { historyLimit: 40 },
       );
 
       await act(async () => {
@@ -664,7 +672,7 @@ describe("useAsterAgentChat 首页新会话", () => {
       });
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         "session-live-missing",
-        undefined,
+        { historyLimit: 40 },
       );
     } finally {
       harness.unmount();
@@ -729,7 +737,7 @@ describe("useAsterAgentChat 首页新会话", () => {
       await flushEffects();
       expect(mockGetAgentRuntimeSession).not.toHaveBeenCalledWith(
         missingSessionId,
-        undefined,
+        { historyLimit: 40 },
       );
 
       await act(async () => {
@@ -740,7 +748,7 @@ describe("useAsterAgentChat 首页新会话", () => {
 
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
         missingSessionId,
-        undefined,
+        { historyLimit: 40 },
       );
       expect(harness.getValue().sessionId).toBe(activeSessionId);
       expect(
@@ -800,10 +808,9 @@ describe("useAsterAgentChat 任务快照", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
-        sessionId,
-        undefined,
-      );
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        historyLimit: 40,
+      });
       expect(harness.getValue().messages).toHaveLength(2);
       expect(harness.getValue().messages[0]?.content).toContain(
         "帮我继续整理这份任务",
@@ -844,10 +851,9 @@ describe("useAsterAgentChat 任务快照", () => {
         await harness.getValue().stopSending();
       });
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
-        sessionId,
-        { historyLimit: 40 },
-      );
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        historyLimit: 40,
+      });
       expect(mockInterruptAgentRuntimeTurn).toHaveBeenCalledWith({
         session_id: sessionId,
       });
@@ -982,10 +988,9 @@ describe("useAsterAgentChat 任务快照", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
-        sessionId,
-        { historyLimit: 40 },
-      );
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        historyLimit: 40,
+      });
       expect(harness.getValue().queuedTurns).toEqual([
         {
           queued_turn_id: "queued-hydrated-1",
@@ -2378,12 +2383,12 @@ describe("useAsterAgentChat thread timeline", () => {
     }
   });
 
-  it("stream error 命中 Provider 登录态失效时应展示友好提示", async () => {
+  it("stream error 命中 Provider schema 兼容问题时应展示友好提示", async () => {
     const workspaceId = "ws-thread-provider-session-expired";
     const rawErrorMessage =
       "Agent provider execution failed: Request failed: Bad request (400): Invalid schema for function 'SendMessage': In context=('properties', 'message', 'oneOf', '2'), array schema missing items";
     const friendlyErrorMessage =
-      "当前 Provider 登录态已失效，常见原因是 Token 已过期。请前往设置重新登录或刷新凭证后重试。";
+      "当前模型通道返回了不兼容的工具 schema，请前往设置 -> AI 服务商检查 Provider 配置或切换模型后重试。";
     seedSession(workspaceId, "session-thread-provider-session-expired");
     const harness = mountHook(workspaceId);
     const stream = captureTurnStream();
@@ -2837,10 +2842,9 @@ describe("useAsterAgentChat runtime routing", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
-        sessionId,
-        { historyLimit: 40 },
-      );
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        historyLimit: 40,
+      });
       expect(harness.getValue().currentTurnId).toBe("turn-real-1");
       expect(harness.getValue().threadItems).toEqual(
         expect.arrayContaining([
@@ -3045,10 +3049,9 @@ describe("useAsterAgentChat runtime routing", () => {
       const assistantMessage = [...harness.getValue().messages]
         .reverse()
         .find((msg) => msg.role === "assistant");
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
-        sessionId,
-        { historyLimit: 40 },
-      );
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        historyLimit: 40,
+      });
       expect(assistantMessage).toBeTruthy();
       expect(assistantMessage?.content).toContain(
         "执行失败：模型未输出最终答复，请重试",
@@ -5806,10 +5809,9 @@ describe("useAsterAgentChat 偏好持久化", () => {
     try {
       await flushEffects();
       await flushEffects();
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
-        sessionId,
-        { historyLimit: 40 },
-      );
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        historyLimit: 40,
+      });
       expect(
         JSON.parse(
           localStorage.getItem(`agent_session_workspace_${sessionId}`) ||
@@ -5874,10 +5876,9 @@ describe("useAsterAgentChat 偏好持久化", () => {
       await flushEffects();
       await flushEffects();
 
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
-        sessionId,
-        { historyLimit: 40 },
-      );
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId, {
+        historyLimit: 40,
+      });
       expect(harness.getValue().sessionId).toBeNull();
       expect(
         sessionStorage.getItem(`aster_curr_sessionId_${workspaceId}`),
@@ -6536,10 +6537,9 @@ describe("useAsterAgentChat 偏好持久化", () => {
         error: null,
       });
       expect(mockScheduleMinimumDelayIdleTask).not.toHaveBeenCalled();
-      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(
-        "topic-stale",
-        { historyLimit: 40 },
-      );
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith("topic-stale", {
+        historyLimit: 40,
+      });
 
       await act(async () => {
         deferredTopicDetail.resolve({
@@ -6561,6 +6561,99 @@ describe("useAsterAgentChat 偏好持久化", () => {
 
       expect(harness.getValue().messages[0]?.content).toBe(
         "这是远端刷新后的结果。",
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("切换到无本地快照的话题时应先进入目标会话加载态", async () => {
+    const workspaceId = "ws-topic-history-cold-shell";
+    const currentTopicId = "topic-current-shell";
+    const topicId = "topic-cold-shell";
+    const now = Math.floor(Date.now() / 1000);
+    const deferredTopicDetail = createDeferred<{
+      id: string;
+      messages: Array<{
+        role: "assistant" | "user";
+        timestamp: number;
+        content: Array<{ type: "text"; text: string }>;
+      }>;
+      turns: [];
+      items: [];
+      queued_turns: [];
+      execution_strategy: "react";
+    }>();
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: currentTopicId,
+        name: "当前任务",
+        created_at: now - 10,
+        messages_count: 1,
+      },
+      {
+        id: topicId,
+        name: "冷启动历史任务",
+        created_at: now,
+        messages_count: 12,
+      },
+    ]);
+    seedSession(workspaceId, currentTopicId);
+    mockGetAgentRuntimeSession.mockImplementation(async (sessionId: string) => {
+      if (sessionId === topicId) {
+        return deferredTopicDetail.promise;
+      }
+
+      return {
+        id: sessionId,
+        messages: [],
+        turns: [],
+        items: [],
+        queued_turns: [],
+        execution_strategy: "react" as const,
+      };
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+      mockGetAgentRuntimeSession.mockClear();
+
+      await act(async () => {
+        void harness.getValue().switchTopic(topicId);
+        await Promise.resolve();
+      });
+
+      expect(harness.getValue().sessionId).toBe(topicId);
+      expect(harness.getValue().messages).toEqual([]);
+      expect(harness.getValue().isSessionHydrating).toBe(true);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(topicId, {
+        historyLimit: 40,
+      });
+
+      await act(async () => {
+        deferredTopicDetail.resolve({
+          id: topicId,
+          messages: [
+            {
+              role: "assistant",
+              timestamp: now,
+              content: [{ type: "text", text: "冷启动远端结果已加载。" }],
+            },
+          ],
+          turns: [],
+          items: [],
+          queued_turns: [],
+          execution_strategy: "react",
+        });
+      });
+      await flushEffects();
+
+      expect(harness.getValue().isSessionHydrating).toBe(false);
+      expect(harness.getValue().messages[0]?.content).toBe(
+        "冷启动远端结果已加载。",
       );
     } finally {
       harness.unmount();
@@ -6658,6 +6751,7 @@ describe("useAsterAgentChat 偏好持久化", () => {
       expect(value.model).toBe("gemini-2.5-pro");
       expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
         session_id: topicId,
+        recent_access_mode: "full-access",
         provider_selector: "gemini",
         model_name: "gemini-2.5-pro",
       });
@@ -6691,6 +6785,7 @@ describe("useAsterAgentChat 偏好持久化", () => {
       expect(harness.getValue().executionStrategy).toBe("auto");
       expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
         session_id: topicId,
+        recent_access_mode: "full-access",
         execution_strategy: "auto",
       });
     } finally {
@@ -6758,6 +6853,52 @@ describe("useAsterAgentChat 偏好持久化", () => {
       expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
         session_id: topicId,
         recent_access_mode: "read-only",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("切换话题时多个 fallback 元数据应合并成一次 session update", async () => {
+    const workspaceId = "ws-topic-metadata-batch-fallback";
+    const topicId = "topic-metadata-batch-fallback";
+    localStorage.setItem(
+      `agent_topic_model_pref_${workspaceId}_${topicId}`,
+      JSON.stringify({
+        providerType: "gemini",
+        model: "gemini-2.5-pro",
+      }),
+    );
+    localStorage.setItem(
+      `aster_session_access_mode_${workspaceId}_${topicId}`,
+      JSON.stringify("read-only"),
+    );
+    localStorage.setItem(
+      `aster_execution_strategy_${workspaceId}`,
+      JSON.stringify("auto"),
+    );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      messages: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      await flushEffects();
+
+      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledTimes(1);
+      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
+        session_id: topicId,
+        recent_access_mode: "read-only",
+        provider_selector: "gemini",
+        model_name: "gemini-2.5-pro",
+        execution_strategy: "auto",
       });
     } finally {
       harness.unmount();
@@ -6833,25 +6974,46 @@ describe("useAsterAgentChat 偏好持久化", () => {
     }
   });
 
-  it("加载完整历史时应显式请求不裁剪的会话详情", async () => {
+  it("加载更早历史时应按窗口递增请求，避免一次拉全量", async () => {
     const workspaceId = "ws-full-history";
     const topicId = "topic-full-history";
     const now = Math.floor(Date.now() / 1000);
+    const recentMessages = Array.from({ length: 40 }, (_, index) => ({
+      role: (index % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
+      timestamp: now - (40 - index),
+      content: [
+        {
+          type: "text",
+          text: index === 39 ? "最近一条回复" : `最近历史消息 ${index}`,
+        },
+      ],
+    }));
+    const olderPageMessages = Array.from({ length: 50 }, (_, index) => ({
+      role: (index % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
+      timestamp: now - (90 - index),
+      content: [
+        {
+          type: "text",
+          text: index === 0 ? "更早的问题" : `更早历史消息 ${index}`,
+        },
+      ],
+    }));
     mockGetAgentRuntimeSession
       .mockResolvedValueOnce({
         id: topicId,
         created_at: now,
         updated_at: now,
         messages_count: 320,
+        history_limit: 40,
+        history_offset: 0,
+        history_cursor: {
+          oldest_message_id: 281,
+          start_index: 280,
+          loaded_count: 40,
+        },
         history_truncated: true,
         execution_strategy: "react",
-        messages: [
-          {
-            role: "assistant",
-            timestamp: now,
-            content: [{ type: "text", text: "最近一条回复" }],
-          },
-        ],
+        messages: recentMessages,
         turns: [],
         items: [],
       })
@@ -6859,21 +7021,17 @@ describe("useAsterAgentChat 偏好持久化", () => {
         id: topicId,
         created_at: now,
         updated_at: now,
-        messages_count: 2,
-        history_truncated: false,
+        messages_count: 320,
+        history_limit: 50,
+        history_offset: 40,
+        history_cursor: {
+          oldest_message_id: 231,
+          start_index: 230,
+          loaded_count: 50,
+        },
+        history_truncated: true,
         execution_strategy: "react",
-        messages: [
-          {
-            role: "user",
-            timestamp: now - 1,
-            content: [{ type: "text", text: "最早的问题" }],
-          },
-          {
-            role: "assistant",
-            timestamp: now,
-            content: [{ type: "text", text: "最近一条回复" }],
-          },
-        ],
+        messages: olderPageMessages,
         turns: [],
         items: [],
       });
@@ -6888,8 +7046,10 @@ describe("useAsterAgentChat 偏好持久化", () => {
       await flushEffects();
 
       expect(harness.getValue().sessionHistoryWindow).toMatchObject({
-        loadedMessages: 1,
+        loadedMessages: 40,
         totalMessages: 320,
+        historyBeforeMessageId: 281,
+        historyStartIndex: 280,
         isLoadingFull: false,
       });
 
@@ -6899,13 +7059,20 @@ describe("useAsterAgentChat 偏好持久化", () => {
       await flushEffects();
 
       expect(mockGetAgentRuntimeSession).toHaveBeenLastCalledWith(topicId, {
-        historyLimit: 0,
+        historyLimit: 50,
+        historyOffset: 40,
+        historyBeforeMessageId: 281,
       });
-      expect(harness.getValue().messages.map((msg) => msg.content)).toEqual([
-        "最早的问题",
-        "最近一条回复",
-      ]);
-      expect(harness.getValue().sessionHistoryWindow).toBeNull();
+      expect(harness.getValue().messages).toHaveLength(90);
+      expect(harness.getValue().messages[0]?.content).toBe("更早的问题");
+      expect(harness.getValue().messages.at(-1)?.content).toBe("最近一条回复");
+      expect(harness.getValue().sessionHistoryWindow).toMatchObject({
+        loadedMessages: 90,
+        totalMessages: 320,
+        historyBeforeMessageId: 231,
+        historyStartIndex: 230,
+        isLoadingFull: false,
+      });
     } finally {
       harness.unmount();
     }

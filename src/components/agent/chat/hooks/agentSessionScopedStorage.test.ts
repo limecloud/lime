@@ -132,6 +132,34 @@ describe("agentSessionScopedStorage", () => {
     expect(restored?.cacheMetadata?.historyTruncated).toBe(true);
   });
 
+  it("读取命中快照时不应同步刷新 lastAccessedAt，避免点击会话时重写整张快照 map", () => {
+    const workspaceId = "ws-session-snapshot-read-only";
+    const sessionId = "topic-read-only";
+    const nowMs = Date.parse("2026-04-24T00:00:00.000Z");
+
+    saveAgentSessionCachedSnapshot(
+      workspaceId,
+      sessionId,
+      {
+        messages: [createMessage(1)],
+        threadTurns: [],
+        threadItems: [],
+        currentTurnId: null,
+      },
+      { nowMs, sessionUpdatedAt: nowMs },
+    );
+
+    const restored = loadAgentSessionCachedSnapshot(workspaceId, sessionId, {
+      nowMs: nowMs + 10_000,
+    });
+    const snapshotMap = JSON.parse(
+      sessionStorage.getItem(`aster_session_snapshots_${workspaceId}`) || "{}",
+    ) as Record<string, { lastAccessedAt?: number }>;
+
+    expect(restored).not.toBeNull();
+    expect(snapshotMap[sessionId]?.lastAccessedAt).toBe(nowMs);
+  });
+
   it("快照超过 TTL 和 grace 后应被懒清理", () => {
     const workspaceId = "ws-session-snapshot-expired";
     const sessionId = "topic-expired";

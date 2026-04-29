@@ -197,7 +197,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     key: "getSession",
     command: AGENT_RUNTIME_COMMANDS.getSession,
     domain: "session",
-    requestType: "{ sessionId: string; resumeSessionStartHooks?: boolean; historyLimit?: number }",
+    requestType: "{ sessionId: string; resumeSessionStartHooks?: boolean; historyLimit?: number; historyOffset?: number; historyBeforeMessageId?: number }",
     responseType: "AsterSessionDetail",
     lifecycle: "current",
     mockStrategy: "bridge-only",

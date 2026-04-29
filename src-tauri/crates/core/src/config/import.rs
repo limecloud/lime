@@ -1,16 +1,15 @@
 //! 配置导入服务
 //!
-//! 提供配置和凭证的统一导入功能，支持：
+//! 提供配置导入功能，支持：
 //! - YAML 配置导入
-//! - 完整导入包导入（配置 + 凭证 + OAuth Token 文件）
+//! - 旧完整导入包中的配置读取
 
 #![allow(dead_code)]
 //! - 导入验证（格式、版本、脱敏状态）
 //! - 合并和替换模式
 
-use super::export::{base64_decode, ExportBundle, REDACTED_PLACEHOLDER};
-use super::path_utils::expand_tilde;
-use super::types::{ApiKeyEntry, Config, CredentialEntry, CredentialPoolConfig};
+use super::export::{ExportBundle, REDACTED_PLACEHOLDER};
+use super::types::Config;
 use super::yaml::{ConfigError, ConfigManager, YamlService};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -258,7 +257,8 @@ impl ImportService {
         options: &ImportOptions,
     ) -> Result<ImportResult, ImportError> {
         // 解析 YAML
-        let imported_config = ConfigManager::parse_yaml(yaml)?;
+        let mut imported_config = ConfigManager::parse_yaml(yaml)?;
+        Self::drop_legacy_credential_pool(&mut imported_config);
 
         // 根据选项合并或替换
         let final_config = if options.merge {
@@ -276,7 +276,7 @@ impl ImportService {
     /// * `bundle` - 导出包
     /// * `current_config` - 当前配置（用于合并模式）
     /// * `options` - 导入选项
-    /// * `auth_dir` - 认证目录路径（用于恢复 OAuth token 文件）
+    /// * `_auth_dir` - 旧导入包兼容参数；OAuth token 文件不再恢复
     ///
     /// # Returns
     /// * `Ok(ImportResult)` - 导入成功
@@ -285,7 +285,7 @@ impl ImportService {
         bundle: &ExportBundle,
         current_config: &Config,
         options: &ImportOptions,
-        auth_dir: &str,
+        _auth_dir: &str,
     ) -> Result<ImportResult, ImportError> {
         let mut warnings = Vec::new();
 
@@ -296,7 +296,8 @@ impl ImportService {
 
         // 导入配置
         let mut config = if let Some(ref yaml) = bundle.config_yaml {
-            let imported = ConfigManager::parse_yaml(yaml)?;
+            let mut imported = ConfigManager::parse_yaml(yaml)?;
+            Self::drop_legacy_credential_pool(&mut imported);
             if options.merge {
                 Self::merge_configs(current_config, &imported)
             } else {
@@ -308,13 +309,15 @@ impl ImportService {
             Config::default()
         };
 
-        // 恢复 OAuth token 文件
+        // 旧 OAuth token 文件已随凭证池退役，导入时不再恢复到本地。
         if !bundle.token_files.is_empty() {
-            let token_warnings = Self::restore_token_files(&bundle.token_files, auth_dir)?;
-            warnings.extend(token_warnings);
+            warnings.push(
+                "导入包包含旧 OAuth token 文件，已忽略；请改用 API Key Provider。".to_string(),
+            );
         }
+        Self::drop_legacy_credential_pool(&mut config);
 
-        // 如果是脱敏数据，清理凭证池中的占位符
+        // 如果是脱敏数据，清理当前配置中的占位符
         if bundle.redacted {
             let server_key_cleared = Self::clean_redacted_credentials(&mut config);
             if server_key_cleared {
@@ -353,142 +356,21 @@ impl ImportService {
         // 合并 auth_dir
         merged.auth_dir = imported.auth_dir.clone();
 
-        // 合并凭证池（添加新的，保留现有的）
-        merged.credential_pool =
-            Self::merge_credential_pools(&current.credential_pool, &imported.credential_pool);
+        // 旧凭证池不再导入或合并；ASR 凭证跟随 voice_input 配置。
+        Self::drop_legacy_credential_pool(&mut merged);
+        merged.experimental.voice_input.asr_credentials =
+            imported.experimental.voice_input.asr_credentials.clone();
 
         merged
     }
 
-    /// 合并凭证池
-    ///
-    /// 将导入的凭证添加到现有凭证池中（按 ID 去重）
-    fn merge_credential_pools(
-        current: &CredentialPoolConfig,
-        imported: &CredentialPoolConfig,
-    ) -> CredentialPoolConfig {
-        CredentialPoolConfig {
-            kiro: Self::merge_credential_entries(&current.kiro, &imported.kiro),
-            gemini: Self::merge_credential_entries(&current.gemini, &imported.gemini),
-            qwen: Self::merge_credential_entries(&current.qwen, &imported.qwen),
-            openai: Self::merge_api_key_entries(&current.openai, &imported.openai),
-            claude: Self::merge_api_key_entries(&current.claude, &imported.claude),
-            gemini_api_keys: imported.gemini_api_keys.clone(),
-            vertex_api_keys: imported.vertex_api_keys.clone(),
-            codex: Self::merge_credential_entries(&current.codex, &imported.codex),
-            asr: imported.asr.clone(),
-        }
+    fn drop_legacy_credential_pool(config: &mut Config) {
+        config.credential_pool = Default::default();
     }
 
-    /// 合并 OAuth 凭证条目
-    fn merge_credential_entries(
-        current: &[CredentialEntry],
-        imported: &[CredentialEntry],
-    ) -> Vec<CredentialEntry> {
-        let mut result: Vec<CredentialEntry> = current.to_vec();
-
-        for entry in imported {
-            // 如果 ID 已存在，更新；否则添加
-            if let Some(existing) = result.iter_mut().find(|e| e.id == entry.id) {
-                *existing = entry.clone();
-            } else {
-                result.push(entry.clone());
-            }
-        }
-
-        result
-    }
-
-    /// 合并 API Key 凭证条目
-    fn merge_api_key_entries(
-        current: &[ApiKeyEntry],
-        imported: &[ApiKeyEntry],
-    ) -> Vec<ApiKeyEntry> {
-        let mut result: Vec<ApiKeyEntry> = current.to_vec();
-
-        for entry in imported {
-            // 跳过脱敏的条目
-            if entry.api_key == REDACTED_PLACEHOLDER {
-                continue;
-            }
-
-            // 如果 ID 已存在，更新；否则添加
-            if let Some(existing) = result.iter_mut().find(|e| e.id == entry.id) {
-                *existing = entry.clone();
-            } else {
-                result.push(entry.clone());
-            }
-        }
-
-        result
-    }
-
-    /// 恢复 OAuth token 文件到 auth_dir
-    ///
-    /// # Arguments
-    /// * `token_files` - token 文件映射（相对路径 -> base64 编码内容）
-    /// * `auth_dir` - 认证目录路径
-    ///
-    /// # Returns
-    /// * `Ok(Vec<String>)` - 警告信息列表
-    fn restore_token_files(
-        token_files: &std::collections::HashMap<String, String>,
-        auth_dir: &str,
-    ) -> Result<Vec<String>, ImportError> {
-        let mut warnings = Vec::new();
-        let auth_path = expand_tilde(auth_dir);
-
-        // 确保 auth_dir 存在
-        std::fs::create_dir_all(&auth_path)?;
-
-        for (relative_path, base64_content) in token_files {
-            let token_path = auth_path.join(relative_path);
-
-            // 确保父目录存在
-            if let Some(parent) = token_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-
-            // 解码 base64 内容
-            match base64_decode(base64_content) {
-                Ok(content) => {
-                    // 检查是否是脱敏内容
-                    if content == REDACTED_PLACEHOLDER.as_bytes() {
-                        warnings.push(format!("Token 文件 {relative_path} 已脱敏，无法恢复"));
-                        continue;
-                    }
-
-                    // 写入文件
-                    if let Err(e) = std::fs::write(&token_path, &content) {
-                        warnings.push(format!("写入 token 文件 {relative_path} 失败: {e}"));
-                    }
-                }
-                Err(e) => {
-                    warnings.push(format!("解码 token 文件 {relative_path} 失败: {e}"));
-                }
-            }
-        }
-
-        Ok(warnings)
-    }
-
-    /// 清理脱敏的凭证数据
-    ///
-    /// 移除凭证池中使用占位符的条目
+    /// 清理脱敏的当前配置数据
     fn clean_redacted_credentials(config: &mut Config) -> bool {
         let mut server_key_cleared = false;
-
-        // 清理 OpenAI 凭证池中的脱敏条目
-        config
-            .credential_pool
-            .openai
-            .retain(|e| e.api_key != REDACTED_PLACEHOLDER);
-
-        // 清理 Claude 凭证池中的脱敏条目
-        config
-            .credential_pool
-            .claude
-            .retain(|e| e.api_key != REDACTED_PLACEHOLDER);
 
         // 清理 Provider 配置中的脱敏 API 密钥
         if config.providers.openai.api_key.as_deref() == Some(REDACTED_PLACEHOLDER) {
@@ -664,14 +546,7 @@ server:
 
     #[test]
     fn test_import_yaml_merge_mode() {
-        let mut current = Config::default();
-        current.credential_pool.openai.push(ApiKeyEntry {
-            id: "existing".to_string(),
-            api_key: "sk-existing".to_string(),
-            base_url: None,
-            disabled: false,
-            proxy_url: None,
-        });
+        let current = Config::default();
 
         let yaml = r#"
 server:
@@ -689,63 +564,8 @@ credential_pool:
         assert!(result.success);
         // 服务器配置应被更新
         assert_eq!(result.config.server.host, "127.0.0.1");
-        // 凭证池应合并
-        assert_eq!(result.config.credential_pool.openai.len(), 2);
-    }
-
-    #[test]
-    fn test_merge_credential_entries() {
-        let current = vec![CredentialEntry {
-            id: "id1".to_string(),
-            token_file: "old.json".to_string(),
-            disabled: false,
-            proxy_url: None,
-        }];
-        let imported = vec![
-            CredentialEntry {
-                id: "id1".to_string(),
-                token_file: "new.json".to_string(),
-                disabled: true,
-                proxy_url: None,
-            },
-            CredentialEntry {
-                id: "id2".to_string(),
-                token_file: "id2.json".to_string(),
-                disabled: false,
-                proxy_url: None,
-            },
-        ];
-
-        let merged = ImportService::merge_credential_entries(&current, &imported);
-        assert_eq!(merged.len(), 2);
-        // id1 应被更新
-        assert_eq!(merged[0].token_file, "new.json");
-        assert!(merged[0].disabled);
-        // id2 应被添加
-        assert_eq!(merged[1].id, "id2");
-    }
-
-    #[test]
-    fn test_merge_api_key_entries_skips_redacted() {
-        let current = vec![ApiKeyEntry {
-            id: "id1".to_string(),
-            api_key: "sk-real".to_string(),
-            base_url: None,
-            disabled: false,
-            proxy_url: None,
-        }];
-        let imported = vec![ApiKeyEntry {
-            id: "id1".to_string(),
-            api_key: REDACTED_PLACEHOLDER.to_string(),
-            base_url: None,
-            disabled: false,
-            proxy_url: None,
-        }];
-
-        let merged = ImportService::merge_api_key_entries(&current, &imported);
-        assert_eq!(merged.len(), 1);
-        // 脱敏的条目不应覆盖现有的
-        assert_eq!(merged[0].api_key, "sk-real");
+        // 旧凭证池不再导入或合并
+        assert!(result.config.credential_pool.is_empty());
     }
 
     #[test]
@@ -753,20 +573,6 @@ credential_pool:
         let mut config = Config::default();
         config.server.api_key = REDACTED_PLACEHOLDER.to_string();
         config.providers.openai.api_key = Some(REDACTED_PLACEHOLDER.to_string());
-        config.credential_pool.openai.push(ApiKeyEntry {
-            id: "redacted".to_string(),
-            api_key: REDACTED_PLACEHOLDER.to_string(),
-            base_url: None,
-            disabled: false,
-            proxy_url: None,
-        });
-        config.credential_pool.openai.push(ApiKeyEntry {
-            id: "real".to_string(),
-            api_key: "sk-real".to_string(),
-            base_url: None,
-            disabled: false,
-            proxy_url: None,
-        });
 
         let server_key_cleared = ImportService::clean_redacted_credentials(&mut config);
 
@@ -775,9 +581,6 @@ credential_pool:
         assert_eq!(config.server.api_key, "");
         // Provider API 密钥应被清除
         assert!(config.providers.openai.api_key.is_none());
-        // 凭证池中脱敏的条目应被移除
-        assert_eq!(config.credential_pool.openai.len(), 1);
-        assert_eq!(config.credential_pool.openai[0].id, "real");
     }
 
     #[test]

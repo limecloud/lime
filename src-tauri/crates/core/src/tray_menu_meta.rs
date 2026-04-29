@@ -8,16 +8,10 @@ pub mod menu_ids {
     pub const CURRENT_MODEL_INFO: &str = "current_model_info";
     /// 快速切换模型
     pub const QUICK_MODEL_ROOT: &str = "quick_model_root";
-    /// 凭证信息
-    pub const CREDENTIAL_INFO: &str = "credential_info";
     /// 请求信息
     pub const REQUEST_INFO: &str = "request_info";
     /// 分隔符 1
     pub const SEPARATOR_1: &str = "sep_1";
-    /// 刷新所有 Token
-    pub const REFRESH_TOKENS: &str = "refresh_tokens";
-    /// 健康检查
-    pub const HEALTH_CHECK: &str = "health_check";
     /// 分隔符 2
     pub const SEPARATOR_2: &str = "sep_2";
     /// 打开主窗口
@@ -35,16 +29,7 @@ pub mod menu_ids {
 
     /// 获取所有必需的菜单项 ID 列表
     pub fn all_required_ids() -> Vec<&'static str> {
-        vec![
-            CREDENTIAL_INFO,
-            REQUEST_INFO,
-            REFRESH_TOKENS,
-            HEALTH_CHECK,
-            OPEN_WINDOW,
-            OPEN_LOG_DIR,
-            AUTO_START,
-            QUIT,
-        ]
+        vec![REQUEST_INFO, OPEN_WINDOW, OPEN_LOG_DIR, AUTO_START, QUIT]
     }
 }
 
@@ -98,16 +83,7 @@ mod tests {
     fn test_menu_ids_completeness() {
         let ids = menu_ids::all_required_ids();
 
-        assert!(
-            ids.contains(&menu_ids::CREDENTIAL_INFO),
-            "应包含 CREDENTIAL_INFO"
-        );
         assert!(ids.contains(&menu_ids::REQUEST_INFO), "应包含 REQUEST_INFO");
-        assert!(
-            ids.contains(&menu_ids::REFRESH_TOKENS),
-            "应包含 REFRESH_TOKENS"
-        );
-        assert!(ids.contains(&menu_ids::HEALTH_CHECK), "应包含 HEALTH_CHECK");
         assert!(ids.contains(&menu_ids::OPEN_WINDOW), "应包含 OPEN_WINDOW");
         assert!(ids.contains(&menu_ids::OPEN_LOG_DIR), "应包含 OPEN_LOG_DIR");
         assert!(ids.contains(&menu_ids::AUTO_START), "应包含 AUTO_START");
@@ -117,7 +93,7 @@ mod tests {
     #[test]
     fn test_get_menu_item_ids() {
         let ids = get_menu_item_ids();
-        assert_eq!(ids.len(), 8, "应有 8 个必需的菜单项");
+        assert_eq!(ids.len(), 5, "应有 5 个必需的菜单项");
     }
 
     #[test]
@@ -141,18 +117,13 @@ mod tests {
     proptest! {
         #[test]
         fn prop_menu_ids_completeness(
-            _available in 0usize..100,
-            _total in 0usize..100,
             _requests in 0u64..1000000,
             _auto_start in any::<bool>()
         ) {
             let ids = menu_ids::all_required_ids();
 
             let required = vec![
-                menu_ids::CREDENTIAL_INFO,
                 menu_ids::REQUEST_INFO,
-                menu_ids::REFRESH_TOKENS,
-                menu_ids::HEALTH_CHECK,
                 menu_ids::OPEN_WINDOW,
                 menu_ids::OPEN_LOG_DIR,
                 menu_ids::AUTO_START,

@@ -120,36 +120,14 @@ pub async fn unified_memory_semantic_search(
 
     let api_key_service = ApiKeyProviderService::new();
 
-    let credential = match api_key_service
-        .select_credential_for_provider(
-            &db,
-            "openai",
-            None::<&str>,
-            None::<&lime_core::models::client_type::ClientType>,
-        )
-        .await
-    {
-        Ok(Some(cred)) => cred,
+    let api_key = match api_key_service.get_next_api_key(&db, "openai") {
+        Ok(Some(api_key)) => api_key,
         Ok(None) => {
             return Err(String::from(
                 "No available OpenAI credential. Please add OpenAI API Key in settings.",
             ))
         }
         Err(e) => return Err(format!("Failed to get credential: {e}")),
-    };
-
-    let api_key = match credential.credential {
-        lime_core::models::provider_pool_model::CredentialData::OpenAIKey { api_key, .. } => {
-            api_key
-        }
-        lime_core::models::provider_pool_model::CredentialData::AnthropicKey {
-            api_key, ..
-        } => api_key,
-        _ => {
-            return Err(String::from(
-                "Semantic search requires OpenAI API Key credential.",
-            ))
-        }
     };
 
     let query_embedding = lime_embedding::get_embedding(&options.query, &api_key, None)
@@ -186,37 +164,14 @@ pub async fn unified_memory_hybrid_search(
 
     let api_key_service = ApiKeyProviderService::new();
 
-    let credential = match api_key_service
-        .select_credential_for_provider(
-            &db,
-            "openai",
-            None::<&str>,
-            None::<&lime_core::models::client_type::ClientType>,
-        )
-        .await
-    {
-        Ok(Some(cred)) => cred,
+    let api_key = match api_key_service.get_next_api_key(&db, "openai") {
+        Ok(Some(api_key)) => api_key,
         Ok(None) => {
             return Err(String::from(
                 "No available OpenAI credential. Please add OpenAI API Key in settings.",
             ))
         }
         Err(e) => return Err(format!("Failed to get credential: {e}")),
-    };
-
-    // Extract API key from credential
-    let api_key = match credential.credential {
-        lime_core::models::provider_pool_model::CredentialData::OpenAIKey { api_key, .. } => {
-            api_key
-        }
-        lime_core::models::provider_pool_model::CredentialData::AnthropicKey {
-            api_key, ..
-        } => api_key,
-        _ => {
-            return Err(String::from(
-                "Semantic search requires OpenAI API Key credential.",
-            ))
-        }
     };
 
     tracing::debug!("[Hybrid Search] Using API key from API Key Provider");

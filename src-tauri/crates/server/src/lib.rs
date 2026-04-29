@@ -21,6 +21,7 @@ use lime_core::config::{
 use lime_core::database::DbConnection;
 use lime_core::logger::LogStore;
 use lime_core::models::anthropic::*;
+use lime_core::models::runtime_api_key_id_from_credential_uuid;
 use lime_infra::injection::Injector;
 use lime_processor::{RequestContext, RequestProcessor};
 use lime_providers::providers::claude_custom::ClaudeCustomProvider;
@@ -578,7 +579,7 @@ pub struct AppState {
     pub injection_enabled: Arc<RwLock<bool>>,
     /// 请求处理器
     pub processor: Arc<RequestProcessor>,
-    /// 是否允许自动降级/切换 Provider（来自配置 retry.auto_switch_provider）
+    /// 是否允许 Provider 自动切换（来自配置 retry.auto_switch_provider）
     pub allow_provider_fallback: bool,
     /// WebSocket 连接管理器
     pub ws_manager: Arc<WsConnectionManager>,
@@ -595,7 +596,7 @@ pub struct AppState {
     /// Provider 维度模型配置（用于能力感知回退）
     pub provider_models:
         Arc<std::collections::HashMap<String, lime_core::config::ProviderModelsConfig>>,
-    /// API Key Provider 服务（用于智能降级）
+    /// API Key Provider 服务（用于运行时凭证选择）
     pub api_key_service: Arc<lime_services::api_key_provider_service::ApiKeyProviderService>,
     /// 速率限制器
     pub rate_limiter: Option<Arc<middleware::rate_limit::SlidingWindowRateLimiter>>,
@@ -613,17 +614,16 @@ pub struct AppState {
 }
 
 impl AppState {
-    fn fallback_api_key_id<'a>(&self, uuid: &'a str) -> Option<&'a str> {
-        uuid.strip_prefix("fallback-")
-            .filter(|value| !value.is_empty())
+    fn runtime_api_key_id<'a>(&self, uuid: &'a str) -> Option<&'a str> {
+        runtime_api_key_id_from_credential_uuid(uuid)
     }
 
     pub fn record_credential_usage(&self, db: &DbConnection, uuid: &str) -> Result<(), String> {
-        if let Some(api_key_id) = self.fallback_api_key_id(uuid) {
+        if let Some(api_key_id) = self.runtime_api_key_id(uuid) {
             return self.api_key_service.record_usage(db, api_key_id);
         }
 
-        tracing::debug!("[SERVER] 忽略已退役的凭证池使用记录: {}", uuid);
+        tracing::debug!("[SERVER] 忽略已退役的旧 credential 使用记录: {}", uuid);
         Ok(())
     }
 
@@ -919,7 +919,7 @@ async fn run_server(
         _ => None,
     };
 
-    // 初始化配置管理器（用于凭证池同步）
+    // 初始化配置管理器
     let config_manager: Option<Arc<std::sync::RwLock<ConfigManager>>> =
         match (&config, &config_path) {
             (Some(cfg), Some(path)) => Some(Arc::new(std::sync::RwLock::new(
@@ -957,7 +957,7 @@ async fn run_server(
     let api_key_service =
         Arc::new(lime_services::api_key_provider_service::ApiKeyProviderService::new());
 
-    // 是否允许自动降级/切换 Provider（默认开启，兼容旧行为）
+    // 是否允许 Provider 自动切换（默认开启，兼容 retry.auto_switch_provider 既有配置）
     let allow_provider_fallback = config
         .as_ref()
         .map(|c| c.retry.auto_switch_provider)
@@ -1014,14 +1014,6 @@ async fn run_server(
 
     // 设置请求体大小限制为 100MB，支持大型上下文请求（如 Claude Code 的 /compact 命令）
     let body_limit = 100 * 1024 * 1024; // 100MB
-
-    // 凭证 API 路由（用于 aster Agent 集成）
-    let credentials_api_routes = Router::new()
-        .route("/v1/credentials/select", post(handlers::credentials_select))
-        .route(
-            "/v1/credentials/{uuid}/token",
-            get(handlers::credentials_get_token),
-        );
 
     let allowed_origins = vec![
         HeaderValue::from_static("http://localhost:1420"),
@@ -1086,8 +1078,6 @@ async fn run_server(
             "/lime-chrome-control/:lime_key",
             get(handlers::chrome_control_ws_upgrade),
         )
-        // 凭证 API 路由（用于 aster Agent 集成）
-        .merge(credentials_api_routes)
         .layer(cors_layer)
         .layer(DefaultBodyLimit::max(body_limit))
         .layer(TimeoutLayer::with_status_code(

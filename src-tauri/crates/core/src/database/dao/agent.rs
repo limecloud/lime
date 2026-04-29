@@ -532,6 +532,13 @@ pub struct AgentMessageTextRow {
     pub timestamp_ms: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentMessageWindowInfo {
+    pub oldest_message_id: Option<i64>,
+    pub start_index: usize,
+    pub loaded_count: usize,
+}
+
 fn parse_message_timestamp_to_millis(value: &str) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(value)
         .ok()
@@ -645,12 +652,38 @@ impl AgentDao {
         session_id: &str,
         limit: usize,
     ) -> Result<Option<AgentSession>, rusqlite::Error> {
+        Self::get_session_with_messages_tail_page(conn, session_id, limit, 0)
+    }
+
+    /// 获取会话（按从最新消息向前的窗口读取），并保持返回顺序为正序。
+    pub fn get_session_with_messages_tail_page(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Option<AgentSession>, rusqlite::Error> {
         let mut session = match Self::get_session(conn, session_id)? {
             Some(s) => s,
             None => return Ok(None),
         };
 
-        session.messages = Self::get_messages_tail(conn, session_id, limit)?;
+        session.messages = Self::get_messages_tail_page(conn, session_id, limit, offset)?;
+        Ok(Some(session))
+    }
+
+    /// 获取会话（从指定消息 ID 之前读取更早窗口），并保持返回顺序为正序。
+    pub fn get_session_with_messages_before(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+        before_message_id: i64,
+    ) -> Result<Option<AgentSession>, rusqlite::Error> {
+        let mut session = match Self::get_session(conn, session_id)? {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        session.messages = Self::get_messages_before(conn, session_id, limit, before_message_id)?;
         Ok(Some(session))
     }
 
@@ -1112,6 +1145,16 @@ impl AgentDao {
         session_id: &str,
         limit: usize,
     ) -> Result<Vec<AgentMessage>, rusqlite::Error> {
+        Self::get_messages_tail_page(conn, session_id, limit, 0)
+    }
+
+    /// 获取从最新消息向前偏移后的消息窗口，并保持返回顺序为正序。
+    pub fn get_messages_tail_page(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<AgentMessage>, rusqlite::Error> {
         if limit == 0 {
             return Ok(Vec::new());
         }
@@ -1128,14 +1171,151 @@ impl AgentDao {
                  WHERE session_id = ?1
                  ORDER BY id DESC
                  LIMIT ?2
+                 OFFSET ?3
              )
              ORDER BY id ASC",
         );
         let mut stmt = conn.prepare(&sql)?;
 
-        let messages = stmt.query_map(params![session_id, limit as i64], Self::map_message_row)?;
+        let messages = stmt.query_map(
+            params![session_id, limit as i64, offset as i64],
+            Self::map_message_row,
+        )?;
 
         messages.collect()
+    }
+
+    /// 获取指定消息 ID 之前的更早消息窗口，并保持返回顺序为正序。
+    pub fn get_messages_before(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+        before_message_id: i64,
+    ) -> Result<Vec<AgentMessage>, rusqlite::Error> {
+        if limit == 0 || before_message_id <= 0 {
+            return Ok(Vec::new());
+        }
+
+        let content_json_projection = history_content_json_projection_sql();
+        let sql = format!(
+            "SELECT role, content_json, timestamp, tool_calls_json, tool_call_id, reasoning_content,
+                    input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens
+             FROM (
+                 SELECT id, role, {content_json_projection} AS content_json, timestamp, tool_calls_json,
+                        tool_call_id, reasoning_content, input_tokens, output_tokens,
+                        cached_input_tokens, cache_creation_input_tokens
+                 FROM agent_messages
+                 WHERE session_id = ?1 AND id < ?2
+                 ORDER BY id DESC
+                 LIMIT ?3
+             )
+             ORDER BY id ASC",
+        );
+        let mut stmt = conn.prepare(&sql)?;
+
+        let messages = stmt.query_map(
+            params![session_id, before_message_id, limit as i64],
+            Self::map_message_row,
+        )?;
+
+        messages.collect()
+    }
+
+    fn get_message_window_ids(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+        offset: usize,
+        before_message_id: Option<i64>,
+    ) -> Result<Vec<i64>, rusqlite::Error> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let (sql, params): (&str, Vec<Box<dyn rusqlite::ToSql>>) =
+            if let Some(before_message_id) = before_message_id.filter(|value| *value > 0) {
+                (
+                    "SELECT id
+                     FROM (
+                         SELECT id
+                         FROM agent_messages
+                         WHERE session_id = ?1 AND id < ?2
+                         ORDER BY id DESC
+                         LIMIT ?3
+                     )
+                     ORDER BY id ASC",
+                    vec![
+                        Box::new(session_id.to_string()),
+                        Box::new(before_message_id),
+                        Box::new(limit as i64),
+                    ],
+                )
+            } else {
+                (
+                    "SELECT id
+                     FROM (
+                         SELECT id
+                         FROM agent_messages
+                         WHERE session_id = ?1
+                         ORDER BY id DESC
+                         LIMIT ?2
+                         OFFSET ?3
+                     )
+                     ORDER BY id ASC",
+                    vec![
+                        Box::new(session_id.to_string()),
+                        Box::new(limit as i64),
+                        Box::new(offset as i64),
+                    ],
+                )
+            };
+        let mut stmt = conn.prepare(sql)?;
+        let params = rusqlite::params_from_iter(params.iter().map(|value| &**value));
+        let rows = stmt.query_map(params, |row| row.get::<_, i64>(0))?;
+        rows.collect()
+    }
+
+    pub fn get_message_window_info(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+        offset: usize,
+        before_message_id: Option<i64>,
+    ) -> Result<AgentMessageWindowInfo, rusqlite::Error> {
+        let ids = Self::get_message_window_ids(conn, session_id, limit, offset, before_message_id)?;
+        let oldest_message_id = ids.first().copied();
+        let start_index = match oldest_message_id {
+            Some(message_id) => conn.query_row(
+                "SELECT COUNT(1) FROM agent_messages WHERE session_id = ?1 AND id < ?2",
+                params![session_id, message_id],
+                |row| row.get::<_, i64>(0),
+            )?,
+            None => 0,
+        };
+
+        Ok(AgentMessageWindowInfo {
+            oldest_message_id,
+            start_index: start_index.max(0) as usize,
+            loaded_count: ids.len(),
+        })
+    }
+
+    pub fn get_message_timestamp_by_id(
+        conn: &Connection,
+        session_id: &str,
+        message_id: i64,
+    ) -> Result<Option<String>, rusqlite::Error> {
+        let mut stmt = conn.prepare(
+            "SELECT timestamp
+             FROM agent_messages
+             WHERE session_id = ?1 AND id = ?2",
+        )?;
+        let mut rows = stmt.query(params![session_id, message_id])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(row.get(0)?))
+        } else {
+            Ok(None)
+        }
     }
 
     fn map_message_row(row: &rusqlite::Row<'_>) -> Result<AgentMessage, rusqlite::Error> {
@@ -1974,6 +2154,13 @@ mod tests {
         assert_eq!(messages[0].content.as_text(), "消息 3");
         assert_eq!(messages[1].content.as_text(), "消息 4");
         assert_eq!(messages[2].content.as_text(), "消息 5");
+
+        let older_messages = AgentDao::get_messages_tail_page(&conn, "session-tail", 2, 3)
+            .expect("load older message page");
+
+        assert_eq!(older_messages.len(), 2);
+        assert_eq!(older_messages[0].content.as_text(), "消息 1");
+        assert_eq!(older_messages[1].content.as_text(), "消息 2");
     }
 
     #[test]

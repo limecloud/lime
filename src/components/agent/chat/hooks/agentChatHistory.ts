@@ -127,6 +127,25 @@ export const resolveHistoryToolName = (
   return shortId ? `工具调用 ${shortId}` : "工具调用";
 };
 
+export const appendTextWithOverlapDetection = (
+  base: string,
+  chunk: string,
+): string => {
+  if (!base) return chunk;
+  if (!chunk) return base;
+  if (chunk.startsWith(base)) return chunk;
+  if (base.endsWith(chunk)) return base;
+
+  const maxOverlap = Math.min(base.length, chunk.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (base.slice(-overlap) === chunk.slice(0, overlap)) {
+      return base + chunk.slice(overlap);
+    }
+  }
+
+  return base + chunk;
+};
+
 export const appendTextToParts = (
   parts: ContentPart[],
   text: string,
@@ -137,7 +156,7 @@ export const appendTextToParts = (
   if (lastPart && lastPart.type === "text") {
     newParts[newParts.length - 1] = {
       type: "text",
-      text: lastPart.text + text,
+      text: appendTextWithOverlapDetection(lastPart.text, text),
     };
   } else {
     newParts.push({ type: "text", text });
@@ -1074,6 +1093,30 @@ export const hydrateSessionDetailMessages = (
 ): Message[] => {
   const historyToolNameById = new Map<string, string>();
   const historyToolArgumentsById = new Map<string, string | undefined>();
+  const historyOffset =
+    typeof detail.history_offset === "number" &&
+    Number.isFinite(detail.history_offset) &&
+    detail.history_offset >= 0
+      ? Math.trunc(detail.history_offset)
+      : 0;
+  const cursorStartIndex =
+    typeof detail.history_cursor?.start_index === "number" &&
+    Number.isFinite(detail.history_cursor.start_index) &&
+    detail.history_cursor.start_index >= 0
+      ? Math.trunc(detail.history_cursor.start_index)
+      : null;
+  const messagesCount =
+    typeof detail.messages_count === "number" &&
+    Number.isFinite(detail.messages_count) &&
+    detail.messages_count >= 0
+      ? Math.trunc(detail.messages_count)
+      : null;
+  const historyAbsoluteStartIndex =
+    cursorStartIndex !== null
+      ? cursorStartIndex
+      : messagesCount === null
+        ? 0
+        : Math.max(0, messagesCount - historyOffset - detail.messages.length);
 
   const loadedMessages: Message[] = detail.messages
     .filter(
@@ -1094,6 +1137,20 @@ export const hydrateSessionDetailMessages = (
         if (typeof value !== "string") return;
         const normalized = value.trim();
         if (!normalized) return;
+        const lastPart = contentParts[contentParts.length - 1];
+        if (lastPart?.type === "text") {
+          const mergedText = appendTextWithOverlapDetection(
+            lastPart.text,
+            normalized,
+          );
+          lastPart.text =
+            mergedText === `${lastPart.text}${normalized}`
+              ? `${lastPart.text}\n${normalized}`
+              : mergedText;
+          textParts[textParts.length - 1] = lastPart.text;
+          return;
+        }
+
         textParts.push(normalized);
         contentParts.push({ type: "text", text: normalized });
       };
@@ -1304,7 +1361,7 @@ export const hydrateSessionDetailMessages = (
 
       return [
         {
-          id: `${topicId}-${index}`,
+          id: `${topicId}-${historyAbsoluteStartIndex + index}`,
           role: normalizedRole,
           content,
           images: images.length > 0 ? images : undefined,

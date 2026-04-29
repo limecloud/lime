@@ -389,7 +389,7 @@ describe("agentStreamTurnEventBinding", () => {
     expect(clearActiveStreamIfMatch).not.toHaveBeenCalled();
     expect(disposeListener).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(45_100);
+    await vi.advanceTimersByTimeAsync(120_100);
 
     expect(messages[0]?.content).toContain("执行失败：执行已中断");
     expect(messages[0]?.content).toContain("长时间没有返回新进度");
@@ -505,7 +505,7 @@ describe("agentStreamTurnEventBinding", () => {
     expect(streamActivated).toBe(true);
     expect(disposeListener).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(45_100);
+    await vi.advanceTimersByTimeAsync(120_100);
 
     expect(messages[0]?.content).toContain("执行失败：执行已中断");
     expect(clearActiveStreamIfMatch).toHaveBeenCalledWith(
@@ -620,7 +620,7 @@ describe("agentStreamTurnEventBinding", () => {
       },
     });
 
-    await vi.advanceTimersByTimeAsync(45_100);
+    await vi.advanceTimersByTimeAsync(120_100);
 
     expect(messages[0]?.content).toContain("执行失败：执行已中断");
     expect(messages[0]?.runtimeStatus).toMatchObject({

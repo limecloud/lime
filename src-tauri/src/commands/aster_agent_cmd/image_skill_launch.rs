@@ -1,4 +1,8 @@
 use super::*;
+use crate::commands::modality_runtime_contracts::{
+    insert_image_generation_contract_fields, IMAGE_GENERATION_CONTRACT_KEY,
+    IMAGE_GENERATION_MODALITY, IMAGE_GENERATION_ROUTING_SLOT,
+};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -199,6 +203,18 @@ fn ensure_image_skill_launch_workbench_chat_mode(value: &mut serde_json::Value) 
     );
 }
 
+fn ensure_image_generation_contract_metadata(
+    launch: &mut serde_json::Map<String, serde_json::Value>,
+) {
+    insert_image_generation_contract_fields(launch);
+    if let Some(image_task) = launch
+        .get_mut("image_task")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        insert_image_generation_contract_fields(image_task);
+    }
+}
+
 fn truncate_prompt_text(value: String, max_chars: usize) -> String {
     let total_chars = value.chars().count();
     if total_chars <= max_chars {
@@ -225,6 +241,8 @@ pub(crate) fn prepare_image_skill_launch_request_metadata(
     ) else {
         return Some(metadata);
     };
+
+    ensure_image_generation_contract_metadata(launch);
 
     let Some(images) = images.filter(|items| !items.is_empty()) else {
         return Some(metadata);
@@ -363,6 +381,15 @@ fn build_image_skill_launch_system_prompt(
     let model = extract_object_string(image_task, &["model"]);
     let entry_source = extract_object_string(image_task, &["entry_source", "entrySource"])
         .unwrap_or_else(|| "at_image_command".to_string());
+    let modality_contract_key = extract_object_string(
+        image_task,
+        &["modality_contract_key", "modalityContractKey"],
+    )
+    .unwrap_or_else(|| IMAGE_GENERATION_CONTRACT_KEY.to_string());
+    let modality = extract_object_string(image_task, &["modality"])
+        .unwrap_or_else(|| IMAGE_GENERATION_MODALITY.to_string());
+    let routing_slot = extract_object_string(image_task, &["routing_slot", "routingSlot"])
+        .unwrap_or_else(|| IMAGE_GENERATION_ROUTING_SLOT.to_string());
     let reference_images = image_task
         .get("reference_images")
         .and_then(serde_json::Value::as_array)
@@ -387,6 +414,9 @@ fn build_image_skill_launch_system_prompt(
     let mut lines = vec![
         IMAGE_SKILL_LAUNCH_PROMPT_MARKER.to_string(),
         "- 当前回合来自图片技能启动，不要把它当成普通聊天回答。".to_string(),
+        format!(
+            "- 当前底层运行合同：modality_contract_key={modality_contract_key}, modality={modality}, routing_slot={routing_slot}；后续创建任务必须原样保留 contract 字段。"
+        ),
         "- 先快速归纳用户目标，然后立刻把任务交给 Skill 工具；不要停留在泛泛解释。".to_string(),
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
         "- 调用 Skill 时，args 必须是一个严格 JSON 字符串，不要漏引号、不要写注释、不要只传半截字段。".to_string(),

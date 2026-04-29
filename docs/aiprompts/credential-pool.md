@@ -19,6 +19,11 @@
 - Rust `ProviderPoolService`、`TokenCacheService`、Kiro 事件服务、OAuth 命令与旧 provider pool 命令
 - Kiro / Qwen / Antigravity / Codex OAuth / Claude OAuth / Gemini OAuth 这类登录型或本地 CLI 凭证运行时
 - `provider_pool_credentials` 的运行时读取、健康写回与 fallback 选择
+- 旧 `provider_pool_model` 运行时 / 展示 DTO 与凭证状态示例插件
+- server 内部 `/v1/credentials/*` 完整凭证 HTTP API；Provider 调用只允许通过 API Key Provider current 服务选择 `Runtime*` 凭证
+- 托盘里的旧 Token 刷新、凭证健康检查与凭证池计数入口
+- 旧 `scripts/playwright-login/` Provider OAuth 授权码自动化脚本及其 Tauri bundle include
+- 旧 `src/components/provider-pool/api-key/` 目录名；当前 API Key Provider 组件已迁到 `src/components/api-key-provider/`
 
 ## 数据处理
 
@@ -36,11 +41,13 @@
 - API Key Provider 中的 OpenAI、Anthropic、Gemini API Key、OpenRouter、GitHub、Azure 等配置
 - 模型名或模型系列中出现的 `codex`、`gemini`、`qwen` 等字符串
 - 协议转换器，尤其是 `src-tauri/crates/providers/src/converter/openai_to_antigravity.rs`
-- server 内部短期用于桥接 API Key Provider 的兼容 DTO；它只能承载 current API Key Provider 数据，不代表凭证池恢复
+- `lime_core::models::runtime_provider_model` 暴露的 `Runtime*` DTO；它只能承载 current API Key Provider 数据，`RuntimeProviderType` 也不得别名回含旧凭证池 Provider 的历史 `ProviderType`
+- API Key Provider 运行时凭证使用 `runtime-api-key-` 临时 UUID 前缀；不得恢复 `fallback-` 或 `[降级]` 这类旧凭证池选择语义
+- `retry.auto_switch_provider` 表示 current 的 Provider 自动切换，不代表旧凭证池 fallback；运行时文案不得再把它称为“自动降级”
 
 ## 守卫
 
-旧 UI / Hook / API 文件路径已登记到 `src/lib/governance/legacySurfaceCatalog.json`，不允许重新接回前端入口。
+旧 UI / Hook / API / 脚本文件路径已登记到 `src/lib/governance/legacySurfaceCatalog.json`，不允许重新接回前端入口、打包资源或运行时兜底。
 
 涉及 Provider 或命令边界时，至少执行：
 

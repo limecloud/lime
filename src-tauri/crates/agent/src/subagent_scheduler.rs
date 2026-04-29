@@ -1,6 +1,6 @@
 //! SubAgent 调度器集成
 //!
-//! 将 aster-rust 的 SubAgent 调度器与 Lime 凭证池集成。
+//! 将 aster-rust 的 SubAgent 调度器与 Lime API Key Provider 集成。
 //! 纯逻辑位于此 crate，事件发送通过注入回调实现。
 
 use std::collections::HashMap;
@@ -132,7 +132,7 @@ impl std::fmt::Display for SubAgentRole {
 /// Lime SubAgent 执行器
 ///
 /// 实现 aster-rust 的 SubAgentExecutor trait，
-/// 集成 Lime 凭证池进行 LLM 调用。
+/// 集成 Lime API Key Provider 进行 LLM 调用。
 pub struct LimeSubAgentExecutor {
     /// 凭证桥接器
     credential_bridge: CredentialBridge,
@@ -181,7 +181,7 @@ impl LimeSubAgentExecutor {
         self.role
     }
 
-    /// 从凭证池选择凭证
+    /// 从 API Key Provider 选择凭证
     async fn select_credential(&self, task: &SubAgentTask) -> SchedulerResult<AsterProviderConfig> {
         let model = task.model.as_deref().unwrap_or(&self.default_model);
         let provider_type = &self.default_provider;

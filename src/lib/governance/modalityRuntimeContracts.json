@@ -1,0 +1,415 @@
+{
+  "version": 1,
+  "status": "current",
+  "owner": "docs/roadmap/warp/contract-schema.md",
+  "contracts": [
+    {
+      "contract_key": "image_generation",
+      "lifecycle": "current",
+      "modality": "image",
+      "runtime_identity": [
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "task_id",
+        "content_id",
+        "artifact_id"
+      ],
+      "input_context_kinds": [
+        "text_prompt",
+        "image_reference",
+        "workspace_context"
+      ],
+      "required_capabilities": [
+        "text_generation",
+        "image_generation",
+        "vision_input"
+      ],
+      "permission_profile_keys": [
+        "write_artifacts",
+        "media_upload",
+        "ask_user_question"
+      ],
+      "routing_slot": "image_generation_model",
+      "executor_binding": {
+        "executor_kind": "skill",
+        "binding_key": "image_generate",
+        "current_path": "Agent turn -> Skill(image_generate) -> image task artifact",
+        "supports_progress": true,
+        "supports_cancel": true,
+        "supports_resume": false,
+        "supports_artifact": true,
+        "failure_mapping": [
+          "permission_denied",
+          "capability_gap",
+          "executor_error"
+        ]
+      },
+      "truth_source": [
+        "image_task_artifact",
+        "runtime_timeline_event"
+      ],
+      "artifact_kinds": [
+        "image_task",
+        "image_output"
+      ],
+      "viewer_surface": [
+        "image_workbench"
+      ],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "model_routing_decision",
+        "execution_profile_decision",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "limecore_policy_refs": [
+        "model_catalog",
+        "provider_offer",
+        "tenant_feature_flags"
+      ],
+      "fallback_policy": [
+        "ask_on_media_upload_denied",
+        "block_on_no_image_generation_model"
+      ],
+      "detour_policy": {
+        "allowed": [
+          "ask_user_question"
+        ],
+        "denied": [
+          "free_bash",
+          "web_search_before_skill",
+          "frontend_direct_task_creation"
+        ]
+      },
+      "owner_surface": "agent_runtime",
+      "bound_entries": []
+    },
+    {
+      "contract_key": "browser_control",
+      "lifecycle": "current",
+      "modality": "browser",
+      "runtime_identity": [
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "task_id",
+        "content_id",
+        "artifact_id"
+      ],
+      "input_context_kinds": [
+        "text_prompt",
+        "url",
+        "browser_state"
+      ],
+      "required_capabilities": [
+        "text_generation",
+        "browser_reasoning",
+        "browser_control_planning"
+      ],
+      "permission_profile_keys": [
+        "browser_control",
+        "web_search",
+        "ask_user_question"
+      ],
+      "routing_slot": "browser_reasoning_model",
+      "executor_binding": {
+        "executor_kind": "browser",
+        "binding_key": "browser_assist",
+        "current_path": "Runtime contract -> Browser typed action -> observation trace",
+        "supports_progress": true,
+        "supports_cancel": true,
+        "supports_resume": true,
+        "supports_artifact": true,
+        "failure_mapping": [
+          "permission_denied",
+          "capability_gap",
+          "executor_error",
+          "observation_unavailable"
+        ]
+      },
+      "truth_source": [
+        "browser_action_trace",
+        "runtime_timeline_event"
+      ],
+      "artifact_kinds": [
+        "browser_session",
+        "browser_snapshot"
+      ],
+      "viewer_surface": [
+        "browser_replay_viewer"
+      ],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "execution_profile_decision",
+        "browser_action_requested",
+        "browser_observation_recorded",
+        "artifact_written"
+      ],
+      "limecore_policy_refs": [
+        "tenant_feature_flags",
+        "gateway_policy"
+      ],
+      "fallback_policy": [
+        "ask_on_high_risk_action",
+        "block_on_browser_control_denied"
+      ],
+      "detour_policy": {
+        "allowed": [
+          "ask_user_question",
+          "web_search_after_user_approval"
+        ],
+        "denied": [
+          "web_search_as_browser_substitute",
+          "free_bash",
+          "viewer_inferred_artifact"
+        ]
+      },
+      "owner_surface": "browser_runtime",
+      "bound_entries": []
+    },
+    {
+      "contract_key": "pdf_extract",
+      "lifecycle": "current",
+      "modality": "document",
+      "runtime_identity": [
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "task_id",
+        "content_id",
+        "artifact_id"
+      ],
+      "input_context_kinds": [
+        "pdf_attachment",
+        "local_file_reference",
+        "text_prompt"
+      ],
+      "required_capabilities": [
+        "text_generation",
+        "local_file_read",
+        "long_context"
+      ],
+      "permission_profile_keys": [
+        "read_files",
+        "write_artifacts",
+        "ask_user_question"
+      ],
+      "routing_slot": "base_model",
+      "executor_binding": {
+        "executor_kind": "skill",
+        "binding_key": "pdf_read",
+        "current_path": "Runtime contract -> Skill(pdf_read) -> pdf extract artifact",
+        "supports_progress": true,
+        "supports_cancel": true,
+        "supports_resume": false,
+        "supports_artifact": true,
+        "failure_mapping": [
+          "permission_denied",
+          "capability_gap",
+          "file_unavailable",
+          "executor_error"
+        ]
+      },
+      "truth_source": [
+        "pdf_extract_artifact",
+        "runtime_timeline_event"
+      ],
+      "artifact_kinds": [
+        "pdf_extract",
+        "report_document"
+      ],
+      "viewer_surface": [
+        "document_viewer"
+      ],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "file_read_authorized",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "limecore_policy_refs": [
+        "tenant_feature_flags"
+      ],
+      "fallback_policy": [
+        "ask_on_file_permission_missing",
+        "block_on_file_unavailable"
+      ],
+      "detour_policy": {
+        "allowed": [
+          "ask_user_question"
+        ],
+        "denied": [
+          "frontend_direct_pdf_parse",
+          "generic_chat_summary_only"
+        ]
+      },
+      "owner_surface": "agent_runtime",
+      "bound_entries": []
+    },
+    {
+      "contract_key": "voice_generation",
+      "lifecycle": "current",
+      "modality": "audio",
+      "runtime_identity": [
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "task_id",
+        "content_id",
+        "artifact_id"
+      ],
+      "input_context_kinds": [
+        "text_prompt",
+        "voice_preset",
+        "workspace_context"
+      ],
+      "required_capabilities": [
+        "text_generation",
+        "voice_generation"
+      ],
+      "permission_profile_keys": [
+        "write_artifacts",
+        "media_upload",
+        "service_api_call",
+        "ask_user_question"
+      ],
+      "routing_slot": "voice_generation_model",
+      "executor_binding": {
+        "executor_kind": "service_skill",
+        "binding_key": "voice_runtime",
+        "current_path": "Runtime contract -> local ServiceSkill -> audio artifact",
+        "supports_progress": true,
+        "supports_cancel": true,
+        "supports_resume": false,
+        "supports_artifact": true,
+        "failure_mapping": [
+          "permission_denied",
+          "capability_gap",
+          "executor_error"
+        ]
+      },
+      "truth_source": [
+        "audio_task_artifact",
+        "runtime_timeline_event"
+      ],
+      "artifact_kinds": [
+        "audio_task",
+        "audio_output"
+      ],
+      "viewer_surface": [
+        "audio_player"
+      ],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "execution_profile_decision",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "limecore_policy_refs": [
+        "client_scenes",
+        "tenant_feature_flags",
+        "provider_offer"
+      ],
+      "fallback_policy": [
+        "ask_on_voice_preset_missing",
+        "block_on_media_upload_denied"
+      ],
+      "detour_policy": {
+        "allowed": [
+          "ask_user_question"
+        ],
+        "denied": [
+          "legacy_tts_test_command",
+          "cloud_run_without_explicit_scene"
+        ]
+      },
+      "owner_surface": "service_skill_runtime",
+      "bound_entries": []
+    },
+    {
+      "contract_key": "web_research",
+      "lifecycle": "current",
+      "modality": "mixed",
+      "runtime_identity": [
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "task_id",
+        "content_id",
+        "artifact_id"
+      ],
+      "input_context_kinds": [
+        "text_prompt",
+        "url",
+        "workspace_context"
+      ],
+      "required_capabilities": [
+        "text_generation",
+        "web_search",
+        "structured_document_generation",
+        "long_context"
+      ],
+      "permission_profile_keys": [
+        "web_search",
+        "write_artifacts",
+        "ask_user_question"
+      ],
+      "routing_slot": "report_generation_model",
+      "executor_binding": {
+        "executor_kind": "skill",
+        "binding_key": "research",
+        "current_path": "Runtime contract -> Skill(research) -> search timeline / report artifact",
+        "supports_progress": true,
+        "supports_cancel": true,
+        "supports_resume": true,
+        "supports_artifact": true,
+        "failure_mapping": [
+          "permission_denied",
+          "capability_gap",
+          "executor_error",
+          "source_unavailable"
+        ]
+      },
+      "truth_source": [
+        "research_timeline_event",
+        "report_document_artifact"
+      ],
+      "artifact_kinds": [
+        "report_document",
+        "webpage_artifact"
+      ],
+      "viewer_surface": [
+        "report_viewer",
+        "webpage_viewer"
+      ],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "model_routing_decision",
+        "web_search_performed",
+        "artifact_written"
+      ],
+      "limecore_policy_refs": [
+        "gateway_policy",
+        "tenant_feature_flags",
+        "model_catalog"
+      ],
+      "fallback_policy": [
+        "ask_on_web_search_denied",
+        "block_on_source_unavailable"
+      ],
+      "detour_policy": {
+        "allowed": [
+          "ask_user_question",
+          "web_search"
+        ],
+        "denied": [
+          "model_memory_only_answer",
+          "local_file_search_before_research_skill"
+        ]
+      },
+      "owner_surface": "agent_runtime",
+      "bound_entries": []
+    }
+  ]
+}

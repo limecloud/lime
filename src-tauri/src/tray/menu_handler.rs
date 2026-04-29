@@ -18,10 +18,6 @@ use tracing::{debug, error, info, warn};
 ///
 /// 用于前端监听的事件名称
 pub mod menu_events {
-    /// 刷新所有 Token 事件
-    pub const REFRESH_TOKENS: &str = "tray-refresh-tokens";
-    /// 健康检查事件
-    pub const HEALTH_CHECK: &str = "tray-health-check";
     /// 自启动状态变更事件
     pub const AUTO_START_CHANGED: &str = "tray-auto-start-changed";
     /// 托盘快速切换模型事件
@@ -52,10 +48,6 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, menu_id: &str) {
     }
 
     match menu_id {
-        // === 运行时维护 ===
-        menu_ids::REFRESH_TOKENS => handle_refresh_tokens(app),
-        menu_ids::HEALTH_CHECK => handle_health_check(app),
-
         // === 快捷工具 ===
         menu_ids::OPEN_WINDOW => handle_open_window(app),
         menu_ids::OPEN_LOG_DIR => handle_open_log_dir(app),
@@ -65,7 +57,7 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, menu_id: &str) {
         menu_ids::AUTO_START => handle_auto_start_toggle(app),
 
         // 忽略信息类菜单项和分隔符
-        menu_ids::CURRENT_MODEL_INFO | menu_ids::CREDENTIAL_INFO | menu_ids::REQUEST_INFO => {
+        menu_ids::CURRENT_MODEL_INFO | menu_ids::REQUEST_INFO => {
             debug!("忽略信息类菜单项: {}", menu_id);
         }
 
@@ -88,34 +80,6 @@ fn handle_model_selected<R: Runtime>(app: &AppHandle<R>, provider_type: String, 
 
     if let Err(e) = app.emit(menu_events::MODEL_SELECTED, payload) {
         error!("[托盘] 发送模型切换事件失败: {}", e);
-    }
-}
-
-/// 处理刷新所有 Token 事件
-///
-/// # Requirements
-/// - 3.3: WHEN 用户点击托盘菜单中的"刷新所有 Token"
-///   THEN 系统托盘 SHALL 触发凭证池中所有凭证的 Token 刷新
-fn handle_refresh_tokens<R: Runtime>(app: &AppHandle<R>) {
-    info!("[托盘] 用户请求刷新所有 Token");
-
-    // 发送事件到前端，由前端调用凭证池服务刷新 Token
-    if let Err(e) = app.emit(menu_events::REFRESH_TOKENS, ()) {
-        error!("[托盘] 发送刷新 Token 事件失败: {}", e);
-    }
-}
-
-/// 处理健康检查事件
-///
-/// # Requirements
-/// - 3.4: WHEN 用户点击托盘菜单中的"健康检查"
-///   THEN 系统托盘 SHALL 对所有凭证执行健康检查并更新健康状态
-fn handle_health_check<R: Runtime>(app: &AppHandle<R>) {
-    info!("[托盘] 用户请求执行健康检查");
-
-    // 发送事件到前端，由前端调用凭证池服务执行健康检查
-    if let Err(e) = app.emit(menu_events::HEALTH_CHECK, ()) {
-        error!("[托盘] 发送健康检查事件失败: {}", e);
     }
 }
 
@@ -233,19 +197,13 @@ mod tests {
     #[test]
     fn test_menu_events_constants() {
         // 验证事件常量不为空
-        assert!(!menu_events::REFRESH_TOKENS.is_empty());
-        assert!(!menu_events::HEALTH_CHECK.is_empty());
         assert!(!menu_events::AUTO_START_CHANGED.is_empty());
     }
 
     #[test]
     fn test_menu_events_unique() {
         // 验证事件常量唯一
-        let events = vec![
-            menu_events::REFRESH_TOKENS,
-            menu_events::HEALTH_CHECK,
-            menu_events::AUTO_START_CHANGED,
-        ];
+        let events = vec![menu_events::AUTO_START_CHANGED, menu_events::MODEL_SELECTED];
 
         let mut unique_events = events.clone();
         unique_events.sort();

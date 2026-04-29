@@ -63,9 +63,13 @@ function shouldStartGoogleOauth(
 
 function hasCurrentTenantSession(runtime: OemCloudRuntimeContext): boolean {
   const storedSession = getStoredOemCloudSessionState();
+  const runtimeTenantId = runtime.tenantId.trim();
+  const sessionTenantId = storedSession?.session.tenant.id?.trim();
+  const sessionTenantSlug = storedSession?.session.tenant.slug?.trim();
   return Boolean(
     storedSession?.token &&
-    storedSession.session.tenant.id === runtime.tenantId,
+      (sessionTenantId === runtimeTenantId ||
+        sessionTenantSlug === runtimeTenantId),
   );
 }
 

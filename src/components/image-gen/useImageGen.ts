@@ -1,6 +1,6 @@
 /**
  * @file 图片生成 Hook
- * @description 管理图片生成状态，复用凭证管理中的 API Key Provider
+ * @description 管理图片生成状态，复用 AI 服务商设置中的 API Key Provider
  * @module components/image-gen/useImageGen
  */
 
@@ -2458,7 +2458,7 @@ export function useImageGen(options: UseImageGenOptions = {}) {
             `当前默认图片服务不可用：${preferredProviderId}。请到媒体服务 > 图片服务中调整默认 Provider，或开启自动回退。`,
           );
         }
-        throw new Error("请先在凭证管理中配置 API Key Provider");
+        throw new Error("请先在设置 -> AI 服务商中配置 API Key Provider");
       }
 
       const generationCount = Math.max(
@@ -2546,7 +2546,7 @@ export function useImageGen(options: UseImageGenOptions = {}) {
               ensureGenerationStillActive();
               if (!apiKey) {
                 throw new Error(
-                  "该 Provider 没有可用的 API Key，请在凭证管理中添加",
+                  "该 Provider 没有可用的 API Key，请在设置 -> AI 服务商中添加",
                 );
               }
 
@@ -2630,7 +2630,7 @@ export function useImageGen(options: UseImageGenOptions = {}) {
               ensureGenerationStillActive();
               if (!apiKey) {
                 throw new Error(
-                  "该 Provider 没有可用的 API Key，请在凭证管理中添加",
+                  "该 Provider 没有可用的 API Key，请在设置 -> AI 服务商中添加",
                 );
               }
 
@@ -2711,7 +2711,7 @@ export function useImageGen(options: UseImageGenOptions = {}) {
           ensureGenerationStillActive();
           if (!apiKey) {
             throw new Error(
-              "该 Provider 没有可用的 API Key，请在凭证管理中添加",
+              "该 Provider 没有可用的 API Key，请在设置 -> AI 服务商中添加",
             );
           }
 

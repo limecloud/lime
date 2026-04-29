@@ -449,6 +449,12 @@ export interface AsterSubagentParentContext {
   sibling_subagent_sessions?: AsterSubagentSessionInfo[];
 }
 
+export interface AsterSessionHistoryCursor {
+  oldest_message_id?: number | null;
+  start_index?: number | null;
+  loaded_count?: number | null;
+}
+
 /**
  * Aster 会话详情（匹配后端 SessionDetail 结构）
  */
@@ -465,6 +471,8 @@ export interface AsterSessionDetail {
   execution_runtime?: AsterSessionExecutionRuntime | null;
   messages_count?: number;
   history_limit?: number | null;
+  history_offset?: number | null;
+  history_cursor?: AsterSessionHistoryCursor | null;
   history_truncated?: boolean;
   messages: AgentMessage[];
   turns?: AgentThreadTurn[];
@@ -786,9 +794,17 @@ export interface AgentRuntimeResumeThreadRequest {
 export interface AgentRuntimeGetSessionOptions {
   resumeSessionStartHooks?: boolean;
   /**
-   * 限制首次返回的末尾历史数量；传 0 表示请求完整历史。
+   * 限制返回的历史窗口数量；传 0 表示请求完整历史。
    */
   historyLimit?: number;
+  /**
+   * 从最新历史向前跳过的消息数量，用于加载更早历史分页。
+   */
+  historyOffset?: number;
+  /**
+   * 稳定游标：读取指定后端消息 ID 之前的更早历史，优先于 offset。
+   */
+  historyBeforeMessageId?: number;
 }
 
 export interface AgentRuntimeReplayRequestRequest {
@@ -1033,6 +1049,11 @@ export interface CreateImageGenerationTaskArtifactRequest {
   projectId?: string;
   contentId?: string;
   entrySource?: string;
+  modalityContractKey?: "image_generation";
+  modality?: "image";
+  requiredCapabilities?: string[];
+  routingSlot?: "image_generation_model";
+  runtimeContract?: Record<string, unknown>;
   requestedTarget?: "generate" | "cover";
   slotId?: string;
   anchorHint?: string;

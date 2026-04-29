@@ -39,6 +39,10 @@ import {
   findMessageArtifact,
   upsertMessageArtifact,
 } from "../utils/messageArtifacts";
+import {
+  appendTextToParts,
+  appendTextWithOverlapDetection,
+} from "./agentChatHistory";
 
 /** 解析 /skill-name args 命令 */
 export interface ParsedSkillCommand {
@@ -173,24 +177,17 @@ function appendTextPart(
   return messages.map((msg) => {
     if (msg.id !== assistantMsgId) return msg;
 
-    const nextParts = [...(msg.contentParts || [])];
-    const lastPart = nextParts[nextParts.length - 1];
-
-    if (lastPart && lastPart.type === "text") {
-      nextParts[nextParts.length - 1] = {
-        type: "text",
-        text: lastPart.text + textDelta,
-      };
-    } else {
-      nextParts.push({ type: "text", text: textDelta });
-    }
+    const nextContent = appendTextWithOverlapDetection(
+      msg.content || "",
+      textDelta,
+    );
 
     return {
       ...msg,
-      content: (msg.content || "") + textDelta,
+      content: nextContent,
       isThinking: false,
       thinkingContent: undefined,
-      contentParts: nextParts,
+      contentParts: appendTextToParts(msg.contentParts || [], textDelta),
     };
   });
 }
@@ -209,7 +206,7 @@ function appendThinkingPart(
     if (lastPart && lastPart.type === "thinking") {
       nextParts[nextParts.length - 1] = {
         type: "thinking",
-        text: lastPart.text + textDelta,
+        text: appendTextWithOverlapDetection(lastPart.text, textDelta),
       };
     } else {
       nextParts.push({ type: "thinking", text: textDelta });
@@ -218,7 +215,10 @@ function appendThinkingPart(
     return {
       ...msg,
       isThinking: true,
-      thinkingContent: (msg.thinkingContent || "") + textDelta,
+      thinkingContent: appendTextWithOverlapDetection(
+        msg.thinkingContent || "",
+        textDelta,
+      ),
       contentParts: nextParts,
     };
   });
@@ -537,7 +537,10 @@ export async function tryExecuteSlashSkillCommand(
           ? `\n\n---\n**步骤 ${payload.current_step}/${payload.total_steps}: ${payload.step_name}**\n\n`
           : "";
       if (marker) {
-        accumulatedContent += marker;
+        accumulatedContent = appendTextWithOverlapDetection(
+          accumulatedContent,
+          marker,
+        );
         setMessages((prev) => appendTextPart(prev, assistantMsgId, marker));
       }
     });
@@ -550,7 +553,10 @@ export async function tryExecuteSlashSkillCommand(
       switch (streamEvent.type) {
         case "text_delta": {
           streamCounters.text_delta += 1;
-          accumulatedContent += streamEvent.text;
+          accumulatedContent = appendTextWithOverlapDetection(
+            accumulatedContent,
+            streamEvent.text,
+          );
           playTypewriterSound();
           setMessages((prev) =>
             appendTextPart(prev, assistantMsgId, streamEvent.text),

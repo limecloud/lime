@@ -34,10 +34,7 @@ src-tauri/src/
 │   ├── mod.rs
 │   └── tests.rs          # 转换器测试
 ├── providers/
-│   ├── kiro/
-│   │   └── tests.rs      # Kiro Provider 测试
-│   └── gemini/
-│       └── tests.rs      # Gemini Provider 测试
+│   └── tests.rs          # API Key Provider / 协议适配测试
 └── services/
     └── tests.rs          # 服务层测试
 ```
@@ -100,8 +97,8 @@ src/
 │   ├── utils.ts
 │   └── utils.test.ts     # 工具函数测试
 ├── hooks/
-│   ├── useCredentials.ts
-│   └── useCredentials.test.ts
+│   ├── useConfiguredProviders.ts
+│   └── useConfiguredProviders.test.ts
 └── components/
     └── __tests__/        # 组件测试
 ```
@@ -110,17 +107,17 @@ src/
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { formatCredentialName, validateApiKey } from './utils';
+import { formatProviderLabel, validateApiKey } from './utils';
 
-describe('formatCredentialName', () => {
-  it('should format kiro credential name', () => {
-    const result = formatCredentialName('kiro', 'user@example.com');
-    expect(result).toBe('Kiro (user@example.com)');
+describe('formatProviderLabel', () => {
+  it('should format configured provider name', () => {
+    const result = formatProviderLabel('openai', 'Work OpenAI');
+    expect(result).toBe('Work OpenAI');
   });
 
-  it('should handle empty email', () => {
-    const result = formatCredentialName('kiro', '');
-    expect(result).toBe('Kiro');
+  it('should fall back to provider type', () => {
+    const result = formatProviderLabel('openai', '');
+    expect(result).toBe('OpenAI');
   });
 });
 
@@ -207,7 +204,7 @@ fn test_error()
 | 模块 | 目标覆盖率 | 说明 |
 |------|-----------|------|
 | converter | 90%+ | 核心转换逻辑 |
-| providers | 80%+ | OAuth 流程 |
+| providers | 80%+ | API Key Provider 与协议适配 |
 | services | 70%+ | 业务逻辑 |
 | utils | 95%+ | 工具函数 |
 

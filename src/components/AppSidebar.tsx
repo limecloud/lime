@@ -96,7 +96,10 @@ import {
   type OemCloudReferralDashboard,
 } from "@/lib/api/oemCloudControlPlane";
 import { clearSiteAdapterCatalogCache } from "@/lib/siteAdapterCatalogBootstrap";
-import { startOemCloudLogin } from "@/lib/oemCloudLoginLauncher";
+import {
+  createExternalBrowserOpenTarget,
+  startOemCloudLogin,
+} from "@/lib/oemCloudLoginLauncher";
 import {
   cacheOemCloudReferralDashboard,
   readCachedOemCloudReferralState,
@@ -2625,6 +2628,7 @@ export function AppSidebar({
     loadArchivedSidebarSessions,
     loadRecentSidebarSessions,
   ]);
+  const sidebarFocusRefreshCancelRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!shouldLoadWorkspaceScopedConversations) {
@@ -2657,12 +2661,24 @@ export function AppSidebar({
     }
 
     const handleFocus = () => {
-      void refreshSidebarSessions();
+      sidebarFocusRefreshCancelRef.current?.();
+      sidebarFocusRefreshCancelRef.current = scheduleMinimumDelayIdleTask(
+        () => {
+          sidebarFocusRefreshCancelRef.current = null;
+          void refreshSidebarSessions();
+        },
+        {
+          minimumDelayMs: SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS,
+          idleTimeoutMs: SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS,
+        },
+      );
     };
 
     window.addEventListener("focus", handleFocus);
 
     return () => {
+      sidebarFocusRefreshCancelRef.current?.();
+      sidebarFocusRefreshCancelRef.current = null;
       window.removeEventListener("focus", handleFocus);
     };
   }, [refreshSidebarSessions, shouldLoadWorkspaceScopedConversations]);
@@ -3058,8 +3074,9 @@ export function AppSidebar({
   const handleAccountLogin = useCallback(async () => {
     setAccountLoginPending(true);
     setAccountLoginError(null);
+    const browserTarget = createExternalBrowserOpenTarget();
     try {
-      const result = await startOemCloudLogin();
+      const result = await startOemCloudLogin(undefined, { browserTarget });
       toast.success(
         result.mode === "desktop_auth"
           ? `${cloudBrandLabel} 登录已同步`
@@ -3078,7 +3095,6 @@ export function AppSidebar({
       setAccountLoginPending(false);
     }
   }, [cloudBrandLabel]);
-
 
   const handleAccountLogout = useCallback(async () => {
     const tenantId = cloudSessionState?.session.tenant.id;

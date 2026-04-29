@@ -161,7 +161,7 @@ pub async fn get_models_by_tier(
 
 /// 获取指定 Provider 的别名配置
 ///
-/// 用于获取 Antigravity、Kiro 等中转服务的模型别名映射
+/// 用于获取中转服务的模型别名映射，例如 Antigravity 协议转换相关别名
 #[tauri::command]
 pub async fn get_provider_alias_config(
     state: State<'_, ModelRegistryState>,

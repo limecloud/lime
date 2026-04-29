@@ -23,8 +23,7 @@
 - `ui_trait.rs` - 插件 UI Trait 定义
 - `ui_builder.rs` - UI 构建器辅助 API
 - `ui_events.rs` - UI 事件推送（Tauri 事件）
-- `examples/` - 示例插件
-  - `credential_monitor.rs` - 凭证监控示例
+- `examples/` - 示例插件占位；旧凭证池状态示例已随凭证池退役删除
 - `tests.rs` - 单元测试
 
 ## 插件 UI 系统

@@ -253,7 +253,8 @@ describe("useOemLimeHubProviderSync", () => {
       "lime-hub",
       {
         name: "Acme Hub",
-        api_host: "https://gateway-api.limeai.run/root",
+        api_host:
+          "https://gateway-api.limeai.run/root#lime_tenant_id=tenant-0001",
         type: "openai",
         enabled: true,
         sort_order: 0,
@@ -547,6 +548,8 @@ describe("useOemLimeHubProviderSync", () => {
     expect(apiKeyProviderMocks.updateProvider).toHaveBeenCalledWith(
       "lime-hub",
       {
+        api_host:
+          "https://gateway-api.limeai.run/root#lime_tenant_id=tenant-0001",
         custom_models: [],
       },
     );

@@ -174,7 +174,7 @@ export function ImageGenSettings() {
   const providerHint = providersLoading
     ? "只展示已声明图片生成能力的 Provider。"
     : imageProviders.length === 0
-      ? "当前没有可用图片 Provider；请先在凭证管理中为可出图服务配置模型或自定义模型。"
+      ? "当前没有可用图片 Provider；请先在设置 -> AI 服务商中为可出图服务配置模型或自定义模型。"
       : "只展示已声明图片生成能力的 Provider；后续接入品牌云端目录时也会复用同一筛选口径。";
 
   return (

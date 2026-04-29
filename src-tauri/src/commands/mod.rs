@@ -33,6 +33,7 @@ pub mod memory_cmd;
 pub mod memory_feedback_cmd;
 pub mod memory_management_cmd;
 pub mod memory_search_cmd;
+pub(crate) mod modality_runtime_contracts;
 pub mod model_registry_cmd;
 pub mod models_cmd;
 pub mod openclaw_cmd;

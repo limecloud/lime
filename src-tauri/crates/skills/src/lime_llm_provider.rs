@@ -11,8 +11,10 @@ use lime_core::database::dao::api_key_provider::ApiProviderType;
 use lime_core::database::DbConnection;
 use lime_core::models::anthropic::AnthropicMessagesRequest;
 #[cfg(test)]
-use lime_core::models::provider_pool_model::PoolProviderType;
-use lime_core::models::provider_pool_model::{CredentialData, ProviderCredential};
+use lime_core::models::RuntimeProviderType;
+use lime_core::models::{
+    runtime_api_key_id_from_credential_uuid, RuntimeCredentialData, RuntimeProviderCredential,
+};
 use lime_providers::providers::claude_custom::{ClaudeCustomProvider, PromptCacheMode};
 use lime_providers::providers::gemini::{GeminiApiKeyCredential, GeminiApiKeyProvider};
 use lime_providers::providers::openai_custom::OpenAICustomProvider;
@@ -25,7 +27,7 @@ use crate::{LlmProvider, SkillError};
 /// 使用 API Key Provider 选择凭证并调用 LLM API。
 /// 实现 aster-rust 定义的 LlmProvider trait。
 pub struct LimeLlmProvider {
-    /// API Key Provider 服务（用于智能降级）
+    /// API Key Provider 服务
     api_key_service: Arc<ApiKeyProviderService>,
     /// 数据库连接
     db: DbConnection,
@@ -75,20 +77,20 @@ impl LimeLlmProvider {
         self.preferred_provider.as_deref()
     }
 
-    /// 将 Skill 的 provider 字段映射到 PoolProviderType
+    /// 将 Skill 的 provider 字段映射到 RuntimeProviderType
     ///
     /// # Arguments
     /// * `provider` - Provider 名称字符串
     ///
     /// # Returns
-    /// 对应的 PoolProviderType，未知类型返回 None
+    /// 对应的 RuntimeProviderType，未知类型返回 None
     #[cfg(test)]
-    fn map_skill_provider_to_pool_type(provider: &str) -> Option<PoolProviderType> {
+    fn map_skill_provider_to_runtime_provider_type(provider: &str) -> Option<RuntimeProviderType> {
         match provider.to_lowercase().as_str() {
-            "openai" | "gpt" => Some(PoolProviderType::OpenAI),
-            "anthropic" | "claude" => Some(PoolProviderType::Claude),
-            "gemini" | "google" => Some(PoolProviderType::GeminiApiKey),
-            "vertex" => Some(PoolProviderType::Vertex),
+            "openai" | "gpt" => Some(RuntimeProviderType::OpenAI),
+            "anthropic" | "claude" => Some(RuntimeProviderType::Claude),
+            "gemini" | "google" => Some(RuntimeProviderType::GeminiApiKey),
+            "vertex" => Some(RuntimeProviderType::Vertex),
             _ => None,
         }
     }
@@ -105,13 +107,13 @@ impl LimeLlmProvider {
     /// LLM 响应文本或错误
     async fn call_llm_with_credential(
         &self,
-        credential: &ProviderCredential,
+        credential: &RuntimeProviderCredential,
         system_prompt: &str,
         user_message: &str,
         model: &str,
     ) -> Result<String, SkillError> {
         match &credential.credential {
-            CredentialData::ClaudeKey { api_key, base_url } => {
+            RuntimeCredentialData::ClaudeKey { api_key, base_url } => {
                 self.call_claude_api(
                     api_key,
                     base_url.as_deref(),
@@ -130,7 +132,7 @@ impl LimeLlmProvider {
                 )
                 .await
             }
-            CredentialData::OpenAIKey { api_key, base_url } => {
+            RuntimeCredentialData::OpenAIKey { api_key, base_url } => {
                 self.call_openai_api(
                     api_key,
                     base_url.as_deref(),
@@ -140,7 +142,7 @@ impl LimeLlmProvider {
                 )
                 .await
             }
-            CredentialData::AnthropicKey { api_key, base_url } => {
+            RuntimeCredentialData::AnthropicKey { api_key, base_url } => {
                 // Anthropic API Key 使用 Claude API
                 self.call_claude_api(
                     api_key,
@@ -160,7 +162,7 @@ impl LimeLlmProvider {
                 )
                 .await
             }
-            CredentialData::GeminiApiKey {
+            RuntimeCredentialData::GeminiApiKey {
                 api_key,
                 base_url,
                 excluded_models,
@@ -176,8 +178,8 @@ impl LimeLlmProvider {
                 )
                 .await
             }
-            _ => Err(SkillError::ProviderError(format!(
-                "凭证池/OAuth 凭证已退役，当前只支持 API Key Provider 凭证: {:?}",
+            RuntimeCredentialData::VertexKey { .. } => Err(SkillError::ProviderError(format!(
+                "Skill LLM 调用暂不支持 Vertex runtime credential: {:?}",
                 credential.provider_type
             ))),
         }
@@ -450,13 +452,14 @@ impl LlmProvider for LimeLlmProvider {
         // 记录使用情况
         match &result {
             Ok(_) => {
-                if let Some(api_key_id) = credential.uuid.strip_prefix("fallback-") {
+                if let Some(api_key_id) = runtime_api_key_id_from_credential_uuid(&credential.uuid)
+                {
                     let _ = self.api_key_service.record_usage(&self.db, api_key_id);
                 }
             }
             Err(e) => {
                 tracing::debug!(
-                    "[LimeLlmProvider] 调用失败，API Key Provider 不写回凭证池健康状态: {}",
+                    "[LimeLlmProvider] 调用失败，API Key Provider 不写回旧 credential 健康状态: {}",
                     e
                 );
             }
@@ -473,54 +476,57 @@ mod tests {
     #[test]
     fn test_map_skill_provider_openai() {
         assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("openai"),
-            Some(PoolProviderType::OpenAI)
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type("openai"),
+            Some(RuntimeProviderType::OpenAI)
         );
         assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("gpt"),
-            Some(PoolProviderType::OpenAI)
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type("gpt"),
+            Some(RuntimeProviderType::OpenAI)
         );
         assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("OPENAI"),
-            Some(PoolProviderType::OpenAI)
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type("OPENAI"),
+            Some(RuntimeProviderType::OpenAI)
         );
     }
 
     #[test]
     fn test_map_skill_provider_claude() {
         assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("claude"),
-            Some(PoolProviderType::Claude)
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type("claude"),
+            Some(RuntimeProviderType::Claude)
         );
         assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("anthropic"),
-            Some(PoolProviderType::Claude)
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type("anthropic"),
+            Some(RuntimeProviderType::Claude)
         );
         assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("CLAUDE"),
-            Some(PoolProviderType::Claude)
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type("CLAUDE"),
+            Some(RuntimeProviderType::Claude)
         );
     }
 
     #[test]
     fn test_map_skill_provider_gemini() {
         assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("gemini"),
-            Some(PoolProviderType::GeminiApiKey)
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type("gemini"),
+            Some(RuntimeProviderType::GeminiApiKey)
         );
         assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("google"),
-            Some(PoolProviderType::GeminiApiKey)
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type("google"),
+            Some(RuntimeProviderType::GeminiApiKey)
         );
     }
 
     #[test]
     fn test_map_skill_provider_unknown() {
         assert_eq!(
-            LimeLlmProvider::map_skill_provider_to_pool_type("unknown_provider"),
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type("unknown_provider"),
             None
         );
-        assert_eq!(LimeLlmProvider::map_skill_provider_to_pool_type(""), None);
+        assert_eq!(
+            LimeLlmProvider::map_skill_provider_to_runtime_provider_type(""),
+            None
+        );
     }
 
     #[test]

@@ -49,6 +49,8 @@ docs/roadmap/*
 !docs/roadmap/harness-engine/
 !docs/roadmap/harness-engine/README.md
 !docs/roadmap/harness-engine/diagrams.md
+!docs/roadmap/warp/
+!docs/roadmap/warp/*.md
 docs/gongzonghao/
 docs/bussniss/
 docs/oem/

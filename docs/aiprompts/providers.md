@@ -43,18 +43,16 @@ pub enum ProviderType {
 pub trait Provider: Send + Sync {
     /// 获取 Provider 类型
     fn provider_type(&self) -> ProviderType;
-    
-    /// 加载凭证
-    async fn load_credential(&self, path: &Path) -> Result<CredentialData>;
-    
-    /// 刷新 Token
-    async fn refresh_token(&self, credential: &mut CredentialData) -> Result<()>;
-    
-    /// 检查 Token 是否过期
-    fn is_token_expired(&self, credential: &CredentialData) -> bool;
-    
+
+    /// 返回运行时能力声明；凭证由 API Key Provider 服务解析后注入。
+    fn capabilities(&self) -> ProviderCapabilities;
+
     /// 发送 API 请求
-    async fn send_request(&self, credential: &CredentialData, request: &Request) -> Result<Response>;
+    async fn send_request(
+        &self,
+        credential: &RuntimeProviderCredential,
+        request: &ProviderRequest,
+    ) -> Result<ProviderResponse>;
 }
 ```
 

@@ -1,4 +1,5 @@
 use super::*;
+use crate::commands::aster_agent_cmd::dto::AgentRuntimeSessionHistoryCursor;
 use crate::sceneapp::application::SceneAppService;
 use crate::services::execution_tracker_service::ExecutionTracker;
 use crate::services::runtime_analysis_handoff_service::{
@@ -23,6 +24,7 @@ use crate::services::runtime_review_decision_service::{
 };
 use crate::services::thread_reliability_projection_service::sync_thread_reliability_projection;
 use aster::hooks::SessionSource;
+use lime_core::database::dao::agent::AgentDao;
 use lime_core::database::dao::agent_timeline::{AgentThreadItemStatus, AgentThreadTurnStatus};
 use std::path::PathBuf;
 use std::time::Instant;
@@ -39,10 +41,38 @@ fn normalize_runtime_session_history_limit(history_limit: Option<usize>) -> Opti
     }
 }
 
+fn normalize_runtime_session_history_offset(
+    history_limit: Option<usize>,
+    history_offset: Option<usize>,
+) -> usize {
+    if history_limit.is_none() {
+        return 0;
+    }
+
+    history_offset.unwrap_or(0)
+}
+
+fn normalize_runtime_session_history_before_message_id(
+    history_limit: Option<usize>,
+    history_before_message_id: Option<i64>,
+) -> Option<i64> {
+    if history_limit.is_none() {
+        return None;
+    }
+
+    history_before_message_id.filter(|message_id| *message_id > 0)
+}
+
 fn should_list_runtime_queue_snapshots(
     detail: &lime_agent::SessionDetail,
     history_limit: Option<usize>,
+    history_offset: usize,
+    history_before_message_id: Option<i64>,
 ) -> bool {
+    if history_offset > 0 || history_before_message_id.is_some() {
+        return false;
+    }
+
     if detail.is_persisted_empty() {
         return false;
     }
@@ -190,10 +220,18 @@ pub async fn agent_runtime_get_session(
     session_id: String,
     resume_session_start_hooks: Option<bool>,
     history_limit: Option<usize>,
+    history_offset: Option<usize>,
+    history_before_message_id: Option<i64>,
 ) -> Result<AgentRuntimeSessionDetail, String> {
     let started_at = Instant::now();
     let resume_hooks = resume_session_start_hooks.unwrap_or(false);
     let normalized_history_limit = normalize_runtime_session_history_limit(history_limit);
+    let normalized_history_offset =
+        normalize_runtime_session_history_offset(normalized_history_limit, history_offset);
+    let normalized_history_before_message_id = normalize_runtime_session_history_before_message_id(
+        normalized_history_limit,
+        history_before_message_id,
+    );
     let runtime = build_runtime_command_context(
         app,
         state,
@@ -210,10 +248,12 @@ pub async fn agent_runtime_get_session(
         let resume_queue_ms = 0;
 
         let detail_started_at = Instant::now();
-        let detail = AsterAgentWrapper::get_runtime_session_detail_with_history_limit(
+        let detail = AsterAgentWrapper::get_runtime_session_detail_with_history_page(
             runtime.db(),
             &session_id,
             normalized_history_limit,
+            normalized_history_offset,
+            normalized_history_before_message_id,
         )
         .await?;
         let detail_ms = detail_started_at.elapsed().as_millis();
@@ -234,8 +274,12 @@ pub async fn agent_runtime_get_session(
         };
 
         let queue_snapshots_started_at = Instant::now();
-        let list_runtime_queue_snapshots =
-            should_list_runtime_queue_snapshots(&detail, normalized_history_limit);
+        let list_runtime_queue_snapshots = should_list_runtime_queue_snapshots(
+            &detail,
+            normalized_history_limit,
+            normalized_history_offset,
+            normalized_history_before_message_id,
+        );
         let queued_turns = if !list_runtime_queue_snapshots {
             Vec::new()
         } else {
@@ -287,8 +331,32 @@ pub async fn agent_runtime_get_session(
         );
         response.messages_count = messages_count;
         response.history_limit = normalized_history_limit;
-        response.history_truncated = normalized_history_limit
-            .map(|limit| messages_count > limit)
+        response.history_offset = normalized_history_limit.map(|_| normalized_history_offset);
+        response.history_cursor = if let Some(limit) = normalized_history_limit {
+            let conn = runtime
+                .db()
+                .lock()
+                .map_err(|error| format!("数据库锁定失败: {error}"))?;
+            let window_info = AgentDao::get_message_window_info(
+                &conn,
+                &session_id,
+                limit,
+                normalized_history_offset,
+                normalized_history_before_message_id,
+            )
+            .map_err(|error| format!("读取历史游标失败: {error}"))?;
+            Some(AgentRuntimeSessionHistoryCursor {
+                oldest_message_id: window_info.oldest_message_id,
+                start_index: window_info.start_index,
+                loaded_count: window_info.loaded_count,
+            })
+        } else {
+            None
+        };
+        response.history_truncated = response
+            .history_cursor
+            .as_ref()
+            .map(|cursor| cursor.start_index > 0)
             .unwrap_or(false);
         let dto_ms = dto_started_at.elapsed().as_millis();
 
@@ -318,7 +386,7 @@ pub async fn agent_runtime_get_session(
         )) => {
             let total_ms = started_at.elapsed().as_millis();
             tracing::info!(
-                "[AsterAgent] 获取运行时会话完成: session_id={}, total_ms={}, resume_queue_ms={}, detail_ms={}, hooks_ms={}, queue_snapshots_ms={}, projection_ms={}, interrupt_marker_ms={}, dto_ms={}, history_limit={:?}, messages={}, turns={}, items={}, queued_turns={}, resume_hooks={}",
+                "[AsterAgent] 获取运行时会话完成: session_id={}, total_ms={}, resume_queue_ms={}, detail_ms={}, hooks_ms={}, queue_snapshots_ms={}, projection_ms={}, interrupt_marker_ms={}, dto_ms={}, history_limit={:?}, history_offset={}, history_before_message_id={:?}, messages={}, turns={}, items={}, queued_turns={}, resume_hooks={}",
                 session_id,
                 total_ms,
                 resume_queue_ms,
@@ -329,6 +397,8 @@ pub async fn agent_runtime_get_session(
                 interrupt_marker_ms,
                 dto_ms,
                 normalized_history_limit,
+                normalized_history_offset,
+                normalized_history_before_message_id,
                 response.messages.len(),
                 response.turns.len(),
                 response.items.len(),
@@ -340,11 +410,13 @@ pub async fn agent_runtime_get_session(
         Err(error) => {
             let total_ms = started_at.elapsed().as_millis();
             tracing::error!(
-                "[AsterAgent] 获取运行时会话失败: session_id={}, total_ms={}, resume_hooks={}, history_limit={:?}, error={}",
+                "[AsterAgent] 获取运行时会话失败: session_id={}, total_ms={}, resume_hooks={}, history_limit={:?}, history_offset={}, history_before_message_id={:?}, error={}",
                 session_id,
                 total_ms,
                 resume_hooks,
                 normalized_history_limit,
+                normalized_history_offset,
+                normalized_history_before_message_id,
                 error
             );
             Err(error)
@@ -1034,23 +1106,86 @@ mod tests {
     }
 
     #[test]
+    fn normalize_runtime_session_history_offset_should_ignore_full_history() {
+        assert_eq!(normalize_runtime_session_history_offset(None, Some(120)), 0);
+    }
+
+    #[test]
+    fn normalize_runtime_session_history_offset_should_keep_limited_offset() {
+        assert_eq!(
+            normalize_runtime_session_history_offset(Some(50), Some(40)),
+            40
+        );
+    }
+
+    #[test]
+    fn normalize_runtime_session_history_before_message_id_should_ignore_full_history() {
+        assert_eq!(
+            normalize_runtime_session_history_before_message_id(None, Some(120)),
+            None
+        );
+    }
+
+    #[test]
+    fn normalize_runtime_session_history_before_message_id_should_keep_positive_cursor() {
+        assert_eq!(
+            normalize_runtime_session_history_before_message_id(Some(50), Some(120)),
+            Some(120)
+        );
+    }
+
+    #[test]
     fn should_skip_runtime_queue_snapshots_for_completed_limited_history() {
         let detail = detail_with_turn_status(AgentThreadTurnStatus::Completed);
 
-        assert!(!should_list_runtime_queue_snapshots(&detail, Some(80)));
+        assert!(!should_list_runtime_queue_snapshots(
+            &detail,
+            Some(80),
+            0,
+            None
+        ));
     }
 
     #[test]
     fn should_list_runtime_queue_snapshots_for_running_limited_history() {
         let detail = detail_with_turn_status(AgentThreadTurnStatus::Running);
 
-        assert!(should_list_runtime_queue_snapshots(&detail, Some(80)));
+        assert!(should_list_runtime_queue_snapshots(
+            &detail,
+            Some(80),
+            0,
+            None
+        ));
+    }
+
+    #[test]
+    fn should_skip_runtime_queue_snapshots_for_older_history_page() {
+        let detail = detail_with_turn_status(AgentThreadTurnStatus::Running);
+
+        assert!(!should_list_runtime_queue_snapshots(
+            &detail,
+            Some(80),
+            40,
+            None
+        ));
+    }
+
+    #[test]
+    fn should_skip_runtime_queue_snapshots_for_cursor_history_page() {
+        let detail = detail_with_turn_status(AgentThreadTurnStatus::Running);
+
+        assert!(!should_list_runtime_queue_snapshots(
+            &detail,
+            Some(80),
+            0,
+            Some(120)
+        ));
     }
 
     #[test]
     fn should_list_runtime_queue_snapshots_for_full_history() {
         let detail = detail_with_turn_status(AgentThreadTurnStatus::Completed);
 
-        assert!(should_list_runtime_queue_snapshots(&detail, None));
+        assert!(should_list_runtime_queue_snapshots(&detail, None, 0, None));
     }
 }

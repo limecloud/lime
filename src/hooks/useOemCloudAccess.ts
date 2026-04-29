@@ -54,6 +54,7 @@ import {
 } from "@/lib/oemCloudDesktopAuth";
 import {
   buildOemCloudUserCenterUrl,
+  createExternalBrowserOpenTarget,
   openExternalUrl,
   startOemCloudLogin,
 } from "@/lib/oemCloudLoginLauncher";
@@ -1163,8 +1164,9 @@ export function useOemCloudAccess() {
     setErrorMessage(null);
     setInfoMessage(null);
 
+    const browserTarget = createExternalBrowserOpenTarget();
     try {
-      const result = await startOemCloudLogin(runtime);
+      const result = await startOemCloudLogin(runtime, { browserTarget });
       setInfoMessage(
         result.mode === "desktop_auth"
           ? "已打开系统浏览器，请完成 Google 授权；如果浏览器出现确认页，请继续完成，桌面端会自动同步登录结果。"
@@ -1340,8 +1342,10 @@ export function useOemCloudAccess() {
         return;
       }
 
+      const browserTarget = createExternalBrowserOpenTarget();
       await openExternalUrl(
         buildOemCloudUserCenterUrl(configuredTarget.baseUrl, path),
+        { browserTarget },
       );
     },
     [configuredTarget],

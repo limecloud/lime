@@ -25,8 +25,6 @@ pub enum ConfigChangeEvent {
     RetryChanged(RetryChangeEvent),
     /// Amp CLI 配置变更
     AmpConfigChanged(AmpConfigChangeEvent),
-    /// 凭证池配置变更
-    CredentialPoolChanged(CredentialPoolChangeEvent),
     /// Native Agent 配置变更
     NativeAgentChanged(NativeAgentChangeEvent),
 }
@@ -43,7 +41,6 @@ impl ConfigChangeEvent {
             ConfigChangeEvent::LoggingChanged(_) => "LoggingChanged",
             ConfigChangeEvent::RetryChanged(_) => "RetryChanged",
             ConfigChangeEvent::AmpConfigChanged(_) => "AmpConfigChanged",
-            ConfigChangeEvent::CredentialPoolChanged(_) => "CredentialPoolChanged",
             ConfigChangeEvent::NativeAgentChanged(_) => "NativeAgentChanged",
         }
     }
@@ -162,15 +159,6 @@ pub struct RetryChangeEvent {
 pub struct AmpConfigChangeEvent {
     pub upstream_url: Option<String>,
     pub model_mappings_count: usize,
-    /// 变更来源
-    pub source: ConfigChangeSource,
-}
-
-/// 凭证池配置变更事件
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CredentialPoolChangeEvent {
-    /// 变更的 Provider 类型列表
-    pub changed_providers: Vec<String>,
     /// 变更来源
     pub source: ConfigChangeSource,
 }

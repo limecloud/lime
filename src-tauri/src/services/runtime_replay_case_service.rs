@@ -146,16 +146,23 @@ pub fn export_runtime_replay_case(
     let file_checkpoints = list_file_checkpoints(detail);
     let pending_requests = collect_pending_request_inputs(detail, thread_read);
     let recent_timeline = collect_recent_timeline_items(detail);
-    let observability_summary = read_observability_summary_from_evidence_pack(&evidence_pack)?;
+    let evidence_runtime_payload = read_runtime_payload_from_evidence_pack(&evidence_pack)?;
+    let observability_summary =
+        extract_observability_summary_from_runtime_payload(&evidence_runtime_payload);
+    let modality_runtime_contracts =
+        extract_modality_runtime_contracts_from_runtime_payload(&evidence_runtime_payload);
     let success_criteria = build_success_criteria(
         detail,
         thread_read,
         goal_summary.as_deref(),
         &recent_artifacts,
         &pending_requests,
+        &modality_runtime_contracts,
     );
-    let blocking_checks = build_blocking_checks(thread_read, &pending_requests);
+    let blocking_checks =
+        build_blocking_checks(thread_read, &pending_requests, &modality_runtime_contracts);
     let artifact_checks = build_artifact_checks(&recent_artifacts);
+    let modality_contract_checks = build_modality_contract_checks(&modality_runtime_contracts);
 
     let artifacts = vec![
         write_replay_file(
@@ -177,6 +184,7 @@ pub fn export_runtime_replay_case(
                 &recent_timeline,
                 &pending_requests,
                 &observability_summary,
+                &modality_runtime_contracts,
                 workspace_root.as_path(),
                 exported_at.as_str(),
             )?,
@@ -194,6 +202,8 @@ pub fn export_runtime_replay_case(
                 &success_criteria,
                 &blocking_checks,
                 &artifact_checks,
+                &modality_contract_checks,
+                &modality_runtime_contracts,
                 exported_at.as_str(),
             )?,
         )?,
@@ -208,6 +218,7 @@ pub fn export_runtime_replay_case(
                 goal_summary.as_deref(),
                 &success_criteria,
                 &blocking_checks,
+                &modality_contract_checks,
                 handoff_bundle.bundle_relative_root.as_str(),
                 evidence_pack.pack_relative_root.as_str(),
                 exported_at.as_str(),
@@ -224,6 +235,7 @@ pub fn export_runtime_replay_case(
                 &evidence_pack,
                 &recent_artifacts,
                 &observability_summary,
+                &modality_runtime_contracts,
                 exported_at.as_str(),
             )?,
         )?,
@@ -280,7 +292,7 @@ fn write_replay_file(
     })
 }
 
-fn read_observability_summary_from_evidence_pack(
+fn read_runtime_payload_from_evidence_pack(
     evidence_pack: &RuntimeEvidencePackExportResult,
 ) -> Result<Value, String> {
     let runtime_path = Path::new(&evidence_pack.pack_absolute_root).join("runtime.json");
@@ -297,10 +309,27 @@ fn read_observability_summary_from_evidence_pack(
         )
     })?;
 
-    Ok(payload
+    Ok(payload)
+}
+
+fn extract_observability_summary_from_runtime_payload(payload: &Value) -> Value {
+    payload
         .pointer("/observabilitySummary")
         .cloned()
-        .unwrap_or(Value::Null))
+        .unwrap_or(Value::Null)
+}
+
+fn extract_modality_runtime_contracts_from_runtime_payload(payload: &Value) -> Value {
+    payload
+        .pointer("/modalityRuntimeContracts")
+        .cloned()
+        .unwrap_or_else(|| {
+            json!({
+                "applicableArtifactCount": 0,
+                "snapshotCount": 0,
+                "snapshots": []
+            })
+        })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -317,12 +346,19 @@ fn build_input_json(
     recent_timeline: &[ReplayTimelineItem],
     pending_requests: &[ReplayPendingRequestInput],
     observability_summary: &Value,
+    modality_runtime_contracts: &Value,
     workspace_root: &Path,
     exported_at: &str,
 ) -> Result<String, String> {
     let latest_turn = detail.turns.last();
-    let suite_tags = infer_replay_suite_tags(detail, thread_read, handoff_bundle, evidence_pack);
-    let failure_modes = infer_replay_failure_modes(detail, thread_read);
+    let suite_tags = infer_replay_suite_tags(
+        detail,
+        thread_read,
+        handoff_bundle,
+        evidence_pack,
+        modality_runtime_contracts,
+    );
+    let failure_modes = infer_replay_failure_modes(detail, thread_read, modality_runtime_contracts);
     let primary_blocking_kind = thread_read
         .diagnostics
         .as_ref()
@@ -357,6 +393,7 @@ fn build_input_json(
             "suiteTags": suite_tags,
             "failureModes": failure_modes,
             "primaryBlockingKind": primary_blocking_kind,
+            "modalityContractKeys": modality_contract_keys(modality_runtime_contracts),
         },
         "runtimeContext": {
             "pendingRequests": pending_requests,
@@ -392,6 +429,7 @@ fn build_input_json(
             "lastOutcome": &thread_read.last_outcome,
             "incidents": &thread_read.incidents,
             "runtimeFacts": build_replay_runtime_facts(thread_read),
+            "modalityRuntimeContracts": modality_runtime_contracts,
         },
         "observability": observability_summary,
         "linkedArtifacts": {
@@ -418,6 +456,8 @@ fn build_expected_json(
     success_criteria: &[String],
     blocking_checks: &[String],
     artifact_checks: &[String],
+    modality_contract_checks: &[String],
+    modality_runtime_contracts: &Value,
     exported_at: &str,
 ) -> Result<String, String> {
     let payload = json!({
@@ -429,6 +469,7 @@ fn build_expected_json(
         "successCriteria": success_criteria,
         "blockingChecks": blocking_checks,
         "artifactChecks": artifact_checks,
+        "modalityContractChecks": modality_contract_checks,
         "nonGoals": [
             "不要要求与原始会话完全相同的工具调用顺序",
             "不要把措辞差异当作失败，除非它改变了交付结果或风险判断",
@@ -439,7 +480,8 @@ fn build_expected_json(
             } else {
                 "result_and_artifact"
             },
-            "requiresHumanReview": !thread_read.incidents.is_empty(),
+            "requiresHumanReview": !thread_read.incidents.is_empty()
+                || modality_contract_has_routing_block(modality_runtime_contracts),
         },
     });
 
@@ -452,6 +494,7 @@ fn build_grader_markdown(
     goal_summary: Option<&str>,
     success_criteria: &[String],
     blocking_checks: &[String],
+    modality_contract_checks: &[String],
     handoff_relative_root: &str,
     evidence_relative_root: &str,
     exported_at: &str,
@@ -502,6 +545,14 @@ fn build_grader_markdown(
     for check in blocking_checks {
         let _ = writeln!(markdown, "- {check}");
     }
+    if !modality_contract_checks.is_empty() {
+        let _ = writeln!(markdown);
+        let _ = writeln!(markdown, "## 多模态运行合同检查");
+        let _ = writeln!(markdown);
+        for check in modality_contract_checks {
+            let _ = writeln!(markdown, "- {check}");
+        }
+    }
     let _ = writeln!(markdown);
     let _ = writeln!(markdown, "## 建议输出模板");
     let _ = writeln!(markdown);
@@ -523,6 +574,7 @@ fn build_evidence_links_json(
     evidence_pack: &RuntimeEvidencePackExportResult,
     recent_artifacts: &[String],
     observability_summary: &Value,
+    modality_runtime_contracts: &Value,
     exported_at: &str,
 ) -> Result<String, String> {
     let payload = json!({
@@ -540,6 +592,7 @@ fn build_evidence_links_json(
             "artifacts": &evidence_pack.artifacts,
         },
         "observabilitySummary": observability_summary,
+        "modalityRuntimeContracts": modality_runtime_contracts,
         "recentArtifacts": recent_artifacts,
     });
 
@@ -573,6 +626,7 @@ fn build_success_criteria(
     goal_summary: Option<&str>,
     recent_artifacts: &[String],
     pending_requests: &[ReplayPendingRequestInput],
+    modality_runtime_contracts: &Value,
 ) -> Vec<String> {
     let mut criteria = Vec::new();
 
@@ -622,6 +676,16 @@ fn build_success_criteria(
         criteria.push("不要无意吞掉排队 turn；如要清空或改写，必须有明确理由。".to_string());
     }
 
+    if modality_contract_snapshot_count(modality_runtime_contracts) > 0 {
+        criteria.push(format!(
+            "回放必须继续满足底层多模态运行合同：{}。",
+            format_text_list(
+                &modality_contract_keys(modality_runtime_contracts),
+                "未命名合同"
+            )
+        ));
+    }
+
     if criteria.is_empty() {
         criteria.push("结果应与 input.json 描述的任务目标一致。".to_string());
     }
@@ -632,6 +696,7 @@ fn build_success_criteria(
 fn build_blocking_checks(
     thread_read: &AgentRuntimeThreadReadModel,
     pending_requests: &[ReplayPendingRequestInput],
+    modality_runtime_contracts: &Value,
 ) -> Vec<String> {
     let mut checks = Vec::new();
 
@@ -662,8 +727,62 @@ fn build_blocking_checks(
         ));
     }
 
+    if modality_contract_has_routing_block(modality_runtime_contracts) {
+        checks.push(format!(
+            "多模态运行合同存在路由阻塞：{}；除非重放已换到满足合同的模型并成功产出，否则不能判 PASS。",
+            format_text_list(
+                &modality_contract_failure_codes(modality_runtime_contracts),
+                "未记录 failureCode"
+            )
+        ));
+    }
+
     if checks.is_empty() {
         checks.push("当前没有额外阻塞检查项，按结果与证据判定即可。".to_string());
+    }
+
+    checks
+}
+
+fn build_modality_contract_checks(modality_runtime_contracts: &Value) -> Vec<String> {
+    if modality_contract_snapshot_count(modality_runtime_contracts) == 0 {
+        return Vec::new();
+    }
+
+    let mut checks = vec![format!(
+        "确认 replay 沿用的 contract key 仍是：{}。",
+        format_text_list(
+            &modality_contract_keys(modality_runtime_contracts),
+            "未命名合同"
+        )
+    )];
+
+    let models = modality_contract_models(modality_runtime_contracts);
+    if !models.is_empty() {
+        checks.push(format!(
+            "确认模型路由与合同匹配；当前快照模型：{}。",
+            format_text_list(&models, "未记录模型")
+        ));
+    }
+    let assessment_sources =
+        modality_contract_model_capability_assessment_sources(modality_runtime_contracts);
+    if !assessment_sources.is_empty() {
+        checks.push(format!(
+            "确认模型能力判定继续来自登记事实源：{}。",
+            format_text_list(&assessment_sources, "未记录判定来源")
+        ));
+    }
+
+    if modality_contract_has_routing_block(modality_runtime_contracts) {
+        checks.push(format!(
+            "存在 `routing_not_possible` / `blocked` 快照，重点回归 capability gap：{}。",
+            format_text_list(
+                &modality_contract_failure_codes(modality_runtime_contracts),
+                "未记录 failureCode"
+            )
+        ));
+    } else {
+        checks.push("确认没有把多模态任务降级为普通文本模型或通用文件卡兜底。".to_string());
     }
 
     checks
@@ -686,6 +805,7 @@ fn infer_replay_suite_tags(
     thread_read: &AgentRuntimeThreadReadModel,
     handoff_bundle: &RuntimeHandoffBundleExportResult,
     evidence_pack: &RuntimeEvidencePackExportResult,
+    modality_runtime_contracts: &Value,
 ) -> Vec<String> {
     let mut tags = Vec::new();
 
@@ -721,12 +841,24 @@ fn infer_replay_suite_tags(
         push_unique_text_tag(&mut tags, "incident");
     }
 
+    if modality_contract_snapshot_count(modality_runtime_contracts) > 0 {
+        push_unique_text_tag(&mut tags, "modality-runtime-contract");
+        for contract_key in modality_contract_keys(modality_runtime_contracts) {
+            push_unique_owned_tag(&mut tags, format!("modality-{contract_key}"));
+        }
+    }
+
+    if modality_contract_has_routing_block(modality_runtime_contracts) {
+        push_unique_text_tag(&mut tags, "routing-not-possible");
+    }
+
     tags
 }
 
 fn infer_replay_failure_modes(
     detail: &SessionDetail,
     thread_read: &AgentRuntimeThreadReadModel,
+    modality_runtime_contracts: &Value,
 ) -> Vec<String> {
     let mut failure_modes = Vec::new();
 
@@ -782,7 +914,104 @@ fn infer_replay_failure_modes(
         }
     }
 
+    if modality_contract_has_routing_block(modality_runtime_contracts) {
+        push_unique_text_tag(&mut failure_modes, "modality_contract_routing_blocked");
+    }
+    for failure_code in modality_contract_failure_codes(modality_runtime_contracts) {
+        push_unique_owned_tag(&mut failure_modes, failure_code);
+    }
+
     failure_modes
+}
+
+fn modality_contract_snapshots(modality_runtime_contracts: &Value) -> Vec<&Value> {
+    modality_runtime_contracts
+        .pointer("/snapshots")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().collect())
+        .unwrap_or_default()
+}
+
+fn modality_contract_snapshot_count(modality_runtime_contracts: &Value) -> usize {
+    modality_runtime_contracts
+        .pointer("/snapshotCount")
+        .and_then(Value::as_u64)
+        .map(|value| value as usize)
+        .unwrap_or_else(|| modality_contract_snapshots(modality_runtime_contracts).len())
+}
+
+fn modality_contract_keys(modality_runtime_contracts: &Value) -> Vec<String> {
+    collect_unique_snapshot_strings(modality_runtime_contracts, "contractKey")
+}
+
+fn modality_contract_models(modality_runtime_contracts: &Value) -> Vec<String> {
+    collect_unique_snapshot_strings(modality_runtime_contracts, "model")
+}
+
+fn modality_contract_failure_codes(modality_runtime_contracts: &Value) -> Vec<String> {
+    collect_unique_snapshot_strings(modality_runtime_contracts, "failureCode")
+}
+
+fn modality_contract_model_capability_assessment_sources(
+    modality_runtime_contracts: &Value,
+) -> Vec<String> {
+    let mut values = Vec::new();
+    for snapshot in modality_contract_snapshots(modality_runtime_contracts) {
+        if let Some(value) = snapshot
+            .pointer("/modelCapabilityAssessment/source")
+            .and_then(Value::as_str)
+            .and_then(|value| normalize_optional_text(Some(value.to_string())))
+        {
+            push_unique_owned_tag(&mut values, value);
+        }
+    }
+    values
+}
+
+fn modality_contract_has_routing_block(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            snapshot
+                .get("routingEvent")
+                .and_then(Value::as_str)
+                .map(|value| value == "routing_not_possible")
+                .unwrap_or(false)
+                || snapshot
+                    .get("routingOutcome")
+                    .and_then(Value::as_str)
+                    .map(|value| value == "blocked")
+                    .unwrap_or(false)
+        })
+}
+
+fn collect_unique_snapshot_strings(
+    modality_runtime_contracts: &Value,
+    field_name: &str,
+) -> Vec<String> {
+    let mut values = Vec::new();
+    for snapshot in modality_contract_snapshots(modality_runtime_contracts) {
+        if let Some(value) = snapshot
+            .get(field_name)
+            .and_then(Value::as_str)
+            .and_then(|value| normalize_optional_text(Some(value.to_string())))
+        {
+            push_unique_owned_tag(&mut values, value);
+        }
+    }
+    values
+}
+
+fn format_text_list(values: &[String], fallback: &str) -> String {
+    if values.is_empty() {
+        fallback.to_string()
+    } else {
+        values
+            .iter()
+            .map(|value| format!("`{value}`"))
+            .collect::<Vec<_>>()
+            .join("、")
+    }
 }
 
 fn push_unique_text_tag(values: &mut Vec<String>, value: &str) {
@@ -1305,6 +1534,79 @@ mod tests {
         }
     }
 
+    fn write_failed_image_contract_task_fixture(root: &Path, relative_path: &str) {
+        let absolute_path = root.join(relative_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        fs::create_dir_all(
+            absolute_path
+                .parent()
+                .expect("image task path should have parent"),
+        )
+        .expect("create image task dir");
+        fs::write(
+            absolute_path,
+            serde_json::to_string_pretty(&json!({
+                "task_id": "task-image-failed",
+                "task_type": "image_generate",
+                "task_family": "image",
+                "title": "图片模型路由失败",
+                "payload": {
+                    "prompt": "生成一张产品海报",
+                    "provider_id": "openai",
+                    "model": "gpt-5.2",
+                    "model_capability_assessment": {
+                        "model_id": "gpt-5.2",
+                        "provider_id": "openai",
+                        "source": "model_registry",
+                        "supports_image_generation": false,
+                        "reason": "registry_missing_image_generation_capability"
+                    },
+                    "modality_contract_key": "image_generation",
+                    "modality": "image",
+                    "required_capabilities": ["text_generation", "image_generation", "vision_input"],
+                    "routing_slot": "image_generation_model",
+                    "runtime_contract": {
+                        "contract_key": "image_generation",
+                        "modality": "image",
+                        "required_capabilities": ["text_generation", "image_generation", "vision_input"],
+                        "routing_slot": "image_generation_model",
+                        "executor_binding": {
+                            "executor_kind": "skill",
+                            "binding_key": "image_generate"
+                        },
+                        "truth_source": ["image_task_artifact", "runtime_timeline_event"]
+                    }
+                },
+                "status": "failed",
+                "normalized_status": "failed",
+                "created_at": "2026-04-24T10:00:00Z",
+                "updated_at": "2026-04-24T10:00:05Z",
+                "submitted_at": null,
+                "started_at": null,
+                "completed_at": "2026-04-24T10:00:05Z",
+                "cancelled_at": null,
+                "idempotency_key": null,
+                "retry_count": 0,
+                "source_task_id": null,
+                "result": null,
+                "last_error": {
+                    "code": "image_generation_model_capability_gap",
+                    "message": "image_generation contract 要求图片生成模型，但当前模型 gpt-5.2 看起来是文本模型。",
+                    "retryable": false,
+                    "stage": "routing",
+                    "provider_code": null,
+                    "occurred_at": "2026-04-24T10:00:05Z"
+                },
+                "current_attempt_id": "attempt-1",
+                "attempts": [],
+                "relationships": {},
+                "progress": {},
+                "ui_hints": {}
+            }))
+            .expect("serialize failed image task"),
+        )
+        .expect("write failed image task");
+    }
+
     #[test]
     fn should_export_runtime_replay_case_to_workspace() {
         let temp_dir = TempDir::new().expect("temp dir");
@@ -1382,5 +1684,94 @@ mod tests {
         assert!(links.contains("\"evidencePack\""));
         assert!(links.contains("\"observabilitySummary\""));
         assert!(!links.contains("\"artifactValidator\""));
+    }
+
+    #[test]
+    fn should_carry_modality_runtime_contract_into_replay_case() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+        let image_task_relative_path = ".lime/tasks/image_generate/task-image-failed.json";
+
+        write_failed_image_contract_task_fixture(temp_dir.path(), image_task_relative_path);
+        if let AgentThreadItemPayload::FileArtifact { path, metadata, .. } =
+            &mut detail.items[2].payload
+        {
+            *path = image_task_relative_path.to_string();
+            *metadata = Some(json!({
+                "task_type": "image_generate"
+            }));
+        }
+
+        export_runtime_replay_case(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let input_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/input.json");
+        let expected_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/expected.json");
+        let grader_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/grader.md");
+        let links_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/evidence-links.json");
+
+        let input =
+            serde_json::from_str::<Value>(fs::read_to_string(input_path).expect("input").as_str())
+                .expect("parse input");
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("routing_not_possible")
+        );
+        let suite_tags = input
+            .pointer("/classification/suiteTags")
+            .and_then(Value::as_array)
+            .expect("suite tags");
+        assert!(suite_tags
+            .iter()
+            .any(|item| item.as_str() == Some("modality-runtime-contract")));
+        assert!(suite_tags
+            .iter()
+            .any(|item| item.as_str() == Some("modality-image_generation")));
+        let failure_modes = input
+            .pointer("/classification/failureModes")
+            .and_then(Value::as_array)
+            .expect("failure modes");
+        assert!(failure_modes
+            .iter()
+            .any(|item| item.as_str() == Some("modality_contract_routing_blocked")));
+        assert!(failure_modes
+            .iter()
+            .any(|item| item.as_str() == Some("image_generation_model_capability_gap")));
+
+        let expected = fs::read_to_string(expected_path).expect("expected");
+        assert!(expected.contains("\"modalityContractChecks\""));
+        assert!(expected.contains("image_generation_model_capability_gap"));
+        assert!(expected.contains("model_registry"));
+        assert!(expected.contains("\"requiresHumanReview\": true"));
+
+        let grader = fs::read_to_string(grader_path).expect("grader");
+        assert!(grader.contains("多模态运行合同检查"));
+        assert!(grader.contains("routing_not_possible"));
+
+        let links =
+            serde_json::from_str::<Value>(fs::read_to_string(links_path).expect("links").as_str())
+                .expect("parse links");
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshots/0/failureCode")
+                .and_then(Value::as_str),
+            Some("image_generation_model_capability_gap")
+        );
     }
 }

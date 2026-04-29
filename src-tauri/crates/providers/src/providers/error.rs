@@ -15,13 +15,8 @@ pub enum ProviderError {
     /// 包括连接超时、DNS 解析失败等
     NetworkError(String),
 
-    /// 认证错误（需要重新登录）
-    /// refresh_token 无效或已过期
+    /// 认证错误（需要重新配置认证信息）
     AuthenticationError(String),
-
-    /// Token 过期（需要刷新）
-    /// access_token 已过期，需要使用 refresh_token 刷新
-    TokenExpired(String),
 
     /// 配置错误（需要检查配置）
     /// 凭证文件格式错误、缺少必要字段等
@@ -68,12 +63,7 @@ impl ProviderError {
             ProviderError::NetworkError(msg) => {
                 format!("网络连接失败，请检查网络设置后重试。详情：{msg}")
             }
-            ProviderError::AuthenticationError(msg) => {
-                format!("认证失败，请重新登录。详情：{msg}")
-            }
-            ProviderError::TokenExpired(msg) => {
-                format!("Token 已过期，正在尝试刷新。详情：{msg}")
-            }
+            ProviderError::AuthenticationError(msg) => format!("认证失败，请检查配置。详情：{msg}"),
             ProviderError::ConfigurationError(msg) => {
                 format!("配置错误，请检查凭证设置。详情：{msg}")
             }
@@ -100,7 +90,6 @@ impl ProviderError {
         match self {
             ProviderError::NetworkError(_) => "网络连接失败",
             ProviderError::AuthenticationError(_) => "认证失败",
-            ProviderError::TokenExpired(_) => "Token 已过期",
             ProviderError::ConfigurationError(_) => "配置错误",
             ProviderError::RateLimitError(_) => "请求过于频繁",
             ProviderError::ServerError(_) => "服务器错误",
@@ -115,7 +104,6 @@ impl ProviderError {
         match self {
             ProviderError::NetworkError(_) => "NetworkError",
             ProviderError::AuthenticationError(_) => "AuthenticationError",
-            ProviderError::TokenExpired(_) => "TokenExpired",
             ProviderError::ConfigurationError(_) => "ConfigurationError",
             ProviderError::RateLimitError(_) => "RateLimitError",
             ProviderError::ServerError(_) => "ServerError",
@@ -188,8 +176,6 @@ impl From<String> for ProviderError {
         } else if lower.contains("auth") || lower.contains("unauthorized") || lower.contains("401")
         {
             ProviderError::AuthenticationError(msg)
-        } else if lower.contains("expired") || lower.contains("token") {
-            ProviderError::TokenExpired(msg)
         } else if lower.contains("rate") || lower.contains("limit") || lower.contains("429") {
             ProviderError::RateLimitError(msg)
         } else if lower.contains("500") || lower.contains("502") || lower.contains("503") {
@@ -245,52 +231,6 @@ fn truncate_message(msg: &str, max_len: usize) -> String {
     }
 }
 
-/// 从 HTTP 响应创建用户友好的错误
-///
-/// 用于 Provider 中的 Token 刷新等操作
-pub fn create_token_refresh_error(
-    status: u16,
-    body: &str,
-    provider_name: &str,
-) -> Box<dyn Error + Send + Sync> {
-    let error = ProviderError::from_http_status(status, body);
-    let message = match &error {
-        ProviderError::AuthenticationError(_) => {
-            format!(
-                "[{}] 认证失败，请重新登录。HTTP {} - {}",
-                provider_name,
-                status,
-                truncate_message(body, 100)
-            )
-        }
-        ProviderError::RateLimitError(_) => {
-            format!(
-                "[{}] 请求过于频繁，请稍后重试。HTTP {} - {}",
-                provider_name,
-                status,
-                truncate_message(body, 100)
-            )
-        }
-        ProviderError::ServerError(_) => {
-            format!(
-                "[{}] 服务器暂时不可用，请稍后重试。HTTP {} - {}",
-                provider_name,
-                status,
-                truncate_message(body, 100)
-            )
-        }
-        _ => {
-            format!(
-                "[{}] Token 刷新失败。HTTP {} - {}",
-                provider_name,
-                status,
-                truncate_message(body, 100)
-            )
-        }
-    };
-    Box::new(ProviderError::from(message))
-}
-
 /// 创建配置错误
 pub fn create_config_error(message: &str) -> Box<dyn Error + Send + Sync> {
     Box::new(ProviderError::ConfigurationError(message.to_string()))
@@ -342,7 +282,7 @@ mod tests {
         let err = ProviderError::AuthenticationError("invalid token".to_string());
         let msg = err.user_friendly_message();
         assert!(msg.contains("认证失败"));
-        assert!(msg.contains("重新登录"));
+        assert!(msg.contains("检查配置"));
     }
 
     #[test]

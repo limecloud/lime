@@ -556,6 +556,7 @@ pub struct TaskWriteOptions<'a> {
 #[derive(Debug, Clone, Default)]
 pub struct TaskArtifactPatch {
     pub status: Option<String>,
+    pub payload_patch: Option<Value>,
     pub result: Option<Option<Value>>,
     pub last_error: Option<Option<TaskErrorRecord>>,
     pub progress: Option<TaskProgress>,
@@ -604,6 +605,24 @@ fn normalize_optional_text(value: Option<String>) -> Option<String> {
             Some(trimmed)
         }
     })
+}
+
+fn apply_payload_patch(payload: &mut Value, patch: Value) -> Result<(), MediaRuntimeError> {
+    let Some(target) = payload.as_object_mut() else {
+        return Err(MediaRuntimeError::InvalidState(
+            "任务 payload 必须是 JSON object 才能应用 patch".to_string(),
+        ));
+    };
+    let Value::Object(patch) = patch else {
+        return Err(MediaRuntimeError::InvalidParams(
+            "payloadPatch 必须是 JSON object".to_string(),
+        ));
+    };
+
+    for (key, value) in patch {
+        target.insert(key, value);
+    }
+    Ok(())
 }
 
 fn normalize_idempotency_key(raw: Option<&str>) -> Result<Option<String>, MediaRuntimeError> {
@@ -2607,6 +2626,13 @@ pub fn patch_task_artifact(
             if matches!(record.normalized_status.as_str(), "partial" | "succeeded") {
                 record.attempts[index].result_snapshot = result;
             }
+        }
+    }
+
+    if let Some(payload_patch) = patch.payload_patch {
+        apply_payload_patch(&mut record.payload, payload_patch)?;
+        if let Some(index) = current_attempt_index(&record) {
+            record.attempts[index].input_snapshot = record.payload.clone();
         }
     }
 

@@ -67,7 +67,7 @@
 
 它只允许读取 `src-tauri/resources/models/index.json` 的 `providers` 列表。无论是正式 Tauri 命令还是 DevBridge 开发链路，都不应再回退数据库或其它运行态缓存去“猜” provider 集合；资源异常时必须直接暴露错误，避免把索引损坏伪装成“只是没有模型”。
 同理，聊天运行时初始化的 `aster_agent_init` 在浏览器 DevBridge 模式下也不能再被放进 `mockPriorityCommands`。只要桥接在线，它就必须优先读取后端真实 `provider_name / model_name`，让聊天入口拿到当前运行时模型。
-进一步地，围绕运行时模型解析的真相命令：`aster_agent_init`、`get_default_provider`、`get_provider_pool_overview`、`get_api_key_providers`、`get_model_registry`、`get_provider_alias_config`、`fetch_provider_models_auto`、`get_model_registry_provider_ids`，在浏览器 DevBridge 模式下如果桥接失败，必须直接抛错，不能再通过 `safeInvoke` 静默退回 mock；否则前端会把“后端未连上 / 命令失败”误显示成假的 Provider / 模型列表。
+进一步地，围绕运行时模型解析的真相命令：`aster_agent_init`、`get_default_provider`、`get_api_key_providers`、`get_model_registry`、`get_provider_alias_config`、`fetch_provider_models_auto`、`get_model_registry_provider_ids`，在浏览器 DevBridge 模式下如果桥接失败，必须直接抛错，不能再通过 `safeInvoke` 静默退回 mock；否则前端会把“后端未连上 / 命令失败”误显示成假的 Provider / 模型列表。旧 `get_provider_pool_overview` 属于凭证池命令面，已随凭证池退役，不得重新作为运行时模型解析事实源。
 同时要明确，`aster_agent_init` 只负责初始化 Agent，并不保证已经完成 Provider 配置；当它未返回 `provider_name / model_name` 时，前端不得把本地硬编码默认值当作真实模型，而应继续回退到 `get_default_provider` + 已配置 Provider/模型注册表解析链，拿到当前工作区真正可用的 `provider/model`。
 同一条约束也适用于 Prompt Cache 能力判断：运行时与前端都不得因为某个自定义 Provider “长得像 Anthropic 协议”就推断它支持官方 Anthropic Automatic Prompt Caching。当前事实源必须继续按 ProviderType 判断：`anthropic` 走自动缓存能力，`anthropic-compatible` 只保留显式 `cache_control` 语义；若上游没有实现 Automatic Prompt Cache，`cached_input_tokens` 为空不能直接归因到 Lime 没发字段。
 
@@ -324,7 +324,7 @@ Companion 桌宠链路同样遵循这条路径。当前主入口为 `src/lib/api
 
 Lime 主应用会在本地维护 `ws://127.0.0.1:45554/companion/pet` 的桌宠 companion 入口。前端如需感知桌宠连接状态，应继续通过 `companion-pet-status` 事件监听统一状态，不要在页面或 Hook 里自行直连本地 `WebSocket`。
 
-如果 companion 协议继续扩展，也应优先延续“Lime 做宿主、桌宠只收脱敏派生状态”的边界。例如 provider 概览相关能力，允许 Lime 通过 `companion_send_pet_command` 下发诸如 `pet.provider_overview` 这类脱敏摘要，并允许桌宠通过 `pet.open_provider_settings` 请求 Lime 聚焦主窗口并跳到 `设置 -> AI 服务商`，或通过 `pet.request_provider_overview_sync` 请求 Lime 立即重发最新的脱敏摘要；桌宠交互增强能力也应继续走这条主链，例如双击 / 三击桌宠后发出 `pet.request_pet_cheer`、`pet.request_pet_next_step`，或通过 `pet.request_chat_reply` 携带用户输入文本，请求 Lime 代为调用当前可聊天模型，再统一回写 `pet.show_bubble`；但不允许桌宠直接读取凭证文件、数据库或内部 `/v1/credentials/*` 完整凭证接口。
+如果 companion 协议继续扩展，也应优先延续“Lime 做宿主、桌宠只收脱敏派生状态”的边界。例如 provider 概览相关能力，允许 Lime 通过 `companion_send_pet_command` 下发诸如 `pet.provider_overview` 这类脱敏摘要，并允许桌宠通过 `pet.open_provider_settings` 请求 Lime 聚焦主窗口并跳到 `设置 -> AI 服务商`，或通过 `pet.request_provider_overview_sync` 请求 Lime 立即重发最新的脱敏摘要；桌宠交互增强能力也应继续走这条主链，例如双击 / 三击桌宠后发出 `pet.request_pet_cheer`、`pet.request_pet_next_step`，或通过 `pet.request_chat_reply` 携带用户输入文本，请求 Lime 代为调用当前可聊天模型，再统一回写 `pet.show_bubble`；但不允许桌宠直接读取凭证文件、数据库或已下线的完整凭证 HTTP 接口。
 
 ## 命令契约的五个事实源
 

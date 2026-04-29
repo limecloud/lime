@@ -622,6 +622,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     topics: session.topics,
     sessionHistoryWindow: session.sessionHistoryWindow,
     isAutoRestoringSession: session.isAutoRestoringSession,
+    isSessionHydrating: session.isSessionHydrating,
     sessionId: session.sessionId,
     createFreshSession: session.createFreshSession,
     ensureSession: session.ensureSession,

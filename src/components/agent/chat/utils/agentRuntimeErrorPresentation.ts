@@ -1,13 +1,13 @@
 const DEFAULT_RUNTIME_ERROR_MESSAGE = "执行链路返回失败，请查看详情后重试。";
 
 const PROVIDER_AUTH_ERROR_MESSAGE =
-  "当前 Provider 鉴权已失效，请前往设置检查登录态、API Key 或重新授权后重试。";
+  "当前 Provider 鉴权未通过，请前往设置 -> AI 服务商检查 API Key、Base URL 或授权配置后重试。";
 
 const PROVIDER_SESSION_EXPIRED_ERROR_MESSAGE =
-  "当前 Provider 登录态已失效，常见原因是 Token 已过期。请前往设置重新登录或刷新凭证后重试。";
+  "当前模型通道返回了不兼容的工具 schema，请前往设置 -> AI 服务商检查 Provider 配置或切换模型后重试。";
 
 const PROVIDER_CHANNEL_ERROR_MESSAGE =
-  "当前模型通道暂不可用，常见原因是登录态 / Token 已过期或渠道异常。请先刷新凭证，必要时切换模型后重试。";
+  "当前模型通道暂不可用，请前往设置 -> AI 服务商检查 Provider 配置，必要时切换模型后重试。";
 
 function normalizeRuntimeErrorMessage(errorMessage: string): string {
   const normalized = errorMessage.trim();

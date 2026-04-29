@@ -59,6 +59,8 @@ interface AgentThreadTimelineProps {
   onPermissionResponse?: (response: ConfirmResponse) => void;
   focusedItemId?: string | null;
   focusRequestKey?: number;
+  deferCompletedSingleDetails?: boolean;
+  collapseInactiveDetails?: boolean;
 }
 
 function shortenInlineText(
@@ -1031,12 +1033,24 @@ function resolveExpandedBlockIndexes(params: {
   isCurrentTurn: boolean;
   focusBlockIndex: number;
   turn: AgentThreadTurn;
+  collapseInactiveDetails?: boolean;
 }): Set<number> {
-  const { blocks, isCurrentTurn, focusBlockIndex, turn } = params;
+  const {
+    blocks,
+    isCurrentTurn,
+    focusBlockIndex,
+    turn,
+    collapseInactiveDetails = false,
+  } = params;
   const expanded = new Set<number>();
 
   blocks.forEach((block, index) => {
-    if (block.defaultExpanded) {
+    if (
+      block.defaultExpanded &&
+      (!collapseInactiveDetails ||
+        (block.kind === "approval" && block.status !== "completed") ||
+        block.kind === "alert")
+    ) {
       expanded.add(index);
     }
   });
@@ -1053,11 +1067,16 @@ function resolveExpandedBlockIndexes(params: {
       turn.status === "failed" ||
       turn.status === "aborted";
 
-    if (shouldExpandFocus) {
+    if (shouldExpandFocus && !collapseInactiveDetails) {
       expanded.add(focusBlockIndex);
     }
 
-    if (shouldExpandFocus && isCurrentTurn && focusBlockIndex > 0) {
+    if (
+      shouldExpandFocus &&
+      !collapseInactiveDetails &&
+      isCurrentTurn &&
+      focusBlockIndex > 0
+    ) {
       const previousBlock = blocks[focusBlockIndex - 1];
       if (previousBlock?.kind !== "other") {
         expanded.add(focusBlockIndex - 1);
@@ -1322,11 +1341,15 @@ function TimelineBlockCard({
   onPermissionResponse,
   focusedItemId,
   focusRequestKey,
+  preferInlineDetails,
+  deferCompletedSingleDetails,
 }: {
   block: AgentThreadOrderedBlock;
   index: number;
   emphasis: "active" | "default" | "quiet";
   isExpanded: boolean;
+  preferInlineDetails: boolean;
+  deferCompletedSingleDetails: boolean;
   onFileClick?: (fileName: string, content: string) => void;
   onOpenArtifactFromTimeline?: (target: ArtifactTimelineOpenTarget) => void;
   onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
@@ -1346,25 +1369,7 @@ function TimelineBlockCard({
   const hasFocusedItem = Boolean(
     focusedItemId && block.items.some((item) => item.id === focusedItemId),
   );
-  const shouldRenderGroupedToolRows =
-    block.kind === "process" && block.items.length > 1;
-  const detailEntries = block.items.flatMap((item) => {
-    const content = renderTimelineItemDetails(
-      item,
-      onFileClick,
-      onOpenArtifactFromTimeline,
-      onOpenSavedSiteContent,
-      onOpenSubagentSession,
-      onPermissionResponse,
-      {
-        groupedToolCall: shouldRenderGroupedToolRows,
-        groupMarker: block.items[0]?.id === item.id ? "└" : "·",
-      },
-    );
-
-    return content ? [{ id: item.id, content }] : [];
-  });
-  const hasDetailEntries = detailEntries.length > 0;
+  const hasDetailEntries = block.items.length > 0;
   const [open, setOpen] = useState(isExpanded || hasFocusedItem);
 
   useEffect(() => {
@@ -1387,6 +1392,49 @@ function TimelineBlockCard({
     block.kind === "artifact" &&
     hasDetailEntries &&
     block.items.every((item) => item.type === "file_artifact");
+  const shouldRenderSingleItemInline =
+    block.items.length === 1 &&
+    !(isThinkingOnlyBlock && block.status === "completed") &&
+    (!deferCompletedSingleDetails ||
+      preferInlineDetails ||
+      block.status !== "completed" ||
+      hasFocusedItem);
+  const shouldRenderGroupedToolRows =
+    block.kind === "process" && block.items.length > 1;
+  const shouldMaterializeDetailEntries =
+    shouldRenderArtifactCardsInline ||
+    (!shouldRenderSingleItemInline && hasDetailEntries && open);
+  const detailEntries = useMemo(() => {
+    if (!shouldMaterializeDetailEntries) {
+      return [];
+    }
+
+    return block.items.flatMap((item) => {
+      const content = renderTimelineItemDetails(
+        item,
+        onFileClick,
+        onOpenArtifactFromTimeline,
+        onOpenSavedSiteContent,
+        onOpenSubagentSession,
+        onPermissionResponse,
+        {
+          groupedToolCall: shouldRenderGroupedToolRows,
+          groupMarker: block.items[0]?.id === item.id ? "└" : "·",
+        },
+      );
+
+      return content ? [{ id: item.id, content }] : [];
+    });
+  }, [
+    block.items,
+    onFileClick,
+    onOpenArtifactFromTimeline,
+    onOpenSavedSiteContent,
+    onOpenSubagentSession,
+    onPermissionResponse,
+    shouldMaterializeDetailEntries,
+    shouldRenderGroupedToolRows,
+  ]);
 
   if (shouldRenderArtifactCardsInline) {
     return (
@@ -1412,18 +1460,16 @@ function TimelineBlockCard({
     );
   }
 
-  const singleItemContent =
-    block.items.length === 1 &&
-    !(isThinkingOnlyBlock && block.status === "completed")
-      ? renderTimelineItemDetails(
-          block.items[0]!,
-          onFileClick,
-          onOpenArtifactFromTimeline,
-          onOpenSavedSiteContent,
-          onOpenSubagentSession,
-          onPermissionResponse,
-        )
-      : null;
+  const singleItemContent = shouldRenderSingleItemInline
+    ? renderTimelineItemDetails(
+        block.items[0]!,
+        onFileClick,
+        onOpenArtifactFromTimeline,
+        onOpenSavedSiteContent,
+        onOpenSubagentSession,
+        onPermissionResponse,
+      )
+    : null;
 
   if (singleItemContent) {
     return (
@@ -1588,6 +1634,8 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
   onPermissionResponse,
   focusedItemId = null,
   focusRequestKey = 0,
+  deferCompletedSingleDetails = false,
+  collapseInactiveDetails = false,
 }) => {
   const visibleItems = useMemo(
     () =>
@@ -1619,6 +1667,7 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
     isCurrentTurn,
     focusBlockIndex,
     turn,
+    collapseInactiveDetails,
   });
   const inlineStatusHint = resolveThreadInlineStatusHint({
     turn,
@@ -1631,7 +1680,7 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
 
   return (
     <div
-      className="mt-3 space-y-2"
+      className={cn("space-y-2", placement === "leading" ? "mt-0" : "mt-3")}
       data-testid="agent-thread-flow"
       data-placement={placement}
     >
@@ -1657,6 +1706,8 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
                   : "default"
             }
             isExpanded={expandedBlockIndexes.has(index)}
+            preferInlineDetails={isCurrentTurn}
+            deferCompletedSingleDetails={deferCompletedSingleDetails}
             onFileClick={onFileClick}
             onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
             onOpenSavedSiteContent={onOpenSavedSiteContent}

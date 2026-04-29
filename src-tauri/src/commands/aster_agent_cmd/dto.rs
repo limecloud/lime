@@ -280,6 +280,13 @@ pub struct AgentRuntimePromoteQueuedTurnRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeSessionHistoryCursor {
+    pub oldest_message_id: Option<i64>,
+    pub start_index: usize,
+    pub loaded_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRuntimeSessionDetail {
     pub id: String,
     pub name: String,
@@ -289,6 +296,10 @@ pub struct AgentRuntimeSessionDetail {
     pub messages_count: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub history_limit: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history_offset: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history_cursor: Option<AgentRuntimeSessionHistoryCursor>,
     #[serde(default)]
     pub history_truncated: bool,
     pub messages: Vec<lime_agent::AgentMessage>,
@@ -806,6 +817,8 @@ impl AgentRuntimeSessionDetail {
             thread_id: detail.thread_id,
             messages_count: detail.messages.len(),
             history_limit: None,
+            history_offset: None,
+            history_cursor: None,
             history_truncated: false,
             messages: detail.messages,
             execution_strategy: detail.execution_strategy,

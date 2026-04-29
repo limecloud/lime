@@ -2,7 +2,7 @@
 //!
 //! 定义菜单项 ID 和菜单构建函数
 
-use super::format::{format_credential_status, format_current_model_status, format_request_count};
+use super::format::{format_current_model_status, format_request_count};
 use super::state::TrayStateSnapshot;
 use tauri::{
     menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -86,15 +86,14 @@ fn build_quick_model_submenu<R: Runtime>(
 /// 构建托盘菜单
 ///
 /// 根据当前状态快照构建完整的托盘菜单，包含：
-/// - 状态信息（凭证状态、请求统计）
-/// - 运维动作（刷新 Token、健康检查）
+/// - 状态信息（当前模型、请求统计）
 /// - 快捷工具（打开主窗口、打开日志目录）
 /// - 设置（开机自启）
 /// - 退出
 ///
 /// # Requirements
 /// - 2.1: 右键点击托盘图标显示包含所有可用操作的托盘菜单
-/// - 2.2: 显示凭证池状态，包括可用凭证数和总凭证数
+/// - 2.2: 显示当前 Provider 配置状态
 /// - 2.3: 显示今日请求次数
 /// - 3.3, 3.4: 运行时维护菜单项
 /// - 4.1, 4.3, 4.4: 快捷工具菜单项
@@ -125,17 +124,6 @@ pub fn build_tray_menu<R: Runtime>(
     let separator_0 = PredefinedMenuItem::separator(app)
         .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
 
-    let credential_text =
-        format_credential_status(state.available_credentials, state.total_credentials);
-    let credential_info = MenuItem::with_id(
-        app,
-        menu_ids::CREDENTIAL_INFO,
-        &credential_text,
-        false,
-        None::<&str>,
-    )
-    .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
-
     let request_text = format_request_count(state.today_requests);
     let request_info = MenuItem::with_id(
         app,
@@ -148,30 +136,6 @@ pub fn build_tray_menu<R: Runtime>(
 
     // === 分隔符 1 ===
     let separator_1 = PredefinedMenuItem::separator(app)
-        .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
-
-    // === 运行时维护区域 ===
-    let refresh_tokens = MenuItem::with_id(
-        app,
-        menu_ids::REFRESH_TOKENS,
-        "同步账号凭证",
-        true,
-        None::<&str>,
-    )
-    .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
-
-    // 健康检查
-    let health_check = MenuItem::with_id(
-        app,
-        menu_ids::HEALTH_CHECK,
-        "执行健康检查",
-        true,
-        None::<&str>,
-    )
-    .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
-
-    // === 分隔符 2 ===
-    let separator_2 = PredefinedMenuItem::separator(app)
         .map_err(|e| MenuBuildError::MenuItemError(e.to_string()))?;
 
     // === 快捷工具区域 ===
@@ -218,12 +182,8 @@ pub fn build_tray_menu<R: Runtime>(
     }
     items.extend([
         &separator_0 as &dyn IsMenuItem<R>,
-        &credential_info,
         &request_info,
         &separator_1,
-        &refresh_tokens,
-        &health_check,
-        &separator_2,
         &open_window,
         &open_log_dir,
         &separator_3,
@@ -262,16 +222,7 @@ mod tests {
         let ids = menu_ids::all_required_ids();
 
         // 验证所有预定义的菜单项 ID 都在列表中
-        assert!(
-            ids.contains(&menu_ids::CREDENTIAL_INFO),
-            "应包含 CREDENTIAL_INFO"
-        );
         assert!(ids.contains(&menu_ids::REQUEST_INFO), "应包含 REQUEST_INFO");
-        assert!(
-            ids.contains(&menu_ids::REFRESH_TOKENS),
-            "应包含 REFRESH_TOKENS"
-        );
-        assert!(ids.contains(&menu_ids::HEALTH_CHECK), "应包含 HEALTH_CHECK");
         assert!(ids.contains(&menu_ids::OPEN_WINDOW), "应包含 OPEN_WINDOW");
         assert!(ids.contains(&menu_ids::OPEN_LOG_DIR), "应包含 OPEN_LOG_DIR");
         assert!(ids.contains(&menu_ids::AUTO_START), "应包含 AUTO_START");
@@ -281,7 +232,7 @@ mod tests {
     #[test]
     fn test_get_menu_item_ids() {
         let ids = get_menu_item_ids();
-        assert_eq!(ids.len(), 8, "应有 8 个必需的菜单项");
+        assert_eq!(ids.len(), 5, "应有 5 个必需的菜单项");
     }
 
     proptest! {
@@ -291,8 +242,6 @@ mod tests {
         /// 验证对于任意托盘菜单构建，生成的菜单 SHALL 包含所有预定义的菜单项 ID
         #[test]
         fn prop_menu_ids_completeness(
-            _available in 0usize..100,
-            _total in 0usize..100,
             _requests in 0u64..1000000,
             _auto_start in any::<bool>()
         ) {
@@ -301,10 +250,7 @@ mod tests {
 
             // 必须包含所有预定义的 ID
             let required = vec![
-                menu_ids::CREDENTIAL_INFO,
                 menu_ids::REQUEST_INFO,
-                menu_ids::REFRESH_TOKENS,
-                menu_ids::HEALTH_CHECK,
                 menu_ids::OPEN_WINDOW,
                 menu_ids::OPEN_LOG_DIR,
                 menu_ids::AUTO_START,

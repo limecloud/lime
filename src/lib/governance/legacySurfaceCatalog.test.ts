@@ -871,6 +871,33 @@ describe("legacySurfaceCatalog", () => {
     ]);
   });
 
+  it("应记录 API Key Provider 旧 provider-pool 目录名已退役", () => {
+    const importMonitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "provider-pool-api-key-old-current-directory",
+    );
+    const frontendMonitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "frontend-provider-pool-api-key-old-imports",
+    );
+
+    expect(importMonitor).toBeTruthy();
+    expect(importMonitor?.classification).toBe("dead-candidate");
+    expect(importMonitor?.allowedPaths).toEqual([]);
+    expect(importMonitor?.targets).toEqual(
+      expect.arrayContaining([
+        "src/components/provider-pool/api-key/ApiKeyProviderSection.tsx",
+        "src/components/provider-pool/api-key/ProviderSetting.tsx",
+        "src/components/provider-pool/api-key/index.ts",
+      ]),
+    );
+
+    expect(frontendMonitor).toBeTruthy();
+    expect(frontendMonitor?.classification).toBe("dead-candidate");
+    expect(frontendMonitor?.allowedPaths).toEqual([]);
+    expect(frontendMonitor?.patterns).toEqual(
+      expect.arrayContaining(["@/components/provider-pool/api-key"]),
+    );
+  });
+
   it("应记录已删除的 settings-v2 执行轨迹独立页面壳", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "settings-execution-tracker-page-surface",

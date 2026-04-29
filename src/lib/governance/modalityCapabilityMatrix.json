@@ -1,0 +1,307 @@
+{
+  "version": 1,
+  "status": "current",
+  "owner": "docs/roadmap/warp/capability-matrix.md",
+  "capabilities": [
+    {
+      "key": "text_generation",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "基础文本生成能力，所有 Agent turn 默认需要。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "configured_provider"
+      ],
+      "capability_gap_code": "text_generation_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "routing_decision_made"
+      ]
+    },
+    {
+      "key": "vision_input",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "理解图片输入、截图或视觉附件的能力。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "runtime_input_context"
+      ],
+      "capability_gap_code": "vision_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "single_candidate_capability_gap"
+      ]
+    },
+    {
+      "key": "image_generation",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "生成图片、海报、封面或图片变体的能力。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "service_model_slot"
+      ],
+      "capability_gap_code": "image_generation_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "routing_not_possible"
+      ]
+    },
+    {
+      "key": "image_edit",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "基于参考图进行修图、重绘或局部编辑的能力。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "runtime_input_context"
+      ],
+      "capability_gap_code": "image_edit_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "routing_not_possible"
+      ]
+    },
+    {
+      "key": "audio_transcription",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "把音频输入转成 transcript artifact 的能力。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "service_model_slot"
+      ],
+      "capability_gap_code": "audio_transcription_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "routing_not_possible"
+      ]
+    },
+    {
+      "key": "voice_generation",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "把文本生成播报、配音或语音输出的能力。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "client_scenes"
+      ],
+      "capability_gap_code": "voice_generation_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "routing_not_possible"
+      ]
+    },
+    {
+      "key": "browser_reasoning",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "基于网页状态、DOM、截图和用户目标规划浏览器动作的能力。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "browser_runtime"
+      ],
+      "capability_gap_code": "browser_reasoning_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "routing_decision_made"
+      ]
+    },
+    {
+      "key": "browser_control_planning",
+      "lifecycle": "current",
+      "group": "tool",
+      "description": "把浏览器意图转换成 typed browser action 的能力。",
+      "routing_sources": [
+        "browser_runtime",
+        "execution_profile"
+      ],
+      "capability_gap_code": "browser_control_planning_unavailable",
+      "evidence_events": [
+        "execution_profile_decision",
+        "browser_action_requested"
+      ]
+    },
+    {
+      "key": "web_search",
+      "lifecycle": "current",
+      "group": "tool",
+      "description": "执行联网搜索、抓取和来源整理的能力。",
+      "routing_sources": [
+        "execution_profile",
+        "gateway_policy",
+        "tool_inventory"
+      ],
+      "capability_gap_code": "web_search_unavailable",
+      "evidence_events": [
+        "execution_profile_decision",
+        "web_search_performed"
+      ]
+    },
+    {
+      "key": "local_file_read",
+      "lifecycle": "current",
+      "group": "tool",
+      "description": "读取本地用户文件、PDF 或工作区材料的能力。",
+      "routing_sources": [
+        "execution_profile",
+        "workspace_policy"
+      ],
+      "capability_gap_code": "local_file_read_denied",
+      "evidence_events": [
+        "execution_profile_decision",
+        "file_read_authorized"
+      ]
+    },
+    {
+      "key": "structured_document_generation",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "生成报告、网页、PPT 或结构化文稿的能力。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "service_model_slot"
+      ],
+      "capability_gap_code": "structured_document_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "routing_decision_made"
+      ]
+    },
+    {
+      "key": "long_context",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "处理长文档、长网页、多来源材料和较大上下文的能力。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "runtime_input_context"
+      ],
+      "capability_gap_code": "long_context_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "single_candidate_capability_gap"
+      ]
+    },
+    {
+      "key": "cheap_summary",
+      "lifecycle": "current",
+      "group": "model",
+      "description": "低成本摘要、标题、元信息生成或压缩任务的能力。",
+      "routing_sources": [
+        "model_catalog",
+        "provider_offer",
+        "service_model_slot"
+      ],
+      "capability_gap_code": "cheap_summary_candidate_missing",
+      "evidence_events": [
+        "candidate_set_resolved",
+        "routing_decision_made"
+      ]
+    }
+  ],
+  "model_roles": [
+    {
+      "slot": "base_model",
+      "lifecycle": "current",
+      "capability_keys": [
+        "text_generation"
+      ],
+      "fallback_slots": [
+        "cheap_summary_model"
+      ]
+    },
+    {
+      "slot": "vision_input_model",
+      "lifecycle": "current",
+      "capability_keys": [
+        "text_generation",
+        "vision_input"
+      ],
+      "fallback_slots": [
+        "base_model"
+      ]
+    },
+    {
+      "slot": "image_generation_model",
+      "lifecycle": "current",
+      "capability_keys": [
+        "image_generation",
+        "vision_input"
+      ],
+      "fallback_slots": []
+    },
+    {
+      "slot": "image_edit_model",
+      "lifecycle": "current",
+      "capability_keys": [
+        "image_edit",
+        "vision_input"
+      ],
+      "fallback_slots": [
+        "image_generation_model"
+      ]
+    },
+    {
+      "slot": "audio_transcription_model",
+      "lifecycle": "current",
+      "capability_keys": [
+        "audio_transcription"
+      ],
+      "fallback_slots": []
+    },
+    {
+      "slot": "voice_generation_model",
+      "lifecycle": "current",
+      "capability_keys": [
+        "voice_generation"
+      ],
+      "fallback_slots": []
+    },
+    {
+      "slot": "browser_reasoning_model",
+      "lifecycle": "current",
+      "capability_keys": [
+        "text_generation",
+        "browser_reasoning"
+      ],
+      "fallback_slots": [
+        "base_model"
+      ]
+    },
+    {
+      "slot": "report_generation_model",
+      "lifecycle": "current",
+      "capability_keys": [
+        "text_generation",
+        "web_search",
+        "structured_document_generation",
+        "long_context"
+      ],
+      "fallback_slots": [
+        "base_model"
+      ]
+    },
+    {
+      "slot": "cheap_summary_model",
+      "lifecycle": "current",
+      "capability_keys": [
+        "text_generation",
+        "cheap_summary"
+      ],
+      "fallback_slots": [
+        "base_model"
+      ]
+    }
+  ]
+}

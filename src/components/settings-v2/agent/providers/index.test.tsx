@@ -28,7 +28,7 @@ const {
   mockOpenUrl: vi.fn(),
 }));
 
-vi.mock("@/components/provider-pool/api-key", () => ({
+vi.mock("@/components/api-key-provider", () => ({
   ApiKeyProviderSection: () => (
     <div data-testid="api-key-provider-stub">API Key Provider 设置占位</div>
   ),
@@ -485,6 +485,30 @@ describe("CloudProviderSettings", () => {
     expect(text).not.toContain("去个人中心登录");
     expect(text).not.toContain("云端页面承接什么");
     expect(handleGoogleLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it("未登录且登录页打开失败时应显示可复制登录链接", async () => {
+    mockUseOemCloudAccess.mockReturnValue(
+      createAccessState({
+        errorMessage: "登录页没有被浏览器打开，可能被弹窗拦截。",
+      }),
+    );
+
+    const { container } = await renderPage();
+
+    await act(async () => {
+      findButton(container, "云端服务").dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Lime Hub 登录页未打开");
+    expect(text).toContain("https://user.limeai.run/login?");
+    expect(text).toContain("tenant=tenant-0001");
+    expect(text).toContain("redirectUrl=lime%3A%2F%2Foauth%2Fcallback");
+    expect(text).toContain("复制链接");
   });
 
   it("已登录时应在云端页展示品牌来源目录与模型详情", async () => {

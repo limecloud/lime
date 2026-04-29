@@ -21,7 +21,7 @@ use crate::AppState;
 use lime_core::errors::GatewayErrorCode;
 use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::ChatCompletionRequest;
-use lime_core::models::provider_pool_model::ProviderCredential;
+use lime_core::models::{RuntimeCredentialData, RuntimeProviderCredential};
 use lime_core::websocket::WsErrorCode;
 use lime_processor::RequestContext;
 use lime_providers::converter::anthropic_to_openai::convert_anthropic_to_openai;
@@ -486,19 +486,11 @@ async fn handle_ws_anthropic_messages(
 /// WebSocket 专用的 OpenAI 格式 Provider 调用
 pub async fn call_provider_openai_for_ws(
     state: &AppState,
-    credential: &ProviderCredential,
+    credential: &RuntimeProviderCredential,
     request: &ChatCompletionRequest,
 ) -> Result<serde_json::Value, String> {
-    use lime_core::models::provider_pool_model::CredentialData;
-
     match &credential.credential {
-        CredentialData::KiroOAuth { .. }
-        | CredentialData::GeminiOAuth { .. }
-        | CredentialData::CodexOAuth { .. }
-        | CredentialData::ClaudeOAuth { .. } => {
-            Err("凭证池/OAuth/local CLI credential 已退役，请改用 API Key Provider。".to_string())
-        }
-        CredentialData::OpenAIKey { api_key, base_url } => {
+        RuntimeCredentialData::OpenAIKey { api_key, base_url } => {
             let provider = OpenAICustomProvider::with_config(api_key.clone(), base_url.clone());
             let resp = match provider.call_api(request).await {
                 Ok(r) => r,
@@ -531,7 +523,7 @@ pub async fn call_provider_openai_for_ws(
                 Err(format!("Upstream error: {body}"))
             }
         }
-        CredentialData::ClaudeKey { api_key, base_url } => {
+        RuntimeCredentialData::ClaudeKey { api_key, base_url } => {
             // 打印 Claude 代理 URL 用于调试
             let actual_base_url = base_url.as_deref().unwrap_or("https://api.anthropic.com");
             tracing::info!(
@@ -588,13 +580,11 @@ pub async fn call_provider_openai_for_ws(
 /// WebSocket 专用的 Anthropic 格式 Provider 调用
 pub async fn call_provider_anthropic_for_ws(
     state: &AppState,
-    credential: &ProviderCredential,
+    credential: &RuntimeProviderCredential,
     request: &AnthropicMessagesRequest,
 ) -> Result<serde_json::Value, String> {
-    use lime_core::models::provider_pool_model::CredentialData;
-
     match &credential.credential {
-        CredentialData::ClaudeKey { api_key, base_url } => {
+        RuntimeCredentialData::ClaudeKey { api_key, base_url } => {
             // 打印 Claude 代理 URL 用于调试
             let actual_base_url = base_url.as_deref().unwrap_or("https://api.anthropic.com");
             tracing::info!(

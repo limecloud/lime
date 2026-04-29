@@ -206,7 +206,7 @@ describe("resolveClawWorkspaceProviderSelection", () => {
     mockLoadConfiguredProviders.mockResolvedValueOnce([
       createProvider({
         key: "openai",
-        label: "OpenAI OAuth",
+        label: "OpenAI",
         registryId: "openai",
         fallbackRegistryId: undefined,
       }),
