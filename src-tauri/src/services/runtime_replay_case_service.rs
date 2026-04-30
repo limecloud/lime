@@ -688,6 +688,22 @@ fn build_success_criteria(
                 "未命名合同"
             )
         ));
+        let execution_profile_keys =
+            modality_contract_execution_profile_keys(modality_runtime_contracts);
+        if !execution_profile_keys.is_empty() {
+            criteria.push(format!(
+                "回放必须保留 execution profile 决策输入：{}。",
+                format_text_list(&execution_profile_keys, "未记录 execution profile")
+            ));
+        }
+        let executor_adapter_keys =
+            modality_contract_executor_adapter_keys(modality_runtime_contracts);
+        if !executor_adapter_keys.is_empty() {
+            criteria.push(format!(
+                "回放必须保留 executor adapter 绑定：{}，不能退回自由工具选择或旧 CLI 旁路。",
+                format_text_list(&executor_adapter_keys, "未记录 executor adapter")
+            ));
+        }
     }
     if modality_contract_has_browser_control(modality_runtime_contracts) {
         criteria.push(
@@ -914,6 +930,21 @@ fn build_modality_contract_checks(modality_runtime_contracts: &Value) -> Vec<Str
             format_text_list(&assessment_sources, "未记录判定来源")
         ));
     }
+    let execution_profile_keys =
+        modality_contract_execution_profile_keys(modality_runtime_contracts);
+    if !execution_profile_keys.is_empty() {
+        checks.push(format!(
+            "确认 replay 保留 execution profile：{}，用于解释模型角色、权限与 LimeCore policy 合并输入。",
+            format_text_list(&execution_profile_keys, "未记录 execution profile")
+        ));
+    }
+    let executor_adapter_keys = modality_contract_executor_adapter_keys(modality_runtime_contracts);
+    if !executor_adapter_keys.is_empty() {
+        checks.push(format!(
+            "确认 replay 保留 executor adapter：{}，用于解释真实执行器绑定、产物输出与失败映射。",
+            format_text_list(&executor_adapter_keys, "未记录 executor adapter")
+        ));
+    }
 
     if modality_contract_has_routing_block(modality_runtime_contracts) {
         checks.push(format!(
@@ -1085,6 +1116,12 @@ fn infer_replay_suite_tags(
         push_unique_text_tag(&mut tags, "modality-runtime-contract");
         for contract_key in modality_contract_keys(modality_runtime_contracts) {
             push_unique_owned_tag(&mut tags, format!("modality-{contract_key}"));
+        }
+        if !modality_contract_execution_profile_keys(modality_runtime_contracts).is_empty() {
+            push_unique_text_tag(&mut tags, "execution-profile");
+        }
+        if !modality_contract_executor_adapter_keys(modality_runtime_contracts).is_empty() {
+            push_unique_text_tag(&mut tags, "executor-adapter");
         }
     }
 
@@ -1307,6 +1344,48 @@ fn modality_contract_models(modality_runtime_contracts: &Value) -> Vec<String> {
 
 fn modality_contract_failure_codes(modality_runtime_contracts: &Value) -> Vec<String> {
     collect_unique_snapshot_strings(modality_runtime_contracts, "failureCode")
+}
+
+fn modality_contract_execution_profile_keys(modality_runtime_contracts: &Value) -> Vec<String> {
+    let mut values =
+        collect_unique_snapshot_strings(modality_runtime_contracts, "executionProfileKey");
+    collect_unique_snapshot_strings_into(
+        modality_runtime_contracts,
+        "execution_profile_key",
+        &mut values,
+    );
+    collect_unique_string_array_at_pointer(
+        modality_runtime_contracts,
+        "/snapshotIndex/executionProfileKeys",
+        &mut values,
+    );
+    collect_unique_string_array_at_pointer(
+        modality_runtime_contracts,
+        "/snapshot_index/execution_profile_keys",
+        &mut values,
+    );
+    values
+}
+
+fn modality_contract_executor_adapter_keys(modality_runtime_contracts: &Value) -> Vec<String> {
+    let mut values =
+        collect_unique_snapshot_strings(modality_runtime_contracts, "executorAdapterKey");
+    collect_unique_snapshot_strings_into(
+        modality_runtime_contracts,
+        "executor_adapter_key",
+        &mut values,
+    );
+    collect_unique_string_array_at_pointer(
+        modality_runtime_contracts,
+        "/snapshotIndex/executorAdapterKeys",
+        &mut values,
+    );
+    collect_unique_string_array_at_pointer(
+        modality_runtime_contracts,
+        "/snapshot_index/executor_adapter_keys",
+        &mut values,
+    );
+    values
 }
 
 fn modality_contract_has_browser_control(modality_runtime_contracts: &Value) -> bool {
@@ -1724,16 +1803,37 @@ fn collect_unique_snapshot_strings(
     field_name: &str,
 ) -> Vec<String> {
     let mut values = Vec::new();
+    collect_unique_snapshot_strings_into(modality_runtime_contracts, field_name, &mut values);
+    values
+}
+
+fn collect_unique_snapshot_strings_into(
+    modality_runtime_contracts: &Value,
+    field_name: &str,
+    values: &mut Vec<String>,
+) {
     for snapshot in modality_contract_snapshots(modality_runtime_contracts) {
         if let Some(value) = snapshot
             .get(field_name)
             .and_then(Value::as_str)
             .and_then(|value| normalize_optional_text(Some(value.to_string())))
         {
-            push_unique_owned_tag(&mut values, value);
+            push_unique_owned_tag(values, value);
         }
     }
-    values
+}
+
+fn collect_unique_string_array_at_pointer(value: &Value, pointer: &str, values: &mut Vec<String>) {
+    if let Some(items) = value.pointer(pointer).and_then(Value::as_array) {
+        for item in items {
+            if let Some(value) = item
+                .as_str()
+                .and_then(|value| normalize_optional_text(Some(value.to_string())))
+            {
+                push_unique_owned_tag(values, value);
+            }
+        }
+    }
 }
 
 fn format_text_list(values: &[String], fallback: &str) -> String {
@@ -3253,6 +3353,12 @@ mod tests {
                                 "executor_binding": {
                                     "executor_kind": "skill",
                                     "binding_key": "research"
+                                },
+                                "execution_profile": {
+                                    "profile_key": "web_research_profile"
+                                },
+                                "executor_adapter": {
+                                    "adapter_key": "skill:research"
                                 }
                             },
                             "entry_source": "at_report_command"
@@ -3296,12 +3402,42 @@ mod tests {
                 .and_then(Value::as_str),
             Some("executor_invoked")
         );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/executionProfileKey")
+                .and_then(Value::as_str),
+            Some("web_research_profile")
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/executorAdapterKey")
+                .and_then(Value::as_str),
+            Some("skill:research")
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/executionProfileKeys/0",
+                )
+                .and_then(Value::as_str),
+            Some("web_research_profile")
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/executorAdapterKeys/0",
+                )
+                .and_then(Value::as_str),
+            Some("skill:research")
+        );
         let suite_tags = input
             .pointer("/classification/suiteTags")
             .and_then(Value::as_array)
             .expect("suite tags");
         for expected_tag in [
             "modality-web_research",
+            "execution-profile",
+            "executor-adapter",
             "web-research",
             "research-skill",
             "web-research-trace",
@@ -3317,12 +3453,16 @@ mod tests {
         assert!(expected.contains("Skill(report_generate)"));
         assert!(expected.contains("search_query"));
         assert!(expected.contains("lime_site_*"));
+        assert!(expected.contains("web_research_profile"));
+        assert!(expected.contains("skill:research"));
         assert!(expected.contains("model_memory_only_answer"));
         assert!(expected.contains("local_file_search_before_research_skill"));
         assert!(expected.contains("\"requiresHumanReview\": false"));
 
         let grader = fs::read_to_string(grader_path).expect("grader");
         assert!(grader.contains("多模态运行合同检查"));
+        assert!(grader.contains("web_research_profile"));
+        assert!(grader.contains("skill:research"));
         assert!(grader.contains("Skill(research)"));
         assert!(grader.contains("Skill(report_generate)"));
         assert!(grader.contains("model_memory_only_answer"));
@@ -3336,6 +3476,18 @@ mod tests {
                 .pointer("/modalityRuntimeContracts/snapshots/0/source")
                 .and_then(Value::as_str),
             Some("web_research_skill_trace.modality_runtime_contract")
+        );
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshotIndex/executionProfileKeys/0")
+                .and_then(Value::as_str),
+            Some("web_research_profile")
+        );
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshotIndex/executorAdapterKeys/0")
+                .and_then(Value::as_str),
+            Some("skill:research")
         );
     }
 

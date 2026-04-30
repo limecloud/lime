@@ -728,3 +728,45 @@ npx eslint "src/components/agent/chat/components/MessageList.tsx" "src/component
 ```
 
 结果：性能指标汇总单测通过，ESLint touched files 继续通过。
+
+### 2026-04-30：P1 第十四刀，旧会话首帧延后 Markdown hydrate
+
+采集事实：
+
+- DevBridge `3030` 仍未监听，真实 Playwright 多旧会话切换暂不可测。
+- 当前机器已有 `tsc --noEmit` 与多条 `rustc` 高 CPU 进程，继续启动 Tauri / GUI smoke 会污染用户反馈的鼠标 loading 与 CPU 飙高采样。
+- 第十三刀已跳过旧会话首帧的 `contentParts` 细节扫描，但短历史 assistant 正文仍会进入 `StreamingRenderer -> MarkdownRenderer -> ReactMarkdown`，即使 `renderMode=light` 也会同步解析多条历史 Markdown。
+- 旧会话首帧的产品目标是“先看到消息文本与布局”，Markdown 标题、列表、代码高亮、表格等可等 idle 后恢复。
+
+已完成：
+
+- `MessageList.tsx`：
+  - 增加 `MESSAGE_LIST_STRUCTURED_HISTORY_CONTENT_RE` 与 `hasStructuredHistoricalContentHint`，避免把 A2UI / write_file / document 这类结构化协议用纯文本提前露出。
+  - 增加 `HistoricalMarkdownHydrationPreview`，旧会话首帧用 `whitespace-pre-wrap` 纯文本直接展示 assistant 正文，不挂载 `StreamingRenderer` / `ReactMarkdown`。
+  - 增加 `historicalMarkdownDeferredCount` 指标，记录旧会话首帧被延后的 Markdown hydrate 数量。
+  - 当 historical timeline idle-ready 后，自动恢复原有 `StreamingRenderer` / light Markdown 渲染。
+- `MessageList.test.tsx`：更新旧会话首帧回归，断言首帧出现 `message-list-historical-markdown-preview`、不挂载 `streaming-renderer`，idle 后移除 preview 并恢复 renderer。
+- `agentUiPerformanceMetrics.ts` / `.test.ts`：summary 增加 `historicalMarkdownDeferredMax`，方便 Playwright summary 直接读取 Markdown hydrate 延后命中量。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/components/MessageList.test.tsx" -t "旧会话首帧应延后历史助手 contentParts 与 Markdown 细节扫描|已分页旧会话首帧应只把尾部相关 turns 的 threadItems 纳入计算|旧会话消息较少但执行过程很多时也应延后构建 timeline|旧会话里的长助手回复应先展示纯文本预览"
+npm exec -- vitest run "src/lib/agentUiPerformanceMetrics.test.ts"
+npx eslint "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts" --max-warnings 0
+npm run bridge:health -- --timeout-ms 5000
+```
+
+结果：
+
+- MessageList 定向回归：通过，`4` 个测试通过。
+- 性能指标汇总单测：通过，`2` 个测试通过。
+- ESLint touched files：通过。
+- DevBridge 健康检查：失败，`http://127.0.0.1:3030/health` 未监听。
+- TypeScript：本轮未追加全量 typecheck；本机已有其它 `tsc --noEmit` 高 CPU 进程在运行，避免重复启动。
+
+下一步：
+
+1. DevBridge 恢复后复测真实旧会话，读取 `historicalMarkdownDeferredMax`、`historicalContentPartsDeferredMax`、`threadItemsScanDeferredCount`、`clickToMessageListPaintMs`、`longTaskMaxMs`。
+2. 若首帧仍慢，下一刀优先看 `visibleMessages.filter` / `buildMessageTurnGroups` 是否需要基于 sessionId 做更强 memo 或窗口化。
+3. 若首帧已快但 idle 后出现卡顿，把 Markdown hydrate / timeline hydrate 拆成分批 idle，而不是一次性恢复完整历史。
