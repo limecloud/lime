@@ -429,8 +429,16 @@ pub fn validate_tool_schemas(tools: &mut [Value]) {
 }
 
 /// Ensures that the given JSON value follows the expected JSON Schema structure.
-fn ensure_valid_json_schema(schema: &mut Value) {
+pub(crate) fn ensure_valid_json_schema(schema: &mut Value) {
     if let Some(params_obj) = schema.as_object_mut() {
+        if params_obj
+            .get("type")
+            .and_then(|t| t.as_str())
+            .is_some_and(|t| t == "array")
+        {
+            params_obj.entry("items").or_insert_with(|| json!({}));
+        }
+
         // Check if this is meant to be an object type schema
         let is_object_type = params_obj
             .get("type")
@@ -448,13 +456,29 @@ fn ensure_valid_json_schema(schema: &mut Value) {
             if let Some(properties) = params_obj.get_mut("properties") {
                 if let Some(properties_obj) = properties.as_object_mut() {
                     for (_key, prop) in properties_obj.iter_mut() {
-                        if prop.is_object()
-                            && prop.get("type").and_then(|t| t.as_str()) == Some("object")
-                        {
+                        if prop.is_object() {
                             ensure_valid_json_schema(prop);
                         }
                     }
                 }
+            }
+        }
+
+        if let Some(items) = params_obj.get_mut("items") {
+            ensure_valid_json_schema(items);
+        }
+
+        for keyword in ["oneOf", "anyOf", "allOf"] {
+            if let Some(variants) = params_obj.get_mut(keyword).and_then(Value::as_array_mut) {
+                for variant in variants.iter_mut() {
+                    ensure_valid_json_schema(variant);
+                }
+            }
+        }
+
+        if let Some(additional_properties) = params_obj.get_mut("additionalProperties") {
+            if additional_properties.is_object() {
+                ensure_valid_json_schema(additional_properties);
             }
         }
     }
@@ -857,6 +881,33 @@ mod tests {
         let mut tools = vec![original_schema.clone()];
         validate_tool_schemas(&mut tools);
         assert_eq!(tools[0], original_schema);
+
+        // Test case 4: Nested oneOf array schema should get items for OpenAI-compatible APIs.
+        let mut tools = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "test_func",
+                "description": "test description",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "message": {
+                            "oneOf": [
+                                { "type": "string" },
+                                { "type": "array" }
+                            ]
+                        }
+                    },
+                    "required": ["message"]
+                }
+            }
+        })];
+
+        validate_tool_schemas(&mut tools);
+        assert_eq!(
+            tools[0]["function"]["parameters"]["properties"]["message"]["oneOf"][1]["items"],
+            json!({})
+        );
     }
 
     const OPENAI_TOOL_USE_RESPONSE: &str = r#"{

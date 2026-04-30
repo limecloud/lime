@@ -109,9 +109,11 @@ import {
 import { buildBrowserControlLaunchRequestMetadata } from "./browserControlLaunch";
 import {
   PDF_EXTRACT_DEFAULT_ENTRY_SOURCE,
+  AUDIO_TRANSCRIPTION_DEFAULT_ENTRY_SOURCE,
   TEXT_TRANSFORM_DEFAULT_ENTRY_SOURCE,
   VOICE_GENERATION_DEFAULT_ENTRY_SOURCE,
   WEB_RESEARCH_DEFAULT_ENTRY_SOURCE,
+  resolveAudioTranscriptionRuntimeContractBinding,
   resolvePdfExtractRuntimeContractBinding,
   resolveTextTransformRuntimeContractBinding,
   resolveVoiceGenerationRuntimeContractBinding,
@@ -2035,6 +2037,12 @@ function buildTranscriptionSkillLaunchRequestContext(params: {
   contentId?: string | null;
   sessionId?: string | null;
 }): Record<string, unknown> {
+  const runtimeContract = resolveAudioTranscriptionRuntimeContractBinding();
+  const entrySource = resolveContractEntrySource(
+    runtimeContract.boundEntrySources,
+    AUDIO_TRANSCRIPTION_DEFAULT_ENTRY_SOURCE,
+  );
+
   return {
     kind: "transcription_task",
     transcription_task: {
@@ -2049,7 +2057,12 @@ function buildTranscriptionSkillLaunchRequestContext(params: {
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
       session_id: params.sessionId || undefined,
-      entry_source: "at_transcription_command",
+      entry_source: entrySource,
+      modality_contract_key: runtimeContract.contractKey,
+      modality: runtimeContract.modality,
+      required_capabilities: runtimeContract.requiredCapabilities,
+      routing_slot: runtimeContract.routingSlot,
+      runtime_contract: runtimeContract.runtimeContract,
     },
   };
 }

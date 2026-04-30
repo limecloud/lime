@@ -1,4 +1,5 @@
 import type {
+  CompleteAudioGenerationTaskArtifactRequest,
   CreateAudioGenerationTaskArtifactRequest,
   CreateImageGenerationTaskArtifactRequest,
   ListMediaTaskArtifactsRequest,
@@ -34,6 +35,14 @@ export function createMediaClient({
     });
   }
 
+  async function completeAudioGenerationTaskArtifact(
+    request: CompleteAudioGenerationTaskArtifactRequest,
+  ): Promise<MediaTaskArtifactOutput> {
+    return await bridgeInvoke("complete_audio_generation_task_artifact", {
+      request,
+    });
+  }
+
   async function getMediaTaskArtifact(
     request: MediaTaskLookupRequest,
   ): Promise<MediaTaskArtifactOutput> {
@@ -58,6 +67,7 @@ export function createMediaClient({
 
   return {
     cancelMediaTaskArtifact,
+    completeAudioGenerationTaskArtifact,
     createAudioGenerationTaskArtifact,
     createImageGenerationTaskArtifact,
     getMediaTaskArtifact,
@@ -67,6 +77,7 @@ export function createMediaClient({
 
 export const {
   cancelMediaTaskArtifact,
+  completeAudioGenerationTaskArtifact,
   createAudioGenerationTaskArtifact,
   createImageGenerationTaskArtifact,
   getMediaTaskArtifact,

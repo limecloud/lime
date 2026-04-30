@@ -49,6 +49,8 @@ pub enum AsrProviderType {
     /// 本地 Whisper（离线）
     #[default]
     WhisperLocal,
+    /// 本地 SenseVoice Small（离线）
+    SenseVoiceLocal,
     /// 讯飞语音识别
     Xunfei,
     /// 百度语音识别
@@ -96,6 +98,9 @@ pub struct AsrCredentialEntry {
     /// Whisper 本地配置（仅 WhisperLocal）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub whisper_config: Option<WhisperLocalConfig>,
+    /// SenseVoice 本地配置（仅 SenseVoiceLocal）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sensevoice_config: Option<SenseVoiceLocalConfig>,
     /// 讯飞配置（仅 Xunfei）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xunfei_config: Option<XunfeiConfig>,
@@ -120,6 +125,50 @@ pub struct WhisperLocalConfig {
     /// 模型文件路径（可选，默认自动下载）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_path: Option<String>,
+}
+
+/// SenseVoice 本地配置
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SenseVoiceLocalConfig {
+    /// 模型 ID
+    #[serde(default = "default_sensevoice_model_id")]
+    pub model_id: String,
+    /// 模型目录（可选，默认使用应用数据目录）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_dir: Option<String>,
+    /// 是否启用逆文本标准化
+    #[serde(default = "default_sensevoice_use_itn")]
+    pub use_itn: bool,
+    /// 推理线程数
+    #[serde(default = "default_sensevoice_num_threads")]
+    pub num_threads: u16,
+    /// VAD 模型 ID（可选）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vad_model_id: Option<String>,
+}
+
+fn default_sensevoice_model_id() -> String {
+    "sensevoice-small-int8-2024-07-17".to_string()
+}
+
+fn default_sensevoice_use_itn() -> bool {
+    true
+}
+
+fn default_sensevoice_num_threads() -> u16 {
+    4
+}
+
+impl Default for SenseVoiceLocalConfig {
+    fn default() -> Self {
+        Self {
+            model_id: default_sensevoice_model_id(),
+            model_dir: None,
+            use_itn: default_sensevoice_use_itn(),
+            num_threads: default_sensevoice_num_threads(),
+            vad_model_id: Some("silero-vad-onnx".to_string()),
+        }
+    }
 }
 
 /// 讯飞语音配置
@@ -3384,6 +3433,7 @@ mod unit_tests {
                 model: WhisperModelSize::Base,
                 model_path: None,
             }),
+            sensevoice_config: None,
             xunfei_config: None,
             baidu_config: None,
             openai_config: None,
@@ -3437,6 +3487,7 @@ mod unit_tests {
                 disabled: false,
                 language: "zh".to_string(),
                 whisper_config: None,
+                sensevoice_config: None,
                 xunfei_config: Some(XunfeiConfig {
                     app_id: "test_app_id".to_string(),
                     api_key: "test_api_key".to_string(),

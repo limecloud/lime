@@ -408,11 +408,12 @@ fn should_disable_provider_default_fast_model(config: &AsterProviderConfig) -> b
 /// - `https://open.bigmodel.cn/api/paas/v4` -> (`https://open.bigmodel.cn`, `api/paas/v4`)
 /// - `https://localhost:8080/v1` -> (`https://localhost:8080`, `v1`)
 fn split_url_host_and_path(url: &str) -> (String, String) {
+    let url = strip_url_query_fragment(url);
     // 找到 scheme 之后的 authority 部分
     let after_scheme = if let Some(pos) = url.find("://") {
         pos + 3
     } else {
-        return (url.to_string(), String::new());
+        return (url, String::new());
     };
 
     // 找到 authority 之后的第一个 /（即路径开始）
@@ -448,6 +449,95 @@ fn resolve_anthropic_env_key(config: &AsterProviderConfig) -> &'static str {
     } else {
         "ANTHROPIC_API_KEY"
     }
+}
+
+const LIME_TENANT_HEADER: &str = "X-Lime-Tenant-ID";
+const LIME_TENANT_PARAM: &str = "lime_tenant_id";
+const OPENAI_CUSTOM_HEADERS_ENV: &str = "OPENAI_CUSTOM_HEADERS";
+
+fn normalize_lime_tenant_id(value: &str) -> Option<String> {
+    let tenant_id = value.trim();
+    if tenant_id.is_empty() {
+        return None;
+    }
+
+    tenant_id
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+        .then(|| tenant_id.to_string())
+}
+
+fn parse_lime_tenant_id_from_pairs(value: &str) -> Option<String> {
+    value.split('&').find_map(|pair| {
+        let mut parts = pair.splitn(2, '=');
+        let key = parts.next()?.trim();
+        let value = parts.next().unwrap_or_default();
+        (key == LIME_TENANT_PARAM)
+            .then(|| normalize_lime_tenant_id(value))
+            .flatten()
+    })
+}
+
+fn lime_tenant_id_from_api_host(api_host: &str) -> Option<String> {
+    let trimmed = api_host.trim();
+    let query = trimmed
+        .find('?')
+        .map(|pos| trimmed[pos + 1..].split('#').next().unwrap_or_default());
+    let fragment = trimmed.find('#').map(|pos| &trimmed[pos + 1..]);
+
+    query
+        .and_then(parse_lime_tenant_id_from_pairs)
+        .or_else(|| fragment.and_then(parse_lime_tenant_id_from_pairs))
+}
+
+fn strip_url_query_fragment(value: &str) -> String {
+    let trimmed = value.trim();
+    let end = [trimmed.find('?'), trimmed.find('#')]
+        .into_iter()
+        .flatten()
+        .min()
+        .unwrap_or(trimmed.len());
+
+    trimmed[..end].trim_end_matches('/').to_string()
+}
+
+fn parse_openai_custom_headers_env(value: &str) -> Vec<(String, String)> {
+    value
+        .split(',')
+        .filter_map(|header| {
+            let mut parts = header.splitn(2, '=');
+            let key = parts.next()?.trim();
+            if key.is_empty() {
+                return None;
+            }
+            let value = parts.next().unwrap_or_default().trim();
+            Some((key.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+fn update_openai_lime_tenant_custom_header(tenant_id: Option<&str>) {
+    let existing = std::env::var(OPENAI_CUSTOM_HEADERS_ENV).unwrap_or_default();
+    let mut headers = parse_openai_custom_headers_env(&existing)
+        .into_iter()
+        .filter(|(key, _)| !key.eq_ignore_ascii_case(LIME_TENANT_HEADER))
+        .collect::<Vec<_>>();
+
+    if let Some(tenant_id) = tenant_id.and_then(normalize_lime_tenant_id) {
+        headers.push((LIME_TENANT_HEADER.to_string(), tenant_id));
+    }
+
+    if headers.is_empty() {
+        std::env::remove_var(OPENAI_CUSTOM_HEADERS_ENV);
+        return;
+    }
+
+    let value = headers
+        .into_iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    std::env::set_var(OPENAI_CUSTOM_HEADERS_ENV, value);
 }
 
 fn set_provider_env_vars(config: &AsterProviderConfig) {
@@ -491,6 +581,9 @@ fn set_provider_env_vars(config: &AsterProviderConfig) {
         } else {
             std::env::remove_var("OPENAI_FORCE_RESPONSES_API");
         }
+        if config.base_url.is_none() {
+            update_openai_lime_tenant_custom_header(None);
+        }
     }
 
     // 设置 base_url
@@ -499,18 +592,22 @@ fn set_provider_env_vars(config: &AsterProviderConfig) {
     if let Some(base_url) = &config.base_url {
         match config.provider_name.as_str() {
             "openai" => {
+                let tenant_id = lime_tenant_id_from_api_host(base_url);
+                update_openai_lime_tenant_custom_header(tenant_id.as_deref());
+
                 // 解析 base_url，将路径部分拆分到 OPENAI_BASE_PATH。
                 // Responses 模式也复用这条前缀推导，避免出现 /v1/v1/responses。
                 // 例如 https://open.bigmodel.cn/api/paas/v4
                 //   -> OPENAI_HOST = https://open.bigmodel.cn
                 //   -> OPENAI_BASE_PATH = api/paas/v4/chat/completions
-                let (host_part, path_part) = split_url_host_and_path(base_url);
+                let sanitized_base_url = strip_url_query_fragment(base_url);
+                let (host_part, path_part) = split_url_host_and_path(&sanitized_base_url);
                 if path_part.is_empty() {
                     // 无路径部分（如 https://api.openai.com），直接设置
-                    std::env::set_var("OPENAI_HOST", base_url);
+                    std::env::set_var("OPENAI_HOST", &sanitized_base_url);
                     // 清除可能残留的 OPENAI_BASE_PATH，使用 Aster 默认值
                     std::env::remove_var("OPENAI_BASE_PATH");
-                    tracing::info!("[CredentialBridge] 设置 OPENAI_HOST={}", base_url);
+                    tracing::info!("[CredentialBridge] 设置 OPENAI_HOST={}", sanitized_base_url);
                 } else {
                     // base_url 包含路径，需要拆分
                     let base_path = format!("{}/chat/completions", path_part);
@@ -606,6 +703,12 @@ fn map_provider_type_to_aster_with_api_type(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard, OnceLock};
+
+    fn env_lock() -> MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    }
 
     #[test]
     fn test_map_provider_type_to_aster_with_api_type() {
@@ -631,6 +734,7 @@ mod tests {
 
     #[test]
     fn test_set_provider_env_vars_openai_codex_responses_splits_prefixed_base_url() {
+        let _env_guard = env_lock();
         std::env::remove_var("OPENAI_HOST");
         std::env::remove_var("OPENAI_BASE_PATH");
         std::env::remove_var("OPENAI_FORCE_RESPONSES_API");
@@ -665,6 +769,7 @@ mod tests {
 
     #[test]
     fn test_set_provider_env_vars_openai_codex_responses_normalizes_v1_base_url() {
+        let _env_guard = env_lock();
         std::env::remove_var("OPENAI_HOST");
         std::env::remove_var("OPENAI_BASE_PATH");
         std::env::remove_var("OPENAI_FORCE_RESPONSES_API");
@@ -814,10 +919,84 @@ mod tests {
         let (host, path) = split_url_host_and_path("https://api.openai.com/");
         assert_eq!(host, "https://api.openai.com");
         assert_eq!(path, "");
+
+        // 查询参数和 fragment 只用于附加元数据，不应进入真实请求 URL
+        let (host, path) =
+            split_url_host_and_path("https://llm.limeai.run/openai?lime_tenant_id=tenant-0001#x=1");
+        assert_eq!(host, "https://llm.limeai.run");
+        assert_eq!(path, "openai");
+    }
+
+    #[test]
+    fn test_set_provider_env_vars_openai_lime_hub_adds_tenant_header_from_fragment() {
+        let _env_guard = env_lock();
+        std::env::remove_var("OPENAI_HOST");
+        std::env::remove_var("OPENAI_BASE_PATH");
+        std::env::set_var(
+            OPENAI_CUSTOM_HEADERS_ENV,
+            "X-Other=1,X-Lime-Tenant-ID=stale",
+        );
+
+        let config = AsterProviderConfig {
+            provider_name: "openai".to_string(),
+            provider_selector: Some("lime-hub".to_string()),
+            model_name: "gpt-5.5".to_string(),
+            api_key: Some("test-key".to_string()),
+            base_url: Some("https://llm.limeai.run#lime_tenant_id=tenant-0001".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: false,
+            toolshim: false,
+            toolshim_model: None,
+        };
+
+        set_provider_env_vars(&config);
+
+        assert_eq!(
+            std::env::var("OPENAI_HOST").ok().as_deref(),
+            Some("https://llm.limeai.run")
+        );
+        assert!(std::env::var("OPENAI_BASE_PATH").is_err());
+        assert_eq!(
+            std::env::var(OPENAI_CUSTOM_HEADERS_ENV).ok().as_deref(),
+            Some("X-Other=1,X-Lime-Tenant-ID=tenant-0001")
+        );
+
+        std::env::remove_var(OPENAI_CUSTOM_HEADERS_ENV);
+    }
+
+    #[test]
+    fn test_set_provider_env_vars_openai_without_lime_tenant_clears_stale_header() {
+        let _env_guard = env_lock();
+        std::env::set_var(
+            OPENAI_CUSTOM_HEADERS_ENV,
+            "X-Lime-Tenant-ID=stale,X-Other=1",
+        );
+
+        let config = AsterProviderConfig {
+            provider_name: "openai".to_string(),
+            provider_selector: Some("openai".to_string()),
+            model_name: "gpt-4o".to_string(),
+            api_key: Some("test-key".to_string()),
+            base_url: Some("https://api.openai.com/v1".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: false,
+            toolshim: false,
+            toolshim_model: None,
+        };
+
+        set_provider_env_vars(&config);
+
+        assert_eq!(
+            std::env::var(OPENAI_CUSTOM_HEADERS_ENV).ok().as_deref(),
+            Some("X-Other=1")
+        );
+
+        std::env::remove_var(OPENAI_CUSTOM_HEADERS_ENV);
     }
 
     #[test]
     fn test_set_provider_env_vars_anthropic_sets_host_and_base_url() {
+        let _env_guard = env_lock();
         std::env::remove_var("ANTHROPIC_API_KEY");
         std::env::remove_var("ANTHROPIC_AUTH_TOKEN");
 
@@ -852,6 +1031,7 @@ mod tests {
 
     #[test]
     fn test_set_provider_env_vars_official_anthropic_keeps_api_key_env() {
+        let _env_guard = env_lock();
         std::env::remove_var("ANTHROPIC_API_KEY");
         std::env::remove_var("ANTHROPIC_AUTH_TOKEN");
 

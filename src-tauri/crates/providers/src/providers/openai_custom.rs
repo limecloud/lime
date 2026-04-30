@@ -58,6 +58,8 @@ impl OpenAICustomProvider {
     }
 
     fn normalize_openai_request_payload(&self, payload: &mut serde_json::Value) {
+        self.normalize_provider_specific_request_payload(payload);
+
         let model_name = payload
             .get("model")
             .and_then(|value| value.as_str())
@@ -149,6 +151,41 @@ impl OpenAICustomProvider {
                 );
             }
         }
+    }
+
+    fn normalize_provider_specific_request_payload(&self, payload: &mut serde_json::Value) {
+        if !self.uses_sensenova_compatible_api() {
+            return;
+        }
+
+        let Some(object) = payload.as_object_mut() else {
+            return;
+        };
+
+        if object.contains_key("max_completion_tokens") {
+            object.remove("max_tokens");
+            return;
+        }
+
+        if let Some(max_tokens) = object.remove("max_tokens") {
+            object.insert("max_completion_tokens".to_string(), max_tokens);
+        }
+    }
+
+    fn uses_sensenova_compatible_api(&self) -> bool {
+        self.config
+            .base_url
+            .as_deref()
+            .and_then(Self::parse_config_url)
+            .is_some_and(|url| {
+                url.host_str()
+                    .map(|host| host.eq_ignore_ascii_case("api.sensenova.cn"))
+                    .unwrap_or(false)
+                    && url
+                        .path()
+                        .trim_end_matches('/')
+                        .eq_ignore_ascii_case("/compatible-mode/v2")
+            })
     }
 
     fn maybe_log_protocol_mismatch_hint(url: &str, status: StatusCode) {
@@ -941,6 +978,42 @@ mod tests {
             payload["messages"][3]["reasoning_content"],
             serde_json::json!("继续查询具体天气")
         );
+    }
+
+    #[test]
+    fn test_normalize_openai_request_payload_uses_sensenova_token_field() {
+        let provider = OpenAICustomProvider::with_config(
+            "sk-test".to_string(),
+            Some("https://api.sensenova.cn/compatible-mode/v2".to_string()),
+        );
+        let mut payload = serde_json::json!({
+            "model": "SenseChat-5",
+            "messages": [{"role":"user","content":"hi"}],
+            "max_tokens": 64
+        });
+
+        provider.normalize_openai_request_payload(&mut payload);
+
+        assert!(payload.get("max_tokens").is_none());
+        assert_eq!(payload["max_completion_tokens"], serde_json::json!(64));
+    }
+
+    #[test]
+    fn test_normalize_openai_request_payload_keeps_standard_token_field() {
+        let provider = OpenAICustomProvider::with_config(
+            "sk-test".to_string(),
+            Some("https://api.deepseek.com".to_string()),
+        );
+        let mut payload = serde_json::json!({
+            "model": "deepseek-chat",
+            "messages": [{"role":"user","content":"hi"}],
+            "max_tokens": 64
+        });
+
+        provider.normalize_openai_request_payload(&mut payload);
+
+        assert_eq!(payload["max_tokens"], serde_json::json!(64));
+        assert!(payload.get("max_completion_tokens").is_none());
     }
 
     #[test]

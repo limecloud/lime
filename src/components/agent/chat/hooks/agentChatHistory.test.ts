@@ -6,6 +6,7 @@ import {
   extractThinkingContentFromParts,
   hydrateSessionDetailMessages,
   mergeHydratedMessagesWithLocalState,
+  shouldCompactCompletedSessionHistory,
 } from "./agentChatHistory";
 
 describe("agentChatHistory", () => {
@@ -134,6 +135,137 @@ describe("agentChatHistory", () => {
         text: "下面是整理好的 Prompt。",
       },
     ]);
+  });
+
+  it("已完成旧会话压缩水合时应跳过工具过程，仅保留可见正文", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-compact-history",
+      created_at: 1,
+      updated_at: 2,
+      history_limit: 40,
+      turns: [
+        {
+          id: "turn-compact-history",
+          thread_id: "session-compact-history",
+          prompt_text: "恢复旧会话",
+          status: "completed",
+          started_at: "2026-04-30T10:00:00.000Z",
+          completed_at: "2026-04-30T10:00:05.000Z",
+          created_at: "2026-04-30T10:00:00.000Z",
+          updated_at: "2026-04-30T10:00:05.000Z",
+        },
+      ],
+      items: [
+        {
+          id: "item-compact-history",
+          thread_id: "session-compact-history",
+          turn_id: "turn-compact-history",
+          sequence: 1,
+          type: "tool_call",
+          tool_name: "Bash",
+          arguments: { command: "printf slow" },
+          output: "x".repeat(12_000),
+          status: "completed",
+          started_at: "2026-04-30T10:00:01.000Z",
+          completed_at: "2026-04-30T10:00:02.000Z",
+          updated_at: "2026-04-30T10:00:02.000Z",
+        } as never,
+      ],
+      messages: [
+        {
+          role: "assistant",
+          timestamp: 1710000005,
+          content: [
+            { type: "thinking", thinking: "大量思考过程" } as never,
+            {
+              type: "tool_request",
+              id: "call-heavy",
+              tool_name: "Bash",
+              arguments: { command: "printf slow" },
+            } as never,
+            {
+              type: "tool_response",
+              id: "call-heavy",
+              output: "x".repeat(12_000),
+              success: true,
+            } as never,
+            { type: "output_text", text: "最终回复正文" } as never,
+          ],
+        },
+      ],
+    };
+
+    expect(shouldCompactCompletedSessionHistory(detail)).toBe(true);
+
+    const messages = hydrateSessionDetailMessages(
+      detail,
+      "session-compact-history",
+      { compactCompletedHistory: true },
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      role: "assistant",
+      content: "最终回复正文",
+      thinkingContent: undefined,
+      toolCalls: undefined,
+    });
+    expect(messages[0]?.contentParts).toEqual([
+      {
+        type: "text",
+        text: "最终回复正文",
+      },
+    ]);
+  });
+
+  it("仍在运行的会话即使请求压缩水合，也应保留工具过程", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-running-history",
+      created_at: 1,
+      updated_at: 2,
+      history_limit: 40,
+      turns: [
+        {
+          id: "turn-running-history",
+          thread_id: "session-running-history",
+          prompt_text: "继续执行",
+          status: "running",
+          started_at: "2026-04-30T10:00:00.000Z",
+          created_at: "2026-04-30T10:00:00.000Z",
+          updated_at: "2026-04-30T10:00:01.000Z",
+        },
+      ],
+      messages: [
+        {
+          role: "assistant",
+          timestamp: 1710000005,
+          content: [
+            {
+              type: "tool_request",
+              id: "call-running",
+              tool_name: "Bash",
+              arguments: { command: "sleep 1" },
+            } as never,
+          ],
+        },
+      ],
+    };
+
+    expect(shouldCompactCompletedSessionHistory(detail)).toBe(false);
+
+    const messages = hydrateSessionDetailMessages(
+      detail,
+      "session-running-history",
+      { compactCompletedHistory: true },
+    );
+
+    expect(messages[0]?.toolCalls?.[0]).toMatchObject({
+      id: "call-running",
+      status: "running",
+    });
+    expect(
+      messages[0]?.contentParts?.some((part) => part.type === "tool_use"),
+    ).toBe(true);
   });
 
   it("分页历史消息应使用历史窗口绝对位置生成稳定 ID", () => {

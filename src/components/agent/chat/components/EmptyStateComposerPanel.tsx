@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Globe, Settings2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Globe,
+  Lightbulb,
+  Settings2,
+  X,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -48,6 +55,7 @@ import type {
 import type { CuratedTaskTemplateItem } from "../utils/curatedTaskTemplates";
 import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
 import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
+import type { HomeInputSuggestion } from "../home/homeSurfaceTypes";
 import { getProviderLabel } from "@/lib/constants/providerMappings";
 
 interface EmptyStateComposerPanelProps {
@@ -99,6 +107,60 @@ interface EmptyStateComposerPanelProps {
   onFileSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onPaste?: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onRemoveImage?: (index: number) => void;
+  inputSuggestions?: HomeInputSuggestion[];
+  guideHelpActive?: boolean;
+  guideHelpLabel?: string;
+  onClearGuideHelp?: () => void;
+}
+
+function GuideHelpBadge({
+  label,
+  onClear,
+}: {
+  label: string;
+  onClear: () => void;
+}) {
+  return (
+    <div
+      data-testid="home-guide-help-active-badge"
+      className="mx-1 mt-1 inline-flex w-fit max-w-full items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50/90 px-2.5 py-1.5 text-xs font-semibold text-emerald-900 shadow-sm shadow-emerald-950/5"
+      title={label}
+    >
+      <Lightbulb className="h-3 w-3" strokeWidth={1.9} />
+      <span className="truncate">{label}</span>
+      <button
+        type="button"
+        onClick={onClear}
+        className="ml-0.5 text-emerald-800/70 hover:opacity-70"
+        aria-label={`关闭${label}`}
+        title="关闭引导帮助"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+function GuideHelpToolbarBadge({
+  label,
+  onClear,
+}: {
+  label: string;
+  onClear: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid="home-guide-help-toolbar-badge"
+      className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50/90 px-3 text-xs font-semibold text-emerald-900 shadow-sm shadow-emerald-950/5 transition hover:bg-white hover:text-emerald-950"
+      title="关闭引导帮助"
+      onClick={onClear}
+    >
+      <Lightbulb className="h-3.5 w-3.5" strokeWidth={1.9} />
+      <span className="truncate">{label.replace(/^Lime\s+/, "")}</span>
+      <X className="h-3.5 w-3.5 opacity-70" aria-hidden />
+    </button>
+  );
 }
 
 export function EmptyStateComposerPanel({
@@ -148,6 +210,10 @@ export function EmptyStateComposerPanel({
   onFileSelect,
   onPaste,
   onRemoveImage,
+  inputSuggestions = [],
+  guideHelpActive = false,
+  guideHelpLabel = "Lime 引导帮助",
+  onClearGuideHelp,
 }: EmptyStateComposerPanelProps) {
   const [draftInput, setDraftInput] = useState(input);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -200,6 +266,71 @@ export function EmptyStateComposerPanel({
     teamSuggestion.shouldSuggest &&
     dismissedSuggestionKey !== suggestionKey;
   const shouldShowTeamSelector = isGeneralTheme && subagentEnabled;
+  const sortedInputSuggestions = useMemo(
+    () =>
+      [...inputSuggestions].sort((left, right) => {
+        if (left.order !== right.order) {
+          return left.order - right.order;
+        }
+        return left.label.localeCompare(right.label, "zh-CN");
+      }),
+    [inputSuggestions],
+  );
+  const [inputSuggestionIndex, setInputSuggestionIndex] = useState(0);
+  const shouldShowInputSuggestion =
+    sortedInputSuggestions.length > 0 &&
+    !isLoading &&
+    !disabled &&
+    draftInput.trim().length === 0 &&
+    pendingImages.length === 0 &&
+    !guideHelpActive &&
+    !activeBuiltinCommand &&
+    !activeRuntimeScene &&
+    !activeCuratedTask &&
+    !activeSkill &&
+    !creationReplaySurface;
+  const activeInputSuggestion =
+    shouldShowInputSuggestion && sortedInputSuggestions.length > 0
+      ? sortedInputSuggestions[
+          inputSuggestionIndex % sortedInputSuggestions.length
+        ]
+      : null;
+
+  useEffect(() => {
+    if (inputSuggestionIndex < sortedInputSuggestions.length) {
+      return;
+    }
+    setInputSuggestionIndex(0);
+  }, [inputSuggestionIndex, sortedInputSuggestions.length]);
+
+  useEffect(() => {
+    if (!shouldShowInputSuggestion || sortedInputSuggestions.length <= 1) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setInputSuggestionIndex(
+        (current) => (current + 1) % sortedInputSuggestions.length,
+      );
+    }, 3500);
+
+    return () => window.clearInterval(timer);
+  }, [shouldShowInputSuggestion, sortedInputSuggestions.length]);
+
+  const handleAcceptInputSuggestion = (suggestion: {
+    label: string;
+    prompt: string;
+    testId?: string;
+  }) => {
+    setDraftInput(suggestion.prompt);
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(
+        suggestion.prompt.length,
+        suggestion.prompt.length,
+      );
+    });
+  };
 
   const handleEnableTeamSuggestion = () => {
     onSubagentEnabledChange?.(true);
@@ -238,6 +369,7 @@ export function EmptyStateComposerPanel({
   };
 
   const topExtra =
+    guideHelpActive ||
     activeBuiltinCommand ||
     activeRuntimeScene ||
     activeCuratedTask ||
@@ -245,6 +377,13 @@ export function EmptyStateComposerPanel({
     creationReplaySurface ||
     shouldShowTeamSuggestion ? (
       <>
+        {guideHelpActive ? (
+          <GuideHelpBadge
+            label={guideHelpLabel}
+            onClear={onClearGuideHelp ?? (() => undefined)}
+          />
+        ) : null}
+
         {activeBuiltinCommand ? (
           <BuiltinCommandBadge
             command={activeBuiltinCommand}
@@ -353,6 +492,13 @@ export function EmptyStateComposerPanel({
           <ChevronDown className="h-3.5 w-3.5" aria-hidden />
         )}
       </MetaToggleButton>
+
+      {guideHelpActive ? (
+        <GuideHelpToolbarBadge
+          label={guideHelpLabel}
+          onClear={onClearGuideHelp ?? (() => undefined)}
+        />
+      ) : null}
 
       {!showAdvancedControls && currentModelSummary ? (
         <Badge
@@ -511,6 +657,8 @@ export function EmptyStateComposerPanel({
         topExtra={topExtra}
         leftExtra={leftExtra}
         showMetaTools={showAdvancedControls}
+        inputSuggestion={activeInputSuggestion}
+        onAcceptInputSuggestion={handleAcceptInputSuggestion}
       />
     </>
   );

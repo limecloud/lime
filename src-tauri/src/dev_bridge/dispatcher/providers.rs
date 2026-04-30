@@ -1,5 +1,8 @@
 use super::{args_or_default, get_string_arg, parse_nested_arg, require_app_handle};
 use crate::connect::RelayRegistry;
+use crate::database::dao::api_key_provider::{
+    ApiKeyEntry, ApiKeyProvider, ApiProviderPromptCacheMode, ApiProviderType,
+};
 use crate::dev_bridge::DevBridgeState;
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
@@ -22,56 +25,64 @@ fn api_key_provider_with_keys_to_display(
     provider_with_keys: &crate::database::dao::api_key_provider::ProviderWithKeys,
     service: &lime_services::api_key_provider_service::ApiKeyProviderService,
 ) -> crate::commands::api_key_provider_cmd::ProviderWithKeysDisplay {
-    let api_keys = provider_with_keys
+    let api_keys: Vec<crate::commands::api_key_provider_cmd::ApiKeyDisplay> = provider_with_keys
         .api_keys
         .iter()
-        .map(|key| {
-            let masked = match service.decrypt_api_key(&key.api_key_encrypted) {
-                Ok(decrypted) => mask_api_key_for_display(&decrypted),
-                Err(_) => "****".to_string(),
-            };
-
-            crate::commands::api_key_provider_cmd::ApiKeyDisplay {
-                id: key.id.clone(),
-                provider_id: key.provider_id.clone(),
-                api_key_masked: masked,
-                alias: key.alias.clone(),
-                enabled: key.enabled,
-                usage_count: key.usage_count,
-                error_count: key.error_count,
-                last_used_at: key.last_used_at.map(|value| value.to_rfc3339()),
-                created_at: key.created_at.to_rfc3339(),
-            }
-        })
+        .map(|key| api_key_to_display(key, service))
         .collect();
 
     crate::commands::api_key_provider_cmd::ProviderWithKeysDisplay {
-        provider: crate::commands::api_key_provider_cmd::ProviderDisplay {
-            id: provider_with_keys.provider.id.clone(),
-            name: provider_with_keys.provider.name.clone(),
-            provider_type: provider_with_keys
-                .provider
-                .effective_provider_type()
-                .to_string(),
-            api_host: provider_with_keys.provider.api_host.clone(),
-            is_system: provider_with_keys.provider.is_system,
-            group: provider_with_keys.provider.group.to_string(),
-            enabled: provider_with_keys.provider.enabled,
-            sort_order: provider_with_keys.provider.sort_order,
-            api_version: provider_with_keys.provider.api_version.clone(),
-            project: provider_with_keys.provider.project.clone(),
-            location: provider_with_keys.provider.location.clone(),
-            region: provider_with_keys.provider.region.clone(),
-            custom_models: provider_with_keys.provider.custom_models.clone(),
-            prompt_cache_mode: provider_with_keys
-                .provider
-                .effective_prompt_cache_mode()
-                .map(|mode| mode.to_string()),
-            api_key_count: provider_with_keys.api_keys.len(),
-            created_at: provider_with_keys.provider.created_at.to_rfc3339(),
-            updated_at: provider_with_keys.provider.updated_at.to_rfc3339(),
-        },
+        provider: api_key_provider_to_display(&provider_with_keys.provider, api_keys.len()),
         api_keys,
+    }
+}
+
+fn api_key_provider_to_display(
+    provider: &ApiKeyProvider,
+    api_key_count: usize,
+) -> crate::commands::api_key_provider_cmd::ProviderDisplay {
+    crate::commands::api_key_provider_cmd::ProviderDisplay {
+        id: provider.id.clone(),
+        name: provider.name.clone(),
+        provider_type: provider.effective_provider_type().to_string(),
+        api_host: provider.api_host.clone(),
+        is_system: provider.is_system,
+        group: provider.group.to_string(),
+        enabled: provider.enabled,
+        sort_order: provider.sort_order,
+        api_version: provider.api_version.clone(),
+        project: provider.project.clone(),
+        location: provider.location.clone(),
+        region: provider.region.clone(),
+        custom_models: provider.custom_models.clone(),
+        prompt_cache_mode: provider
+            .effective_prompt_cache_mode()
+            .map(|mode| mode.to_string()),
+        api_key_count,
+        created_at: provider.created_at.to_rfc3339(),
+        updated_at: provider.updated_at.to_rfc3339(),
+    }
+}
+
+fn api_key_to_display(
+    key: &ApiKeyEntry,
+    service: &lime_services::api_key_provider_service::ApiKeyProviderService,
+) -> crate::commands::api_key_provider_cmd::ApiKeyDisplay {
+    let masked = match service.decrypt_api_key(&key.api_key_encrypted) {
+        Ok(decrypted) => mask_api_key_for_display(&decrypted),
+        Err(_) => "****".to_string(),
+    };
+
+    crate::commands::api_key_provider_cmd::ApiKeyDisplay {
+        id: key.id.clone(),
+        provider_id: key.provider_id.clone(),
+        api_key_masked: masked,
+        alias: key.alias.clone(),
+        enabled: key.enabled,
+        usage_count: key.usage_count,
+        error_count: key.error_count,
+        last_used_at: key.last_used_at.map(|value| value.to_rfc3339()),
+        created_at: key.created_at.to_rfc3339(),
     }
 }
 
@@ -160,6 +171,134 @@ pub(super) async fn try_handle(
             } else {
                 serde_json::json!([])
             }
+        }
+        "get_api_key_provider" => {
+            let args = args_or_default(args);
+            let id = get_string_arg(&args, "id", "providerId")?;
+            let db = state
+                .db
+                .as_ref()
+                .ok_or_else(|| "Database not initialized".to_string())?;
+            let provider = state.api_key_provider_service.get_provider(db, &id)?;
+
+            serde_json::to_value(provider.map(|provider| {
+                api_key_provider_with_keys_to_display(
+                    &provider,
+                    state.api_key_provider_service.as_ref(),
+                )
+            }))?
+        }
+        "add_custom_api_key_provider" => {
+            let args = args_or_default(args);
+            let request = parse_nested_arg::<
+                crate::commands::api_key_provider_cmd::AddCustomProviderRequest,
+            >(&args, "request")?;
+            let provider_type: ApiProviderType = request
+                .provider_type
+                .parse()
+                .map_err(|e: String| format!("无效的 Provider 类型: {e}"))?;
+            let prompt_cache_mode = request
+                .prompt_cache_mode
+                .map(|mode| mode.parse::<ApiProviderPromptCacheMode>())
+                .transpose()
+                .map_err(|e: String| format!("无效的 Prompt Cache 模式: {e}"))?;
+            let db = state
+                .db
+                .as_ref()
+                .ok_or_else(|| "Database not initialized".to_string())?;
+
+            let provider = state.api_key_provider_service.add_custom_provider(
+                db,
+                request.name,
+                provider_type,
+                request.api_host,
+                request.api_version,
+                request.project,
+                request.location,
+                request.region,
+                prompt_cache_mode,
+            )?;
+
+            serde_json::to_value(api_key_provider_to_display(&provider, 0))?
+        }
+        "update_api_key_provider" => {
+            let args = args_or_default(args);
+            let id = get_string_arg(&args, "id", "providerId")?;
+            let request = parse_nested_arg::<
+                crate::commands::api_key_provider_cmd::UpdateProviderRequest,
+            >(&args, "request")?;
+            let provider_type: Option<ApiProviderType> = request
+                .provider_type
+                .map(|value| value.parse())
+                .transpose()
+                .map_err(|e: String| format!("无效的 Provider 类型: {e}"))?;
+            let prompt_cache_mode = request
+                .prompt_cache_mode
+                .map(|mode| mode.parse::<ApiProviderPromptCacheMode>())
+                .transpose()
+                .map_err(|e: String| format!("无效的 Prompt Cache 模式: {e}"))?;
+            let db = state
+                .db
+                .as_ref()
+                .ok_or_else(|| "Database not initialized".to_string())?;
+
+            let provider = state.api_key_provider_service.update_provider(
+                db,
+                &id,
+                request.name,
+                provider_type,
+                request.api_host,
+                request.enabled,
+                request.sort_order,
+                request.api_version,
+                request.project,
+                request.location,
+                request.region,
+                prompt_cache_mode,
+                request.custom_models,
+            )?;
+            let api_key_count = state
+                .api_key_provider_service
+                .get_provider(db, &id)?
+                .map(|provider| provider.api_keys.len())
+                .unwrap_or(0);
+
+            serde_json::to_value(api_key_provider_to_display(&provider, api_key_count))?
+        }
+        "add_api_key" => {
+            let args = args_or_default(args);
+            let request = parse_nested_arg::<
+                crate::commands::api_key_provider_cmd::AddApiKeyRequest,
+            >(&args, "request")?;
+            let db = state
+                .db
+                .as_ref()
+                .ok_or_else(|| "Database not initialized".to_string())?;
+            let key = state.api_key_provider_service.add_api_key(
+                db,
+                &request.provider_id,
+                &request.api_key,
+                request.alias,
+            )?;
+
+            serde_json::to_value(api_key_to_display(
+                &key,
+                state.api_key_provider_service.as_ref(),
+            ))?
+        }
+        "delete_custom_api_key_provider" => {
+            let args = args_or_default(args);
+            let id = get_string_arg(&args, "id", "providerId")?;
+            let db = state
+                .db
+                .as_ref()
+                .ok_or_else(|| "Database not initialized".to_string())?;
+
+            serde_json::to_value(
+                state
+                    .api_key_provider_service
+                    .delete_custom_provider(db, &id)?,
+            )?
         }
         "get_system_provider_catalog" => {
             let catalog = crate::commands::api_key_provider_cmd::get_system_provider_catalog()

@@ -1858,9 +1858,10 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
         },
       ],
     });
-    state.switchTopic = vi.fn(async (topicId: string) => {
+    const switchTopic = vi.fn(async (topicId: string) => {
       state.sessionId = topicId;
     });
+    state.switchTopic = switchTopic;
     installMockAgentChatUnifiedState(state);
 
     const mounted = mountPage({
@@ -1877,6 +1878,9 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
         source: "sidebar",
       }),
     ).toBe(true);
+    await flushEffects();
+    expect(switchTopic).toHaveBeenCalledWith("topic-next");
+
     mounted.rerender({
       initialSessionId: "topic-next",
     });
@@ -1884,6 +1888,7 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
     mounted.rerender();
     await flushEffects();
 
+    expect(switchTopic).toHaveBeenCalledTimes(1);
     expect(
       mounted.container
         .querySelector('[data-testid="task-center-tab-topic-next"]')
@@ -1899,6 +1904,49 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
         localStorage.getItem(TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY) ?? "{}",
       )["workspace-test"],
     ).toEqual(["topic-next", "topic-current"]);
+  });
+
+  it("new-task 首页收到外层侧栏打开历史会话时应立即切换会话", async () => {
+    const state: Record<string, unknown> = createMockAgentChatUnifiedState({
+      sessionId: null,
+      topics: [
+        {
+          id: "topic-next",
+          title: "旧会话 B",
+          updatedAt: new Date(FIXED_TOPIC_UPDATED_AT),
+          workspaceId: "workspace-test",
+        },
+      ],
+    });
+    const switchTopic = vi.fn(async (topicId: string) => {
+      state.sessionId = topicId;
+    });
+    state.switchTopic = switchTopic;
+    installMockAgentChatUnifiedState(state);
+
+    const mounted = mountPage({
+      agentEntry: "new-task",
+      projectId: "workspace-test",
+    });
+    await flushEffects();
+
+    expect(
+      notifyTaskCenterTaskOpen({
+        sessionId: "topic-next",
+        workspaceId: "workspace-test",
+        source: "sidebar",
+      }),
+    ).toBe(true);
+    await flushEffects();
+    mounted.rerender();
+    await flushEffects();
+
+    expect(switchTopic).toHaveBeenCalledWith("topic-next");
+    expect(
+      mounted.container
+        .querySelector('[data-testid="task-center-tab-topic-next"]')
+        ?.getAttribute("data-active"),
+    ).toBe("true");
   });
 
   it("已在任务中心内切到归档导航会话时，不应继续显示旧的普通任务标签", async () => {

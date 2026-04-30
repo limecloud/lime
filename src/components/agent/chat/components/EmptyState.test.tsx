@@ -9,7 +9,6 @@ import type { UnifiedMemory } from "@/lib/api/unifiedMemory";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
 import type { SceneAppEntryCardItem } from "../sceneappEntryTypes";
 import type { InputCapabilitySelection } from "../skill-selection/inputCapabilitySelection";
-import { recordServiceSkillUsage } from "../service-skills/storage";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import {
   buildCuratedTaskLaunchPrompt,
@@ -89,7 +88,8 @@ vi.mock("@/lib/api/unifiedMemory", () => ({
 }));
 
 vi.mock("@/lib/api/skillCatalog", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/skillCatalog")>();
+  const actual =
+    await importOriginal<typeof import("@/lib/api/skillCatalog")>();
   return {
     ...actual,
     getSkillCatalog: mockGetSkillCatalog,
@@ -397,6 +397,27 @@ async function openHomeMoreSkillsDrawer(
   return drawer;
 }
 
+function queryHomeDrawerButton(
+  drawer: HTMLElement,
+  testId: string,
+): HTMLButtonElement | null {
+  return drawer.querySelector(
+    `[data-testid="${testId}"]`,
+  ) as HTMLButtonElement | null;
+}
+
+function expectHomeDrawerButton(
+  drawer: HTMLElement,
+  testId: string,
+): HTMLButtonElement {
+  const button = queryHomeDrawerButton(drawer, testId);
+  expect(button).toBeTruthy();
+  if (!button) {
+    throw new Error(`expected home drawer button ${testId}`);
+  }
+  return button;
+}
+
 function createGithubSearchServiceSkill(): ServiceSkillHomeItem {
   return {
     id: "github-repo-radar",
@@ -509,7 +530,7 @@ describe("EmptyState", () => {
     expect(container.textContent).not.toContain("新建任务");
   });
 
-  it("通用首页应展示轻量起手入口与下滑第二屏", async () => {
+  it("通用首页应挂载轻量起手区与下滑第二屏", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
@@ -526,16 +547,21 @@ describe("EmptyState", () => {
     expect(
       container.querySelector('[data-testid="home-starter-chips"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain("帮我想选题");
-    expect(container.textContent).toContain("写第一版");
-    expect(container.textContent).toContain("拆解爆款");
-    expect(container.textContent).toContain("改成我的风格");
-    expect(container.textContent).toContain("转成视频脚本");
-    expect(container.textContent).toContain("复盘账号");
+    expect(container.textContent).toContain("引导帮助");
+    expect(container.textContent).toContain("写作");
+    expect(container.textContent).toContain("PPT");
+    expect(container.textContent).toContain("调研报告");
     expect(container.textContent).toContain("更多做法");
     expect(
-      container.querySelector('[data-testid="home-scroll-cue"]'),
-    ).toBeTruthy();
+      container.querySelector('[data-testid="home-guide-cards"]'),
+    ).toBeNull();
+    const scrollCue = container.querySelector(
+      '[data-testid="home-scroll-cue"]',
+    );
+    expect(scrollCue).toBeTruthy();
+    expect(scrollCue?.textContent).toContain(
+      "向下滑，看看 Lime 可以帮你做什么",
+    );
     expect(
       container.querySelector('[data-testid="home-second-screen"]'),
     ).toBeTruthy();
@@ -544,41 +570,94 @@ describe("EmptyState", () => {
     ).toBeTruthy();
     expect(container.textContent).toContain("你可以从这些任务开始");
     expect(container.textContent).toContain("每日趋势摘要");
-    expect(container.textContent).toContain("内容主稿生成");
-    expect(container.textContent).toContain("拆解一条爆款内容");
-    expect(container.textContent).toContain("长文转多平台发布稿");
-    expect(container.textContent).toContain("脚本转口播/字幕稿");
-    expect(container.textContent).toContain("复盘这个账号/项目");
-    expect(container.textContent).toContain("复制轮播帖");
-    expect(container.textContent).toContain("复制视频脚本");
     expect(container.textContent).not.toContain("先开始这一轮");
     expect(container.textContent).not.toContain("其他起手结果");
     expect(container.textContent).not.toContain("也可以直接按做法开工");
-    expect(container.textContent).not.toContain("首选结果");
-    expect(container.textContent).not.toContain("更多结果");
-    expect(container.textContent).not.toContain("快捷做法");
-    expect(container.textContent).not.toContain("任务拆分冒烟测试");
-    expect(container.textContent).not.toContain("推荐方案");
-    expect(container.textContent).not.toContain("通用对话");
-
-    const recommendationItems = Array.from(
-      container.querySelectorAll(
-        '[data-testid^="home-gallery-entry-recommended-"], [data-testid^="home-gallery-entry-service-skill-"]',
-      ),
-    ).map((element) => element.textContent?.trim() ?? "");
-
-    expect(recommendationItems.length).toBeGreaterThanOrEqual(8);
-    expect(recommendationItems.join(" ")).toContain("每日趋势摘要");
-    expect(recommendationItems.join(" ")).toContain("内容主稿生成");
-    expect(recommendationItems.join(" ")).toContain("拆解一条爆款内容");
-    expect(recommendationItems.join(" ")).toContain("长文转多平台发布稿");
-    expect(recommendationItems.join(" ")).toContain("脚本转口播/字幕稿");
-    expect(recommendationItems.join(" ")).toContain("复盘这个账号/项目");
-    expect(recommendationItems.join(" ")).toContain("复制轮播帖");
-    expect(recommendationItems.join(" ")).toContain("复制视频脚本");
     expect(
       container.querySelector('[data-testid^="entry-continuation-"]'),
     ).toBeNull();
+  });
+
+  it("点击引导帮助后进入可关闭的帮助模式，关闭后恢复默认起手入口", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      serviceSkills: [],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const guideTrigger = container.querySelector(
+      '[data-testid="home-guide-help-trigger"]',
+    ) as HTMLButtonElement | null;
+    expect(guideTrigger).toBeTruthy();
+
+    act(() => {
+      guideTrigger?.click();
+    });
+
+    expect(
+      container.querySelector('[data-testid="home-guide-help-active-badge"]'),
+    ).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="home-guide-cards"]'),
+    ).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="home-starter-chips"]'),
+    ).toBeNull();
+    expect(container.querySelector("textarea")?.placeholder).toContain(
+      "想了解什么？试试",
+    );
+
+    const closeGuide = container.querySelector(
+      '[data-testid="home-guide-help-active-badge"] button',
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      closeGuide?.click();
+    });
+
+    expect(
+      container.querySelector('[data-testid="home-guide-help-active-badge"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="home-guide-cards"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="home-starter-chips"]'),
+    ).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="home-input-tab-suggestion"]'),
+    ).toBeTruthy();
+  });
+
+  it("点击首屏起手任务只挂载输入区能力，不弹出启动表单", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      serviceSkills: [],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const starter = container.querySelector(
+      '[data-testid="entry-recommended-daily-trend-briefing"]',
+    ) as HTMLButtonElement | null;
+    expect(starter).toBeTruthy();
+
+    act(() => {
+      starter?.click();
+    });
+
+    expect(document.body.textContent).not.toContain(
+      "开始这一步前，我先确认几件事。",
+    );
+    expect(
+      container.querySelector('[data-testid="curated-task-badge"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("每日趋势摘要");
   });
 
   it("保存判断结论后不应打乱首屏固定起手入口", async () => {
@@ -627,7 +706,7 @@ describe("EmptyState", () => {
     ).map((element) => element.getAttribute("data-testid"));
 
     expect(starterItems).toEqual(initialStarterItems);
-    expect(starterItems[0]).toBe("entry-recommended-daily-trend-briefing");
+    expect(starterItems[0]).toBe("entry-recommended-social-post-starter");
     expect(
       container.querySelector('[data-testid="entry-review-feedback-banner"]'),
     ).toBeNull();
@@ -797,24 +876,10 @@ describe("EmptyState", () => {
     });
 
     const drawer = await openHomeMoreSkillsDrawer(container);
-    expect(drawer.textContent).toContain("最近使用");
-
-    const continuationItems = Array.from(
-      drawer.querySelectorAll('[data-testid^="home-drawer-"]'),
-    ).map((element) => element.getAttribute("data-testid"));
-
-    expect(continuationItems).toContain(
+    const recentTemplateButton = expectHomeDrawerButton(
+      drawer,
       "home-drawer-entry-recommended-social-post-starter",
     );
-    expect(continuationItems).toContain(
-      "home-drawer-entry-service-skill-content-iteration-flow",
-    );
-
-    const recentTemplateButton = drawer.querySelector(
-      '[data-testid="home-drawer-entry-recommended-social-post-starter"]',
-    ) as HTMLButtonElement | null;
-    expect(recentTemplateButton).toBeTruthy();
-    expect(recentTemplateButton?.textContent).toContain("内容主稿生成");
 
     await act(async () => {
       recentTemplateButton?.click();
@@ -871,11 +936,10 @@ describe("EmptyState", () => {
       }),
     );
 
-    const recentMethodButton = drawer.querySelector(
-      '[data-testid="home-drawer-entry-service-skill-content-iteration-flow"]',
-    ) as HTMLButtonElement | null;
-    expect(recentMethodButton).toBeTruthy();
-    expect(recentMethodButton?.textContent).toContain("内容迭代整理");
+    const recentMethodButton = expectHomeDrawerButton(
+      drawer,
+      "home-drawer-entry-service-skill-content-iteration-flow",
+    );
 
     act(() => {
       recentMethodButton?.click();
@@ -908,11 +972,10 @@ describe("EmptyState", () => {
     });
 
     const drawer = await openHomeMoreSkillsDrawer(container);
-    expect(drawer.textContent).toContain("最近使用");
-    const sceneContinuationButton = drawer.querySelector(
-      '[data-testid="home-drawer-entry-service-skill-project-insight-flow"]',
-    ) as HTMLButtonElement | null;
-    expect(sceneContinuationButton).toBeTruthy();
+    const sceneContinuationButton = expectHomeDrawerButton(
+      drawer,
+      "home-drawer-entry-service-skill-project-insight-flow",
+    );
 
     act(() => {
       sceneContinuationButton?.click();
@@ -959,14 +1022,10 @@ describe("EmptyState", () => {
     });
 
     const drawer = await openHomeMoreSkillsDrawer(container);
-    expect(drawer.textContent).toContain("最近使用");
-
-    const installedSkillButton = drawer.querySelector(
-      '[data-testid="home-drawer-entry-installed-skill-content-playbook"]',
-    ) as HTMLButtonElement | null;
-    expect(installedSkillButton).toBeTruthy();
-    expect(installedSkillButton?.textContent).toContain("内容主稿方法");
-    expect(installedSkillButton?.textContent).toContain("继续优化这套内容主稿");
+    const installedSkillButton = expectHomeDrawerButton(
+      drawer,
+      "home-drawer-entry-installed-skill-content-playbook",
+    );
 
     await act(async () => {
       installedSkillButton?.click();
@@ -996,11 +1055,12 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(
-      container.querySelector(
-        '[data-testid="home-drawer-entry-installed-skill-content-playbook"]',
-      ),
-    ).toBeNull();
+    const drawer = await openHomeMoreSkillsDrawer(container);
+    const installedSkillButton = expectHomeDrawerButton(
+      drawer,
+      "home-drawer-entry-installed-skill-content-playbook",
+    );
+    expect(installedSkillButton.title).toContain("本地补充技能");
 
     await act(async () => {
       recordSlashEntryUsage({
@@ -1012,54 +1072,11 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    const drawer = await openHomeMoreSkillsDrawer(container);
-    const installedSkillButton = drawer.querySelector(
-      '[data-testid="home-drawer-entry-installed-skill-content-playbook"]',
-    ) as HTMLButtonElement | null;
-    expect(installedSkillButton).toBeTruthy();
-    expect(drawer.textContent).toContain("最近使用");
-    expect(installedSkillButton?.textContent).toContain("内容主稿方法");
-    expect(installedSkillButton?.textContent).toContain("继续完善这套内容方法");
-  });
-
-  it("最近使用的 service skill 也应显影上次补过的关键信息", async () => {
-    act(() => {
-      recordServiceSkillUsage({
-        skillId: "github-repo-radar",
-        runnerType: "instant",
-        slotValues: {
-          repository_query: "AI Agent 监控",
-        },
-      });
-    });
-
-    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
-    const recentMethod: ServiceSkillHomeItem = {
-      ...createGithubSearchServiceSkill(),
-      defaultExecutorBinding: "agent_turn",
-      siteCapabilityBinding: undefined,
-      recentUsedAt: 1_900_000_000_000,
-      isRecent: true,
-    };
-
-    const container = renderEmptyState({
-      activeTheme: "general",
-      onSelectServiceSkill,
-      serviceSkills: [recentMethod],
-    });
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    const drawer = await openHomeMoreSkillsDrawer(container);
-    const recentMethodButton = drawer.querySelector(
-      '[data-testid="home-drawer-entry-service-skill-github-repo-radar"]',
-    ) as HTMLButtonElement | null;
-    expect(recentMethodButton).toBeTruthy();
-    expect(recentMethodButton?.textContent).toContain(
-      "复用 GitHub 登录态检索项目。",
+    const updatedInstalledSkillButton = expectHomeDrawerButton(
+      drawer,
+      "home-drawer-entry-installed-skill-content-playbook",
     );
+    expect(updatedInstalledSkillButton.title).toContain("继续完善这套内容方法");
   });
 
   it("首页主体不再重复展示项目选择器入口", async () => {
@@ -1084,7 +1101,7 @@ describe("EmptyState", () => {
     ).toBeNull();
   });
 
-  it("通用首页应把补充入口收成轻量按钮，不再展开支撑能力说明", async () => {
+  it("通用首页不应把浏览器连接提前放到首屏补充入口", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
@@ -1096,19 +1113,14 @@ describe("EmptyState", () => {
 
     expect(
       container.querySelector('[data-testid="home-supplemental-actions"]'),
-    ).toBeTruthy();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="entry-connect-browser"]'),
-    ).toBeTruthy();
-    expect(container.textContent).toContain("连接浏览器");
+    ).toBeNull();
+    expect(container.textContent).not.toContain("连接浏览器");
     expect(container.textContent).not.toContain(
       "需要网页登录时，也可以先把浏览器接上。",
     );
-    expect(container.textContent).not.toContain("查看支撑能力");
-    expect(container.textContent).not.toContain("收起支撑能力");
-    expect(container.textContent).not.toContain("重复任务可持续复用");
-    expect(container.textContent).not.toContain("复杂任务可拆分并行推进");
-    expect(container.textContent).not.toContain("网页登录与网页执行");
     expect(
       container.querySelector('[data-testid="entry-capability-toggle"]'),
     ).toBeNull();
@@ -1182,7 +1194,7 @@ describe("EmptyState", () => {
     expect(onOpenMemoryWorkbench).not.toHaveBeenCalled();
   });
 
-  it("点击补充入口里的连接浏览器应触发浏览器接入", async () => {
+  it("浏览器接入不再通过首屏补充入口直接触发", async () => {
     const onLaunchBrowserAssist = vi.fn();
     const container = renderEmptyState({
       activeTheme: "general",
@@ -1196,13 +1208,9 @@ describe("EmptyState", () => {
     const mediaButton = container.querySelector(
       '[data-testid="entry-connect-browser"]',
     ) as HTMLButtonElement | null;
-    expect(mediaButton).toBeTruthy();
+    expect(mediaButton).toBeNull();
 
-    act(() => {
-      mediaButton?.click();
-    });
-
-    expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
+    expect(onLaunchBrowserAssist).not.toHaveBeenCalled();
   });
 
   it("点击每日趋势摘要应开启联网搜索并记录最近使用", async () => {
@@ -1221,7 +1229,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="entry-recommended-daily-trend-briefing"]',
+      '[data-testid="home-gallery-entry-recommended-daily-trend-briefing"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -1279,7 +1287,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="entry-recommended-daily-trend-briefing"]',
+      '[data-testid="home-gallery-entry-recommended-daily-trend-briefing"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -1360,7 +1368,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="entry-recommended-social-post-starter"]',
+      '[data-testid="home-gallery-entry-recommended-social-post-starter"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -1417,7 +1425,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="entry-recommended-longform-multiplatform-rewrite"]',
+      '[data-testid="home-gallery-entry-recommended-longform-multiplatform-rewrite"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -1761,7 +1769,7 @@ describe("EmptyState", () => {
     });
 
     const templateButton = container.querySelector(
-      '[data-testid="entry-recommended-daily-trend-briefing"]',
+      '[data-testid="home-gallery-entry-recommended-daily-trend-briefing"]',
     ) as HTMLButtonElement | null;
     expect(templateButton).toBeTruthy();
 
@@ -1884,7 +1892,7 @@ describe("EmptyState", () => {
     });
 
     const templateButton = container.querySelector(
-      '[data-testid="entry-recommended-daily-trend-briefing"]',
+      '[data-testid="home-gallery-entry-recommended-daily-trend-briefing"]',
     ) as HTMLButtonElement | null;
     expect(templateButton).toBeTruthy();
 
@@ -2008,7 +2016,7 @@ describe("EmptyState", () => {
     });
 
     const templateButton = container.querySelector(
-      '[data-testid="entry-recommended-daily-trend-briefing"]',
+      '[data-testid="home-gallery-entry-recommended-daily-trend-briefing"]',
     ) as HTMLButtonElement | null;
     expect(templateButton).toBeTruthy();
 
@@ -2052,7 +2060,7 @@ describe("EmptyState", () => {
     });
 
     const templateButton = container.querySelector(
-      '[data-testid="entry-recommended-account-project-review"]',
+      '[data-testid="home-gallery-entry-recommended-account-project-review"]',
     ) as HTMLButtonElement | null;
     expect(templateButton).toBeTruthy();
     expect(container.textContent).not.toContain("当前判断：先补复核与修复");
@@ -2115,11 +2123,15 @@ describe("EmptyState", () => {
     });
 
     const templateButton = container.querySelector(
-      '[data-testid="entry-recommended-daily-trend-briefing"]',
+      '[data-testid="home-gallery-entry-recommended-daily-trend-briefing"]',
     ) as HTMLButtonElement | null;
 
+    await act(async () => {
+      await Promise.resolve();
+    });
+
     expect(templateButton).toBeTruthy();
-    expect(templateButton?.textContent).toContain("帮我想选题");
+    expect(templateButton?.textContent).toContain("每日趋势摘要");
     expect(container.textContent).not.toContain("当前结果基线：AI 内容周报");
     expect(container.textContent).not.toContain("当前判断：先补复核与修复");
     expect(container.textContent).not.toContain("当前卡点：复核阻塞");
@@ -2254,7 +2266,7 @@ describe("EmptyState", () => {
     });
 
     const templateButton = container.querySelector(
-      '[data-testid="entry-recommended-daily-trend-briefing"]',
+      '[data-testid="home-gallery-entry-recommended-daily-trend-briefing"]',
     ) as HTMLButtonElement | null;
     expect(templateButton).toBeTruthy();
 
@@ -2388,7 +2400,7 @@ describe("EmptyState", () => {
     );
   });
 
-  it("通用对话默认占位文案应强调本轮任务起手", async () => {
+  it("通用对话默认展示 Ribbi 式 Tab 起手建议", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       serviceSkills: [],
@@ -2398,8 +2410,11 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    const textarea = container.querySelector("textarea");
-    expect(textarea?.getAttribute("placeholder")).toContain("先说这轮要做什么");
+    expect(
+      container.querySelector('[data-testid="home-input-tab-suggestion"]')
+        ?.textContent,
+    ).toContain("tab");
+    expect(container.textContent).toContain("帮我整理一下会议纪要");
   });
 
   it("点击高级设置中的地球按钮应切换联网搜索开关", async () => {
@@ -2564,7 +2579,7 @@ describe("EmptyState", () => {
     expect(
       container.querySelector('[data-testid="home-start-surface"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain("帮我想选题");
+    expect(container.textContent).toContain("调研报告");
   });
 
   it("通用首页发送时不应自动注入任何历史默认 skill", async () => {
@@ -2759,7 +2774,7 @@ describe("EmptyState", () => {
     expect(onSend).toHaveBeenCalledWith("整理最近发布计划", "react", undefined);
   });
 
-  it("通用主题应提供浏览器协助入口并触发启动回调", async () => {
+  it("通用主题不应在首屏直接展示浏览器协助入口", async () => {
     const onLaunchBrowserAssist = vi.fn();
     const container = renderEmptyState({
       activeTheme: "general",
@@ -2772,16 +2787,12 @@ describe("EmptyState", () => {
     const launchButton = container.querySelector(
       '[data-testid="entry-connect-browser"]',
     ) as HTMLButtonElement | null;
-    expect(launchButton).toBeTruthy();
+    expect(launchButton).toBeNull();
 
-    act(() => {
-      launchButton?.click();
-    });
-
-    expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
+    expect(onLaunchBrowserAssist).not.toHaveBeenCalled();
   });
 
-  it("通用主题应渲染 SceneApp 面板并触发启动回调", async () => {
+  it("通用主题应把 SceneApp 放到第二屏任务库而不是首屏补充入口", async () => {
     const onLaunchSceneApp = vi.fn();
     const container = renderEmptyState({
       activeTheme: "general",
@@ -2795,13 +2806,13 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("短视频编排");
     expect(
       container.querySelector('[data-testid="home-supplemental-actions"]'),
-    ).toBeTruthy();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="sceneapps-home-directory"]'),
     ).toBeNull();
 
     const launchButton = container.querySelector(
-      '[data-testid="sceneapp-launch-story-video-suite"]',
+      '[data-testid="home-gallery-entry-sceneapp-story-video-suite"]',
     ) as HTMLButtonElement | null;
     expect(launchButton).toBeTruthy();
 
@@ -2812,7 +2823,7 @@ describe("EmptyState", () => {
     expect(onLaunchSceneApp).toHaveBeenCalledWith("story-video-suite");
   });
 
-  it("通用主题应提供进入 SceneApp 目录页的入口", async () => {
+  it("通用主题不应把 SceneApp 目录页入口提前放到首屏", async () => {
     const onOpenSceneAppsDirectory = vi.fn();
     const container = renderEmptyState({
       activeTheme: "general",
@@ -2826,13 +2837,9 @@ describe("EmptyState", () => {
     const browseButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("查看全部做法"),
     );
-    expect(browseButton).toBeTruthy();
+    expect(browseButton).toBeFalsy();
 
-    act(() => {
-      browseButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(onOpenSceneAppsDirectory).toHaveBeenCalledTimes(1);
+    expect(onOpenSceneAppsDirectory).not.toHaveBeenCalled();
   });
 
   it("仅有目录入口但没有可直接收益时，不应默认渲染更多起手方式", async () => {

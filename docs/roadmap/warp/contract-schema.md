@@ -10,6 +10,8 @@
 
 - Registry：`src/lib/governance/modalityRuntimeContracts.json`
 - Capability Matrix：`src/lib/governance/modalityCapabilityMatrix.json`
+- Artifact Graph：`src/lib/governance/modalityArtifactGraph.json`
+- Execution Profiles：`src/lib/governance/modalityExecutionProfiles.json`
 - Check：`scripts/check-modality-runtime-contracts.mjs`
 - npm 入口：`npm run governance:modality-contracts`
 
@@ -24,6 +26,8 @@
 5. `required_capabilities` 必须全部出现在 [capability-matrix.md](./capability-matrix.md)。
 6. `routing_slot` 必须出现在 capability matrix 的 `model_roles`。
 7. contract 不允许引用不存在的 artifact kind、viewer surface、permission key 或 evidence event。
+8. contract 引用的 artifact kind 必须能在 artifact graph 中找到 truth source / viewer / evidence 交集。
+9. current contract 必须能在 [execution-profile.md](./execution-profile.md) 中找到 profile 与 executor adapter 覆盖。
 
 ## 3. 顶层结构
 
@@ -107,13 +111,15 @@ Phase 7 才允许大量补 entry binding。
 
 ## 7. 首批 contract
 
-首批 registry 先覆盖底层能力；`image_generation` 已作为第一条 vertical slice 进入 Phase 7 entry binding：
+首批 registry 先覆盖底层能力；进入 current 的 contract 必须继续被 capability matrix、artifact graph、execution profile 与 executor adapter registry 同步覆盖：
 
 1. `image_generation`
 2. `browser_control`
 3. `pdf_extract`
 4. `voice_generation`
-5. `web_research`
+5. `audio_transcription`
+6. `web_research`
+7. `text_transform`
 
 这些 contract 用于验证 schema 和治理守卫；后续 vertical slice 继续按“先底层、后 entry binding”的顺序推进。
 
@@ -132,3 +138,5 @@ npm run governance:modality-contracts
 5. executor binding 声明能力与 failure mapping。
 6. entry binding 不携带底层事实源字段。
 7. entry binding 必须声明 `entry_source`，且 `launch_metadata_path` 必须留在 `harness.*`。
+8. `artifact_kinds` 必须存在于 artifact graph，并与 contract 的 truth source、viewer、evidence 至少各有一个交集。
+9. current contract 必须被 execution profile 覆盖，且 `executor_binding` 必须能解析到已声明 executor adapter。

@@ -156,6 +156,7 @@ pub fn resolve_output_mode(mode: Option<&str>) -> Result<VoiceOutputMode, String
 pub fn asr_provider_name(provider: AsrProviderType) -> &'static str {
     match provider {
         AsrProviderType::WhisperLocal => "本地 Whisper",
+        AsrProviderType::SenseVoiceLocal => "SenseVoice Small 本地",
         AsrProviderType::OpenAI => "OpenAI Whisper",
         AsrProviderType::Baidu => "百度语音",
         AsrProviderType::Xunfei => "讯飞语音",

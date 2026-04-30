@@ -7,10 +7,15 @@ import process from "node:process";
 const CONTRACT_PATH = "src/lib/governance/modalityRuntimeContracts.json";
 const CAPABILITY_MATRIX_PATH =
   "src/lib/governance/modalityCapabilityMatrix.json";
+const ARTIFACT_GRAPH_PATH = "src/lib/governance/modalityArtifactGraph.json";
+const EXECUTION_PROFILE_PATH =
+  "src/lib/governance/modalityExecutionProfiles.json";
 const REQUIRED_DOCS = [
   "docs/roadmap/warp/runtime-fact-map.md",
   "docs/roadmap/warp/contract-schema.md",
   "docs/roadmap/warp/capability-matrix.md",
+  "docs/roadmap/warp/execution-profile.md",
+  "docs/roadmap/warp/artifact-graph.md",
   "docs/roadmap/warp/evolution-guide.md",
 ];
 
@@ -104,6 +109,24 @@ const FAILURE_REASONS = new Set([
   "observation_unavailable",
   "file_unavailable",
   "source_unavailable",
+]);
+const PROFILE_WRITE_MODES = new Set([
+  "domain_task_artifact",
+  "domain_document_artifact",
+  "runtime_observation_trace",
+  "timeline_backed_document_artifact",
+  "document_or_compat_file_artifact",
+]);
+const ARTIFACT_IMPLEMENTATION_STATUSES = new Set([
+  "current",
+  "partial",
+  "planned",
+]);
+const REQUIRED_ARTIFACT_INDEX_FIELDS = new Set([
+  "task_id",
+  "contract_key",
+  "artifact_kind",
+  "status",
 ]);
 const ENTRY_KINDS = new Set([
   "command",
@@ -431,7 +454,515 @@ function validateCapabilityMatrix(matrix) {
   };
 }
 
-function validateContractRegistry(registry, matrixRefs) {
+function validateArtifactGraph(graph) {
+  const errors = [];
+  pushIf(errors, graph.version !== 1, "artifactGraph.version must be 1");
+  pushIf(
+    errors,
+    graph.status !== "current",
+    "artifactGraph.status must be current",
+  );
+  pushIf(
+    errors,
+    !isNonEmptyString(graph.owner),
+    "artifactGraph.owner must be set",
+  );
+
+  const artifactMap = collectUniqueObjects(
+    errors,
+    graph.artifact_kinds,
+    "kind",
+    "artifactGraph.artifact_kinds",
+  );
+
+  for (const kind of ARTIFACT_KINDS) {
+    pushIf(
+      errors,
+      !artifactMap.has(kind),
+      `artifactGraph.artifact_kinds is missing known artifact kind: ${kind}`,
+    );
+  }
+
+  for (const [kind, artifact] of artifactMap.entries()) {
+    pushIf(
+      errors,
+      !ARTIFACT_KINDS.has(kind),
+      `artifact ${kind}.kind is unknown: ${kind}`,
+    );
+    pushIf(
+      errors,
+      !LIFECYCLES.has(artifact.lifecycle),
+      `artifact ${kind}.lifecycle is unknown: ${String(artifact.lifecycle)}`,
+    );
+    pushIf(
+      errors,
+      !MODALITIES.has(artifact.modality),
+      `artifact ${kind}.modality is unknown: ${String(artifact.modality)}`,
+    );
+    pushIf(
+      errors,
+      !ARTIFACT_IMPLEMENTATION_STATUSES.has(artifact.implementation_status),
+      `artifact ${kind}.implementation_status is unknown: ${String(artifact.implementation_status)}`,
+    );
+    validateStringArray(errors, kind, "truth_sources", artifact.truth_sources);
+    validateEnumArray(
+      errors,
+      kind,
+      "viewer_surfaces",
+      artifact.viewer_surfaces,
+      VIEWER_SURFACES,
+    );
+    validateEnumArray(
+      errors,
+      kind,
+      "evidence_events",
+      artifact.evidence_events,
+      EVIDENCE_EVENTS,
+    );
+    validateStringArray(
+      errors,
+      kind,
+      "task_index_fields",
+      artifact.task_index_fields,
+    );
+    validateStringArray(
+      errors,
+      kind,
+      "current_contracts",
+      artifact.current_contracts,
+      { allowEmpty: true },
+    );
+    pushIf(
+      errors,
+      !isNonEmptyString(artifact.notes),
+      `artifact ${kind}.notes must be set`,
+    );
+
+    if (
+      artifact.implementation_status === "current" ||
+      artifact.implementation_status === "partial"
+    ) {
+      const indexFields = new Set(
+        Array.isArray(artifact.task_index_fields)
+          ? artifact.task_index_fields
+          : [],
+      );
+      for (const requiredField of REQUIRED_ARTIFACT_INDEX_FIELDS) {
+        pushIf(
+          errors,
+          !indexFields.has(requiredField),
+          `artifact ${kind}.task_index_fields must include ${requiredField}`,
+        );
+      }
+    }
+  }
+
+  return {
+    errors,
+    artifactMap,
+  };
+}
+
+function hasIntersection(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right)) {
+    return false;
+  }
+  const rightSet = new Set(right);
+  return left.some((value) => rightSet.has(value));
+}
+
+function validateContractArtifactGraph(errors, contract, artifactGraphRefs) {
+  const contractKey = contract.contract_key;
+  if (!Array.isArray(contract.artifact_kinds)) {
+    return;
+  }
+
+  for (const artifactKind of contract.artifact_kinds) {
+    const artifact = artifactGraphRefs.artifactMap.get(artifactKind);
+    if (!artifact) {
+      errors.push(`${contractKey}.artifact_kinds references artifact not defined in graph: ${artifactKind}`);
+      continue;
+    }
+
+    pushIf(
+      errors,
+      Array.isArray(artifact.current_contracts) &&
+        artifact.current_contracts.length > 0 &&
+        !artifact.current_contracts.includes(contractKey),
+      `${contractKey}.artifact_kinds contains ${artifactKind}, but artifactGraph.${artifactKind}.current_contracts does not include ${contractKey}`,
+    );
+    pushIf(
+      errors,
+      !hasIntersection(contract.truth_source, artifact.truth_sources),
+      `${contractKey}.artifact_kinds ${artifactKind} has no truth_source intersection with artifact graph`,
+    );
+    pushIf(
+      errors,
+      !hasIntersection(contract.viewer_surface, artifact.viewer_surfaces),
+      `${contractKey}.artifact_kinds ${artifactKind} has no viewer_surface intersection with artifact graph`,
+    );
+    pushIf(
+      errors,
+      !hasIntersection(contract.evidence_events, artifact.evidence_events),
+      `${contractKey}.artifact_kinds ${artifactKind} has no evidence_events intersection with artifact graph`,
+    );
+  }
+}
+
+function resolveExecutorAdapterKey(executor) {
+  if (!isPlainObject(executor)) {
+    return null;
+  }
+  if (!isNonEmptyString(executor.executor_kind) || !isNonEmptyString(executor.binding_key)) {
+    return null;
+  }
+  return `${executor.executor_kind}:${executor.binding_key}`;
+}
+
+function validateSubset(errors, label, actualValues, requiredValues) {
+  const actualSet = new Set(Array.isArray(actualValues) ? actualValues : []);
+  for (const requiredValue of requiredValues || []) {
+    pushIf(
+      errors,
+      !actualSet.has(requiredValue),
+      `${label} must include ${requiredValue}`,
+    );
+  }
+}
+
+function validateArtifactPolicy(errors, label, policy, artifactGraphRefs) {
+  pushIf(errors, !isPlainObject(policy), `${label}.artifact_policy must be an object`);
+  if (!isPlainObject(policy)) {
+    return;
+  }
+  pushIf(
+    errors,
+    !PROFILE_WRITE_MODES.has(policy.write_mode),
+    `${label}.artifact_policy.write_mode is unknown: ${String(policy.write_mode)}`,
+  );
+  validateEnumArray(
+    errors,
+    label,
+    "artifact_policy.artifact_kinds",
+    policy.artifact_kinds,
+    ARTIFACT_KINDS,
+  );
+  if (Array.isArray(policy.artifact_kinds)) {
+    for (const artifactKind of policy.artifact_kinds) {
+      pushIf(
+        errors,
+        !artifactGraphRefs.artifactMap.has(artifactKind),
+        `${label}.artifact_policy.artifact_kinds references artifact not defined in graph: ${artifactKind}`,
+      );
+    }
+  }
+  validateEnumArray(
+    errors,
+    label,
+    "artifact_policy.viewer_surfaces",
+    policy.viewer_surfaces,
+    VIEWER_SURFACES,
+  );
+}
+
+function validateExecutionProfiles(registry, profiles, matrixRefs, artifactGraphRefs) {
+  const errors = [];
+  pushIf(errors, profiles.version !== 1, "executionProfiles.version must be 1");
+  pushIf(
+    errors,
+    profiles.status !== "current",
+    "executionProfiles.status must be current",
+  );
+  pushIf(
+    errors,
+    !isNonEmptyString(profiles.owner),
+    "executionProfiles.owner must be set",
+  );
+
+  const contractMap = collectUniqueObjects(
+    errors,
+    registry.contracts,
+    "contract_key",
+    "runtimeContracts.contracts",
+  );
+  const profileMap = collectUniqueObjects(
+    errors,
+    profiles.profiles,
+    "profile_key",
+    "executionProfiles.profiles",
+  );
+  const adapterMap = collectUniqueObjects(
+    errors,
+    profiles.executor_adapters,
+    "adapter_key",
+    "executionProfiles.executor_adapters",
+  );
+
+  for (const [adapterKey, adapter] of adapterMap.entries()) {
+    pushIf(
+      errors,
+      !LIFECYCLES.has(adapter.lifecycle),
+      `executor adapter ${adapterKey}.lifecycle is unknown: ${String(adapter.lifecycle)}`,
+    );
+    pushIf(
+      errors,
+      !EXECUTOR_KINDS.has(adapter.executor_kind),
+      `executor adapter ${adapterKey}.executor_kind is unknown: ${String(adapter.executor_kind)}`,
+    );
+    pushIf(
+      errors,
+      !isNonEmptyString(adapter.binding_key),
+      `executor adapter ${adapterKey}.binding_key must be set`,
+    );
+    pushIf(
+      errors,
+      isNonEmptyString(adapter.executor_kind) &&
+        isNonEmptyString(adapter.binding_key) &&
+        adapterKey !== `${adapter.executor_kind}:${adapter.binding_key}`,
+      `executor adapter ${adapterKey}.adapter_key must equal executor_kind:binding_key`,
+    );
+    validateEnumArray(
+      errors,
+      adapterKey,
+      "supported_contracts",
+      adapter.supported_contracts,
+      new Set(contractMap.keys()),
+    );
+    for (const fieldName of [
+      "supports_progress",
+      "supports_cancel",
+      "supports_resume",
+      "supports_artifact",
+    ]) {
+      pushIf(
+        errors,
+        typeof adapter[fieldName] !== "boolean",
+        `executor adapter ${adapterKey}.${fieldName} must be boolean`,
+      );
+    }
+    validateEnumArray(
+      errors,
+      adapterKey,
+      "artifact_output_kinds",
+      adapter.artifact_output_kinds,
+      ARTIFACT_KINDS,
+    );
+    validateEnumArray(
+      errors,
+      adapterKey,
+      "permission_requirements",
+      adapter.permission_requirements,
+      PERMISSIONS,
+    );
+    validateStringArray(
+      errors,
+      adapterKey,
+      "credential_requirements",
+      adapter.credential_requirements,
+      { allowEmpty: true },
+    );
+    validateEnumArray(
+      errors,
+      adapterKey,
+      "failure_mapping",
+      adapter.failure_mapping,
+      FAILURE_REASONS,
+    );
+    validateEnumArray(
+      errors,
+      adapterKey,
+      "evidence_events",
+      adapter.evidence_events,
+      EVIDENCE_EVENTS,
+    );
+    pushIf(
+      errors,
+      !isNonEmptyString(adapter.notes),
+      `executor adapter ${adapterKey}.notes must be set`,
+    );
+  }
+
+  const supportedContractsByProfile = new Set();
+  for (const [profileKey, profile] of profileMap.entries()) {
+    pushIf(
+      errors,
+      !LIFECYCLES.has(profile.lifecycle),
+      `execution profile ${profileKey}.lifecycle is unknown: ${String(profile.lifecycle)}`,
+    );
+    validateEnumArray(
+      errors,
+      profileKey,
+      "supported_contracts",
+      profile.supported_contracts,
+      new Set(contractMap.keys()),
+    );
+    validateEnumArray(
+      errors,
+      profileKey,
+      "model_role_slots",
+      profile.model_role_slots,
+      matrixRefs.modelRoleSlots,
+    );
+    validateEnumArray(
+      errors,
+      profileKey,
+      "permission_profile_keys",
+      profile.permission_profile_keys,
+      PERMISSIONS,
+    );
+    validateEnumArray(
+      errors,
+      profileKey,
+      "executor_adapter_keys",
+      profile.executor_adapter_keys,
+      new Set(adapterMap.keys()),
+    );
+    validateArtifactPolicy(errors, profileKey, profile.artifact_policy, artifactGraphRefs);
+    validateEnumArray(
+      errors,
+      profileKey,
+      "limecore_policy_refs",
+      profile.limecore_policy_refs,
+      LIMECORE_POLICY_REFS,
+    );
+    pushIf(
+      errors,
+      !isNonEmptyString(profile.user_lock_policy),
+      `execution profile ${profileKey}.user_lock_policy must be set`,
+    );
+    validateStringArray(
+      errors,
+      profileKey,
+      "fallback_behavior",
+      profile.fallback_behavior,
+    );
+    validateEnumArray(
+      errors,
+      profileKey,
+      "evidence_events",
+      profile.evidence_events,
+      EVIDENCE_EVENTS,
+    );
+    validateStringArray(errors, profileKey, "audit_fields", profile.audit_fields);
+    pushIf(
+      errors,
+      !isNonEmptyString(profile.notes),
+      `execution profile ${profileKey}.notes must be set`,
+    );
+
+    for (const contractKey of profile.supported_contracts || []) {
+      const contract = contractMap.get(contractKey);
+      if (!contract) {
+        continue;
+      }
+      supportedContractsByProfile.add(contractKey);
+      const adapterKey = resolveExecutorAdapterKey(contract.executor_binding);
+      validateSubset(
+        errors,
+        `execution profile ${profileKey}.model_role_slots`,
+        profile.model_role_slots,
+        [contract.routing_slot],
+      );
+      validateSubset(
+        errors,
+        `execution profile ${profileKey}.permission_profile_keys`,
+        profile.permission_profile_keys,
+        contract.permission_profile_keys,
+      );
+      validateSubset(
+        errors,
+        `execution profile ${profileKey}.limecore_policy_refs`,
+        profile.limecore_policy_refs,
+        contract.limecore_policy_refs,
+      );
+      validateSubset(
+        errors,
+        `execution profile ${profileKey}.artifact_policy.artifact_kinds`,
+        profile.artifact_policy?.artifact_kinds,
+        contract.artifact_kinds,
+      );
+      validateSubset(
+        errors,
+        `execution profile ${profileKey}.artifact_policy.viewer_surfaces`,
+        profile.artifact_policy?.viewer_surfaces,
+        contract.viewer_surface,
+      );
+      if (adapterKey) {
+        validateSubset(
+          errors,
+          `execution profile ${profileKey}.executor_adapter_keys`,
+          profile.executor_adapter_keys,
+          [adapterKey],
+        );
+      }
+    }
+  }
+
+  for (const [contractKey, contract] of contractMap.entries()) {
+    if (contract.lifecycle !== "current") {
+      continue;
+    }
+    pushIf(
+      errors,
+      !supportedContractsByProfile.has(contractKey),
+      `current contract ${contractKey} must be covered by an execution profile`,
+    );
+    const adapterKey = resolveExecutorAdapterKey(contract.executor_binding);
+    const adapter = adapterKey ? adapterMap.get(adapterKey) : null;
+    pushIf(
+      errors,
+      !adapter,
+      `current contract ${contractKey}.executor_binding must be defined in executionProfiles.executor_adapters: ${String(adapterKey)}`,
+    );
+    if (!adapter) {
+      continue;
+    }
+    validateSubset(
+      errors,
+      `executor adapter ${adapterKey}.supported_contracts`,
+      adapter.supported_contracts,
+      [contractKey],
+    );
+    for (const fieldName of [
+      "supports_progress",
+      "supports_cancel",
+      "supports_resume",
+      "supports_artifact",
+    ]) {
+      pushIf(
+        errors,
+        adapter[fieldName] !== contract.executor_binding[fieldName],
+        `current contract ${contractKey}.executor_binding.${fieldName} must match executor adapter ${adapterKey}`,
+      );
+    }
+    validateSubset(
+      errors,
+      `executor adapter ${adapterKey}.artifact_output_kinds`,
+      adapter.artifact_output_kinds,
+      contract.artifact_kinds,
+    );
+    validateSubset(
+      errors,
+      `executor adapter ${adapterKey}.permission_requirements`,
+      adapter.permission_requirements,
+      contract.permission_profile_keys,
+    );
+    validateSubset(
+      errors,
+      `executor adapter ${adapterKey}.failure_mapping`,
+      adapter.failure_mapping,
+      contract.executor_binding.failure_mapping,
+    );
+  }
+
+  return {
+    errors,
+    profileCount: profileMap.size,
+    adapterCount: adapterMap.size,
+  };
+}
+
+function validateContractRegistry(registry, matrixRefs, artifactGraphRefs) {
   const errors = [];
   pushIf(errors, registry.version !== 1, "registry.version must be 1");
   pushIf(errors, registry.status !== "current", "registry.status must be current");
@@ -508,6 +1039,7 @@ function validateContractRegistry(registry, matrixRefs) {
     }
     pushIf(errors, !isNonEmptyString(contract.owner_surface), `${contractKey}.owner_surface must be set`);
     validateEntryBindings(errors, contract);
+    validateContractArtifactGraph(errors, contract, artifactGraphRefs);
   }
 
   return errors;
@@ -523,7 +1055,7 @@ function validateRequiredDocs() {
   });
 }
 
-function renderSuccess(registry, matrix) {
+function renderSuccess(registry, matrix, graph, profileReport) {
   const currentCount = registry.contracts.filter(
     (contract) => contract.lifecycle === "current",
   ).length;
@@ -533,19 +1065,35 @@ function renderSuccess(registry, matrix) {
     `  current: ${currentCount}`,
     `  capabilities: ${matrix.capabilities.length}`,
     `  model roles: ${matrix.model_roles.length}`,
+    `  artifact kinds: ${graph.artifact_kinds.length}`,
+    `  execution profiles: ${profileReport.profileCount}`,
+    `  executor adapters: ${profileReport.adapterCount}`,
     `  registry: ${CONTRACT_PATH}`,
     `  matrix: ${CAPABILITY_MATRIX_PATH}`,
+    `  graph: ${ARTIFACT_GRAPH_PATH}`,
+    `  profiles: ${EXECUTION_PROFILE_PATH}`,
   ].join("\n");
 }
 
 function main() {
   const registry = readJson(CONTRACT_PATH);
   const matrix = readJson(CAPABILITY_MATRIX_PATH);
+  const graph = readJson(ARTIFACT_GRAPH_PATH);
+  const profiles = readJson(EXECUTION_PROFILE_PATH);
   const matrixReport = validateCapabilityMatrix(matrix);
+  const graphReport = validateArtifactGraph(graph);
+  const profileReport = validateExecutionProfiles(
+    registry,
+    profiles,
+    matrixReport,
+    graphReport,
+  );
   const errors = [
     ...validateRequiredDocs(),
     ...matrixReport.errors,
-    ...validateContractRegistry(registry, matrixReport),
+    ...graphReport.errors,
+    ...validateContractRegistry(registry, matrixReport, graphReport),
+    ...profileReport.errors,
   ];
 
   if (errors.length > 0) {
@@ -556,7 +1104,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log(renderSuccess(registry, matrix));
+  console.log(renderSuccess(registry, matrix, graph, profileReport));
 }
 
 main();

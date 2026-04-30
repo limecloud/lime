@@ -10,6 +10,8 @@ license = "MIT"
 default = []
 # 本地 Whisper 识别（编译很慢，CI 默认不启用）
 local-whisper = ["dep:whisper-rs"]
+# 本地 SenseVoice Small 识别（模型仍按需下载，不进入安装包）
+local-sensevoice = ["dep:sherpa-onnx"]
 
 [dependencies]
 # 音频录制
@@ -17,6 +19,9 @@ cpal = "0.15"
 
 # Whisper 本地识别（可选，编译耗时）
 whisper-rs = { version = "0.12", optional = true }
+
+# SenseVoice 本地识别（可选，链接 sherpa-onnx 运行时，不内置模型文件）
+sherpa-onnx = { version = "1.13", default-features = false, features = ["static"], optional = true }
 
 # WAV 处理
 hound = "3.5"

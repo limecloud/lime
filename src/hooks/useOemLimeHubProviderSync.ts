@@ -21,6 +21,10 @@ import {
 } from "@/lib/oemLimeHubProvider";
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 
+const MANAGED_LIME_HUB_KEY_ALIAS = "Lime 云端模型";
+const MANAGED_LIME_HUB_KEY_MODELS_STATE =
+  "oem_lime_hub_provider_sync:managed_key_models";
+
 function buildSyncSignature(
   runtime: ReturnType<typeof resolveOemCloudRuntimeContext>,
   customModels: string[],
@@ -107,6 +111,16 @@ async function resolveSyncedCustomModels(
   );
 }
 
+function buildManagedKeyModelsState(input: {
+  tenantId: string;
+  customModels: string[];
+}): string {
+  return JSON.stringify({
+    tenantId: input.tenantId,
+    models: input.customModels,
+  });
+}
+
 function hasUsableLocalApiKey(provider: {
   api_key_count?: number;
   api_keys?: Array<{ enabled?: boolean }>;
@@ -119,14 +133,42 @@ function hasUsableLocalApiKey(provider: {
   );
 }
 
+function isManagedLimeHubKey(key: {
+  alias?: string | null;
+  enabled?: boolean;
+}): boolean {
+  return (
+    key.enabled !== false &&
+    (key.alias ?? "").trim() === MANAGED_LIME_HUB_KEY_ALIAS
+  );
+}
+
 async function ensureLocalLimeHubApiKey(input: {
   runtime: NonNullable<ReturnType<typeof resolveOemCloudRuntimeContext>>;
   customModels: string[];
   localApiKeyReady: boolean;
+  apiKeys: Array<{ id?: string; alias?: string | null; enabled?: boolean }>;
 }): Promise<boolean> {
-  const { runtime, customModels, localApiKeyReady } = input;
-  if (localApiKeyReady || !runtime.sessionToken || customModels.length === 0) {
+  const { runtime, customModels, localApiKeyReady, apiKeys } = input;
+  if (!runtime.sessionToken || customModels.length === 0) {
     return localApiKeyReady;
+  }
+
+  if (localApiKeyReady) {
+    const expectedState = buildManagedKeyModelsState({
+      tenantId: runtime.tenantId,
+      customModels,
+    });
+    try {
+      const currentState = await apiKeyProviderApi.getUiState(
+        MANAGED_LIME_HUB_KEY_MODELS_STATE,
+      );
+      if (currentState === expectedState) {
+        return true;
+      }
+    } catch {
+      // UI state 只用于判断本地托管 key 是否覆盖最新模型；读取失败时重新签发更安全。
+    }
   }
 
   const response = await createClientAccessToken(runtime.tenantId, {
@@ -139,11 +181,34 @@ async function ensureLocalLimeHubApiKey(input: {
     return false;
   }
 
-  await apiKeyProviderApi.addApiKey({
+  const addedKey = await apiKeyProviderApi.addApiKey({
     provider_id: OEM_LIME_HUB_PROVIDER_ID,
     api_key: apiKey,
-    alias: "Lime 云端模型",
+    alias: MANAGED_LIME_HUB_KEY_ALIAS,
   });
+
+  await Promise.all(
+    apiKeys
+      .filter(isManagedLimeHubKey)
+      .filter((key) => key.id && key.id !== addedKey.id)
+      .map((key) =>
+        apiKeyProviderApi.toggleApiKey(key.id as string, false).catch(() => {
+          // 新 key 已写入；旧托管 key 禁用失败不阻塞本次同步，下次同步会继续尝试。
+        }),
+      ),
+  );
+
+  try {
+    await apiKeyProviderApi.setUiState(
+      MANAGED_LIME_HUB_KEY_MODELS_STATE,
+      buildManagedKeyModelsState({
+        tenantId: runtime.tenantId,
+        customModels,
+      }),
+    );
+  } catch {
+    // 状态写入失败不影响新 key 生效；后续同步会再补写。
+  }
   return true;
 }
 
@@ -251,6 +316,7 @@ export function useOemLimeHubProviderSync() {
           runtime,
           customModels: nextCustomModels,
           localApiKeyReady,
+          apiKeys: limeHubProvider.api_keys ?? [],
         });
 
         lastAppliedSignatureRef.current = buildSyncSignature(

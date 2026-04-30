@@ -700,13 +700,50 @@ describe("tauri-mock/core invoke", () => {
         total: 1,
         modality_runtime_contracts: expect.objectContaining({
           contract_keys: ["voice_generation"],
+          audio_output_count: 1,
+          audio_output_statuses: [{ status: "pending", count: 1 }],
           snapshots: expect.arrayContaining([
             expect.objectContaining({
               task_type: "audio_generate",
               contract_key: "voice_generation",
               routing_event: "executor_invoked",
+              audio_output_status: "pending",
             }),
           ]),
+        }),
+      }),
+    );
+
+    await expect(
+      invoke("complete_audio_generation_task_artifact", {
+        request: {
+          projectRootPath: "/mock/workspace",
+          taskRef: "task-audio-mock-1",
+          audioPath: ".lime/runtime/audio/task-audio-mock-1.mp3",
+          mimeType: "audio/mpeg",
+          durationMs: 1800,
+          providerId: "limecore",
+          model: "voice-pro",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        task_type: "audio_generate",
+        task_family: "audio",
+        normalized_status: "succeeded",
+        record: expect.objectContaining({
+          payload: expect.objectContaining({
+            audio_path: ".lime/runtime/audio/task-audio-mock-1.mp3",
+            audio_output: expect.objectContaining({
+              status: "completed",
+              audio_path: ".lime/runtime/audio/task-audio-mock-1.mp3",
+              duration_ms: 1800,
+            }),
+          }),
+          result: expect.objectContaining({
+            status: "completed",
+            audio_path: ".lime/runtime/audio/task-audio-mock-1.mp3",
+          }),
         }),
       }),
     );

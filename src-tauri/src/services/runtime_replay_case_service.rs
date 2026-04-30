@@ -7,8 +7,8 @@
 use crate::agent::SessionDetail;
 use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
 use crate::commands::modality_runtime_contracts::{
-    BROWSER_CONTROL_CONTRACT_KEY, PDF_EXTRACT_CONTRACT_KEY, TEXT_TRANSFORM_CONTRACT_KEY,
-    VOICE_GENERATION_CONTRACT_KEY, WEB_RESEARCH_CONTRACT_KEY,
+    AUDIO_TRANSCRIPTION_CONTRACT_KEY, BROWSER_CONTROL_CONTRACT_KEY, PDF_EXTRACT_CONTRACT_KEY,
+    TEXT_TRANSFORM_CONTRACT_KEY, VOICE_GENERATION_CONTRACT_KEY, WEB_RESEARCH_CONTRACT_KEY,
 };
 use crate::services::runtime_evidence_pack_service::{
     export_runtime_evidence_pack, RuntimeEvidencePackExportResult,
@@ -694,6 +694,10 @@ fn build_success_criteria(
             "浏览器控制任务必须继续走 Browser Assist / `mcp__lime-browser__*` 主链，不能用 WebSearch 或普通聊天替代真实浏览器动作。"
                 .to_string(),
         );
+        criteria.push(
+            "Browser Assist 证据必须能在 `snapshotIndex.browserActionIndex` 中定位 action、session、URL 或 observation 摘要，不能只靠人工扫描 raw snapshots。"
+                .to_string(),
+        );
     }
     if modality_contract_has_pdf_extract(modality_runtime_contracts) {
         criteria.push(
@@ -706,6 +710,28 @@ fn build_success_criteria(
             "配音任务必须继续走 `service_scene_launch(scene_key=voice_runtime)` / 本地 ServiceSkill runtime 主链，不能用 `legacy_tts_test_command`、伪造云端已提交、普通聊天文本或通用文件卡替代真实语音生成合同。"
                 .to_string(),
         );
+        if modality_contract_has_voice_audio_output_completed(modality_runtime_contracts) {
+            criteria.push(
+                "如果 replay 沿用已有音频任务，必须保留 `audio_output.completed` 与真实 `audio_path`，不能退回只展示文案或通用文件卡。"
+                    .to_string(),
+            );
+        }
+    }
+    if modality_contract_has_audio_transcription(modality_runtime_contracts) {
+        criteria.push(
+            "转写任务必须继续走 `Skill(transcription_generate)` / `transcription_generate` task file 主链，不能用 `frontend_direct_asr`、`generic_file_transcript`、普通文件读取或普通聊天伪造 transcript。"
+                .to_string(),
+        );
+        criteria.push(
+            "转写证据必须能在 `snapshotIndex.transcriptIndex` 中定位 transcript 状态、来源、语言或输出格式，不能只靠人工扫描 raw task JSON。"
+                .to_string(),
+        );
+        if modality_contract_has_transcript_completed(modality_runtime_contracts) {
+            criteria.push(
+                "如果 replay 沿用已有转写结果，必须保留 `transcript.completed` 与真实 `transcriptPath`，不能退回只展示 Markdown 文本。"
+                    .to_string(),
+            );
+        }
     }
     if modality_contract_has_web_research(modality_runtime_contracts) {
         criteria.push(
@@ -778,6 +804,14 @@ fn build_blocking_checks(
                 .to_string(),
         );
     }
+    if modality_contract_has_browser_control(modality_runtime_contracts)
+        && !modality_contract_has_browser_action_index(modality_runtime_contracts)
+    {
+        checks.push(
+            "`browser_control` 合同缺少 `snapshotIndex.browserActionIndex`；除非 replay 重新导出可查询的 browser session/snapshot 索引，否则不能判 PASS。"
+                .to_string(),
+        );
+    }
     if modality_contract_has_pdf_extract(modality_runtime_contracts)
         && !modality_contract_has_pdf_skill_trace(modality_runtime_contracts)
     {
@@ -793,6 +827,40 @@ fn build_blocking_checks(
             "`voice_generation` 合同缺少 voice_runtime service scene trace；除非 replay 重新产生 service_scene_launch(scene_key=voice_runtime) 或 audio_task/audio_output 证据，否则不能判 PASS。"
                 .to_string(),
         );
+    }
+    if modality_contract_has_voice_audio_output_failed(modality_runtime_contracts) {
+        checks.push(format!(
+            "`voice_generation` 的 audio_output 已失败：{}；除非 replay 修复 provider / model / API Key 并产出新的 audio_output.completed，否则不能判 PASS。",
+            format_text_list(
+                &modality_contract_voice_audio_output_error_codes(modality_runtime_contracts),
+                "未记录 audio_output errorCode"
+            )
+        ));
+    }
+    if modality_contract_has_audio_transcription(modality_runtime_contracts)
+        && !modality_contract_has_audio_transcription_task_trace(modality_runtime_contracts)
+    {
+        checks.push(
+            "`audio_transcription` 合同缺少 transcription_generate task/Skill trace；除非 replay 重新产生 Skill(transcription_generate) 或 transcription task artifact 证据，否则不能判 PASS。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_audio_transcription(modality_runtime_contracts)
+        && !modality_contract_has_transcript_index(modality_runtime_contracts)
+    {
+        checks.push(
+            "`audio_transcription` 合同缺少 `snapshotIndex.transcriptIndex`；除非 replay 重新导出可查询的 transcript 索引，否则不能判 PASS。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_transcript_failed(modality_runtime_contracts) {
+        checks.push(format!(
+            "`audio_transcription` 的 transcript 已失败：{}；除非 replay 修复 provider / model / 输入源并产出新的 transcript.completed，否则不能判 PASS。",
+            format_text_list(
+                &modality_contract_transcript_error_codes(modality_runtime_contracts),
+                "未记录 transcript errorCode"
+            )
+        ));
     }
     if modality_contract_has_web_research(modality_runtime_contracts)
         && !modality_contract_has_web_research_skill_trace(modality_runtime_contracts)
@@ -867,6 +935,10 @@ fn build_modality_contract_checks(modality_runtime_contracts: &Value) -> Vec<Str
             "确认 evidence 中存在 `browser_action_trace` 或 `browser_action_requested` 快照，能证明浏览器执行器真实被调用。"
                 .to_string(),
         );
+        checks.push(
+            "确认 `snapshotIndex.browserActionIndex` 已汇总 browser session / snapshot 的 action、session、URL、observation 与 screenshot 计数。"
+                .to_string(),
+        );
     }
     if modality_contract_has_pdf_extract(modality_runtime_contracts) {
         checks.push(
@@ -883,8 +955,52 @@ fn build_modality_contract_checks(modality_runtime_contracts: &Value) -> Vec<Str
             "确认 `voice_generation` replay 使用 `service_scene_launch(scene_key=voice_runtime)` / 本地 ServiceSkill runtime，并保留 voice_runtime service scene trace 或 audio_task/audio_output 产物证据。"
                 .to_string(),
         );
+        if modality_contract_has_voice_audio_output_completed(modality_runtime_contracts) {
+            checks.push(
+                "确认 `audio_generate` task artifact 中的 `audio_output.completed`、`audio_path`、provider / model 仍能从 evidence 回溯，不能只把音频结果降级为 Markdown 文本。"
+                    .to_string(),
+            );
+        }
+        if modality_contract_has_voice_audio_output_failed(modality_runtime_contracts) {
+            checks.push(format!(
+                "确认 replay 对 `audio_output.failed` 的处理仍保留 Provider 错误码：{}，不能静默回退 legacy TTS 或伪造音频路径。",
+                format_text_list(
+                    &modality_contract_voice_audio_output_error_codes(modality_runtime_contracts),
+                    "未记录 audio_output errorCode"
+                )
+            ));
+        }
         checks.push(
             "确认没有把配音降级为 `legacy_tts_test_command`、`fake_cloud_scene_submitted`、普通聊天文案、通用文件卡或只展示文本结果。"
+                .to_string(),
+        );
+    }
+    if modality_contract_has_audio_transcription(modality_runtime_contracts) {
+        checks.push(
+            "确认 `audio_transcription` replay 使用 `Skill(transcription_generate)`，并保留 transcription_generate task artifact / transcript 产物证据。"
+                .to_string(),
+        );
+        checks.push(
+            "确认 `snapshotIndex.transcriptIndex` 已汇总 transcript 状态、来源、语言、输出格式与 provider / model。"
+                .to_string(),
+        );
+        if modality_contract_has_transcript_completed(modality_runtime_contracts) {
+            checks.push(
+                "确认 `transcription_generate` task artifact 中的 `transcript.completed`、`transcriptPath`、provider / model 仍能从 evidence 回溯，不能只把转写结果降级为 Markdown 文本。"
+                    .to_string(),
+            );
+        }
+        if modality_contract_has_transcript_failed(modality_runtime_contracts) {
+            checks.push(format!(
+                "确认 replay 对 `transcript.failed` 的处理仍保留 Provider 错误码：{}，不能静默回退 frontend ASR 或伪造 transcriptPath。",
+                format_text_list(
+                    &modality_contract_transcript_error_codes(modality_runtime_contracts),
+                    "未记录 transcript errorCode"
+                )
+            ));
+        }
+        checks.push(
+            "确认没有把转写降级为 `frontend_direct_asr`、`generic_file_transcript`、`tool_search_before_transcription_skill`、普通文件读取或普通聊天摘要。"
                 .to_string(),
         );
     }
@@ -981,6 +1097,9 @@ fn infer_replay_suite_tags(
         if modality_contract_has_browser_action_trace(modality_runtime_contracts) {
             push_unique_text_tag(&mut tags, "browser-action-trace");
         }
+        if modality_contract_has_browser_action_index(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "browser-action-index");
+        }
     }
     if modality_contract_has_pdf_extract(modality_runtime_contracts) {
         push_unique_text_tag(&mut tags, "pdf-extract");
@@ -994,6 +1113,28 @@ fn infer_replay_suite_tags(
         push_unique_text_tag(&mut tags, "voice-runtime");
         if modality_contract_has_voice_generation_service_trace(modality_runtime_contracts) {
             push_unique_text_tag(&mut tags, "voice-generation-trace");
+        }
+        if modality_contract_has_voice_audio_output_completed(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "audio-output-completed");
+        }
+        if modality_contract_has_voice_audio_output_failed(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "audio-output-failed");
+        }
+    }
+    if modality_contract_has_audio_transcription(modality_runtime_contracts) {
+        push_unique_text_tag(&mut tags, "audio-transcription");
+        push_unique_text_tag(&mut tags, "transcription-generate");
+        if modality_contract_has_audio_transcription_task_trace(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "transcription-task-trace");
+        }
+        if modality_contract_has_transcript_index(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "transcript-index");
+        }
+        if modality_contract_has_transcript_completed(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "transcript-completed");
+        }
+        if modality_contract_has_transcript_failed(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "transcript-failed");
         }
     }
     if modality_contract_has_web_research(modality_runtime_contracts) {
@@ -1081,6 +1222,11 @@ fn infer_replay_failure_modes(
     {
         push_unique_text_tag(&mut failure_modes, "browser_control_missing_action_trace");
     }
+    if modality_contract_has_browser_control(modality_runtime_contracts)
+        && !modality_contract_has_browser_action_index(modality_runtime_contracts)
+    {
+        push_unique_text_tag(&mut failure_modes, "browser_control_missing_action_index");
+    }
     if modality_contract_has_pdf_extract(modality_runtime_contracts)
         && !modality_contract_has_pdf_skill_trace(modality_runtime_contracts)
     {
@@ -1090,6 +1236,33 @@ fn infer_replay_failure_modes(
         && !modality_contract_has_voice_generation_service_trace(modality_runtime_contracts)
     {
         push_unique_text_tag(&mut failure_modes, "voice_generation_missing_service_trace");
+    }
+    if modality_contract_has_voice_audio_output_failed(modality_runtime_contracts) {
+        push_unique_text_tag(&mut failure_modes, "voice_generation_audio_output_failed");
+        for error_code in
+            modality_contract_voice_audio_output_error_codes(modality_runtime_contracts)
+        {
+            push_unique_owned_tag(&mut failure_modes, error_code);
+        }
+    }
+    if modality_contract_has_audio_transcription(modality_runtime_contracts)
+        && !modality_contract_has_audio_transcription_task_trace(modality_runtime_contracts)
+    {
+        push_unique_text_tag(&mut failure_modes, "audio_transcription_missing_task_trace");
+    }
+    if modality_contract_has_audio_transcription(modality_runtime_contracts)
+        && !modality_contract_has_transcript_index(modality_runtime_contracts)
+    {
+        push_unique_text_tag(
+            &mut failure_modes,
+            "audio_transcription_missing_transcript_index",
+        );
+    }
+    if modality_contract_has_transcript_failed(modality_runtime_contracts) {
+        push_unique_text_tag(&mut failure_modes, "audio_transcription_transcript_failed");
+        for error_code in modality_contract_transcript_error_codes(modality_runtime_contracts) {
+            push_unique_owned_tag(&mut failure_modes, error_code);
+        }
     }
     if modality_contract_has_web_research(modality_runtime_contracts)
         && !modality_contract_has_web_research_skill_trace(modality_runtime_contracts)
@@ -1163,6 +1336,17 @@ fn modality_contract_has_browser_action_trace(modality_runtime_contracts: &Value
                     .map(|value| value == "browser_action_requested")
                     .unwrap_or(false)
         })
+}
+
+fn modality_contract_has_browser_action_index(modality_runtime_contracts: &Value) -> bool {
+    modality_runtime_contracts
+        .pointer("/snapshotIndex/browserActionIndex/actionCount")
+        .and_then(Value::as_u64)
+        .is_some_and(|count| count > 0)
+        || modality_runtime_contracts
+            .pointer("/snapshotIndex/browserActionIndex/items")
+            .and_then(Value::as_array)
+            .is_some_and(|items| !items.is_empty())
 }
 
 fn modality_contract_has_pdf_extract(modality_runtime_contracts: &Value) -> bool {
@@ -1239,6 +1423,191 @@ fn modality_contract_has_voice_generation_service_trace(
                     .map(|value| value == "executor_invoked")
                     .unwrap_or(false)
         })
+}
+
+fn modality_contract_voice_audio_outputs(modality_runtime_contracts: &Value) -> Vec<&Value> {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .into_iter()
+        .filter(|snapshot| {
+            snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == VOICE_GENERATION_CONTRACT_KEY)
+                .unwrap_or(false)
+        })
+        .filter_map(|snapshot| snapshot.get("audioOutput"))
+        .filter(|value| value.is_object())
+        .collect()
+}
+
+fn modality_contract_has_voice_audio_output_completed(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_voice_audio_outputs(modality_runtime_contracts)
+        .iter()
+        .any(|audio_output| {
+            let completed = audio_output
+                .get("status")
+                .and_then(Value::as_str)
+                .map(|value| value == "completed")
+                .unwrap_or(false);
+            let has_audio_path = audio_output
+                .get("audioPath")
+                .and_then(Value::as_str)
+                .and_then(|value| normalize_optional_text(Some(value.to_string())))
+                .is_some();
+            completed && has_audio_path
+        })
+}
+
+fn modality_contract_has_voice_audio_output_failed(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_voice_audio_outputs(modality_runtime_contracts)
+        .iter()
+        .any(|audio_output| {
+            audio_output
+                .get("status")
+                .and_then(Value::as_str)
+                .map(|value| value == "failed")
+                .unwrap_or(false)
+                || audio_output
+                    .get("errorCode")
+                    .and_then(Value::as_str)
+                    .and_then(|value| normalize_optional_text(Some(value.to_string())))
+                    .is_some()
+        })
+}
+
+fn modality_contract_voice_audio_output_error_codes(
+    modality_runtime_contracts: &Value,
+) -> Vec<String> {
+    let mut error_codes = Vec::new();
+    for audio_output in modality_contract_voice_audio_outputs(modality_runtime_contracts) {
+        if let Some(error_code) = audio_output
+            .get("errorCode")
+            .and_then(Value::as_str)
+            .and_then(|value| normalize_optional_text(Some(value.to_string())))
+        {
+            push_unique_owned_tag(&mut error_codes, error_code);
+        }
+    }
+    error_codes
+}
+
+fn modality_contract_has_audio_transcription(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == AUDIO_TRANSCRIPTION_CONTRACT_KEY)
+                .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_audio_transcription_task_trace(
+    modality_runtime_contracts: &Value,
+) -> bool {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .iter()
+        .any(|snapshot| {
+            let is_audio_transcription = snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == AUDIO_TRANSCRIPTION_CONTRACT_KEY)
+                .unwrap_or(false);
+            if !is_audio_transcription {
+                return false;
+            }
+
+            snapshot
+                .get("source")
+                .and_then(Value::as_str)
+                .map(|value| {
+                    value.contains("transcription_task")
+                        || value.contains("transcription_skill_trace")
+                        || value.contains("transcript")
+                })
+                .unwrap_or(false)
+                || snapshot
+                    .get("routingEvent")
+                    .and_then(Value::as_str)
+                    .map(|value| value == "executor_invoked")
+                    .unwrap_or(false)
+        })
+}
+
+fn modality_contract_has_transcript_index(modality_runtime_contracts: &Value) -> bool {
+    modality_runtime_contracts
+        .pointer("/snapshotIndex/transcriptIndex/transcriptCount")
+        .and_then(Value::as_u64)
+        .is_some_and(|count| count > 0)
+        || modality_runtime_contracts
+            .pointer("/snapshotIndex/transcriptIndex/items")
+            .and_then(Value::as_array)
+            .is_some_and(|items| !items.is_empty())
+}
+
+fn modality_contract_transcripts(modality_runtime_contracts: &Value) -> Vec<&Value> {
+    modality_contract_snapshots(modality_runtime_contracts)
+        .into_iter()
+        .filter(|snapshot| {
+            snapshot
+                .get("contractKey")
+                .and_then(Value::as_str)
+                .map(|value| value == AUDIO_TRANSCRIPTION_CONTRACT_KEY)
+                .unwrap_or(false)
+        })
+        .filter_map(|snapshot| snapshot.get("transcript"))
+        .filter(|value| value.is_object())
+        .collect()
+}
+
+fn modality_contract_has_transcript_completed(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_transcripts(modality_runtime_contracts)
+        .iter()
+        .any(|transcript| {
+            let completed = transcript
+                .get("status")
+                .and_then(Value::as_str)
+                .map(|value| value == "completed")
+                .unwrap_or(false);
+            let has_transcript_path = transcript
+                .get("transcriptPath")
+                .and_then(Value::as_str)
+                .and_then(|value| normalize_optional_text(Some(value.to_string())))
+                .is_some();
+            completed && has_transcript_path
+        })
+}
+
+fn modality_contract_has_transcript_failed(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_transcripts(modality_runtime_contracts)
+        .iter()
+        .any(|transcript| {
+            transcript
+                .get("status")
+                .and_then(Value::as_str)
+                .map(|value| value == "failed")
+                .unwrap_or(false)
+                || transcript
+                    .get("errorCode")
+                    .and_then(Value::as_str)
+                    .and_then(|value| normalize_optional_text(Some(value.to_string())))
+                    .is_some()
+        })
+}
+
+fn modality_contract_transcript_error_codes(modality_runtime_contracts: &Value) -> Vec<String> {
+    let mut error_codes = Vec::new();
+    for transcript in modality_contract_transcripts(modality_runtime_contracts) {
+        if let Some(error_code) = transcript
+            .get("errorCode")
+            .and_then(Value::as_str)
+            .and_then(|value| normalize_optional_text(Some(value.to_string())))
+        {
+            push_unique_owned_tag(&mut error_codes, error_code);
+        }
+    }
+    error_codes
 }
 
 fn modality_contract_has_web_research(modality_runtime_contracts: &Value) -> bool {
@@ -2011,28 +2380,43 @@ mod tests {
                     },
                     "audio_output": {
                         "kind": "audio_output",
-                        "status": "pending",
-                        "audio_path": null,
+                        "status": "completed",
+                        "audio_path": ".lime/runtime/audio/task-audio-1.mp3",
                         "mime_type": "audio/mpeg",
-                        "duration_ms": null,
+                        "duration_ms": 128000,
                         "source_text": "请为这段文案生成温暖旁白",
-                        "voice": "warm_narrator"
+                        "voice": "warm_narrator",
+                        "provider_id": "limecore",
+                        "model": "voice-pro"
                     }
                 },
-                "status": "pending_submit",
-                "normalized_status": "pending",
+                "status": "succeeded",
+                "normalized_status": "succeeded",
                 "created_at": "2026-04-30T10:00:00Z",
-                "updated_at": null,
+                "updated_at": "2026-04-30T10:00:05Z",
                 "submitted_at": null,
-                "started_at": null,
-                "completed_at": null,
+                "started_at": "2026-04-30T10:00:01Z",
+                "completed_at": "2026-04-30T10:00:05Z",
                 "cancelled_at": null,
                 "idempotency_key": null,
                 "retry_count": 0,
                 "source_task_id": null,
-                "result": null,
+                "result": {
+                    "kind": "audio_generation_result",
+                    "status": "completed",
+                    "audio_output": {
+                        "kind": "audio_output",
+                        "status": "completed",
+                        "audio_path": ".lime/runtime/audio/task-audio-1.mp3",
+                        "mime_type": "audio/mpeg",
+                        "duration_ms": 128000,
+                        "provider_id": "limecore",
+                        "model": "voice-pro"
+                    }
+                },
                 "last_error": null,
                 "current_attempt_id": "attempt-audio-1",
+                "current_attempt_worker_id": "lime-audio-worker",
                 "attempts": [],
                 "relationships": {},
                 "progress": {},
@@ -2246,9 +2630,31 @@ mod tests {
                     "routing_slot": "browser_reasoning_model",
                     "runtime_contract": {
                         "contract_key": BROWSER_CONTROL_CONTRACT_KEY,
-                        "routing_slot": "browser_reasoning_model"
+                        "routing_slot": "browser_reasoning_model",
+                        "executor_binding": {
+                            "executor_kind": "browser_action",
+                            "binding_key": "lime_browser_mcp"
+                        }
                     },
-                    "entry_source": "at_browser_command"
+                    "entry_source": "at_browser_command",
+                    "action": "navigate",
+                    "selected_backend": "cdp_direct",
+                    "result": {
+                        "success": true,
+                        "action": "navigate",
+                        "request_id": "browser-request-1",
+                        "session_id": "browser-session-1",
+                        "target_id": "target-1",
+                        "data": {
+                            "browser_session": {
+                                "session_id": "browser-session-1",
+                                "profile_key": "general_browser_assist",
+                                "target_id": "target-1",
+                                "target_title": "Example",
+                                "target_url": "https://example.com/"
+                            }
+                        }
+                    }
                 })),
             },
         });
@@ -2283,6 +2689,22 @@ mod tests {
                 .and_then(Value::as_str),
             Some("browser_action_requested")
         );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/browserActionIndex/actionCount"
+                )
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/browserActionIndex/items/0/sessionId"
+                )
+                .and_then(Value::as_str),
+            Some("browser-session-1")
+        );
         let suite_tags = input
             .pointer("/classification/suiteTags")
             .and_then(Value::as_array)
@@ -2292,6 +2714,7 @@ mod tests {
             "browser-control",
             "browser-assist",
             "browser-action-trace",
+            "browser-action-index",
         ] {
             assert!(suite_tags
                 .iter()
@@ -2303,11 +2726,13 @@ mod tests {
         assert!(expected.contains("mcp__lime-browser__*"));
         assert!(expected.contains("WebSearch"));
         assert!(expected.contains("browser_action_trace"));
+        assert!(expected.contains("browserActionIndex"));
         assert!(expected.contains("\"requiresHumanReview\": false"));
 
         let grader = fs::read_to_string(grader_path).expect("grader");
         assert!(grader.contains("多模态运行合同检查"));
         assert!(grader.contains("browser_action_requested"));
+        assert!(grader.contains("browserActionIndex"));
         assert!(grader.contains("WebSearch"));
 
         let links =
@@ -2318,6 +2743,12 @@ mod tests {
                 .pointer("/modalityRuntimeContracts/snapshots/0/source")
                 .and_then(Value::as_str),
             Some("browser_action_trace.modality_runtime_contract")
+        );
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshotIndex/browserActionIndex/lastUrl")
+                .and_then(Value::as_str),
+            Some("https://example.com/")
         );
     }
 
@@ -2599,6 +3030,9 @@ mod tests {
         let expected_path = temp_dir
             .path()
             .join(".lime/harness/sessions/session-1/replay/expected.json");
+        let grader_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/replay/grader.md");
         let links_path = temp_dir
             .path()
             .join(".lime/harness/sessions/session-1/replay/evidence-links.json");
@@ -2618,6 +3052,26 @@ mod tests {
                 .and_then(Value::as_str),
             Some("audio_generate")
         );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshots/0/audioOutput/status")
+                .and_then(Value::as_str),
+            Some("completed")
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshots/0/audioOutput/audioPath"
+                )
+                .and_then(Value::as_str),
+            Some(".lime/runtime/audio/task-audio-1.mp3")
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/modalityRuntimeContracts/snapshotIndex/audioOutputIndex/outputCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
         let suite_tags = input
             .pointer("/classification/suiteTags")
             .and_then(Value::as_array)
@@ -2625,6 +3079,9 @@ mod tests {
         assert!(suite_tags
             .iter()
             .any(|item| item.as_str() == Some("voice-generation-trace")));
+        assert!(suite_tags
+            .iter()
+            .any(|item| item.as_str() == Some("audio-output-completed")));
         let failure_modes = input
             .pointer("/classification/failureModes")
             .and_then(Value::as_array)
@@ -2635,7 +3092,12 @@ mod tests {
 
         let expected = fs::read_to_string(expected_path).expect("expected");
         assert!(expected.contains("audio_task/audio_output"));
+        assert!(expected.contains("audio_output.completed"));
         assert!(expected.contains("\"requiresHumanReview\": false"));
+
+        let grader = fs::read_to_string(grader_path).expect("grader");
+        assert!(grader.contains("audio_output.completed"));
+        assert!(grader.contains("audio_path"));
 
         let links =
             serde_json::from_str::<Value>(fs::read_to_string(links_path).expect("links").as_str())
@@ -2646,6 +3108,112 @@ mod tests {
                 .and_then(Value::as_str),
             Some("audio_task.modality_runtime_contract")
         );
+        assert_eq!(
+            links
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/audioOutputIndex/items/0/audioPath"
+                )
+                .and_then(Value::as_str),
+            Some(".lime/runtime/audio/task-audio-1.mp3")
+        );
+    }
+
+    #[test]
+    fn should_classify_voice_audio_output_provider_failure_for_replay() {
+        let detail = build_detail();
+        let thread_read = build_thread_read();
+        let modality_runtime_contracts = json!({
+            "snapshotCount": 1,
+            "snapshots": [{
+                "contractKey": VOICE_GENERATION_CONTRACT_KEY,
+                "source": "audio_task.modality_runtime_contract",
+                "routingEvent": "executor_invoked",
+                "audioOutput": {
+                    "status": "failed",
+                    "errorCode": "audio_provider_unconfigured",
+                    "errorMessage": "未找到可用的 voice_generation provider/API Key。",
+                    "retryable": true
+                }
+            }]
+        });
+
+        let failure_modes =
+            infer_replay_failure_modes(&detail, &thread_read, &modality_runtime_contracts);
+        assert!(failure_modes
+            .iter()
+            .any(|item| item == "voice_generation_audio_output_failed"));
+        assert!(failure_modes
+            .iter()
+            .any(|item| item == "audio_provider_unconfigured"));
+
+        let blocking_checks = build_blocking_checks(&thread_read, &[], &modality_runtime_contracts);
+        assert!(blocking_checks
+            .iter()
+            .any(|item| item.contains("audio_provider_unconfigured")));
+
+        let contract_checks = build_modality_contract_checks(&modality_runtime_contracts);
+        assert!(contract_checks
+            .iter()
+            .any(|item| item.contains("audio_output.failed")));
+        assert!(contract_checks
+            .iter()
+            .any(|item| item.contains("audio_provider_unconfigured")));
+    }
+
+    #[test]
+    fn should_classify_audio_transcription_transcript_failure_for_replay() {
+        let detail = build_detail();
+        let thread_read = build_thread_read();
+        let modality_runtime_contracts = json!({
+            "snapshotCount": 1,
+            "snapshotIndex": {
+                "transcriptIndex": {
+                    "transcriptCount": 1,
+                    "statusCounts": [{ "status": "failed", "count": 1 }],
+                    "errorCodes": ["transcription_provider_unconfigured"],
+                    "items": [{
+                        "status": "failed",
+                        "errorCode": "transcription_provider_unconfigured"
+                    }]
+                }
+            },
+            "snapshots": [{
+                "contractKey": AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+                "source": "transcription_task.modality_runtime_contract",
+                "routingEvent": "executor_invoked",
+                "transcript": {
+                    "status": "failed",
+                    "errorCode": "transcription_provider_unconfigured",
+                    "errorMessage": "未找到可用的 audio_transcription provider/API Key。",
+                    "retryable": true
+                }
+            }]
+        });
+
+        let failure_modes =
+            infer_replay_failure_modes(&detail, &thread_read, &modality_runtime_contracts);
+        assert!(failure_modes
+            .iter()
+            .any(|item| item == "audio_transcription_transcript_failed"));
+        assert!(failure_modes
+            .iter()
+            .any(|item| item == "transcription_provider_unconfigured"));
+
+        let blocking_checks = build_blocking_checks(&thread_read, &[], &modality_runtime_contracts);
+        assert!(blocking_checks
+            .iter()
+            .any(|item| item.contains("transcription_provider_unconfigured")));
+        assert!(!blocking_checks
+            .iter()
+            .any(|item| item.contains("缺少 `snapshotIndex.transcriptIndex`")));
+
+        let contract_checks = build_modality_contract_checks(&modality_runtime_contracts);
+        assert!(contract_checks
+            .iter()
+            .any(|item| item.contains("transcript.failed")));
+        assert!(contract_checks
+            .iter()
+            .any(|item| item.contains("frontend_direct_asr")));
     }
 
     #[test]

@@ -11,6 +11,7 @@ import type {
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
 import { activityLogger } from "@/lib/workspace/workbenchRuntime";
+import { logAgentDebug } from "@/lib/agentDebug";
 import type { ActionRequired, Message } from "../types";
 import {
   appendTextToParts,
@@ -71,8 +72,21 @@ interface StreamRequestState {
   queuedTurnId: string | null;
   requestLogId: string | null;
   requestStartedAt: number;
+  submissionDispatchedAt?: number | null;
+  listenerBoundAt?: number | null;
+  firstEventReceivedAt?: number | null;
+  firstRuntimeStatusAt?: number | null;
+  firstTextDeltaAt?: number | null;
+  firstTextPaintAt?: number | null;
+  firstTextRenderFlushAt?: number | null;
+  lastTextRenderFlushAt?: number | null;
+  textDeltaBufferedCount?: number;
+  textDeltaFlushCount?: number;
+  maxTextDeltaBacklogChars?: number;
   requestFinished: boolean;
   queuedDraftCleanupTimerId?: ReturnType<typeof setTimeout> | null;
+  pendingTextRenderTimerId?: ReturnType<typeof setTimeout> | null;
+  renderedContent?: string;
 }
 
 const EMPTY_FINAL_REPLY_ERROR_HINT = "模型未输出最终答复";
@@ -80,6 +94,7 @@ const EMPTY_FINAL_REPLY_ERROR_MESSAGE = "模型未输出最终答复，请重试
 const EMPTY_FINAL_REPLY_FALLBACK_CONTENT =
   "本轮执行已完成，详细过程与产物已保留在当前对话中。";
 const QUEUED_DRAFT_CLEANUP_GRACE_MS = 1800;
+const TEXT_DELTA_RENDER_FLUSH_MS = 32;
 
 interface StreamLifecycleCallbacks {
   activateStream: () => void;
@@ -111,6 +126,7 @@ interface HandleTurnStreamEventOptions {
   activeSessionId: string;
   resolvedWorkspaceId: string;
   effectiveExecutionStrategy: AsterExecutionStrategy;
+  surfaceThinkingDeltas?: boolean;
   content: string;
   runtime: AgentRuntimeAdapter;
   webSearch?: boolean;
@@ -167,6 +183,47 @@ function shouldDeferHighFrequencyThreadItemUpdate(
   );
 }
 
+function reconcileFinalContentParts(params: {
+  parts: Message["contentParts"];
+  finalContent: string;
+  rawContent: string;
+  surfaceThinkingDeltas: boolean;
+}): Message["contentParts"] {
+  if (!params.parts?.length) {
+    return params.parts;
+  }
+
+  const visibleParts = params.surfaceThinkingDeltas
+    ? params.parts
+    : params.parts.filter((part) => part.type !== "thinking");
+  if (visibleParts.length === 0) {
+    return undefined;
+  }
+
+  const textContent = visibleParts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+  const finalTextChanged =
+    params.finalContent !== params.rawContent ||
+    (textContent.length > 0 && textContent !== params.finalContent);
+
+  if (!finalTextChanged) {
+    return visibleParts;
+  }
+
+  const processParts = visibleParts.filter((part) => part.type !== "text");
+  if (processParts.length === 0) {
+    return params.finalContent
+      ? [{ type: "text", text: params.finalContent }]
+      : undefined;
+  }
+
+  return params.finalContent
+    ? [...processParts, { type: "text", text: params.finalContent }]
+    : processParts;
+}
+
 function hasMeaningfulCompletionSignalFromToolResult(params: {
   toolId: string;
   toolName: string;
@@ -214,6 +271,7 @@ export function handleTurnStreamEvent({
   activeSessionId,
   resolvedWorkspaceId,
   effectiveExecutionStrategy,
+  surfaceThinkingDeltas = true,
   content,
   runtime,
   webSearch,
@@ -251,6 +309,125 @@ export function handleTurnStreamEvent({
       clearTimeout(requestState.queuedDraftCleanupTimerId);
       requestState.queuedDraftCleanupTimerId = null;
     }
+  };
+
+  const clearPendingTextRenderTimer = () => {
+    if (requestState.pendingTextRenderTimerId) {
+      clearTimeout(requestState.pendingTextRenderTimerId);
+      requestState.pendingTextRenderTimerId = null;
+    }
+  };
+
+  const resolvePendingRenderedTextDelta = (
+    renderedContent: string,
+    accumulatedContent: string,
+  ): string => {
+    if (!renderedContent) {
+      return accumulatedContent;
+    }
+    if (accumulatedContent.startsWith(renderedContent)) {
+      return accumulatedContent.slice(renderedContent.length);
+    }
+    return accumulatedContent;
+  };
+
+  const flushPendingTextRender = () => {
+    clearPendingTextRenderTimer();
+    const renderedContent = requestState.renderedContent || "";
+    const nextContent = requestState.accumulatedContent;
+    if (nextContent === renderedContent) {
+      return;
+    }
+
+    const flushStartedAt = Date.now();
+    const textDelta = resolvePendingRenderedTextDelta(
+      renderedContent,
+      nextContent,
+    );
+    requestState.renderedContent = nextContent;
+    requestState.textDeltaFlushCount =
+      (requestState.textDeltaFlushCount ?? 0) + 1;
+    requestState.lastTextRenderFlushAt = flushStartedAt;
+    if (!requestState.firstTextRenderFlushAt) {
+      requestState.firstTextRenderFlushAt = flushStartedAt;
+    }
+    if (!requestState.firstTextPaintAt && nextContent.trim().length > 0) {
+      requestState.firstTextPaintAt = flushStartedAt;
+      logAgentDebug("AgentStream", "firstTextPaint", {
+        elapsedMs: flushStartedAt - requestState.requestStartedAt,
+        eventName,
+        firstTextDeltaDeltaMs: requestState.firstTextDeltaAt
+          ? flushStartedAt - requestState.firstTextDeltaAt
+          : null,
+        sessionId: activeSessionId,
+      });
+    }
+    const backlogChars = Math.max(
+      0,
+      nextContent.length - renderedContent.length,
+    );
+    requestState.maxTextDeltaBacklogChars = Math.max(
+      requestState.maxTextDeltaBacklogChars ?? 0,
+      backlogChars,
+    );
+    if (backlogChars >= 80 || (requestState.textDeltaFlushCount ?? 0) === 1) {
+      logAgentDebug(
+        "AgentStream",
+        "textRenderFlush",
+        {
+          accumulatedChars: nextContent.length,
+          backlogChars,
+          elapsedMs: flushStartedAt - requestState.requestStartedAt,
+          eventName,
+          flushCount: requestState.textDeltaFlushCount,
+          maxBacklogChars: requestState.maxTextDeltaBacklogChars ?? 0,
+          sessionId: activeSessionId,
+        },
+        {
+          dedupeKey: `AgentStream:textRenderFlush:${eventName}:${requestState.textDeltaFlushCount}`,
+          throttleMs: 250,
+        },
+      );
+    }
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === assistantMsgId
+          ? {
+              ...msg,
+              content: nextContent,
+              thinkingContent: undefined,
+              contentParts: textDelta
+                ? appendTextToParts(
+                    surfaceThinkingDeltas
+                      ? msg.contentParts || []
+                      : (msg.contentParts || []).filter(
+                          (part) => part.type !== "thinking",
+                        ),
+                    textDelta,
+                  )
+                : msg.contentParts,
+            }
+          : msg,
+      ),
+    );
+  };
+
+  const scheduleTextRenderFlush = () => {
+    const renderedContent = requestState.renderedContent || "";
+    const hasVisibleFirstText =
+      !renderedContent && requestState.accumulatedContent.trim().length > 0;
+    if (hasVisibleFirstText) {
+      flushPendingTextRender();
+      return;
+    }
+
+    if (requestState.pendingTextRenderTimerId) {
+      return;
+    }
+    requestState.pendingTextRenderTimerId = setTimeout(() => {
+      requestState.pendingTextRenderTimerId = null;
+      flushPendingTextRender();
+    }, TEXT_DELTA_RENDER_FLUSH_MS);
   };
 
   const scheduleQueuedDraftCleanup = (shouldWatchCurrentRequest: boolean) => {
@@ -330,6 +507,7 @@ export function handleTurnStreamEvent({
     errorMessage: string,
     usage?: Message["usage"],
   ) => {
+    clearPendingTextRenderTimer();
     markFailedTimelineState(errorMessage);
     removeQueuedTurnState(
       requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
@@ -497,6 +675,21 @@ export function handleTurnStreamEvent({
     case "runtime_status":
       activateStream();
       {
+        if (!requestState.firstRuntimeStatusAt) {
+          requestState.firstRuntimeStatusAt = Date.now();
+          logAgentDebug("AgentStream", "firstRuntimeStatus", {
+            elapsedMs:
+              requestState.firstRuntimeStatusAt - requestState.requestStartedAt,
+            eventName,
+            firstEventDeltaMs: requestState.firstEventReceivedAt
+              ? requestState.firstRuntimeStatusAt -
+                requestState.firstEventReceivedAt
+              : null,
+            phase: data.status.phase,
+            sessionId: activeSessionId,
+            title: data.status.title,
+          });
+        }
         const normalizedStatus = {
           ...data.status,
           title: normalizeLegacyRuntimeStatusTitle(data.status.title),
@@ -557,6 +750,9 @@ export function handleTurnStreamEvent({
 
     case "thinking_delta":
       activateStream();
+      if (!surfaceThinkingDeltas) {
+        break;
+      }
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMsgId
@@ -580,27 +776,31 @@ export function handleTurnStreamEvent({
     case "text_delta":
       activateStream();
       clearOptimisticItem();
+      requestState.textDeltaBufferedCount =
+        (requestState.textDeltaBufferedCount ?? 0) + 1;
+      if (!requestState.firstTextDeltaAt) {
+        requestState.firstTextDeltaAt = Date.now();
+        logAgentDebug("AgentStream", "firstTextDelta", {
+          deltaChars: data.text.length,
+          elapsedMs:
+            requestState.firstTextDeltaAt - requestState.requestStartedAt,
+          eventName,
+          firstEventDeltaMs: requestState.firstEventReceivedAt
+            ? requestState.firstTextDeltaAt - requestState.firstEventReceivedAt
+            : null,
+          firstRuntimeStatusDeltaMs: requestState.firstRuntimeStatusAt
+            ? requestState.firstTextDeltaAt - requestState.firstRuntimeStatusAt
+            : null,
+          sessionId: activeSessionId,
+        });
+      }
       requestState.accumulatedContent = appendTextWithOverlapDetection(
         requestState.accumulatedContent,
         data.text,
       );
       observer?.onTextDelta?.(data.text, requestState.accumulatedContent);
       playTypewriterSound();
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId
-            ? {
-                ...msg,
-                content: requestState.accumulatedContent,
-                thinkingContent: undefined,
-                contentParts: appendTextToParts(
-                  msg.contentParts || [],
-                  data.text,
-                ),
-              }
-            : msg,
-        ),
-      );
+      scheduleTextRenderFlush();
       break;
 
     case "tool_start":
@@ -694,6 +894,7 @@ export function handleTurnStreamEvent({
 
     case "final_done": {
       clearQueuedDraftCleanupTimer();
+      flushPendingTextRender();
       clearOptimisticItem();
       clearOptimisticTurn();
       const rawFinalContent = requestState.accumulatedContent.trim();
@@ -732,6 +933,12 @@ export function handleTurnStreamEvent({
             ...updateMessageArtifactsStatus(msg, "complete"),
             isThinking: false,
             content: finalContent,
+            contentParts: reconcileFinalContentParts({
+              parts: msg.contentParts,
+              finalContent,
+              rawContent: requestState.accumulatedContent,
+              surfaceThinkingDeltas,
+            }),
             runtimeStatus: undefined,
             usage: data.usage ?? msg.usage,
           };
@@ -744,6 +951,7 @@ export function handleTurnStreamEvent({
 
     case "error": {
       clearQueuedDraftCleanupTimer();
+      flushPendingTextRender();
       if (data.message.includes(EMPTY_FINAL_REPLY_ERROR_HINT)) {
         clearOptimisticItem();
         clearOptimisticTurn();
@@ -768,6 +976,12 @@ export function handleTurnStreamEvent({
                   ...updateMessageArtifactsStatus(msg, "complete"),
                   isThinking: false,
                   content: gracefulContent,
+                  contentParts: reconcileFinalContentParts({
+                    parts: msg.contentParts,
+                    finalContent: gracefulContent,
+                    rawContent: requestState.accumulatedContent,
+                    surfaceThinkingDeltas,
+                  }),
                   runtimeStatus: undefined,
                 }
               : msg,

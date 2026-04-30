@@ -15,6 +15,10 @@ export interface VoiceShortcutRuntimeStatus {
   registered_shortcut?: string | null;
   translate_shortcut_registered: boolean;
   registered_translate_shortcut?: string | null;
+  fn_supported: boolean;
+  fn_registered: boolean;
+  fn_fallback_shortcut?: string | null;
+  fn_note: string;
 }
 
 export interface HotkeyRuntimeStatus {

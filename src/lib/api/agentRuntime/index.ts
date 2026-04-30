@@ -30,6 +30,7 @@ export {
 } from "./inventoryClient";
 export {
   cancelMediaTaskArtifact,
+  completeAudioGenerationTaskArtifact,
   createAudioGenerationTaskArtifact,
   createMediaClient,
   createImageGenerationTaskArtifact,

@@ -20,6 +20,8 @@ export type HomeSkillLaunchKind =
   | "installed_skill"
   | "scene_app"
   | "skill_catalog_scene"
+  | "prefill_prompt"
+  | "toggle_guide"
   | "open_drawer"
   | "open_manager"
   | "launch_browser"
@@ -52,10 +54,31 @@ export interface HomeStarterChip {
   category?: HomeSkillCategory;
   primary?: boolean;
   testId?: string;
+  prompt?: string;
+  groupKey?: string;
+  iconToken?: string;
 }
 
 export interface HomeSkillSection {
   id: HomeSkillCategory;
   title: string;
   items: HomeSkillSurfaceItem[];
+}
+
+export interface HomeGuideCard {
+  id: string;
+  title: string;
+  summary: string;
+  prompt: string;
+  groupKey?: string;
+  iconToken?: string;
+  testId?: string;
+}
+
+export interface HomeInputSuggestion {
+  id: string;
+  label: string;
+  prompt: string;
+  order: number;
+  testId?: string;
 }

@@ -1,7 +1,7 @@
 # Warp 对照多模态管理实施计划
 
-> 状态：current planning source  
-> 更新时间：2026-04-29  
+> 状态：current planning source
+> 更新时间：2026-04-30
 > 目标：把 [README.md](./README.md) 的路线图拆成自下而上的执行阶段，先建设底层多模态运行合同，再把 `@` 命令、按钮和 Scene 这类上层入口绑定上来。
 
 ## 0. 排序修正
@@ -168,6 +168,8 @@
 
 ## Phase 3：ModalityExecutionProfile
 
+当前落点：见 [execution-profile.md](./execution-profile.md)、`src/lib/governance/modalityExecutionProfiles.json` 与 `src/lib/governance/modalityExecutionProfiles.ts`；最小 profile / executor adapter registry 与前端 launch metadata 快照已落地，真实 Rust runtime policy merge、tenant policy snapshot 与 GUI/evidence 可视化仍待继续。
+
 ### 目标
 
 建立 Warp `AIExecutionProfile` 式的 Lime profile，把模型角色、权限策略、执行器策略合并到一个解释层。
@@ -220,8 +222,11 @@
 2. 租户禁止媒体上传时，图片/音频 contract 给出可解释降级。
 3. 本地 explicit model lock 优先于自动优化，但能力不匹配时必须给出阻断原因。
 4. Profile 决策写入 thread read 与 evidence，不只停留在设置页。
+5. 每个 current contract 都必须被 `modalityExecutionProfiles.json` 覆盖，且 profile 的模型角色、权限、LimeCore policy、artifact policy 与 contract 对齐。
 
 ## Phase 4：领域化 Artifact Graph
+
+当前落点：见 [artifact-graph.md](./artifact-graph.md) 与 `src/lib/governance/modalityArtifactGraph.json`。
 
 ### 目标
 
@@ -247,7 +252,7 @@
 1. `generic_file` 只做兜底。
 2. 二进制图片输出不自动镜像成普通文件卡。
 3. viewer 只消费 artifact graph，不自己猜类型。
-4. evidence pack 导出 artifact kind 和关联键。
+4. evidence pack 导出 artifact kind、关联键与可查询索引；`browser_control` 当前索引事实源是 `snapshotIndex.browserActionIndex`。
 
 ### 验收
 
@@ -258,6 +263,8 @@
 5. artifact 能回到原 `session/thread/turn/task/model routing/evidence`。
 
 ## Phase 5：Executor Adapter 与 Browser typed action
+
+当前落点：见 [execution-profile.md](./execution-profile.md) 与 `src/lib/governance/modalityExecutionProfiles.json` 的 `executor_adapters`；最小 adapter registry 已覆盖 `image_generation`、`browser_control`、`pdf_extract`、`voice_generation`、`audio_transcription`、`web_research`、`text_transform`，前端 runtime contract snapshot 已携带 `executor_adapter`，Rust runtime adapter preflight 仍待继续。
 
 ### 目标
 
@@ -293,8 +300,9 @@ Browser Assist 必须收成：
 1. 浏览器操作不会退回普通 WebSearch。
 2. 每次浏览器动作都有 action summary 与 observation。
 3. 高风险动作按 profile 决定自动、询问或阻断。
-4. evidence pack 能导出 browser trace。
+4. evidence pack 能导出 browser trace，并在 `browserActionIndex` 汇总 action/session/URL/observation/screenshot；Harness evidence panel 能展示同一索引摘要，并能打开最小 `browser_replay_viewer`。
 5. `local_cli` adapter 不支持 progress/resume/artifact 时必须显式标注，不可伪造 current 能力。
+6. 每个 current contract 的 `executor_binding` 必须能解析到 `executor_kind:binding_key` adapter，且 adapter 的 progress/cancel/resume/artifact 支持位、产物、权限与失败映射必须覆盖 contract。
 
 ## Phase 6：LimeCore 目录与策略接线
 

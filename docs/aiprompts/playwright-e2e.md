@@ -24,6 +24,8 @@
 
 - 优先使用 **Playwright MCP** 做交互验证，不优先编写新的本地 Playwright 测试文件
 - 浏览器模式默认首页从 `http://127.0.0.1:1420/` 进入
+- 需要稳定的桌面 Chrome 观感时，优先复用已有 Lime 页签；必须新启 headed 浏览器时，使用固定 profile 的 Chrome 持久化上下文，例如 `channel: 'chrome'` + `launchPersistentContext(userDataDir, { headless: false, viewport: null })`
+- 本地桌面续测不要传 `--no-sandbox` / `--disable-setuid-sandbox`；如需去掉 Chrome 顶部“自动测试软件控制”提示，只能在受控 launcher 中忽略 `--enable-automation`。CI、容器或 Linux sandbox 受限环境例外，但要在结论中说明原因
 - 如果 Playwright 工具当前还在 deferred surface，优先用 `ToolSearch` 的精确选择名，例如 `select:mcp__playwright__browser_click`；不要把 `playwright_browser_click`、`browser click` 之类同义词反复丢给 `ToolSearch`
 - 能走真实后端就走真实后端；浏览器模式暂不支持或尚未桥接的能力，允许走 mock
 - `verify:gui-smoke` 内部的 browser runtime 校验默认走无界面浏览器会话；它只证明主链可启动，不替代后续真实页面交互验证

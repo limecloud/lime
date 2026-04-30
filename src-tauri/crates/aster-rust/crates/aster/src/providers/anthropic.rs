@@ -7,6 +7,7 @@ use serde_json::Value;
 use std::io;
 use tokio::pin;
 use tokio_util::io::StreamReader;
+use url::{form_urlencoded, Url};
 
 use super::api_client::{ApiClient, ApiResponse, AuthMethod};
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
@@ -36,6 +37,8 @@ const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
 
 const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
 const ANTHROPIC_API_VERSION: &str = "2023-06-01";
+const LIME_TENANT_HEADER: &str = "X-Lime-Tenant-ID";
+const LIME_TENANT_PARAM: &str = "lime_tenant_id";
 
 fn normalize_anthropic_host(host: &str) -> String {
     host.trim().trim_end_matches('/').to_ascii_lowercase()
@@ -62,6 +65,61 @@ fn should_use_bearer_auth_for_anthropic_host(host: &str) -> bool {
     .any(|needle| normalized_host.contains(needle))
 }
 
+fn parse_config_url(host: &str) -> Option<Url> {
+    let trimmed = host.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    Url::parse(trimmed)
+        .or_else(|_| Url::parse(&format!("https://{trimmed}")))
+        .ok()
+}
+
+fn strip_host_url_metadata(host: &str) -> String {
+    if let Some(mut url) = parse_config_url(host) {
+        url.set_query(None);
+        url.set_fragment(None);
+        return url.to_string().trim_end_matches('/').to_string();
+    }
+
+    let trimmed = host.trim();
+    let end = [trimmed.find('?'), trimmed.find('#')]
+        .into_iter()
+        .flatten()
+        .min()
+        .unwrap_or(trimmed.len());
+    trimmed[..end].trim_end_matches('/').to_string()
+}
+
+fn normalize_lime_tenant_id(value: &str) -> Option<String> {
+    let tenant_id = value.trim();
+    if tenant_id.is_empty() {
+        return None;
+    }
+
+    tenant_id
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+        .then(|| tenant_id.to_string())
+}
+
+fn parse_lime_tenant_id_from_pairs(value: &str) -> Option<String> {
+    form_urlencoded::parse(value.as_bytes()).find_map(|(key, value)| {
+        (key == LIME_TENANT_PARAM)
+            .then(|| normalize_lime_tenant_id(&value))
+            .flatten()
+    })
+}
+
+fn lime_tenant_id_from_host(host: &str) -> Option<String> {
+    let url = parse_config_url(host)?;
+
+    url.query()
+        .and_then(parse_lime_tenant_id_from_pairs)
+        .or_else(|| url.fragment().and_then(parse_lime_tenant_id_from_pairs))
+}
+
 fn resolve_anthropic_auth(host: &str, secret: String) -> AuthMethod {
     if should_use_bearer_auth_for_anthropic_host(host) {
         AuthMethod::BearerToken(secret)
@@ -74,14 +132,19 @@ fn resolve_anthropic_auth(host: &str, secret: String) -> AuthMethod {
 }
 
 fn build_anthropic_api_client(host: &str, auth_secret: String) -> Result<ApiClient> {
-    let should_add_x_api_key_header = should_use_bearer_auth_for_anthropic_host(host);
-    let auth = resolve_anthropic_auth(host, auth_secret.clone());
+    let sanitized_host = strip_host_url_metadata(host);
+    let should_add_x_api_key_header = should_use_bearer_auth_for_anthropic_host(&sanitized_host);
+    let auth = resolve_anthropic_auth(&sanitized_host, auth_secret.clone());
 
-    let mut api_client = ApiClient::new(host.to_string(), auth)?
+    let mut api_client = ApiClient::new(sanitized_host, auth)?
         .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
     if should_add_x_api_key_header {
         api_client = api_client.with_header("x-api-key", &auth_secret)?;
+    }
+
+    if let Some(tenant_id) = lime_tenant_id_from_host(host) {
+        api_client = api_client.with_header(LIME_TENANT_HEADER, &tenant_id)?;
     }
 
     Ok(api_client)
@@ -106,7 +169,8 @@ impl AnthropicProvider {
             .get_param("ANTHROPIC_HOST")
             .or_else(|_| config.get_param("ANTHROPIC_BASE_URL"))
             .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
-        let api_key: String = if should_use_bearer_auth_for_anthropic_host(&host) {
+        let sanitized_host = strip_host_url_metadata(&host);
+        let api_key: String = if should_use_bearer_auth_for_anthropic_host(&sanitized_host) {
             config
                 .get_secret("ANTHROPIC_AUTH_TOKEN")
                 .or_else(|_| config.get_secret("ANTHROPIC_API_KEY"))?
@@ -116,7 +180,7 @@ impl AnthropicProvider {
                 .or_else(|_| config.get_secret("ANTHROPIC_AUTH_TOKEN"))?
         };
 
-        let automatic_prompt_cache = supports_automatic_prompt_cache_for_host(&host);
+        let automatic_prompt_cache = supports_automatic_prompt_cache_for_host(&sanitized_host);
         let api_client = build_anthropic_api_client(&host, api_key)?;
 
         Ok(Self {
@@ -137,7 +201,8 @@ impl AnthropicProvider {
             .get_secret(&config.api_key_env)
             .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
 
-        let automatic_prompt_cache = supports_automatic_prompt_cache_for_host(&config.base_url);
+        let sanitized_host = strip_host_url_metadata(&config.base_url);
+        let automatic_prompt_cache = supports_automatic_prompt_cache_for_host(&sanitized_host);
         let api_client = build_anthropic_api_client(&config.base_url, api_key)?;
 
         Ok(Self {
@@ -466,6 +531,23 @@ mod tests {
                 .get("x-api-key")
                 .and_then(|value| value.to_str().ok()),
             Some("k1")
+        );
+    }
+
+    #[test]
+    fn test_lime_tenant_fragment_adds_custom_header_to_api_client() {
+        let api_client = build_anthropic_api_client(
+            "https://llm.limeai.run#lime_tenant_id=tenant-0001",
+            "k1".to_string(),
+        )
+        .expect("api client should build");
+        let headers = api_client.default_headers_for_test();
+
+        assert_eq!(
+            headers
+                .get(LIME_TENANT_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("tenant-0001")
         );
     }
 

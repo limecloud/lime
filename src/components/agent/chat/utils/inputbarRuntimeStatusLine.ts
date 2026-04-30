@@ -60,10 +60,13 @@ function resolveLatestTurn(
 }
 
 function resolveLatestAssistantMessage(messages: Message[]): Message | null {
-  return (
-    [...messages].reverse().find((message) => message.role === "assistant") ||
-    null
-  );
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === "assistant") {
+      return message;
+    }
+  }
+  return null;
 }
 
 function resolveFallbackStatus(params: {
@@ -169,11 +172,13 @@ function resolveLatestTurnBatchDescriptor(
     return null;
   }
 
-  return summarizeThreadProcessBatch(
-    threadItems.filter(
-      (item) => item.turn_id === latestTurn.id && isProcessThreadItem(item),
-    ),
-  );
+  const latestProcessItems: AgentThreadItem[] = [];
+  for (const item of threadItems) {
+    if (item.turn_id === latestTurn.id && isProcessThreadItem(item)) {
+      latestProcessItems.push(item);
+    }
+  }
+  return summarizeThreadProcessBatch(latestProcessItems);
 }
 
 function resolveVisibleUsage(

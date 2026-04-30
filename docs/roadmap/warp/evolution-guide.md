@@ -1,7 +1,7 @@
 # Lime 多模态演进迭代指南
 
-> 状态：current planning source  
-> 更新时间：2026-04-29  
+> 状态：current planning source
+> 更新时间：2026-04-30
 > 目标：把 Warp / ClaudeCode 参考转成 Lime 可持续演进的工程节奏，明确每一阶段先交付什么、如何验收、何时允许接上层入口。
 
 ## 1. 演进原则
@@ -148,6 +148,8 @@ sequenceDiagram
     participant Browser as Browser Executor
     participant Obs as Observation
     participant Evidence as Evidence
+    participant Index as browserActionIndex
+    participant Harness as Harness evidence panel
     participant Viewer as Browser replay viewer
     participant Entry as @浏览器 binding
 
@@ -156,7 +158,10 @@ sequenceDiagram
     Runtime->>Browser: typed action
     Browser-->>Obs: screenshot / DOM / URL / network
     Obs-->>Evidence: browser trace
-    Evidence-->>Viewer: replay material
+    Evidence-->>Index: action / session / URL / observation summary
+    Index-->>Harness: visible evidence summary
+    Harness-->>Viewer: browser_assist artifact preview
+    Index-->>Viewer: replay material
     Runtime-->>Entry: 允许绑定 @浏览器
 ```
 
@@ -164,17 +169,17 @@ sequenceDiagram
 
 ## 6. 阶段门禁
 
-| 阶段 | 允许进入下一阶段的条件 | 不允许的捷径 |
-| --- | --- | --- |
-| P0 Fact Map | 每个底层事实源有 owner、读写方、持久化和 evidence 关系 | 先从 `@` 命令盘点开始 |
-| P1 Contract | Contract 以底层能力为主键，引用真实 truth source / artifact / viewer | 用入口名当 contract 主键 |
-| P2 Capability | 路由能输出候选、唯一候选、候选为空和能力缺口 | 只看 provider/model id |
-| P3 Profile | 模型、权限、租户策略、用户锁定能合并解释 | skill 内部临时判断权限 |
-| P4 Artifact | domain artifact 能被 viewer 和 evidence 共同消费 | 所有结果写成 generic file |
-| P5 Executor | executor 声明 progress/cancel/resume/artifact/failure mapping | 自由 Bash 或裸 CLI |
-| P6 LimeCore | catalog/policy/offer/audit 能约束本地执行 | LimeCore 默认代跑所有入口 |
-| P7 Entry | 入口只提交 metadata 并绑定 contract | 入口直建 task / artifact / viewer |
-| P8 Index | task index 能按 contract、entry、modality、artifact 查询 | 只靠聊天线程恢复 |
+| 阶段          | 允许进入下一阶段的条件                                               | 不允许的捷径                      |
+| ------------- | -------------------------------------------------------------------- | --------------------------------- |
+| P0 Fact Map   | 每个底层事实源有 owner、读写方、持久化和 evidence 关系               | 先从 `@` 命令盘点开始             |
+| P1 Contract   | Contract 以底层能力为主键，引用真实 truth source / artifact / viewer | 用入口名当 contract 主键          |
+| P2 Capability | 路由能输出候选、唯一候选、候选为空和能力缺口                         | 只看 provider/model id            |
+| P3 Profile    | `modalityExecutionProfiles.json` 覆盖 current contracts；模型、权限、租户策略、用户锁定能合并解释 | skill 内部临时判断权限            |
+| P4 Artifact   | domain artifact 能被 viewer 和 evidence 共同消费                     | 所有结果写成 generic file         |
+| P5 Executor   | executor adapter registry 对齐 contract 绑定、支持位、产物、权限与 failure mapping | 自由 Bash 或裸 CLI                |
+| P6 LimeCore   | catalog/policy/offer/audit 能约束本地执行                            | LimeCore 默认代跑所有入口         |
+| P7 Entry      | 入口只提交 metadata 并绑定 contract                                  | 入口直建 task / artifact / viewer |
+| P8 Index      | task index 能按 contract、entry、modality、artifact 查询             | 只靠聊天线程恢复                  |
 
 ## 7. 迭代选择流程
 
@@ -206,17 +211,17 @@ flowchart TB
 
 ## 8. 文档产物演进表
 
-| 阶段 | 文档产物 | 代码产物 | 验证入口 |
-| --- | --- | --- | --- |
-| P0 | `runtime-fact-map.md` | 无或只读脚本 | 链接/owner 一致性检查 |
-| P1 | `contract-schema.md` | schema / governance check | contract check |
-| P2 | capability matrix doc | routing 类型和证据 | 路由单测 / thread read 断言 |
-| P3 | execution profile doc | profile merge / policy source | 权限与降级测试 |
-| P4 | `artifact-graph.md` | artifact kind / viewer mapping | artifact/viewer 回归 |
-| P5 | executor adapter doc | executor registry / browser action | executor / browser trace 测试 |
-| P6 | `limecore-integration.md` | catalog/policy SDK 消费 | Lime + LimeCore contract test |
-| P7 | entry binding inventory | `@` / button / scene binding | acceptance 场景 |
-| P8 | task index doc | index / replay / audit query | evidence pack / replay 测试 |
+| 阶段 | 文档产物                                           | 代码产物                                          | 验证入口                                   |
+| ---- | -------------------------------------------------- | ------------------------------------------------- | ------------------------------------------ |
+| P0   | `runtime-fact-map.md`                              | 无或只读脚本                                      | 链接/owner 一致性检查                      |
+| P1   | `contract-schema.md`                               | schema / governance check                         | contract check                             |
+| P2   | capability matrix doc                              | routing 类型和证据                                | 路由单测 / thread read 断言                |
+| P3   | `execution-profile.md`                             | `modalityExecutionProfiles.json` / profile merge / policy source | profile registry 守卫 + 权限与降级测试     |
+| P4   | `artifact-graph.md` + `modalityArtifactGraph.json` | artifact kind / viewer / evidence / index mapping | artifact graph 守卫 + artifact/viewer 回归 |
+| P5   | `execution-profile.md` 的 executor adapter 章节     | executor adapter registry / browser action        | adapter registry 守卫 + executor / browser trace 测试 |
+| P6   | `limecore-integration.md`                          | catalog/policy SDK 消费                           | Lime + LimeCore contract test              |
+| P7   | entry binding inventory                            | `@` / button / scene binding                      | acceptance 场景                            |
+| P8   | task index doc                                     | index / replay / audit query                      | evidence pack / replay 测试                |
 
 ## 9. 版本演进目标
 
@@ -228,7 +233,8 @@ flowchart TB
 
 1. `runtime-fact-map.md` 存在。
 2. `contract-schema.md` 存在。
-3. 至少一个 contract 完成 capability/profile/artifact/evidence 字段。
+3. `capability-matrix.md`、`execution-profile.md`、`artifact-graph.md` 存在。
+4. 至少一个 contract 完成 capability/profile/artifact/evidence 字段。
 
 ### V1：单能力闭环
 

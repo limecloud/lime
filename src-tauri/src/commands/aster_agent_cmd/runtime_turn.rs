@@ -232,7 +232,7 @@ fn quoted_absolute_path_regex() -> &'static Regex {
 fn unix_absolute_path_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
-        Regex::new(r#"(?P<path>/[^\s"'“”‘’,;:(){}\[\]<>]+)"#)
+        Regex::new(r#"(?P<path>/[^\s"'“”‘’,;:，。；：、()（）{}\[\]【】<>《》]+)"#)
             .expect("unix absolute path regex should compile")
     })
 }
@@ -240,7 +240,7 @@ fn unix_absolute_path_regex() -> &'static Regex {
 fn windows_absolute_path_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
-        Regex::new(r#"(?P<path>[A-Za-z]:\\[^\s"'“”‘’,;:(){}\[\]<>]+)"#)
+        Regex::new(r#"(?P<path>[A-Za-z]:\\[^\s"'“”‘’,;:，。；：、()（）{}\[\]【】<>《》]+)"#)
             .expect("windows absolute path regex should compile")
     })
 }
@@ -1554,6 +1554,8 @@ async fn prepare_runtime_turn_request(
             prepare_translation_skill_launch_request_metadata(request.metadata.as_ref());
         request.metadata =
             prepare_analysis_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_transcription_skill_launch_request_metadata(request.metadata.as_ref());
         request.metadata =
             prepare_typesetting_skill_launch_request_metadata(request.metadata.as_ref());
         request.metadata = prepare_webpage_skill_launch_request_metadata(request.metadata.as_ref());
@@ -5822,8 +5824,11 @@ mod tests {
 
     #[test]
     fn resolve_fast_chat_tool_surface_mode_should_use_local_workspace_for_explicit_local_path() {
+        let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+        let repo_dir = temp_dir.path().join("claudecode");
+        std::fs::create_dir_all(&repo_dir).expect("create repo dir");
         let request = build_runtime_turn_test_request(
-            "请读取并分析项目 /Users/coso/Documents/dev/js/claudecode",
+            &format!("请读取并分析项目 {}", repo_dir.display()),
             None,
         );
         let policy = lime_agent::resolve_request_tool_policy(Some(false), false);
@@ -5873,6 +5878,27 @@ mod tests {
 
         assert!(paths.contains(&quoted_expected));
         assert!(paths.contains(&plain_expected));
+    }
+
+    #[test]
+    fn extract_explicit_local_focus_paths_from_message_should_stop_at_chinese_punctuation() {
+        let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+        let package_json = temp_dir.path().join("package.json");
+        std::fs::write(&package_json, r#"{"name":"lime"}"#).expect("write package json");
+
+        let message = format!(
+            "必须先调用 Read 工具读取 {}，并确认 JSON 里的 name 字段。",
+            package_json.display()
+        );
+
+        let paths = extract_explicit_local_focus_paths_from_message(&message);
+        let expected = package_json
+            .canonicalize()
+            .expect("canonicalize package json")
+            .to_string_lossy()
+            .to_string();
+
+        assert_eq!(paths, vec![expected]);
     }
 
     #[test]

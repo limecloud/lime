@@ -28,6 +28,12 @@ pub(crate) const VOICE_GENERATION_ROUTING_SLOT: &str = "voice_generation_model";
 pub(crate) const VOICE_GENERATION_EXECUTOR_BINDING_KEY: &str = "voice_runtime";
 pub(crate) const VOICE_GENERATION_REQUIRED_CAPABILITIES: &[&str] =
     &["text_generation", "voice_generation"];
+pub(crate) const AUDIO_TRANSCRIPTION_CONTRACT_KEY: &str = "audio_transcription";
+pub(crate) const AUDIO_TRANSCRIPTION_MODALITY: &str = "audio";
+pub(crate) const AUDIO_TRANSCRIPTION_ROUTING_SLOT: &str = "audio_transcription_model";
+pub(crate) const AUDIO_TRANSCRIPTION_EXECUTOR_BINDING_KEY: &str = "transcription_generate";
+pub(crate) const AUDIO_TRANSCRIPTION_REQUIRED_CAPABILITIES: &[&str] =
+    &["text_generation", "audio_transcription"];
 pub(crate) const WEB_RESEARCH_CONTRACT_KEY: &str = "web_research";
 pub(crate) const WEB_RESEARCH_MODALITY: &str = "mixed";
 pub(crate) const WEB_RESEARCH_ROUTING_SLOT: &str = "report_generation_model";
@@ -139,6 +145,13 @@ pub(crate) fn pdf_extract_required_capabilities() -> Vec<String> {
 
 pub(crate) fn voice_generation_required_capabilities() -> Vec<String> {
     VOICE_GENERATION_REQUIRED_CAPABILITIES
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect()
+}
+
+pub(crate) fn audio_transcription_required_capabilities() -> Vec<String> {
+    AUDIO_TRANSCRIPTION_REQUIRED_CAPABILITIES
         .iter()
         .map(|value| (*value).to_string())
         .collect()
@@ -256,6 +269,68 @@ pub(crate) fn normalize_voice_generation_required_capabilities(
     Ok(expected)
 }
 
+fn normalize_expected_audio_transcription_contract_string(
+    value: Option<String>,
+    expected: &str,
+    field_name: &str,
+) -> Result<String, String> {
+    match normalize_optional_contract_string(value) {
+        Some(value) if value == expected => Ok(expected.to_string()),
+        Some(value) => Err(format!(
+            "转写任务 {field_name} 必须是 {expected}，收到 {value}"
+        )),
+        None => Ok(expected.to_string()),
+    }
+}
+
+pub(crate) fn normalize_audio_transcription_contract_key(
+    value: Option<String>,
+) -> Result<String, String> {
+    normalize_expected_audio_transcription_contract_string(
+        value,
+        AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+        "modality_contract_key",
+    )
+}
+
+pub(crate) fn normalize_audio_transcription_modality(
+    value: Option<String>,
+) -> Result<String, String> {
+    normalize_expected_audio_transcription_contract_string(
+        value,
+        AUDIO_TRANSCRIPTION_MODALITY,
+        "modality",
+    )
+}
+
+pub(crate) fn normalize_audio_transcription_routing_slot(
+    value: Option<String>,
+) -> Result<String, String> {
+    normalize_expected_audio_transcription_contract_string(
+        value,
+        AUDIO_TRANSCRIPTION_ROUTING_SLOT,
+        "routing_slot",
+    )
+}
+
+pub(crate) fn normalize_audio_transcription_required_capabilities(
+    values: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let expected = audio_transcription_required_capabilities();
+    for value in values {
+        let normalized = value.trim();
+        if normalized.is_empty() {
+            continue;
+        }
+        if !expected.iter().any(|item| item == normalized) {
+            return Err(format!(
+                "转写任务 required_capabilities 包含不属于 audio_transcription contract 的能力: {normalized}"
+            ));
+        }
+    }
+    Ok(expected)
+}
+
 pub(crate) fn image_generation_runtime_contract() -> Value {
     json!({
         "contract_key": IMAGE_GENERATION_CONTRACT_KEY,
@@ -321,6 +396,23 @@ pub(crate) fn voice_generation_runtime_contract() -> Value {
         "artifact_kinds": ["audio_task", "audio_output"],
         "viewer_surface": ["audio_player"],
         "owner_surface": "service_skill_runtime"
+    })
+}
+
+pub(crate) fn audio_transcription_runtime_contract() -> Value {
+    json!({
+        "contract_key": AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+        "modality": AUDIO_TRANSCRIPTION_MODALITY,
+        "required_capabilities": AUDIO_TRANSCRIPTION_REQUIRED_CAPABILITIES,
+        "routing_slot": AUDIO_TRANSCRIPTION_ROUTING_SLOT,
+        "executor_binding": {
+            "executor_kind": "skill",
+            "binding_key": AUDIO_TRANSCRIPTION_EXECUTOR_BINDING_KEY
+        },
+        "truth_source": ["transcript_artifact", "runtime_timeline_event"],
+        "artifact_kinds": ["transcript"],
+        "viewer_surface": ["transcript_viewer", "document_viewer"],
+        "owner_surface": "agent_runtime"
     })
 }
 
@@ -503,6 +595,29 @@ pub(crate) fn insert_voice_generation_contract_fields(record: &mut Map<String, V
     record.insert(
         "runtime_contract".to_string(),
         voice_generation_runtime_contract(),
+    );
+}
+
+pub(crate) fn insert_audio_transcription_contract_fields(record: &mut Map<String, Value>) {
+    record.insert(
+        "modality_contract_key".to_string(),
+        Value::String(AUDIO_TRANSCRIPTION_CONTRACT_KEY.to_string()),
+    );
+    record.insert(
+        "modality".to_string(),
+        Value::String(AUDIO_TRANSCRIPTION_MODALITY.to_string()),
+    );
+    record.insert(
+        "required_capabilities".to_string(),
+        json!(AUDIO_TRANSCRIPTION_REQUIRED_CAPABILITIES),
+    );
+    record.insert(
+        "routing_slot".to_string(),
+        Value::String(AUDIO_TRANSCRIPTION_ROUTING_SLOT.to_string()),
+    );
+    record.insert(
+        "runtime_contract".to_string(),
+        audio_transcription_runtime_contract(),
     );
 }
 

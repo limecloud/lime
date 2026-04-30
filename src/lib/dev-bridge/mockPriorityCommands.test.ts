@@ -78,6 +78,19 @@ describe("mockPriorityCommands", () => {
     expect(shouldDisallowMockFallbackInBrowser("get_provider_ui_state")).toBe(
       true,
     );
+    expect(shouldDisallowMockFallbackInBrowser("get_api_key_provider")).toBe(
+      true,
+    );
+    expect(
+      shouldDisallowMockFallbackInBrowser("add_custom_api_key_provider"),
+    ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("update_api_key_provider")).toBe(
+      true,
+    );
+    expect(
+      shouldDisallowMockFallbackInBrowser("delete_custom_api_key_provider"),
+    ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("add_api_key")).toBe(true);
     expect(shouldPreferMockInBrowser("session_files_save_file")).toBe(false);
     expect(shouldDisallowMockFallbackInBrowser("session_files_save_file")).toBe(
       true,

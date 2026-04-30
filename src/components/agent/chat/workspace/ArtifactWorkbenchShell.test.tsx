@@ -256,6 +256,82 @@ function createStructuredEditableArtifact(): Artifact {
   };
 }
 
+function createTranscriptionDocumentArtifact(): Artifact {
+  const content = JSON.stringify({
+    schemaVersion: "artifact_document.v1",
+    artifactId: "transcription-generate:task-transcription-1",
+    kind: "brief",
+    title: "内容转写任务",
+    status: "ready",
+    language: "zh-CN",
+    summary: "用于验证 transcript 校对稿保存。",
+    blocks: [
+      {
+        id: "transcript-segments",
+        type: "table",
+        title: "转写时间轴（可逐段编辑校对）",
+        columns: ["时间", "说话人", "内容"],
+        rows: [["00:01 - 00:03", "主持人", "欢迎来到 Lime 访谈节目。"]],
+      },
+      {
+        id: "transcript-text",
+        type: "code_block",
+        title: "转写文本（可编辑校对）",
+        language: "text",
+        code: "欢迎来到 Lime 访谈节目。",
+      },
+    ],
+    sources: [
+      {
+        id: "transcript-file",
+        type: "file",
+        label: "transcript output",
+        locator: {
+          path: ".lime/runtime/transcripts/task-transcription-1.txt",
+        },
+        reliability: "primary",
+      },
+    ],
+    metadata: {
+      taskId: "task-transcription-1",
+      taskType: "transcription_generate",
+      modalityContractKey: "audio_transcription",
+      transcriptPath: ".lime/runtime/transcripts/task-transcription-1.txt",
+      transcriptText: "欢迎来到 Lime 访谈节目。",
+      transcriptSegments: [
+        {
+          id: "segment-1",
+          index: 1,
+          startMs: 1000,
+          endMs: 3000,
+          speaker: "主持人",
+          text: "欢迎来到 Lime 访谈节目。",
+        },
+      ],
+      transcriptCorrectionEnabled: true,
+      transcriptCorrectionStatus: "available",
+      transcriptCorrectionSource: "artifact_document_version",
+    },
+  });
+
+  return {
+    id: "artifact-transcription",
+    type: "document",
+    title: "task-transcription-1.artifact.json",
+    content,
+    status: "complete",
+    meta: {
+      filePath:
+        ".lime/runtime/transcription-generate/task-transcription-1.artifact.json",
+      filename: "task-transcription-1.artifact.json",
+      language: "json",
+    },
+    position: { start: 0, end: content.length },
+    createdAt: 1,
+    updatedAt: 1,
+  };
+}
+
 function createAdvancedEditableArtifact(): Artifact {
   const content = JSON.stringify({
     schemaVersion: "artifact_document.v1",
@@ -1008,6 +1084,124 @@ describe("ArtifactWorkbenchShell", () => {
         ]),
       }),
     );
+  });
+
+  it("转写运行时文档保存时应记录校对稿 metadata", async () => {
+    const handleSaveArtifactDocument = vi.fn().mockResolvedValue(undefined);
+    const container = renderWorkbench(createTranscriptionDocumentArtifact(), {
+      onSaveArtifactDocument: handleSaveArtifactDocument,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const editTrigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("编辑"),
+    );
+    expect(editTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      editTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const transcriptTextTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("转写文本"));
+    expect(transcriptTextTrigger).not.toBeUndefined();
+
+    await act(async () => {
+      transcriptTextTrigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    const codeInput = container.querySelector(
+      '[data-testid="artifact-structured-edit-code"]',
+    ) as HTMLTextAreaElement | null;
+    expect(codeInput).not.toBeNull();
+
+    await act(async () => {
+      if (codeInput) {
+        setTextControlValue(
+          codeInput,
+          "欢迎来到 Lime 访谈节目。\n这里是人工校对后的补充。",
+        );
+      }
+      await Promise.resolve();
+    });
+
+    const saveButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "保存",
+    );
+    expect(saveButton).not.toBeUndefined();
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(handleSaveArtifactDocument).toHaveBeenCalledTimes(1);
+    expect(handleSaveArtifactDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "artifact-transcription" }),
+      expect.objectContaining({
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "transcript-text",
+            type: "code_block",
+            code: "欢迎来到 Lime 访谈节目。\n这里是人工校对后的补充。",
+          }),
+          expect.objectContaining({
+            id: "transcript-correction-status",
+            type: "callout",
+            tone: "success",
+            title: "校对稿已保存",
+            body: expect.stringContaining("原始 ASR 输出文件保持不变"),
+          }),
+        ]),
+        metadata: expect.objectContaining({
+          modalityContractKey: "audio_transcription",
+          transcriptCorrectionStatus: "saved",
+          transcriptCorrectionSource: "artifact_document_version",
+          transcriptCorrectionPatchKind: "artifact_document_version",
+          transcriptCorrectionOriginalImmutable: true,
+          transcriptCorrectionEditedBlockId: "transcript-text",
+          transcriptCorrectionTextBlockId: "transcript-text",
+          transcriptCorrectionSegmentBlockId: "transcript-segments",
+          transcriptCorrectionSegmentCount: 1,
+          transcriptCorrectionSpeakerCount: 1,
+          transcriptCorrectionSourceTranscriptPath:
+            ".lime/runtime/transcripts/task-transcription-1.txt",
+          transcriptCorrectionDiffSummary: expect.objectContaining({
+            textChanged: true,
+            originalSegmentCount: 1,
+            correctedSegmentCount: 1,
+            changedSegmentCount: 0,
+            originalSpeakerCount: 1,
+            correctedSpeakerCount: 1,
+          }),
+          transcriptSegmentsCorrected: [
+            expect.objectContaining({
+              id: "corrected-segment-1",
+              startMs: 1000,
+              endMs: 3000,
+              speaker: "主持人",
+              text: "欢迎来到 Lime 访谈节目。",
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(
+      (
+        handleSaveArtifactDocument.mock.calls[0]?.[1].metadata as Record<
+          string,
+          unknown
+        >
+      ).transcriptCorrectionSavedAt,
+    ).toEqual(expect.any(String));
   });
 
   it("编辑态命中关联 timeline 时应支持跳回执行过程", async () => {

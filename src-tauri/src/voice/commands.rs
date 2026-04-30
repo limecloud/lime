@@ -27,6 +27,10 @@ pub struct VoiceShortcutRuntimeStatus {
     pub registered_shortcut: Option<String>,
     pub translate_shortcut_registered: bool,
     pub registered_translate_shortcut: Option<String>,
+    pub fn_supported: bool,
+    pub fn_registered: bool,
+    pub fn_fallback_shortcut: Option<String>,
+    pub fn_note: String,
 }
 
 /// 获取所有可用的麦克风设备
@@ -44,11 +48,17 @@ pub async fn get_voice_input_config() -> Result<VoiceInputConfig, String> {
 /// 获取语音快捷键运行时状态
 #[command]
 pub async fn get_voice_shortcut_runtime_status() -> Result<VoiceShortcutRuntimeStatus, String> {
+    let fn_status = super::fn_shortcut::runtime_status();
     Ok(VoiceShortcutRuntimeStatus {
         shortcut_registered: super::shortcut::is_registered(),
         registered_shortcut: super::shortcut::get_current(),
         translate_shortcut_registered: super::shortcut::is_translate_registered(),
         registered_translate_shortcut: super::shortcut::get_current_translate(),
+        fn_supported: fn_status.supported,
+        fn_registered: fn_status.registered,
+        fn_fallback_shortcut: super::shortcut::get_current()
+            .or_else(|| Some("CommandOrControl+Shift+V".to_string())),
+        fn_note: fn_status.note,
     })
 }
 
@@ -63,6 +73,8 @@ pub async fn save_voice_input_config(
     let new_enabled = voice_config.enabled;
 
     if old_enabled && new_enabled {
+        super::register_fn_shortcut_if_supported(&app);
+
         if old_config.shortcut != voice_config.shortcut {
             super::shortcut::update(&app, &voice_config.shortcut)?;
         }
@@ -100,8 +112,10 @@ pub async fn save_voice_input_config(
     } else if old_enabled && !new_enabled {
         super::shortcut::unregister(&app)?;
         let _ = super::shortcut::unregister_translate(&app);
+        let _ = super::fn_shortcut::unregister();
     } else if !old_enabled && new_enabled {
         super::shortcut::register(&app, &voice_config.shortcut)?;
+        super::register_fn_shortcut_if_supported(&app);
 
         if let Some(translate_shortcut) =
             normalize_shortcut(voice_config.translate_shortcut.clone())

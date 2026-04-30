@@ -1,4 +1,9 @@
 import registry from "./modalityRuntimeContracts.json";
+import {
+  resolveModalityExecutionProfileBinding,
+  type ModalityExecutionProfileSnapshot,
+  type ModalityExecutorAdapterSnapshot,
+} from "./modalityExecutionProfiles";
 
 export const IMAGE_GENERATION_CONTRACT_KEY = "image_generation";
 export const IMAGE_GENERATION_DEFAULT_ENTRY_SOURCE = "at_image_command";
@@ -8,6 +13,9 @@ export const PDF_EXTRACT_CONTRACT_KEY = "pdf_extract";
 export const PDF_EXTRACT_DEFAULT_ENTRY_SOURCE = "at_pdf_read_command";
 export const VOICE_GENERATION_CONTRACT_KEY = "voice_generation";
 export const VOICE_GENERATION_DEFAULT_ENTRY_SOURCE = "at_voice_command";
+export const AUDIO_TRANSCRIPTION_CONTRACT_KEY = "audio_transcription";
+export const AUDIO_TRANSCRIPTION_DEFAULT_ENTRY_SOURCE =
+  "at_transcription_command";
 export const WEB_RESEARCH_CONTRACT_KEY = "web_research";
 export const WEB_RESEARCH_DEFAULT_ENTRY_SOURCE = "at_search_command";
 export const TEXT_TRANSFORM_CONTRACT_KEY = "text_transform";
@@ -40,6 +48,12 @@ const FALLBACK_VOICE_GENERATION_REQUIRED_CAPABILITIES = [
 ] as const;
 const FALLBACK_VOICE_GENERATION_ROUTING_SLOT = "voice_generation_model";
 const FALLBACK_VOICE_GENERATION_MODALITY = "audio";
+const FALLBACK_AUDIO_TRANSCRIPTION_REQUIRED_CAPABILITIES = [
+  "text_generation",
+  "audio_transcription",
+] as const;
+const FALLBACK_AUDIO_TRANSCRIPTION_ROUTING_SLOT = "audio_transcription_model";
+const FALLBACK_AUDIO_TRANSCRIPTION_MODALITY = "audio";
 const FALLBACK_WEB_RESEARCH_REQUIRED_CAPABILITIES = [
   "text_generation",
   "web_search",
@@ -55,6 +69,15 @@ const FALLBACK_TEXT_TRANSFORM_REQUIRED_CAPABILITIES = [
 ] as const;
 const FALLBACK_TEXT_TRANSFORM_ROUTING_SLOT = "base_model";
 const FALLBACK_TEXT_TRANSFORM_MODALITY = "document";
+const BROWSER_CONTROL_ENTRY_SOURCE_BY_TRIGGER: Record<string, string> = {
+  "@浏览器": BROWSER_CONTROL_DEFAULT_ENTRY_SOURCE,
+  "@browser": BROWSER_CONTROL_DEFAULT_ENTRY_SOURCE,
+  "@browse": BROWSER_CONTROL_DEFAULT_ENTRY_SOURCE,
+  "@browser agent": "at_browser_agent_command",
+  "@mini tester": "at_mini_tester_command",
+  "@web scheduler": "at_web_scheduler_command",
+  "@web manage": "at_web_manage_command",
+};
 
 interface ModalityRuntimeContractEntryBinding {
   entry_key?: string;
@@ -80,12 +103,18 @@ export interface ModalityRuntimeContractBinding {
   modality: string;
   requiredCapabilities: string[];
   routingSlot: string;
+  executionProfileKey?: string;
+  executorAdapterKey?: string;
+  executionProfile?: ModalityExecutionProfileSnapshot;
+  executorAdapter?: ModalityExecutorAdapterSnapshot;
   runtimeContract: {
     contract_key: string;
     modality: string;
     routing_slot: string;
     required_capabilities: string[];
     executor_binding?: unknown;
+    execution_profile?: ModalityExecutionProfileSnapshot;
+    executor_adapter?: ModalityExecutorAdapterSnapshot;
   };
   boundEntrySources: string[];
 }
@@ -96,6 +125,8 @@ export type BrowserControlRuntimeContractBinding =
   ModalityRuntimeContractBinding;
 export type PdfExtractRuntimeContractBinding = ModalityRuntimeContractBinding;
 export type VoiceGenerationRuntimeContractBinding =
+  ModalityRuntimeContractBinding;
+export type AudioTranscriptionRuntimeContractBinding =
   ModalityRuntimeContractBinding;
 export type WebResearchRuntimeContractBinding = ModalityRuntimeContractBinding;
 export type TextTransformRuntimeContractBinding =
@@ -152,6 +183,10 @@ export function resolveModalityRuntimeContractBinding(params: {
       : [...params.fallbackRequiredCapabilities];
   const routingSlot =
     readTrimmedString(contract?.routing_slot) ?? params.fallbackRoutingSlot;
+  const profileBinding = resolveModalityExecutionProfileBinding({
+    contractKey,
+    executorBinding: contract?.executor_binding,
+  });
   const boundEntrySources = Array.from(
     new Set(
       (contract?.bound_entries ?? [])
@@ -165,12 +200,18 @@ export function resolveModalityRuntimeContractBinding(params: {
     modality,
     requiredCapabilities,
     routingSlot,
+    executionProfileKey: profileBinding?.profileKey,
+    executorAdapterKey: profileBinding?.executorAdapterKey ?? undefined,
+    executionProfile: profileBinding?.executionProfile,
+    executorAdapter: profileBinding?.executorAdapter,
     runtimeContract: {
       contract_key: contractKey,
       modality,
       routing_slot: routingSlot,
       required_capabilities: requiredCapabilities,
       executor_binding: contract?.executor_binding,
+      execution_profile: profileBinding?.executionProfile,
+      executor_adapter: profileBinding?.executorAdapter,
     },
     boundEntrySources,
   };
@@ -196,6 +237,20 @@ export function resolveBrowserControlRuntimeContractBinding(): BrowserControlRun
   });
 }
 
+export function resolveBrowserControlEntrySource(
+  trigger: string | null | undefined,
+): string {
+  const normalizedTrigger = trigger?.trim().toLowerCase() || "";
+  const candidate =
+    BROWSER_CONTROL_ENTRY_SOURCE_BY_TRIGGER[normalizedTrigger] ||
+    BROWSER_CONTROL_DEFAULT_ENTRY_SOURCE;
+  const boundEntrySources =
+    resolveBrowserControlRuntimeContractBinding().boundEntrySources;
+  return boundEntrySources.includes(candidate)
+    ? candidate
+    : BROWSER_CONTROL_DEFAULT_ENTRY_SOURCE;
+}
+
 export function resolvePdfExtractRuntimeContractBinding(): PdfExtractRuntimeContractBinding {
   return resolveModalityRuntimeContractBinding({
     contractKey: PDF_EXTRACT_CONTRACT_KEY,
@@ -212,6 +267,16 @@ export function resolveVoiceGenerationRuntimeContractBinding(): VoiceGenerationR
     fallbackRequiredCapabilities:
       FALLBACK_VOICE_GENERATION_REQUIRED_CAPABILITIES,
     fallbackRoutingSlot: FALLBACK_VOICE_GENERATION_ROUTING_SLOT,
+  });
+}
+
+export function resolveAudioTranscriptionRuntimeContractBinding(): AudioTranscriptionRuntimeContractBinding {
+  return resolveModalityRuntimeContractBinding({
+    contractKey: AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+    fallbackModality: FALLBACK_AUDIO_TRANSCRIPTION_MODALITY,
+    fallbackRequiredCapabilities:
+      FALLBACK_AUDIO_TRANSCRIPTION_REQUIRED_CAPABILITIES,
+    fallbackRoutingSlot: FALLBACK_AUDIO_TRANSCRIPTION_ROUTING_SLOT,
   });
 }
 

@@ -125,12 +125,38 @@ function resolveMockMediaTaskProtocol(
   const requestedModality = request.modality;
   const requestedTaskRef =
     typeof request.taskRef === "string" ? request.taskRef.toLowerCase() : "";
+  const isTranscription =
+    requestedTaskType === "transcription_generate" ||
+    requestedContractKey === "audio_transcription" ||
+    requestedTaskRef.includes("transcription_generate");
   const isAudio =
     requestedTaskType === "audio_generate" ||
     requestedTaskFamily === "audio" ||
     requestedContractKey === "voice_generation" ||
     requestedModality === "audio" ||
     requestedTaskRef.includes("audio_generate");
+
+  if (isTranscription) {
+    return {
+      taskType: "transcription_generate",
+      taskFamily: "audio",
+      defaultTaskId: "task-transcription-mock-1",
+      contractKey: "audio_transcription",
+      modality: "audio",
+      requiredCapabilities: ["text_generation", "audio_transcription"],
+      routingSlot: "audio_transcription_model",
+      runtimeContract: {
+        contract_key: "audio_transcription",
+        modality: "audio",
+        required_capabilities: ["text_generation", "audio_transcription"],
+        routing_slot: "audio_transcription_model",
+        executor_binding: {
+          executor_kind: "agent_tool",
+          binding_key: "transcription_generate",
+        },
+      },
+    };
+  }
 
   if (isAudio) {
     return {
@@ -228,19 +254,23 @@ function buildMockMediaTaskOutput(
     request.runtime_contract ??
     protocol.runtimeContract;
   const payload =
-    protocol.taskFamily === "audio"
+    protocol.taskType === "transcription_generate"
       ? {
           prompt,
-          source_text: prompt,
           raw_text: request.rawText ?? request.raw_text ?? null,
-          voice: request.voice ?? null,
-          voice_style: request.voiceStyle ?? request.voice_style ?? null,
-          target_language:
-            request.targetLanguage ?? request.target_language ?? null,
+          source_url: request.sourceUrl ?? request.source_url ?? null,
+          source_path: request.sourcePath ?? request.source_path ?? null,
+          language: request.language ?? null,
+          output_format: request.outputFormat ?? request.output_format ?? "txt",
+          speaker_labels:
+            request.speakerLabels ?? request.speaker_labels ?? null,
+          timestamps: request.timestamps ?? null,
           provider_id: request.providerId ?? request.provider_id ?? null,
           model: request.model ?? null,
           entry_source:
-            request.entrySource ?? request.entry_source ?? "at_voice_command",
+            request.entrySource ??
+            request.entry_source ??
+            "at_transcription_command",
           modality_contract_key:
             request.modalityContractKey ??
             request.modality_contract_key ??
@@ -253,40 +283,88 @@ function buildMockMediaTaskOutput(
           routing_slot:
             request.routingSlot ?? request.routing_slot ?? protocol.routingSlot,
           runtime_contract: runtimeContract,
-          audio_output: {
-            kind: "audio_output",
-            status: "pending",
-            audio_path: request.audioPath ?? request.audio_path ?? null,
-            mime_type: request.mimeType ?? request.mime_type ?? "audio/mpeg",
-            duration_ms: request.durationMs ?? request.duration_ms ?? null,
-            source_text: prompt,
-            voice: request.voice ?? null,
+          requested_target:
+            request.requestedTarget ?? request.requested_target ?? "transcript",
+          transcript: {
+            kind: "transcript",
+            status: request.transcriptStatus ?? "pending",
+            transcript_path:
+              request.transcriptPath ?? request.transcript_path ?? null,
+            source_url: request.sourceUrl ?? request.source_url ?? null,
+            source_path: request.sourcePath ?? request.source_path ?? null,
+            language: request.language ?? null,
+            output_format:
+              request.outputFormat ?? request.output_format ?? "txt",
+            provider_id: request.providerId ?? request.provider_id ?? null,
+            model: request.model ?? null,
+            modality_contract_key: protocol.contractKey,
+            modality: protocol.modality,
+            routing_slot: protocol.routingSlot,
           },
         }
-      : {
-          prompt,
-          mode: request.mode ?? "generate",
-          size: request.size ?? "1024x1024",
-          count: request.count ?? 1,
-          provider_id: request.providerId ?? request.provider_id ?? null,
-          model: request.model ?? null,
-          modality_contract_key:
-            request.modalityContractKey ??
-            request.modality_contract_key ??
-            protocol.contractKey,
-          modality: request.modality ?? protocol.modality,
-          required_capabilities:
-            request.requiredCapabilities ??
-            request.required_capabilities ??
-            protocol.requiredCapabilities,
-          routing_slot:
-            request.routingSlot ?? request.routing_slot ?? protocol.routingSlot,
-          runtime_contract: runtimeContract,
-          model_capability_assessment:
-            request.modelCapabilityAssessment ??
-            request.model_capability_assessment ??
-            null,
-        };
+      : protocol.taskFamily === "audio"
+        ? {
+            prompt,
+            source_text: prompt,
+            raw_text: request.rawText ?? request.raw_text ?? null,
+            voice: request.voice ?? null,
+            voice_style: request.voiceStyle ?? request.voice_style ?? null,
+            target_language:
+              request.targetLanguage ?? request.target_language ?? null,
+            provider_id: request.providerId ?? request.provider_id ?? null,
+            model: request.model ?? null,
+            entry_source:
+              request.entrySource ?? request.entry_source ?? "at_voice_command",
+            modality_contract_key:
+              request.modalityContractKey ??
+              request.modality_contract_key ??
+              protocol.contractKey,
+            modality: request.modality ?? protocol.modality,
+            required_capabilities:
+              request.requiredCapabilities ??
+              request.required_capabilities ??
+              protocol.requiredCapabilities,
+            routing_slot:
+              request.routingSlot ??
+              request.routing_slot ??
+              protocol.routingSlot,
+            runtime_contract: runtimeContract,
+            audio_output: {
+              kind: "audio_output",
+              status: "pending",
+              audio_path: request.audioPath ?? request.audio_path ?? null,
+              mime_type: request.mimeType ?? request.mime_type ?? "audio/mpeg",
+              duration_ms: request.durationMs ?? request.duration_ms ?? null,
+              source_text: prompt,
+              voice: request.voice ?? null,
+            },
+          }
+        : {
+            prompt,
+            mode: request.mode ?? "generate",
+            size: request.size ?? "1024x1024",
+            count: request.count ?? 1,
+            provider_id: request.providerId ?? request.provider_id ?? null,
+            model: request.model ?? null,
+            modality_contract_key:
+              request.modalityContractKey ??
+              request.modality_contract_key ??
+              protocol.contractKey,
+            modality: request.modality ?? protocol.modality,
+            required_capabilities:
+              request.requiredCapabilities ??
+              request.required_capabilities ??
+              protocol.requiredCapabilities,
+            routing_slot:
+              request.routingSlot ??
+              request.routing_slot ??
+              protocol.routingSlot,
+            runtime_contract: runtimeContract,
+            model_capability_assessment:
+              request.modelCapabilityAssessment ??
+              request.model_capability_assessment ??
+              null,
+          };
   const record = {
     task_id: taskId,
     task_type: protocol.taskType,
@@ -327,6 +405,72 @@ function buildMockMediaTaskOutput(
     record,
     ...overrides,
   };
+}
+
+function buildMockCompletedAudioTaskOutput(args: any) {
+  const request = args?.request ?? args ?? {};
+  const output = buildMockMediaTaskOutput(args, {
+    task_type: "audio_generate",
+    status: "succeeded",
+    normalized_status: "succeeded",
+  });
+  const record = output.record as Record<string, any>;
+  const payload = record.payload as Record<string, any>;
+  const audioPath =
+    request.audioPath ??
+    request.audio_path ??
+    request.audioUrl ??
+    request.audio_url ??
+    payload.audio_path ??
+    "/mock/workspace/.lime/runtime/audio/task-audio-mock-1.mp3";
+  const mimeType =
+    request.mimeType ?? request.mime_type ?? payload.mime_type ?? "audio/mpeg";
+  const durationMs =
+    request.durationMs ??
+    request.duration_ms ??
+    payload.duration_ms ??
+    payload.audio_output?.duration_ms ??
+    1200;
+  const providerId =
+    request.providerId ?? request.provider_id ?? payload.provider_id ?? null;
+  const model = request.model ?? payload.model ?? null;
+  const audioOutput = {
+    ...(payload.audio_output ?? {}),
+    kind: "audio_output",
+    status: "completed",
+    audio_path: audioPath,
+    mime_type: mimeType,
+    duration_ms: durationMs,
+    provider_id: providerId,
+    model,
+    modality_contract_key: "voice_generation",
+    modality: "audio",
+    routing_slot: "voice_generation_model",
+  };
+
+  payload.audio_path = audioPath;
+  payload.mime_type = mimeType;
+  payload.duration_ms = durationMs;
+  payload.provider_id = providerId;
+  payload.model = model;
+  payload.audio_output = audioOutput;
+  record.result = {
+    kind: "audio_generation_result",
+    status: "completed",
+    audio_output: audioOutput,
+    outputs: [audioOutput],
+    audio_path: audioPath,
+    mime_type: mimeType,
+    duration_ms: durationMs,
+  };
+  record.progress = {
+    phase: "succeeded",
+    percent: 100,
+    message: "音频任务已完成，audio_output 已回写。",
+    preview_slots: [],
+  };
+
+  return output;
 }
 
 type MockBrowserProfileRecord = {
@@ -5808,6 +5952,8 @@ const defaultMocks: Record<string, any> = {
     buildMockMediaTaskOutput(args, {
       task_type: "audio_generate",
     }),
+  complete_audio_generation_task_artifact: (args: any) =>
+    buildMockCompletedAudioTaskOutput(args),
   get_media_task_artifact: (args: any) => buildMockMediaTaskOutput(args),
   list_media_task_artifacts: (args: any) => {
     const request = args?.request ?? args ?? {};
@@ -5844,6 +5990,14 @@ const defaultMocks: Record<string, any> = {
         | Record<string, any>
         | null
         | undefined;
+      const audioOutput = payload?.audio_output as
+        | Record<string, any>
+        | null
+        | undefined;
+      const transcript = payload?.transcript as
+        | Record<string, any>
+        | null
+        | undefined;
       return {
         task_id: item.task_id,
         task_type: item.task_type,
@@ -5853,7 +6007,8 @@ const defaultMocks: Record<string, any> = {
         provider_id: payload?.provider_id ?? null,
         model: payload?.model ?? null,
         routing_event:
-          payload?.modality_contract_key === "voice_generation"
+          payload?.modality_contract_key === "voice_generation" ||
+          payload?.modality_contract_key === "audio_transcription"
             ? "executor_invoked"
             : "model_routing_decision",
         routing_outcome:
@@ -5864,8 +6019,56 @@ const defaultMocks: Record<string, any> = {
           payload?.modality_contract_key === "image_generation"
             ? (assessment?.supports_image_generation ?? null)
             : null,
+        audio_output_status: audioOutput?.status ?? null,
+        audio_output_path: audioOutput?.audio_path ?? null,
+        audio_output_mime_type: audioOutput?.mime_type ?? null,
+        audio_output_duration_ms: audioOutput?.duration_ms ?? null,
+        audio_output_error_code: audioOutput?.error_code ?? null,
+        audio_output_retryable: audioOutput?.retryable ?? null,
+        transcript_status: transcript?.status ?? null,
+        transcript_path: transcript?.transcript_path ?? null,
+        transcript_source_url: transcript?.source_url ?? null,
+        transcript_source_path: transcript?.source_path ?? null,
+        transcript_language: transcript?.language ?? null,
+        transcript_output_format: transcript?.output_format ?? null,
+        transcript_error_code: transcript?.error_code ?? null,
+        transcript_retryable: transcript?.retryable ?? null,
       };
     });
+    const audioOutputStatuses = snapshots.reduce(
+      (items, snapshot) => {
+        if (!snapshot.audio_output_status) {
+          return items;
+        }
+        const existing = items.find(
+          (item) => item.status === snapshot.audio_output_status,
+        );
+        if (existing) {
+          existing.count += 1;
+        } else {
+          items.push({ status: snapshot.audio_output_status, count: 1 });
+        }
+        return items;
+      },
+      [] as Array<{ status: string; count: number }>,
+    );
+    const transcriptStatuses = snapshots.reduce(
+      (items, snapshot) => {
+        if (!snapshot.transcript_status) {
+          return items;
+        }
+        const existing = items.find(
+          (item) => item.status === snapshot.transcript_status,
+        );
+        if (existing) {
+          existing.count += 1;
+        } else {
+          items.push({ status: snapshot.transcript_status, count: 1 });
+        }
+        return items;
+      },
+      [] as Array<{ status: string; count: number }>,
+    );
     return {
       success: true,
       workspace_root: request.projectRootPath ?? "/mock/workspace",
@@ -5896,6 +6099,24 @@ const defaultMocks: Record<string, any> = {
           (item) =>
             item.model_capability_assessment_source === "model_registry",
         ).length,
+        audio_output_count: snapshots.filter((item) => item.audio_output_status)
+          .length,
+        audio_output_statuses: audioOutputStatuses,
+        audio_output_error_codes: [
+          ...new Set(
+            snapshots
+              .map((item) => item.audio_output_error_code)
+              .filter(Boolean),
+          ),
+        ],
+        transcript_count: snapshots.filter((item) => item.transcript_status)
+          .length,
+        transcript_statuses: transcriptStatuses,
+        transcript_error_codes: [
+          ...new Set(
+            snapshots.map((item) => item.transcript_error_code).filter(Boolean),
+          ),
+        ],
         snapshots,
       },
       tasks,
@@ -6465,6 +6686,91 @@ const defaultMocks: Record<string, any> = {
       language: "zh-CN",
     },
   ],
+  voice_models_list_catalog: () => [
+    {
+      id: "sensevoice-small-int8-2024-07-17",
+      name: "SenseVoice Small INT8",
+      provider: "FunAudioLLM / sherpa-onnx",
+      description:
+        "本地离线 ASR，支持中文、英文、日文、韩文和粤语；模型按需下载到用户数据目录。",
+      version: "2024-07-17",
+      languages: ["zh", "en", "ja", "ko", "yue"],
+      size_bytes: 262144000,
+      download_url:
+        "https://models.example.com/voice/sensevoice-small-int8-2024-07-17/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
+      vad_model_id: "silero-vad-onnx",
+      vad_download_url:
+        "https://models.example.com/voice/silero-vad-onnx/silero_vad.onnx",
+      runtime: "sherpa-onnx",
+      bundled: false,
+      checksum_sha256: null,
+    },
+  ],
+  voice_models_get_install_state: () => ({
+    model_id: "sensevoice-small-int8-2024-07-17",
+    installed: false,
+    installing: false,
+    install_dir: "/mock/lime/models/voice/sensevoice-small-int8-2024-07-17",
+    model_file: null,
+    tokens_file: null,
+    vad_file: null,
+    installed_bytes: 0,
+    last_verified_at: Math.floor(Date.now() / 1000),
+    missing_files: ["model.int8.onnx", "tokens.txt", "silero_vad.onnx"],
+    default_credential_id: null,
+  }),
+  voice_models_download: () => ({
+    state: {
+      model_id: "sensevoice-small-int8-2024-07-17",
+      installed: true,
+      installing: false,
+      install_dir: "/mock/lime/models/voice/sensevoice-small-int8-2024-07-17",
+      model_file:
+        "/mock/lime/models/voice/sensevoice-small-int8-2024-07-17/model.int8.onnx",
+      tokens_file:
+        "/mock/lime/models/voice/sensevoice-small-int8-2024-07-17/tokens.txt",
+      vad_file:
+        "/mock/lime/models/voice/sensevoice-small-int8-2024-07-17/silero_vad.onnx",
+      installed_bytes: 262144000,
+      last_verified_at: Math.floor(Date.now() / 1000),
+      missing_files: [],
+      default_credential_id: null,
+    },
+  }),
+  voice_models_delete: () => ({
+    model_id: "sensevoice-small-int8-2024-07-17",
+    installed: false,
+    installing: false,
+    install_dir: "/mock/lime/models/voice/sensevoice-small-int8-2024-07-17",
+    model_file: null,
+    tokens_file: null,
+    vad_file: null,
+    installed_bytes: 0,
+    last_verified_at: Math.floor(Date.now() / 1000),
+    missing_files: ["model.int8.onnx", "tokens.txt", "silero_vad.onnx"],
+    default_credential_id: null,
+  }),
+  voice_models_set_default: () => ({
+    id: "sensevoice-local-sensevoice-small-int8-2024-07-17",
+    provider: "sensevoice_local",
+    name: "SenseVoice Small 本地",
+    is_default: true,
+    disabled: false,
+    language: "auto",
+    sensevoice_config: {
+      model_id: "sensevoice-small-int8-2024-07-17",
+      model_dir: "/mock/lime/models/voice/sensevoice-small-int8-2024-07-17",
+      use_itn: true,
+      num_threads: 4,
+      vad_model_id: "silero-vad-onnx",
+    },
+  }),
+  voice_models_test_transcribe_file: () => ({
+    text: "这是一段 SenseVoice Small 本地测试转写结果。",
+    duration_secs: 3.2,
+    sample_rate: 16000,
+    language: "auto",
+  }),
   get_voice_instructions: () => [
     {
       id: "default",
@@ -6490,6 +6796,10 @@ const defaultMocks: Record<string, any> = {
     registered_shortcut: null,
     translate_shortcut_registered: false,
     registered_translate_shortcut: null,
+    fn_supported: false,
+    fn_registered: false,
+    fn_fallback_shortcut: "CommandOrControl+Shift+V",
+    fn_note: "Fn 按住录音当前仅支持 macOS；已使用普通语音快捷键回退。",
   }),
   save_voice_input_config: () => ({}),
   save_voice_instruction: () => ({}),
@@ -6515,7 +6825,7 @@ const defaultMocks: Record<string, any> = {
 
   // Update 相关
   check_update: () => ({
-    current_version: "1.24.0",
+    current_version: "1.25.0",
     latest_version: null,
     has_update: false,
     download_url: "https://github.com/limecloud/lime/releases",
@@ -6526,7 +6836,7 @@ const defaultMocks: Record<string, any> = {
     error: null,
   }),
   check_for_updates: () => ({
-    current: "1.24.0",
+    current: "1.25.0",
     latest: null,
     hasUpdate: false,
     downloadUrl: "https://github.com/limecloud/lime/releases",

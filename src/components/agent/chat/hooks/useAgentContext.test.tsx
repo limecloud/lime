@@ -9,7 +9,6 @@ const {
   mockTopicsUpdater,
   mockToastError,
   mockUpdateProject,
-  mockWechatChannelSetRuntimeModel,
 } = vi.hoisted(() => ({
   mockNotifyProjectRuntimeAgentsGuide: vi.fn(),
   mockSetSessionExecutionStrategy: vi.fn(async () => undefined),
@@ -17,7 +16,6 @@ const {
   mockTopicsUpdater: vi.fn(),
   mockToastError: vi.fn(),
   mockUpdateProject: vi.fn(async () => undefined),
-  mockWechatChannelSetRuntimeModel: vi.fn(async () => undefined),
 }));
 
 vi.mock("sonner", () => ({
@@ -32,10 +30,6 @@ vi.mock("@/lib/api/project", () => ({
 
 vi.mock("@/components/workspace/services/runtimeAgentsGuideService", () => ({
   notifyProjectRuntimeAgentsGuide: mockNotifyProjectRuntimeAgentsGuide,
-}));
-
-vi.mock("@/lib/api/channelsRuntime", () => ({
-  wechatChannelSetRuntimeModel: mockWechatChannelSetRuntimeModel,
 }));
 
 import { useAgentContext } from "./useAgentContext";
@@ -115,7 +109,6 @@ describe("useAgentContext", () => {
     mockTopicsUpdater.mockReset();
     mockToastError.mockReset();
     mockUpdateProject.mockReset();
-    mockWechatChannelSetRuntimeModel.mockReset();
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -147,7 +140,7 @@ describe("useAgentContext", () => {
     harness.unmount();
   });
 
-  it("切换 provider 和 model 时应同步微信运行时模型", async () => {
+  it("切换 provider 和 model 时不应写入微信运行时配置", async () => {
     const harness = mountHook();
 
     await act(async () => {
@@ -156,10 +149,12 @@ describe("useAgentContext", () => {
       await Promise.resolve();
     });
 
-    expect(mockWechatChannelSetRuntimeModel).toHaveBeenCalledWith({
-      providerId: "deepseek",
-      modelId: "deepseek-reasoner",
-    });
+    expect(localStorage.getItem("agent_pref_provider_workspace-1")).toBe(
+      JSON.stringify("deepseek"),
+    );
+    expect(localStorage.getItem("agent_pref_model_workspace-1")).toBe(
+      JSON.stringify("deepseek-reasoner"),
+    );
 
     harness.unmount();
   });

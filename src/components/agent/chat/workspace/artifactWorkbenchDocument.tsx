@@ -39,6 +39,7 @@ import {
   createArtifactDocumentNextVersion,
   updateArtifactDocumentStatus,
 } from "./artifactWorkbenchActions";
+import { applyTranscriptCorrectionVersionMetadata } from "./transcriptCorrectionArtifact";
 import type { AgentThreadItem } from "../types";
 import {
   buildArtifactTimelineLinkIndex,
@@ -1389,7 +1390,7 @@ const EditInspectorPanel: React.FC<{
             Workbench 编辑
           </div>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            当前支持章节头、摘要卡、正文块与提示块原位编辑，保存后会回写到同一份
+            当前支持章节头、摘要卡、正文块、表格、提示块与代码块原位编辑，保存后会回写到同一份
             ArtifactDocument JSON，不再把正文打回聊天区。
           </p>
         </section>
@@ -2583,9 +2584,15 @@ export function useArtifactWorkbenchDocumentController({
         selectedEditableBlock.blockId,
         nextDraft,
       );
+      const correctedNextDocument = applyTranscriptCorrectionVersionMetadata(
+        nextDocument,
+        {
+          editedBlockId: selectedEditableBlock.blockId,
+        },
+      );
       const versionedDocument = createArtifactDocumentNextVersion(
         document,
-        nextDocument,
+        correctedNextDocument,
         {
           summary: `更新 ${selectedEditableBlock.label}`,
           createdBy: "user",

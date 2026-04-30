@@ -510,6 +510,7 @@ pub(crate) use tool_runtime::{
 pub(crate) use transcription_skill_launch::{
     append_transcription_skill_launch_session_permissions,
     merge_system_prompt_with_transcription_skill_launch,
+    prepare_transcription_skill_launch_request_metadata,
     prune_transcription_skill_launch_detour_tools_from_registry,
 };
 pub(crate) use translation_skill_launch::{

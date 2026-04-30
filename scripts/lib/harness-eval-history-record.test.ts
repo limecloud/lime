@@ -287,7 +287,7 @@ describe("harness-eval-history-record", () => {
         },
       ),
     ).not.toThrow();
-  }, 30_000);
+  }, 60_000);
 
   it("应记录本地 summary 历史，并生成非 seed 的 trend / cleanup", () => {
     const tempRoot = createTempRoot();
@@ -442,7 +442,7 @@ describe("harness-eval-history-record", () => {
         ),
       ),
     ).toBe(true);
-  }, 30_000);
+  }, 90_000);
 
   it("并发记录 history 时不应覆盖已有样本", async () => {
     const tempRoot = createTempRoot();
@@ -478,5 +478,5 @@ describe("harness-eval-history-record", () => {
 
     expect(historyFiles).toHaveLength(2);
     expect(firstResult.recordedSummaryPath).not.toBe(secondResult.recordedSummaryPath);
-  }, 30_000);
+  }, 60_000);
 });

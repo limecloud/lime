@@ -74,6 +74,12 @@ const mockPriorityCommands = new Set<string>([
   "launch_browser_session",
   "launch_browser_profile_runtime_assist_cmd",
   "get_browser_action_audit_logs",
+  "voice_models_list_catalog",
+  "voice_models_get_install_state",
+  "voice_models_download",
+  "voice_models_delete",
+  "voice_models_set_default",
+  "voice_models_test_transcribe_file",
 ]);
 
 /**
@@ -127,6 +133,11 @@ const bridgeTruthCommands = new Set<string>([
   "get_default_provider",
   "get_provider_ui_state",
   "get_api_key_providers",
+  "get_api_key_provider",
+  "add_custom_api_key_provider",
+  "update_api_key_provider",
+  "delete_custom_api_key_provider",
+  "add_api_key",
   "get_model_registry",
   "get_model_registry_provider_ids",
   "get_models_for_provider",
@@ -137,6 +148,7 @@ const bridgeTruthCommands = new Set<string>([
   "fetch_provider_models_auto",
   "create_image_generation_task_artifact",
   "create_audio_generation_task_artifact",
+  "complete_audio_generation_task_artifact",
   "get_media_task_artifact",
   "list_media_task_artifacts",
   "cancel_media_task_artifact",

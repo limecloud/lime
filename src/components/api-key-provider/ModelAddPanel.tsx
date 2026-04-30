@@ -28,7 +28,9 @@ import {
   dedupeModelIds,
   getProviderTypeLabel,
   isSupportedProviderType,
+  normalizeKnownProviderApiHost,
   resolvePromptCacheModeRequestValue,
+  SENSENOVA_OPENAI_COMPATIBLE_API_HOST,
 } from "./providerConfigUtils";
 import {
   ArrowLeft,
@@ -387,11 +389,16 @@ const RESOURCE_PROVIDER_API_HOSTS: Record<string, string> = {
   "moonshotai-cn": "https://api.moonshot.cn",
   openai: "https://api.openai.com",
   openrouter: "https://openrouter.ai/api/v1/",
+  sensenova: SENSENOVA_OPENAI_COMPATIBLE_API_HOST,
   siliconflow: "https://api.siliconflow.cn",
   "siliconflow-cn": "https://api.siliconflow.cn",
   xiaomi: "https://token-plan-cn.xiaomimimo.com/anthropic",
   "zai-coding-plan": "https://api.z.ai/api/anthropic",
   "zhipuai-coding-plan": "https://open.bigmodel.cn/api/anthropic",
+};
+
+const RESOURCE_PROVIDER_DEFAULT_MODELS: Record<string, string[]> = {
+  sensenova: ["SenseChat-5"],
 };
 
 const ANTHROPIC_COMPATIBLE_REGISTRY_PROVIDER_IDS = new Set([
@@ -445,7 +452,7 @@ function buildCatalogTemplates(
       category: resolveProviderCategory(item.id, item.group),
       type: providerType,
       apiHost: item.api_host,
-      defaultModels: [],
+      defaultModels: RESOURCE_PROVIDER_DEFAULT_MODELS[item.id] ?? [],
       iconProviderId: item.id,
       systemProviderId: item.id,
     };
@@ -471,6 +478,9 @@ function buildRegistryTemplates(
 
     const firstModel = models[0];
     const apiHost = RESOURCE_PROVIDER_API_HOSTS[providerId] ?? "";
+    const defaultModels =
+      RESOURCE_PROVIDER_DEFAULT_MODELS[providerId] ??
+      models.map((model) => model.id).slice(0, 3);
     templates.push({
       id: `registry-${providerId}`,
       name: firstModel.provider_name || providerId,
@@ -482,7 +492,7 @@ function buildRegistryTemplates(
         ? "anthropic-compatible"
         : "openai",
       apiHost,
-      defaultModels: [],
+      defaultModels,
       iconProviderId: providerId,
       providerResourceId: providerId,
     });
@@ -530,6 +540,9 @@ function validateForm(state: FormState): string | null {
   }
   if (!state.apiHost.trim()) {
     return "请填写 API Base URL。";
+  }
+  if (state.apiHost.trim() !== normalizeKnownProviderApiHost(state.apiHost)) {
+    return "检测到你填写的是文档页或旧接口地址，已自动修正 API Base URL，请确认后再激活。";
   }
   try {
     new URL(state.apiHost.trim());
@@ -735,7 +748,18 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
   }, []);
 
   const activateProvider = useCallback(async () => {
-    const validationError = validateForm(formState);
+    const normalizedFormState = {
+      ...formState,
+      apiHost: normalizeKnownProviderApiHost(formState.apiHost),
+    };
+    if (normalizedFormState.apiHost !== formState.apiHost) {
+      setFormState((previous) => ({
+        ...previous,
+        apiHost: normalizedFormState.apiHost,
+      }));
+    }
+
+    const validationError = validateForm(normalizedFormState);
     if (validationError) {
       setSubmitError(validationError);
       return;
@@ -747,13 +771,13 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
 
     try {
       const request: AddCustomProviderRequest = {
-        name: formState.name.trim(),
-        type: formState.type,
-        api_host: formState.apiHost.trim(),
+        name: normalizedFormState.name.trim(),
+        type: normalizedFormState.type,
+        api_host: normalizedFormState.apiHost,
         prompt_cache_mode: resolvePromptCacheModeRequestValue(
-          formState.type,
-          formState.promptCacheMode,
-          formState.apiHost,
+          normalizedFormState.type,
+          normalizedFormState.promptCacheMode,
+          normalizedFormState.apiHost,
         ),
       };
 
@@ -768,31 +792,29 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
           api_host: request.api_host,
           enabled: true,
           prompt_cache_mode: request.prompt_cache_mode,
-          custom_models: formState.models,
+          custom_models: normalizedFormState.models,
         });
       } else {
         const created = await onAddProvider(request);
         providerId = created.id;
         await onUpdateProvider(providerId, {
           enabled: true,
-          custom_models: formState.models,
+          custom_models: normalizedFormState.models,
         });
       }
 
-      if (formState.apiKey.trim()) {
-        await onAddApiKey(providerId, formState.apiKey.trim());
+      if (normalizedFormState.apiKey.trim()) {
+        await onAddApiKey(providerId, normalizedFormState.apiKey.trim());
       }
 
       const testResult = await apiKeyProviderApi.testConnection(
         providerId,
-        formState.models[0],
+        normalizedFormState.models[0],
       );
 
       if (!testResult.success) {
-        throw new Error(
-          testResult.error ||
-            "已保存配置，但连接测试未通过，请检查密钥或模型 ID。",
-        );
+        onActivated(providerId);
+        return;
       }
 
       onActivated(providerId);
@@ -1004,6 +1026,12 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
                       apiHost: event.target.value,
                     }))
                   }
+                  onBlur={() =>
+                    setFormState((previous) => ({
+                      ...previous,
+                      apiHost: normalizeKnownProviderApiHost(previous.apiHost),
+                    }))
+                  }
                   placeholder="https://api.example.com/v1"
                   className="h-12 rounded-[18px] border-slate-200 bg-white px-4"
                   disabled={submitting}
@@ -1072,6 +1100,14 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
                       setFormState((previous) => ({
                         ...previous,
                         apiHost: event.target.value,
+                      }))
+                    }
+                    onBlur={() =>
+                      setFormState((previous) => ({
+                        ...previous,
+                        apiHost: normalizeKnownProviderApiHost(
+                          previous.apiHost,
+                        ),
                       }))
                     }
                     placeholder="https://api.example.com/v1"
@@ -1228,7 +1264,7 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
             ) : (
               <>
                 <Zap className="mr-2 h-4 w-4" />
-                测试连接并激活
+                保存并测试
               </>
             )}
           </Button>

@@ -1,4 +1,5 @@
 export type {
+  CompleteAudioGenerationTaskArtifactRequest,
   CreateAudioGenerationTaskArtifactRequest,
   CreateImageGenerationTaskArtifactRequest,
   ListMediaTaskArtifactsOutput,
@@ -7,13 +8,16 @@ export type {
   MediaTaskModalityRuntimeContractIndexEntry,
   MediaTaskArtifactOutput,
   MediaTaskArtifactRecord,
+  MediaTaskAudioOutputStatusCount,
   MediaTaskListFilters,
   MediaTaskRoutingOutcomeCount,
+  MediaTaskTranscriptStatusCount,
   MediaTaskLookupRequest,
 } from "./agentRuntime/types";
 
 export {
   cancelMediaTaskArtifact,
+  completeAudioGenerationTaskArtifact,
   createAudioGenerationTaskArtifact,
   createImageGenerationTaskArtifact,
   getMediaTaskArtifact,

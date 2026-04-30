@@ -11,6 +11,7 @@ import type {
   AutoContinueRequestPayload,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
+import { logAgentDebug } from "@/lib/agentDebug";
 import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import type { ActionRequired, Message } from "../types";
 import { mapProviderName } from "./agentChatCoreUtils";
@@ -45,6 +46,7 @@ interface RegisterAgentStreamTurnEventBindingOptions {
   effectiveProviderType: string;
   effectiveModel: string;
   effectiveExecutionStrategy: AsterExecutionStrategy;
+  thinking?: boolean;
   content: string;
   webSearch?: boolean;
   autoContinue?: AutoContinueRequestPayload;
@@ -120,6 +122,7 @@ export async function registerAgentStreamTurnEventBinding(
     effectiveProviderType,
     effectiveModel,
     effectiveExecutionStrategy,
+    thinking,
     content,
     webSearch,
     autoContinue,
@@ -285,6 +288,7 @@ export async function registerAgentStreamTurnEventBinding(
       activeSessionId,
       resolvedWorkspaceId,
       effectiveExecutionStrategy,
+      surfaceThinkingDeltas: thinking !== false,
       content,
       runtime,
       webSearch,
@@ -343,6 +347,7 @@ export async function registerAgentStreamTurnEventBinding(
   const unlisten = await runtime.listenToTurnEvents(
     eventName,
     (event: { payload: unknown }) => {
+      const eventReceivedAt = Date.now();
       const data = parseAgentEvent(event.payload);
       const eventType = extractRuntimeEventType(event.payload);
       if (!data) {
@@ -351,9 +356,20 @@ export async function registerAgentStreamTurnEventBinding(
         }
         if (!firstEventReceived) {
           firstEventReceived = true;
+          requestState.firstEventReceivedAt = eventReceivedAt;
+          logAgentDebug("AgentStream", "firstEvent", {
+            elapsedMs: eventReceivedAt - requestState.requestStartedAt,
+            eventName,
+            eventType,
+            recognized: false,
+            sessionId: activeSessionId,
+            submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
+              ? eventReceivedAt - requestState.submissionDispatchedAt
+              : null,
+          });
           clearFirstEventWatchdog();
         }
-        lastEventReceivedAt = Date.now();
+        lastEventReceivedAt = eventReceivedAt;
         callbacks.activateStream(
           activeSessionId,
           effectiveWaitingRuntimeStatus,
@@ -369,9 +385,20 @@ export async function registerAgentStreamTurnEventBinding(
       }
       if (!firstEventReceived) {
         firstEventReceived = true;
+        requestState.firstEventReceivedAt = eventReceivedAt;
+        logAgentDebug("AgentStream", "firstEvent", {
+          elapsedMs: eventReceivedAt - requestState.requestStartedAt,
+          eventName,
+          eventType: data.type,
+          recognized: true,
+          sessionId: activeSessionId,
+          submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
+            ? eventReceivedAt - requestState.submissionDispatchedAt
+            : null,
+        });
         clearFirstEventWatchdog();
       }
-      lastEventReceivedAt = Date.now();
+      lastEventReceivedAt = eventReceivedAt;
 
       handleTurnStreamEvent({
         data,
@@ -402,6 +429,7 @@ export async function registerAgentStreamTurnEventBinding(
         activeSessionId,
         resolvedWorkspaceId,
         effectiveExecutionStrategy,
+        surfaceThinkingDeltas: thinking !== false,
         content,
         runtime,
         webSearch,
@@ -422,6 +450,14 @@ export async function registerAgentStreamTurnEventBinding(
       scheduleInactivityWatchdog();
     },
   );
+
+  requestState.listenerBoundAt = Date.now();
+  logAgentDebug("AgentStream", "listenerBound", {
+    elapsedMs: requestState.listenerBoundAt - requestState.requestStartedAt,
+    eventName,
+    expectingQueue,
+    sessionId: activeSessionId,
+  });
 
   return () => {
     clearFirstEventWatchdog();

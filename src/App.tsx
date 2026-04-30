@@ -10,7 +10,6 @@
 
 import React, { Suspense, lazy, useState, useCallback } from "react";
 import styled from "styled-components";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { withI18nPatch } from "./i18n/withI18nPatch";
 import { AppPageContent } from "./components/AppPageContent";
 import { SplashScreen } from "./components/SplashScreen";
@@ -47,6 +46,8 @@ import { resolveWebsiteOpenNavigation } from "./lib/deepLink/websiteLaunch";
 import { toast } from "sonner";
 import { SettingsTabs } from "./types/settings";
 import { hasTauriInvokeCapability } from "./lib/tauri-runtime";
+import { shouldReserveMacWindowControls } from "./lib/windowControls";
+import { startWindowDragFromMouseEvent } from "./lib/windowDrag";
 
 const AppContainer = styled.div`
   display: flex;
@@ -66,15 +67,42 @@ const MainContent = styled.main<{ $withSidebarGap?: boolean }>`
   background: var(--lime-app-bg, hsl(var(--background)));
 `;
 
-const WindowDragRegion = styled.div`
+const WINDOW_DRAG_TOP_HEIGHT = 30;
+const WINDOW_DRAG_EDGE_WIDTH = 8;
+const WINDOW_DRAG_DEFAULT_SAFE_LEFT = 160;
+const WINDOW_DRAG_MAC_SAFE_LEFT = 92;
+
+const WindowDragLayer = styled.div`
   position: fixed;
-  top: 0;
-  left: 160px;
-  right: 0;
-  height: 28px;
+  inset: 0;
   z-index: 1000;
-  background: transparent;
+  pointer-events: none;
+`;
+
+const WindowTopDragRegion = styled.div<{ $reserveMacWindowControls?: boolean }>`
+  position: absolute;
+  top: 0;
+  left: ${({ $reserveMacWindowControls }) =>
+    $reserveMacWindowControls
+      ? `${WINDOW_DRAG_MAC_SAFE_LEFT}px`
+      : `${WINDOW_DRAG_DEFAULT_SAFE_LEFT}px`};
+  right: 0;
+  height: ${WINDOW_DRAG_TOP_HEIGHT}px;
+  pointer-events: auto;
   user-select: none;
+  app-region: drag;
+  -webkit-app-region: drag;
+`;
+
+const WindowSideDragRegion = styled.div<{ $side: "left" | "right" }>`
+  position: absolute;
+  top: ${WINDOW_DRAG_TOP_HEIGHT}px;
+  bottom: 0;
+  ${({ $side }) => $side}: 0;
+  width: ${WINDOW_DRAG_EDGE_WIDTH}px;
+  pointer-events: auto;
+  user-select: none;
+  app-region: drag;
   -webkit-app-region: drag;
 `;
 
@@ -116,6 +144,7 @@ const pageLoadingFallback = (
 
 function AppContent() {
   const hasTauriDesktopRuntime = hasTauriInvokeCapability();
+  const reserveMacWindowControls = shouldReserveMacWindowControls();
   const [showSplash, setShowSplash] = useState(true);
   const {
     currentPage,
@@ -297,21 +326,10 @@ function AppContent() {
   }, [completeOnboarding]);
 
   const handleWindowDragStart = useCallback(
-    async (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!hasTauriDesktopRuntime || event.button !== 0) {
-        return;
-      }
-
-      event.preventDefault();
-
-      try {
-        const currentWindow = getCurrentWindow();
-        await currentWindow.startDragging();
-      } catch (error) {
-        console.warn("[窗口] 主窗口拖拽启动失败:", error);
-      }
+    (event: React.MouseEvent<HTMLElement>) => {
+      void startWindowDragFromMouseEvent(event, { source: "app_shell" });
     },
-    [hasTauriDesktopRuntime],
+    [],
   );
 
   if (showSplash) {
@@ -335,10 +353,26 @@ function AppContent() {
       <ComponentDebugProvider>
         <AppContainer>
           {hasTauriDesktopRuntime ? (
-            <WindowDragRegion
-              data-tauri-drag-region
-              onMouseDown={handleWindowDragStart}
-            />
+            <WindowDragLayer aria-hidden="true">
+              <WindowTopDragRegion
+                $reserveMacWindowControls={reserveMacWindowControls}
+                data-tauri-drag-region
+                data-lime-window-drag-region
+                onMouseDown={handleWindowDragStart}
+              />
+              <WindowSideDragRegion
+                $side="left"
+                data-tauri-drag-region
+                data-lime-window-drag-region
+                onMouseDown={handleWindowDragStart}
+              />
+              <WindowSideDragRegion
+                $side="right"
+                data-tauri-drag-region
+                data-lime-window-drag-region
+                onMouseDown={handleWindowDragStart}
+              />
+            </WindowDragLayer>
           ) : null}
           {shouldShowAppSidebar && (
             <AppSidebar
@@ -347,9 +381,19 @@ function AppContent() {
               requestedPage={requestedPage}
               requestedPageParams={requestedPageParams}
               onNavigate={handleNavigate}
+              onStartWindowDrag={handleWindowDragStart}
             />
           )}
-          <MainContent $withSidebarGap={shouldAddMainContentGap}>
+          <MainContent
+            $withSidebarGap={shouldAddMainContentGap}
+            data-lime-window-drag-region
+            onMouseDown={(event) => {
+              void startWindowDragFromMouseEvent(event, {
+                allowDescendantTargets: false,
+                source: "main_content",
+              });
+            }}
+          >
             <Suspense fallback={pageLoadingFallback}>
               <AppPageContent
                 currentPage={currentPage}

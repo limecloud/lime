@@ -345,6 +345,71 @@ export const normalizeHistoricalTopicSnapshotMessages = (
   messages: Message[],
 ): Message[] => messages.map(normalizeHistoricalTopicSnapshotMessage);
 
+function compactHistoricalRestoreMessage(message: Message): Message {
+  const normalized = normalizeHistoricalTopicSnapshotMessage(message);
+  if (normalized.role !== "assistant") {
+    return normalized;
+  }
+
+  return {
+    ...normalized,
+    toolCalls: undefined,
+    actionRequests: undefined,
+    contextTrace: undefined,
+  };
+}
+
+export const compactHistoricalRestoreMessages = (
+  messages: Message[],
+): Message[] =>
+  normalizeHistoryMessages(messages)
+    .map(compactHistoricalRestoreMessage)
+    .filter((message) => {
+      if (message.role !== "assistant") {
+        return true;
+      }
+
+      if (hasRenderableAssistantTextContent(message)) {
+        return true;
+      }
+
+      return (
+        (message.images?.length || 0) > 0 ||
+        (message.artifacts?.length || 0) > 0 ||
+        Boolean(message.imageWorkbenchPreview) ||
+        Boolean(message.taskPreview)
+      );
+    });
+
+export const shouldCompactCompletedSessionHistory = (
+  detail: AsterSessionDetail,
+): boolean => {
+  const historyLimit =
+    typeof detail.history_limit === "number" &&
+    Number.isFinite(detail.history_limit) &&
+    detail.history_limit > 0
+      ? Math.trunc(detail.history_limit)
+      : null;
+
+  if (historyLimit === null) {
+    return false;
+  }
+
+  const hasActiveTurn = (detail.turns || []).some(
+    (turn) => turn.status === "running",
+  );
+  const hasActiveItem = (detail.items || []).some(
+    (item) => item.status === "in_progress",
+  );
+  const hasQueuedTurn = (detail.queued_turns || []).length > 0;
+
+  return !hasActiveTurn && !hasActiveItem && !hasQueuedTurn;
+};
+
+interface HydrateSessionDetailMessagesOptions {
+  compactCompletedHistory?: boolean;
+}
+
 function normalizePreviewSignatureValue(value: unknown): string {
   if (typeof value === "string") {
     return normalizeSignatureText(value);
@@ -453,6 +518,17 @@ function taskPreviewSignature(preview?: MessageTaskPreview): string {
           )
           .join("|")
       : "";
+  const audioFields =
+    preview.kind === "audio_generate"
+      ? [
+          preview.taskFilePath,
+          preview.audioUrl,
+          preview.mimeType,
+          preview.durationMs,
+          preview.sourceText,
+          preview.voice,
+        ]
+      : [];
 
   return [
     preview.kind,
@@ -469,6 +545,7 @@ function taskPreviewSignature(preview?: MessageTaskPreview): string {
     preview.phase,
     preview.statusMessage,
     ...videoFields,
+    ...audioFields,
     metaItems,
     imageCandidates,
   ]
@@ -1099,9 +1176,13 @@ export const dedupeAdjacentHistoryMessages = (
 export const hydrateSessionDetailMessages = (
   detail: AsterSessionDetail,
   topicId: string,
+  options: HydrateSessionDetailMessagesOptions = {},
 ): Message[] => {
   const historyToolNameById = new Map<string, string>();
   const historyToolArgumentsById = new Map<string, string | undefined>();
+  const compactCompletedHistory =
+    options.compactCompletedHistory === true &&
+    shouldCompactCompletedSessionHistory(detail);
   const historyOffset =
     typeof detail.history_offset === "number" &&
     Number.isFinite(detail.history_offset) &&
@@ -1175,6 +1256,16 @@ export const hydrateSessionDetailMessages = (
           partType === "output_text"
         ) {
           appendText(part.text ?? part.content);
+          continue;
+        }
+
+        if (
+          compactCompletedHistory &&
+          (partType === "thinking" ||
+            partType === "reasoning" ||
+            partType === "tool_request" ||
+            partType === "tool_response")
+        ) {
           continue;
         }
 
@@ -1368,26 +1459,26 @@ export const hydrateSessionDetailMessages = (
         return [];
       }
 
+      const hydratedMessage: Message = {
+        id: `${topicId}-${historyAbsoluteStartIndex + index}`,
+        role: normalizedRole,
+        content,
+        images: images.length > 0 ? images : undefined,
+        contentParts:
+          sanitizedContentParts.length > 0 ? sanitizedContentParts : undefined,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        timestamp: messageTimestamp,
+        isThinking: false,
+        usage: normalizedRole === "assistant" ? usage : undefined,
+        thinkingContent: extractThinkingContentFromParts(sanitizedContentParts),
+        imageWorkbenchPreview,
+        taskPreview,
+      };
+
       return [
-        {
-          id: `${topicId}-${historyAbsoluteStartIndex + index}`,
-          role: normalizedRole,
-          content,
-          images: images.length > 0 ? images : undefined,
-          contentParts:
-            sanitizedContentParts.length > 0
-              ? sanitizedContentParts
-              : undefined,
-          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-          timestamp: messageTimestamp,
-          isThinking: false,
-          usage: normalizedRole === "assistant" ? usage : undefined,
-          thinkingContent: extractThinkingContentFromParts(
-            sanitizedContentParts,
-          ),
-          imageWorkbenchPreview,
-          taskPreview,
-        },
+        compactCompletedHistory
+          ? compactHistoricalRestoreMessage(hydratedMessage)
+          : hydratedMessage,
       ];
     });
 

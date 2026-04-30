@@ -472,7 +472,7 @@ impl Tool for SendInputTool {
                     "oneOf": [
                         { "type": "string" },
                         { "type": "object" },
-                        { "type": "array" },
+                        { "type": "array", "items": {} },
                         { "type": "number" },
                         { "type": "boolean" },
                         { "type": "null" }
@@ -1179,6 +1179,32 @@ mod tests {
             Err(ToolError::InvalidParams(message))
             if message.contains("unknown field `unexpected`")
         ));
+    }
+
+    #[test]
+    fn test_send_message_array_schema_declares_items() {
+        let tool = SendInputTool::new(Arc::new(|_request| {
+            Box::pin(async move {
+                Ok(SendInputResponse {
+                    submission_id: "unused".to_string(),
+                    extra: BTreeMap::new(),
+                })
+            })
+        }));
+
+        let schema = tool.input_schema();
+        let message_variants = schema["properties"]["message"]["oneOf"]
+            .as_array()
+            .expect("message oneOf should be an array");
+        let array_variant = message_variants
+            .iter()
+            .find(|variant| variant["type"] == "array")
+            .expect("message should accept arrays");
+
+        assert!(
+            array_variant.get("items").is_some(),
+            "OpenAI-compatible tool schemas require array schemas to declare items"
+        );
     }
 
     #[tokio::test]

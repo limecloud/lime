@@ -2,6 +2,10 @@ import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentRuntimeToolInventory } from "@/lib/api/agentRuntime";
+import {
+  areLightweightRenderersRegistered,
+  registerLightweightRenderers,
+} from "@/components/artifact/renderers";
 import { HarnessStatusPanel } from "./HarnessStatusPanel";
 import type { HarnessSessionState } from "../utils/harnessState";
 
@@ -142,6 +146,18 @@ function findButtonByText(text: string): HTMLButtonElement | null {
     (button): button is HTMLButtonElement =>
       button.textContent?.trim() === text,
   ) as HTMLButtonElement | null;
+}
+
+async function flushUntilTextAppears(text: string): Promise<void> {
+  for (let index = 0; index < 20; index += 1) {
+    if (document.body.textContent?.includes(text)) {
+      return;
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+  }
 }
 
 function createToolInventory(): AgentRuntimeToolInventory {
@@ -610,6 +626,10 @@ beforeEach(() => {
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
 
+  if (!areLightweightRenderersRegistered()) {
+    registerLightweightRenderers();
+  }
+
   originalClipboard = navigator.clipboard;
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -949,6 +969,56 @@ describe("HarnessStatusPanel", () => {
             "Artifact 校验已恢复 1 个产物，fallback 0 次。",
           ],
         },
+        modality_runtime_contracts: {
+          snapshot_count: 2,
+          snapshot_index: {
+            browser_action_index: {
+              action_count: 2,
+              session_count: 1,
+              observation_count: 1,
+              screenshot_count: 1,
+              last_url: "https://example.com/",
+              session_ids: ["browser-session-1"],
+              target_ids: ["target-1"],
+              profile_keys: ["general_browser_assist"],
+              status_counts: [{ status: "completed", count: 2 }],
+              artifact_kind_counts: [
+                { artifact_kind: "browser_session", count: 1 },
+                { artifact_kind: "browser_snapshot", count: 1 },
+              ],
+              action_counts: [
+                { action: "navigate", count: 1 },
+                { action: "get_page_info", count: 1 },
+              ],
+              backend_counts: [{ backend: "lime_extension_bridge", count: 1 }],
+              items: [
+                {
+                  artifact_kind: "browser_session",
+                  action: "navigate",
+                  status: "completed",
+                  success: true,
+                  session_id: "browser-session-1",
+                  target_id: "target-1",
+                  backend: "cdp_direct",
+                  last_url: "https://example.com/",
+                },
+                {
+                  artifact_kind: "browser_snapshot",
+                  action: "get_page_info",
+                  status: "completed",
+                  success: true,
+                  session_id: "browser-session-1",
+                  target_id: "target-1",
+                  entry_source: "at_browser_agent_command",
+                  backend: "lime_extension_bridge",
+                  last_url: "https://example.com/",
+                  observation_available: true,
+                  screenshot_available: true,
+                },
+              ],
+            },
+          },
+        },
       },
       artifacts: [
         {
@@ -992,6 +1062,24 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("阻塞失败");
     expect(document.body.textContent).toContain("验证失败焦点");
     expect(document.body.textContent).toContain("已恢复结果");
+    expect(document.body.textContent).toContain("Browser Assist 索引");
+    expect(document.body.textContent).toContain("https://example.com/");
+    expect(document.body.textContent).toContain("browser_snapshot");
+    expect(document.body.textContent).toContain("get_page_info");
+    expect(document.body.textContent).toContain("observation / screenshot");
+    const replayButton = document.body.querySelector(
+      'button[aria-label="打开 Browser Assist 复盘"]',
+    ) as HTMLButtonElement | null;
+    expect(replayButton).not.toBeNull();
+
+    await act(async () => {
+      replayButton?.click();
+      await Promise.resolve();
+    });
+    await flushUntilTextAppears("最近浏览器动作");
+
+    expect(document.body.textContent).toContain("最近浏览器动作");
+    expect(document.body.textContent).toContain("browser_replay_viewer");
     expect(document.body.textContent).toContain("当前已知缺口");
     expect(document.body.textContent).toContain(
       ".lime/harness/sessions/session-evidence-1/evidence/summary.md",

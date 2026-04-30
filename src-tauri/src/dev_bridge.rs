@@ -267,6 +267,9 @@ async fn stream_events(
             listener_id,
         };
 
+        // 先刷新一个 SSE 注释，避免浏览器 EventSource 在首个业务事件到达前一直不触发 open。
+        yield Ok::<SseEvent, Infallible>(SseEvent::default().comment("ready"));
+
         while let Some(payload) = rx.recv().await {
             yield Ok::<SseEvent, Infallible>(SseEvent::default().data(payload));
         }

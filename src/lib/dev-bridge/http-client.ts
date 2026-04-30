@@ -29,6 +29,10 @@ const DEV_BRIDGE_PROVIDER_PROBE_COMMANDS = new Set([
   "test_api_key_provider_chat",
 ]);
 
+const DEV_BRIDGE_AGENT_LONG_RUNNING_COMMANDS = new Set([
+  "agent_generate_title",
+]);
+
 export interface InvokeRequest {
   cmd: string;
   args?: unknown;
@@ -56,7 +60,10 @@ let bridgeConnectionBackoffUntil = 0;
 let bridgeHealthProbePromise: Promise<boolean> | null = null;
 
 function resolveBridgeRequestTimeoutMs(cmd: string): number {
-  if (cmd.startsWith("agent_runtime_")) {
+  if (
+    cmd.startsWith("agent_runtime_") ||
+    DEV_BRIDGE_AGENT_LONG_RUNNING_COMMANDS.has(cmd)
+  ) {
     return DEV_BRIDGE_AGENT_RUNTIME_TIMEOUT_MS;
   }
   if (DEV_BRIDGE_PROVIDER_PROBE_COMMANDS.has(cmd)) {

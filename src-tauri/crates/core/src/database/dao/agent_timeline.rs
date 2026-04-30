@@ -6,17 +6,49 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 const HISTORY_FILE_ARTIFACT_INLINE_CONTENT_BYTES_LIMIT: usize = 16 * 1024;
+const HISTORY_ITEM_INLINE_OUTPUT_BYTES_LIMIT: usize = 16 * 1024;
 
 fn history_item_payload_json_projection_sql() -> String {
     format!(
         "CASE
+             WHEN NOT json_valid(payload_json) THEN payload_json
              WHEN item_type = 'file_artifact'
-                  AND length(payload_json) > {limit}
-                  AND json_valid(payload_json)
+                  AND length(payload_json) > {file_limit}
              THEN json_remove(payload_json, '$.content')
+             WHEN item_type = 'tool_call'
+                  AND json_type(payload_json, '$.output') = 'text'
+                  AND length(json_extract(payload_json, '$.output')) > {output_limit}
+             THEN json_set(
+                 payload_json,
+                 '$.output',
+                 substr(json_extract(payload_json, '$.output'), 1, {output_limit})
+                     || char(10) || char(10)
+                     || '[历史输出已截断，完整输出未随首屏加载。]'
+             )
+             WHEN item_type = 'command_execution'
+                  AND json_type(payload_json, '$.aggregated_output') = 'text'
+                  AND length(json_extract(payload_json, '$.aggregated_output')) > {output_limit}
+             THEN json_set(
+                 payload_json,
+                 '$.aggregated_output',
+                 substr(json_extract(payload_json, '$.aggregated_output'), 1, {output_limit})
+                     || char(10) || char(10)
+                     || '[历史输出已截断，完整输出未随首屏加载。]'
+             )
+             WHEN item_type = 'web_search'
+                  AND json_type(payload_json, '$.output') = 'text'
+                  AND length(json_extract(payload_json, '$.output')) > {output_limit}
+             THEN json_set(
+                 payload_json,
+                 '$.output',
+                 substr(json_extract(payload_json, '$.output'), 1, {output_limit})
+                     || char(10) || char(10)
+                     || '[历史输出已截断，完整输出未随首屏加载。]'
+             )
              ELSE payload_json
          END",
-        limit = HISTORY_FILE_ARTIFACT_INLINE_CONTENT_BYTES_LIMIT,
+        file_limit = HISTORY_FILE_ARTIFACT_INLINE_CONTENT_BYTES_LIMIT,
+        output_limit = HISTORY_ITEM_INLINE_OUTPUT_BYTES_LIMIT,
     )
 }
 
@@ -873,6 +905,63 @@ mod tests {
                     .and_then(|value| value.get("artifactTitle"))
                     .and_then(serde_json::Value::as_str)
                     == Some("日报")
+        ));
+    }
+
+    #[test]
+    fn item_tail_query_should_truncate_large_tool_output() {
+        let conn = setup_conn();
+        let turn = AgentThreadTurn {
+            id: "turn-tool-output".to_string(),
+            thread_id: "thread-1".to_string(),
+            prompt_text: "生成封面".to_string(),
+            status: AgentThreadTurnStatus::Completed,
+            started_at: "2026-03-13T06:00:00Z".to_string(),
+            completed_at: Some("2026-03-13T06:00:10Z".to_string()),
+            error_message: None,
+            created_at: "2026-03-13T06:00:00Z".to_string(),
+            updated_at: "2026-03-13T06:00:10Z".to_string(),
+        };
+        AgentTimelineDao::create_turn(&conn, &turn).unwrap();
+
+        let large_output = format!("封面工具输出开始\n{}", "大结果".repeat(20_000));
+        AgentTimelineDao::upsert_item(
+            &conn,
+            &AgentThreadItem {
+                id: "item-large-tool-output".to_string(),
+                thread_id: "thread-1".to_string(),
+                turn_id: turn.id,
+                sequence: 1,
+                status: AgentThreadItemStatus::Completed,
+                started_at: "2026-03-13T06:00:01Z".to_string(),
+                completed_at: Some("2026-03-13T06:00:02Z".to_string()),
+                updated_at: "2026-03-13T06:00:02Z".to_string(),
+                payload: AgentThreadItemPayload::ToolCall {
+                    tool_name: "social_generate_cover_image".to_string(),
+                    arguments: Some(serde_json::json!({ "prompt": "咖啡封面" })),
+                    output: Some(large_output.clone()),
+                    success: Some(true),
+                    error: None,
+                    metadata: None,
+                },
+            },
+        )
+        .unwrap();
+
+        let full_items = AgentTimelineDao::list_items_by_thread(&conn, "thread-1").unwrap();
+        let tail_items = AgentTimelineDao::list_items_by_thread_tail(&conn, "thread-1", 1).unwrap();
+
+        assert!(matches!(
+            &full_items[0].payload,
+            AgentThreadItemPayload::ToolCall { output: Some(output), .. }
+                if output == &large_output
+        ));
+        assert!(matches!(
+            &tail_items[0].payload,
+            AgentThreadItemPayload::ToolCall { output: Some(output), .. }
+                if output.starts_with("封面工具输出开始")
+                    && output.contains("历史输出已截断")
+                    && output.len() < large_output.len()
         ));
     }
 

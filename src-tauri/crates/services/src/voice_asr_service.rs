@@ -23,9 +23,9 @@
 //! let text = AsrService::transcribe(&credential, &audio_data, 16000).await?;
 //! ```
 
-#[cfg(feature = "local-whisper")]
 use std::path::PathBuf;
 
+use lime_core::app_paths;
 #[cfg(feature = "local-whisper")]
 use lime_core::config::WhisperModelSize;
 use lime_core::config::{AsrCredentialEntry, AsrProviderType};
@@ -33,6 +33,10 @@ use lime_core::config::{AsrCredentialEntry, AsrProviderType};
 use super::voice_config_service;
 use voice_core::asr_client::{AsrClient, BaiduClient, OpenAIWhisperClient, XunfeiClient};
 use voice_core::types::AudioData;
+
+const SENSEVOICE_MODEL_FILE: &str = "model.int8.onnx";
+const SENSEVOICE_TOKENS_FILE: &str = "tokens.txt";
+const SENSEVOICE_VAD_FILE: &str = "silero_vad.onnx";
 
 /// ASR 服务
 pub struct AsrService;
@@ -56,9 +60,16 @@ impl AsrService {
         audio_data: &[u8],
         sample_rate: u32,
     ) -> Result<String, String> {
-        // 如果是本地 Whisper，直接调用
-        if matches!(credential.provider, AsrProviderType::WhisperLocal) {
-            return Self::transcribe_whisper_local(credential, audio_data, sample_rate).await;
+        // 本地服务直接调用，不走云端回退链。
+        match credential.provider {
+            AsrProviderType::WhisperLocal => {
+                return Self::transcribe_whisper_local(credential, audio_data, sample_rate).await;
+            }
+            AsrProviderType::SenseVoiceLocal => {
+                return Self::transcribe_sensevoice_local(credential, audio_data, sample_rate)
+                    .await;
+            }
+            _ => {}
         }
 
         // 云端服务：先尝试云端，失败则回退到本地 Whisper
@@ -73,6 +84,7 @@ impl AsrService {
                 Self::transcribe_xunfei(credential, audio_data, sample_rate).await
             }
             AsrProviderType::WhisperLocal => unreachable!(), // 已在上面处理
+            AsrProviderType::SenseVoiceLocal => unreachable!(), // 已在上面处理
         };
 
         // 云端成功，直接返回
@@ -176,6 +188,114 @@ impl AsrService {
         _sample_rate: u32,
     ) -> Result<String, String> {
         Err("本地 Whisper 功能未启用。请使用云端 ASR 服务（OpenAI、百度、讯飞）".to_string())
+    }
+
+    /// 本地 SenseVoice 识别。
+    #[cfg(feature = "local-sensevoice")]
+    async fn transcribe_sensevoice_local(
+        credential: &AsrCredentialEntry,
+        audio_data: &[u8],
+        sample_rate: u32,
+    ) -> Result<String, String> {
+        let config = credential
+            .sensevoice_config
+            .as_ref()
+            .ok_or("SenseVoice 本地配置缺失")?;
+
+        let model_dir = Self::get_sensevoice_model_dir(config)?;
+        let model_path = model_dir.join(SENSEVOICE_MODEL_FILE);
+        let tokens_path = model_dir.join(SENSEVOICE_TOKENS_FILE);
+        let vad_path = model_dir.join(SENSEVOICE_VAD_FILE);
+        Self::ensure_sensevoice_required_files(&[
+            (&model_path, SENSEVOICE_MODEL_FILE),
+            (&tokens_path, SENSEVOICE_TOKENS_FILE),
+            (&vad_path, SENSEVOICE_VAD_FILE),
+        ])?;
+
+        let audio = Self::build_audio_data(audio_data, sample_rate)?;
+        if !audio.is_valid() {
+            return Err("录音时间过短（需要至少 0.5 秒）".to_string());
+        }
+
+        let language = if credential.language.trim().is_empty() {
+            "auto".to_string()
+        } else {
+            credential.language.clone()
+        };
+        let use_itn = config.use_itn;
+        let num_threads = config.num_threads;
+
+        tokio::task::spawn_blocking(move || {
+            let transcriber = voice_core::SenseVoiceTranscriber::new(
+                model_path,
+                tokens_path,
+                &language,
+                use_itn,
+                num_threads,
+            )
+            .map_err(|error| format!("SenseVoice 模型加载失败: {error}"))?;
+
+            let result = transcriber
+                .transcribe(&audio)
+                .map_err(|error| format!("SenseVoice 识别失败: {error}"))?;
+
+            Ok::<_, String>(result.text)
+        })
+        .await
+        .map_err(|error| format!("SenseVoice 识别任务执行失败: {error}"))?
+    }
+
+    /// 本地 SenseVoice 识别（未启用 local-sensevoice feature 时的 stub）
+    #[cfg(not(feature = "local-sensevoice"))]
+    async fn transcribe_sensevoice_local(
+        _credential: &AsrCredentialEntry,
+        _audio_data: &[u8],
+        _sample_rate: u32,
+    ) -> Result<String, String> {
+        Err(
+            "本地 SenseVoice 功能未启用。请启用 local-sensevoice 构建特性，或使用云端 ASR 服务"
+                .to_string(),
+        )
+    }
+
+    fn get_sensevoice_model_dir(
+        config: &lime_core::config::SenseVoiceLocalConfig,
+    ) -> Result<PathBuf, String> {
+        if let Some(model_dir) = config.model_dir.as_ref() {
+            let trimmed = model_dir.trim();
+            if !trimmed.is_empty() {
+                return Ok(PathBuf::from(trimmed));
+            }
+        }
+
+        Ok(app_paths::preferred_data_dir()?
+            .join("models")
+            .join("voice")
+            .join(&config.model_id))
+    }
+
+    fn ensure_sensevoice_required_files(files: &[(&PathBuf, &str)]) -> Result<(), String> {
+        let missing_files = files
+            .iter()
+            .filter_map(
+                |(path, name)| {
+                    if path.is_file() {
+                        None
+                    } else {
+                        Some(*name)
+                    }
+                },
+            )
+            .collect::<Vec<_>>();
+
+        if missing_files.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "本地 SenseVoice Small 尚未安装或文件不完整，请先在设置 -> 语音模型中下载；缺失文件: {}",
+                missing_files.join(", ")
+            ))
+        }
     }
 
     /// 获取 Whisper 模型文件路径
@@ -306,5 +426,42 @@ impl AsrService {
         }
 
         Ok(audio)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lime_core::config::SenseVoiceLocalConfig;
+
+    #[test]
+    fn sensevoice_model_dir_prefers_explicit_config_path() {
+        let config = SenseVoiceLocalConfig {
+            model_dir: Some("/tmp/lime-sensevoice".to_string()),
+            ..SenseVoiceLocalConfig::default()
+        };
+
+        let path = AsrService::get_sensevoice_model_dir(&config).expect("model dir");
+
+        assert_eq!(path, PathBuf::from("/tmp/lime-sensevoice"));
+    }
+
+    #[test]
+    fn sensevoice_required_files_reports_missing_names() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let model_path = temp.path().join(SENSEVOICE_MODEL_FILE);
+        std::fs::write(&model_path, b"mock").expect("write model");
+        let tokens_path = temp.path().join(SENSEVOICE_TOKENS_FILE);
+        let vad_path = temp.path().join(SENSEVOICE_VAD_FILE);
+
+        let error = AsrService::ensure_sensevoice_required_files(&[
+            (&model_path, SENSEVOICE_MODEL_FILE),
+            (&tokens_path, SENSEVOICE_TOKENS_FILE),
+            (&vad_path, SENSEVOICE_VAD_FILE),
+        ])
+        .expect_err("missing files should fail");
+
+        assert!(error.contains(SENSEVOICE_TOKENS_FILE));
+        assert!(error.contains(SENSEVOICE_VAD_FILE));
     }
 }

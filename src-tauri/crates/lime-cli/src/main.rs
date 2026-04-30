@@ -14,6 +14,12 @@ use lime_media_runtime::{
 };
 use serde_json::{json, Value};
 
+const AUDIO_TRANSCRIPTION_CONTRACT_KEY: &str = "audio_transcription";
+const AUDIO_TRANSCRIPTION_MODALITY: &str = "audio";
+const AUDIO_TRANSCRIPTION_ROUTING_SLOT: &str = "audio_transcription_model";
+const AUDIO_TRANSCRIPTION_REQUIRED_CAPABILITIES: &[&str] =
+    &["text_generation", "audio_transcription"];
+
 use crate::catalog::{
     find_skill_entry, find_task_entry, ROOT_AFTER_HELP, SKILL_AFTER_HELP, SKILL_ENTRIES,
     TASK_AFTER_HELP, TASK_ENTRIES,
@@ -967,6 +973,21 @@ fn create_transcription_task(args: TranscriptionGenerateArgs) -> Result<Value, M
             "source_url 或 source_path 至少需要提供一个".to_string(),
         ));
     }
+    let transcript = json!({
+        "kind": "transcript",
+        "status": "pending",
+        "source_url": source_url,
+        "source_path": source_path,
+        "language": args.language.as_deref(),
+        "output_format": args.output_format.as_deref(),
+        "speaker_labels": args.speaker_labels,
+        "timestamps": args.timestamps,
+        "provider_id": args.provider_id.as_deref(),
+        "model": args.model.as_deref(),
+        "modality_contract_key": AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+        "modality": AUDIO_TRANSCRIPTION_MODALITY,
+        "routing_slot": AUDIO_TRANSCRIPTION_ROUTING_SLOT,
+    });
 
     let output = write_task_artifact(
         &workspace_root,
@@ -987,6 +1008,26 @@ fn create_transcription_task(args: TranscriptionGenerateArgs) -> Result<Value, M
             "project_id": args.project_id,
             "content_id": args.content_id,
             "entry_source": args.entry_source,
+            "modality_contract_key": AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+            "modality": AUDIO_TRANSCRIPTION_MODALITY,
+            "required_capabilities": AUDIO_TRANSCRIPTION_REQUIRED_CAPABILITIES,
+            "routing_slot": AUDIO_TRANSCRIPTION_ROUTING_SLOT,
+            "runtime_contract": {
+                "contract_key": AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+                "modality": AUDIO_TRANSCRIPTION_MODALITY,
+                "required_capabilities": AUDIO_TRANSCRIPTION_REQUIRED_CAPABILITIES,
+                "routing_slot": AUDIO_TRANSCRIPTION_ROUTING_SLOT,
+                "executor_binding": {
+                    "executor_kind": "skill",
+                    "binding_key": "transcription_generate"
+                },
+                "truth_source": ["transcript_artifact", "runtime_timeline_event"],
+                "artifact_kinds": ["transcript"],
+                "viewer_surface": ["transcript_viewer", "document_viewer"],
+                "owner_surface": "agent_runtime"
+            },
+            "requested_target": "transcript",
+            "transcript": transcript,
         }),
         task_write_options(&args.output),
     )?;
@@ -1376,6 +1417,30 @@ mod tests {
         assert_eq!(output["record"]["payload"]["output_format"], "srt");
         assert_eq!(output["record"]["payload"]["speaker_labels"], true);
         assert_eq!(output["record"]["payload"]["timestamps"], true);
+        assert_eq!(
+            output["record"]["payload"]["modality_contract_key"],
+            AUDIO_TRANSCRIPTION_CONTRACT_KEY
+        );
+        assert_eq!(
+            output["record"]["payload"]["routing_slot"],
+            AUDIO_TRANSCRIPTION_ROUTING_SLOT
+        );
+        assert_eq!(
+            output["record"]["payload"]["runtime_contract"]["contract_key"],
+            AUDIO_TRANSCRIPTION_CONTRACT_KEY
+        );
+        assert_eq!(
+            output["record"]["payload"]["transcript"]["kind"],
+            "transcript"
+        );
+        assert_eq!(
+            output["record"]["payload"]["transcript"]["status"],
+            "pending"
+        );
+        assert_eq!(
+            output["record"]["payload"]["transcript"]["source_path"],
+            "/tmp/interview.wav"
+        );
     }
 
     #[test]

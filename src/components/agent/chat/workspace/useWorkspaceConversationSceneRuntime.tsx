@@ -4,11 +4,12 @@ import type {
   ReactNode,
   SetStateAction,
 } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StepProgress } from "@/lib/workspace/workbenchUi";
 import { useWorkspaceNavigationActions } from "./useWorkspaceNavigationActions";
 import { useWorkspaceInputbarSceneRuntime } from "./useWorkspaceInputbarSceneRuntime";
 import { useWorkspaceCanvasSceneRuntime } from "./useWorkspaceCanvasSceneRuntime";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import { CanvasSessionOverviewPanel } from "../components/CanvasSessionOverviewPanel";
 import { MessageList } from "../components/MessageList";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
@@ -212,6 +213,73 @@ function resolvePathLeaf(value?: string | null): string {
   }
   const segments = normalized.split("/").filter(Boolean);
   return segments.at(-1) || normalized;
+}
+
+const SESSION_RUNTIME_PROJECTION_DEFER_MESSAGE_THRESHOLD = 20;
+const SESSION_RUNTIME_PROJECTION_DEFER_TURN_THRESHOLD = 6;
+const SESSION_RUNTIME_PROJECTION_DEFER_ITEM_THRESHOLD = 24;
+const SESSION_RUNTIME_PROJECTION_DEFER_DELAY_MS = 700;
+const SESSION_RUNTIME_PROJECTION_DEFER_IDLE_TIMEOUT_MS = 1_800;
+const EMPTY_PROJECTED_TURNS: NonNullable<
+  ConversationScenePresentationParams["messageList"]["turns"]
+> = [];
+const EMPTY_PROJECTED_THREAD_ITEMS: NonNullable<
+  ConversationScenePresentationParams["messageList"]["threadItems"]
+> = [];
+const EMPTY_PROJECTED_PENDING_ACTIONS: NonNullable<
+  ConversationScenePresentationParams["messageList"]["pendingActions"]
+> = [];
+const EMPTY_PROJECTED_SUBMITTED_ACTIONS: NonNullable<
+  ConversationScenePresentationParams["messageList"]["submittedActionsInFlight"]
+> = [];
+const EMPTY_PROJECTED_QUEUED_TURNS: NonNullable<
+  ConversationScenePresentationParams["messageList"]["queuedTurns"]
+> = [];
+const EMPTY_PROJECTED_CHILD_SUBAGENT_SESSIONS: NonNullable<
+  ConversationScenePresentationParams["messageList"]["childSubagentSessions"]
+> = [];
+
+interface SessionRuntimeProjectionState {
+  key: string;
+  sessionId: string;
+  firstMessageId: string;
+  lastMessageId: string;
+  ready: boolean;
+}
+
+function buildSessionRuntimeProjectionState(params: {
+  key: string;
+  sessionId: string;
+  firstMessageId: string;
+  lastMessageId: string;
+  ready: boolean;
+}): SessionRuntimeProjectionState {
+  return params;
+}
+
+function resolveNextSessionRuntimeProjectionState(
+  current: SessionRuntimeProjectionState,
+  next: SessionRuntimeProjectionState,
+): SessionRuntimeProjectionState {
+  return current.key === next.key &&
+    current.sessionId === next.sessionId &&
+    current.firstMessageId === next.firstMessageId &&
+    current.lastMessageId === next.lastMessageId &&
+    current.ready === next.ready
+    ? current
+    : next;
+}
+
+function hasPersistedHiddenSessionHistory(
+  sessionHistoryWindow:
+    | ConversationScenePresentationParams["messageList"]["sessionHistoryWindow"]
+    | null
+    | undefined,
+): boolean {
+  return Boolean(
+    sessionHistoryWindow &&
+    sessionHistoryWindow.totalMessages > sessionHistoryWindow.loadedMessages,
+  );
 }
 
 interface UseWorkspaceConversationSceneRuntimeParams {
@@ -474,14 +542,14 @@ export function useWorkspaceConversationSceneRuntime({
   currentStepIndex,
   goToStep,
   displayMessages,
-  turns = [],
-  effectiveThreadItems = [],
+  turns = EMPTY_PROJECTED_TURNS,
+  effectiveThreadItems = EMPTY_PROJECTED_THREAD_ITEMS,
   currentTurnId,
   threadRead,
-  pendingActions = [],
-  submittedActionsInFlight,
-  queuedTurns = [],
-  childSubagentSessions = [],
+  pendingActions = EMPTY_PROJECTED_PENDING_ACTIONS,
+  submittedActionsInFlight = EMPTY_PROJECTED_SUBMITTED_ACTIONS,
+  queuedTurns = EMPTY_PROJECTED_QUEUED_TURNS,
+  childSubagentSessions = EMPTY_PROJECTED_CHILD_SUBAGENT_SESSIONS,
   sessionHistoryWindow = null,
   loadFullSessionHistory,
   isPreparingSend,
@@ -522,6 +590,157 @@ export function useWorkspaceConversationSceneRuntime({
   focusedTimelineItemId,
   timelineFocusRequestKey,
 }: UseWorkspaceConversationSceneRuntimeParams) {
+  const sessionRuntimeProjectionSessionId = sessionId ?? "no-session";
+  const sessionRuntimeProjectionFirstMessageId =
+    displayMessages[0]?.id ?? "no-first-message";
+  const sessionRuntimeProjectionLastMessageId =
+    displayMessages[displayMessages.length - 1]?.id ?? "no-last-message";
+  const sessionRuntimeProjectionLastTurnId =
+    turns[turns.length - 1]?.id ?? "no-last-turn";
+  const sessionRuntimeProjectionLastItemId =
+    effectiveThreadItems[effectiveThreadItems.length - 1]?.id ?? "no-last-item";
+  const sessionRuntimeProjectionKey = [
+    sessionRuntimeProjectionSessionId,
+    sessionRuntimeProjectionFirstMessageId,
+    sessionRuntimeProjectionLastMessageId,
+    sessionRuntimeProjectionLastTurnId,
+    sessionRuntimeProjectionLastItemId,
+  ].join("|");
+  const shouldTreatAsRestoredHistoryWindow =
+    isAutoRestoringSession ||
+    hasPersistedHiddenSessionHistory(sessionHistoryWindow);
+  const hasHeavySessionRuntimeProjection =
+    displayMessages.length >=
+      SESSION_RUNTIME_PROJECTION_DEFER_MESSAGE_THRESHOLD ||
+    turns.length >= SESSION_RUNTIME_PROJECTION_DEFER_TURN_THRESHOLD ||
+    effectiveThreadItems.length >=
+      SESSION_RUNTIME_PROJECTION_DEFER_ITEM_THRESHOLD;
+  const shouldConsiderDeferringSessionRuntimeProjection =
+    shouldTreatAsRestoredHistoryWindow &&
+    !isSending &&
+    !focusedTimelineItemId &&
+    !pendingA2UIForm &&
+    hasHeavySessionRuntimeProjection;
+  const [sessionRuntimeProjectionState, setSessionRuntimeProjectionState] =
+    useState(() =>
+      buildSessionRuntimeProjectionState({
+        key: sessionRuntimeProjectionKey,
+        sessionId: sessionRuntimeProjectionSessionId,
+        firstMessageId: sessionRuntimeProjectionFirstMessageId,
+        lastMessageId: sessionRuntimeProjectionLastMessageId,
+        ready: !shouldConsiderDeferringSessionRuntimeProjection,
+      }),
+    );
+  const sessionRuntimeProjectionAlreadyReady =
+    sessionRuntimeProjectionState.key === sessionRuntimeProjectionKey &&
+    sessionRuntimeProjectionState.ready;
+  const isAppendOnlyMessageProjectionUpdate =
+    sessionRuntimeProjectionState.key !== sessionRuntimeProjectionKey &&
+    sessionRuntimeProjectionState.sessionId ===
+      sessionRuntimeProjectionSessionId &&
+    sessionRuntimeProjectionState.firstMessageId ===
+      sessionRuntimeProjectionFirstMessageId &&
+    sessionRuntimeProjectionState.lastMessageId !==
+      sessionRuntimeProjectionLastMessageId;
+  const shouldDeferSessionRuntimeProjection =
+    shouldConsiderDeferringSessionRuntimeProjection &&
+    !sessionRuntimeProjectionAlreadyReady &&
+    !isAppendOnlyMessageProjectionUpdate;
+  const sessionRuntimeProjectionReady =
+    sessionRuntimeProjectionState.key === sessionRuntimeProjectionKey
+      ? sessionRuntimeProjectionState.ready
+      : !shouldDeferSessionRuntimeProjection;
+
+  useEffect(() => {
+    if (!shouldDeferSessionRuntimeProjection) {
+      const nextState = buildSessionRuntimeProjectionState({
+        key: sessionRuntimeProjectionKey,
+        sessionId: sessionRuntimeProjectionSessionId,
+        firstMessageId: sessionRuntimeProjectionFirstMessageId,
+        lastMessageId: sessionRuntimeProjectionLastMessageId,
+        ready: true,
+      });
+      setSessionRuntimeProjectionState((current) =>
+        resolveNextSessionRuntimeProjectionState(current, nextState),
+      );
+      return;
+    }
+
+    const pendingState = buildSessionRuntimeProjectionState({
+      key: sessionRuntimeProjectionKey,
+      sessionId: sessionRuntimeProjectionSessionId,
+      firstMessageId: sessionRuntimeProjectionFirstMessageId,
+      lastMessageId: sessionRuntimeProjectionLastMessageId,
+      ready: false,
+    });
+    setSessionRuntimeProjectionState((current) =>
+      resolveNextSessionRuntimeProjectionState(current, pendingState),
+    );
+    return scheduleMinimumDelayIdleTask(
+      () => {
+        const readyState = buildSessionRuntimeProjectionState({
+          key: sessionRuntimeProjectionKey,
+          sessionId: sessionRuntimeProjectionSessionId,
+          firstMessageId: sessionRuntimeProjectionFirstMessageId,
+          lastMessageId: sessionRuntimeProjectionLastMessageId,
+          ready: true,
+        });
+        setSessionRuntimeProjectionState((current) =>
+          current.key === sessionRuntimeProjectionKey
+            ? resolveNextSessionRuntimeProjectionState(current, readyState)
+            : current,
+        );
+      },
+      {
+        minimumDelayMs: SESSION_RUNTIME_PROJECTION_DEFER_DELAY_MS,
+        idleTimeoutMs: SESSION_RUNTIME_PROJECTION_DEFER_IDLE_TIMEOUT_MS,
+      },
+    );
+  }, [
+    displayMessages.length,
+    effectiveThreadItems.length,
+    focusedTimelineItemId,
+    hasHeavySessionRuntimeProjection,
+    isSending,
+    pendingA2UIForm,
+    sessionRuntimeProjectionFirstMessageId,
+    sessionRuntimeProjectionKey,
+    sessionRuntimeProjectionLastMessageId,
+    sessionRuntimeProjectionSessionId,
+    shouldConsiderDeferringSessionRuntimeProjection,
+    shouldDeferSessionRuntimeProjection,
+    shouldTreatAsRestoredHistoryWindow,
+    turns.length,
+  ]);
+
+  const shouldUseDeferredSessionRuntimeProjection =
+    shouldDeferSessionRuntimeProjection && !sessionRuntimeProjectionReady;
+  const projectedTurns = shouldUseDeferredSessionRuntimeProjection
+    ? EMPTY_PROJECTED_TURNS
+    : turns;
+  const projectedThreadItems = shouldUseDeferredSessionRuntimeProjection
+    ? EMPTY_PROJECTED_THREAD_ITEMS
+    : effectiveThreadItems;
+  const projectedCurrentTurnId = shouldUseDeferredSessionRuntimeProjection
+    ? null
+    : currentTurnId;
+  const projectedThreadRead = shouldUseDeferredSessionRuntimeProjection
+    ? null
+    : threadRead;
+  const projectedPendingActions = shouldUseDeferredSessionRuntimeProjection
+    ? EMPTY_PROJECTED_PENDING_ACTIONS
+    : pendingActions;
+  const projectedSubmittedActionsInFlight =
+    shouldUseDeferredSessionRuntimeProjection
+      ? EMPTY_PROJECTED_SUBMITTED_ACTIONS
+      : submittedActionsInFlight;
+  const projectedQueuedTurns = shouldUseDeferredSessionRuntimeProjection
+    ? EMPTY_PROJECTED_QUEUED_TURNS
+    : queuedTurns;
+  const projectedChildSubagentSessions =
+    shouldUseDeferredSessionRuntimeProjection
+      ? EMPTY_PROJECTED_CHILD_SUBAGENT_SESSIONS
+      : childSubagentSessions;
   const handleQuoteMessage = (content: string) => {
     const normalized = content.trim();
     if (!normalized) {
@@ -549,7 +768,9 @@ export function useWorkspaceConversationSceneRuntime({
     activeTheme === "general" &&
     layoutMode === "chat-canvas";
   const currentSessionTurn =
-    turns.find((turn) => turn.id === currentTurnId) || turns.at(-1) || null;
+    projectedTurns.find((turn) => turn.id === projectedCurrentTurnId) ||
+    projectedTurns.at(-1) ||
+    null;
   const currentSessionStatus = resolveSessionStatusBadge(
     isSending ? "running" : currentSessionTurn?.status,
   );
@@ -557,31 +778,31 @@ export function useWorkspaceConversationSceneRuntime({
     () =>
       buildAgentTaskRuntimeCardModel({
         messages: displayMessages,
-        turns,
-        threadItems: effectiveThreadItems,
-        currentTurnId,
-        threadRead,
-        pendingActions,
-        queuedTurns,
-        childSubagentSessions,
+        turns: projectedTurns,
+        threadItems: projectedThreadItems,
+        currentTurnId: projectedCurrentTurnId,
+        threadRead: projectedThreadRead,
+        pendingActions: projectedPendingActions,
+        queuedTurns: projectedQueuedTurns,
+        childSubagentSessions: projectedChildSubagentSessions,
         isSending,
       }),
     [
-      childSubagentSessions,
-      currentTurnId,
       displayMessages,
-      effectiveThreadItems,
       isSending,
-      pendingActions,
-      queuedTurns,
-      threadRead,
-      turns,
+      projectedChildSubagentSessions,
+      projectedCurrentTurnId,
+      projectedPendingActions,
+      projectedQueuedTurns,
+      projectedThreadItems,
+      projectedThreadRead,
+      projectedTurns,
     ],
   );
-  const runtimeItemCount = effectiveThreadItems.filter(
+  const runtimeItemCount = projectedThreadItems.filter(
     (item) => item.type !== "user_message" && item.type !== "agent_message",
   ).length;
-  const inProgressItemCount = effectiveThreadItems.filter(
+  const inProgressItemCount = projectedThreadItems.filter(
     (item) => item.status === "in_progress",
   ).length;
   const sessionSummaryStats: CanvasWorkbenchSummaryStat[] = [
@@ -604,23 +825,23 @@ export function useWorkspaceConversationSceneRuntime({
     },
     {
       key: "session-follow-up",
-      label: pendingActions.length > 0 ? "待补信息" : "排队消息",
+      label: projectedPendingActions.length > 0 ? "待补信息" : "排队消息",
       value:
-        pendingActions.length > 0
-          ? `待补信息 ${pendingActions.length}`
-          : queuedTurns.length > 0
-            ? `排队 ${queuedTurns.length}`
+        projectedPendingActions.length > 0
+          ? `待补信息 ${projectedPendingActions.length}`
+          : projectedQueuedTurns.length > 0
+            ? `排队 ${projectedQueuedTurns.length}`
             : "无需跟进",
       detail:
-        pendingActions.length > 0
+        projectedPendingActions.length > 0
           ? "仍在等待用户补充或确认的信息。"
-          : queuedTurns.length > 0
-            ? `另有 ${queuedTurns.length} 条消息正在排队。`
+          : projectedQueuedTurns.length > 0
+            ? `另有 ${projectedQueuedTurns.length} 条消息正在排队。`
             : "当前没有待处理的补充或排队消息。",
       tone:
-        pendingActions.length > 0
+        projectedPendingActions.length > 0
           ? "accent"
-          : queuedTurns.length > 0
+          : projectedQueuedTurns.length > 0
             ? "default"
             : "default",
     },
@@ -632,8 +853,8 @@ export function useWorkspaceConversationSceneRuntime({
     tabBadge:
       inProgressItemCount > 0
         ? `进行中 ${inProgressItemCount}`
-        : queuedTurns.length > 0
-          ? `排队 ${queuedTurns.length}`
+        : projectedQueuedTurns.length > 0
+          ? `排队 ${projectedQueuedTurns.length}`
           : undefined,
     tabBadgeTone: inProgressItemCount > 0 ? "sky" : "slate",
     subtitle: currentSessionTurn
@@ -654,20 +875,20 @@ export function useWorkspaceConversationSceneRuntime({
             : `轨迹 ${runtimeItemCount}`,
         tone: inProgressItemCount > 0 ? "accent" : "default",
       },
-      ...(pendingActions.length > 0
+      ...(projectedPendingActions.length > 0
         ? [
             {
               key: "session-pending-actions",
-              label: `待补信息 ${pendingActions.length}`,
+              label: `待补信息 ${projectedPendingActions.length}`,
               tone: "accent" as const,
             },
           ]
         : []),
-      ...(queuedTurns.length > 0
+      ...(projectedQueuedTurns.length > 0
         ? [
             {
               key: "session-queued-turns",
-              label: `排队 ${queuedTurns.length}`,
+              label: `排队 ${projectedQueuedTurns.length}`,
               tone: "default" as const,
             },
           ]
@@ -675,11 +896,11 @@ export function useWorkspaceConversationSceneRuntime({
     ],
     renderPanel: () => (
       <CanvasSessionOverviewPanel
-        turns={turns}
-        threadItems={effectiveThreadItems}
-        currentTurnId={currentTurnId}
-        pendingActions={pendingActions}
-        queuedTurns={queuedTurns}
+        turns={projectedTurns}
+        threadItems={projectedThreadItems}
+        currentTurnId={projectedCurrentTurnId}
+        pendingActions={projectedPendingActions}
+        queuedTurns={projectedQueuedTurns}
         isSending={isSending}
         focusedItemId={focusedTimelineItemId}
       />
@@ -945,17 +1166,18 @@ export function useWorkspaceConversationSceneRuntime({
       onStepClick: goToStep,
     },
     messageList: {
+      sessionId,
       messages: displayMessages,
       emptyStateVariant: messageListEmptyStateVariant,
       providerType,
-      turns,
-      threadItems: effectiveThreadItems,
-      currentTurnId,
-      threadRead,
-      pendingActions,
-      submittedActionsInFlight,
-      queuedTurns,
-      childSubagentSessions,
+      turns: projectedTurns,
+      threadItems: projectedThreadItems,
+      currentTurnId: projectedCurrentTurnId,
+      threadRead: projectedThreadRead,
+      pendingActions: projectedPendingActions,
+      submittedActionsInFlight: projectedSubmittedActionsInFlight,
+      queuedTurns: projectedQueuedTurns,
+      childSubagentSessions: projectedChildSubagentSessions,
       sessionHistoryWindow,
       onLoadFullHistory: loadFullSessionHistory,
       isRestoringSession: isAutoRestoringSession,

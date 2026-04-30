@@ -8,6 +8,7 @@ repository.workspace = true
 [features]
 default = []
 local-whisper = ["voice-core/local-whisper"]
+local-sensevoice = ["voice-core/local-sensevoice"]
 
 [dependencies]
 # 项目内 crate

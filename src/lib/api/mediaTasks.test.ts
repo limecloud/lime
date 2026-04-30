@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { safeInvoke } from "@/lib/dev-bridge";
 import {
   cancelMediaTaskArtifact,
+  completeAudioGenerationTaskArtifact,
   createAudioGenerationTaskArtifact,
   createImageGenerationTaskArtifact,
   getMediaTaskArtifact,
@@ -144,6 +145,80 @@ describe("mediaTasks API", () => {
           modality: "audio",
           requiredCapabilities: ["text_generation", "voice_generation"],
           routingSlot: "voice_generation_model",
+        },
+      },
+    );
+  });
+
+  it("应通过统一网关完成音频任务并回写 audio_output", async () => {
+    vi.mocked(safeInvoke).mockResolvedValueOnce({
+      success: true,
+      task_id: "task-audio-2",
+      task_type: "audio_generate",
+      task_family: "audio",
+      status: "succeeded",
+      normalized_status: "succeeded",
+      path: ".lime/tasks/audio_generate/task-audio-2.json",
+      absolute_path: "/workspace/.lime/tasks/audio_generate/task-audio-2.json",
+      artifact_path: ".lime/tasks/audio_generate/task-audio-2.json",
+      absolute_artifact_path:
+        "/workspace/.lime/tasks/audio_generate/task-audio-2.json",
+      reused_existing: false,
+      record: {
+        task_id: "task-audio-2",
+        task_type: "audio_generate",
+        task_family: "audio",
+        payload: {
+          source_text: "请生成温暖旁白",
+          modality_contract_key: "voice_generation",
+          audio_path: ".lime/runtime/audio/task-audio-2.mp3",
+          audio_output: {
+            kind: "audio_output",
+            status: "completed",
+            audio_path: ".lime/runtime/audio/task-audio-2.mp3",
+            mime_type: "audio/mpeg",
+            duration_ms: 2400,
+          },
+        },
+        status: "succeeded",
+        normalized_status: "succeeded",
+        created_at: "2026-04-04T12:00:00Z",
+        result: {
+          kind: "audio_generation_result",
+          status: "completed",
+          audio_path: ".lime/runtime/audio/task-audio-2.mp3",
+        },
+      },
+    });
+
+    await expect(
+      completeAudioGenerationTaskArtifact({
+        projectRootPath: "/workspace",
+        taskRef: "task-audio-2",
+        audioPath: ".lime/runtime/audio/task-audio-2.mp3",
+        mimeType: "audio/mpeg",
+        durationMs: 2400,
+        providerId: "limecore",
+        model: "voice-pro",
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        task_id: "task-audio-2",
+        normalized_status: "succeeded",
+      }),
+    );
+
+    expect(vi.mocked(safeInvoke)).toHaveBeenCalledWith(
+      "complete_audio_generation_task_artifact",
+      {
+        request: {
+          projectRootPath: "/workspace",
+          taskRef: "task-audio-2",
+          audioPath: ".lime/runtime/audio/task-audio-2.mp3",
+          mimeType: "audio/mpeg",
+          durationMs: 2400,
+          providerId: "limecore",
+          model: "voice-pro",
         },
       },
     );

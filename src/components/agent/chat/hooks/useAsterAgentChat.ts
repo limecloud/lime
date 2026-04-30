@@ -302,7 +302,9 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
   useAgentTopicSnapshot({
     sessionId: session.sessionId,
     hasActiveTopic,
-    suppressInactiveTopicWarning: session.isDetachedActiveSession === true,
+    suppressInactiveTopicWarning:
+      session.isDetachedActiveSession === true ||
+      session.isSessionHydrating === true,
     messages: session.messages,
     isSending: stream.isSending,
     pendingActionCount: tools.pendingActions.length,
@@ -411,7 +413,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
             );
             titleApplied = true;
           } catch (error) {
-            console.warn("[AsterChat] 自动生成会话标题失败:", error);
+            console.debug("[AsterChat] 自动生成会话标题失败:", error);
           } finally {
             if (!cancelled && titleApplied) {
               autoTitleCompletedSessionIdsRef.current.add(activeSessionId);
@@ -633,6 +635,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     createFreshSession: session.createFreshSession,
     ensureSession: session.ensureSession,
     switchTopic: session.switchTopic,
+    prefetchTopic: session.prefetchTopic,
     loadFullSessionHistory: session.loadFullSessionHistory,
     deleteTopic: session.deleteTopic,
     renameTopic: session.renameTopic,

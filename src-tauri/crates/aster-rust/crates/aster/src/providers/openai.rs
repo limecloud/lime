@@ -654,6 +654,7 @@ impl EmbeddingCapable for OpenAiProvider {
 mod tests {
     use super::OpenAiProvider;
     use crate::conversation::message::Message;
+    use crate::model::ModelConfig;
     use crate::session::TurnContextOverride;
     use std::collections::HashMap;
 
@@ -673,6 +674,32 @@ mod tests {
         std::env::set_var("OPENAI_FORCE_RESPONSES_API", "1");
         assert!(OpenAiProvider::uses_responses_api("gpt-4o"));
         std::env::remove_var("OPENAI_FORCE_RESPONSES_API");
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_from_env_applies_openai_custom_headers() {
+        std::env::set_var("OPENAI_API_KEY", "sk-test");
+        std::env::set_var("OPENAI_HOST", "https://llm.limeai.run");
+        std::env::remove_var("OPENAI_BASE_PATH");
+        std::env::set_var("OPENAI_CUSTOM_HEADERS", "X-Lime-Tenant-ID=tenant-0001");
+
+        let provider = OpenAiProvider::from_env(ModelConfig::new("gpt-4o").unwrap())
+            .await
+            .expect("provider should build");
+
+        assert_eq!(
+            provider
+                .api_client
+                .default_headers_for_test()
+                .get("X-Lime-Tenant-ID")
+                .and_then(|value| value.to_str().ok()),
+            Some("tenant-0001")
+        );
+
+        std::env::remove_var("OPENAI_API_KEY");
+        std::env::remove_var("OPENAI_HOST");
+        std::env::remove_var("OPENAI_CUSTOM_HEADERS");
     }
 
     #[test]

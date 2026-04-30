@@ -10,18 +10,7 @@ import {
 } from "@/lib/model/inferModelCapabilities";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 
-export const LIME_HUB_LOCAL_DEV_MODEL_IDS = [
-  "gpt-5.5",
-  "gpt-5.4",
-  "claude-sonnet-4-5",
-  "gemini-2.5-pro",
-  "kimi-coding-plan",
-  "glm-coding-plan",
-  "minimax-coding-plan",
-  "mimo-coding-plan",
-  "deepseek-coding-plan",
-  "deepseek-v4-flash",
-];
+export const LIME_HUB_LOCAL_DEV_MODEL_IDS = ["gpt-5.5", "gpt-5.4"];
 
 interface LimeHubModelProviderInput {
   key: string;

@@ -17,6 +17,22 @@ describe("chatLayoutVisibility", () => {
     ).toBe(true);
   });
 
+  it("旧会话恢复 pending shell 阶段也应进入会话布局", () => {
+    expect(
+      shouldShowChatLayout({
+        agentEntry: "new-task",
+        hasDisplayMessages: false,
+        hasPendingA2UIForm: false,
+        isThemeWorkbench: false,
+        hasUnconsumedInitialDispatch: false,
+        isPreparingSend: false,
+        isSending: false,
+        isSessionHydrating: true,
+        queuedTurnCount: 0,
+      }),
+    ).toBe(true);
+  });
+
   it("空白首页在无会话活动时仍应保留空态布局", () => {
     expect(
       shouldShowChatLayout({

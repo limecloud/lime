@@ -7,7 +7,14 @@ export type LimeColorSchemeId =
   | "lime-classic"
   | "lime-forest"
   | "lime-ocean"
-  | "lime-sand";
+  | "lime-sand"
+  | "lime-neon"
+  | "lime-citron"
+  | "lime-dusk"
+  | "lime-minimal"
+  | "lime-vivid"
+  | "lime-literary"
+  | "lime-luxury";
 
 export interface LimeColorScheme {
   id: LimeColorSchemeId;
@@ -246,15 +253,15 @@ function withPalette(overrides: Partial<typeof classicVariables>) {
 export const LIME_COLOR_SCHEMES: readonly LimeColorScheme[] = [
   {
     id: "lime-classic",
-    label: "Lime 经典",
-    description: "保留当前高识别度的 Lime 绿色、浅青与清亮界面。",
+    label: "墨绿",
+    description: "经典深绿，温暖米色背景。",
     swatches: ["#f8fcf7", "#10b981", "#0ea5e9"],
     variables: classicVariables,
   },
   {
     id: "lime-forest",
-    label: "森林",
-    description: "降低饱和度，保留绿色主轴，适合长时间创作。",
+    label: "自然",
+    description: "舒适放松的清新自然风。",
     swatches: ["#f4f7f1", "#2f6f46", "#8aa16e"],
     variables: withPalette({
       "--lime-text": "#233c31",
@@ -356,8 +363,8 @@ export const LIME_COLOR_SCHEMES: readonly LimeColorScheme[] = [
   },
   {
     id: "lime-ocean",
-    label: "海雾",
-    description: "偏冷静的蓝绿灰，适合信息密集和工程型工作流。",
+    label: "海洋",
+    description: "沉静专业的蓝色调。",
     swatches: ["#f3f8fa", "#0f766e", "#2563eb"],
     variables: withPalette({
       "--lime-text": "#173346",
@@ -459,8 +466,8 @@ export const LIME_COLOR_SCHEMES: readonly LimeColorScheme[] = [
   },
   {
     id: "lime-sand",
-    label: "砂岩",
-    description: "暖灰纸面与稳重墨绿，作为柔和低饱和备选。",
+    label: "复古",
+    description: "温暖怀旧的琥珀色调。",
     swatches: ["#f7f3e8", "#2f4638", "#c9a46a"],
     variables: withPalette({
       "--lime-text": "#2f4638",
@@ -564,6 +571,715 @@ export const LIME_COLOR_SCHEMES: readonly LimeColorScheme[] = [
         "linear-gradient(135deg,#233c31 0%,#2f6f46 58%,#6f8f53 100%)",
       "--lime-primary-gradient-simple":
         "linear-gradient(135deg,#233c31 0%,#2f6f46 100%)",
+    }),
+  },
+  {
+    id: "lime-neon",
+    label: "霓虹",
+    description: "赛博明亮的粉紫色调。",
+    swatches: ["#fdf4ff", "#b026c6", "#22c55e"],
+    variables: withPalette({
+      "--lime-text": "#2f1b45",
+      "--lime-text-muted": "#7c6a8a",
+      "--lime-surface": "#fffaff",
+      "--lime-surface-subtle": "#fef7ff",
+      "--lime-surface-soft": "#fbf0ff",
+      "--lime-surface-muted": "#f5e7fb",
+      "--lime-surface-hover": "#f0ddfb",
+      "--lime-surface-border": "#ead2f5",
+      "--lime-surface-border-strong": "#dbb5eb",
+      "--lime-brand-strong": "#86198f",
+      "--lime-brand": "#c026d3",
+      "--lime-brand-muted": "#22c55e",
+      "--lime-brand-soft": "#fae8ff",
+      "--lime-info": "#0e7490",
+      "--lime-info-soft": "#ecfeff",
+      "--lime-info-border": "#bae6fd",
+      "--lime-focus-ring": "rgba(192, 38, 211, 0.16)",
+      "--lime-app-bg": "#f8f2fb",
+      "--lime-shell-surface":
+        "linear-gradient(180deg, #f4e8fb 0%, #fffaff 100%)",
+      "--lime-stage-surface":
+        "linear-gradient(180deg, #fffaff 0%, #f8f2fb 56%, #fdf8ff 100%)",
+      "--lime-stage-surface-soft":
+        "linear-gradient(180deg, rgba(255,250,255,0.96) 0%, rgba(248,242,251,0.92) 100%)",
+      "--lime-stage-surface-top": "#fffaff",
+      "--lime-card-subtle":
+        "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(251,240,255,0.94) 100%)",
+      "--lime-card-subtle-border": "rgba(234, 210, 245, 0.76)",
+      "--lime-divider-subtle": "rgba(134, 25, 143, 0.14)",
+      "--lime-chrome-rail": "#fbf0ff",
+      "--lime-chrome-rail-surface":
+        "linear-gradient(180deg, #f4e8fb 0%, #fbf0ff 100%)",
+      "--lime-chrome-surface": "#fef7ff",
+      "--lime-chrome-active-tab": "#fffaff",
+      "--lime-chrome-tab-hover": "#f0ddfb",
+      "--lime-chrome-tab-active-surface": "#fffaff",
+      "--lime-chrome-border": "rgba(234, 210, 245, 0.76)",
+      "--lime-chrome-divider": "rgba(234, 210, 245, 0.66)",
+      "--lime-chrome-stage-blend":
+        "radial-gradient(circle at 18% 100%, rgba(192, 38, 211, 0.034), transparent 42%), radial-gradient(circle at 78% 115%, rgba(34, 197, 94, 0.04), transparent 46%), linear-gradient(180deg, #fffaff 0%, #fdf8ff 58%, #fffaff 100%)",
+      "--lime-chrome-stage-seam": "rgba(134, 25, 143, 0.07)",
+      "--lime-chrome-text": "#2f1b45",
+      "--lime-chrome-muted": "#7c6a8a",
+      "--lime-sidebar-surface":
+        "linear-gradient(180deg, #f4e8fb 0%, #fbf4ff 48%, #fffaff 100%)",
+      "--lime-sidebar-surface-top": "#f4e8fb",
+      "--lime-sidebar-surface-middle": "#fbf4ff",
+      "--lime-sidebar-surface-bottom": "#fffaff",
+      "--lime-sidebar-border": "rgba(234, 210, 245, 0.72)",
+      "--lime-sidebar-divider": "rgba(134,25,143,0.12)",
+      "--lime-sidebar-hover": "#f0ddfb",
+      "--lime-sidebar-active": "#fae8ff",
+      "--lime-sidebar-active-text": "#86198f",
+      "--lime-sidebar-search-bg": "#fffaff",
+      "--lime-sidebar-search-hover": "#f5e7fb",
+      "--lime-sidebar-search-border-hover": "#dbb5eb",
+      "--lime-sidebar-card-surface":
+        "linear-gradient(180deg, #fffaff 0%, #f5e7fb 100%)",
+      "--lime-sidebar-card-border": "rgba(234, 210, 245, 0.7)",
+      "--lime-home-bg-start": "#fbf0ff",
+      "--lime-home-bg-mid": "#fffaff",
+      "--lime-home-bg-end": "#f4fbf7",
+      "--lime-home-glow-primary": "rgba(192,38,211,0.04)",
+      "--lime-home-glow-secondary": "rgba(34,197,94,0.05)",
+      "--lime-home-title-gradient":
+        "linear-gradient(90deg, #2f1b45 0%, #a21caf 54%, #15803d 100%)",
+      "--lime-home-dot-gradient": "linear-gradient(135deg, #d946ef, #22c55e)",
+      "--lime-home-dot-shadow":
+        "0 0 0 8px rgba(192,38,211,0.045), 0 0 14px rgba(34,197,94,0.08)",
+      "--lime-home-beam-gradient":
+        "linear-gradient(90deg, rgba(192,38,211,0) 0%, rgba(192,38,211,0.034) 32%, rgba(255,255,255,0.26) 50%, rgba(34,197,94,0.045) 68%, rgba(192,38,211,0) 100%)",
+      "--lime-home-card-surface":
+        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,232,255,0.9) 100%)",
+      "--lime-home-card-surface-strong":
+        "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(236,254,255,0.92))",
+      "--lime-home-card-border": "rgba(234,210,245,0.86)",
+      "--lime-home-card-border-muted": "rgba(234,210,245,0.84)",
+      "--lime-home-card-hover-border": "#dbb5eb",
+      "--lime-composer-surface":
+        "linear-gradient(180deg, #ffffff 0%, #fbf0ff 100%)",
+      "--lime-composer-shell":
+        "linear-gradient(180deg, #ffffff 0%, #fbf0ff 100%)",
+      "--lime-composer-surface-floating":
+        "linear-gradient(180deg, #ffffff 0%, #fbf0ff 100%)",
+      "--lime-composer-surface-focus":
+        "linear-gradient(180deg, #ffffff 0%, #f5e7fb 100%)",
+      "--lime-composer-border": "rgba(219, 181, 235, 0.7)",
+      "--lime-composer-border-focus": "rgba(192, 38, 211, 0.44)",
+      "--lime-primary-gradient":
+        "linear-gradient(135deg,#86198f 0%,#c026d3 54%,#22c55e 100%)",
+      "--lime-primary-gradient-simple":
+        "linear-gradient(135deg,#86198f 0%,#c026d3 100%)",
+    }),
+  },
+  {
+    id: "lime-citron",
+    label: "青柠",
+    description: "活力清新的黄绿配紫。",
+    swatches: ["#fbffe8", "#84cc16", "#6d4fb3"],
+    variables: withPalette({
+      "--lime-text": "#25351a",
+      "--lime-text-muted": "#69735b",
+      "--lime-surface": "#fffffb",
+      "--lime-surface-subtle": "#fbffe8",
+      "--lime-surface-soft": "#f4ffd2",
+      "--lime-surface-muted": "#ecf7bf",
+      "--lime-surface-hover": "#e3f2a8",
+      "--lime-surface-border": "#d9e9a5",
+      "--lime-surface-border-strong": "#c4d77d",
+      "--lime-brand-strong": "#4d7c0f",
+      "--lime-brand": "#84cc16",
+      "--lime-brand-muted": "#6d4fb3",
+      "--lime-brand-soft": "#f7fee7",
+      "--lime-info": "#6d4fb3",
+      "--lime-info-soft": "#f5f3ff",
+      "--lime-info-border": "#ddd6fe",
+      "--lime-focus-ring": "rgba(132, 204, 22, 0.18)",
+      "--lime-app-bg": "#f5f8e9",
+      "--lime-shell-surface":
+        "linear-gradient(180deg, #edf7c7 0%, #fffffb 100%)",
+      "--lime-stage-surface":
+        "linear-gradient(180deg, #fffffb 0%, #f5f8e9 56%, #fbffe8 100%)",
+      "--lime-stage-surface-soft":
+        "linear-gradient(180deg, rgba(255,255,251,0.96) 0%, rgba(245,248,233,0.92) 100%)",
+      "--lime-stage-surface-top": "#fffffb",
+      "--lime-card-subtle":
+        "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(247,254,231,0.94) 100%)",
+      "--lime-card-subtle-border": "rgba(217, 233, 165, 0.76)",
+      "--lime-divider-subtle": "rgba(77, 124, 15, 0.14)",
+      "--lime-chrome-rail": "#f4ffd2",
+      "--lime-chrome-rail-surface":
+        "linear-gradient(180deg, #edf7c7 0%, #f4ffd2 100%)",
+      "--lime-chrome-surface": "#fbffe8",
+      "--lime-chrome-active-tab": "#fffffb",
+      "--lime-chrome-tab-hover": "#ecf7bf",
+      "--lime-chrome-tab-active-surface": "#fffffb",
+      "--lime-chrome-border": "rgba(217, 233, 165, 0.76)",
+      "--lime-chrome-divider": "rgba(217, 233, 165, 0.66)",
+      "--lime-chrome-stage-blend":
+        "radial-gradient(circle at 18% 100%, rgba(132, 204, 22, 0.035), transparent 42%), radial-gradient(circle at 78% 115%, rgba(109, 79, 179, 0.038), transparent 46%), linear-gradient(180deg, #fffffb 0%, #fbffe8 58%, #fffffb 100%)",
+      "--lime-chrome-stage-seam": "rgba(77, 124, 15, 0.07)",
+      "--lime-chrome-text": "#25351a",
+      "--lime-chrome-muted": "#69735b",
+      "--lime-sidebar-surface":
+        "linear-gradient(180deg, #edf7c7 0%, #f8fbdc 48%, #fffffb 100%)",
+      "--lime-sidebar-surface-top": "#edf7c7",
+      "--lime-sidebar-surface-middle": "#f8fbdc",
+      "--lime-sidebar-surface-bottom": "#fffffb",
+      "--lime-sidebar-border": "rgba(217, 233, 165, 0.72)",
+      "--lime-sidebar-divider": "rgba(77,124,15,0.12)",
+      "--lime-sidebar-hover": "#ecf7bf",
+      "--lime-sidebar-active": "#e3f2a8",
+      "--lime-sidebar-active-text": "#4d7c0f",
+      "--lime-sidebar-search-bg": "#fffffb",
+      "--lime-sidebar-search-hover": "#f4ffd2",
+      "--lime-sidebar-search-border-hover": "#c4d77d",
+      "--lime-sidebar-card-surface":
+        "linear-gradient(180deg, #fffffb 0%, #ecf7bf 100%)",
+      "--lime-sidebar-card-border": "rgba(217, 233, 165, 0.7)",
+      "--lime-home-bg-start": "#f4ffd2",
+      "--lime-home-bg-mid": "#fffffb",
+      "--lime-home-bg-end": "#f5f3ff",
+      "--lime-home-glow-primary": "rgba(132,204,22,0.045)",
+      "--lime-home-glow-secondary": "rgba(109,79,179,0.045)",
+      "--lime-home-title-gradient":
+        "linear-gradient(90deg, #25351a 0%, #4d7c0f 54%, #6d4fb3 100%)",
+      "--lime-home-dot-gradient": "linear-gradient(135deg, #84cc16, #6d4fb3)",
+      "--lime-home-dot-shadow":
+        "0 0 0 8px rgba(132,204,22,0.05), 0 0 14px rgba(109,79,179,0.075)",
+      "--lime-home-beam-gradient":
+        "linear-gradient(90deg, rgba(132,204,22,0) 0%, rgba(132,204,22,0.038) 32%, rgba(255,255,255,0.24) 50%, rgba(109,79,179,0.042) 68%, rgba(132,204,22,0) 100%)",
+      "--lime-home-card-surface":
+        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(247,254,231,0.92) 100%)",
+      "--lime-home-card-surface-strong":
+        "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245,243,255,0.92))",
+      "--lime-home-card-border": "rgba(217,233,165,0.86)",
+      "--lime-home-card-border-muted": "rgba(217,233,165,0.84)",
+      "--lime-home-card-hover-border": "#c4d77d",
+      "--lime-composer-surface":
+        "linear-gradient(180deg, #ffffff 0%, #f4ffd2 100%)",
+      "--lime-composer-shell":
+        "linear-gradient(180deg, #ffffff 0%, #f4ffd2 100%)",
+      "--lime-composer-surface-floating":
+        "linear-gradient(180deg, #ffffff 0%, #f4ffd2 100%)",
+      "--lime-composer-surface-focus":
+        "linear-gradient(180deg, #ffffff 0%, #ecf7bf 100%)",
+      "--lime-composer-border": "rgba(196, 215, 125, 0.7)",
+      "--lime-composer-border-focus": "rgba(132, 204, 22, 0.46)",
+      "--lime-primary-gradient":
+        "linear-gradient(135deg,#4d7c0f 0%,#84cc16 54%,#6d4fb3 100%)",
+      "--lime-primary-gradient-simple":
+        "linear-gradient(135deg,#4d7c0f 0%,#84cc16 100%)",
+    }),
+  },
+  {
+    id: "lime-dusk",
+    label: "黄昏",
+    description: "柔和温暖的暮色调。",
+    swatches: ["#fbf4e5", "#7c7f32", "#c1784a"],
+    variables: withPalette({
+      "--lime-text": "#3f3529",
+      "--lime-text-muted": "#7a6f61",
+      "--lime-surface": "#fffaf2",
+      "--lime-surface-subtle": "#fbf4e5",
+      "--lime-surface-soft": "#f7ead7",
+      "--lime-surface-muted": "#efdfc8",
+      "--lime-surface-hover": "#ead4ba",
+      "--lime-surface-border": "#dcc8aa",
+      "--lime-surface-border-strong": "#c9ad83",
+      "--lime-brand-strong": "#65691f",
+      "--lime-brand": "#7c7f32",
+      "--lime-brand-muted": "#c1784a",
+      "--lime-brand-soft": "#f7f3dd",
+      "--lime-info": "#8a5a44",
+      "--lime-info-soft": "#fff7ed",
+      "--lime-info-border": "#fed7aa",
+      "--lime-warning": "#9a5a1f",
+      "--lime-warning-soft": "#fff7ed",
+      "--lime-warning-border": "#fed7aa",
+      "--lime-focus-ring": "rgba(124, 127, 50, 0.16)",
+      "--lime-app-bg": "#f3eadc",
+      "--lime-shell-surface":
+        "linear-gradient(180deg, #eadfce 0%, #fffaf2 100%)",
+      "--lime-stage-surface":
+        "linear-gradient(180deg, #fffaf2 0%, #f3eadc 56%, #fbf4e5 100%)",
+      "--lime-stage-surface-soft":
+        "linear-gradient(180deg, rgba(255,250,242,0.96) 0%, rgba(243,234,220,0.92) 100%)",
+      "--lime-stage-surface-top": "#fffaf2",
+      "--lime-card-subtle":
+        "linear-gradient(180deg, rgba(255,250,242,0.96) 0%, rgba(247,234,215,0.94) 100%)",
+      "--lime-card-subtle-border": "rgba(220, 200, 170, 0.76)",
+      "--lime-divider-subtle": "rgba(124, 127, 50, 0.14)",
+      "--lime-chrome-rail": "#f7ead7",
+      "--lime-chrome-rail-surface":
+        "linear-gradient(180deg, #eadfce 0%, #f7ead7 100%)",
+      "--lime-chrome-surface": "#fbf4e5",
+      "--lime-chrome-active-tab": "#fffaf2",
+      "--lime-chrome-tab-hover": "#efdfc8",
+      "--lime-chrome-tab-active-surface": "#fffaf2",
+      "--lime-chrome-border": "rgba(220, 200, 170, 0.76)",
+      "--lime-chrome-divider": "rgba(220, 200, 170, 0.66)",
+      "--lime-chrome-stage-blend":
+        "radial-gradient(circle at 18% 100%, rgba(124, 127, 50, 0.03), transparent 42%), radial-gradient(circle at 78% 115%, rgba(193, 120, 74, 0.038), transparent 46%), linear-gradient(180deg, #fffaf2 0%, #fbf4e5 58%, #fffaf2 100%)",
+      "--lime-chrome-stage-seam": "rgba(124, 127, 50, 0.07)",
+      "--lime-chrome-text": "#3f3529",
+      "--lime-chrome-muted": "#7a6f61",
+      "--lime-sidebar-surface":
+        "linear-gradient(180deg, #eadfce 0%, #f6ecdc 48%, #fffaf2 100%)",
+      "--lime-sidebar-surface-top": "#eadfce",
+      "--lime-sidebar-surface-middle": "#f6ecdc",
+      "--lime-sidebar-surface-bottom": "#fffaf2",
+      "--lime-sidebar-border": "rgba(220, 200, 170, 0.72)",
+      "--lime-sidebar-divider": "rgba(124,127,50,0.12)",
+      "--lime-sidebar-hover": "#efdfc8",
+      "--lime-sidebar-active": "#f0e8c3",
+      "--lime-sidebar-active-text": "#65691f",
+      "--lime-sidebar-search-bg": "#fffaf2",
+      "--lime-sidebar-search-hover": "#f7ead7",
+      "--lime-sidebar-search-border-hover": "#c9ad83",
+      "--lime-sidebar-card-surface":
+        "linear-gradient(180deg, #fffaf2 0%, #efdfc8 100%)",
+      "--lime-sidebar-card-border": "rgba(220, 200, 170, 0.7)",
+      "--lime-home-bg-start": "#f7ead7",
+      "--lime-home-bg-mid": "#fffaf2",
+      "--lime-home-bg-end": "#f7f3dd",
+      "--lime-home-glow-primary": "rgba(124,127,50,0.04)",
+      "--lime-home-glow-secondary": "rgba(193,120,74,0.05)",
+      "--lime-home-title-gradient":
+        "linear-gradient(90deg, #3f3529 0%, #65691f 52%, #9a5a1f 100%)",
+      "--lime-home-dot-gradient": "linear-gradient(135deg, #7c7f32, #c1784a)",
+      "--lime-home-dot-shadow":
+        "0 0 0 8px rgba(124,127,50,0.045), 0 0 14px rgba(193,120,74,0.08)",
+      "--lime-home-beam-gradient":
+        "linear-gradient(90deg, rgba(124,127,50,0) 0%, rgba(124,127,50,0.034) 32%, rgba(255,255,255,0.24) 50%, rgba(193,120,74,0.044) 68%, rgba(124,127,50,0) 100%)",
+      "--lime-home-card-surface":
+        "linear-gradient(180deg, rgba(255,250,242,0.98) 0%, rgba(247,234,215,0.92) 100%)",
+      "--lime-home-card-surface-strong":
+        "linear-gradient(180deg, rgba(255,250,242,0.98), rgba(247,243,221,0.92))",
+      "--lime-home-card-border": "rgba(220,200,170,0.86)",
+      "--lime-home-card-border-muted": "rgba(220,200,170,0.84)",
+      "--lime-home-card-hover-border": "#c9ad83",
+      "--lime-composer-surface":
+        "linear-gradient(180deg, #fffaf2 0%, #f7ead7 100%)",
+      "--lime-composer-shell":
+        "linear-gradient(180deg, #fffaf2 0%, #f7ead7 100%)",
+      "--lime-composer-surface-floating":
+        "linear-gradient(180deg, #fffaf2 0%, #f7ead7 100%)",
+      "--lime-composer-surface-focus":
+        "linear-gradient(180deg, #fffaf2 0%, #efdfc8 100%)",
+      "--lime-composer-border": "rgba(201, 173, 131, 0.72)",
+      "--lime-composer-border-focus": "rgba(124, 127, 50, 0.44)",
+      "--lime-primary-gradient":
+        "linear-gradient(135deg,#65691f 0%,#7c7f32 54%,#c1784a 100%)",
+      "--lime-primary-gradient-simple":
+        "linear-gradient(135deg,#65691f 0%,#7c7f32 100%)",
+    }),
+  },
+  {
+    id: "lime-minimal",
+    label: "极简",
+    description: "清晰专业的深蓝商务风。",
+    swatches: ["#f8fafc", "#334155", "#2563eb"],
+    variables: withPalette({
+      "--lime-text": "#1e293b",
+      "--lime-text-muted": "#64748b",
+      "--lime-surface": "#ffffff",
+      "--lime-surface-subtle": "#f8fafc",
+      "--lime-surface-soft": "#f1f5f9",
+      "--lime-surface-muted": "#e2e8f0",
+      "--lime-surface-hover": "#eef2f7",
+      "--lime-surface-border": "#d8e0ea",
+      "--lime-surface-border-strong": "#cbd5e1",
+      "--lime-brand-strong": "#334155",
+      "--lime-brand": "#2563eb",
+      "--lime-brand-muted": "#0f766e",
+      "--lime-brand-soft": "#eff6ff",
+      "--lime-info": "#0369a1",
+      "--lime-info-soft": "#f0f9ff",
+      "--lime-info-border": "#bae6fd",
+      "--lime-focus-ring": "rgba(37, 99, 235, 0.16)",
+      "--lime-app-bg": "#f3f6fa",
+      "--lime-shell-surface":
+        "linear-gradient(180deg, #eef2f7 0%, #ffffff 100%)",
+      "--lime-stage-surface":
+        "linear-gradient(180deg, #ffffff 0%, #f3f6fa 56%, #f8fafc 100%)",
+      "--lime-stage-surface-soft":
+        "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(243,246,250,0.92) 100%)",
+      "--lime-stage-surface-top": "#ffffff",
+      "--lime-card-subtle":
+        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)",
+      "--lime-card-subtle-border": "rgba(216, 224, 234, 0.8)",
+      "--lime-divider-subtle": "rgba(51, 65, 85, 0.12)",
+      "--lime-chrome-rail": "#f1f5f9",
+      "--lime-chrome-rail-surface":
+        "linear-gradient(180deg, #eef2f7 0%, #f1f5f9 100%)",
+      "--lime-chrome-surface": "#f8fafc",
+      "--lime-chrome-active-tab": "#ffffff",
+      "--lime-chrome-tab-hover": "#e2e8f0",
+      "--lime-chrome-tab-active-surface": "#ffffff",
+      "--lime-chrome-border": "rgba(216, 224, 234, 0.78)",
+      "--lime-chrome-divider": "rgba(216, 224, 234, 0.68)",
+      "--lime-chrome-stage-blend":
+        "radial-gradient(circle at 18% 100%, rgba(37, 99, 235, 0.026), transparent 42%), radial-gradient(circle at 78% 115%, rgba(15, 118, 110, 0.028), transparent 46%), linear-gradient(180deg, #ffffff 0%, #f8fafc 58%, #ffffff 100%)",
+      "--lime-chrome-stage-seam": "rgba(51, 65, 85, 0.065)",
+      "--lime-chrome-text": "#1e293b",
+      "--lime-chrome-muted": "#64748b",
+      "--lime-sidebar-surface":
+        "linear-gradient(180deg, #eef2f7 0%, #f8fafc 48%, #ffffff 100%)",
+      "--lime-sidebar-surface-top": "#eef2f7",
+      "--lime-sidebar-surface-middle": "#f8fafc",
+      "--lime-sidebar-surface-bottom": "#ffffff",
+      "--lime-sidebar-border": "rgba(216, 224, 234, 0.72)",
+      "--lime-sidebar-divider": "rgba(51,65,85,0.1)",
+      "--lime-sidebar-hover": "#e2e8f0",
+      "--lime-sidebar-active": "#eaf2ff",
+      "--lime-sidebar-active-text": "#1d4ed8",
+      "--lime-sidebar-search-bg": "#ffffff",
+      "--lime-sidebar-search-hover": "#f1f5f9",
+      "--lime-sidebar-search-border-hover": "#cbd5e1",
+      "--lime-sidebar-card-surface":
+        "linear-gradient(180deg, #ffffff 0%, #eef2f7 100%)",
+      "--lime-sidebar-card-border": "rgba(216, 224, 234, 0.72)",
+      "--lime-home-bg-start": "#f1f5f9",
+      "--lime-home-bg-mid": "#ffffff",
+      "--lime-home-bg-end": "#eff6ff",
+      "--lime-home-glow-primary": "rgba(37,99,235,0.032)",
+      "--lime-home-glow-secondary": "rgba(15,118,110,0.032)",
+      "--lime-home-title-gradient":
+        "linear-gradient(90deg, #1e293b 0%, #334155 54%, #2563eb 100%)",
+      "--lime-home-dot-gradient": "linear-gradient(135deg, #334155, #2563eb)",
+      "--lime-home-dot-shadow":
+        "0 0 0 8px rgba(37,99,235,0.04), 0 0 14px rgba(51,65,85,0.07)",
+      "--lime-home-beam-gradient":
+        "linear-gradient(90deg, rgba(37,99,235,0) 0%, rgba(37,99,235,0.032) 32%, rgba(255,255,255,0.24) 50%, rgba(15,118,110,0.032) 68%, rgba(37,99,235,0) 100%)",
+      "--lime-home-card-surface":
+        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.94) 100%)",
+      "--lime-home-card-surface-strong":
+        "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(239,246,255,0.92))",
+      "--lime-home-card-border": "rgba(216,224,234,0.88)",
+      "--lime-home-card-border-muted": "rgba(216,224,234,0.86)",
+      "--lime-home-card-hover-border": "#cbd5e1",
+      "--lime-composer-surface":
+        "linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)",
+      "--lime-composer-shell":
+        "linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)",
+      "--lime-composer-surface-floating":
+        "linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)",
+      "--lime-composer-surface-focus":
+        "linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)",
+      "--lime-composer-border": "rgba(203, 213, 225, 0.74)",
+      "--lime-composer-border-focus": "rgba(37, 99, 235, 0.44)",
+      "--lime-primary-gradient":
+        "linear-gradient(135deg,#334155 0%,#2563eb 58%,#0f766e 100%)",
+      "--lime-primary-gradient-simple":
+        "linear-gradient(135deg,#334155 0%,#2563eb 100%)",
+    }),
+  },
+  {
+    id: "lime-vivid",
+    label: "活力",
+    description: "时尚有冲击力的现代科技风。",
+    swatches: ["#f0fdfa", "#14b8a6", "#f97316"],
+    variables: withPalette({
+      "--lime-text": "#143d3a",
+      "--lime-text-muted": "#607874",
+      "--lime-surface": "#ffffff",
+      "--lime-surface-subtle": "#f0fdfa",
+      "--lime-surface-soft": "#e8fbf7",
+      "--lime-surface-muted": "#d7f3ed",
+      "--lime-surface-hover": "#c8eee7",
+      "--lime-surface-border": "#bde7df",
+      "--lime-surface-border-strong": "#98d7cd",
+      "--lime-brand-strong": "#0f766e",
+      "--lime-brand": "#14b8a6",
+      "--lime-brand-muted": "#f97316",
+      "--lime-brand-soft": "#ccfbf1",
+      "--lime-info": "#0ea5e9",
+      "--lime-info-soft": "#f0f9ff",
+      "--lime-info-border": "#bae6fd",
+      "--lime-warning": "#c2410c",
+      "--lime-warning-soft": "#fff7ed",
+      "--lime-warning-border": "#fed7aa",
+      "--lime-focus-ring": "rgba(20, 184, 166, 0.18)",
+      "--lime-app-bg": "#eef9f7",
+      "--lime-shell-surface":
+        "linear-gradient(180deg, #dff7f1 0%, #ffffff 100%)",
+      "--lime-stage-surface":
+        "linear-gradient(180deg, #ffffff 0%, #eef9f7 56%, #f0fdfa 100%)",
+      "--lime-stage-surface-soft":
+        "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(238,249,247,0.92) 100%)",
+      "--lime-stage-surface-top": "#ffffff",
+      "--lime-card-subtle":
+        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(240,253,250,0.94) 100%)",
+      "--lime-card-subtle-border": "rgba(189, 231, 223, 0.78)",
+      "--lime-divider-subtle": "rgba(15, 118, 110, 0.13)",
+      "--lime-chrome-rail": "#e8fbf7",
+      "--lime-chrome-rail-surface":
+        "linear-gradient(180deg, #dff7f1 0%, #e8fbf7 100%)",
+      "--lime-chrome-surface": "#f0fdfa",
+      "--lime-chrome-active-tab": "#ffffff",
+      "--lime-chrome-tab-hover": "#d7f3ed",
+      "--lime-chrome-tab-active-surface": "#ffffff",
+      "--lime-chrome-border": "rgba(189, 231, 223, 0.78)",
+      "--lime-chrome-divider": "rgba(189, 231, 223, 0.66)",
+      "--lime-chrome-stage-blend":
+        "radial-gradient(circle at 18% 100%, rgba(20, 184, 166, 0.034), transparent 42%), radial-gradient(circle at 78% 115%, rgba(249, 115, 22, 0.036), transparent 46%), linear-gradient(180deg, #ffffff 0%, #f0fdfa 58%, #ffffff 100%)",
+      "--lime-chrome-stage-seam": "rgba(15, 118, 110, 0.07)",
+      "--lime-chrome-text": "#143d3a",
+      "--lime-chrome-muted": "#607874",
+      "--lime-sidebar-surface":
+        "linear-gradient(180deg, #dff7f1 0%, #f0fdfa 48%, #ffffff 100%)",
+      "--lime-sidebar-surface-top": "#dff7f1",
+      "--lime-sidebar-surface-middle": "#f0fdfa",
+      "--lime-sidebar-surface-bottom": "#ffffff",
+      "--lime-sidebar-border": "rgba(189, 231, 223, 0.72)",
+      "--lime-sidebar-divider": "rgba(15,118,110,0.11)",
+      "--lime-sidebar-hover": "#d7f3ed",
+      "--lime-sidebar-active": "#ccfbf1",
+      "--lime-sidebar-active-text": "#0f766e",
+      "--lime-sidebar-search-bg": "#ffffff",
+      "--lime-sidebar-search-hover": "#e8fbf7",
+      "--lime-sidebar-search-border-hover": "#98d7cd",
+      "--lime-sidebar-card-surface":
+        "linear-gradient(180deg, #ffffff 0%, #d7f3ed 100%)",
+      "--lime-sidebar-card-border": "rgba(189, 231, 223, 0.7)",
+      "--lime-home-bg-start": "#e8fbf7",
+      "--lime-home-bg-mid": "#ffffff",
+      "--lime-home-bg-end": "#fff7ed",
+      "--lime-home-glow-primary": "rgba(20,184,166,0.045)",
+      "--lime-home-glow-secondary": "rgba(249,115,22,0.048)",
+      "--lime-home-title-gradient":
+        "linear-gradient(90deg, #143d3a 0%, #0f766e 54%, #c2410c 100%)",
+      "--lime-home-dot-gradient": "linear-gradient(135deg, #14b8a6, #f97316)",
+      "--lime-home-dot-shadow":
+        "0 0 0 8px rgba(20,184,166,0.045), 0 0 14px rgba(249,115,22,0.08)",
+      "--lime-home-beam-gradient":
+        "linear-gradient(90deg, rgba(20,184,166,0) 0%, rgba(20,184,166,0.036) 32%, rgba(255,255,255,0.24) 50%, rgba(249,115,22,0.042) 68%, rgba(20,184,166,0) 100%)",
+      "--lime-home-card-surface":
+        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(240,253,250,0.92) 100%)",
+      "--lime-home-card-surface-strong":
+        "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(255,247,237,0.92))",
+      "--lime-home-card-border": "rgba(189,231,223,0.88)",
+      "--lime-home-card-border-muted": "rgba(189,231,223,0.84)",
+      "--lime-home-card-hover-border": "#98d7cd",
+      "--lime-composer-surface":
+        "linear-gradient(180deg, #ffffff 0%, #e8fbf7 100%)",
+      "--lime-composer-shell":
+        "linear-gradient(180deg, #ffffff 0%, #e8fbf7 100%)",
+      "--lime-composer-surface-floating":
+        "linear-gradient(180deg, #ffffff 0%, #e8fbf7 100%)",
+      "--lime-composer-surface-focus":
+        "linear-gradient(180deg, #ffffff 0%, #d7f3ed 100%)",
+      "--lime-composer-border": "rgba(152, 215, 205, 0.72)",
+      "--lime-composer-border-focus": "rgba(20, 184, 166, 0.46)",
+      "--lime-primary-gradient":
+        "linear-gradient(135deg,#0f766e 0%,#14b8a6 54%,#f97316 100%)",
+      "--lime-primary-gradient-simple":
+        "linear-gradient(135deg,#0f766e 0%,#14b8a6 100%)",
+    }),
+  },
+  {
+    id: "lime-literary",
+    label: "文艺",
+    description: "宁静高雅的灰蓝文艺风。",
+    swatches: ["#f5f7fb", "#53627a", "#8b7ab8"],
+    variables: withPalette({
+      "--lime-text": "#283244",
+      "--lime-text-muted": "#6b7280",
+      "--lime-surface": "#ffffff",
+      "--lime-surface-subtle": "#f8fafc",
+      "--lime-surface-soft": "#f2f5f9",
+      "--lime-surface-muted": "#e8edf4",
+      "--lime-surface-hover": "#e1e8f1",
+      "--lime-surface-border": "#d7e0eb",
+      "--lime-surface-border-strong": "#c3cedc",
+      "--lime-brand-strong": "#475569",
+      "--lime-brand": "#64748b",
+      "--lime-brand-muted": "#8b7ab8",
+      "--lime-brand-soft": "#f1f5f9",
+      "--lime-info": "#66738f",
+      "--lime-info-soft": "#eef2ff",
+      "--lime-info-border": "#c7d2fe",
+      "--lime-focus-ring": "rgba(100, 116, 139, 0.16)",
+      "--lime-app-bg": "#f1f4f8",
+      "--lime-shell-surface":
+        "linear-gradient(180deg, #e8edf4 0%, #ffffff 100%)",
+      "--lime-stage-surface":
+        "linear-gradient(180deg, #ffffff 0%, #f1f4f8 56%, #f8fafc 100%)",
+      "--lime-stage-surface-soft":
+        "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(241,244,248,0.92) 100%)",
+      "--lime-stage-surface-top": "#ffffff",
+      "--lime-card-subtle":
+        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(242,245,249,0.94) 100%)",
+      "--lime-card-subtle-border": "rgba(215, 224, 235, 0.78)",
+      "--lime-divider-subtle": "rgba(71, 85, 105, 0.12)",
+      "--lime-chrome-rail": "#f2f5f9",
+      "--lime-chrome-rail-surface":
+        "linear-gradient(180deg, #e8edf4 0%, #f2f5f9 100%)",
+      "--lime-chrome-surface": "#f8fafc",
+      "--lime-chrome-active-tab": "#ffffff",
+      "--lime-chrome-tab-hover": "#e8edf4",
+      "--lime-chrome-tab-active-surface": "#ffffff",
+      "--lime-chrome-border": "rgba(215, 224, 235, 0.78)",
+      "--lime-chrome-divider": "rgba(215, 224, 235, 0.68)",
+      "--lime-chrome-stage-blend":
+        "radial-gradient(circle at 18% 100%, rgba(100, 116, 139, 0.026), transparent 42%), radial-gradient(circle at 78% 115%, rgba(139, 122, 184, 0.034), transparent 46%), linear-gradient(180deg, #ffffff 0%, #f8fafc 58%, #ffffff 100%)",
+      "--lime-chrome-stage-seam": "rgba(71, 85, 105, 0.065)",
+      "--lime-chrome-text": "#283244",
+      "--lime-chrome-muted": "#6b7280",
+      "--lime-sidebar-surface":
+        "linear-gradient(180deg, #e8edf4 0%, #f5f7fb 48%, #ffffff 100%)",
+      "--lime-sidebar-surface-top": "#e8edf4",
+      "--lime-sidebar-surface-middle": "#f5f7fb",
+      "--lime-sidebar-surface-bottom": "#ffffff",
+      "--lime-sidebar-border": "rgba(215, 224, 235, 0.72)",
+      "--lime-sidebar-divider": "rgba(71,85,105,0.1)",
+      "--lime-sidebar-hover": "#e8edf4",
+      "--lime-sidebar-active": "#eef2ff",
+      "--lime-sidebar-active-text": "#475569",
+      "--lime-sidebar-search-bg": "#ffffff",
+      "--lime-sidebar-search-hover": "#f2f5f9",
+      "--lime-sidebar-search-border-hover": "#c3cedc",
+      "--lime-sidebar-card-surface":
+        "linear-gradient(180deg, #ffffff 0%, #e8edf4 100%)",
+      "--lime-sidebar-card-border": "rgba(215, 224, 235, 0.7)",
+      "--lime-home-bg-start": "#f2f5f9",
+      "--lime-home-bg-mid": "#ffffff",
+      "--lime-home-bg-end": "#eef2ff",
+      "--lime-home-glow-primary": "rgba(100,116,139,0.032)",
+      "--lime-home-glow-secondary": "rgba(139,122,184,0.04)",
+      "--lime-home-title-gradient":
+        "linear-gradient(90deg, #283244 0%, #53627a 54%, #8b7ab8 100%)",
+      "--lime-home-dot-gradient": "linear-gradient(135deg, #53627a, #8b7ab8)",
+      "--lime-home-dot-shadow":
+        "0 0 0 8px rgba(100,116,139,0.04), 0 0 14px rgba(139,122,184,0.075)",
+      "--lime-home-beam-gradient":
+        "linear-gradient(90deg, rgba(100,116,139,0) 0%, rgba(100,116,139,0.03) 32%, rgba(255,255,255,0.24) 50%, rgba(139,122,184,0.038) 68%, rgba(100,116,139,0) 100%)",
+      "--lime-home-card-surface":
+        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(242,245,249,0.92) 100%)",
+      "--lime-home-card-surface-strong":
+        "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(238,242,255,0.92))",
+      "--lime-home-card-border": "rgba(215,224,235,0.88)",
+      "--lime-home-card-border-muted": "rgba(215,224,235,0.84)",
+      "--lime-home-card-hover-border": "#c3cedc",
+      "--lime-composer-surface":
+        "linear-gradient(180deg, #ffffff 0%, #f2f5f9 100%)",
+      "--lime-composer-shell":
+        "linear-gradient(180deg, #ffffff 0%, #f2f5f9 100%)",
+      "--lime-composer-surface-floating":
+        "linear-gradient(180deg, #ffffff 0%, #f2f5f9 100%)",
+      "--lime-composer-surface-focus":
+        "linear-gradient(180deg, #ffffff 0%, #eef2ff 100%)",
+      "--lime-composer-border": "rgba(195, 206, 220, 0.72)",
+      "--lime-composer-border-focus": "rgba(100, 116, 139, 0.44)",
+      "--lime-primary-gradient":
+        "linear-gradient(135deg,#475569 0%,#64748b 54%,#8b7ab8 100%)",
+      "--lime-primary-gradient-simple":
+        "linear-gradient(135deg,#475569 0%,#64748b 100%)",
+    }),
+  },
+  {
+    id: "lime-luxury",
+    label: "奢华",
+    description: "尊贵权威的黑金商务风。",
+    swatches: ["#fbf8ef", "#1f2933", "#c9a23a"],
+    variables: withPalette({
+      "--lime-text": "#2c2a24",
+      "--lime-text-muted": "#746f62",
+      "--lime-surface": "#fffdf7",
+      "--lime-surface-subtle": "#fbf8ef",
+      "--lime-surface-soft": "#f4efe2",
+      "--lime-surface-muted": "#ebe2cf",
+      "--lime-surface-hover": "#e6dac2",
+      "--lime-surface-border": "#d8cab0",
+      "--lime-surface-border-strong": "#c9a23a",
+      "--lime-brand-strong": "#1f2933",
+      "--lime-brand": "#9d7a22",
+      "--lime-brand-muted": "#c9a23a",
+      "--lime-brand-soft": "#f8edd0",
+      "--lime-info": "#58606a",
+      "--lime-info-soft": "#f4f6f8",
+      "--lime-info-border": "#d8dee6",
+      "--lime-warning": "#8a5a10",
+      "--lime-warning-soft": "#fff7e6",
+      "--lime-warning-border": "#f3d28d",
+      "--lime-focus-ring": "rgba(157, 122, 34, 0.16)",
+      "--lime-app-bg": "#f1eadc",
+      "--lime-shell-surface":
+        "linear-gradient(180deg, #e8dec9 0%, #fffdf7 100%)",
+      "--lime-stage-surface":
+        "linear-gradient(180deg, #fffdf7 0%, #f1eadc 56%, #fbf8ef 100%)",
+      "--lime-stage-surface-soft":
+        "linear-gradient(180deg, rgba(255,253,247,0.96) 0%, rgba(241,234,220,0.92) 100%)",
+      "--lime-stage-surface-top": "#fffdf7",
+      "--lime-card-subtle":
+        "linear-gradient(180deg, rgba(255,253,247,0.96) 0%, rgba(244,239,226,0.94) 100%)",
+      "--lime-card-subtle-border": "rgba(216, 202, 176, 0.78)",
+      "--lime-divider-subtle": "rgba(31, 41, 51, 0.12)",
+      "--lime-chrome-rail": "#f4efe2",
+      "--lime-chrome-rail-surface":
+        "linear-gradient(180deg, #e8dec9 0%, #f4efe2 100%)",
+      "--lime-chrome-surface": "#fbf8ef",
+      "--lime-chrome-active-tab": "#fffdf7",
+      "--lime-chrome-tab-hover": "#ebe2cf",
+      "--lime-chrome-tab-active-surface": "#fffdf7",
+      "--lime-chrome-border": "rgba(216, 202, 176, 0.78)",
+      "--lime-chrome-divider": "rgba(216, 202, 176, 0.68)",
+      "--lime-chrome-stage-blend":
+        "radial-gradient(circle at 18% 100%, rgba(31, 41, 51, 0.026), transparent 42%), radial-gradient(circle at 78% 115%, rgba(201, 162, 58, 0.04), transparent 46%), linear-gradient(180deg, #fffdf7 0%, #fbf8ef 58%, #fffdf7 100%)",
+      "--lime-chrome-stage-seam": "rgba(31, 41, 51, 0.07)",
+      "--lime-chrome-text": "#2c2a24",
+      "--lime-chrome-muted": "#746f62",
+      "--lime-sidebar-surface":
+        "linear-gradient(180deg, #e8dec9 0%, #f6f0e4 48%, #fffdf7 100%)",
+      "--lime-sidebar-surface-top": "#e8dec9",
+      "--lime-sidebar-surface-middle": "#f6f0e4",
+      "--lime-sidebar-surface-bottom": "#fffdf7",
+      "--lime-sidebar-border": "rgba(216, 202, 176, 0.72)",
+      "--lime-sidebar-divider": "rgba(31,41,51,0.1)",
+      "--lime-sidebar-hover": "#ebe2cf",
+      "--lime-sidebar-active": "#f8edd0",
+      "--lime-sidebar-active-text": "#1f2933",
+      "--lime-sidebar-search-bg": "#fffdf7",
+      "--lime-sidebar-search-hover": "#f4efe2",
+      "--lime-sidebar-search-border-hover": "#c9a23a",
+      "--lime-sidebar-card-surface":
+        "linear-gradient(180deg, #fffdf7 0%, #ebe2cf 100%)",
+      "--lime-sidebar-card-border": "rgba(216, 202, 176, 0.7)",
+      "--lime-home-bg-start": "#f4efe2",
+      "--lime-home-bg-mid": "#fffdf7",
+      "--lime-home-bg-end": "#f8edd0",
+      "--lime-home-glow-primary": "rgba(31,41,51,0.032)",
+      "--lime-home-glow-secondary": "rgba(201,162,58,0.048)",
+      "--lime-home-title-gradient":
+        "linear-gradient(90deg, #1f2933 0%, #2c2a24 52%, #9d7a22 100%)",
+      "--lime-home-dot-gradient": "linear-gradient(135deg, #1f2933, #c9a23a)",
+      "--lime-home-dot-shadow":
+        "0 0 0 8px rgba(31,41,51,0.038), 0 0 14px rgba(201,162,58,0.08)",
+      "--lime-home-beam-gradient":
+        "linear-gradient(90deg, rgba(31,41,51,0) 0%, rgba(31,41,51,0.03) 32%, rgba(255,255,255,0.24) 50%, rgba(201,162,58,0.044) 68%, rgba(31,41,51,0) 100%)",
+      "--lime-home-card-surface":
+        "linear-gradient(180deg, rgba(255,253,247,0.98) 0%, rgba(244,239,226,0.92) 100%)",
+      "--lime-home-card-surface-strong":
+        "linear-gradient(180deg, rgba(255,253,247,0.98), rgba(248,237,208,0.92))",
+      "--lime-home-card-border": "rgba(216,202,176,0.88)",
+      "--lime-home-card-border-muted": "rgba(216,202,176,0.84)",
+      "--lime-home-card-hover-border": "#c9a23a",
+      "--lime-composer-surface":
+        "linear-gradient(180deg, #fffdf7 0%, #f4efe2 100%)",
+      "--lime-composer-shell":
+        "linear-gradient(180deg, #fffdf7 0%, #f4efe2 100%)",
+      "--lime-composer-surface-floating":
+        "linear-gradient(180deg, #fffdf7 0%, #f4efe2 100%)",
+      "--lime-composer-surface-focus":
+        "linear-gradient(180deg, #fffdf7 0%, #f8edd0 100%)",
+      "--lime-composer-border": "rgba(201, 162, 58, 0.48)",
+      "--lime-composer-border-focus": "rgba(157, 122, 34, 0.44)",
+      "--lime-primary-gradient":
+        "linear-gradient(135deg,#1f2933 0%,#2c2a24 54%,#c9a23a 100%)",
+      "--lime-primary-gradient-simple":
+        "linear-gradient(135deg,#1f2933 0%,#9d7a22 100%)",
     }),
   },
 ];

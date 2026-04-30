@@ -6,6 +6,7 @@
 use crate::agent::SessionDetail;
 use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
 use crate::commands::modality_runtime_contracts::{
+    AUDIO_TRANSCRIPTION_CONTRACT_KEY, AUDIO_TRANSCRIPTION_ROUTING_SLOT,
     BROWSER_CONTROL_CONTRACT_KEY, BROWSER_CONTROL_ROUTING_SLOT, IMAGE_GENERATION_CONTRACT_KEY,
     IMAGE_GENERATION_ROUTING_SLOT, PDF_EXTRACT_CONTRACT_KEY, PDF_EXTRACT_ROUTING_SLOT,
     TEXT_TRANSFORM_CONTRACT_KEY, TEXT_TRANSFORM_ROUTING_SLOT, VOICE_GENERATION_CONTRACT_KEY,
@@ -35,6 +36,7 @@ const ARTIFACTS_FILE_NAME: &str = "artifacts.json";
 const MAX_RECENT_ARTIFACTS: usize = 12;
 const MAX_PREVIEW_CHARS: usize = 200;
 const MAX_BROWSER_EVIDENCE_ITEMS: usize = 6;
+const MAX_BROWSER_ACTION_OBSERVABILITY_ITEMS: usize = 5;
 const MAX_REQUEST_TELEMETRY_ITEMS: usize = 12;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -755,18 +757,84 @@ fn build_modality_runtime_contracts_json(
     })
 }
 
+fn build_modality_runtime_contracts_observability_summary_json(
+    summary: &RuntimeModalityContractSnapshotSummary,
+) -> Value {
+    let snapshot_index = build_modality_runtime_contract_snapshot_index(&summary.snapshots);
+    let browser_action_index = snapshot_index
+        .get("browserActionIndex")
+        .cloned()
+        .map(compact_browser_action_index_for_observability)
+        .unwrap_or_else(|| {
+            json!({
+                "actionCount": 0,
+                "sessionCount": 0,
+                "observationCount": 0,
+                "screenshotCount": 0,
+                "lastUrl": null,
+                "sessionIds": [],
+                "targetIds": [],
+                "profileKeys": [],
+                "statusCounts": [],
+                "artifactKindCounts": [],
+                "actionCounts": [],
+                "backendCounts": [],
+                "items": []
+            })
+        });
+
+    json!({
+        "snapshotCount": summary.snapshots.len(),
+        "snapshotIndex": {
+            "browserActionIndex": browser_action_index
+        }
+    })
+}
+
+fn compact_browser_action_index_for_observability(mut index: Value) -> Value {
+    if let Some(items) = index.get_mut("items").and_then(Value::as_array_mut) {
+        if items.len() > MAX_BROWSER_ACTION_OBSERVABILITY_ITEMS {
+            let keep_from = items.len() - MAX_BROWSER_ACTION_OBSERVABILITY_ITEMS;
+            *items = items.split_off(keep_from);
+        }
+    }
+
+    index
+}
+
 fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value {
     let mut contract_keys = BTreeSet::new();
     let mut sources: BTreeMap<String, usize> = BTreeMap::new();
     let mut routing_outcomes: BTreeMap<String, usize> = BTreeMap::new();
     let mut expected_routing_slots = BTreeSet::new();
+    let mut execution_profile_keys = BTreeSet::new();
+    let mut executor_adapter_keys = BTreeSet::new();
     let mut trace_items = Vec::new();
+    let mut audio_output_statuses: BTreeMap<String, usize> = BTreeMap::new();
+    let mut audio_output_error_codes = BTreeSet::new();
+    let mut audio_output_items = Vec::new();
+    let mut transcript_statuses: BTreeMap<String, usize> = BTreeMap::new();
+    let mut transcript_error_codes = BTreeSet::new();
+    let mut transcript_items = Vec::new();
+    let mut browser_action_statuses: BTreeMap<String, usize> = BTreeMap::new();
+    let mut browser_action_kinds: BTreeMap<String, usize> = BTreeMap::new();
+    let mut browser_action_names: BTreeMap<String, usize> = BTreeMap::new();
+    let mut browser_session_ids = BTreeSet::new();
+    let mut browser_target_ids = BTreeSet::new();
+    let mut browser_profile_keys = BTreeSet::new();
+    let mut browser_backends: BTreeMap<String, usize> = BTreeMap::new();
+    let mut browser_last_url = None;
+    let mut browser_observation_count = 0usize;
+    let mut browser_screenshot_count = 0usize;
+    let mut browser_action_items = Vec::new();
 
     for snapshot in snapshots {
         let contract_key = snapshot_string(snapshot, "contractKey");
         let source = snapshot_string(snapshot, "source");
         let routing_outcome = snapshot_string(snapshot, "routingOutcome");
         let expected_routing_slot = snapshot_string(snapshot, "expectedRoutingSlot");
+        let execution_profile_key = snapshot_string(snapshot, "executionProfileKey");
+        let executor_adapter_key = snapshot_string(snapshot, "executorAdapterKey");
 
         if let Some(contract_key) = contract_key.as_deref() {
             contract_keys.insert(contract_key.to_string());
@@ -782,6 +850,12 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
         if let Some(expected_routing_slot) = expected_routing_slot.as_deref() {
             expected_routing_slots.insert(expected_routing_slot.to_string());
         }
+        if let Some(execution_profile_key) = execution_profile_key.as_deref() {
+            execution_profile_keys.insert(execution_profile_key.to_string());
+        }
+        if let Some(executor_adapter_key) = executor_adapter_key.as_deref() {
+            executor_adapter_keys.insert(executor_adapter_key.to_string());
+        }
 
         if source
             .as_deref()
@@ -790,16 +864,124 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
         {
             trace_items.push(json!({
                 "artifactPath": snapshot.get("artifactPath").cloned().unwrap_or(Value::Null),
-                "source": source,
-                "contractKey": contract_key,
+                "source": source.clone(),
+                "contractKey": contract_key.clone(),
                 "routingEvent": snapshot.get("routingEvent").cloned().unwrap_or(Value::Null),
                 "routingOutcome": snapshot.get("routingOutcome").cloned().unwrap_or(Value::Null),
                 "expectedRoutingSlot": snapshot.get("expectedRoutingSlot").cloned().unwrap_or(Value::Null),
+                "executionProfileKey": snapshot.get("executionProfileKey").cloned().unwrap_or(Value::Null),
+                "executorAdapterKey": snapshot.get("executorAdapterKey").cloned().unwrap_or(Value::Null),
                 "entrySource": snapshot.get("entrySource").cloned().unwrap_or(Value::Null),
                 "executorBindingKey": snapshot
                     .pointer("/runtimeContract/executor_binding/binding_key")
                     .cloned()
                     .unwrap_or(Value::Null),
+            }));
+        }
+
+        if let Some(browser_action) = snapshot
+            .get("browserAction")
+            .filter(|value| value.is_object())
+        {
+            if let Some(status) = snapshot_string(browser_action, "status") {
+                *browser_action_statuses.entry(status).or_insert(0) += 1;
+            }
+            if let Some(artifact_kind) = snapshot_string(browser_action, "artifactKind") {
+                *browser_action_kinds.entry(artifact_kind).or_insert(0) += 1;
+            }
+            if let Some(action) = snapshot_string(browser_action, "action") {
+                *browser_action_names.entry(action).or_insert(0) += 1;
+            }
+            if let Some(session_id) = snapshot_string(browser_action, "sessionId") {
+                browser_session_ids.insert(session_id);
+            }
+            if let Some(target_id) = snapshot_string(browser_action, "targetId") {
+                browser_target_ids.insert(target_id);
+            }
+            if let Some(profile_key) = snapshot_string(browser_action, "profileKey") {
+                browser_profile_keys.insert(profile_key);
+            }
+            if let Some(backend) = snapshot_string(browser_action, "backend") {
+                *browser_backends.entry(backend).or_insert(0) += 1;
+            }
+            if let Some(last_url) = snapshot_string(browser_action, "lastUrl") {
+                browser_last_url = Some(last_url);
+            }
+            if read_json_bool(browser_action, &[&["observationAvailable"][..]]).unwrap_or(false) {
+                browser_observation_count += 1;
+            }
+            if read_json_bool(browser_action, &[&["screenshotAvailable"][..]]).unwrap_or(false) {
+                browser_screenshot_count += 1;
+            }
+            browser_action_items.push(json!({
+                "artifactPath": snapshot.get("artifactPath").cloned().unwrap_or(Value::Null),
+                "contractKey": contract_key.clone(),
+                "source": source.clone(),
+                "entrySource": snapshot.get("entrySource").cloned().unwrap_or(Value::Null),
+                "artifactKind": browser_action.get("artifactKind").cloned().unwrap_or(Value::Null),
+                "toolName": browser_action.get("toolName").cloned().unwrap_or(Value::Null),
+                "action": browser_action.get("action").cloned().unwrap_or(Value::Null),
+                "status": browser_action.get("status").cloned().unwrap_or(Value::Null),
+                "success": browser_action.get("success").cloned().unwrap_or(Value::Null),
+                "sessionId": browser_action.get("sessionId").cloned().unwrap_or(Value::Null),
+                "targetId": browser_action.get("targetId").cloned().unwrap_or(Value::Null),
+                "profileKey": browser_action.get("profileKey").cloned().unwrap_or(Value::Null),
+                "backend": browser_action.get("backend").cloned().unwrap_or(Value::Null),
+                "requestId": browser_action.get("requestId").cloned().unwrap_or(Value::Null),
+                "lastUrl": browser_action.get("lastUrl").cloned().unwrap_or(Value::Null),
+                "title": browser_action.get("title").cloned().unwrap_or(Value::Null),
+                "attemptCount": browser_action.get("attemptCount").cloned().unwrap_or(Value::Null),
+                "observationAvailable": browser_action.get("observationAvailable").cloned().unwrap_or(Value::Null),
+                "screenshotAvailable": browser_action.get("screenshotAvailable").cloned().unwrap_or(Value::Null),
+            }));
+        }
+
+        if let Some(audio_output) = snapshot
+            .get("audioOutput")
+            .filter(|value| value.is_object())
+        {
+            if let Some(status) = snapshot_string(audio_output, "status") {
+                *audio_output_statuses.entry(status).or_insert(0) += 1;
+            }
+            if let Some(error_code) = snapshot_string(audio_output, "errorCode") {
+                audio_output_error_codes.insert(error_code);
+            }
+            audio_output_items.push(json!({
+                "artifactPath": snapshot.get("artifactPath").cloned().unwrap_or(Value::Null),
+                "taskId": snapshot.get("taskId").cloned().unwrap_or(Value::Null),
+                "status": audio_output.get("status").cloned().unwrap_or(Value::Null),
+                "audioPath": audio_output.get("audioPath").cloned().unwrap_or(Value::Null),
+                "mimeType": audio_output.get("mimeType").cloned().unwrap_or(Value::Null),
+                "durationMs": audio_output.get("durationMs").cloned().unwrap_or(Value::Null),
+                "providerId": audio_output.get("providerId").cloned().unwrap_or(Value::Null),
+                "model": audio_output.get("model").cloned().unwrap_or(Value::Null),
+                "errorCode": audio_output.get("errorCode").cloned().unwrap_or(Value::Null),
+                "retryable": audio_output.get("retryable").cloned().unwrap_or(Value::Null),
+                "workerId": audio_output.get("workerId").cloned().unwrap_or(Value::Null),
+            }));
+        }
+
+        if let Some(transcript) = snapshot.get("transcript").filter(|value| value.is_object()) {
+            if let Some(status) = snapshot_string(transcript, "status") {
+                *transcript_statuses.entry(status).or_insert(0) += 1;
+            }
+            if let Some(error_code) = snapshot_string(transcript, "errorCode") {
+                transcript_error_codes.insert(error_code);
+            }
+            transcript_items.push(json!({
+                "artifactPath": snapshot.get("artifactPath").cloned().unwrap_or(Value::Null),
+                "taskId": snapshot.get("taskId").cloned().unwrap_or(Value::Null),
+                "status": transcript.get("status").cloned().unwrap_or(Value::Null),
+                "transcriptPath": transcript.get("transcriptPath").cloned().unwrap_or(Value::Null),
+                "sourceUrl": transcript.get("sourceUrl").cloned().unwrap_or(Value::Null),
+                "sourcePath": transcript.get("sourcePath").cloned().unwrap_or(Value::Null),
+                "language": transcript.get("language").cloned().unwrap_or(Value::Null),
+                "outputFormat": transcript.get("outputFormat").cloned().unwrap_or(Value::Null),
+                "providerId": transcript.get("providerId").cloned().unwrap_or(Value::Null),
+                "model": transcript.get("model").cloned().unwrap_or(Value::Null),
+                "errorCode": transcript.get("errorCode").cloned().unwrap_or(Value::Null),
+                "retryable": transcript.get("retryable").cloned().unwrap_or(Value::Null),
+                "workerId": transcript.get("workerId").cloned().unwrap_or(Value::Null),
             }));
         }
     }
@@ -815,9 +997,56 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
             .map(|(outcome, count)| json!({ "outcome": outcome, "count": count }))
             .collect::<Vec<_>>(),
         "expectedRoutingSlots": expected_routing_slots.into_iter().collect::<Vec<_>>(),
+        "executionProfileKeys": execution_profile_keys.into_iter().collect::<Vec<_>>(),
+        "executorAdapterKeys": executor_adapter_keys.into_iter().collect::<Vec<_>>(),
         "toolTraceIndex": {
             "traceCount": trace_items.len(),
             "items": trace_items,
+        },
+        "audioOutputIndex": {
+            "outputCount": audio_output_items.len(),
+            "statusCounts": audio_output_statuses
+                .into_iter()
+                .map(|(status, count)| json!({ "status": status, "count": count }))
+                .collect::<Vec<_>>(),
+            "errorCodes": audio_output_error_codes.into_iter().collect::<Vec<_>>(),
+            "items": audio_output_items,
+        },
+        "transcriptIndex": {
+            "transcriptCount": transcript_items.len(),
+            "statusCounts": transcript_statuses
+                .into_iter()
+                .map(|(status, count)| json!({ "status": status, "count": count }))
+                .collect::<Vec<_>>(),
+            "errorCodes": transcript_error_codes.into_iter().collect::<Vec<_>>(),
+            "items": transcript_items,
+        },
+        "browserActionIndex": {
+            "actionCount": browser_action_items.len(),
+            "sessionCount": browser_session_ids.len(),
+            "observationCount": browser_observation_count,
+            "screenshotCount": browser_screenshot_count,
+            "lastUrl": browser_last_url,
+            "sessionIds": browser_session_ids.into_iter().collect::<Vec<_>>(),
+            "targetIds": browser_target_ids.into_iter().collect::<Vec<_>>(),
+            "profileKeys": browser_profile_keys.into_iter().collect::<Vec<_>>(),
+            "statusCounts": browser_action_statuses
+                .into_iter()
+                .map(|(status, count)| json!({ "status": status, "count": count }))
+                .collect::<Vec<_>>(),
+            "artifactKindCounts": browser_action_kinds
+                .into_iter()
+                .map(|(artifact_kind, count)| json!({ "artifactKind": artifact_kind, "count": count }))
+                .collect::<Vec<_>>(),
+            "actionCounts": browser_action_names
+                .into_iter()
+                .map(|(action, count)| json!({ "action": action, "count": count }))
+                .collect::<Vec<_>>(),
+            "backendCounts": browser_backends
+                .into_iter()
+                .map(|(backend, count)| json!({ "backend": backend, "count": count }))
+                .collect::<Vec<_>>(),
+            "items": browser_action_items,
         }
     })
 }
@@ -836,6 +1065,102 @@ fn is_runtime_contract_tool_trace_source(source: &str) -> bool {
         || source.contains("browser_action_trace")
         || source.contains("service_scene_trace")
         || source.contains("audio_task")
+        || source.contains("transcription_task")
+}
+
+fn extract_audio_output_snapshot(document: &Value) -> Option<Value> {
+    let audio_output = find_json_value_at_paths(
+        document,
+        &[
+            &["audio_output"][..],
+            &["audioOutput"][..],
+            &["payload", "audio_output"][..],
+            &["payload", "audioOutput"][..],
+            &["result", "audio_output"][..],
+            &["result", "audioOutput"][..],
+            &["record", "payload", "audio_output"][..],
+            &["record", "payload", "audioOutput"][..],
+            &["record", "result", "audio_output"][..],
+            &["record", "result", "audioOutput"][..],
+        ],
+    )
+    .filter(|value| value.is_object())?;
+
+    Some(json!({
+        "kind": read_json_string(audio_output, &[&["kind"][..]]).unwrap_or_else(|| "audio_output".to_string()),
+        "status": read_json_string(audio_output, &[&["status"][..]]),
+        "audioPath": read_json_string(audio_output, &[&["audio_path"][..], &["audioPath"][..]]),
+        "mimeType": read_json_string(audio_output, &[&["mime_type"][..], &["mimeType"][..]]),
+        "durationMs": find_json_value_at_paths(audio_output, &[&["duration_ms"][..], &["durationMs"][..]])
+            .cloned()
+            .unwrap_or(Value::Null),
+        "sourceText": read_json_string(audio_output, &[&["source_text"][..], &["sourceText"][..]]),
+        "voice": read_json_string(audio_output, &[&["voice"][..]]),
+        "providerId": read_json_string(audio_output, &[&["provider_id"][..], &["providerId"][..]]),
+        "model": read_json_string(audio_output, &[&["model"][..]]),
+        "errorCode": read_json_string(audio_output, &[&["error_code"][..], &["errorCode"][..]]),
+        "errorMessage": read_json_string(audio_output, &[&["error_message"][..], &["errorMessage"][..]]),
+        "retryable": find_json_value_at_paths(audio_output, &[&["retryable"][..]])
+            .cloned()
+            .unwrap_or(Value::Null),
+        "stage": read_json_string(audio_output, &[&["stage"][..]]),
+        "workerId": read_json_string(
+            document,
+            &[
+                &["current_attempt_worker_id"][..],
+                &["currentAttemptWorkerId"][..],
+                &["record", "current_attempt_worker_id"][..],
+                &["record", "currentAttemptWorkerId"][..],
+            ],
+        ),
+    }))
+}
+
+fn extract_transcript_snapshot(document: &Value) -> Option<Value> {
+    let transcript = find_json_value_at_paths(
+        document,
+        &[
+            &["transcript"][..],
+            &["payload", "transcript"][..],
+            &["result", "transcript"][..],
+            &["record", "payload", "transcript"][..],
+            &["record", "result", "transcript"][..],
+        ],
+    )
+    .filter(|value| value.is_object())?;
+
+    Some(json!({
+        "kind": read_json_string(transcript, &[&["kind"][..]]).unwrap_or_else(|| "transcript".to_string()),
+        "status": read_json_string(transcript, &[&["status"][..]]),
+        "transcriptPath": read_json_string(transcript, &[&["transcript_path"][..], &["transcriptPath"][..], &["path"][..]]),
+        "sourceUrl": read_json_string(transcript, &[&["source_url"][..], &["sourceUrl"][..]]),
+        "sourcePath": read_json_string(transcript, &[&["source_path"][..], &["sourcePath"][..]]),
+        "language": read_json_string(transcript, &[&["language"][..]]),
+        "outputFormat": read_json_string(transcript, &[&["output_format"][..], &["outputFormat"][..]]),
+        "timestamps": find_json_value_at_paths(transcript, &[&["timestamps"][..]])
+            .cloned()
+            .unwrap_or(Value::Null),
+        "speakerLabels": find_json_value_at_paths(transcript, &[&["speaker_labels"][..], &["speakerLabels"][..]])
+            .cloned()
+            .unwrap_or(Value::Null),
+        "providerId": read_json_string(transcript, &[&["provider_id"][..], &["providerId"][..]]),
+        "model": read_json_string(transcript, &[&["model"][..]]),
+        "errorCode": read_json_string(transcript, &[&["error_code"][..], &["errorCode"][..]]),
+        "errorMessage": read_json_string(transcript, &[&["error_message"][..], &["errorMessage"][..]]),
+        "retryable": find_json_value_at_paths(transcript, &[&["retryable"][..]])
+            .cloned()
+            .unwrap_or(Value::Null),
+        "stage": read_json_string(transcript, &[&["stage"][..]]),
+        "workerId": read_json_string(
+            document,
+            &[
+                &["current_attempt_worker_id"][..],
+                &["currentAttemptWorkerId"][..],
+                &["record", "current_attempt_worker_id"][..],
+                &["record", "currentAttemptWorkerId"][..],
+            ],
+        ),
+    }))
 }
 
 fn build_known_gaps(
@@ -1248,6 +1573,7 @@ fn build_runtime_observability_summary_json(
             "auxiliaryRuntimeSnapshotCount": auxiliary_runtime.snapshots.len(),
             "modalityRuntimeContractCount": modality_runtime_contracts.snapshots.len()
         },
+        "modalityRuntimeContracts": build_modality_runtime_contracts_observability_summary_json(modality_runtime_contracts),
         "latest": {
             "warning": latest_warning_json(diagnostics),
             "failedTool": latest_failed_tool_json(diagnostics),
@@ -1375,9 +1701,14 @@ fn collect_modality_runtime_contract_snapshots(
         };
         let artifact_path = format!("runtime_timeline/{}/{}", item.id, tool_name);
         let snapshot = if is_browser_tool_name(tool_name.as_str()) {
-            metadata.as_ref().and_then(|metadata| {
-                extract_modality_runtime_contract_snapshot(metadata, artifact_path.as_str())
-            })
+            extract_browser_control_contract_snapshot(
+                item.id.as_str(),
+                tool_name.as_str(),
+                arguments.as_ref(),
+                *success,
+                metadata.as_ref(),
+                artifact_path.as_str(),
+            )
         } else {
             extract_pdf_read_skill_contract_snapshot(
                 tool_name.as_str(),
@@ -1998,6 +2329,7 @@ fn is_modality_runtime_contract_applicable(artifact: &RuntimeRecentArtifact) -> 
     let normalized_path = artifact.path.replace('\\', "/").to_ascii_lowercase();
     if normalized_path.contains(".lime/tasks/image_generate/")
         || normalized_path.contains(".lime/tasks/audio_generate/")
+        || normalized_path.contains(".lime/tasks/transcription_generate/")
     {
         return true;
     }
@@ -2028,6 +2360,7 @@ fn is_modality_runtime_contract_applicable(artifact: &RuntimeRecentArtifact) -> 
                 .map(|value| {
                     value.eq_ignore_ascii_case("image_generate")
                         || value.eq_ignore_ascii_case("audio_generate")
+                        || value.eq_ignore_ascii_case("transcription_generate")
                 })
                 .unwrap_or(false)
         })
@@ -2581,6 +2914,212 @@ fn apply_tool_call_status_to_contract_document(document: &mut Value, success: Op
         .or_insert_with(|| Value::String(status.to_string()));
 }
 
+fn extract_browser_control_contract_snapshot(
+    item_id: &str,
+    tool_name: &str,
+    arguments: Option<&Value>,
+    success: Option<bool>,
+    metadata: Option<&Value>,
+    artifact_path: &str,
+) -> Option<Value> {
+    let metadata = metadata?;
+    let mut snapshot = extract_modality_runtime_contract_snapshot(metadata, artifact_path)?;
+    if snapshot.get("contractKey").and_then(Value::as_str) != Some(BROWSER_CONTROL_CONTRACT_KEY) {
+        return Some(snapshot);
+    }
+
+    if let Value::Object(object) = &mut snapshot {
+        object.insert(
+            "browserAction".to_string(),
+            build_browser_action_contract_index_item(
+                item_id, tool_name, arguments, success, metadata,
+            ),
+        );
+    }
+
+    Some(snapshot)
+}
+
+fn build_browser_action_contract_index_item(
+    item_id: &str,
+    tool_name: &str,
+    arguments: Option<&Value>,
+    success: Option<bool>,
+    metadata: &Value,
+) -> Value {
+    let action = read_json_string(metadata, &[&["action"][..], &["result", "action"][..]])
+        .unwrap_or_else(|| infer_browser_action_name(tool_name));
+    let artifact_kind = infer_browser_action_artifact_kind(action.as_str());
+    let action_success =
+        read_json_bool(metadata, &[&["result", "success"][..], &["success"][..]]).or(success);
+    let status = match action_success {
+        Some(true) => "completed",
+        Some(false) => "failed",
+        None => "unknown",
+    };
+    let attempt_count = read_json_usize(metadata, &[&["attempt_count"][..], &["attemptCount"][..]])
+        .or_else(|| {
+            metadata
+                .get("attempts")
+                .and_then(Value::as_array)
+                .map(Vec::len)
+        })
+        .or_else(|| {
+            metadata
+                .pointer("/result/attempts")
+                .and_then(Value::as_array)
+                .map(Vec::len)
+        });
+    let last_url = read_json_string(
+        metadata,
+        &[
+            &["browser_session", "target_url"][..],
+            &["browserSession", "targetUrl"][..],
+            &["result", "data", "browser_session", "target_url"][..],
+            &["result", "data", "browserSession", "targetUrl"][..],
+            &["result", "data", "target_url"][..],
+            &["result", "data", "targetUrl"][..],
+            &["result", "data", "url"][..],
+            &["result", "data", "tab", "url"][..],
+            &["result", "target_url"][..],
+            &["result", "targetUrl"][..],
+            &["result", "url"][..],
+        ],
+    )
+    .or_else(|| {
+        arguments.and_then(|arguments| {
+            read_json_string(
+                arguments,
+                &[
+                    &["url"][..],
+                    &["target_url"][..],
+                    &["targetUrl"][..],
+                    &["page_url"][..],
+                    &["pageUrl"][..],
+                ],
+            )
+        })
+    });
+    let screenshot_available = has_browser_screenshot(metadata);
+    let observation_available =
+        artifact_kind == "browser_snapshot" || screenshot_available || last_url.is_some();
+
+    json!({
+        "itemId": item_id,
+        "artifactKind": artifact_kind,
+        "toolName": tool_name,
+        "action": action,
+        "status": status,
+        "success": action_success,
+        "sessionId": read_json_string(
+            metadata,
+            &[
+                &["browser_session", "session_id"][..],
+                &["browserSession", "sessionId"][..],
+                &["result", "session_id"][..],
+                &["result", "sessionId"][..],
+                &["result", "data", "session_id"][..],
+                &["result", "data", "sessionId"][..],
+                &["result", "data", "browser_session", "session_id"][..],
+                &["result", "data", "browserSession", "sessionId"][..],
+            ],
+        ),
+        "targetId": read_json_string(
+            metadata,
+            &[
+                &["browser_session", "target_id"][..],
+                &["browserSession", "targetId"][..],
+                &["result", "target_id"][..],
+                &["result", "targetId"][..],
+                &["result", "data", "target_id"][..],
+                &["result", "data", "targetId"][..],
+                &["result", "data", "browser_session", "target_id"][..],
+                &["result", "data", "browserSession", "targetId"][..],
+                &["result", "data", "tab", "id"][..],
+            ],
+        ),
+        "profileKey": read_json_string(
+            metadata,
+            &[
+                &["browser_session", "profile_key"][..],
+                &["browserSession", "profileKey"][..],
+                &["result", "data", "profile_key"][..],
+                &["result", "data", "profileKey"][..],
+                &["result", "data", "browser_session", "profile_key"][..],
+                &["result", "data", "browserSession", "profileKey"][..],
+            ],
+        ),
+        "backend": read_json_string(
+            metadata,
+            &[&["selected_backend"][..], &["selectedBackend"][..], &["result", "backend"][..]],
+        ),
+        "requestId": read_json_string(
+            metadata,
+            &[&["result", "request_id"][..], &["result", "requestId"][..]],
+        ),
+        "lastUrl": last_url,
+        "title": read_json_string(
+            metadata,
+            &[
+                &["browser_session", "target_title"][..],
+                &["browserSession", "targetTitle"][..],
+                &["result", "data", "title"][..],
+                &["result", "data", "target_title"][..],
+                &["result", "data", "targetTitle"][..],
+                &["result", "data", "browser_session", "target_title"][..],
+                &["result", "data", "browserSession", "targetTitle"][..],
+            ],
+        ),
+        "attemptCount": attempt_count,
+        "observationAvailable": observation_available,
+        "screenshotAvailable": screenshot_available,
+    })
+}
+
+fn infer_browser_action_name(tool_name: &str) -> String {
+    tool_name
+        .rsplit("__")
+        .next()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(tool_name)
+        .to_string()
+}
+
+fn infer_browser_action_artifact_kind(action: &str) -> &'static str {
+    let normalized = action.trim().to_ascii_lowercase();
+    if normalized.contains("snapshot")
+        || normalized.contains("read_page")
+        || normalized.contains("get_page")
+        || normalized.contains("page_info")
+        || normalized.contains("page_text")
+        || normalized.contains("console")
+        || normalized.contains("network")
+        || normalized.contains("find")
+        || normalized.contains("tabs_context")
+    {
+        "browser_snapshot"
+    } else {
+        "browser_session"
+    }
+}
+
+fn has_browser_screenshot(metadata: &Value) -> bool {
+    find_json_value_at_paths(
+        metadata,
+        &[
+            &["screenshot"][..],
+            &["screenshot_path"][..],
+            &["screenshotPath"][..],
+            &["result", "data", "screenshot"][..],
+            &["result", "data", "screenshot_path"][..],
+            &["result", "data", "screenshotPath"][..],
+        ],
+    )
+    .map(json_value_has_content)
+    .unwrap_or(false)
+}
+
 fn extract_modality_runtime_contract_snapshot(
     document: &Value,
     artifact_path: &str,
@@ -2645,6 +3184,7 @@ fn extract_modality_runtime_contract_snapshot(
     let is_browser_control_contract = contract_key == BROWSER_CONTROL_CONTRACT_KEY;
     let is_pdf_extract_contract = contract_key == PDF_EXTRACT_CONTRACT_KEY;
     let is_voice_generation_contract = contract_key == VOICE_GENERATION_CONTRACT_KEY;
+    let is_audio_transcription_contract = contract_key == AUDIO_TRANSCRIPTION_CONTRACT_KEY;
     let is_web_research_contract = contract_key == WEB_RESEARCH_CONTRACT_KEY;
     let is_text_transform_contract = contract_key == TEXT_TRANSFORM_CONTRACT_KEY;
     let is_audio_task_artifact = is_voice_generation_contract
@@ -2653,12 +3193,19 @@ fn extract_modality_runtime_contract_snapshot(
                 .replace('\\', "/")
                 .to_ascii_lowercase()
                 .contains(".lime/tasks/audio_generate/"));
+    let is_transcription_task_artifact = is_audio_transcription_contract
+        && (task_type.as_deref() == Some("transcription_generate")
+            || artifact_path
+                .replace('\\', "/")
+                .to_ascii_lowercase()
+                .contains(".lime/tasks/transcription_generate/"));
     let routing_event = if is_contract_routing_failure {
         "routing_not_possible"
     } else if is_browser_control_contract {
         "browser_action_requested"
     } else if is_pdf_extract_contract
         || is_voice_generation_contract
+        || is_audio_transcription_contract
         || is_web_research_contract
         || is_text_transform_contract
     {
@@ -2682,6 +3229,8 @@ fn extract_modality_runtime_contract_snapshot(
             "pdf_read_skill_trace.modality_runtime_contract"
         } else if is_audio_task_artifact {
             "audio_task.modality_runtime_contract"
+        } else if is_transcription_task_artifact {
+            "transcription_task.modality_runtime_contract"
         } else if is_voice_generation_contract {
             "voice_generation_service_scene_trace.modality_runtime_contract"
         } else if is_web_research_contract {
@@ -2710,7 +3259,7 @@ fn extract_modality_runtime_contract_snapshot(
         ),
         "normalizedStatus": normalized_status,
         "contractKey": contract_key,
-        "contractMatchedExpected": is_image_generation_contract || is_browser_control_contract || is_pdf_extract_contract || is_voice_generation_contract || is_web_research_contract || is_text_transform_contract,
+        "contractMatchedExpected": is_image_generation_contract || is_browser_control_contract || is_pdf_extract_contract || is_voice_generation_contract || is_audio_transcription_contract || is_web_research_contract || is_text_transform_contract,
         "expectedRoutingSlot": if is_image_generation_contract {
             Some(IMAGE_GENERATION_ROUTING_SLOT)
         } else if is_browser_control_contract {
@@ -2719,6 +3268,8 @@ fn extract_modality_runtime_contract_snapshot(
             Some(PDF_EXTRACT_ROUTING_SLOT)
         } else if is_voice_generation_contract {
             Some(VOICE_GENERATION_ROUTING_SLOT)
+        } else if is_audio_transcription_contract {
+            Some(AUDIO_TRANSCRIPTION_ROUTING_SLOT)
         } else if is_web_research_contract {
             Some(WEB_RESEARCH_ROUTING_SLOT)
         } else if is_text_transform_contract {
@@ -2767,6 +3318,8 @@ fn extract_modality_runtime_contract_snapshot(
                 &["record", "payload", "routingSlot"][..],
             ],
         ),
+        "executionProfileKey": extract_runtime_contract_execution_profile_key(document),
+        "executorAdapterKey": extract_runtime_contract_executor_adapter_key(document),
         "providerId": read_json_string(
             document,
             &[
@@ -2815,6 +3368,16 @@ fn extract_modality_runtime_contract_snapshot(
         "failureCode": failure_code,
         "failureStage": failure_stage,
         "lastError": last_error,
+        "audioOutput": if is_audio_task_artifact {
+            extract_audio_output_snapshot(document)
+        } else {
+            None
+        },
+        "transcript": if is_transcription_task_artifact {
+            extract_transcript_snapshot(document)
+        } else {
+            None
+        },
         "runtimeContract": find_json_value_at_paths(
             document,
             &[
@@ -2828,6 +3391,124 @@ fn extract_modality_runtime_contract_snapshot(
         )
         .cloned()
     }))
+}
+
+fn extract_runtime_contract_execution_profile_key(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["execution_profile_key"][..],
+            &["executionProfileKey"][..],
+            &["execution_profile", "profile_key"][..],
+            &["executionProfile", "profileKey"][..],
+            &["runtime_contract", "execution_profile", "profile_key"][..],
+            &["runtime_contract", "executionProfile", "profileKey"][..],
+            &["runtimeContract", "execution_profile", "profile_key"][..],
+            &["runtimeContract", "executionProfile", "profileKey"][..],
+            &["payload", "execution_profile_key"][..],
+            &["payload", "executionProfileKey"][..],
+            &[
+                "payload",
+                "runtime_contract",
+                "execution_profile",
+                "profile_key",
+            ][..],
+            &[
+                "payload",
+                "runtimeContract",
+                "execution_profile",
+                "profile_key",
+            ][..],
+            &[
+                "payload",
+                "runtimeContract",
+                "executionProfile",
+                "profileKey",
+            ][..],
+            &["record", "payload", "execution_profile_key"][..],
+            &["record", "payload", "executionProfileKey"][..],
+            &[
+                "record",
+                "payload",
+                "runtime_contract",
+                "execution_profile",
+                "profile_key",
+            ][..],
+            &[
+                "record",
+                "payload",
+                "runtimeContract",
+                "execution_profile",
+                "profile_key",
+            ][..],
+            &[
+                "record",
+                "payload",
+                "runtimeContract",
+                "executionProfile",
+                "profileKey",
+            ][..],
+        ],
+    )
+}
+
+fn extract_runtime_contract_executor_adapter_key(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["executor_adapter_key"][..],
+            &["executorAdapterKey"][..],
+            &["executor_adapter", "adapter_key"][..],
+            &["executorAdapter", "adapterKey"][..],
+            &["runtime_contract", "executor_adapter", "adapter_key"][..],
+            &["runtime_contract", "executorAdapter", "adapterKey"][..],
+            &["runtimeContract", "executor_adapter", "adapter_key"][..],
+            &["runtimeContract", "executorAdapter", "adapterKey"][..],
+            &["payload", "executor_adapter_key"][..],
+            &["payload", "executorAdapterKey"][..],
+            &[
+                "payload",
+                "runtime_contract",
+                "executor_adapter",
+                "adapter_key",
+            ][..],
+            &[
+                "payload",
+                "runtimeContract",
+                "executor_adapter",
+                "adapter_key",
+            ][..],
+            &[
+                "payload",
+                "runtimeContract",
+                "executorAdapter",
+                "adapterKey",
+            ][..],
+            &["record", "payload", "executor_adapter_key"][..],
+            &["record", "payload", "executorAdapterKey"][..],
+            &[
+                "record",
+                "payload",
+                "runtime_contract",
+                "executor_adapter",
+                "adapter_key",
+            ][..],
+            &[
+                "record",
+                "payload",
+                "runtimeContract",
+                "executor_adapter",
+                "adapter_key",
+            ][..],
+            &[
+                "record",
+                "payload",
+                "runtimeContract",
+                "executorAdapter",
+                "adapterKey",
+            ][..],
+        ],
+    )
 }
 
 fn is_modality_contract_routing_failure_code(code: &str) -> bool {
@@ -3239,6 +3920,27 @@ fn read_json_string_array(value: &Value, paths: &[&[&str]]) -> Vec<String> {
 
 fn read_json_bool(value: &Value, paths: &[&[&str]]) -> Option<bool> {
     find_json_value_at_paths(value, paths).and_then(Value::as_bool)
+}
+
+fn read_json_usize(value: &Value, paths: &[&[&str]]) -> Option<usize> {
+    let resolved = find_json_value_at_paths(value, paths)?;
+    match resolved {
+        Value::Number(number) => number
+            .as_u64()
+            .and_then(|value| usize::try_from(value).ok()),
+        Value::String(text) => text.trim().parse::<usize>().ok(),
+        _ => None,
+    }
+}
+
+fn json_value_has_content(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::String(text) => !text.trim().is_empty(),
+        Value::Array(items) => !items.is_empty(),
+        Value::Object(fields) => !fields.is_empty(),
+        _ => true,
+    }
 }
 
 fn is_browser_tool_name(tool_name: &str) -> bool {
@@ -3761,6 +4463,12 @@ mod tests {
                             "executor_kind": "skill",
                             "binding_key": "image_generate"
                         },
+                        "execution_profile": {
+                            "profile_key": "image_generation_profile"
+                        },
+                        "executor_adapter": {
+                            "adapter_key": "skill:image_generate"
+                        },
                         "truth_source": ["image_task_artifact", "runtime_timeline_event"]
                     }
                 },
@@ -3835,18 +4543,110 @@ mod tests {
                     },
                     "audio_output": {
                         "kind": "audio_output",
-                        "status": "pending",
-                        "audio_path": null,
+                        "status": "completed",
+                        "audio_path": ".lime/runtime/audio/task-audio-1.mp3",
                         "mime_type": "audio/mpeg",
-                        "duration_ms": null,
+                        "duration_ms": 128000,
                         "source_text": "请为这段文案生成温暖旁白",
-                        "voice": "warm_narrator"
+                        "voice": "warm_narrator",
+                        "provider_id": "limecore",
+                        "model": "voice-pro"
+                    }
+                },
+                "status": "succeeded",
+                "normalized_status": "succeeded",
+                "created_at": "2026-04-30T10:00:00Z",
+                "updated_at": "2026-04-30T10:00:05Z",
+                "submitted_at": null,
+                "started_at": "2026-04-30T10:00:01Z",
+                "completed_at": "2026-04-30T10:00:05Z",
+                "cancelled_at": null,
+                "idempotency_key": null,
+                "retry_count": 0,
+                "source_task_id": null,
+                "result": {
+                    "kind": "audio_generation_result",
+                    "status": "completed",
+                    "audio_output": {
+                        "kind": "audio_output",
+                        "status": "completed",
+                        "audio_path": ".lime/runtime/audio/task-audio-1.mp3",
+                        "mime_type": "audio/mpeg",
+                        "duration_ms": 128000,
+                        "provider_id": "limecore",
+                        "model": "voice-pro"
+                    }
+                },
+                "last_error": null,
+                "current_attempt_id": "attempt-audio-1",
+                "current_attempt_worker_id": "lime-audio-worker",
+                "attempts": [],
+                "relationships": {},
+                "progress": {},
+                "ui_hints": {}
+            }))
+            .expect("serialize audio task"),
+        )
+        .expect("write audio task");
+    }
+
+    fn write_transcription_task_fixture(root: &Path, relative_path: &str) {
+        let absolute_path = root.join(relative_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        fs::create_dir_all(
+            absolute_path
+                .parent()
+                .expect("transcription task path should have parent"),
+        )
+        .expect("create transcription task dir");
+        fs::write(
+            absolute_path,
+            serde_json::to_string_pretty(&json!({
+                "task_id": "task-transcription-1",
+                "task_type": "transcription_generate",
+                "task_family": "document",
+                "title": "会议转写",
+                "summary": "会议音频转写任务",
+                "payload": {
+                    "prompt": "生成逐字稿",
+                    "source_path": "/tmp/interview.wav",
+                    "language": "zh-CN",
+                    "output_format": "srt",
+                    "speaker_labels": true,
+                    "timestamps": true,
+                    "provider_id": "limecore",
+                    "model": "asr-pro",
+                    "entry_source": "at_transcription_command",
+                    "modality_contract_key": AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+                    "modality": "audio",
+                    "required_capabilities": ["text_generation", "audio_transcription"],
+                    "routing_slot": AUDIO_TRANSCRIPTION_ROUTING_SLOT,
+                    "runtime_contract": {
+                        "contract_key": AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+                        "modality": "audio",
+                        "required_capabilities": ["text_generation", "audio_transcription"],
+                        "routing_slot": AUDIO_TRANSCRIPTION_ROUTING_SLOT,
+                        "executor_binding": {
+                            "executor_kind": "skill",
+                            "binding_key": "transcription_generate"
+                        },
+                        "truth_source": ["transcript_artifact", "runtime_timeline_event"]
+                    },
+                    "transcript": {
+                        "kind": "transcript",
+                        "status": "pending",
+                        "source_path": "/tmp/interview.wav",
+                        "language": "zh-CN",
+                        "output_format": "srt",
+                        "speaker_labels": true,
+                        "timestamps": true,
+                        "provider_id": "limecore",
+                        "model": "asr-pro"
                     }
                 },
                 "status": "pending_submit",
                 "normalized_status": "pending",
                 "created_at": "2026-04-30T10:00:00Z",
-                "updated_at": null,
+                "updated_at": "2026-04-30T10:00:05Z",
                 "submitted_at": null,
                 "started_at": null,
                 "completed_at": null,
@@ -3856,15 +4656,16 @@ mod tests {
                 "source_task_id": null,
                 "result": null,
                 "last_error": null,
-                "current_attempt_id": "attempt-audio-1",
+                "current_attempt_id": "attempt-transcription-1",
+                "current_attempt_worker_id": "lime-transcription-worker",
                 "attempts": [],
                 "relationships": {},
                 "progress": {},
                 "ui_hints": {}
             }))
-            .expect("serialize audio task"),
+            .expect("serialize transcription task"),
         )
-        .expect("write audio task");
+        .expect("write transcription task");
     }
 
     #[allow(dead_code)]
@@ -4428,6 +5229,30 @@ mod tests {
         );
         assert_eq!(
             runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/executionProfileKey")
+                .and_then(Value::as_str),
+            Some("image_generation_profile")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/executorAdapterKey")
+                .and_then(Value::as_str),
+            Some("skill:image_generate")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/executionProfileKeys/0")
+                .and_then(Value::as_str),
+            Some("image_generation_profile")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/executorAdapterKeys/0")
+                .and_then(Value::as_str),
+            Some("skill:image_generate")
+        );
+        assert_eq!(
+            runtime
                 .pointer("/modalityRuntimeContracts/snapshots/0/modelCapabilityAssessment/source")
                 .and_then(Value::as_str),
             Some("model_registry")
@@ -4508,9 +5333,32 @@ mod tests {
                     "routing_slot": BROWSER_CONTROL_ROUTING_SLOT,
                     "runtime_contract": {
                         "contract_key": BROWSER_CONTROL_CONTRACT_KEY,
-                        "routing_slot": BROWSER_CONTROL_ROUTING_SLOT
+                        "routing_slot": BROWSER_CONTROL_ROUTING_SLOT,
+                        "executor_binding": {
+                            "executor_kind": "browser_action",
+                            "binding_key": "lime_browser_mcp"
+                        }
                     },
-                    "entry_source": "at_browser_command"
+                    "entry_source": "at_browser_command",
+                    "action": "navigate",
+                    "selected_backend": "cdp_direct",
+                    "attempt_count": 1,
+                    "result": {
+                        "success": true,
+                        "action": "navigate",
+                        "request_id": "browser-request-1",
+                        "session_id": "browser-session-1",
+                        "target_id": "target-1",
+                        "data": {
+                            "browser_session": {
+                                "session_id": "browser-session-1",
+                                "profile_key": "general_browser_assist",
+                                "target_id": "target-1",
+                                "target_title": "Example",
+                                "target_url": "https://example.com/"
+                            }
+                        }
+                    }
                 })),
             },
         });
@@ -4566,6 +5414,188 @@ mod tests {
                 .pointer("/modalityRuntimeContracts/snapshots/0/expectedRoutingSlot")
                 .and_then(Value::as_str),
             Some(BROWSER_CONTROL_ROUTING_SLOT)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/browserAction/artifactKind")
+                .and_then(Value::as_str),
+            Some("browser_session")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/browserAction/sessionId")
+                .and_then(Value::as_str),
+            Some("browser-session-1")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/browserActionIndex/actionCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/browserActionIndex/sessionCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/browserActionIndex/lastUrl")
+                .and_then(Value::as_str),
+            Some("https://example.com/")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/browserActionIndex/items/0/action"
+                )
+                .and_then(Value::as_str),
+            Some("navigate")
+        );
+        assert_eq!(
+            result
+                .observability_summary
+                .pointer("/modalityRuntimeContracts/snapshotIndex/browserActionIndex/actionCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            result
+                .observability_summary
+                .pointer("/modalityRuntimeContracts/snapshotIndex/browserActionIndex/lastUrl")
+                .and_then(Value::as_str),
+            Some("https://example.com/")
+        );
+    }
+
+    #[test]
+    fn should_index_browser_snapshot_observation_from_tool_metadata() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+
+        detail.items.push(AgentThreadItem {
+            id: "browser-snapshot-tool-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:40Z".to_string()),
+            updated_at: "2026-03-27T10:00:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "mcp__lime-browser__get_page_info".to_string(),
+                arguments: Some(json!({})),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: Some(json!({
+                    "tool_family": "browser",
+                    "modality_contract_key": BROWSER_CONTROL_CONTRACT_KEY,
+                    "modality": "browser",
+                    "required_capabilities": [
+                        "text_generation",
+                        "browser_reasoning",
+                        "browser_control_planning"
+                    ],
+                    "routing_slot": BROWSER_CONTROL_ROUTING_SLOT,
+                    "runtime_contract": {
+                        "contract_key": BROWSER_CONTROL_CONTRACT_KEY,
+                        "routing_slot": BROWSER_CONTROL_ROUTING_SLOT,
+                        "executor_binding": {
+                            "executor_kind": "browser_action",
+                            "binding_key": "lime_browser_mcp"
+                        }
+                    },
+                    "entry_source": "at_browser_agent_command",
+                    "action": "get_page_info",
+                    "selected_backend": "lime_extension_bridge",
+                    "result": {
+                        "success": true,
+                        "action": "get_page_info",
+                        "request_id": "browser-request-2",
+                        "data": {
+                            "title": "Example",
+                            "url": "https://example.com/",
+                            "screenshot_path": ".lime/runtime/browser/browser-snapshot-1.png",
+                            "browser_session": {
+                                "session_id": "browser-session-1",
+                                "profile_key": "general_browser_assist",
+                                "target_id": "target-1",
+                                "target_title": "Example",
+                                "target_url": "https://example.com/"
+                            }
+                        }
+                    }
+                })),
+            },
+        });
+
+        let result =
+            export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/browserAction/artifactKind")
+                .and_then(Value::as_str),
+            Some("browser_snapshot")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/browserActionIndex/observationCount"
+                )
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/browserActionIndex/screenshotCount"
+                )
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/browserActionIndex/items/0/artifactKind")
+                .and_then(Value::as_str),
+            Some("browser_snapshot")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/browserActionIndex/items/0/backend"
+                )
+                .and_then(Value::as_str),
+            Some("lime_extension_bridge")
+        );
+        assert_eq!(
+            result
+                .observability_summary
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/browserActionIndex/items/0/artifactKind"
+                )
+                .and_then(Value::as_str),
+            Some("browser_snapshot")
+        );
+        assert_eq!(
+            result
+                .observability_summary
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/browserActionIndex/observationCount"
+                )
+                .and_then(Value::as_u64),
+            Some(1)
         );
     }
 
@@ -4859,9 +5889,140 @@ mod tests {
         );
         assert_eq!(
             runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/audioOutput/status")
+                .and_then(Value::as_str),
+            Some("completed")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/audioOutput/audioPath")
+                .and_then(Value::as_str),
+            Some(".lime/runtime/audio/task-audio-1.mp3")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/audioOutput/workerId")
+                .and_then(Value::as_str),
+            Some("lime-audio-worker")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/audioOutputIndex/outputCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/audioOutputIndex/statusCounts/0/status"
+                )
+                .and_then(Value::as_str),
+            Some("completed")
+        );
+        assert_eq!(
+            runtime
                 .pointer("/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executorBindingKey")
                 .and_then(Value::as_str),
             Some("voice_runtime")
+        );
+    }
+
+    #[test]
+    fn should_export_audio_transcription_contract_snapshot_from_transcription_task_artifact() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+        let transcription_task_relative_path =
+            ".lime/tasks/transcription_generate/task-transcription-1.json";
+
+        write_transcription_task_fixture(temp_dir.path(), transcription_task_relative_path);
+
+        if let AgentThreadItemPayload::FileArtifact { path, metadata, .. } =
+            &mut detail.items[1].payload
+        {
+            *path = transcription_task_relative_path.to_string();
+            *metadata = Some(json!({
+                "task_type": "transcription_generate"
+            }));
+        }
+
+        export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = serde_json::from_str::<Value>(
+            fs::read_to_string(runtime_path).expect("runtime").as_str(),
+        )
+        .expect("parse runtime json");
+
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/source")
+                .and_then(Value::as_str),
+            Some("transcription_task.modality_runtime_contract")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contractKey")
+                .and_then(Value::as_str),
+            Some(AUDIO_TRANSCRIPTION_CONTRACT_KEY)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/taskType")
+                .and_then(Value::as_str),
+            Some("transcription_generate")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/expectedRoutingSlot")
+                .and_then(Value::as_str),
+            Some(AUDIO_TRANSCRIPTION_ROUTING_SLOT)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/routingEvent")
+                .and_then(Value::as_str),
+            Some("executor_invoked")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/transcript/status")
+                .and_then(Value::as_str),
+            Some("pending")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/transcript/sourcePath")
+                .and_then(Value::as_str),
+            Some("/tmp/interview.wav")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/transcriptIndex/transcriptCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/transcriptIndex/statusCounts/0/status"
+                )
+                .and_then(Value::as_str),
+            Some("pending")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executorBindingKey")
+                .and_then(Value::as_str),
+            Some("transcription_generate")
         );
     }
 
@@ -4899,11 +6060,17 @@ mod tests {
                             "runtime_contract": {
                                 "contract_key": WEB_RESEARCH_CONTRACT_KEY,
                                 "routing_slot": WEB_RESEARCH_ROUTING_SLOT,
-                                "executor_binding": {
-                                    "executor_kind": "skill",
-                                    "binding_key": "research"
-                                }
+                            "executor_binding": {
+                                "executor_kind": "skill",
+                                "binding_key": "research"
                             },
+                            "execution_profile": {
+                                "profile_key": "web_research_profile"
+                            },
+                            "executor_adapter": {
+                                "adapter_key": "skill:research"
+                            }
+                        },
                             "entry_source": "at_search_command"
                         }
                     })).expect("serialize args")
@@ -4969,6 +6136,18 @@ mod tests {
         );
         assert_eq!(
             runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/executionProfileKey")
+                .and_then(Value::as_str),
+            Some("web_research_profile")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/executorAdapterKey")
+                .and_then(Value::as_str),
+            Some("skill:research")
+        );
+        assert_eq!(
+            runtime
                 .pointer("/modalityRuntimeContracts/snapshotIndex/contractKeys/0")
                 .and_then(Value::as_str),
             Some(WEB_RESEARCH_CONTRACT_KEY)
@@ -5006,6 +6185,22 @@ mod tests {
                 )
                 .and_then(Value::as_str),
             Some("research")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executionProfileKey",
+                )
+                .and_then(Value::as_str),
+            Some("web_research_profile")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/toolTraceIndex/items/0/executorAdapterKey",
+                )
+                .and_then(Value::as_str),
+            Some("skill:research")
         );
         assert_eq!(
             runtime

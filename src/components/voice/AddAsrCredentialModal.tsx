@@ -23,6 +23,7 @@ interface AddAsrCredentialModalProps {
 const ProviderIcon = ({ type }: { type: AsrProviderType }) => {
   switch (type) {
     case "whisper_local":
+    case "sensevoice_local":
       return <Cpu className="h-5 w-5" />;
     case "openai":
       return <Sparkles className="h-5 w-5" />;
@@ -96,6 +97,15 @@ export function AddAsrCredentialModal({
           selectedProvider === "whisper_local"
             ? { model: whisperModel }
             : undefined,
+        sensevoice_config:
+          selectedProvider === "sensevoice_local"
+            ? {
+                model_id: "sensevoice-small-int8-2024-07-17",
+                use_itn: true,
+                num_threads: 4,
+                vad_model_id: "silero-vad-onnx",
+              }
+            : undefined,
         xunfei_config:
           selectedProvider === "xunfei"
             ? {
@@ -133,6 +143,7 @@ export function AddAsrCredentialModal({
     if (!selectedProvider) return false;
     switch (selectedProvider) {
       case "whisper_local":
+      case "sensevoice_local":
         return true;
       case "xunfei":
         return xunfeiAppId && xunfeiApiKey && xunfeiApiSecret;

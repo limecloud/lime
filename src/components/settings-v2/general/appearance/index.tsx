@@ -23,6 +23,7 @@ import {
   Volume2,
   Waypoints,
   Bot,
+  Shuffle,
   type LucideIcon,
 } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
@@ -339,6 +340,16 @@ export function AppearanceSettings() {
     [],
   );
 
+  const handleRandomColorScheme = useCallback(() => {
+    const candidates = LIME_COLOR_SCHEMES.filter(
+      (scheme) => scheme.id !== colorSchemeId,
+    );
+    const nextScheme =
+      candidates[Math.floor(Math.random() * candidates.length)] ??
+      LIME_COLOR_SCHEMES[0];
+    handleColorSchemeChange(nextScheme.id);
+  }, [colorSchemeId, handleColorSchemeChange]);
+
   const handleLanguageChange = useCallback(
     async (nextLanguage: Language) => {
       if (!config) {
@@ -600,6 +611,24 @@ export function AppearanceSettings() {
               </div>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={handleRandomColorScheme}
+                  className={cn(
+                    "rounded-[20px] border px-4 py-4 text-left shadow-sm transition",
+                    INACTIVE_OPTION_CARD_CLASS,
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] text-[color:var(--lime-brand-strong)]">
+                      <Shuffle className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm font-semibold">随机</p>
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--lime-text-muted)]">
+                    每次点击随机切换一个配色。
+                  </p>
+                </button>
                 {LIME_COLOR_SCHEMES.map((option) => {
                   const active = colorSchemeId === option.id;
                   return (

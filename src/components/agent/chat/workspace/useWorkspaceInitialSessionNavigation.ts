@@ -43,6 +43,15 @@ export function resetInitialSessionNavigationDeduplicationForTests() {
   recentInitialSessionNavigationStarts.clear();
 }
 
+export function rememberInitialSessionNavigationStart(sessionId: string) {
+  const normalizedSessionId = normalizeSessionId(sessionId);
+  if (!normalizedSessionId) {
+    return;
+  }
+
+  recentInitialSessionNavigationStarts.set(normalizedSessionId, Date.now());
+}
+
 export function useWorkspaceInitialSessionNavigation({
   initialSessionId,
   currentSessionId,

@@ -100,6 +100,13 @@ pub(crate) fn emit_media_creation_task_event(app_handle: &AppHandle, output: &Me
         "anchor_text": read_payload_string(payload_record, &["anchor_text", "anchorText"]),
         "requested_count": read_output_result_u64(output, &["requested_count", "requestedCount"]),
         "received_count": read_output_result_u64(output, &["received_count", "receivedCount"]),
+        "source_text": read_payload_string(payload_record, &["source_text", "sourceText"]),
+        "voice": read_payload_string(payload_record, &["voice"]),
+        "voice_style": read_payload_string(payload_record, &["voice_style", "voiceStyle"]),
+        "target_language": read_payload_string(payload_record, &["target_language", "targetLanguage"]),
+        "audio_path": read_payload_string(payload_record, &["audio_path", "audioPath"]),
+        "mime_type": read_payload_string(payload_record, &["mime_type", "mimeType"]),
+        "duration_ms": read_payload_u64(payload_record, &["duration_ms", "durationMs"]),
     });
 
     if let Err(error) = app_handle.emit(CREATION_TASK_EVENT_NAME, &payload) {
@@ -167,14 +174,16 @@ pub(crate) fn attach_media_task_metadata(
         )
         .with_metadata(
             "provider_id",
-            serde_json::json!(read_output_result_string(
-                output,
-                &["provider_id", "providerId"]
-            )),
+            serde_json::json!(
+                read_output_result_string(output, &["provider_id", "providerId"]).or_else(|| {
+                    read_payload_string(&output.record.payload, &["provider_id", "providerId"])
+                })
+            ),
         )
         .with_metadata(
             "model",
-            serde_json::json!(read_output_result_string(output, &["model"])),
+            serde_json::json!(read_output_result_string(output, &["model"])
+                .or_else(|| read_payload_string(&output.record.payload, &["model"]))),
         )
         .with_metadata(
             "requested_count",
@@ -188,6 +197,52 @@ pub(crate) fn attach_media_task_metadata(
             serde_json::json!(read_output_result_u64(
                 output,
                 &["received_count", "receivedCount"]
+            )),
+        )
+        .with_metadata(
+            "source_text",
+            serde_json::json!(read_payload_string(
+                &output.record.payload,
+                &["source_text", "sourceText"]
+            )),
+        )
+        .with_metadata(
+            "voice",
+            serde_json::json!(read_payload_string(&output.record.payload, &["voice"])),
+        )
+        .with_metadata(
+            "voice_style",
+            serde_json::json!(read_payload_string(
+                &output.record.payload,
+                &["voice_style", "voiceStyle"]
+            )),
+        )
+        .with_metadata(
+            "target_language",
+            serde_json::json!(read_payload_string(
+                &output.record.payload,
+                &["target_language", "targetLanguage"]
+            )),
+        )
+        .with_metadata(
+            "audio_path",
+            serde_json::json!(read_payload_string(
+                &output.record.payload,
+                &["audio_path", "audioPath"]
+            )),
+        )
+        .with_metadata(
+            "mime_type",
+            serde_json::json!(read_payload_string(
+                &output.record.payload,
+                &["mime_type", "mimeType"]
+            )),
+        )
+        .with_metadata(
+            "duration_ms",
+            serde_json::json!(read_payload_u64(
+                &output.record.payload,
+                &["duration_ms", "durationMs"]
             )),
         )
         .with_metadata("artifact_paths", serde_json::json!(output.artifact_paths()))

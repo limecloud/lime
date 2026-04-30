@@ -112,6 +112,8 @@
 - 同轮收口：任务中心内部 `handleOpenSidebarTaskTopic` / `handleResumeSidebarTask` / `handleResumeRecentSession` / fallback restore 默认走追加/激活语义，只有外部直达会话仍保留 replace 语义，避免旧缓存污染首开深链。
 - `2026-04-30` 追加旧会话卡顿收口：MessageList 对恢复中或已分页旧会话使用更小的首屏批次（20 条）和 idle 小批量补齐；已完成的旧会话最后一个 turn 不再按 current turn 处理，避免历史 timeline 在首帧被当作活跃执行过程同步展开。
 - `2026-04-30` 追加 invoke 降噪：`workspace_get` 增加 1s 短 TTL 与同 id in-flight 合并，避免旧会话切换期间工作区详情重复抢占 bridge；打开旧会话时自动回填的 `recent_preferences` / `recent_team_selection` 改为同 session 后台合并队列，12s 后 idle 再写，若期间已切走则直接丢弃，手动偏好修改仍保持即时低延迟同步。
+- `2026-04-30` 追加旧会话预取：侧边栏会话按钮在 focus / pointer enter / pointer down 时发送 task-center prefetch 事件，当前 Agent 工作区复用 `runtime.getSession(historyLimit: 40)` 预取结果；若用户随后点击同一会话，`switchTopic` 直接等待同一个 in-flight 详情请求，不再重复打 `agent_runtime_get_session`，并把预取结果写入本地 tail snapshot。话题列表就绪后还会在测试环境外 idle 预取最近 3 条非当前会话，降低无本地 snapshot 时的首次点击等待。
+- `2026-04-30` 追加路由恢复收口：从首页/侧栏通过 `initialSessionId` 进入旧会话时不再默认 `forceRefresh`，仅 `workspace_error` 会话继续强制刷新；命中 fresh tail snapshot 时先渲染缓存，远端详情刷新延后到 1.2s + idle，避免点击主链马上再打 `agent_runtime_get_session`。
 - `npx vitest run "src/components/agent/chat/index.test.tsx" -t "任务中心初始会话标签"` 通过（11 tests），新增覆盖任务中心内部连续打开旧会话、外层侧栏事件 + 路由追平后保留两个历史 tab。
 - `npx vitest run "src/components/AppSidebar.test.tsx"` 通过（35 tests），新增覆盖任务中心内点击已有会话会先通知本地标签栏，再继续导航。
 - `npx eslint "src/components/AppSidebar.tsx" "src/components/AppSidebar.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/index.test.tsx" "src/components/agent/chat/taskCenterDraftTaskEvents.ts" --max-warnings 0` 通过。
@@ -131,3 +133,47 @@
 - `npx vitest run "src/components/agent/chat/hooks/useSelectedTeamPreference.test.tsx"` 通过（13 tests），覆盖自动 fallback Team 回填走后台同步、手动切换仍即时回写。
 - `npx eslint "src/lib/api/project.ts" "src/lib/api/project.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/hooks/useSelectedTeamPreference.ts" "src/components/agent/chat/hooks/useSelectedTeamPreference.test.tsx" --max-warnings 0` 通过。
 - GUI smoke / Playwright 后置复测暂被本地并发 Cargo/Tauri 构建阻塞：`tauri:dev:headless` 首次暴露非本轮 `creation_tools.rs` 大型 `serde_json::json!` 递归限制，已在 `src-tauri/src/lib.rs` 补 `recursion_limit = "256"` 解除；随后仍有多个非本轮 `cargo test` / `cargo check` 并发进程占用 target/package lock，需环境空闲后重跑 `npm run bridge:health -- --timeout-ms 120000`、`npm run verify:gui-smoke` 与 Playwright 旧会话性能采样。
+- `2026-04-30` Playwright 预取前采样（`http://127.0.0.1:1420/`）：刷新后点击 `Slow typing E2E`，早期 invoke 仅 `workspace_get_default` / `workspace_list` / `agent_runtime_get_session(historyLimit:40)`，其中 `get_session` 约 `1261ms`；`localStorage/sessionStorage` 未命中 `aster_session_snapshots*`，说明当前慢点主要是无本地 tail snapshot 时必须等后端详情返回。
+- `2026-04-30` Playwright 预取后采样（`http://127.0.0.1:1420/`）：focus `AI Trends Task` 后预取 `agent_runtime_get_session(historyLimit:40)` 约 `116ms` 并写入 `aster_session_snapshots_*`；随后点击同会话，前 `500ms` 内不再出现 `agent_runtime_get_session`，仅剩 route/workspace 初始化类 `workspace_get/default/list`，消息组已可见，`body/html cursor=auto`。
+- `npx vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" "src/components/AppSidebar.test.tsx"` 通过（2 files / 191 tests），覆盖旧会话预取 in-flight 复用与侧边栏 focus 预取事件。
+- `npx eslint "src/components/agent/chat/hooks/useAgentSession.ts" "src/components/agent/chat/hooks/useAsterAgentChat.ts" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/taskCenterDraftTaskEvents.ts" "src/components/AppSidebar.tsx" "src/components/AppSidebar.test.tsx" "src/components/app-sidebar/AppSidebarConversationShelf.tsx" --max-warnings 0` 通过。
+- `npx tsc --noEmit --pretty false` 通过。
+- `2026-04-30` 追加旧会话首帧渲染降载：历史恢复路径的助手正文新增 `MarkdownRenderer renderMode="light"`，旧会话首屏跳过高成本 `rehypeRaw` / `rehypeKatex` / Prism 代码高亮；实时流式与普通新消息继续走标准模式。已分页旧会话首屏批次从 `20` 缩小到 `10`，idle 补齐批次从 `12` 缩小到 `6`，且恢复路径 idle 延迟从 `120ms` 提高到 `600ms`，避免点击后立即连续吃主线程。
+- `2026-04-30` 追加后端历史 payload 裁剪：`agent_thread_items` 的 tail / cursor 历史查询在 `file_artifact.content` 之外，继续裁剪超大的 `tool_call.output`、`command_execution.aggregated_output` 与 `web_search.output` 到约 `16KB` 并附截断提示；完整 `list_items_by_thread` 不裁剪，保留全量诊断能力。这针对本地 runtime.db 中数 MB 级 `social_generate_cover_image` tool output 导致旧会话恢复 CPU/内存尖峰的问题。
+- Context7 / WebSearch 校准结论：React 官方文档说明 `useDeferredValue` / `startTransition` 只能降低优先级，不能让慢列表本身变快；TanStack Virtual 对动态高度长列表建议 `useVirtualizer + measureElement + overscan`；Tauri 文档建议大 payload 走 async command 与 Channel/chunk。当前先落地低风险的“减少首帧同步工作 + 裁剪历史 payload”，后续若 40 条历史仍卡，下一刀应评估 MessageList 动态高度虚拟化或 `agent_runtime_get_session` 分块返回。
+- Playwright E2E（`http://127.0.0.1:1420/`）：刷新后点击 `Slow typing E2E`，`agent_runtime_get_session(historyLimit:40)` 约 `322ms`，点击到首屏可见约 `605ms`，DOM 约 `491`，`body/html cursor=auto`，存在一次约 `113ms` long task；进一步缩小历史首屏批次后，等待页面稳定再切 `AI Trends Task -> Slow typing E2E`，可见旧会话 DOM 保持约 `480-626`，`cursor=auto`。当前 dev 环境 heap 读数约 `1.4GB`，更像 Vite/WebView 长会话累计值，不能单独当作本轮回归证据。
+- `npm test -- "src/components/agent/chat/components/StreamingRenderer.test.tsx"` 通过（29 tests），覆盖 `markdownRenderMode="light"` 透传到 `MarkdownRenderer`。
+- `npm test -- "src/components/agent/chat/components/MessageList.test.tsx"` 通过（82 tests），覆盖旧会话轻量 Markdown、长历史正文预览、历史 timeline 折叠与更小首屏批次。
+- `npm run lint -- "src/components/agent/chat/components/MarkdownRenderer.tsx" "src/components/agent/chat/components/StreamingRenderer.tsx" "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/StreamingRenderer.test.tsx" "src/components/agent/chat/components/MessageList.test.tsx"` 通过。
+- `cd src-tauri && CARGO_TARGET_DIR="/tmp/lime-core-test-target" cargo test -p lime-core item_tail_query_should` 通过（2 tests），覆盖历史 tail 查询裁剪大 file artifact 与大 tool output，完整查询不裁剪。
+- `npm run test:contracts` 通过；本轮未新增命令，仅收窄 `agent_runtime_get_session` 历史窗口返回中的超大 inline payload。
+- `npm run verify:gui-smoke` 通过；复用现有 headless Tauri 与 DevBridge，workspace-ready、browser-runtime、site-adapters、service-skill-entry、runtime tool-surface 与 runtime tool-surface page smoke 均通过。
+- `npm run typecheck` 通过。
+- `2026-04-30` 追加旧会话首帧二次降载：已分页/恢复旧会话中的长助手回复不再首帧挂载 `StreamingRenderer` / Markdown 解析，而是先展示纯文本预览，用户点击“展开完整内容”后才按轻量 Markdown 物化；超长历史回复的预览长度从约 `6000` 字收窄到约 `2000` 字，降低点击旧会话后的主线程解析与 DOM 压力。
+- 同轮将历史 timeline 的 idle 物化从旧会话首帧后约 `80ms` 延后到约 `900ms`，避免消息刚可见后立刻构建完整 `buildMessageTurnTimeline` 抢占主线程；非旧会话仍保留原 `80ms` 行为。
+- `npm test -- "src/components/agent/chat/components/MessageList.test.tsx"` 通过（83 tests），新增覆盖长助手回复纯文本预览与展开后再物化轻量 Markdown。
+- Playwright E2E 复测（`http://127.0.0.1:1420/`）：刷新后切 `AI Trends Task -> Slow typing E2E`，旧会话首屏约 `77ms` 可见，DOM 节点约 `403`，历史助手正文纯文本预览 `1` 个，历史 timeline 预览 `1` 个、真实 timeline 挂载 `0` 个，`longTasks=[]`，`body/html cursor=auto`，控制台 `0 error / 0 warning`。invoke trace 中两次 `agent_runtime_get_session` 均携带 `historyLimit: 40`，无 `/invoke` 错误。
+- `npm run verify:gui-smoke` 通过；复用现有 headless Tauri 与 DevBridge，workspace-ready、browser-runtime、site-adapters、service-skill-entry、runtime tool-surface 与 runtime tool-surface page smoke 均通过。
+- `2026-04-30` 追加旧会话后台渲染节流：恢复/已分页旧会话不再自动 idle 补齐当前窗口里更早的消息，首屏只保留尾部批次，用户点击“立即展开更早消息”时才继续物化，避免打开后数秒内后台持续挂载 Markdown / timeline 造成 CPU 与内存尖峰；普通非旧会话仍保留空闲自动补齐。
+- 同轮进一步扩大历史 timeline 延后范围：即使旧会话只有少量消息，只要 execution/thread items 很多，也先显示正文，约 `900ms` 后再生成 timeline 摘要预览；这覆盖 `Slow typing E2E` 这类“消息少但工具轨迹多”的慢会话。
+- `npm test -- "src/components/agent/chat/components/MessageList.test.tsx"` 通过（84 tests），新增覆盖旧会话不自动补齐历史窗口、少消息多执行过程延后构建 timeline。
+- `npx eslint "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" --max-warnings 0` 通过。
+- `npm run typecheck` 通过。
+- 后置 `npm run verify:gui-smoke` 已尝试两次但未完成：当前本机已有非本轮 `cargo test --manifest-path src-tauri/Cargo.toml audio_generation_task` 与旧 `tauri:dev:headless` 长时间占用 Cargo artifact lock，DevBridge 无法就绪；为避免继续拉高 CPU，已停止本轮新拉起的 smoke 进程，未终止非本轮 cargo/tauri 进程。待该锁释放后需重跑 GUI smoke / Playwright。
+- `2026-04-30` 追加首字前反馈优化：Playwright MCP 当前 transport closed，改用本地 Playwright + Chrome 复测；真实 DevBridge 恢复后发送 `首字延迟 E2E ...`，点击到用户消息可见约 `295ms`，新的 `assistant-first-token-placeholder` 同步约 `295ms` 可见。后端随后因本机缺少 `claude` 凭证在约 `5.3s` 返回失败，因此本轮无法测真实模型首 token，但已消除“首个模型事件前 assistant 气泡为空/像没响应”的 UI 体感慢点。
+- 同轮代码收口：`MessageList` 在 assistant `isThinking` 且正文/parts/timeline 均为空但存在启动态 `runtimeStatus` 时，渲染轻量首字前占位；不把 runtimeStatus 塞回 `StreamingRenderer` 正文，也不渲染底部重复运行态，首个真实文本到来后自动切回正常流式渲染。
+- `npm test -- "src/components/agent/chat/components/MessageList.test.tsx"` 通过（84 tests），新增覆盖启动态 runtimeStatus 只渲染轻量首字前占位、已有正文时不重复占位。
+- `npx eslint "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" --max-warnings 0` 通过。
+- `npm run typecheck` 通过。
+- `git diff --check -- "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx"` 通过。
+- `npm run verify:gui-smoke` 通过；复用现有 headless Tauri 与 DevBridge，workspace-ready、browser-runtime、site-adapters、service-skill-entry、runtime tool-surface 与 runtime tool-surface page smoke 均通过。
+- `2026-04-30` 追加 DeepSeek 首字续测：Playwright MCP 仍为 `Transport closed`，继续用本地 Chrome + Playwright；模型选择入口需先展开“高级设置”，再点击 `button[role="combobox"]`，可切到 `DeepSeek / deepseek-v4-flash`。
+- 同轮复现输出排版问题：DeepSeek 实际流里会返回 `thinking` 分片再返回最终 `text` 分片，例如 `llm_request.2.jsonl` 中先有 `thinking: "我们…好。"`，再有 `text: "好"`；旧前端在 thinking 关闭时仍渲染 thinking block，导致 UI 显示类似 `思考中…好。好`。
+- 同轮代码收口：`agentStreamTurnEventBinding` 将本轮 `thinking` 偏好透传给 `agentStreamRuntimeHandler`；当 thinking 关闭时，`thinking_delta` 只激活流状态、不再写入 assistant `thinkingContent/contentParts`，后续 `text_delta` 会清理已有 thinking part，避免 DeepSeek 隐式 reasoning 混入最终正文。
+- DeepSeek E2E 成功样本（`/tmp/lime-deepseek-first-token-e2e-retry.json`）：`agent_runtime_create_session` 约 `73ms`，`agent_runtime_submit_turn` 约 `136ms`，首字前占位约 `117ms` 可见，最终 assistant 文本为 `好已完成·00:06`，不再出现 `思考中` / reasoning 重复吐字；过程中仍有一次非阻塞 `workspace_get` 5s timeout 噪音。
+- DeepSeek E2E 失败样本（`/tmp/lime-deepseek-first-token-e2e-final.json`）：同样选择 `DeepSeek / deepseek-v4-flash` 后，`agent_runtime_submit_turn` 偶发在 `60s` 前端超时并返回 DevBridge timeout，且本地 `aster/state/logs` 没有对应 LLM request 新日志，说明失败发生在提交链路/bridge 阻塞或运行时排队阶段，未进入 provider 首 token；这是后续首字慢优化的下一刀证据。
+- `npm test -- "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"` 通过（10 tests），新增覆盖 thinking 关闭时不渲染 reasoning_delta。
+- `npm test -- "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts"` 通过（7 tests）。
+- `npx eslint "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" --max-warnings 0` 通过。
+- `npm run typecheck` 通过。
+- `npm run verify:gui-smoke` 通过；本轮临时 target 首次编译耗时较长，随后 DevBridge / workspace-ready / browser-runtime / site-adapters / service-skill-entry / runtime tool-surface page smoke 均通过。

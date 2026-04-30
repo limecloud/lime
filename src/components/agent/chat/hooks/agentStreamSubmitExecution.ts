@@ -16,6 +16,7 @@ import type { AgentAccessMode } from "./agentChatStorage";
 import type { StreamRequestState } from "./agentStreamSubmissionLifecycle";
 import type { ActionRequired, Message, MessageImage } from "../types";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
+import { logAgentDebug } from "@/lib/agentDebug";
 import { buildUserInputSubmitOp } from "../utils/buildUserInputSubmitOp";
 import { resolveAgentStreamSubmitContext } from "./agentStreamSubmitContext";
 import { registerAgentStreamTurnEventBinding } from "./agentStreamTurnEventBinding";
@@ -189,6 +190,7 @@ export async function executeAgentStreamSubmit(
     effectiveProviderType,
     effectiveModel,
     effectiveExecutionStrategy,
+    thinking,
     content,
     webSearch,
     autoContinue,
@@ -231,30 +233,66 @@ export async function executeAgentStreamSubmit(
   callbacks.registerListener(unlisten);
 
   requestState.submissionDispatchedAt = Date.now();
+  logAgentDebug("AgentStream", "submitDispatched", {
+    elapsedMs:
+      requestState.submissionDispatchedAt - requestState.requestStartedAt,
+    eventName,
+    expectingQueue,
+    listenerBoundDeltaMs: requestState.listenerBoundAt
+      ? requestState.submissionDispatchedAt - requestState.listenerBoundAt
+      : null,
+    sessionId: activeSessionId,
+  });
 
-  await runtime.submitOp(
-    buildUserInputSubmitOp({
-      content,
-      images,
-      sessionId: activeSessionId,
+  try {
+    await runtime.submitOp(
+      buildUserInputSubmitOp({
+        content,
+        images,
+        sessionId: activeSessionId,
+        eventName,
+        workspaceId: submitWorkspaceId,
+        turnId: requestTurnId,
+        systemPrompt,
+        queueIfBusy: true,
+        requestMetadata,
+        executionRuntime,
+        syncedRecentPreferences,
+        syncedSessionModelPreference,
+        syncedExecutionStrategy,
+        effectiveExecutionStrategy,
+        effectiveAccessMode,
+        effectiveProviderType,
+        effectiveModel,
+        modelOverride,
+        webSearch,
+        thinking,
+        autoContinue,
+      }),
+    );
+    logAgentDebug("AgentStream", "submitAccepted", {
+      elapsedMs: Date.now() - requestState.requestStartedAt,
       eventName,
-      workspaceId: submitWorkspaceId,
-      turnId: requestTurnId,
-      systemPrompt,
-      queueIfBusy: true,
-      requestMetadata,
-      executionRuntime,
-      syncedRecentPreferences,
-      syncedSessionModelPreference,
-      syncedExecutionStrategy,
-      effectiveExecutionStrategy,
-      effectiveAccessMode,
-      effectiveProviderType,
-      effectiveModel,
-      modelOverride,
-      webSearch,
-      thinking,
-      autoContinue,
-    }),
-  );
+      sessionId: activeSessionId,
+      submitInvokeMs: requestState.submissionDispatchedAt
+        ? Date.now() - requestState.submissionDispatchedAt
+        : null,
+    });
+  } catch (error) {
+    logAgentDebug(
+      "AgentStream",
+      "submitFailed",
+      {
+        elapsedMs: Date.now() - requestState.requestStartedAt,
+        error,
+        eventName,
+        sessionId: activeSessionId,
+        submitInvokeMs: requestState.submissionDispatchedAt
+          ? Date.now() - requestState.submissionDispatchedAt
+          : null,
+      },
+      { level: "error" },
+    );
+    throw error;
+  }
 }

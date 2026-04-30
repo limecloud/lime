@@ -1,8 +1,14 @@
 import { normalizeLegacyToolSurfaceName } from "../agentTextNormalization";
 import { normalizeQueuedTurnSnapshots } from "../queuedTurn";
 import type {
+  AgentRuntimeEvidenceActionCount,
   AgentRuntimeEvidenceArtifact,
+  AgentRuntimeEvidenceArtifactKindCount,
+  AgentRuntimeEvidenceBackendCount,
+  AgentRuntimeEvidenceBrowserActionItem,
+  AgentRuntimeEvidenceBrowserActionIndex,
   AgentRuntimeEvidencePack,
+  AgentRuntimeEvidenceStatusCount,
   AgentRuntimeHandoffArtifact,
   AgentRuntimeHandoffBundle,
   AgentRuntimeAnalysisArtifact,
@@ -88,6 +94,15 @@ function readRecordField(
   return isRecord(value) ? value : undefined;
 }
 
+function readArrayField(
+  record: Record<string, unknown>,
+  camelKey: string,
+  snakeKey?: string,
+): unknown[] {
+  const value = record[camelKey] ?? (snakeKey ? record[snakeKey] : undefined);
+  return Array.isArray(value) ? value : [];
+}
+
 function normalizeEvidenceVerificationOutcome(
   value?: string,
 ):
@@ -117,6 +132,250 @@ function normalizeEvidenceSignalCoverageEntry(value: unknown) {
     status: readStringField(value, "status"),
     source: readStringField(value, "source"),
     detail: readStringField(value, "detail"),
+  };
+}
+
+function normalizeEvidenceStatusCount(
+  value: unknown,
+): AgentRuntimeEvidenceStatusCount | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const status = readStringField(value, "status");
+  if (!status) {
+    return null;
+  }
+
+  return {
+    status,
+    count: readNumberField(value, "count"),
+  };
+}
+
+function normalizeEvidenceArtifactKindCount(
+  value: unknown,
+): AgentRuntimeEvidenceArtifactKindCount | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const artifactKind = readStringField(value, "artifactKind", "artifact_kind");
+  if (!artifactKind) {
+    return null;
+  }
+
+  return {
+    artifact_kind: artifactKind,
+    count: readNumberField(value, "count"),
+  };
+}
+
+function normalizeEvidenceActionCount(
+  value: unknown,
+): AgentRuntimeEvidenceActionCount | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const action = readStringField(value, "action");
+  if (!action) {
+    return null;
+  }
+
+  return {
+    action,
+    count: readNumberField(value, "count"),
+  };
+}
+
+function normalizeEvidenceBackendCount(
+  value: unknown,
+): AgentRuntimeEvidenceBackendCount | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const backend = readStringField(value, "backend");
+  if (!backend) {
+    return null;
+  }
+
+  return {
+    backend,
+    count: readNumberField(value, "count"),
+  };
+}
+
+function normalizeBrowserActionItem(
+  value: unknown,
+): AgentRuntimeEvidenceBrowserActionItem | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const item: AgentRuntimeEvidenceBrowserActionItem = {
+    artifact_path: readOptionalStringField(
+      value,
+      "artifactPath",
+      "artifact_path",
+    ),
+    contract_key: readOptionalStringField(value, "contractKey", "contract_key"),
+    source: readOptionalStringField(value, "source"),
+    entry_source: readOptionalStringField(value, "entrySource", "entry_source"),
+    artifact_kind: readOptionalStringField(
+      value,
+      "artifactKind",
+      "artifact_kind",
+    ),
+    tool_name: readOptionalStringField(value, "toolName", "tool_name"),
+    action: readOptionalStringField(value, "action"),
+    status: readOptionalStringField(value, "status"),
+    success: readOptionalBooleanField(value, "success"),
+    session_id: readOptionalStringField(value, "sessionId", "session_id"),
+    target_id: readOptionalStringField(value, "targetId", "target_id"),
+    profile_key: readOptionalStringField(value, "profileKey", "profile_key"),
+    backend: readOptionalStringField(value, "backend"),
+    request_id: readOptionalStringField(value, "requestId", "request_id"),
+    last_url: readOptionalStringField(value, "lastUrl", "last_url"),
+    title: readOptionalStringField(value, "title"),
+    attempt_count: readOptionalNumberField(
+      value,
+      "attemptCount",
+      "attempt_count",
+    ),
+    observation_available: readOptionalBooleanField(
+      value,
+      "observationAvailable",
+      "observation_available",
+    ),
+    screenshot_available: readOptionalBooleanField(
+      value,
+      "screenshotAvailable",
+      "screenshot_available",
+    ),
+  };
+
+  const hasReadableField = Object.values(item).some(
+    (field) => field !== undefined && field !== "",
+  );
+
+  return hasReadableField ? item : null;
+}
+
+function normalizeBrowserActionIndex(
+  value: unknown,
+): AgentRuntimeEvidenceBrowserActionIndex | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const rawStatusCounts = readArrayField(
+    value,
+    "statusCounts",
+    "status_counts",
+  );
+  const rawArtifactKindCounts = readArrayField(
+    value,
+    "artifactKindCounts",
+    "artifact_kind_counts",
+  );
+  const rawActionCounts = readArrayField(
+    value,
+    "actionCounts",
+    "action_counts",
+  );
+  const rawBackendCounts = readArrayField(
+    value,
+    "backendCounts",
+    "backend_counts",
+  );
+  const rawItems = readArrayField(value, "items");
+
+  const index: AgentRuntimeEvidenceBrowserActionIndex = {
+    action_count: readNumberField(value, "actionCount", "action_count"),
+    session_count: readNumberField(value, "sessionCount", "session_count"),
+    observation_count: readNumberField(
+      value,
+      "observationCount",
+      "observation_count",
+    ),
+    screenshot_count: readNumberField(
+      value,
+      "screenshotCount",
+      "screenshot_count",
+    ),
+    last_url: readOptionalStringField(value, "lastUrl", "last_url"),
+    session_ids: readStringListField(value, "sessionIds", "session_ids"),
+    target_ids: readStringListField(value, "targetIds", "target_ids"),
+    profile_keys: readStringListField(value, "profileKeys", "profile_keys"),
+    status_counts: rawStatusCounts
+      .map((entry: unknown) => normalizeEvidenceStatusCount(entry))
+      .filter(Boolean) as AgentRuntimeEvidenceStatusCount[],
+    artifact_kind_counts: rawArtifactKindCounts
+      .map((entry: unknown) => normalizeEvidenceArtifactKindCount(entry))
+      .filter(Boolean) as AgentRuntimeEvidenceArtifactKindCount[],
+    action_counts: rawActionCounts
+      .map((entry: unknown) => normalizeEvidenceActionCount(entry))
+      .filter(Boolean) as AgentRuntimeEvidenceActionCount[],
+    backend_counts: rawBackendCounts
+      .map((entry: unknown) => normalizeEvidenceBackendCount(entry))
+      .filter(Boolean) as AgentRuntimeEvidenceBackendCount[],
+    items: rawItems
+      .map((entry: unknown) => normalizeBrowserActionItem(entry))
+      .filter(Boolean) as AgentRuntimeEvidenceBrowserActionItem[],
+  };
+
+  if (
+    index.action_count === 0 &&
+    index.session_count === 0 &&
+    index.observation_count === 0 &&
+    index.screenshot_count === 0 &&
+    !index.last_url &&
+    index.items.length === 0
+  ) {
+    return undefined;
+  }
+
+  return index;
+}
+
+function normalizeEvidenceModalityRuntimeContracts(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const snapshotIndexRecord = readRecordField(
+    value,
+    "snapshotIndex",
+    "snapshot_index",
+  );
+  const browserActionIndex = normalizeBrowserActionIndex(
+    snapshotIndexRecord
+      ? readRecordField(
+          snapshotIndexRecord,
+          "browserActionIndex",
+          "browser_action_index",
+        )
+      : undefined,
+  );
+  const snapshotCount = readNumberField(
+    value,
+    "snapshotCount",
+    "snapshot_count",
+  );
+
+  if (snapshotCount === 0 && !browserActionIndex) {
+    return undefined;
+  }
+
+  return {
+    snapshot_count: snapshotCount,
+    snapshot_index: browserActionIndex
+      ? {
+          browser_action_index: browserActionIndex,
+        }
+      : undefined,
   };
 }
 
@@ -266,12 +525,20 @@ function normalizeEvidenceObservabilitySummary(value: unknown) {
     "schema_version",
   );
   const knownGaps = readStringListField(value, "knownGaps", "known_gaps");
+  const modalityRuntimeContracts = normalizeEvidenceModalityRuntimeContracts(
+    readRecordField(
+      value,
+      "modalityRuntimeContracts",
+      "modality_runtime_contracts",
+    ),
+  );
 
   if (
     !schemaVersion &&
     signalCoverage.length === 0 &&
     knownGaps.length === 0 &&
-    !verificationSummary
+    !verificationSummary &&
+    !modalityRuntimeContracts
   ) {
     return undefined;
   }
@@ -281,6 +548,7 @@ function normalizeEvidenceObservabilitySummary(value: unknown) {
     known_gaps: knownGaps,
     signal_coverage: signalCoverage,
     verification_summary: verificationSummary,
+    modality_runtime_contracts: modalityRuntimeContracts,
   };
 }
 

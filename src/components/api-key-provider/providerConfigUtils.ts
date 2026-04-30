@@ -12,6 +12,9 @@ import { canonicalizeKnownProviderModelId } from "@/lib/model/xiaomiModelNormali
 import { getProviderPromptCacheMode } from "@/lib/model/providerPromptCacheSupport";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 
+export const SENSENOVA_OPENAI_COMPATIBLE_API_HOST =
+  "https://api.sensenova.cn/compatible-mode/v2";
+
 /** 支持的 Provider 类型列表 */
 export const PROVIDER_TYPE_OPTIONS: { value: ProviderType; label: string }[] = [
   { value: "openai", label: "OpenAI 兼容" },
@@ -266,4 +269,39 @@ export function providerTypeRequiresField(
   if (field === "apiHost") return true;
   const extraFields = PROVIDER_TYPE_FIELDS[type] || [];
   return extraFields.includes(field);
+}
+
+export function normalizeKnownProviderApiHost(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const hostname = url.hostname.toLowerCase();
+    const pathname = url.pathname.toLowerCase();
+
+    if (hostname === "platform.sensenova.cn" && pathname.startsWith("/docs")) {
+      return SENSENOVA_OPENAI_COMPATIBLE_API_HOST;
+    }
+
+    if (
+      hostname === "www.sensecore.cn" &&
+      pathname.includes("/model-as-a-service/nova/overview/compatible-mode")
+    ) {
+      return SENSENOVA_OPENAI_COMPATIBLE_API_HOST;
+    }
+
+    if (
+      hostname === "api.sensenova.cn" &&
+      pathname.replace(/\/+$/, "") === "/compatible-mode/v1"
+    ) {
+      return SENSENOVA_OPENAI_COMPATIBLE_API_HOST;
+    }
+  } catch {
+    return trimmed;
+  }
+
+  return trimmed;
 }

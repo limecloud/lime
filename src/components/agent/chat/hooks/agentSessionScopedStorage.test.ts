@@ -44,6 +44,57 @@ function createItem(index: number): AgentThreadItem {
   } as AgentThreadItem;
 }
 
+function createHeavyAssistantMessage(): Message {
+  const timestamp = new Date("2026-04-24T00:00:02.000Z");
+
+  return {
+    id: "message-heavy-assistant",
+    role: "assistant",
+    content: "最终回复正文",
+    timestamp,
+    thinkingContent: "大量思考过程",
+    contentParts: [
+      {
+        type: "thinking",
+        text: "大量思考过程",
+      },
+      {
+        type: "tool_use",
+        toolCall: {
+          id: "tool-heavy",
+          name: "Bash",
+          arguments: '{"command":"printf slow"}',
+          status: "completed",
+          startTime: timestamp,
+          endTime: timestamp,
+          result: {
+            success: true,
+            output: "x".repeat(12_000),
+          },
+        },
+      },
+      {
+        type: "text",
+        text: "最终回复正文",
+      },
+    ],
+    toolCalls: [
+      {
+        id: "tool-heavy",
+        name: "Bash",
+        arguments: '{"command":"printf slow"}',
+        status: "completed",
+        startTime: timestamp,
+        endTime: timestamp,
+        result: {
+          success: true,
+          output: "x".repeat(12_000),
+        },
+      },
+    ],
+  };
+}
+
 describe("agentSessionScopedStorage", () => {
   beforeEach(() => {
     sessionStorage.clear();
@@ -73,6 +124,71 @@ describe("agentSessionScopedStorage", () => {
     expect(restored?.currentTurnId).toBe("turn-35");
   });
 
+  it("保存已完成会话快照时应压缩 assistant 过程字段，避免旧会话首帧恢复过重", () => {
+    const workspaceId = "ws-session-snapshot-compact";
+    const sessionId = "topic-compact";
+
+    saveAgentSessionCachedSnapshot(workspaceId, sessionId, {
+      messages: [createMessage(1), createHeavyAssistantMessage()],
+      threadTurns: [createTurn(1)],
+      threadItems: [createItem(1)],
+      currentTurnId: "turn-1",
+    });
+
+    const restored = loadAgentSessionCachedSnapshot(workspaceId, sessionId);
+    const restoredAssistant = restored?.messages.find(
+      (message) => message.id === "message-heavy-assistant",
+    );
+
+    expect(restoredAssistant).toMatchObject({
+      role: "assistant",
+      content: "最终回复正文",
+      thinkingContent: undefined,
+      toolCalls: undefined,
+    });
+    expect(restoredAssistant?.contentParts).toEqual([
+      {
+        type: "text",
+        text: "最终回复正文",
+      },
+    ]);
+  });
+
+  it("保存运行中会话快照时应保留过程字段，避免切回执行中会话丢状态", () => {
+    const workspaceId = "ws-session-snapshot-running";
+    const sessionId = "topic-running";
+    const runningTurn: AgentThreadTurn = {
+      ...createTurn(1),
+      status: "running",
+      completed_at: undefined,
+    };
+    const runningItem: AgentThreadItem = {
+      ...createItem(1),
+      status: "in_progress",
+    } as AgentThreadItem;
+
+    saveAgentSessionCachedSnapshot(workspaceId, sessionId, {
+      messages: [createHeavyAssistantMessage()],
+      threadTurns: [runningTurn],
+      threadItems: [runningItem],
+      currentTurnId: "turn-1",
+    });
+
+    const restored = loadAgentSessionCachedSnapshot(workspaceId, sessionId);
+    const restoredAssistant = restored?.messages.find(
+      (message) => message.id === "message-heavy-assistant",
+    );
+
+    expect(restoredAssistant?.thinkingContent).toBe("大量思考过程");
+    expect(restoredAssistant?.toolCalls?.[0]).toMatchObject({
+      id: "tool-heavy",
+      status: "completed",
+    });
+    expect(
+      restoredAssistant?.contentParts?.some((part) => part.type === "tool_use"),
+    ).toBe(true);
+  });
+
   it("同标签页快照丢失后应回退到持久化 tail，避免重开应用时仍然整段慢恢复", () => {
     const workspaceId = "ws-session-snapshot-persisted";
     const sessionId = "topic-persisted";
@@ -96,6 +212,74 @@ describe("agentSessionScopedStorage", () => {
     expect(restored?.threadItems).toHaveLength(8);
     expect(restored?.threadItems[0]?.id).toBe("item-8");
     expect(restored?.currentTurnId).toBe("turn-15");
+  });
+
+  it("持久化 tail 超过热缓存窗口后仍应作为 stale 回放，避免隔天恢复只能等待后端详情", () => {
+    const workspaceId = "ws-session-snapshot-persisted-stale";
+    const sessionId = "topic-persisted-stale";
+    const nowMs = Date.parse("2026-04-24T00:00:00.000Z");
+
+    saveAgentSessionCachedSnapshot(
+      workspaceId,
+      sessionId,
+      {
+        messages: [createMessage(1)],
+        threadTurns: [],
+        threadItems: [],
+        currentTurnId: null,
+      },
+      { nowMs, sessionUpdatedAt: nowMs, messagesCount: 12 },
+    );
+
+    sessionStorage.clear();
+
+    const restored = loadAgentSessionCachedSnapshot(workspaceId, sessionId, {
+      nowMs: nowMs + 2 * 24 * 60 * 60 * 1000,
+      topicUpdatedAt: nowMs,
+      messagesCount: 12,
+    });
+
+    expect(restored).not.toBeNull();
+    expect(restored?.cacheMetadata?.storageKind).toBe("persisted");
+    expect(restored?.cacheMetadata?.freshness).toBe("stale");
+    expect(restored?.messages[0]?.id).toBe("message-1");
+  });
+
+  it("读取旧版秒级 sessionUpdatedAt 时应归一到毫秒，避免新写缓存被误判过期", () => {
+    const workspaceId = "ws-session-snapshot-legacy-seconds";
+    const sessionId = "topic-legacy-seconds";
+    const nowMs = Date.parse("2026-04-24T00:00:00.000Z");
+    const sessionUpdatedAtMs = Date.parse("2026-04-24T00:01:00.000Z");
+    const cacheKey = `aster_session_snapshots_${workspaceId}`;
+
+    sessionStorage.setItem(
+      cacheKey,
+      JSON.stringify({
+        [sessionId]: {
+          messages: [createMessage(1)],
+          threadTurns: [],
+          threadItems: [],
+          currentTurnId: null,
+          updatedAt: nowMs,
+          lastAccessedAt: nowMs,
+          expiresAt: nowMs + 10 * 60 * 1000,
+          staleUntil: nowMs + 12 * 60 * 1000,
+          sessionUpdatedAt: Math.floor(sessionUpdatedAtMs / 1000),
+          messagesCount: 1,
+          historyTruncated: false,
+        },
+      }),
+    );
+
+    const restored = loadAgentSessionCachedSnapshot(workspaceId, sessionId, {
+      nowMs: nowMs + 1_000,
+      topicUpdatedAt: sessionUpdatedAtMs,
+      messagesCount: 1,
+    });
+
+    expect(restored).not.toBeNull();
+    expect(restored?.cacheMetadata?.sessionUpdatedAt).toBe(sessionUpdatedAtMs);
+    expect(restored?.cacheMetadata?.freshness).toBe("fresh");
   });
 
   it("快照超过热缓存 TTL 但仍在 grace 内时应作为 stale 返回并要求后台刷新", () => {
@@ -176,6 +360,7 @@ describe("agentSessionScopedStorage", () => {
       },
       { nowMs, sessionUpdatedAt: nowMs },
     );
+    localStorage.clear();
 
     const restored = loadAgentSessionCachedSnapshot(workspaceId, sessionId, {
       nowMs: nowMs + 32 * 60 * 1000 + 1,

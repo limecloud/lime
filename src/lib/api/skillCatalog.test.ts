@@ -386,6 +386,50 @@ describe("skillCatalog", () => {
     );
   });
 
+  it("应解析服务端下发的首页展示协议并允许 home-only command 无触发词", () => {
+    const seeded = getSeededSkillCatalog();
+    const catalog = saveSkillCatalog(
+      {
+        ...seeded,
+        version: "tenant-home-presentation",
+        entries: [
+          {
+            id: "home:input-suggestion:email",
+            kind: "command",
+            title: "帮我写一封工作邮件",
+            summary: "输入框 Tab 起手建议。",
+            commandKey: "home_input_email",
+            surfaceScopes: ["home"],
+            homePresentation: {
+              slot: "input_suggestion",
+              label: "帮我写一封工作邮件",
+              order: 10,
+              prompt: "请帮我写一封工作邮件。",
+            },
+          },
+        ],
+      },
+      "bootstrap_sync",
+    );
+
+    const entry = listSkillCatalogCommandEntries(catalog).find(
+      (candidate) => candidate.commandKey === "home_input_email",
+    );
+
+    expect(entry).toEqual(
+      expect.objectContaining({
+        id: "home:input-suggestion:email",
+        triggers: [],
+        surfaceScopes: ["home"],
+        homePresentation: expect.objectContaining({
+          slot: "input_suggestion",
+          label: "帮我写一封工作邮件",
+          prompt: "请帮我写一封工作邮件。",
+        }),
+      }),
+    );
+  });
+
   it("读取旧版 raw skill catalog 时应把 cloud_scene 正规化为本地 agent_turn", async () => {
     saveSkillCatalog(buildLegacyCloudSceneCatalog(), "bootstrap_sync");
 

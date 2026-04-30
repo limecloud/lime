@@ -21,6 +21,7 @@ use aster::conversation::message::Message;
 use futures::StreamExt;
 use lime_agent::merge_system_prompt_with_runtime_agents;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
@@ -172,6 +173,20 @@ fn build_title_generation_system_prompt(title_kind: &str) -> String {
     }
 }
 
+fn force_direct_answer_tool_surface(metadata: &mut Option<Value>) {
+    let Some(Value::Object(root)) = metadata else {
+        return;
+    };
+    let Some(Value::Object(runtime_metadata)) = root.get_mut("lime_runtime") else {
+        return;
+    };
+
+    runtime_metadata.insert(
+        "tool_surface".to_string(),
+        Value::String("direct_answer".to_string()),
+    );
+}
+
 async fn generate_title_with_agent(
     agent_state: &AsterAgentState,
     db: &DbConnection,
@@ -204,7 +219,7 @@ async fn generate_title_with_agent(
             )),
             None => Some(build_title_generation_system_prompt(title_kind)),
         };
-        let auxiliary_runtime_metadata = build_auxiliary_runtime_metadata(
+        let mut auxiliary_runtime_metadata = build_auxiliary_runtime_metadata(
             provider_scope.resolution(),
             if title_kind == "image_task" {
                 "auxiliary_generation_topic"
@@ -228,6 +243,7 @@ async fn generate_title_with_agent(
             },
             &["当前为内部标题生成辅助任务，只会使用一条已解析的 provider/model 路线。"],
         );
+        force_direct_answer_tool_surface(&mut auxiliary_runtime_metadata);
         let session_config = build_auxiliary_session_config_with_turn_context(
             session_id,
             system_prompt,
@@ -465,4 +481,32 @@ pub async fn agent_generate_title(
     }
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn force_direct_answer_tool_surface_marks_auxiliary_runtime() {
+        let mut metadata = Some(json!({
+            "lime_runtime": {
+                "task_profile": {
+                    "kind": "title_generation"
+                }
+            }
+        }));
+
+        force_direct_answer_tool_surface(&mut metadata);
+
+        assert_eq!(
+            metadata
+                .as_ref()
+                .and_then(|value| value.get("lime_runtime"))
+                .and_then(|value| value.get("tool_surface"))
+                .and_then(Value::as_str),
+            Some("direct_answer")
+        );
+    }
 }

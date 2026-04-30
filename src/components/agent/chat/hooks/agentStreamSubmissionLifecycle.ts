@@ -27,9 +27,21 @@ export interface StreamRequestState {
   requestLogId: string | null;
   requestStartedAt: number;
   submissionDispatchedAt?: number | null;
+  listenerBoundAt?: number | null;
+  firstEventReceivedAt?: number | null;
+  firstRuntimeStatusAt?: number | null;
+  firstTextDeltaAt?: number | null;
+  firstTextPaintAt?: number | null;
+  firstTextRenderFlushAt?: number | null;
+  lastTextRenderFlushAt?: number | null;
+  textDeltaBufferedCount?: number;
+  textDeltaFlushCount?: number;
+  maxTextDeltaBacklogChars?: number;
   requestFinished: boolean;
   queuedTurnId: string | null;
   queuedDraftCleanupTimerId?: ReturnType<typeof setTimeout> | null;
+  pendingTextRenderTimerId?: ReturnType<typeof setTimeout> | null;
+  renderedContent?: string;
 }
 
 interface CreateSubmissionLifecycleOptions {
@@ -83,9 +95,21 @@ export function createAgentStreamSubmissionLifecycle(
     requestLogId: null,
     requestStartedAt: 0,
     submissionDispatchedAt: null,
+    listenerBoundAt: null,
+    firstEventReceivedAt: null,
+    firstRuntimeStatusAt: null,
+    firstTextDeltaAt: null,
+    firstTextPaintAt: null,
+    firstTextRenderFlushAt: null,
+    lastTextRenderFlushAt: null,
+    textDeltaBufferedCount: 0,
+    textDeltaFlushCount: 0,
+    maxTextDeltaBacklogChars: 0,
     requestFinished: false,
     queuedTurnId: null,
     queuedDraftCleanupTimerId: null,
+    pendingTextRenderTimerId: null,
+    renderedContent: "",
   };
   const optimisticStartedAt = assistantMsg.timestamp.toISOString();
   const pendingTurnKey = createPendingTurnKey();

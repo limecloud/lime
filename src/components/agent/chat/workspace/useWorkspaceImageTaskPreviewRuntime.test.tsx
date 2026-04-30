@@ -69,6 +69,12 @@ const EMPTY_MODALITY_RUNTIME_CONTRACT_INDEX = {
   blocked_count: 0,
   routing_outcomes: [],
   model_registry_assessment_count: 0,
+  audio_output_count: 0,
+  audio_output_statuses: [],
+  audio_output_error_codes: [],
+  transcript_count: 0,
+  transcript_statuses: [],
+  transcript_error_codes: [],
   snapshots: [],
 };
 

@@ -58,6 +58,7 @@ pub mod unified_memory_cmd;
 pub mod update_cmd;
 pub mod usage_stats_cmd;
 pub mod video_generation_cmd;
+pub mod voice_model_cmd;
 pub mod voice_test_cmd;
 pub mod websocket_cmd;
 pub mod webview_cmd;

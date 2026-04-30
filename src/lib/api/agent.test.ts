@@ -954,6 +954,46 @@ describe("Agent API 治理护栏", () => {
             "Artifact 校验已恢复 1 个产物，fallback 0 次。",
           ],
         },
+        modalityRuntimeContracts: {
+          snapshotCount: 2,
+          snapshotIndex: {
+            browserActionIndex: {
+              actionCount: 2,
+              sessionCount: 1,
+              observationCount: 1,
+              screenshotCount: 1,
+              lastUrl: "https://example.com/",
+              sessionIds: ["browser-session-1"],
+              targetIds: ["target-1"],
+              profileKeys: ["general_browser_assist"],
+              statusCounts: [{ status: "completed", count: 2 }],
+              artifactKindCounts: [
+                { artifactKind: "browser_session", count: 1 },
+                { artifactKind: "browser_snapshot", count: 1 },
+              ],
+              actionCounts: [
+                { action: "navigate", count: 1 },
+                { action: "get_page_info", count: 1 },
+              ],
+              backendCounts: [{ backend: "lime_extension_bridge", count: 1 }],
+              items: [
+                {
+                  artifactKind: "browser_snapshot",
+                  action: "get_page_info",
+                  status: "completed",
+                  success: true,
+                  sessionId: "browser-session-1",
+                  targetId: "target-1",
+                  entrySource: "at_browser_agent_command",
+                  backend: "lime_extension_bridge",
+                  lastUrl: "https://example.com/",
+                  observationAvailable: true,
+                  screenshotAvailable: true,
+                },
+              ],
+            },
+          },
+        },
       },
       artifacts: [
         {
@@ -993,6 +1033,26 @@ describe("Agent API 治理护栏", () => {
           focus_verification_recovered_outcomes: [
             "Artifact 校验已恢复 1 个产物，fallback 0 次。",
           ],
+        }),
+        modality_runtime_contracts: expect.objectContaining({
+          snapshot_count: 2,
+          snapshot_index: expect.objectContaining({
+            browser_action_index: expect.objectContaining({
+              action_count: 2,
+              last_url: "https://example.com/",
+              observation_count: 1,
+              screenshot_count: 1,
+              items: [
+                expect.objectContaining({
+                  artifact_kind: "browser_snapshot",
+                  action: "get_page_info",
+                  backend: "lime_extension_bridge",
+                  observation_available: true,
+                  screenshot_available: true,
+                }),
+              ],
+            }),
+          }),
         }),
       }),
       artifacts: [

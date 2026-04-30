@@ -4,6 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageList } from "./MessageList";
 import type { AgentThreadItem, AgentThreadTurn, Message } from "../types";
+import {
+  clearAgentUiPerformanceMetrics,
+  getAgentUiPerformanceMetrics,
+} from "@/lib/agentUiPerformanceMetrics";
 
 const IMAGE_WORKBENCH_FOCUS_EVENT = "lime:image-workbench-focus";
 const VIDEO_WORKBENCH_TASK_ACTION_EVENT = "lime:video-workbench-task-action";
@@ -101,6 +105,7 @@ const mockStreamingRenderer = vi.fn(
     renderProposedPlanBlocks,
     showContentBlockActions,
     onQuoteContent,
+    markdownRenderMode,
   }: {
     content: string;
     contentParts?: unknown[];
@@ -113,6 +118,7 @@ const mockStreamingRenderer = vi.fn(
     renderProposedPlanBlocks?: boolean;
     showContentBlockActions?: boolean;
     onQuoteContent?: (content: string) => void;
+    markdownRenderMode?: string;
     onOpenSavedSiteContent?: (target: {
       projectId: string;
       contentId: string;
@@ -130,6 +136,7 @@ const mockStreamingRenderer = vi.fn(
       data-render-proposed-plan-blocks={renderProposedPlanBlocks ? "yes" : "no"}
       data-show-content-block-actions={showContentBlockActions ? "yes" : "no"}
       data-has-on-quote-content={onQuoteContent ? "yes" : "no"}
+      data-markdown-render-mode={markdownRenderMode || "standard"}
     >
       {content || "<empty-assistant>"}
     </div>
@@ -164,6 +171,7 @@ vi.mock("./StreamingRenderer", () => ({
     content: string;
     renderA2UIInline?: boolean;
     suppressedActionRequestId?: string | null;
+    markdownRenderMode?: string;
   }) => mockStreamingRenderer(props),
 }));
 
@@ -200,6 +208,7 @@ beforeEach(() => {
   if (!HTMLElement.prototype.scrollIntoView) {
     HTMLElement.prototype.scrollIntoView = () => {};
   }
+  clearAgentUiPerformanceMetrics();
 });
 
 afterEach(() => {
@@ -213,6 +222,7 @@ afterEach(() => {
   }
   vi.useRealTimers();
   vi.clearAllMocks();
+  clearAgentUiPerformanceMetrics();
   mockUseConfiguredProviders.mockImplementation(() => ({
     providers: [],
     loading: false,
@@ -452,7 +462,7 @@ describe("MessageList", () => {
     expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
 
     act(() => {
-      vi.advanceTimersByTime(100);
+      vi.advanceTimersByTime(920);
     });
 
     expect(mockAgentThreadTimeline).toHaveBeenCalled();
@@ -481,14 +491,611 @@ describe("MessageList", () => {
 
     expect(container.textContent).toContain("最近 40 / 188 条消息");
     expect(container.textContent).toContain("消息 40");
-    expect(container.textContent).toContain("消息 21");
-    expect(container.textContent).not.toContain("消息 20");
+    expect(container.textContent).toContain("消息 31");
+    expect(container.textContent).not.toContain("消息 30");
+    expect(container.textContent).toContain("更早的 30 条可按需展开");
 
     act(() => {
-      vi.advanceTimersByTime(130);
+      vi.advanceTimersByTime(2_000);
     });
 
-    expect(container.textContent).toContain("消息 20");
+    expect(container.textContent).not.toContain("消息 30");
+
+    const expandButton = container.querySelector(
+      '[data-testid="message-list-expand-history"]',
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("消息 30");
+  });
+
+  it("旧会话消息较少但执行过程很多时也应延后构建 timeline", () => {
+    vi.useFakeTimers();
+    const turn: AgentThreadTurn = {
+      id: "turn-history-many-items",
+      thread_id: "thread-history-many-items",
+      prompt_text: "检查慢历史",
+      status: "completed",
+      started_at: "2026-04-25T10:00:00.000Z",
+      completed_at: "2026-04-25T10:01:00.000Z",
+      created_at: "2026-04-25T10:00:00.000Z",
+      updated_at: "2026-04-25T10:01:00.000Z",
+    };
+    const threadItems: AgentThreadItem[] = Array.from(
+      { length: 30 },
+      (_, index): AgentThreadItem => {
+        const base = {
+          id: `history-heavy-item-${index + 1}`,
+          thread_id: turn.thread_id,
+          turn_id: turn.id,
+          sequence: index + 1,
+          status: "completed" as const,
+          started_at: "2026-04-25T10:00:00.000Z",
+          completed_at: "2026-04-25T10:01:00.000Z",
+          updated_at: "2026-04-25T10:01:00.000Z",
+        };
+
+        if (index % 2 === 0) {
+          return {
+            ...base,
+            type: "tool_call",
+            tool_name: "Bash",
+            arguments: { command: `echo ${index}` },
+            output: `输出 ${index}`,
+          };
+        }
+
+        return {
+          ...base,
+          type: "reasoning",
+          text: `思考 ${index}`,
+        };
+      },
+    );
+    const container = render(
+      [
+        {
+          id: "msg-user-history-many-items",
+          role: "user",
+          content: "检查慢历史",
+          timestamp: new Date("2026-04-25T10:00:00.000Z"),
+        } as Message,
+        {
+          id: "msg-assistant-history-many-items",
+          role: "assistant",
+          content: "历史结果",
+          timestamp: new Date("2026-04-25T10:01:00.000Z"),
+        } as Message,
+      ],
+      {
+        currentTurnId: turn.id,
+        turns: [turn],
+        threadItems,
+        sessionHistoryWindow: {
+          loadedMessages: 2,
+          totalMessages: 170,
+          isLoadingFull: false,
+          error: null,
+        },
+      },
+    );
+
+    expect(container.textContent).toContain("历史结果");
+    expect(
+      container.querySelector(
+        '[data-testid="message-list-historical-timeline-preview:leading"]',
+      ),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
+    ).toBeNull();
+    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(880);
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="message-list-historical-timeline-preview:leading"]',
+      ),
+    ).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(60);
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="message-list-historical-timeline-preview:leading"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
+    ).not.toBeNull();
+    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
+  });
+
+  it("已分页旧会话首帧应只把尾部相关 turns 的 threadItems 纳入计算", async () => {
+    vi.useFakeTimers();
+    const turns: AgentThreadTurn[] = Array.from({ length: 8 }, (_, index) => {
+      const minute = String(index + 1).padStart(2, "0");
+      return {
+        id: `turn-window-${index + 1}`,
+        thread_id: "thread-windowed-history",
+        prompt_text: `历史问题 ${index + 1}`,
+        status: "completed",
+        started_at: `2026-04-25T10:${minute}:00.000Z`,
+        completed_at: `2026-04-25T10:${minute}:30.000Z`,
+        created_at: `2026-04-25T10:${minute}:00.000Z`,
+        updated_at: `2026-04-25T10:${minute}:30.000Z`,
+      };
+    });
+    const threadItems: AgentThreadItem[] = turns.flatMap((turn, turnIndex) =>
+      Array.from({ length: 5 }, (_, itemIndex): AgentThreadItem => ({
+        id: `turn-window-${turnIndex + 1}-item-${itemIndex + 1}`,
+        thread_id: turn.thread_id,
+        turn_id: turn.id,
+        sequence: itemIndex + 1,
+        status: "completed",
+        started_at: turn.started_at,
+        completed_at: turn.completed_at,
+        updated_at: turn.updated_at,
+        type: "tool_call",
+        tool_name: "Read",
+        arguments: { file_path: `/repo/file-${itemIndex + 1}.ts` },
+      })),
+    );
+
+    render(
+      [
+        {
+          id: "msg-user-windowed-history",
+          role: "user",
+          content: "打开尾部旧会话",
+          timestamp: new Date("2026-04-25T10:08:00.000Z"),
+        } as Message,
+        {
+          id: "msg-assistant-windowed-history",
+          role: "assistant",
+          content: "这是尾部旧会话结果",
+          timestamp: new Date("2026-04-25T10:08:30.000Z"),
+        } as Message,
+      ],
+      {
+        sessionId: "session-windowed-history",
+        currentTurnId: "turn-window-8",
+        turns,
+        threadItems,
+        sessionHistoryWindow: {
+          loadedMessages: 2,
+          totalMessages: 220,
+          isLoadingFull: false,
+          error: null,
+        },
+      },
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const commit = getAgentUiPerformanceMetrics().find(
+      (entry) => entry.phase === "messageList.commit",
+    );
+
+    expect(commit?.metrics).toEqual(
+      expect.objectContaining({
+        renderedTurnsCount: 2,
+        shouldDeferHistoricalTimeline: true,
+        threadItemsCount: 0,
+        threadItemsScanDeferred: true,
+        turnsCount: 8,
+      }),
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(940);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const hydratedCommit = getAgentUiPerformanceMetrics()
+      .filter((entry) => entry.phase === "messageList.commit")
+      .find(
+        (entry) =>
+          entry.metrics.threadItemsScanDeferred === false &&
+          entry.metrics.threadItemsCount === 10,
+      );
+
+    expect(hydratedCommit?.metrics).toEqual(
+      expect.objectContaining({
+        renderedTurnsCount: 2,
+        threadItemsCount: 10,
+        turnsCount: 8,
+      }),
+    );
+  });
+
+  it("旧会话首帧应延后历史助手 contentParts 与 Markdown 细节扫描", async () => {
+    vi.useFakeTimers();
+    const turn: AgentThreadTurn = {
+      id: "turn-history-content-parts",
+      thread_id: "thread-history-content-parts",
+      prompt_text: "检查 content parts",
+      status: "completed",
+      started_at: "2026-04-25T10:00:00.000Z",
+      completed_at: "2026-04-25T10:01:00.000Z",
+      created_at: "2026-04-25T10:00:00.000Z",
+      updated_at: "2026-04-25T10:01:00.000Z",
+    };
+    const threadItems: AgentThreadItem[] = Array.from(
+      { length: 30 },
+      (_, index): AgentThreadItem => ({
+        id: `history-content-parts-tool-${index + 1}`,
+        thread_id: turn.thread_id,
+        turn_id: turn.id,
+        sequence: index + 1,
+        status: "completed",
+        started_at: turn.started_at,
+        completed_at: turn.completed_at,
+        updated_at: turn.updated_at,
+        type: "tool_call",
+        tool_name: "Read",
+        arguments: { file_path: `/repo/history-${index + 1}.ts` },
+      }),
+    );
+    const container = render(
+      [
+        {
+          id: "msg-user-history-content-parts",
+          role: "user",
+          content: "检查 content parts",
+          timestamp: new Date("2026-04-25T10:00:00.000Z"),
+        } as Message,
+        {
+          id: "msg-assistant-history-content-parts",
+          role: "assistant",
+          content: "历史 content parts 正文",
+          contentParts: [
+            {
+              type: "text",
+              text: "历史 content parts 正文",
+            },
+            {
+              type: "tool_use",
+              toolCall: {
+                id: "tool-history-content-parts",
+                name: "Read",
+                arguments: JSON.stringify({ file_path: "/repo/history.ts" }),
+                status: "completed",
+                result: { success: true, output: "ok" },
+                startTime: new Date("2026-04-25T10:00:10.000Z"),
+                endTime: new Date("2026-04-25T10:00:11.000Z"),
+              },
+            },
+          ],
+          timestamp: new Date("2026-04-25T10:01:00.000Z"),
+        } as Message,
+      ],
+      {
+        sessionId: "session-history-content-parts",
+        currentTurnId: turn.id,
+        turns: [turn],
+        threadItems,
+        sessionHistoryWindow: {
+          loadedMessages: 2,
+          totalMessages: 180,
+          isLoadingFull: false,
+          error: null,
+        },
+      },
+    );
+
+    expect(
+      container.querySelector(
+        '[data-testid="message-list-historical-markdown-preview"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="streaming-renderer"]'),
+    ).toBeNull();
+    expect(mockStreamingRenderer).not.toHaveBeenCalled();
+    const markdownPreview = container.querySelector(
+      '[data-testid="message-list-historical-markdown-preview"]',
+    );
+    expect(markdownPreview?.textContent).toContain(
+      "历史 content parts 正文",
+    );
+    const commit = getAgentUiPerformanceMetrics().find(
+      (entry) => entry.phase === "messageList.commit",
+    );
+    expect(commit?.metrics).toEqual(
+      expect.objectContaining({
+        historicalContentPartsDeferredCount: 1,
+        historicalMarkdownDeferredCount: 1,
+        threadItemsScanDeferred: true,
+      }),
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(940);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const hydratedCommit = getAgentUiPerformanceMetrics()
+      .filter((entry) => entry.phase === "messageList.commit")
+      .find(
+        (entry) => entry.metrics.historicalContentPartsDeferredCount === 0,
+      );
+    expect(
+      container.querySelector(
+        '[data-testid="message-list-historical-markdown-preview"]',
+      ),
+    ).toBeNull();
+    expect(mockStreamingRenderer).toHaveBeenCalled();
+    expect(hydratedCommit?.metrics).toEqual(
+      expect.objectContaining({
+        historicalContentPartsDeferredCount: 0,
+        historicalMarkdownDeferredCount: 0,
+        threadItemsCount: 30,
+      }),
+    );
+  });
+
+  it("已分页旧会话的完成执行过程应先折叠为轻量摘要，点击后再挂载真实 timeline", () => {
+    const turn: AgentThreadTurn = {
+      id: "turn-history-heavy",
+      thread_id: "thread-history-heavy",
+      prompt_text: "打开慢历史",
+      status: "completed",
+      started_at: "2026-04-25T10:00:00.000Z",
+      completed_at: "2026-04-25T10:01:00.000Z",
+      created_at: "2026-04-25T10:00:00.000Z",
+      updated_at: "2026-04-25T10:01:00.000Z",
+    };
+    const threadItems: AgentThreadItem[] = Array.from(
+      { length: 10 },
+      (_, index) => ({
+        id: `history-tool-${index + 1}`,
+        thread_id: turn.thread_id,
+        turn_id: turn.id,
+        sequence: index + 1,
+        status: "completed",
+        started_at: "2026-04-25T10:00:00.000Z",
+        completed_at: "2026-04-25T10:01:00.000Z",
+        updated_at: "2026-04-25T10:01:00.000Z",
+        type: "tool_call",
+        tool_name: "Bash",
+        arguments: { command: `echo ${index + 1}` },
+        output: `输出 ${index + 1}`,
+      }),
+    );
+    const container = render(
+      [
+        {
+          id: "msg-user-heavy-history",
+          role: "user",
+          content: "打开慢历史",
+          timestamp: new Date("2026-04-25T10:00:00.000Z"),
+        } as Message,
+        {
+          id: "msg-assistant-heavy-history",
+          role: "assistant",
+          content: "这是旧会话的最终回复",
+          contentParts: [
+            {
+              type: "text",
+              text: "这是旧会话的最终回复",
+            },
+          ],
+          timestamp: new Date("2026-04-25T10:01:00.000Z"),
+        } as Message,
+      ],
+      {
+        turns: [turn],
+        threadItems,
+        currentTurnId: turn.id,
+        sessionHistoryWindow: {
+          loadedMessages: 2,
+          totalMessages: 170,
+          isLoadingFull: false,
+          error: null,
+        },
+      },
+    );
+
+    expect(
+      container.querySelector(
+        '[data-testid="message-list-historical-timeline-preview:leading"]',
+      ),
+    ).not.toBeNull();
+    expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
+    expect(mockStreamingRenderer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        contentParts: undefined,
+        markdownRenderMode: "light",
+      }),
+    );
+
+    const expandButton = container.querySelector(
+      '[data-testid="message-list-historical-timeline-preview:leading"]',
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      expandButton?.click();
+    });
+
+    expect(mockAgentThreadTimeline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        placement: "leading",
+        isCurrentTurn: false,
+      }),
+    );
+  });
+
+  it("旧会话里的超长历史助手消息应先渲染轻量预览，点击后再展开完整正文", () => {
+    const longContent = `开头内容 ${"长历史 ".repeat(8000)} 末尾完整内容`;
+    const container = render(
+      [
+        {
+          id: "msg-user-long-history",
+          role: "user",
+          content: "打开超长历史",
+          timestamp: new Date("2026-04-25T10:00:00.000Z"),
+        } as Message,
+        {
+          id: "msg-assistant-long-history",
+          role: "assistant",
+          content: longContent,
+          timestamp: new Date("2026-04-25T10:00:01.000Z"),
+        } as Message,
+      ],
+      {
+        sessionHistoryWindow: {
+          loadedMessages: 2,
+          totalMessages: 120,
+          isLoadingFull: false,
+          error: null,
+        },
+      },
+    );
+
+    const preview = container.querySelector(
+      '[data-testid="message-list-long-history-preview"]',
+    );
+
+    expect(preview).not.toBeNull();
+    expect(preview?.textContent).toContain("此历史消息较长");
+    expect(preview?.textContent).toContain("纯文本预览");
+    expect(preview?.textContent).not.toContain("末尾完整内容");
+    expect(mockStreamingRenderer).not.toHaveBeenCalled();
+
+    const expandButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("展开完整内容"),
+    ) as HTMLButtonElement | undefined;
+
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="message-list-long-history-preview"]',
+      ),
+    ).toBeNull();
+    expect(mockStreamingRenderer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("末尾完整内容"),
+        markdownRenderMode: "light",
+      }),
+    );
+  });
+
+  it("旧会话里的长助手回复应先展示纯文本预览，避免首帧挂载 Markdown", () => {
+    const oldAssistantContent = `旧回复开头 ${"历史分析 ".repeat(360)} 旧回复末尾完整内容`;
+    const latestAssistantContent = "最新回复保持完整";
+    const container = render(
+      [
+        {
+          id: "msg-user-old-compact",
+          role: "user",
+          content: "旧问题",
+          timestamp: new Date("2026-04-25T10:00:00.000Z"),
+        } as Message,
+        {
+          id: "msg-assistant-old-compact",
+          role: "assistant",
+          content: oldAssistantContent,
+          timestamp: new Date("2026-04-25T10:00:01.000Z"),
+        } as Message,
+        {
+          id: "msg-user-latest-compact",
+          role: "user",
+          content: "最新问题",
+          timestamp: new Date("2026-04-25T10:01:00.000Z"),
+        } as Message,
+        {
+          id: "msg-assistant-latest-compact",
+          role: "assistant",
+          content: latestAssistantContent,
+          timestamp: new Date("2026-04-25T10:01:01.000Z"),
+        } as Message,
+      ],
+      {
+        sessionHistoryWindow: {
+          loadedMessages: 4,
+          totalMessages: 88,
+          isLoadingFull: false,
+          error: null,
+        },
+      },
+    );
+
+    const preview = container.querySelector(
+      '[data-testid="message-list-historical-assistant-preview"]',
+    );
+
+    expect(preview).not.toBeNull();
+    expect(preview?.textContent).toContain("历史助手回复较长");
+    expect(preview?.textContent).not.toContain("旧回复末尾完整内容");
+    expect(container.textContent).toContain(latestAssistantContent);
+    expect(mockStreamingRenderer).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("旧回复末尾完整内容"),
+      }),
+    );
+
+    const expandButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("展开完整内容"),
+    ) as HTMLButtonElement | undefined;
+
+    act(() => {
+      expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="message-list-historical-assistant-preview"]',
+      ),
+    ).toBeNull();
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("旧回复末尾完整内容"),
+        markdownRenderMode: "light",
+      }),
+    );
+  });
+
+  it("非旧会话助手正文应保持标准 Markdown 渲染模式", () => {
+    render([
+      {
+        id: "msg-user-live-standard-markdown",
+        role: "user",
+        content: "实时对话",
+        timestamp: new Date("2026-04-25T10:00:00.000Z"),
+      } as Message,
+      {
+        id: "msg-assistant-live-standard-markdown",
+        role: "assistant",
+        content: "```ts\nconsole.log('live')\n```",
+        timestamp: new Date("2026-04-25T10:00:01.000Z"),
+      } as Message,
+    ]);
+
+    expect(mockStreamingRenderer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        markdownRenderMode: "standard",
+      }),
+    );
   });
 
   it("任务中心空列表时应展示最近对话空态而不是普通新对话文案", () => {
@@ -747,6 +1354,70 @@ describe("MessageList", () => {
     );
   });
 
+  it("旧会话恢复首帧不应立即自动加载 Provider 缓存提示配置", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-restored-usage",
+        role: "assistant",
+        content: "旧会话结果。",
+        timestamp: now,
+        usage: {
+          input_tokens: 1_200,
+          output_tokens: 300,
+          cached_input_tokens: 0,
+        },
+      },
+    ];
+
+    render(messages, {
+      providerType: "custom-provider-id",
+      sessionHistoryWindow: {
+        loadedMessages: 40,
+        totalMessages: 320,
+        isLoadingFull: false,
+        error: null,
+      },
+    });
+
+    expect(mockUseConfiguredProviders).toHaveBeenCalledWith({
+      autoLoad: false,
+    });
+  });
+
+  it("旧会话首帧应记录可汇总的渲染采样数值", async () => {
+    const messages = createConversationMessages(32);
+
+    render(messages, {
+      sessionId: "session-metrics",
+      sessionHistoryWindow: {
+        loadedMessages: 32,
+        totalMessages: 160,
+        isLoadingFull: false,
+        error: null,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const commit = getAgentUiPerformanceMetrics().find(
+      (entry) => entry.phase === "messageList.commit",
+    );
+    expect(commit).toEqual(
+      expect.objectContaining({
+        sessionId: "session-metrics",
+        metrics: expect.objectContaining({
+          hiddenHistoryCount: expect.any(Number),
+          messagesCount: 32,
+          persistedHiddenHistoryCount: 128,
+          renderedMessagesCount: expect.any(Number),
+        }),
+      }),
+    );
+  });
+
   it("复杂任务完成后应把运行状态、耗时与 token 结算收口到最后一条 assistant 消息尾部", () => {
     const now = new Date();
     const messages: Message[] = [
@@ -938,6 +1609,11 @@ describe("MessageList", () => {
     expect(
       container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
     ).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="assistant-first-token-placeholder"]',
+      ),
+    ).toBeNull();
   });
 
   it("首个文本分片到来前，不应把运行态当作 assistant 回复渲染", () => {
@@ -1016,7 +1692,7 @@ describe("MessageList", () => {
     expect(container.textContent).not.toContain("Built-in Tool");
   });
 
-  it("assistant 占位消息只有启动态 runtimeStatus 时，也不应保留状态回复", () => {
+  it("assistant 占位消息只有启动态 runtimeStatus 时，应渲染轻量首字前占位", () => {
     const now = new Date();
     const messages: Message[] = [
       {
@@ -1058,8 +1734,15 @@ describe("MessageList", () => {
     expect(
       container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
     ).toBeNull();
-    expect(container.textContent).not.toContain("处理中");
-    expect(container.textContent).not.toContain("正在启动处理流程");
+    expect(
+      container.querySelector(
+        '[data-testid="assistant-first-token-placeholder"]',
+      ),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("正在启动处理流程");
+    expect(container.textContent).toContain(
+      "已开始处理，正在准备环境并等待第一条进展。",
+    );
   });
 
   it("assistant 消息结算区应以内联模式承载 token usage", () => {
@@ -1539,6 +2222,211 @@ describe("MessageList", () => {
         id: "msg-assistant-resource-task",
       }),
     );
+  });
+
+  it("配音任务消息卡应展示 audio_generate 预览并支持打开运行时文档", () => {
+    const now = new Date();
+    const onOpenMessagePreview = vi.fn();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-audio-task",
+        role: "assistant",
+        content: "配音任务已提交。",
+        timestamp: now,
+        taskPreview: {
+          kind: "audio_generate",
+          taskId: "task-audio-1",
+          taskType: "audio_generate",
+          prompt: "欢迎来到 Lime 多模态工作台。",
+          title: "配音生成任务",
+          status: "running",
+          artifactPath: ".lime/runtime/audio-generate/task-audio-1.md",
+          taskFilePath: ".lime/tasks/audio_generate/task-audio-1.json",
+          metaItems: ["warm_female", "8 秒"],
+          voice: "warm_female",
+          durationMs: 8200,
+        },
+      },
+    ];
+
+    const container = render(messages, { onOpenMessagePreview });
+    const previewCard = container.querySelector(
+      '[data-testid="task-message-preview-task-audio-1"]',
+    ) as HTMLButtonElement | null;
+
+    expect(previewCard?.textContent).toContain("配音生成");
+    expect(previewCard?.textContent).toContain("欢迎来到 Lime 多模态工作台");
+    expect(previewCard?.textContent).toContain("warm_female");
+    expect(previewCard?.textContent).toContain("源任务");
+
+    act(() => {
+      previewCard?.click();
+    });
+
+    expect(onOpenMessagePreview).toHaveBeenCalledWith(
+      {
+        kind: "task",
+        preview: expect.objectContaining({
+          kind: "audio_generate",
+          taskId: "task-audio-1",
+        }),
+      },
+      expect.objectContaining({
+        id: "msg-assistant-audio-task",
+      }),
+    );
+  });
+
+  it("失败的配音任务卡应展示 provider 错误码与原因", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-audio-task-failed",
+        role: "assistant",
+        content: "配音任务失败。",
+        timestamp: now,
+        taskPreview: {
+          kind: "audio_generate",
+          taskId: "task-audio-failed-1",
+          taskType: "audio_generate",
+          prompt: "欢迎来到 Lime 多模态工作台。",
+          title: "配音生成任务",
+          status: "failed",
+          artifactPath: ".lime/runtime/audio-generate/task-audio-failed-1.md",
+          taskFilePath: ".lime/tasks/audio_generate/task-audio-failed-1.json",
+          errorCode: "audio_provider_unconfigured",
+          errorMessage:
+            "未找到可用的 voice_generation provider/API Key: missing-provider。",
+          statusMessage:
+            "配音 Provider 未配置，请先在语音生成设置中选择可用 Provider；任务保留在 audio_generate，不会回退 legacy TTS。",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="task-message-preview-task-audio-failed-1"]',
+    ) as HTMLButtonElement | null;
+
+    expect(previewCard?.textContent).toContain("执行失败");
+    expect(previewCard?.textContent).toContain("audio_provider_unconfigured");
+    expect(previewCard?.textContent).toContain(
+      "未找到可用的 voice_generation provider/API Key",
+    );
+    expect(previewCard?.textContent).toContain("不会回退 legacy TTS");
+  });
+
+  it("转写任务消息卡应展示 transcript 路径与 provider 错误", () => {
+    const now = new Date();
+    const onOpenMessagePreview = vi.fn();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-transcription-task",
+        role: "assistant",
+        content: "转写任务已同步。",
+        timestamp: now,
+        taskPreview: {
+          kind: "transcription_generate",
+          taskId: "task-transcription-1",
+          taskType: "transcription_generate",
+          prompt: "请转写访谈音频",
+          title: "内容转写任务",
+          status: "complete",
+          artifactPath:
+            ".lime/runtime/transcription-generate/task-transcription-1.md",
+          taskFilePath:
+            ".lime/tasks/transcription_generate/task-transcription-1.json",
+          transcriptPath: ".lime/runtime/transcripts/task-transcription-1.txt",
+          language: "zh-CN",
+          outputFormat: "txt",
+          transcriptSegments: [
+            {
+              id: "segment-1",
+              index: 1,
+              startMs: 1000,
+              endMs: 3500,
+              speaker: "主持人",
+              text: "欢迎来到 Lime 访谈。",
+            },
+          ],
+          statusMessage:
+            "转写结果已同步，工作区已从 transcript 读取可校对文本。",
+        },
+      },
+    ];
+
+    const container = render(messages, { onOpenMessagePreview });
+    const previewCard = container.querySelector(
+      '[data-testid="task-message-preview-task-transcription-1"]',
+    ) as HTMLButtonElement | null;
+
+    expect(previewCard?.textContent).toContain("内容转写");
+    expect(previewCard?.textContent).toContain("请转写访谈音频");
+    expect(previewCard?.textContent).toContain("转写结果");
+    expect(previewCard?.textContent).toContain("task-transcription-1.txt");
+    expect(previewCard?.textContent).toContain("1 段时间轴");
+    expect(previewCard?.textContent).toContain("时间轴预览");
+    expect(previewCard?.textContent).toContain("主持人：欢迎来到 Lime 访谈。");
+
+    act(() => {
+      previewCard?.click();
+    });
+
+    expect(onOpenMessagePreview).toHaveBeenCalledWith(
+      {
+        kind: "task",
+        preview: expect.objectContaining({
+          kind: "transcription_generate",
+          taskId: "task-transcription-1",
+        }),
+      },
+      expect.objectContaining({
+        id: "msg-assistant-transcription-task",
+      }),
+    );
+  });
+
+  it("失败的转写任务卡应展示 transcript 错误码与原因", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-transcription-task-failed",
+        role: "assistant",
+        content: "转写任务失败。",
+        timestamp: now,
+        taskPreview: {
+          kind: "transcription_generate",
+          taskId: "task-transcription-failed-1",
+          taskType: "transcription_generate",
+          prompt: "请转写访谈音频",
+          title: "内容转写任务",
+          status: "failed",
+          artifactPath:
+            ".lime/runtime/transcription-generate/task-transcription-failed-1.md",
+          taskFilePath:
+            ".lime/tasks/transcription_generate/task-transcription-failed-1.json",
+          errorCode: "transcription_provider_unconfigured",
+          errorMessage:
+            "未找到可用的 audio_transcription provider/API Key: missing-provider。",
+          statusMessage:
+            "转写 Provider 未配置，请先在转写设置中选择可用 Provider；任务保留在 transcription_generate，不会回退 frontend ASR。",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="task-message-preview-task-transcription-failed-1"]',
+    ) as HTMLButtonElement | null;
+
+    expect(previewCard?.textContent).toContain("执行失败");
+    expect(previewCard?.textContent).toContain(
+      "transcription_provider_unconfigured",
+    );
+    expect(previewCard?.textContent).toContain(
+      "未找到可用的 audio_transcription provider/API Key",
+    );
+    expect(previewCard?.textContent).toContain("不会回退 frontend ASR");
   });
 
   it("联网搜图结果消息卡应展示缩略图候选", () => {
@@ -2823,6 +3711,12 @@ describe("MessageList", () => {
     expect(
       container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
     ).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="assistant-first-token-placeholder"]',
+      ),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("正在打开 GitHub");
   });
 
   it("本地工具批次的阶段结论不应再进入主消息流时间线", () => {

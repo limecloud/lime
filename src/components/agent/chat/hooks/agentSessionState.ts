@@ -17,6 +17,7 @@ import {
   hydrateSessionDetailMessages,
   mergeHydratedMessagesWithLocalState,
   normalizeHistoricalTopicSnapshotMessages,
+  shouldCompactCompletedSessionHistory,
 } from "./agentChatHistory";
 import {
   filterConversationThreadItems,
@@ -189,7 +190,9 @@ export function buildHydratedAgentSessionSnapshot(
     localSnapshotOverride?.threadTurns ?? currentThreadTurns;
   const effectiveCurrentThreadItems =
     localSnapshotOverride?.threadItems ?? currentThreadItems;
-  const hydratedMessages = hydrateSessionDetailMessages(detail, topicId);
+  const hydratedMessages = hydrateSessionDetailMessages(detail, topicId, {
+    compactCompletedHistory: shouldCompactCompletedSessionHistory(detail),
+  });
   const incomingTurns = detail.turns || [];
   const incomingItems = normalizeLegacyThreadItems(detail.items || []);
   const hasRecoverableLocalSessionCache =

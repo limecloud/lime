@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { Artifact } from "@/lib/artifact/types";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
+import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
 import {
   resolveConfiguredProviderPromptCacheSupportNotice,
   useConfiguredProviders,
@@ -89,6 +90,7 @@ import { isPureRuntimePeerMessageText } from "../utils/runtimePeerMessageDisplay
 import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 
 interface MessageListProps {
+  sessionId?: string | null;
   messages: Message[];
   leadingContent?: React.ReactNode;
   emptyStateVariant?: "default" | "task-center";
@@ -190,11 +192,180 @@ const MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD = 72;
 const MESSAGE_LIST_INITIAL_RENDER_COUNT = 36;
 const MESSAGE_LIST_RENDER_BATCH_SIZE = 48;
 const MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_THRESHOLD = 20;
-const MESSAGE_LIST_RESTORED_INITIAL_RENDER_COUNT = 20;
-const MESSAGE_LIST_RESTORED_RENDER_BATCH_SIZE = 12;
-const MESSAGE_LIST_TIMELINE_ITEMS_FACTOR = 4;
+const MESSAGE_LIST_RESTORED_INITIAL_RENDER_COUNT = 10;
+const MESSAGE_LIST_RESTORED_RENDER_BATCH_SIZE = 6;
+const MESSAGE_LIST_PROGRESSIVE_RENDER_MINIMUM_DELAY_MS = 120;
+const MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_MINIMUM_DELAY_MS = 600;
 const MESSAGE_LIST_TIMELINE_DEFER_MESSAGE_THRESHOLD = 24;
 const MESSAGE_LIST_TIMELINE_DEFER_ITEM_THRESHOLD = 24;
+const MESSAGE_LIST_HISTORICAL_TIMELINE_COMPACT_ITEM_THRESHOLD = 8;
+const MESSAGE_LIST_HISTORICAL_TIMELINE_IDLE_DELAY_MS = 80;
+const MESSAGE_LIST_RESTORED_HISTORICAL_TIMELINE_IDLE_DELAY_MS = 900;
+const MESSAGE_LIST_COMPACT_HISTORICAL_ASSISTANT_THRESHOLD = 900;
+const MESSAGE_LIST_COMPACT_HISTORICAL_ASSISTANT_PREVIEW_CHARS = 900;
+const MESSAGE_LIST_LONG_HISTORICAL_MESSAGE_THRESHOLD = 24_000;
+const MESSAGE_LIST_LONG_HISTORICAL_MESSAGE_PREVIEW_CHARS = 2_000;
+const MESSAGE_LIST_STRUCTURED_HISTORY_CONTENT_RE =
+  /<a2ui|```\s*a2ui|<write_file|<document/i;
+
+function buildHistoricalMessagePreview(
+  content: string,
+  previewChars: number,
+): string {
+  const normalized = content.trim();
+  if (normalized.length <= previewChars) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, previewChars)}\n\n...`;
+}
+
+function buildLongHistoricalMessagePreview(content: string): string {
+  return buildHistoricalMessagePreview(
+    content,
+    MESSAGE_LIST_LONG_HISTORICAL_MESSAGE_PREVIEW_CHARS,
+  );
+}
+
+function hasStructuredHistoricalContentHint(content: string): boolean {
+  return MESSAGE_LIST_STRUCTURED_HISTORY_CONTENT_RE.test(content);
+}
+
+function formatContentLength(value: number): string {
+  return value.toLocaleString("zh-CN");
+}
+
+interface HistoricalAssistantMessagePreviewProps {
+  content: string;
+  contentLength: number;
+  variant: "compact" | "long";
+  onExpand: () => void;
+}
+
+function HistoricalAssistantMessagePreview({
+  content,
+  contentLength,
+  variant,
+  onExpand,
+}: HistoricalAssistantMessagePreviewProps) {
+  const isLong = variant === "long";
+
+  return (
+    <div
+      data-testid={
+        isLong
+          ? "message-list-long-history-preview"
+          : "message-list-historical-assistant-preview"
+      }
+      data-preview-variant={variant}
+      className="space-y-3"
+    >
+      <div className="whitespace-pre-wrap break-words text-[15px] leading-7 text-slate-800">
+        {content}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-sm text-slate-600">
+        <span>
+          {isLong ? "此历史消息较长" : "历史助手回复较长"}（约{" "}
+          {formatContentLength(contentLength)} 字），已先展示纯文本预览。
+        </span>
+        <button
+          type="button"
+          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100"
+          onClick={onExpand}
+        >
+          展开完整内容
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const HistoricalMarkdownHydrationPreview: React.FC<{ content: string }> = ({
+  content,
+}) => (
+  <div
+    data-testid="message-list-historical-markdown-preview"
+    className="whitespace-pre-wrap break-words text-[15px] leading-7 text-slate-800"
+  >
+    {content}
+  </div>
+);
+
+function summarizeHistoricalTimelineItems(items: AgentThreadItem[]): {
+  stepsCount: number;
+  metaText: string;
+} {
+  const visibleItems = items.filter((item) => {
+    if (item.type === "user_message" || item.type === "agent_message") {
+      return false;
+    }
+
+    return !(
+      item.type === "file_artifact" &&
+      isHiddenConversationArtifactPath(item.path)
+    );
+  });
+  const toolStepsCount = visibleItems.filter(
+    (item) =>
+      item.type === "tool_call" ||
+      item.type === "command_execution" ||
+      item.type === "web_search",
+  ).length;
+  const thinkingStepsCount = visibleItems.filter(
+    (item) =>
+      item.type === "reasoning" ||
+      item.type === "plan" ||
+      item.type === "turn_summary" ||
+      item.type === "context_compaction",
+  ).length;
+  const artifactStepsCount = visibleItems.filter(
+    (item) => item.type === "file_artifact",
+  ).length;
+  const metaParts = [
+    toolStepsCount > 0 ? `${toolStepsCount} 个工具步骤` : null,
+    thinkingStepsCount > 0 ? `${thinkingStepsCount} 条思路` : null,
+    artifactStepsCount > 0 ? `${artifactStepsCount} 份产物` : null,
+  ].filter((part): part is string => Boolean(part));
+
+  return {
+    stepsCount: visibleItems.length,
+    metaText: metaParts.length > 0 ? metaParts.join("，") : "执行细节已折叠",
+  };
+}
+
+const HistoricalTimelinePreview: React.FC<{
+  items: AgentThreadItem[];
+  placement: "leading" | "trailing" | "default";
+  onExpand: () => void;
+}> = ({ items, placement, onExpand }) => {
+  const summary = useMemo(
+    () => summarizeHistoricalTimelineItems(items),
+    [items],
+  );
+
+  if (summary.stepsCount <= 0) {
+    return null;
+  }
+
+  return (
+    <button
+      type="button"
+      data-testid={`message-list-historical-timeline-preview:${placement}`}
+      className="flex w-full items-start justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 text-left text-sm text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100/80"
+      onClick={onExpand}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium text-slate-800">执行过程已折叠</span>
+        <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+          {summary.stepsCount} 步 · {summary.metaText}
+        </span>
+      </span>
+      <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700">
+        展开
+      </span>
+    </button>
+  );
+};
 
 function normalizeRuntimeStatusMetaText(value?: string | null): string {
   return (value || "").trim().replace(/\s+/g, " ");
@@ -239,6 +410,40 @@ const MessageRuntimeStatusPill: React.FC<{
         ].join(" ")}
       />
       <span className="truncate">{titleText || "处理中"}</span>
+    </div>
+  );
+};
+
+function truncateRuntimeStatusText(value: string, maxLength = 96): string {
+  const normalized = normalizeRuntimeStatusMetaText(value);
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${Array.from(normalized).slice(0, maxLength).join("")}...`;
+}
+
+const AssistantFirstTokenPlaceholder: React.FC<{
+  status: AgentRuntimeStatus;
+}> = ({ status }) => {
+  const title = truncateRuntimeStatusText(status.title || "正在准备处理", 48);
+  const detail =
+    truncateRuntimeStatusText(status.detail, 120) ||
+    "已提交请求，等待首个响应。";
+
+  return (
+    <div
+      data-testid="assistant-first-token-placeholder"
+      className="inline-flex max-w-full items-start gap-2 rounded-2xl border border-emerald-200/70 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-900"
+      aria-live="polite"
+    >
+      <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-emerald-700" />
+      <span className="min-w-0">
+        <span className="block font-medium leading-5">{title}</span>
+        <span className="mt-0.5 block text-xs leading-5 text-emerald-700/80">
+          {detail}
+        </span>
+      </span>
     </div>
   );
 };
@@ -481,6 +686,7 @@ function filterConversationDisplayContentParts(
 }
 
 const MessageListInner: React.FC<MessageListProps> = ({
+  sessionId = null,
   messages,
   leadingContent,
   emptyStateVariant = "default",
@@ -525,38 +731,21 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const previousVisibleMessageCountRef = useRef<number | null>(null);
+  const restoredSessionMetricRef = useRef<string | null>(null);
   const isTaskCenterEmptyState = emptyStateVariant === "task-center";
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-
-  const shouldInspectPromptCacheNotice = useMemo(
-    () =>
-      Boolean(
-        providerType?.trim() &&
-        messages.some(
-          (msg) =>
-            msg.role === "assistant" &&
-            !msg.isThinking &&
-            msg.usage &&
-            resolvePromptCacheActivity(msg.usage) <= 0,
-        ),
-      ),
-    [messages, providerType],
-  );
-  const { providers } = useConfiguredProviders({
-    autoLoad: shouldInspectPromptCacheNotice,
-  });
-  const promptCacheNotice = useMemo(
-    () =>
-      shouldInspectPromptCacheNotice
-        ? resolveConfiguredProviderPromptCacheSupportNotice(
-            providers,
-            providerType,
-          )
-        : null,
-    [providerType, providers, shouldInspectPromptCacheNotice],
-  );
+  const [
+    expandedLongHistoricalMessageIds,
+    setExpandedLongHistoricalMessageIds,
+  ] = useState<Set<string>>(() => new Set());
+  const [
+    expandedHistoricalAssistantMessageIds,
+    setExpandedHistoricalAssistantMessageIds,
+  ] = useState<Set<string>>(() => new Set());
+  const [expandedHistoricalTimelineKeys, setExpandedHistoricalTimelineKeys] =
+    useState<Set<string>>(() => new Set());
 
   const visibleMessages = useMemo(
     () =>
@@ -577,6 +766,26 @@ const MessageListInner: React.FC<MessageListProps> = ({
       : 0;
   const isRestoredHistoryWindow =
     isRestoringSession || persistedHiddenHistoryCount > 0;
+  const [restoredPromptCacheNoticeReady, setRestoredPromptCacheNoticeReady] =
+    useState(() => !isRestoredHistoryWindow);
+
+  useEffect(() => {
+    if (!isRestoredHistoryWindow) {
+      setRestoredPromptCacheNoticeReady(true);
+      return;
+    }
+
+    setRestoredPromptCacheNoticeReady(false);
+    return scheduleMinimumDelayIdleTask(
+      () => {
+        setRestoredPromptCacheNoticeReady(true);
+      },
+      {
+        minimumDelayMs: 1_500,
+        idleTimeoutMs: 3_000,
+      },
+    );
+  }, [isRestoredHistoryWindow, visibleMessageFirstId, visibleMessageLastId]);
   const progressiveRenderThreshold = isRestoredHistoryWindow
     ? MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_THRESHOLD
     : MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD;
@@ -586,6 +795,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const progressiveRenderBatchSize = isRestoredHistoryWindow
     ? MESSAGE_LIST_RESTORED_RENDER_BATCH_SIZE
     : MESSAGE_LIST_RENDER_BATCH_SIZE;
+  const progressiveRenderMinimumDelayMs = isRestoredHistoryWindow
+    ? MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_MINIMUM_DELAY_MS
+    : MESSAGE_LIST_PROGRESSIVE_RENDER_MINIMUM_DELAY_MS;
   const shouldUseProgressiveRender =
     !isSending && visibleMessages.length > progressiveRenderThreshold;
   const visibleMessageWindowRef = useRef<{
@@ -647,10 +859,12 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const hiddenHistoryCount = shouldUseProgressiveRender
     ? Math.max(0, visibleMessages.length - renderedMessageCount)
     : 0;
+  const shouldAutoHydrateHiddenHistory =
+    shouldUseProgressiveRender && !isRestoredHistoryWindow;
 
   useEffect(() => {
     if (
-      !shouldUseProgressiveRender ||
+      !shouldAutoHydrateHiddenHistory ||
       hiddenHistoryCount <= 0 ||
       isUserScrolling
     ) {
@@ -667,7 +881,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
         );
       },
       {
-        minimumDelayMs: 120,
+        minimumDelayMs: progressiveRenderMinimumDelayMs,
         idleTimeoutMs: 1_200,
       },
     );
@@ -675,7 +889,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
     hiddenHistoryCount,
     isUserScrolling,
     progressiveRenderBatchSize,
-    shouldUseProgressiveRender,
+    progressiveRenderMinimumDelayMs,
+    shouldAutoHydrateHiddenHistory,
     visibleMessages.length,
   ]);
 
@@ -686,37 +901,57 @@ const MessageListInner: React.FC<MessageListProps> = ({
         : visibleMessages,
     [hiddenHistoryCount, renderedMessageCount, visibleMessages],
   );
-  const renderedTurns = useMemo(
+  const renderedAssistantMessageCount = useMemo(
     () =>
-      hiddenHistoryCount > 0
-        ? turns.slice(
-            -Math.max(renderedMessageCount, progressiveInitialRenderCount),
-          )
-        : turns,
+      renderedMessages.reduce(
+        (count, message) => count + (message.role === "assistant" ? 1 : 0),
+        0,
+      ),
+    [renderedMessages],
+  );
+  const restoredTurnWindowSize = Math.max(1, renderedAssistantMessageCount + 1);
+  const renderedTurns = useMemo(
+    () => {
+      const shouldWindowTurns =
+        hiddenHistoryCount > 0 || isRestoredHistoryWindow;
+      if (!shouldWindowTurns) {
+        return turns;
+      }
+
+      const turnWindowSize = isRestoredHistoryWindow
+        ? restoredTurnWindowSize
+        : Math.max(renderedMessageCount, progressiveInitialRenderCount);
+      const tailTurns =
+        turnWindowSize > 0
+          ? turns.slice(-Math.min(turns.length, turnWindowSize))
+          : [];
+      if (
+        !currentTurnId ||
+        tailTurns.some((turn) => turn.id === currentTurnId)
+      ) {
+        return tailTurns;
+      }
+
+      const selectedTurnIds = new Set(tailTurns.map((turn) => turn.id));
+      selectedTurnIds.add(currentTurnId);
+      return turns.filter((turn) => selectedTurnIds.has(turn.id));
+    },
     [
+      currentTurnId,
       hiddenHistoryCount,
+      isRestoredHistoryWindow,
       progressiveInitialRenderCount,
       renderedMessageCount,
+      restoredTurnWindowSize,
       turns,
     ],
   );
-  const renderedThreadItems = useMemo(
-    () =>
-      hiddenHistoryCount > 0
-        ? threadItems.slice(
-            -Math.max(
-              renderedMessageCount * MESSAGE_LIST_TIMELINE_ITEMS_FACTOR,
-              progressiveInitialRenderCount,
-            ),
-          )
-        : threadItems,
-    [
-      hiddenHistoryCount,
-      progressiveInitialRenderCount,
-      renderedMessageCount,
-      threadItems,
-    ],
-  );
+  const renderedTurnIdSet = useMemo(() => {
+    if (hiddenHistoryCount <= 0 && !isRestoredHistoryWindow) {
+      return null;
+    }
+    return new Set(renderedTurns.map((turn) => turn.id));
+  }, [hiddenHistoryCount, isRestoredHistoryWindow, renderedTurns]);
   const activeCurrentTurn = useMemo(() => {
     if (!currentTurnId) {
       return null;
@@ -733,14 +968,17 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const timelineHydrationKey = [
     renderedMessages[renderedMessages.length - 1]?.id ?? "no-message",
     renderedTurns[renderedTurns.length - 1]?.id ?? "no-turn",
-    renderedThreadItems[renderedThreadItems.length - 1]?.id ?? "no-item",
+    `${threadItems.length}:${
+      threadItems[threadItems.length - 1]?.id ?? "no-item"
+    }`,
   ].join("|");
   const shouldDeferHistoricalTimeline =
     !isSending &&
     !activeCurrentTurnId &&
     !focusedTimelineItemId &&
-    renderedMessages.length >= MESSAGE_LIST_TIMELINE_DEFER_MESSAGE_THRESHOLD &&
-    renderedThreadItems.length >= MESSAGE_LIST_TIMELINE_DEFER_ITEM_THRESHOLD;
+    threadItems.length >= MESSAGE_LIST_TIMELINE_DEFER_ITEM_THRESHOLD &&
+    (isRestoredHistoryWindow ||
+      renderedMessages.length >= MESSAGE_LIST_TIMELINE_DEFER_MESSAGE_THRESHOLD);
   const shouldDeferHistoricalTimelineDetails =
     !focusedTimelineItemId &&
     (shouldDeferHistoricalTimeline ||
@@ -761,13 +999,55 @@ const MessageListInner: React.FC<MessageListProps> = ({
         setIsHistoricalTimelineReady(true);
       },
       {
-        minimumDelayMs: 80,
-        idleTimeoutMs: 900,
+        minimumDelayMs: isRestoredHistoryWindow
+          ? MESSAGE_LIST_RESTORED_HISTORICAL_TIMELINE_IDLE_DELAY_MS
+          : MESSAGE_LIST_HISTORICAL_TIMELINE_IDLE_DELAY_MS,
+        idleTimeoutMs: isRestoredHistoryWindow ? 1_800 : 900,
       },
     );
-  }, [shouldDeferHistoricalTimeline, timelineHydrationKey]);
+  }, [
+    isRestoredHistoryWindow,
+    shouldDeferHistoricalTimeline,
+    timelineHydrationKey,
+  ]);
   const canBuildHistoricalTimeline =
     !shouldDeferHistoricalTimeline || isHistoricalTimelineReady;
+  const shouldDeferTailRuntimeStatusLine =
+    isRestoredHistoryWindow &&
+    shouldDeferHistoricalTimeline &&
+    !isHistoricalTimelineReady &&
+    !isSending &&
+    !activeCurrentTurnId &&
+    pendingActions.length === 0 &&
+    queuedTurns.length === 0 &&
+    (threadRead?.pending_requests?.length ?? 0) === 0;
+  const shouldDeferThreadItemsScan =
+    shouldDeferHistoricalTimeline &&
+    !isHistoricalTimelineReady &&
+    !activeCurrentTurnId;
+  const renderedThreadItems = useMemo(
+    () => {
+      if (shouldDeferThreadItemsScan) {
+        return [];
+      }
+
+      if (!renderedTurnIdSet) {
+        return threadItems;
+      }
+      if (renderedTurnIdSet.size === 0) {
+        return [];
+      }
+
+      const scopedItems: AgentThreadItem[] = [];
+      for (const item of threadItems) {
+        if (renderedTurnIdSet.has(item.turn_id)) {
+          scopedItems.push(item);
+        }
+      }
+      return scopedItems;
+    },
+    [renderedTurnIdSet, shouldDeferThreadItemsScan, threadItems],
+  );
   const timelineByMessageId = useMemo(() => {
     if (!canBuildHistoricalTimeline) {
       return new Map<string, MessageTurnTimeline>();
@@ -784,15 +1064,42 @@ const MessageListInner: React.FC<MessageListProps> = ({
     renderedThreadItems,
     renderedTurns,
   ]);
-  const lastAssistantMessageId = useMemo(
+  const lastAssistantMessage = useMemo(() => {
+    for (let index = renderedMessages.length - 1; index >= 0; index -= 1) {
+      const message = renderedMessages[index];
+      if (message?.role === "assistant") {
+        return message;
+      }
+    }
+    return null;
+  }, [renderedMessages]);
+  const lastAssistantMessageId = lastAssistantMessage?.id ?? null;
+  const shouldInspectPromptCacheNotice = useMemo(
     () =>
-      [...renderedMessages]
-        .reverse()
-        .find((message) => message.role === "assistant")?.id ?? null,
-    [renderedMessages],
+      Boolean(
+        providerType?.trim() &&
+        restoredPromptCacheNoticeReady &&
+        lastAssistantMessage?.usage &&
+        !lastAssistantMessage.isThinking &&
+        resolvePromptCacheActivity(lastAssistantMessage.usage) <= 0,
+      ),
+    [lastAssistantMessage, providerType, restoredPromptCacheNoticeReady],
+  );
+  const { providers } = useConfiguredProviders({
+    autoLoad: shouldInspectPromptCacheNotice,
+  });
+  const promptCacheNotice = useMemo(
+    () =>
+      shouldInspectPromptCacheNotice
+        ? resolveConfiguredProviderPromptCacheSupportNotice(
+            providers,
+            providerType,
+          )
+        : null,
+    [providerType, providers, shouldInspectPromptCacheNotice],
   );
   const tailRuntimeStatusLine = useMemo(() => {
-    if (!lastAssistantMessageId) {
+    if (!lastAssistantMessageId || shouldDeferTailRuntimeStatusLine) {
       return null;
     }
 
@@ -817,6 +1124,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     renderedMessages,
     renderedThreadItems,
     renderedTurns,
+    shouldDeferTailRuntimeStatusLine,
     threadRead,
   ]);
   const currentTurnTimeline = useMemo(() => {
@@ -824,10 +1132,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
       return null;
     }
 
-    const mappedMessageId =
-      [...timelineByMessageId.values()].find(
-        (entry) => entry.turn.id === activeCurrentTurnId,
-      )?.messageId ?? null;
+    let mappedMessageId: string | null = null;
+    for (const entry of timelineByMessageId.values()) {
+      if (entry.turn.id === activeCurrentTurnId) {
+        mappedMessageId = entry.messageId;
+        break;
+      }
+    }
 
     return {
       messageId: mappedMessageId || lastAssistantMessageId,
@@ -853,10 +1164,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
         const lastAssistantId =
           group.assistantMessages[group.assistantMessages.length - 1]?.id ??
           null;
-        const mappedTimeline =
-          group.assistantMessages
-            .map((message) => timelineByMessageId.get(message.id))
-            .find(Boolean) ?? null;
+        let mappedTimeline: MessageTurnTimeline | null = null;
+        for (const message of group.assistantMessages) {
+          mappedTimeline = timelineByMessageId.get(message.id) ?? null;
+          if (mappedTimeline) {
+            break;
+          }
+        }
         const isCurrentTurnGroup =
           Boolean(lastAssistantId) &&
           currentTurnTimeline?.messageId === lastAssistantId;
@@ -881,6 +1195,170 @@ const MessageListInner: React.FC<MessageListProps> = ({
       timelineByMessageId,
     ],
   );
+  const shouldDeferHistoricalAssistantMessageDetails = useCallback(
+    (message: Message): boolean =>
+      isRestoredHistoryWindow &&
+      !isHistoricalTimelineReady &&
+      !focusedTimelineItemId &&
+      !isSending &&
+      !activeCurrentTurnId &&
+      message.role === "assistant" &&
+      !message.isThinking &&
+      !message.thinkingContent &&
+      (message.toolCalls?.length ?? 0) === 0 &&
+      (message.actionRequests?.length ?? 0) === 0,
+    [
+      activeCurrentTurnId,
+      focusedTimelineItemId,
+      isHistoricalTimelineReady,
+      isRestoredHistoryWindow,
+      isSending,
+    ],
+  );
+  const historicalContentPartsDeferredCount = useMemo(() => {
+    if (!isRestoredHistoryWindow || isHistoricalTimelineReady) {
+      return 0;
+    }
+
+    let count = 0;
+    for (const message of renderedMessages) {
+      if (
+        (message.contentParts?.length ?? 0) > 0 &&
+        shouldDeferHistoricalAssistantMessageDetails(message)
+      ) {
+        count += 1;
+      }
+    }
+    return count;
+  }, [
+    isHistoricalTimelineReady,
+    isRestoredHistoryWindow,
+    renderedMessages,
+    shouldDeferHistoricalAssistantMessageDetails,
+  ]);
+  const historicalMarkdownDeferredCount = useMemo(() => {
+    if (!isRestoredHistoryWindow || isHistoricalTimelineReady) {
+      return 0;
+    }
+
+    let count = 0;
+    for (const message of renderedMessages) {
+      const content = message.content.trim();
+      if (
+        content &&
+        !hasStructuredHistoricalContentHint(content) &&
+        shouldDeferHistoricalAssistantMessageDetails(message)
+      ) {
+        count += 1;
+      }
+    }
+    return count;
+  }, [
+    isHistoricalTimelineReady,
+    isRestoredHistoryWindow,
+    renderedMessages,
+    shouldDeferHistoricalAssistantMessageDetails,
+  ]);
+  useEffect(() => {
+    if (!sessionId) {
+      restoredSessionMetricRef.current = null;
+      return;
+    }
+
+    if (
+      restoredSessionMetricRef.current &&
+      restoredSessionMetricRef.current !== sessionId
+    ) {
+      restoredSessionMetricRef.current = null;
+    }
+
+    const shouldTrackRestoredSession =
+      isRestoringSession ||
+      isRestoredHistoryWindow ||
+      hiddenHistoryCount > 0 ||
+      persistedHiddenHistoryCount > 0;
+    if (shouldTrackRestoredSession) {
+      restoredSessionMetricRef.current = sessionId;
+    }
+
+    const shouldRecordRestoredFollowUp =
+      restoredSessionMetricRef.current === sessionId &&
+      visibleMessages.length > 0;
+    const shouldRecord =
+      shouldTrackRestoredSession || shouldRecordRestoredFollowUp;
+    if (!shouldRecord) {
+      return;
+    }
+    const shouldFinishRestoredFollowUp =
+      shouldRecordRestoredFollowUp &&
+      renderedMessages.length >= visibleMessages.length;
+
+    const metricContext = {
+      canBuildHistoricalTimeline,
+      hiddenHistoryCount,
+      isHistoricalTimelineReady,
+      isRestoredHistoryWindow,
+      isRestoringSession,
+      historicalContentPartsDeferredCount,
+      historicalMarkdownDeferredCount,
+      messagesCount: messages.length,
+      persistedHiddenHistoryCount,
+      renderedMessagesCount: renderedMessages.length,
+      renderedTurnsCount: renderedTurns.length,
+      recordReason: shouldTrackRestoredSession
+        ? "restored-window"
+        : "restored-follow-up",
+      sessionId,
+      shouldDeferHistoricalTimeline,
+      tailRuntimeStatusDeferred: shouldDeferTailRuntimeStatusLine,
+      threadItemsScanDeferred: shouldDeferThreadItemsScan,
+      threadItemsCount: renderedThreadItems.length,
+      timelineGroupsCount: renderGroups.length,
+      turnsCount: turns.length,
+      visibleMessagesCount: visibleMessages.length,
+    };
+
+    recordAgentUiPerformanceMetric("messageList.commit", metricContext);
+
+    if (typeof window === "undefined" || !window.requestAnimationFrame) {
+      recordAgentUiPerformanceMetric("messageList.paint", metricContext);
+      if (shouldFinishRestoredFollowUp) {
+        restoredSessionMetricRef.current = null;
+      }
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      recordAgentUiPerformanceMetric("messageList.paint", metricContext);
+      if (shouldFinishRestoredFollowUp) {
+        restoredSessionMetricRef.current = null;
+      }
+    });
+
+    return () => {
+      window.cancelAnimationFrame?.(frameId);
+    };
+  }, [
+    canBuildHistoricalTimeline,
+    hiddenHistoryCount,
+    historicalContentPartsDeferredCount,
+    historicalMarkdownDeferredCount,
+    isHistoricalTimelineReady,
+    isRestoredHistoryWindow,
+    isRestoringSession,
+    messages.length,
+    persistedHiddenHistoryCount,
+    renderGroups.length,
+    renderedMessages.length,
+    renderedThreadItems.length,
+    renderedTurns.length,
+    sessionId,
+    shouldDeferHistoricalTimeline,
+    shouldDeferTailRuntimeStatusLine,
+    shouldDeferThreadItemsScan,
+    turns.length,
+    visibleMessages.length,
+  ]);
   const shouldKeepInlineProcessForActiveAssistant = useCallback(
     (message: Message, isConversationTailAssistant: boolean): boolean => {
       if (message.role !== "assistant") {
@@ -927,6 +1405,42 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const handleExpandAllHistory = useCallback(() => {
     setRenderedMessageCount(visibleMessages.length);
   }, [visibleMessages.length]);
+  const handleExpandLongHistoricalMessage = useCallback((messageId: string) => {
+    setExpandedLongHistoricalMessageIds((current) => {
+      if (current.has(messageId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.add(messageId);
+      return next;
+    });
+  }, []);
+  const handleExpandHistoricalAssistantMessage = useCallback(
+    (messageId: string) => {
+      setExpandedHistoricalAssistantMessageIds((current) => {
+        if (current.has(messageId)) {
+          return current;
+        }
+
+        const next = new Set(current);
+        next.add(messageId);
+        return next;
+      });
+    },
+    [],
+  );
+  const handleExpandHistoricalTimeline = useCallback((timelineKey: string) => {
+    setExpandedHistoricalTimelineKeys((current) => {
+      if (current.has(timelineKey)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.add(timelineKey);
+      return next;
+    });
+  }, []);
 
   // 检测用户是否在手动滚动
   useEffect(() => {
@@ -1001,17 +1515,18 @@ const MessageListInner: React.FC<MessageListProps> = ({
       role: msg.role,
       hasImages,
     });
+    const shouldDeferMessageDetails =
+      shouldDeferHistoricalAssistantMessageDetails(msg);
     const rawRuntimePeerContent = (msg.content || "").trim();
     const shouldRenderRuntimePeerCards =
       rawRuntimePeerContent.length > 0 &&
       isPureRuntimePeerMessageText(rawRuntimePeerContent);
-    const displayContentParts = sanitizeContentPartsForDisplay(
-      msg.contentParts,
-      {
-        role: msg.role,
-        hasImages,
-      },
-    );
+    const displayContentParts = shouldDeferMessageDetails
+      ? undefined
+      : sanitizeContentPartsForDisplay(msg.contentParts, {
+          role: msg.role,
+          hasImages,
+        });
     const isConversationTailAssistant =
       msg.role === "assistant" && msg.id === group.lastAssistantId;
     const timeline =
@@ -1030,6 +1545,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
       ),
     );
     const includeInlineProcessFlow =
+      !shouldDeferMessageDetails &&
       msg.role === "assistant" &&
       shouldKeepInlineProcessForActiveAssistant(
         msg,
@@ -1063,16 +1579,16 @@ const MessageListInner: React.FC<MessageListProps> = ({
           }),
         )
       : [];
+    const timelineConversationItemIds =
+      timelineConversationItems.length > 0
+        ? new Set(timelineConversationItems.map((item) => item.id))
+        : null;
     const isInlineCoveredTimelineItem = createInlineCoverageMatcher(
       inlineProcessCoverage,
     );
     const primaryTimelineItems = timeline
       ? timeline.items.filter((item) => {
-          if (
-            !timelineConversationItems.some(
-              (timelineItem) => timelineItem.id === item.id,
-            )
-          ) {
+          if (!timelineConversationItemIds?.has(item.id)) {
             return false;
           }
 
@@ -1135,6 +1651,75 @@ const MessageListInner: React.FC<MessageListProps> = ({
         : null;
     const actionContent = displayContent.trim();
     const hasVisibleAssistantText = Boolean(actionContent);
+    const shouldCollapseLongHistoricalMessage =
+      isRestoredHistoryWindow &&
+      msg.role === "assistant" &&
+      !msg.isThinking &&
+      actionContent.length > MESSAGE_LIST_LONG_HISTORICAL_MESSAGE_THRESHOLD &&
+      !expandedLongHistoricalMessageIds.has(msg.id);
+    const hasNonTextConversationContentParts = Boolean(
+      conversationContentParts?.some((part) => part.type !== "text"),
+    );
+    const shouldFlattenHistoricalAssistantContent =
+      isRestoredHistoryWindow &&
+      msg.role === "assistant" &&
+      !msg.isThinking &&
+      !includeInlineProcessFlow &&
+      !hasNonTextConversationContentParts &&
+      actionContent.length > 0 &&
+      !shouldCollapseLongHistoricalMessage;
+    const shouldCompactHistoricalAssistantMessage =
+      isRestoredHistoryWindow &&
+      msg.role === "assistant" &&
+      !msg.isThinking &&
+      !focusedTimelineItemId &&
+      !includeInlineProcessFlow &&
+      !hasNonTextConversationContentParts &&
+      !((msg.actionRequests || []).length > 0) &&
+      !actionContent.includes("```a2ui") &&
+      actionContent.length >
+        MESSAGE_LIST_COMPACT_HISTORICAL_ASSISTANT_THRESHOLD &&
+      !expandedLongHistoricalMessageIds.has(msg.id) &&
+      !expandedHistoricalAssistantMessageIds.has(msg.id);
+    const shouldPreviewHistoricalAssistantMessage =
+      shouldCollapseLongHistoricalMessage ||
+      shouldCompactHistoricalAssistantMessage;
+    const historicalAssistantPreviewContent =
+      shouldCollapseLongHistoricalMessage
+        ? buildLongHistoricalMessagePreview(displayContent)
+        : shouldCompactHistoricalAssistantMessage
+          ? buildHistoricalMessagePreview(
+              displayContent,
+              MESSAGE_LIST_COMPACT_HISTORICAL_ASSISTANT_PREVIEW_CHARS,
+            )
+          : "";
+    const rendererContent = shouldCollapseLongHistoricalMessage
+      ? buildLongHistoricalMessagePreview(displayContent)
+      : displayContent;
+    const rendererRawContent =
+      shouldCollapseLongHistoricalMessage ||
+      shouldFlattenHistoricalAssistantContent
+        ? rendererContent
+        : msg.content || "";
+    const rendererContentParts =
+      shouldCollapseLongHistoricalMessage ||
+      shouldFlattenHistoricalAssistantContent
+        ? undefined
+        : conversationContentParts;
+    const rendererThinkingContent = shouldCollapseLongHistoricalMessage
+      ? undefined
+      : conversationThinkingContent;
+    const rendererToolCalls = shouldCollapseLongHistoricalMessage
+      ? undefined
+      : conversationToolCalls;
+    const rendererActionRequests = shouldCollapseLongHistoricalMessage
+      ? undefined
+      : msg.actionRequests;
+    const rendererMarkdownRenderMode =
+      shouldCollapseLongHistoricalMessage ||
+      shouldFlattenHistoricalAssistantContent
+        ? "light"
+        : "standard";
     const canQuoteMessage = Boolean(onQuoteMessage && actionContent);
     const canCopyMessage = Boolean(actionContent);
     const canSaveMessageAsSkill = Boolean(
@@ -1181,8 +1766,38 @@ const MessageListInner: React.FC<MessageListProps> = ({
     const messageCanvasShortcutPath = messageSavedSiteContentTarget
       ? resolveSiteSavedContentTargetRelativePath(messageSavedSiteContentTarget)
       : null;
+    const shouldDeferHistoricalMarkdownRender =
+      shouldDeferMessageDetails &&
+      msg.role === "assistant" &&
+      hasVisibleAssistantText &&
+      !shouldPreviewHistoricalAssistantMessage &&
+      !hasImages &&
+      !hasNonTextConversationContentParts &&
+      visibleAssistantArtifacts.length === 0 &&
+      !shouldRenderMessageCanvasShortcut &&
+      !msg.imageWorkbenchPreview &&
+      !msg.taskPreview &&
+      !hasStructuredHistoricalContentHint(actionContent);
+    const shouldRenderFirstTokenPlaceholder =
+      msg.role === "assistant" &&
+      msg.isThinking &&
+      Boolean(msg.runtimeStatus) &&
+      !shouldRenderRuntimeStatusPill(msg.runtimeStatus) &&
+      !hasVisibleAssistantText &&
+      !conversationContentParts?.length &&
+      !conversationThinkingContent?.trim() &&
+      !conversationToolCalls?.length &&
+      !((msg.actionRequests || []).length > 0) &&
+      !primaryTimeline &&
+      !trailingTimeline &&
+      !((msg.images || []).length > 0) &&
+      visibleAssistantArtifacts.length === 0 &&
+      !shouldRenderMessageCanvasShortcut &&
+      !msg.imageWorkbenchPreview &&
+      !msg.taskPreview;
     const shouldCollapseAssistantShell =
       msg.role === "assistant" &&
+      !shouldRenderFirstTokenPlaceholder &&
       !hasVisibleAssistantText &&
       !conversationContentParts?.length &&
       !conversationThinkingContent?.trim() &&
@@ -1259,28 +1874,48 @@ const MessageListInner: React.FC<MessageListProps> = ({
       return null;
     }
 
+    const primaryTimelineKey = primaryTimeline
+      ? `leading:${primaryTimeline.turn.id}`
+      : null;
+    const shouldRenderCompactPrimaryTimeline =
+      Boolean(primaryTimelineKey) &&
+      isRestoredHistoryWindow &&
+      !focusedTimelineItemId &&
+      primaryTimeline?.turn.status === "completed" &&
+      primaryTimeline.turn.id !== activeCurrentTurnId &&
+      primaryTimeline.items.length >=
+        MESSAGE_LIST_HISTORICAL_TIMELINE_COMPACT_ITEM_THRESHOLD &&
+      !expandedHistoricalTimelineKeys.has(primaryTimelineKey!);
     const primaryTimelineNode =
       msg.role === "assistant" && primaryTimeline ? (
-        <AgentThreadTimeline
-          turn={primaryTimeline.turn}
-          items={primaryTimeline.items}
-          threadRead={threadRead}
-          actionRequests={primaryActionRequests}
-          isCurrentTurn={primaryTimeline.turn.id === activeCurrentTurnId}
-          collapseInactiveDetails={!isSending}
-          deferCompletedSingleDetails={
-            shouldDeferHistoricalTimelineDetails &&
-            primaryTimeline.turn.id !== activeCurrentTurnId
-          }
-          placement="leading"
-          onFileClick={onFileClick}
-          onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
-          onOpenSavedSiteContent={onOpenSavedSiteContent}
-          onOpenSubagentSession={onOpenSubagentSession}
-          onPermissionResponse={onPermissionResponse}
-          focusedItemId={focusedTimelineItemId}
-          focusRequestKey={timelineFocusRequestKey}
-        />
+        shouldRenderCompactPrimaryTimeline && primaryTimelineKey ? (
+          <HistoricalTimelinePreview
+            items={primaryTimeline.items}
+            placement="leading"
+            onExpand={() => handleExpandHistoricalTimeline(primaryTimelineKey)}
+          />
+        ) : (
+          <AgentThreadTimeline
+            turn={primaryTimeline.turn}
+            items={primaryTimeline.items}
+            threadRead={threadRead}
+            actionRequests={primaryActionRequests}
+            isCurrentTurn={primaryTimeline.turn.id === activeCurrentTurnId}
+            collapseInactiveDetails={!isSending}
+            deferCompletedSingleDetails={
+              shouldDeferHistoricalTimelineDetails &&
+              primaryTimeline.turn.id !== activeCurrentTurnId
+            }
+            placement="leading"
+            onFileClick={onFileClick}
+            onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
+            onOpenSavedSiteContent={onOpenSavedSiteContent}
+            onOpenSubagentSession={onOpenSubagentSession}
+            onPermissionResponse={onPermissionResponse}
+            focusedItemId={focusedTimelineItemId}
+            focusRequestKey={timelineFocusRequestKey}
+          />
+        )
       ) : null;
     const shouldRenderPrimaryTimelineOutsideBubble =
       msg.role === "assistant" &&
@@ -1314,60 +1949,87 @@ const MessageListInner: React.FC<MessageListProps> = ({
                     ? null
                     : primaryTimelineNode}
 
-                  <StreamingRenderer
-                    content={displayContent}
-                    rawContent={msg.content || ""}
-                    isStreaming={msg.isThinking}
-                    toolCalls={conversationToolCalls}
-                    showCursor={msg.isThinking && !displayContent}
-                    thinkingContent={conversationThinkingContent}
-                    runtimeStatus={msg.runtimeStatus}
-                    contentParts={conversationContentParts}
-                    actionRequests={msg.actionRequests}
-                    onA2UISubmit={
-                      onA2UISubmit
-                        ? (formData) => onA2UISubmit(formData, msg.id)
-                        : undefined
-                    }
-                    a2uiFormId={a2uiFormDataMap?.[msg.id]?.formId}
-                    a2uiInitialFormData={a2uiFormDataMap?.[msg.id]?.formData}
-                    onA2UIFormChange={onA2UIFormChange}
-                    renderA2UIInline={
-                      renderA2UIInline && !shouldSuppressInlineA2UI
-                    }
-                    onWriteFile={
-                      onWriteFile
-                        ? (content, fileName, context) =>
-                            onWriteFile(content, fileName, {
-                              ...context,
-                              sourceMessageId:
-                                context?.sourceMessageId || msg.id,
-                              source: context?.source || "message_content",
-                            })
-                        : undefined
-                    }
-                    onFileClick={onFileClick}
-                    onOpenSavedSiteContent={onOpenSavedSiteContent}
-                    onPermissionResponse={onPermissionResponse}
-                    collapseCodeBlocks={collapseCodeBlocks}
-                    shouldCollapseCodeBlock={shouldCollapseCodeBlock}
-                    onCodeBlockClick={onCodeBlockClick}
-                    promoteActionRequestsToA2UI={promoteActionRequestsToA2UI}
-                    suppressedActionRequestId={suppressedActionRequestId}
-                    showRuntimeStatusInline={true}
-                    renderProposedPlanBlocks={
-                      !primaryTimeline ||
-                      inlineProcessCoverage.hasInlineProcessEntries
-                    }
-                    suppressProcessFlow={shouldSuppressImageProcessFlow}
-                    showContentBlockActions={Boolean(actionContent)}
-                    onQuoteContent={
-                      onQuoteMessage
-                        ? (quotedContent) =>
-                            onQuoteMessage(quotedContent, msg.id)
-                        : undefined
-                    }
-                  />
+                  {shouldRenderFirstTokenPlaceholder && msg.runtimeStatus ? (
+                    <AssistantFirstTokenPlaceholder
+                      status={msg.runtimeStatus}
+                    />
+                  ) : shouldPreviewHistoricalAssistantMessage ? (
+                    <HistoricalAssistantMessagePreview
+                      content={historicalAssistantPreviewContent}
+                      contentLength={actionContent.length}
+                      variant={
+                        shouldCollapseLongHistoricalMessage ? "long" : "compact"
+                      }
+                      onExpand={() => {
+                        if (shouldCollapseLongHistoricalMessage) {
+                          handleExpandLongHistoricalMessage(msg.id);
+                          return;
+                        }
+
+                        handleExpandHistoricalAssistantMessage(msg.id);
+                      }}
+                    />
+                  ) : shouldDeferHistoricalMarkdownRender ? (
+                    <HistoricalMarkdownHydrationPreview
+                      content={rendererContent}
+                    />
+                  ) : (
+                    <StreamingRenderer
+                      content={rendererContent}
+                      rawContent={rendererRawContent}
+                      isStreaming={msg.isThinking}
+                      toolCalls={rendererToolCalls}
+                      showCursor={msg.isThinking && !displayContent}
+                      thinkingContent={rendererThinkingContent}
+                      runtimeStatus={msg.runtimeStatus}
+                      contentParts={rendererContentParts}
+                      actionRequests={rendererActionRequests}
+                      onA2UISubmit={
+                        onA2UISubmit
+                          ? (formData) => onA2UISubmit(formData, msg.id)
+                          : undefined
+                      }
+                      a2uiFormId={a2uiFormDataMap?.[msg.id]?.formId}
+                      a2uiInitialFormData={a2uiFormDataMap?.[msg.id]?.formData}
+                      onA2UIFormChange={onA2UIFormChange}
+                      renderA2UIInline={
+                        renderA2UIInline && !shouldSuppressInlineA2UI
+                      }
+                      onWriteFile={
+                        onWriteFile
+                          ? (content, fileName, context) =>
+                              onWriteFile(content, fileName, {
+                                ...context,
+                                sourceMessageId:
+                                  context?.sourceMessageId || msg.id,
+                                source: context?.source || "message_content",
+                              })
+                          : undefined
+                      }
+                      onFileClick={onFileClick}
+                      onOpenSavedSiteContent={onOpenSavedSiteContent}
+                      onPermissionResponse={onPermissionResponse}
+                      collapseCodeBlocks={collapseCodeBlocks}
+                      shouldCollapseCodeBlock={shouldCollapseCodeBlock}
+                      onCodeBlockClick={onCodeBlockClick}
+                      promoteActionRequestsToA2UI={promoteActionRequestsToA2UI}
+                      suppressedActionRequestId={suppressedActionRequestId}
+                      showRuntimeStatusInline={true}
+                      renderProposedPlanBlocks={
+                        !primaryTimeline ||
+                        inlineProcessCoverage.hasInlineProcessEntries
+                      }
+                      suppressProcessFlow={shouldSuppressImageProcessFlow}
+                      showContentBlockActions={Boolean(actionContent)}
+                      markdownRenderMode={rendererMarkdownRenderMode}
+                      onQuoteContent={
+                        onQuoteMessage
+                          ? (quotedContent) =>
+                              onQuoteMessage(quotedContent, msg.id)
+                          : undefined
+                      }
+                    />
+                  )}
                   {shouldRenderMessageCanvasShortcut ? (
                     <button
                       type="button"
@@ -1694,7 +2356,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
           >
             <div className="min-w-0 flex-1">
               为了更快打开对话，当前先展示最近 {renderedMessages.length}{" "}
-              条消息， 更早的 {hiddenHistoryCount} 条会在空闲时继续补齐。
+              条消息，
+              {isRestoredHistoryWindow
+                ? `更早的 ${hiddenHistoryCount} 条可按需展开。`
+                : `更早的 ${hiddenHistoryCount} 条会在空闲时继续补齐。`}
             </div>
             <button
               type="button"

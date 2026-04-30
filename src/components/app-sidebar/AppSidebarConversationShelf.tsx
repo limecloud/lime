@@ -1,12 +1,30 @@
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import styled from "styled-components";
 import {
   Archive,
+  Check,
   ChevronDown,
   Clock3,
   MessageSquarePlus,
+  MoreHorizontal,
+  Pencil,
+  Pin,
+  Trash2,
   Undo2,
 } from "lucide-react";
 import type { AsterSessionInfo } from "@/lib/api/agentRuntime";
+import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
+import {
+  formatSidebarSessionMeta,
+  resolveSidebarSessionTitle,
+} from "@/components/app-sidebar/sidebarSessionFormatting";
 
 interface AppSidebarConversationShelfProps {
   recentSessions: AsterSessionInfo[];
@@ -20,10 +38,54 @@ interface AppSidebarConversationShelfProps {
   actionSessionId: string | null;
   onCreateConversation: () => void;
   onNavigateToConversation: (session: AsterSessionInfo) => void;
+  onPrefetchConversation?: (session: AsterSessionInfo) => void;
+  onRenameConversation?: (session: AsterSessionInfo) => void;
+  onDeleteConversation?: (session: AsterSessionInfo) => void;
   onToggleArchive: (session: AsterSessionInfo, archived: boolean) => void;
   onShowMoreRecent: () => void;
   onShowMoreArchived: () => void;
   onToggleArchivedCollapsed: () => void;
+}
+
+const CONVERSATION_HOVER_PREFETCH_DELAY_MS = 900;
+const FAVORITE_SESSION_IDS_STORAGE_KEY = "lime.app-sidebar.favorite-session-ids";
+const CONVERSATION_MENU_WIDTH = 188;
+const CONVERSATION_MENU_APPROX_HEIGHT = 252;
+const CONVERSATION_MENU_VIEWPORT_MARGIN = 12;
+
+type ConversationMenuState = {
+  session: AsterSessionInfo;
+  archived: boolean;
+  top: number;
+  left: number;
+} | null;
+
+function loadFavoriteSessionIds(): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(FAVORITE_SESSION_IDS_STORAGE_KEY) ?? "[]",
+    );
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistFavoriteSessionIds(sessionIds: string[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    FAVORITE_SESSION_IDS_STORAGE_KEY,
+    JSON.stringify(sessionIds),
+  );
 }
 
 const ConversationShelf = styled.div`
@@ -31,6 +93,42 @@ const ConversationShelf = styled.div`
   flex-direction: column;
   gap: 8px;
   margin: 2px 0 12px;
+`;
+
+const ConversationMultiSelectToolbar = styled.div`
+  min-height: 38px;
+  border-radius: 16px;
+  border: 1px solid var(--sidebar-card-border, var(--sidebar-border));
+  background: var(--lime-surface, #ffffff);
+  color: var(--lime-text, #1a3b2b);
+  box-shadow: var(--sidebar-card-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 8px 0 12px;
+  font-size: 12px;
+  font-weight: 750;
+`;
+
+const ConversationMultiSelectDoneButton = styled.button`
+  min-height: 28px;
+  border: 1px solid var(--lime-card-subtle-border, #d9eadf);
+  border-radius: 11px;
+  background: var(--lime-surface-soft, #f8fcf9);
+  color: var(--lime-brand-strong, #166534);
+  cursor: pointer;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease;
+
+  &:hover {
+    border-color: var(--lime-brand-soft-border, #bbf7d0);
+    background: var(--lime-brand-soft, #ecfdf5);
+  }
 `;
 
 const ConversationSection = styled.div<{ $compact?: boolean }>`
@@ -210,6 +308,27 @@ const ConversationItemDot = styled.span<{ $active?: boolean }>`
     $active ? "var(--sidebar-active-foreground)" : "rgba(148, 163, 184, 0.72)"};
 `;
 
+const ConversationSelectionMark = styled.span<{ $selected?: boolean }>`
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid
+    ${({ $selected }) =>
+      $selected ? "var(--sidebar-active-foreground)" : "var(--sidebar-border)"};
+  background: ${({ $selected }) =>
+    $selected ? "var(--sidebar-active-foreground)" : "transparent"};
+  color: var(--sidebar-active);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  svg {
+    width: 11px;
+    height: 11px;
+  }
+`;
+
 const ConversationItemLabel = styled.span`
   flex: 1;
   min-width: 0;
@@ -219,6 +338,21 @@ const ConversationItemLabel = styled.span`
   white-space: nowrap;
   font-size: 13px;
   font-weight: 500;
+`;
+
+const ConversationFavoriteBadge = styled.span`
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sidebar-muted);
+
+  svg {
+    width: 13px;
+    height: 13px;
+  }
 `;
 
 const ConversationItemMeta = styled.span`
@@ -268,6 +402,56 @@ const ConversationItemActionButton = styled.button`
   }
 `;
 
+const ConversationMenuSurface = styled.div`
+  position: fixed;
+  z-index: 110;
+  width: ${CONVERSATION_MENU_WIDTH}px;
+  padding: 14px 10px;
+  border-radius: 24px;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.9));
+  background: var(--lime-surface, #ffffff);
+  color: var(--lime-text-strong, #0f172a);
+  box-shadow:
+    0 22px 64px rgba(15, 23, 42, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.76) inset;
+`;
+
+const ConversationMenuItem = styled.button<{ $danger?: boolean }>`
+  width: 100%;
+  min-height: 42px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: ${({ $danger }) =>
+    $danger ? "var(--lime-danger, #b91c1c)" : "var(--lime-text-strong, #0f172a)"};
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 16px;
+  font-weight: 680;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+
+  &:hover {
+    background: ${({ $danger }) =>
+      $danger
+        ? "var(--lime-danger-soft, #fff1f2)"
+        : "var(--lime-surface-hover, #f4fdf4)"};
+  }
+
+  svg {
+    width: 19px;
+    height: 19px;
+    flex-shrink: 0;
+    color: ${({ $danger }) =>
+      $danger ? "var(--lime-danger, #b91c1c)" : "var(--sidebar-muted)"};
+  }
+`;
+
 const ConversationEmptyState = styled.div`
   display: flex;
   align-items: center;
@@ -286,42 +470,6 @@ const ConversationEmptyState = styled.div`
   );
   text-align: center;
 `;
-
-function formatSidebarSessionTime(updatedAt: number): string {
-  const diffMs = Date.now() - updatedAt * 1000;
-  const diffMinutes = Math.max(1, Math.floor(diffMs / (1000 * 60)));
-
-  if (diffMinutes < 60) {
-    return `${diffMinutes}分`;
-  }
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) {
-    return `${diffHours}时`;
-  }
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 30) {
-    return `${diffDays}天`;
-  }
-
-  return new Date(updatedAt * 1000).toLocaleDateString("zh-CN", {
-    month: "numeric",
-    day: "numeric",
-  });
-}
-
-function formatSidebarSessionMeta(session: AsterSessionInfo): string {
-  if (typeof session.archived_at === "number" && session.archived_at > 0) {
-    return `归档 ${formatSidebarSessionTime(session.archived_at)}`;
-  }
-
-  return formatSidebarSessionTime(session.updated_at);
-}
-
-function resolveSidebarSessionTitle(session: AsterSessionInfo): string {
-  return session.name?.trim() || "未命名对话";
-}
 
 function renderEmptyState(text: string) {
   return (
@@ -344,13 +492,276 @@ export function AppSidebarConversationShelf({
   actionSessionId,
   onCreateConversation,
   onNavigateToConversation,
+  onPrefetchConversation,
+  onRenameConversation,
+  onDeleteConversation,
   onToggleArchive,
   onShowMoreRecent,
   onShowMoreArchived,
   onToggleArchivedCollapsed,
 }: AppSidebarConversationShelfProps) {
+  const [menuState, setMenuState] = useState<ConversationMenuState>(null);
+  const [favoriteSessionIds, setFavoriteSessionIds] = useState<string[]>(
+    loadFavoriteSessionIds,
+  );
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const hoverPrefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const hoverPrefetchSessionRef = useRef<AsterSessionInfo | null>(null);
+  const clearHoverPrefetch = useCallback(() => {
+    if (hoverPrefetchTimerRef.current !== null) {
+      const session = hoverPrefetchSessionRef.current;
+      clearTimeout(hoverPrefetchTimerRef.current);
+      hoverPrefetchTimerRef.current = null;
+      hoverPrefetchSessionRef.current = null;
+      if (session) {
+        recordAgentUiPerformanceMetric(
+          "sidebar.conversation.prefetchCancelled",
+          {
+            sessionId: session.id,
+            source: "conversation_shelf",
+            workspaceId: session.workspace_id ?? null,
+          },
+        );
+      }
+    }
+  }, []);
+  const scheduleHoverPrefetch = useCallback(
+    (session: AsterSessionInfo) => {
+      if (
+        hoverPrefetchTimerRef.current !== null &&
+        hoverPrefetchSessionRef.current?.id === session.id
+      ) {
+        return;
+      }
+
+      clearHoverPrefetch();
+      recordAgentUiPerformanceMetric("sidebar.conversation.prefetchScheduled", {
+        sessionId: session.id,
+        source: "conversation_shelf",
+        workspaceId: session.workspace_id ?? null,
+      });
+      hoverPrefetchSessionRef.current = session;
+      hoverPrefetchTimerRef.current = setTimeout(() => {
+        hoverPrefetchTimerRef.current = null;
+        hoverPrefetchSessionRef.current = null;
+        recordAgentUiPerformanceMetric("sidebar.conversation.prefetchFired", {
+          sessionId: session.id,
+          source: "conversation_shelf",
+          workspaceId: session.workspace_id ?? null,
+        });
+        onPrefetchConversation?.(session);
+      }, CONVERSATION_HOVER_PREFETCH_DELAY_MS);
+    },
+    [clearHoverPrefetch, onPrefetchConversation],
+  );
+
+  useEffect(() => clearHoverPrefetch, [clearHoverPrefetch]);
+
+  useEffect(() => {
+    if (!menuState) {
+      return;
+    }
+
+    const closeMenu = () => setMenuState(null);
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [menuState]);
+
+  const openConversationMenu = useCallback(
+    (
+      event: MouseEvent<HTMLButtonElement>,
+      session: AsterSessionInfo,
+      archived: boolean,
+    ) => {
+      event.stopPropagation();
+      clearHoverPrefetch();
+      const rect = event.currentTarget.getBoundingClientRect();
+      setMenuState({
+        session,
+        archived,
+        top: Math.max(
+          CONVERSATION_MENU_VIEWPORT_MARGIN,
+          Math.min(
+            rect.bottom + 8,
+            window.innerHeight -
+              CONVERSATION_MENU_APPROX_HEIGHT -
+              CONVERSATION_MENU_VIEWPORT_MARGIN,
+          ),
+        ),
+        left: Math.max(
+          CONVERSATION_MENU_VIEWPORT_MARGIN,
+          Math.min(
+            rect.right - CONVERSATION_MENU_WIDTH,
+            window.innerWidth -
+              CONVERSATION_MENU_WIDTH -
+              CONVERSATION_MENU_VIEWPORT_MARGIN,
+          ),
+        ),
+      });
+    },
+    [clearHoverPrefetch],
+  );
+
+  const toggleFavoriteSession = useCallback((session: AsterSessionInfo) => {
+    setFavoriteSessionIds((current) => {
+      const exists = current.includes(session.id);
+      const next = exists
+        ? current.filter((sessionId) => sessionId !== session.id)
+        : [session.id, ...current];
+      persistFavoriteSessionIds(next);
+      return next;
+    });
+  }, []);
+
+  const enterMultiSelectMode = useCallback((session: AsterSessionInfo) => {
+    setMultiSelectMode(true);
+    setSelectedSessionIds(new Set([session.id]));
+  }, []);
+
+  const exitMultiSelectMode = useCallback(() => {
+    setMultiSelectMode(false);
+    setSelectedSessionIds(new Set());
+  }, []);
+
+  const toggleSelectedSession = useCallback((session: AsterSessionInfo) => {
+    setSelectedSessionIds((current) => {
+      const next = new Set(current);
+      if (next.has(session.id)) {
+        next.delete(session.id);
+      } else {
+        next.add(session.id);
+      }
+      return next;
+    });
+  }, []);
+
+  const runMenuAction = useCallback(
+    (action: () => void) => {
+      setMenuState(null);
+      action();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!multiSelectMode || typeof window === "undefined") {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        exitMultiSelectMode();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [exitMultiSelectMode, multiSelectMode]);
+
+  const renderConversationMenu = () => {
+    if (!menuState || typeof document === "undefined") {
+      return null;
+    }
+
+    const { session, archived, top, left } = menuState;
+    const title = resolveSidebarSessionTitle(session);
+    const favorite = favoriteSessionIds.includes(session.id);
+    const archiveLabel = archived ? "恢复" : "归档";
+    const ArchiveIcon = archived ? Undo2 : Archive;
+
+    return createPortal(
+      <ConversationMenuSurface
+        role="menu"
+        aria-label={`${title} 操作菜单`}
+        style={{ top, left }}
+        data-testid="app-sidebar-conversation-menu"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {onRenameConversation ? (
+          <ConversationMenuItem
+            type="button"
+            role="menuitem"
+            data-testid="app-sidebar-conversation-menu-rename"
+            onClick={() => runMenuAction(() => onRenameConversation(session))}
+          >
+            <Pencil />
+            重命名
+          </ConversationMenuItem>
+        ) : null}
+        <ConversationMenuItem
+          type="button"
+          role="menuitem"
+          aria-pressed={favorite}
+          data-testid="app-sidebar-conversation-menu-favorite"
+          onClick={() => runMenuAction(() => toggleFavoriteSession(session))}
+        >
+          <Pin />
+          {favorite ? "取消收藏" : "收藏"}
+        </ConversationMenuItem>
+        <ConversationMenuItem
+          type="button"
+          role="menuitem"
+          data-testid="app-sidebar-conversation-menu-archive"
+          onClick={() =>
+            runMenuAction(() => onToggleArchive(session, !archived))
+          }
+        >
+          <ArchiveIcon />
+          {archiveLabel}
+        </ConversationMenuItem>
+        <ConversationMenuItem
+          type="button"
+          role="menuitem"
+          data-testid="app-sidebar-conversation-menu-multiselect"
+          onClick={() => runMenuAction(() => enterMultiSelectMode(session))}
+        >
+          <Check />
+          多选
+        </ConversationMenuItem>
+        {onDeleteConversation ? (
+          <ConversationMenuItem
+            type="button"
+            role="menuitem"
+            $danger
+            data-testid="app-sidebar-conversation-menu-delete"
+            onClick={() => runMenuAction(() => onDeleteConversation(session))}
+          >
+            <Trash2 />
+            删除
+          </ConversationMenuItem>
+        ) : null}
+      </ConversationMenuSurface>,
+      document.body,
+    );
+  };
+
   return (
     <ConversationShelf data-testid="app-sidebar-conversation-shelf">
+      {multiSelectMode ? (
+        <ConversationMultiSelectToolbar data-testid="app-sidebar-conversation-multiselect-toolbar">
+          已选择 {selectedSessionIds.size} 个对话
+          <ConversationMultiSelectDoneButton
+            type="button"
+            onClick={exitMultiSelectMode}
+          >
+            完成
+          </ConversationMultiSelectDoneButton>
+        </ConversationMultiSelectToolbar>
+      ) : null}
       <ConversationSection>
         <ConversationSectionHeader>
           <ConversationSectionTitle>最近对话</ConversationSectionTitle>
@@ -369,6 +780,9 @@ export function AppSidebarConversationShelf({
             : recentSessions.length > 0
               ? recentSessions.map((session) => {
                   const isCurrentConversation = currentSessionId === session.id;
+                  const title = resolveSidebarSessionTitle(session);
+                  const favorite = favoriteSessionIds.includes(session.id);
+                  const selected = selectedSessionIds.has(session.id);
                   return (
                     <ConversationItemRow
                       key={session.id}
@@ -381,28 +795,62 @@ export function AppSidebarConversationShelf({
                         aria-current={
                           isCurrentConversation ? "page" : undefined
                         }
-                        onClick={() => onNavigateToConversation(session)}
-                        title={resolveSidebarSessionTitle(session)}
+                        onClick={() => {
+                          clearHoverPrefetch();
+                          recordAgentUiPerformanceMetric(
+                            "sidebar.conversation.click",
+                            {
+                              sessionId: session.id,
+                              source: "conversation_shelf",
+                              workspaceId: session.workspace_id ?? null,
+                            },
+                          );
+                          if (multiSelectMode) {
+                            toggleSelectedSession(session);
+                            return;
+                          }
+                          onNavigateToConversation(session);
+                        }}
+                        onBlur={clearHoverPrefetch}
+                        onFocus={() => scheduleHoverPrefetch(session)}
+                        onPointerEnter={() => scheduleHoverPrefetch(session)}
+                        onPointerLeave={clearHoverPrefetch}
+                        title={title}
                       >
-                        <ConversationItemDot $active={isCurrentConversation} />
+                        {multiSelectMode ? (
+                          <ConversationSelectionMark $selected={selected}>
+                            {selected ? <Check /> : null}
+                          </ConversationSelectionMark>
+                        ) : (
+                          <ConversationItemDot
+                            $active={isCurrentConversation}
+                          />
+                        )}
                         <ConversationItemLabel>
-                          {resolveSidebarSessionTitle(session)}
+                          {title}
                         </ConversationItemLabel>
+                        {favorite ? (
+                          <ConversationFavoriteBadge
+                            title="已收藏"
+                            data-testid="app-sidebar-conversation-favorite-badge"
+                          >
+                            <Pin />
+                          </ConversationFavoriteBadge>
+                        ) : null}
                         <ConversationItemMeta>
                           {formatSidebarSessionMeta(session)}
                         </ConversationItemMeta>
                       </ConversationItemButton>
                       <ConversationItemActionButton
                         type="button"
-                        aria-label={`归档 ${resolveSidebarSessionTitle(session)}`}
-                        title="归档对话"
+                        aria-label={`打开 ${title} 操作菜单`}
+                        title="更多操作"
                         disabled={actionSessionId === session.id}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onToggleArchive(session, true);
-                        }}
+                        onClick={(event) =>
+                          openConversationMenu(event, session, false)
+                        }
                       >
-                        <Archive />
+                        <MoreHorizontal />
                       </ConversationItemActionButton>
                     </ConversationItemRow>
                   );
@@ -439,6 +887,9 @@ export function AppSidebarConversationShelf({
                 ? archivedSessions.map((session) => {
                     const isCurrentConversation =
                       currentSessionId === session.id;
+                    const title = resolveSidebarSessionTitle(session);
+                    const favorite = favoriteSessionIds.includes(session.id);
+                    const selected = selectedSessionIds.has(session.id);
                     return (
                       <ConversationItemRow
                         key={session.id}
@@ -451,30 +902,62 @@ export function AppSidebarConversationShelf({
                           aria-current={
                             isCurrentConversation ? "page" : undefined
                           }
-                          onClick={() => onNavigateToConversation(session)}
-                          title={resolveSidebarSessionTitle(session)}
+                          onClick={() => {
+                            clearHoverPrefetch();
+                            recordAgentUiPerformanceMetric(
+                              "sidebar.conversation.click",
+                              {
+                                sessionId: session.id,
+                                source: "conversation_shelf",
+                                workspaceId: session.workspace_id ?? null,
+                              },
+                            );
+                            if (multiSelectMode) {
+                              toggleSelectedSession(session);
+                              return;
+                            }
+                            onNavigateToConversation(session);
+                          }}
+                          onBlur={clearHoverPrefetch}
+                          onFocus={() => scheduleHoverPrefetch(session)}
+                          onPointerEnter={() => scheduleHoverPrefetch(session)}
+                          onPointerLeave={clearHoverPrefetch}
+                          title={title}
                         >
-                          <ConversationItemDot
-                            $active={isCurrentConversation}
-                          />
+                          {multiSelectMode ? (
+                            <ConversationSelectionMark $selected={selected}>
+                              {selected ? <Check /> : null}
+                            </ConversationSelectionMark>
+                          ) : (
+                            <ConversationItemDot
+                              $active={isCurrentConversation}
+                            />
+                          )}
                           <ConversationItemLabel>
-                            {resolveSidebarSessionTitle(session)}
+                            {title}
                           </ConversationItemLabel>
+                          {favorite ? (
+                            <ConversationFavoriteBadge
+                              title="已收藏"
+                              data-testid="app-sidebar-conversation-favorite-badge"
+                            >
+                              <Pin />
+                            </ConversationFavoriteBadge>
+                          ) : null}
                           <ConversationItemMeta>
                             {formatSidebarSessionMeta(session)}
                           </ConversationItemMeta>
                         </ConversationItemButton>
                         <ConversationItemActionButton
                           type="button"
-                          aria-label={`恢复 ${resolveSidebarSessionTitle(session)}`}
-                          title="恢复对话"
+                          aria-label={`打开 ${title} 操作菜单`}
+                          title="更多操作"
                           disabled={actionSessionId === session.id}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onToggleArchive(session, false);
-                          }}
+                          onClick={(event) =>
+                            openConversationMenu(event, session, true)
+                          }
                         >
-                          <Undo2 />
+                          <MoreHorizontal />
                         </ConversationItemActionButton>
                       </ConversationItemRow>
                     );
@@ -491,6 +974,7 @@ export function AppSidebarConversationShelf({
           </ConversationList>
         ) : null}
       </ConversationSection>
+      {renderConversationMenu()}
     </ConversationShelf>
   );
 }

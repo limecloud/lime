@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import styled from "styled-components";
 import { HomeStarterChips } from "./HomeStarterChips";
 import { HomeMoreSkillsDrawer } from "./HomeMoreSkillsDrawer";
+import { HomeGuideCards } from "./HomeGuideCards";
 import { HomeSceneSkillManagerDialog } from "./HomeSceneSkillManagerDialog";
 import type {
+  HomeGuideCard,
   HomeSkillSection,
   HomeSkillSurfaceItem,
   HomeStarterChip,
@@ -60,21 +62,41 @@ export interface HomeSupplementalAction {
 
 interface HomeStartSurfaceProps {
   starterChips: HomeStarterChip[];
+  guideCards?: HomeGuideCard[];
+  guideOpen?: boolean;
   sections: HomeSkillSection[];
   supplementalActions?: HomeSupplementalAction[];
+  onGuideOpenChange?: (open: boolean) => void;
   onSelectStarterChip: (chip: HomeStarterChip) => void;
+  onSelectGuideCard?: (card: HomeGuideCard) => void;
   onSelectSkillItem: (item: HomeSkillSurfaceItem) => void;
 }
 
 export function HomeStartSurface({
   starterChips,
+  guideCards = [],
+  guideOpen,
   sections,
   supplementalActions = [],
+  onGuideOpenChange,
   onSelectStarterChip,
+  onSelectGuideCard,
   onSelectSkillItem,
 }: HomeStartSurfaceProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [managerOpen, setManagerOpen] = useState(false);
+  const [internalGuideOpen, setInternalGuideOpen] = useState(false);
+  const resolvedGuideOpen = guideOpen ?? internalGuideOpen;
+  const updateGuideOpen = (
+    nextOpen: boolean | ((current: boolean) => boolean),
+  ) => {
+    const resolvedNextOpen =
+      typeof nextOpen === "function" ? nextOpen(resolvedGuideOpen) : nextOpen;
+    if (guideOpen === undefined) {
+      setInternalGuideOpen(resolvedNextOpen);
+    }
+    onGuideOpenChange?.(resolvedNextOpen);
+  };
 
   useEffect(() => {
     if (!drawerOpen) {
@@ -94,23 +116,39 @@ export function HomeStartSurface({
   const handleSelectStarterChip = (chip: HomeStarterChip) => {
     if (chip.launchKind === "open_drawer") {
       setDrawerOpen((current) => !current);
+      updateGuideOpen(false);
       return;
     }
     if (chip.launchKind === "open_manager") {
       setManagerOpen(true);
       return;
     }
+    if (chip.launchKind === "toggle_guide") {
+      updateGuideOpen((current) => !current);
+      setDrawerOpen(false);
+      return;
+    }
+    updateGuideOpen(false);
     onSelectStarterChip(chip);
   };
 
   return (
     <Surface data-testid="home-start-surface">
-      <HomeStarterChips
-        chips={starterChips}
-        onSelect={handleSelectStarterChip}
-      />
+      {!resolvedGuideOpen ? (
+        <HomeStarterChips
+          chips={starterChips}
+          onSelect={handleSelectStarterChip}
+        />
+      ) : null}
 
-      {supplementalActions.length > 0 ? (
+      {resolvedGuideOpen ? (
+        <HomeGuideCards
+          cards={guideCards}
+          onSelect={(card) => onSelectGuideCard?.(card)}
+        />
+      ) : null}
+
+      {!resolvedGuideOpen && supplementalActions.length > 0 ? (
         <SupplementalRow data-testid="home-supplemental-actions">
           {supplementalActions.map((action) => (
             <SupplementalButton

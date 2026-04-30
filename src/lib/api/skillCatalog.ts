@@ -70,6 +70,22 @@ export interface SkillCatalogSceneTemplate {
   prompt: string;
 }
 
+export type SkillCatalogHomePresentationSlot =
+  | "input_suggestion"
+  | "starter_chip"
+  | "guide_card";
+
+export interface SkillCatalogHomePresentation {
+  slot: SkillCatalogHomePresentationSlot;
+  label?: string;
+  title?: string;
+  summary?: string;
+  iconToken?: string;
+  order?: number;
+  groupKey?: string;
+  prompt?: string;
+}
+
 export type SkillCatalogCommandTriggerMode = "mention" | "slash";
 
 export interface SkillCatalogCommandTrigger {
@@ -86,6 +102,7 @@ export interface SkillCatalogSkillEntry {
   groupKey: string;
   aliases?: string[];
   surfaceScopes?: ServiceSkillSurfaceScope[];
+  homePresentation?: SkillCatalogHomePresentation;
   execution: SkillCatalogExecution;
   renderContract?: SkillCatalogRenderContract;
 }
@@ -98,6 +115,7 @@ export interface SkillCatalogCommandEntry {
   commandKey: string;
   aliases?: string[];
   surfaceScopes?: ServiceSkillSurfaceScope[];
+  homePresentation?: SkillCatalogHomePresentation;
   triggers: SkillCatalogCommandTrigger[];
   binding?: {
     skillId?: string;
@@ -120,6 +138,7 @@ export interface SkillCatalogSceneEntry {
   linkedEntryId?: string;
   aliases?: string[];
   surfaceScopes?: ServiceSkillSurfaceScope[];
+  homePresentation?: SkillCatalogHomePresentation;
   linkedSkillId?: string;
   executionKind?: SkillCatalogExecutionKind | "scene";
   placeholder?: string;
@@ -991,6 +1010,39 @@ function parseSkillCatalogSceneTemplates(
   return templates.length > 0 ? templates : undefined;
 }
 
+function parseSkillCatalogHomePresentation(
+  value: unknown,
+): SkillCatalogHomePresentation | undefined {
+  if (!isPlainRecord(value)) {
+    return undefined;
+  }
+
+  const slot = normalizeText(value.slot);
+  if (
+    slot !== "input_suggestion" &&
+    slot !== "starter_chip" &&
+    slot !== "guide_card"
+  ) {
+    return undefined;
+  }
+
+  const order =
+    typeof value.order === "number" && Number.isFinite(value.order)
+      ? value.order
+      : undefined;
+
+  return {
+    slot,
+    label: normalizeText(value.label) ?? undefined,
+    title: normalizeText(value.title) ?? undefined,
+    summary: normalizeText(value.summary) ?? undefined,
+    iconToken: normalizeText(value.iconToken) ?? undefined,
+    order,
+    groupKey: normalizeText(value.groupKey) ?? undefined,
+    prompt: normalizeText(value.prompt) ?? undefined,
+  };
+}
+
 function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
   if (!isPlainRecord(value)) {
     return null;
@@ -1003,6 +1055,9 @@ function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
   if (!id || !kind || !title || !summary) {
     return null;
   }
+  const homePresentation = parseSkillCatalogHomePresentation(
+    value.homePresentation,
+  );
 
   if (kind === "command") {
     const commandKey = normalizeText(value.commandKey);
@@ -1014,7 +1069,7 @@ function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
           )
       : [];
 
-    if (!commandKey || triggers.length === 0) {
+    if (!commandKey || (triggers.length === 0 && !homePresentation)) {
       return null;
     }
 
@@ -1035,6 +1090,7 @@ function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
       commandKey,
       aliases: normalizeSearchAliases(value.aliases),
       surfaceScopes: normalizeSurfaceScopes(value.surfaceScopes),
+      homePresentation,
       triggers,
       binding,
       renderContract: parseRenderContract(value.renderContract),
@@ -1058,6 +1114,7 @@ function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
       linkedEntryId: normalizeText(value.linkedEntryId) ?? undefined,
       aliases: normalizeSearchAliases(value.aliases),
       surfaceScopes: normalizeSurfaceScopes(value.surfaceScopes),
+      homePresentation,
       linkedSkillId: normalizeText(value.linkedSkillId) ?? undefined,
       executionKind: parseSceneExecutionKind(value.executionKind),
       placeholder: normalizeText(value.placeholder) ?? undefined,
@@ -1083,6 +1140,7 @@ function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
       groupKey,
       aliases: normalizeSearchAliases(value.aliases),
       surfaceScopes: normalizeSurfaceScopes(value.surfaceScopes),
+      homePresentation,
       execution,
       renderContract: parseRenderContract(value.renderContract),
     };

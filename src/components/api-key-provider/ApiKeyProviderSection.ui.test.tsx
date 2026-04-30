@@ -359,6 +359,47 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     );
   });
 
+  it("国内分类里的 SenseNova 应使用 v2 OpenAI 兼容接口", async () => {
+    mockGetSystemProviderCatalog.mockResolvedValueOnce([
+      {
+        id: "sensenova",
+        name: "SenseNova",
+        type: "openai",
+        api_host: "https://api.sensenova.cn/compatible-mode/v2",
+        group: "chinese",
+        sort_order: 29,
+        legacy_ids: [],
+      },
+    ]);
+    createHookState();
+    const container = renderSection();
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("add-model-button").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("model-catalog-category-cn").click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-template-id="catalog-sensenova"]',
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent ?? "").toContain(
+      "https://api.sensenova.cn/compatible-mode/v2",
+    );
+    expect(container.textContent ?? "").toContain("SenseChat-5");
+  });
+
   it("海外分类应展示国内厂商的国际订阅入口", async () => {
     createHookState();
     const container = renderSection();
@@ -480,5 +521,120 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     );
     expect(mockTestConnection).toHaveBeenCalledWith("custom-1", "my-model");
     expect(hookState.selectProvider).toHaveBeenCalledWith("custom-1");
+  });
+
+  it("添加流程应把 SenseNova 文档页修正为真实 API Base URL", async () => {
+    const hookState = createHookState();
+    renderSection();
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("add-model-button").click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("custom-provider-template-card").click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-provider-name-input"),
+        "SenseNova",
+      );
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-api-host-input"),
+        "https://platform.sensenova.cn/docs",
+      );
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-api-key-input"),
+        "sk-test",
+      );
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-draft-input"),
+        "sensenova-test-model",
+      );
+    });
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("model-draft-add-button").click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("model-activate-button").click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(hookState.addCustomProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        api_host: "https://api.sensenova.cn/compatible-mode/v2",
+      }),
+    );
+    expect(hookState.selectProvider).toHaveBeenCalledWith("custom-1");
+  });
+
+  it("添加流程在保存成功但连接测试失败时仍应进入 Provider 配置页", async () => {
+    mockTestConnection.mockResolvedValueOnce({
+      success: false,
+      error: "模型无权限",
+    });
+    const hookState = createHookState();
+    renderSection();
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("add-model-button").click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("custom-provider-template-card").click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-provider-name-input"),
+        "My API",
+      );
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-api-host-input"),
+        "https://api.example.com/v1",
+      );
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-api-key-input"),
+        "sk-test",
+      );
+      setInputValue(
+        findByTestId<HTMLInputElement>("model-draft-input"),
+        "my-model",
+      );
+    });
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("model-draft-add-button").click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("model-activate-button").click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(hookState.addCustomProvider).toHaveBeenCalled();
+    expect(hookState.updateProvider).toHaveBeenCalledWith(
+      "custom-1",
+      expect.objectContaining({
+        enabled: true,
+        custom_models: ["my-model"],
+      }),
+    );
+    expect(mockTestConnection).toHaveBeenCalledWith("custom-1", "my-model");
+    expect(hookState.selectProvider).toHaveBeenCalledWith("custom-1");
+    expect(document.body.textContent ?? "").not.toContain("模型无权限");
   });
 });

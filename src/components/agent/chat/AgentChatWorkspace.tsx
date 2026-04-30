@@ -184,6 +184,8 @@ import {
 import { useWorkspaceImageWorkbenchEventRuntime } from "./workspace/useWorkspaceImageWorkbenchEventRuntime";
 import { buildImageSkillLaunchRequestMetadata } from "./workspace/imageSkillLaunch";
 import { useWorkspaceImageTaskPreviewRuntime } from "./workspace/useWorkspaceImageTaskPreviewRuntime";
+import { useWorkspaceAudioTaskPreviewRuntime } from "./workspace/useWorkspaceAudioTaskPreviewRuntime";
+import { useWorkspaceTranscriptionTaskPreviewRuntime } from "./workspace/useWorkspaceTranscriptionTaskPreviewRuntime";
 import { useWorkspaceVideoTaskPreviewRuntime } from "./workspace/useWorkspaceVideoTaskPreviewRuntime";
 import { useWorkspaceVideoTaskActionRuntime } from "./workspace/useWorkspaceVideoTaskActionRuntime";
 import { useWorkspaceSessionRestore } from "./workspace/useWorkspaceSessionRestore";
@@ -209,7 +211,10 @@ import { useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime } from "./worksp
 import { useWorkspaceServiceSkillEntryActions } from "./workspace/useWorkspaceServiceSkillEntryActions";
 import { useWorkspaceSceneAppEntryActions } from "./workspace/useWorkspaceSceneAppEntryActions";
 import { useWorkspaceArtifactViewModeControl } from "./workspace/useWorkspaceArtifactViewModeControl";
-import { useWorkspaceInitialSessionNavigation } from "./workspace/useWorkspaceInitialSessionNavigation";
+import {
+  rememberInitialSessionNavigationStart,
+  useWorkspaceInitialSessionNavigation,
+} from "./workspace/useWorkspaceInitialSessionNavigation";
 import { WorkspaceGeneralWorkbenchSidebar } from "./workspace/WorkspaceGeneralWorkbenchSidebar";
 import { GeneralWorkbenchHarnessDialogSection } from "./workspace/WorkspaceHarnessDialogs";
 import { WorkspaceShellScene } from "./workspace/WorkspaceShellScene";
@@ -219,6 +224,7 @@ import {
 } from "./components/TaskCenterTabStrip";
 import {
   subscribeTaskCenterDraftTaskRequests,
+  subscribeTaskCenterTaskPrefetchRequests,
   subscribeTaskCenterTaskOpenRequests,
 } from "./taskCenterDraftTaskEvents";
 import type { GeneralWorkbenchFollowUpActionPayload } from "./components/generalWorkbenchSidebarContract";
@@ -2049,6 +2055,7 @@ export function AgentChatWorkspace({
     createFreshSession,
     ensureSession = async () => null,
     switchTopic: originalSwitchTopic,
+    prefetchTopic = async () => false,
     loadFullSessionHistory = async () => false,
     deleteTopic,
     renameTopic,
@@ -2071,6 +2078,10 @@ export function AgentChatWorkspace({
       : undefined,
     getSyncedSessionRecentPreferences,
   });
+  const topicById = useMemo(
+    () => new Map(topics.map((topic) => [topic.id, topic])),
+    [topics],
+  );
   activeSessionIdRef.current = sessionId;
   const clawSidebarEntryResetKey = shouldAutoCollapseClassicClawSidebar
     ? JSON.stringify({
@@ -3535,23 +3546,23 @@ export function AgentChatWorkspace({
     rememberProjectId,
     getRememberedProjectId,
     loadTopicBoundProjectId: (topicId) =>
-      topics.find((topic) => topic.id === topicId)?.workspaceId ||
+      topicById.get(topicId)?.workspaceId ||
       loadPersistedSessionWorkspaceId(topicId) ||
       loadPersistedProjectId(`agent_session_workspace_${topicId}`),
     resetTopicLocalState,
   });
   const resolveInitialSessionSwitch = useCallback(
     (topicId: string) => {
-      const topic = topics.find((item) => item.id === topicId);
+      const topic = topicById.get(topicId);
       return {
         allowDetachedSession: true,
-        forceRefresh: true,
+        forceRefresh: topic?.statusReason === "workspace_error",
         ...(shouldResumeTaskSession(topic)
           ? { resumeSessionStartHooks: true }
           : {}),
       };
     },
-    [topics],
+    [topicById],
   );
   useWorkspaceInitialSessionNavigation({
     initialSessionId,
@@ -3663,7 +3674,9 @@ export function AgentChatWorkspace({
       );
       setTaskCenterDraftTabs((current) => (current.length > 0 ? [] : current));
       setActiveTaskCenterDraftTabId(null);
-      setTaskCenterLocalSessionOverride(null);
+      if (agentEntry !== "new-task") {
+        setTaskCenterLocalSessionOverride(null);
+      }
       return;
     }
 
@@ -3671,7 +3684,7 @@ export function AgentChatWorkspace({
       return;
     }
 
-    const hasTopicMatch = topics.some((topic) => topic.id === sessionId);
+    const hasTopicMatch = topicById.has(sessionId);
     if (hasTopicMatch) {
       setTaskCenterDetachedTopicId((current) =>
         current === sessionId ? null : current,
@@ -3682,7 +3695,7 @@ export function AgentChatWorkspace({
     setTaskCenterDetachedTopicId((current) =>
       current === sessionId ? current : sessionId,
     );
-  }, [agentEntry, normalizedInitialSessionId, sessionId, topics]);
+  }, [agentEntry, normalizedInitialSessionId, sessionId, topicById]);
 
   useEffect(() => {
     if (
@@ -3758,8 +3771,7 @@ export function AgentChatWorkspace({
     }
 
     const shouldWaitForInitialSessionTopic =
-      normalizedInitialSessionId &&
-      !topics.some((topic) => topic.id === normalizedInitialSessionId);
+      normalizedInitialSessionId && !topicById.has(normalizedInitialSessionId);
     if (shouldWaitForInitialSessionTopic) {
       return;
     }
@@ -3800,11 +3812,12 @@ export function AgentChatWorkspace({
     taskCenterLocalSessionOverride?.sessionId,
     taskCenterDetachedTopicId,
     taskCenterWorkspaceId,
+    topicById,
     topics,
   ]);
 
   useEffect(() => {
-    if (agentEntry !== "claw") {
+    if (agentEntry !== "claw" && agentEntry !== "new-task") {
       return;
     }
 
@@ -4136,6 +4149,7 @@ export function AgentChatWorkspace({
       (hasDisplayMessages ||
         isThemeWorkbench ||
         (!shouldUseCompactGeneralWorkbench && isBootstrapDispatchPending) ||
+        isSessionHydrating ||
         isSending ||
         queuedTurns.length > 0));
   const shouldRestoreImageTasksFromWorkspace = !(
@@ -4428,7 +4442,7 @@ export function AgentChatWorkspace({
         replaceOpenTabs?: boolean;
       },
     ) => {
-      const topic = topics.find((item) => item.id === topicId);
+      const topic = topicById.get(topicId);
       const topicWorkspaceId = normalizeProjectId(
         topic?.workspaceId ??
           loadPersistedSessionWorkspaceId(topicId) ??
@@ -4445,18 +4459,9 @@ export function AgentChatWorkspace({
           : undefined;
       const wasOpenInTaskCenter =
         taskCenterOpenTabIdsRef.current.includes(topicId);
-
-      setTaskCenterTransitionTopicId(topicId);
-      setTaskCenterDetachedTopicId(null);
-      setActiveTaskCenterDraftTabId(null);
-      if (options?.replaceOpenTabs === true) {
-        replaceTaskCenterOpenTabs(topicId, topicWorkspaceId);
-      } else if (agentEntry === "claw") {
-        upsertTaskCenterOpenTab(topicId, topicWorkspaceId);
-      }
-      markTaskCenterLocalSessionOverride(topicId);
-      const switchResult = await switchTopic(topicId, switchOptions);
-      if (switchResult !== "success" && switchResult !== "deferred") {
+      const shouldMaintainTaskCenterTab =
+        agentEntry === "claw" || agentEntry === "new-task";
+      const rollbackPendingOpen = () => {
         if (!wasOpenInTaskCenter && options?.replaceOpenTabs !== true) {
           setTaskCenterOpenTabMap((currentMap) =>
             updateTaskCenterTabIdsForWorkspace(
@@ -4473,12 +4478,47 @@ export function AgentChatWorkspace({
         setTaskCenterTransitionTopicId((current) =>
           current === topicId ? null : current,
         );
+      };
+
+      setTaskCenterTransitionTopicId(topicId);
+      setTaskCenterDetachedTopicId(null);
+      setActiveTaskCenterDraftTabId(null);
+      if (options?.replaceOpenTabs === true) {
+        replaceTaskCenterOpenTabs(topicId, topicWorkspaceId);
+      } else if (shouldMaintainTaskCenterTab) {
+        upsertTaskCenterOpenTab(topicId, topicWorkspaceId);
+      }
+      markTaskCenterLocalSessionOverride(topicId);
+      rememberInitialSessionNavigationStart(topicId);
+      const switchResult = await switchTopic(topicId, switchOptions);
+      if (switchResult === "busy") {
+        scheduleMinimumDelayIdleTask(
+          () => {
+            void switchTopic(topicId, switchOptions)
+              .then((retryResult) => {
+                if (retryResult !== "success" && retryResult !== "deferred") {
+                  rollbackPendingOpen();
+                }
+              })
+              .catch(() => {
+                rollbackPendingOpen();
+              });
+          },
+          {
+            minimumDelayMs: 120,
+            idleTimeoutMs: 600,
+          },
+        );
+        return;
+      }
+      if (switchResult !== "success" && switchResult !== "deferred") {
+        rollbackPendingOpen();
         return;
       }
       if (options?.replaceOpenTabs === true) {
         replaceTaskCenterOpenTabs(topicId, topicWorkspaceId);
       } else {
-        if (agentEntry === "claw") {
+        if (shouldMaintainTaskCenterTab) {
           upsertTaskCenterOpenTab(topicId, topicWorkspaceId);
         }
       }
@@ -4490,9 +4530,9 @@ export function AgentChatWorkspace({
       setActiveTaskCenterDraftTabId,
       switchTopic,
       taskCenterWorkspaceId,
-      topics,
       setTaskCenterDetachedTopicId,
       setTaskCenterTransitionTopicId,
+      topicById,
       upsertTaskCenterOpenTab,
     ],
   );
@@ -4503,6 +4543,7 @@ export function AgentChatWorkspace({
       setTaskCenterDetachedTopicId(topicId);
       setTaskCenterTransitionTopicId(topicId);
       markTaskCenterLocalSessionOverride(topicId);
+      rememberInitialSessionNavigationStart(topicId);
       const switchResult = await switchTopic(topicId, {
         allowDetachedSession: true,
       });
@@ -4684,20 +4725,54 @@ export function AgentChatWorkspace({
     });
   }, [agentEntry, handleOpenTaskCenterNewTaskPage]);
   useEffect(() => {
-    if (agentEntry !== "claw") {
+    return subscribeTaskCenterTaskPrefetchRequests(
+      ({ sessionId: requestedSessionId, workspaceId }) => {
+        const requestedWorkspaceId = normalizeProjectId(workspaceId);
+        if (
+          requestedWorkspaceId &&
+          taskCenterWorkspaceId &&
+          requestedWorkspaceId !== normalizeProjectId(taskCenterWorkspaceId)
+        ) {
+          return;
+        }
+
+        void prefetchTopic(requestedSessionId);
+      },
+    );
+  }, [prefetchTopic, taskCenterWorkspaceId]);
+
+  useEffect(() => {
+    if (agentEntry !== "claw" && agentEntry !== "new-task") {
       return;
     }
 
     return subscribeTaskCenterTaskOpenRequests(
       ({ sessionId: requestedSessionId, workspaceId }) => {
-        setTaskCenterTransitionTopicId(requestedSessionId);
-        setTaskCenterDetachedTopicId(null);
-        setActiveTaskCenterDraftTabId(null);
-        markTaskCenterLocalSessionOverride(requestedSessionId);
-        upsertTaskCenterOpenTab(requestedSessionId, workspaceId);
+        const requestedWorkspaceId = normalizeProjectId(workspaceId);
+        if (
+          requestedWorkspaceId &&
+          requestedWorkspaceId !== normalizeProjectId(taskCenterWorkspaceId)
+        ) {
+          setTaskCenterTransitionTopicId(requestedSessionId);
+          setTaskCenterDetachedTopicId(null);
+          setActiveTaskCenterDraftTabId(null);
+          markTaskCenterLocalSessionOverride(requestedSessionId);
+          upsertTaskCenterOpenTab(requestedSessionId, requestedWorkspaceId);
+          deferTopicSwitch(requestedSessionId, requestedWorkspaceId);
+          return;
+        }
+
+        void handleOpenTaskTopic(requestedSessionId);
       },
     );
-  }, [agentEntry, markTaskCenterLocalSessionOverride, upsertTaskCenterOpenTab]);
+  }, [
+    agentEntry,
+    deferTopicSwitch,
+    handleOpenTaskTopic,
+    markTaskCenterLocalSessionOverride,
+    taskCenterWorkspaceId,
+    upsertTaskCenterOpenTab,
+  ]);
   const taskCenterPreviewTopicId = useMemo(
     () =>
       resolveTaskCenterPreviewTopicId({
@@ -4800,7 +4875,7 @@ export function AgentChatWorkspace({
       isPinned: false,
     }));
     const topicItems = taskCenterVisibleTabIds
-      .map((topicId) => topics.find((topic) => topic.id === topicId))
+      .map((topicId) => topicById.get(topicId))
       .filter((topic): topic is NonNullable<typeof topic> => Boolean(topic))
       .map((topic) => ({
         id: topic.id,
@@ -4825,8 +4900,13 @@ export function AgentChatWorkspace({
     taskCenterDraftTabs,
     taskCenterPreviewTopicId,
     taskCenterVisibleTabIds,
-    topics,
-  ]);
+      topicById,
+    ]);
+  const shouldRenderTaskCenterTabStrip =
+    agentEntry === "claw" ||
+    (agentEntry === "new-task" &&
+      taskCenterLocalSessionOverride !== null &&
+      taskCenterTabItems.length > 0);
   useEffect(() => {
     if (
       agentEntry !== "claw" ||
@@ -4857,7 +4937,7 @@ export function AgentChatWorkspace({
     }
 
     const currentSessionIsKnownTopic = Boolean(
-      sessionId && topics.some((topic) => topic.id === sessionId),
+      sessionId && topicById.has(sessionId),
     );
     if (
       !normalizedInitialSessionId &&
@@ -4913,10 +4993,11 @@ export function AgentChatWorkspace({
     taskCenterTransitionTopicId,
     taskCenterVisibleTabIds,
     taskCenterWorkspaceId,
+    topicById,
     topics,
   ]);
   const taskCenterTabsNode = useMemo(() => {
-    if (agentEntry !== "claw") {
+    if (!shouldRenderTaskCenterTabStrip) {
       return null;
     }
 
@@ -4938,13 +5019,13 @@ export function AgentChatWorkspace({
       />
     );
   }, [
-    agentEntry,
     handleCloseTaskCenterTab,
     handleOpenTaskCenterNewTaskPage,
     handleToggleCanvas,
     handleSwitchTaskTopic,
     isThemeWorkbench,
     layoutMode,
+    shouldRenderTaskCenterTabStrip,
     taskCenterTabItems,
   ]);
   const browserWorkspaceHomeTabsNode = useMemo(() => {
@@ -6485,6 +6566,16 @@ export function AgentChatWorkspace({
     messages,
     setChatMessages,
   });
+  useWorkspaceAudioTaskPreviewRuntime({
+    projectRootPath: project?.rootPath || null,
+    messages,
+    setChatMessages,
+  });
+  useWorkspaceTranscriptionTaskPreviewRuntime({
+    projectRootPath: project?.rootPath || null,
+    messages,
+    setChatMessages,
+  });
   useWorkspaceVideoTaskActionRuntime({
     projectId,
     contentId,
@@ -6504,6 +6595,7 @@ export function AgentChatWorkspace({
       hasUnconsumedInitialDispatch,
       isPreparingSend,
       isSending,
+      isSessionHydrating,
       queuedTurnCount: queuedTurns.length,
     });
 
@@ -6559,6 +6651,7 @@ export function AgentChatWorkspace({
     isBootstrapDispatchPending,
     isPreparingSend,
     isSending,
+    isSessionHydrating,
     isSpecializedThemeMode,
     isThemeWorkbench,
     layoutMode,
@@ -7175,7 +7268,9 @@ export function AgentChatWorkspace({
     handleResumeRecentSession,
     handleOpenSceneAppsDirectory,
     taskCenterTabsNode:
-      agentEntry === "claw" ? taskCenterTabsNode : browserWorkspaceHomeTabsNode,
+      shouldRenderTaskCenterTabStrip
+        ? taskCenterTabsNode
+        : browserWorkspaceHomeTabsNode,
     suppressNavbarUtilityActions: suppressHomeNavbarUtilityActions,
     hideHistoryToggle,
     showChatPanel: effectiveShowChatPanel,

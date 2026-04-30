@@ -462,7 +462,7 @@ describe("useAsterAgentChat 首页新会话", () => {
       expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
       expect(mockListAgentRuntimeSessions).toHaveBeenNthCalledWith(1, {
         workspaceId,
-        limit: 60,
+        limit: 21,
       });
       expect(harness.getValue().topics.map((topic) => topic.id)).toEqual([
         sessionId,
@@ -6346,7 +6346,7 @@ describe("useAsterAgentChat 偏好持久化", () => {
       expect(value.messages).toHaveLength(2);
       expect(value.messages[1]?.content).toBe("内容已保存到项目目录。");
       expect(value.messages[1]?.thinkingContent).toBeUndefined();
-      expect(value.messages[1]?.toolCalls?.[0]?.id).toBe("tool-topic-a-1");
+      expect(value.messages[1]?.toolCalls).toBeUndefined();
       expect(value.messages[1]?.contentParts).toEqual([
         {
           type: "text",
@@ -6481,6 +6481,172 @@ describe("useAsterAgentChat 偏好持久化", () => {
       );
     } finally {
       harness.unmount();
+    }
+  });
+
+  it("切换命中预取中的旧会话时应复用同一个详情请求", async () => {
+    const workspaceId = "ws-topic-prefetch-reuse";
+    const createdAt = Math.floor(Date.now() / 1000);
+    const deferredTopicDetail = createDeferred<{
+      id: string;
+      created_at: number;
+      updated_at: number;
+      messages_count: number;
+      messages: Array<{
+        role: "assistant" | "user";
+        timestamp: number;
+        content: Array<{ type: "text"; text: string }>;
+      }>;
+      turns: [];
+      items: [];
+      queued_turns: [];
+      execution_strategy: "react";
+    }>();
+
+    mockListAgentRuntimeSessions.mockResolvedValue([]);
+    mockGetAgentRuntimeSession.mockReturnValue(deferredTopicDetail.promise);
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      let prefetchPromise: Promise<boolean> | null = null;
+      await act(async () => {
+        prefetchPromise = harness.getValue().prefetchTopic("topic-a");
+        await Promise.resolve();
+      });
+
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(1);
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith("topic-a", {
+        historyLimit: 40,
+      });
+
+      let switchPromise: Promise<unknown> | null = null;
+      await act(async () => {
+        switchPromise = harness.getValue().switchTopic("topic-a");
+        await Promise.resolve();
+      });
+
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        deferredTopicDetail.resolve({
+          id: "topic-a",
+          created_at: createdAt,
+          updated_at: createdAt,
+          messages_count: 1,
+          messages: [
+            {
+              role: "assistant",
+              timestamp: createdAt,
+              content: [{ type: "text", text: "这是预取复用的结果。" }],
+            },
+          ],
+          turns: [],
+          items: [],
+          queued_turns: [],
+          execution_strategy: "react",
+        });
+        await prefetchPromise;
+        await switchPromise;
+      });
+      await flushEffects();
+
+      expect(harness.getValue().messages[0]?.content).toBe(
+        "这是预取复用的结果。",
+      );
+      const snapshotMap = JSON.parse(
+        sessionStorage.getItem(`aster_session_snapshots_${workspaceId}`) ||
+          "{}",
+      );
+      expect(snapshotMap["topic-a"]?.messages?.[0]?.content).toBe(
+        "这是预取复用的结果。",
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("预取中的旧会话跨工作区组件重挂载后仍应复用同一个详情请求", async () => {
+    const workspaceId = "ws-topic-prefetch-remount";
+    const createdAt = Math.floor(Date.now() / 1000);
+    const deferredTopicDetail = createDeferred<{
+      id: string;
+      created_at: number;
+      updated_at: number;
+      messages_count: number;
+      messages: Array<{
+        role: "assistant" | "user";
+        timestamp: number;
+        content: Array<{ type: "text"; text: string }>;
+      }>;
+      turns: [];
+      items: [];
+      queued_turns: [];
+      execution_strategy: "react";
+    }>();
+
+    mockListAgentRuntimeSessions.mockResolvedValue([]);
+    mockGetAgentRuntimeSession.mockReturnValue(deferredTopicDetail.promise);
+
+    const prefetchHarness = mountHook(workspaceId);
+    let switchHarness: ReturnType<typeof mountHook> | null = null;
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      let prefetchPromise: Promise<boolean> | null = null;
+      await act(async () => {
+        prefetchPromise = prefetchHarness.getValue().prefetchTopic("topic-a");
+        await Promise.resolve();
+      });
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(1);
+
+      prefetchHarness.unmount();
+      switchHarness = mountHook(workspaceId);
+      await flushEffects();
+
+      let switchPromise: Promise<unknown> | null = null;
+      await act(async () => {
+        switchPromise =
+          switchHarness?.getValue().switchTopic("topic-a") ?? null;
+        await Promise.resolve();
+      });
+
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        deferredTopicDetail.resolve({
+          id: "topic-a",
+          created_at: createdAt,
+          updated_at: createdAt,
+          messages_count: 1,
+          messages: [
+            {
+              role: "assistant",
+              timestamp: createdAt,
+              content: [{ type: "text", text: "这是跨重挂载复用的结果。" }],
+            },
+          ],
+          turns: [],
+          items: [],
+          queued_turns: [],
+          execution_strategy: "react",
+        });
+        await prefetchPromise;
+        await switchPromise;
+      });
+      await flushEffects();
+
+      expect(switchHarness.getValue().messages[0]?.content).toBe(
+        "这是跨重挂载复用的结果。",
+      );
+    } finally {
+      switchHarness?.unmount();
+      prefetchHarness.unmount();
     }
   });
 

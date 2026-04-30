@@ -227,6 +227,36 @@ describe("http-client", () => {
     });
   });
 
+  it("agent 标题生成命令应使用 agent 长超时窗口", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockImplementationOnce(createAbortablePendingFetch());
+    vi.stubGlobal("fetch", fetchMock);
+
+    let settled = false;
+    const invokePromise = invokeViaHttp("agent_generate_title", {
+      sessionId: "session-1",
+    }).then(
+      () => ({ ok: true as const }),
+      (error) => ({ ok: false as const, error }),
+    );
+    invokePromise.finally(() => {
+      settled = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(55000);
+    await expect(invokePromise).resolves.toMatchObject({
+      ok: false,
+      error: expect.objectContaining({
+        message: expect.stringContaining("timeout after 60000ms"),
+      }),
+    });
+  });
+
   it("bridge 真相命令应使用 5000ms 的请求超时窗口", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

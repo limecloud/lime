@@ -1,4 +1,7 @@
-use super::{args_or_default, get_string_arg, parse_nested_arg, require_app_handle};
+use super::{
+    args_or_default, get_string_arg, parse_nested_arg, parse_optional_nested_arg,
+    require_app_handle,
+};
 use crate::commands::asr_cmd::AddAsrCredentialRequest;
 use crate::config::AsrCredentialEntry;
 use crate::dev_bridge::DevBridgeState;
@@ -63,6 +66,51 @@ pub(super) async fn try_handle(
             let args = args_or_default(args);
             let id = get_string_arg(&args, "id", "id")?;
             serde_json::to_value(crate::commands::asr_cmd::test_asr_credential(id).await?)?
+        }
+        "voice_models_list_catalog" => serde_json::to_value(
+            crate::commands::voice_model_cmd::voice_models_list_catalog().await?,
+        )?,
+        "voice_models_get_install_state" => {
+            let args = args_or_default(args);
+            let model_id = get_string_arg(&args, "modelId", "model_id")?;
+            serde_json::to_value(
+                crate::commands::voice_model_cmd::voice_models_get_install_state(model_id).await?,
+            )?
+        }
+        "voice_models_download" => {
+            let args = args_or_default(args);
+            let model_id = get_string_arg(&args, "modelId", "model_id")?;
+            let catalog_entry = parse_optional_nested_arg(&args, "catalogEntry")?
+                .or(parse_optional_nested_arg(&args, "catalog_entry")?);
+            serde_json::to_value(
+                crate::commands::voice_model_cmd::voice_models_download(model_id, catalog_entry)
+                    .await?,
+            )?
+        }
+        "voice_models_delete" => {
+            let args = args_or_default(args);
+            let model_id = get_string_arg(&args, "modelId", "model_id")?;
+            serde_json::to_value(
+                crate::commands::voice_model_cmd::voice_models_delete(model_id).await?,
+            )?
+        }
+        "voice_models_set_default" => {
+            let args = args_or_default(args);
+            let model_id = get_string_arg(&args, "modelId", "model_id")?;
+            serde_json::to_value(
+                crate::commands::voice_model_cmd::voice_models_set_default(model_id).await?,
+            )?
+        }
+        "voice_models_test_transcribe_file" => {
+            let args = args_or_default(args);
+            let model_id = get_string_arg(&args, "modelId", "model_id")?;
+            let file_path = get_string_arg(&args, "filePath", "file_path")?;
+            serde_json::to_value(
+                crate::commands::voice_model_cmd::voice_models_test_transcribe_file(
+                    model_id, file_path,
+                )
+                .await?,
+            )?
         }
         "get_voice_input_config" => {
             serde_json::to_value(crate::voice::commands::get_voice_input_config().await?)?

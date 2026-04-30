@@ -109,10 +109,7 @@ describe("apiKeyProvider API", () => {
         name: "Lime Hub",
         type: "openai",
         api_key_count: 1,
-        custom_models: expect.arrayContaining([
-          "gpt-5.5",
-          "deepseek-v4-flash",
-        ]),
+        custom_models: ["gpt-5.5", "gpt-5.4"],
       }),
     ]);
   });

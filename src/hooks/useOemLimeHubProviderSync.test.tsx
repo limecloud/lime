@@ -11,6 +11,9 @@ import {
 const apiKeyProviderMocks = vi.hoisted(() => ({
   addApiKey: vi.fn(),
   getProviders: vi.fn(),
+  getUiState: vi.fn(),
+  setUiState: vi.fn(),
+  toggleApiKey: vi.fn(),
   updateProvider: vi.fn(),
 }));
 
@@ -23,6 +26,9 @@ vi.mock("@/lib/api/apiKeyProvider", () => ({
   apiKeyProviderApi: {
     addApiKey: apiKeyProviderMocks.addApiKey,
     getProviders: apiKeyProviderMocks.getProviders,
+    getUiState: apiKeyProviderMocks.getUiState,
+    setUiState: apiKeyProviderMocks.setUiState,
+    toggleApiKey: apiKeyProviderMocks.toggleApiKey,
     updateProvider: apiKeyProviderMocks.updateProvider,
   },
 }));
@@ -51,6 +57,9 @@ function HookHarness() {
 
 async function flushEffects() {
   await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
@@ -91,6 +100,9 @@ describe("useOemLimeHubProviderSync", () => {
       },
     ]);
     apiKeyProviderMocks.addApiKey.mockResolvedValue({ id: "local-key-001" });
+    apiKeyProviderMocks.getUiState.mockResolvedValue(null);
+    apiKeyProviderMocks.setUiState.mockResolvedValue(undefined);
+    apiKeyProviderMocks.toggleApiKey.mockResolvedValue({ id: "old-key-001" });
     apiKeyProviderMocks.updateProvider.mockResolvedValue(undefined);
     controlPlaneMocks.createClientAccessToken.mockResolvedValue({
       token: { id: "cloud-token-001" },
@@ -313,6 +325,12 @@ describe("useOemLimeHubProviderSync", () => {
   });
 
   it("已有本地云端 Key 时不应重复创建桌面 Key", async () => {
+    apiKeyProviderMocks.getUiState.mockResolvedValue(
+      JSON.stringify({
+        tenantId: "tenant-0001",
+        models: ["gpt-5.2-pro", "gpt-5.2-fast"],
+      }),
+    );
     setStoredOemCloudSessionState({
       token: "session-token-001",
       tenant: {
@@ -367,6 +385,111 @@ describe("useOemLimeHubProviderSync", () => {
 
     expect(controlPlaneMocks.createClientAccessToken).not.toHaveBeenCalled();
     expect(apiKeyProviderMocks.addApiKey).not.toHaveBeenCalled();
+  });
+
+  it("云端模型目录扩展时应重签本地托管 Key 并停用旧托管 Key", async () => {
+    apiKeyProviderMocks.getUiState.mockResolvedValue(
+      JSON.stringify({
+        tenantId: "tenant-0001",
+        models: ["gpt-5.2-pro", "gpt-5.2-fast"],
+      }),
+    );
+    controlPlaneMocks.listClientProviderOfferModels.mockResolvedValue([
+      {
+        id: "model-001",
+        modelId: "gpt-5.2-fast",
+      },
+      {
+        id: "model-002",
+        modelId: "claude-opus-4-7",
+      },
+    ]);
+    setStoredOemCloudSessionState({
+      token: "session-token-001",
+      tenant: {
+        id: "tenant-0001",
+      },
+      user: {
+        id: "user-001",
+      },
+      session: {
+        id: "session-001",
+      },
+    });
+    setOemCloudBootstrapSnapshot({
+      providerPreference: {
+        providerSource: "oem_cloud",
+        providerKey: "offer-main",
+        defaultModel: "gpt-5.2-pro",
+      },
+      providerOffersSummary: [
+        {
+          source: "oem_cloud",
+          providerKey: "offer-main",
+          defaultModel: "gpt-5.2-pro",
+        },
+      ],
+    });
+
+    apiKeyProviderMocks.getProviders.mockResolvedValue([
+      {
+        id: "lime-hub",
+        name: "Acme Hub",
+        api_host: "https://gateway-api.limeai.run/root",
+        type: "openai",
+        enabled: true,
+        sort_order: 0,
+        custom_models: ["gpt-5.2-pro", "gpt-5.2-fast"],
+        api_key_count: 1,
+        api_keys: [
+          {
+            id: "old-managed-key",
+            alias: "Lime 云端模型",
+            enabled: true,
+          },
+        ],
+      },
+    ]);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedHarness = { container, root };
+
+    act(() => {
+      root.render(<HookHarness />);
+    });
+
+    await flushEffects();
+
+    expect(controlPlaneMocks.createClientAccessToken).toHaveBeenCalledWith(
+      "tenant-0001",
+      {
+        name: "Lime Desktop Cloud Model Key",
+        scopes: ["llm:invoke"],
+        allowedModels: [
+          "gpt-5.2-pro",
+          "gpt-5.2-fast",
+          "claude-opus-4-7",
+        ],
+      },
+    );
+    expect(apiKeyProviderMocks.addApiKey).toHaveBeenCalledWith({
+      provider_id: "lime-hub",
+      api_key: "sk-lime-desktop",
+      alias: "Lime 云端模型",
+    });
+    expect(apiKeyProviderMocks.toggleApiKey).toHaveBeenCalledWith(
+      "old-managed-key",
+      false,
+    );
+    expect(apiKeyProviderMocks.setUiState).toHaveBeenCalledWith(
+      "oem_lime_hub_provider_sync:managed_key_models",
+      JSON.stringify({
+        tenantId: "tenant-0001",
+        models: ["gpt-5.2-pro", "gpt-5.2-fast", "claude-opus-4-7"],
+      }),
+    );
   });
 
   it("本地云端 Key 已禁用时应重新创建桌面 Key", async () => {

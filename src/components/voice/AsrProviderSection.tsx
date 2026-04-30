@@ -22,6 +22,7 @@ import {
 const ProviderIcon = ({ type }: { type: AsrProviderType }) => {
   switch (type) {
     case "whisper_local":
+    case "sensevoice_local":
       return <Cpu className="h-5 w-5" />;
     case "openai":
       return <Sparkles className="h-5 w-5" />;

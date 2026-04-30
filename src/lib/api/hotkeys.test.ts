@@ -26,6 +26,10 @@ describe("hotkeys API", () => {
         registered_shortcut: "CommandOrControl+Shift+V",
         translate_shortcut_registered: false,
         registered_translate_shortcut: null,
+        fn_supported: false,
+        fn_registered: false,
+        fn_fallback_shortcut: "CommandOrControl+Shift+V",
+        fn_note: "Fn 按住录音当前仅支持 macOS；已使用普通语音快捷键回退。",
       });
 
     await expect(getScreenshotShortcutRuntimeStatus()).resolves.toEqual(
@@ -47,12 +51,17 @@ describe("hotkeys API", () => {
         registered_shortcut: "CommandOrControl+Shift+V",
         translate_shortcut_registered: true,
         registered_translate_shortcut: "CommandOrControl+Shift+T",
+        fn_supported: false,
+        fn_registered: false,
+        fn_fallback_shortcut: "CommandOrControl+Shift+V",
+        fn_note: "Fn 按住录音当前仅支持 macOS；已使用普通语音快捷键回退。",
       });
 
     await expect(getHotkeyRuntimeStatus()).resolves.toEqual({
       screenshot: expect.objectContaining({ shortcut_registered: false }),
       voice: expect.objectContaining({
         translate_shortcut_registered: true,
+        fn_supported: false,
       }),
     });
 

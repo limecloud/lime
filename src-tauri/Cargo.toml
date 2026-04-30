@@ -9,7 +9,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.24.0"
+version = "1.25.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -95,6 +95,7 @@ tar = "0.4"
 fs2 = "0.4"
 indexmap = { version = "2", features = ["serde"] }
 zip = "0.6"
+bzip2 = "0.4"
 dashmap = "5"
 notify = { version = "6", default-features = false, features = ["macos_fsevent"] }
 parking_lot = "0.12"
@@ -182,6 +183,9 @@ features = [
 version = "0.52"
 
 # macOS 平台依赖
+[workspace.dependencies.block]
+version = "0.1"
+
 [workspace.dependencies.cocoa]
 version = "0.26"
 
@@ -193,7 +197,7 @@ version = "2.4"
 
 [package]
 name = "lime"
-version = "1.24.0"
+version = "1.25.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"
@@ -295,6 +299,7 @@ tar.workspace = true
 fs2.workspace = true
 indexmap.workspace = true
 zip.workspace = true
+bzip2.workspace = true
 dashmap.workspace = true
 notify.workspace = true
 parking_lot.workspace = true
@@ -343,6 +348,7 @@ winreg.workspace = true
 
 # macOS specific dependencies for browser interceptor
 [target.'cfg(target_os = "macos")'.dependencies]
+block.workspace = true
 cocoa.workspace = true
 objc.workspace = true
 
@@ -351,8 +357,10 @@ proptest.workspace = true
 tempfile.workspace = true
 
 [features]
-default = ["custom-protocol"]
+default = ["custom-protocol", "local-sensevoice"]
 custom-protocol = ["tauri/custom-protocol"]
 # 本地 Whisper 语音识别（编译很慢，CI 默认不启用）
 local-whisper = ["lime-services/local-whisper"]
+# 本地 SenseVoice Small 语音识别（模型按需下载，不进入安装包）
+local-sensevoice = ["lime-services/local-sensevoice"]
 notification = []  # 预留特性：系统通知功能

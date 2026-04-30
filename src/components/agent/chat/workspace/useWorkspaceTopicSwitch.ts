@@ -138,6 +138,15 @@ export function useWorkspaceTopicSwitch({
         return "busy" as const;
       }
 
+      let resolutionActive = true;
+      const finishResolutionIfNeeded = () => {
+        if (!resolutionActive) {
+          return;
+        }
+        resolutionActive = false;
+        finishTopicProjectResolution();
+      };
+
       try {
         const currentProjectId = normalizeProjectId(projectId);
         const topicBoundProjectId = normalizeProjectId(
@@ -151,18 +160,16 @@ export function useWorkspaceTopicSwitch({
           topicId,
         });
 
-        if (
-          !externalProjectId &&
-          currentProjectId &&
-          topicBoundProjectId === currentProjectId
-        ) {
+        if (currentProjectId && topicBoundProjectId === currentProjectId) {
           rememberProjectId(currentProjectId);
           logAgentDebug("AgentChatPage", "switchTopic.fastPathCurrentProject", {
             allowDetachedSession: options?.allowDetachedSession === true,
             currentProjectId,
+            externalProjectId: externalProjectId ?? null,
             forceRefresh: options?.forceRefresh === true,
             topicId,
           });
+          finishResolutionIfNeeded();
           await runTopicSwitch(topicId, options);
           return "success" as const;
         }
@@ -226,6 +233,7 @@ export function useWorkspaceTopicSwitch({
         }
 
         rememberProjectId(targetProjectId);
+        finishResolutionIfNeeded();
         await runTopicSwitch(topicId, options);
         return "success" as const;
       } catch (error) {
@@ -245,7 +253,7 @@ export function useWorkspaceTopicSwitch({
         toast.error("切换会话失败，请稍后重试");
         return "error" as const;
       } finally {
-        finishTopicProjectResolution();
+        finishResolutionIfNeeded();
       }
     },
     [

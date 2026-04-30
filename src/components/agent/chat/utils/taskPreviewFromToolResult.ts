@@ -8,6 +8,13 @@ import type {
   MessageTaskPreviewImageCandidate,
   MessageVideoTaskPreview,
 } from "../types";
+import {
+  countTranscriptSpeakers,
+  extractTranscriptSegmentsFromRecords,
+  formatTranscriptSegmentRange,
+  normalizeTranscriptSegments,
+  parseTranscriptContent,
+} from "./transcriptSegments";
 
 interface ToolResultPreviewParams {
   toolId?: string;
@@ -25,6 +32,9 @@ const GENERIC_TASK_KINDS = new Set<MessageGenericTaskPreview["kind"]>([
   "typesetting",
 ]);
 const WEB_IMAGE_SEARCH_TOOL_NAMES = new Set(["lime_search_web_images"]);
+const AUDIO_TASK_PREVIEW_ARTIFACT_ROOT = ".lime/runtime/audio-generate";
+const TRANSCRIPTION_TASK_PREVIEW_ARTIFACT_ROOT =
+  ".lime/runtime/transcription-generate";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -369,6 +379,15 @@ function extractGenericTaskArguments(toolArguments: string | undefined): {
   targetPlatform?: string;
   sourcePath?: string;
   sourceUrl?: string;
+  language?: string;
+  outputFormat?: string;
+  sourceText?: string;
+  voice?: string;
+  voiceStyle?: string;
+  targetLanguage?: string;
+  audioPath?: string;
+  mimeType?: string;
+  durationMs?: number;
 } {
   if (!toolArguments) {
     return {};
@@ -392,6 +411,33 @@ function extractGenericTaskArguments(toolArguments: string | undefined): {
       ),
       sourcePath: readMetadataString([parsed], ["source_path", "sourcePath"]),
       sourceUrl: readMetadataString([parsed], ["source_url", "sourceUrl"]),
+      language: readMetadataString(
+        [parsed],
+        ["language", "target_language", "targetLanguage"],
+      ),
+      outputFormat: readMetadataString(
+        [parsed],
+        ["output_format", "outputFormat", "format"],
+      ),
+      sourceText: readMetadataString(
+        [parsed],
+        ["source_text", "sourceText", "text"],
+      ),
+      voice: readMetadataString([parsed], ["voice"]),
+      voiceStyle: readMetadataString([parsed], ["voice_style", "voiceStyle"]),
+      targetLanguage: readMetadataString(
+        [parsed],
+        ["target_language", "targetLanguage"],
+      ),
+      audioPath: readMetadataString(
+        [parsed],
+        ["audio_path", "audioPath", "audio_url", "audioUrl"],
+      ),
+      mimeType: readMetadataString([parsed], ["mime_type", "mimeType"]),
+      durationMs: readMetadataPositiveNumber(
+        [parsed],
+        ["duration_ms", "durationMs"],
+      ),
     };
   } catch {
     return {};
@@ -417,6 +463,36 @@ function buildWebImageSearchArtifactPath(
 ): string {
   const identifier = buildPreviewId(toolId || query, "resource-search-preview");
   return `.lime/runtime/resource-search/${identifier}.md`;
+}
+
+function buildAudioTaskPreviewArtifactPath(taskId: string): string {
+  return `${AUDIO_TASK_PREVIEW_ARTIFACT_ROOT}/${buildPreviewId(
+    taskId,
+    "audio-task",
+  )}.md`;
+}
+
+function buildTranscriptionTaskPreviewArtifactPath(taskId: string): string {
+  return `${TRANSCRIPTION_TASK_PREVIEW_ARTIFACT_ROOT}/${buildPreviewId(
+    taskId,
+    "transcription-task",
+  )}.md`;
+}
+
+function formatDurationMsLabel(durationMs?: number): string | undefined {
+  if (
+    typeof durationMs !== "number" ||
+    !Number.isFinite(durationMs) ||
+    durationMs <= 0
+  ) {
+    return undefined;
+  }
+  if (durationMs < 60_000) {
+    return `${Math.max(1, Math.round(durationMs / 1000))} 秒`;
+  }
+  const minutes = Math.floor(durationMs / 60_000);
+  const seconds = Math.round((durationMs % 60_000) / 1000);
+  return seconds > 0 ? `${minutes} 分 ${seconds} 秒` : `${minutes} 分钟`;
 }
 
 function readWebImageSearchResult(params: ToolResultPreviewParams): {
@@ -610,10 +686,48 @@ function buildGenericTaskMetaItems(
     }
   } else if (kind === "transcription_generate") {
     push(taskArguments.sourcePath || taskArguments.sourceUrl);
+    push(
+      taskArguments.language ||
+        taskArguments.targetLanguage ||
+        readMetadataString(candidates, ["language", "target_language"]),
+    );
+    push(
+      taskArguments.outputFormat ||
+        readMetadataString(candidates, [
+          "output_format",
+          "outputFormat",
+          "format",
+        ]),
+    );
   } else if (kind === "url_parse") {
     push(taskArguments.sourceUrl || readMetadataString(candidates, ["url"]));
   } else if (kind === "typesetting") {
     push(taskArguments.targetPlatform);
+  } else if (kind === "audio_generate") {
+    push(
+      taskArguments.voice ||
+        readMetadataString(candidates, [
+          "voice",
+          "voice_preset",
+          "voicePreset",
+        ]),
+    );
+    push(
+      taskArguments.voiceStyle ||
+        readMetadataString(candidates, ["voice_style", "voiceStyle"]),
+    );
+    push(
+      taskArguments.targetLanguage ||
+        readMetadataString(candidates, ["target_language", "targetLanguage"]),
+    );
+    push(
+      taskArguments.mimeType ||
+        readMetadataString(candidates, ["mime_type", "mimeType"]),
+    );
+    const durationMs =
+      taskArguments.durationMs ||
+      readMetadataPositiveNumber(candidates, ["duration_ms", "durationMs"]);
+    push(formatDurationMsLabel(durationMs));
   }
 
   return Array.from(items);
@@ -625,6 +739,8 @@ function resolveGenericTaskStatusMessage(
 ): string {
   if (status === "complete" || status === "partial") {
     switch (kind) {
+      case "audio_generate":
+        return "音频结果已同步，打开查看即可继续预览与管理任务。";
       case "broadcast_generate":
         return "播报整理结果已同步，打开查看即可继续审阅文稿。";
       case "modal_resource_search":
@@ -640,6 +756,8 @@ function resolveGenericTaskStatusMessage(
 
   if (status === "failed") {
     switch (kind) {
+      case "audio_generate":
+        return "配音生成失败，请调整文本、音色或模型后重试。";
       case "broadcast_generate":
         return "播报整理失败，请调整输入内容后重试。";
       case "modal_resource_search":
@@ -658,6 +776,8 @@ function resolveGenericTaskStatusMessage(
   }
 
   switch (kind) {
+    case "audio_generate":
+      return "配音任务已写入 audio_task/audio_output，工作区会继续同步音频结果。";
     case "broadcast_generate":
       return "播报整理任务已提交，工作区会继续同步最新进度。";
     case "modal_resource_search":
@@ -669,6 +789,417 @@ function resolveGenericTaskStatusMessage(
     case "typesetting":
       return "排版任务已提交，工作区会继续同步优化进度。";
   }
+}
+
+function buildAudioTaskPreviewFromToolResult(
+  params: ToolResultPreviewParams,
+): MessageGenericTaskPreview | null {
+  const resultRecord = asRecord(params.toolResult);
+  const metadata = asRecord(resultRecord?.metadata);
+  const taskResult = asRecord(resultRecord?.result);
+  const taskId = readMetadataString(
+    [metadata, resultRecord, taskResult],
+    ["task_id", "taskId", "id"],
+  );
+  const taskType = readMetadataString(
+    [metadata, resultRecord, taskResult],
+    ["task_type", "taskType"],
+  );
+  if (!taskId || !taskType) {
+    return null;
+  }
+
+  const normalizedTaskType = taskType.trim().toLowerCase();
+  if (
+    normalizedTaskType !== "audio_generate" &&
+    normalizedTaskType !== "voice_generate" &&
+    normalizedTaskType !== "voice"
+  ) {
+    return null;
+  }
+
+  const parsedArguments = extractGenericTaskArguments(params.toolArguments);
+  const status = readMetadataString(
+    [metadata, resultRecord, taskResult],
+    ["status"],
+  );
+  const previewStatus = resolveTaskPreviewStatus(status);
+  const candidates = [metadata, resultRecord, taskResult];
+  const sourceText =
+    parsedArguments.sourceText ||
+    readMetadataString(candidates, ["source_text", "sourceText", "prompt"]) ||
+    params.fallbackPrompt.trim() ||
+    "配音任务";
+  const taskFilePath =
+    readMetadataString(candidates, ["artifact_path", "artifactPath"]) ||
+    readMetadataString(candidates, ["path", "absolute_path", "absolutePath"]) ||
+    null;
+  const audioUrl =
+    parsedArguments.audioPath ||
+    readMetadataString(candidates, [
+      "audio_path",
+      "audioPath",
+      "audio_url",
+      "audioUrl",
+      "url",
+      "result_url",
+      "resultUrl",
+    ]) ||
+    null;
+  const durationMs =
+    parsedArguments.durationMs ||
+    readMetadataPositiveNumber(candidates, ["duration_ms", "durationMs"]) ||
+    null;
+  const mimeType =
+    parsedArguments.mimeType ||
+    readMetadataString(candidates, ["mime_type", "mimeType"]) ||
+    null;
+  const voice =
+    parsedArguments.voice || readMetadataString(candidates, ["voice"]) || null;
+
+  return {
+    kind: "audio_generate",
+    taskId,
+    taskType: "audio_generate",
+    prompt: sourceText,
+    title:
+      parsedArguments.title ||
+      readMetadataString(candidates, ["title"]) ||
+      "配音生成任务",
+    status: previewStatus,
+    projectId:
+      readMetadataString(candidates, ["project_id", "projectId"]) || null,
+    contentId:
+      readMetadataString(candidates, ["content_id", "contentId"]) || null,
+    artifactPath: buildAudioTaskPreviewArtifactPath(taskId),
+    taskFilePath,
+    providerId:
+      readMetadataString(candidates, [
+        "provider_id",
+        "providerId",
+        "provider",
+      ]) || null,
+    model: readMetadataString(candidates, ["model"]) || null,
+    phase: resolveTaskPreviewPhase(status),
+    statusMessage: resolveGenericTaskStatusMessage(
+      "audio_generate",
+      previewStatus,
+    ),
+    metaItems: buildGenericTaskMetaItems(
+      "audio_generate",
+      parsedArguments,
+      candidates,
+    ),
+    audioUrl,
+    mimeType,
+    durationMs,
+    sourceText,
+    voice,
+  };
+}
+
+export function buildAudioTaskArtifactDocument(
+  preview: MessageGenericTaskPreview,
+) {
+  const taskFilePath = preview.taskFilePath?.trim();
+  const audioUrl = preview.audioUrl?.trim();
+  const errorCode = preview.errorCode?.trim();
+  const errorMessage = preview.errorMessage?.trim();
+  const highlights = [
+    preview.status === "running" ? "状态：待执行" : `状态：${preview.status}`,
+    preview.voice?.trim() ? `音色：${preview.voice.trim()}` : null,
+    preview.model?.trim() ? `模型：${preview.model.trim()}` : null,
+    errorCode ? `错误码：${errorCode}` : null,
+    formatDurationMsLabel(preview.durationMs || undefined)
+      ? `时长：${formatDurationMsLabel(preview.durationMs || undefined)}`
+      : null,
+  ].filter((item): item is string => Boolean(item));
+  const audioOutputTone =
+    preview.status === "failed"
+      ? ("danger" as const)
+      : audioUrl
+        ? ("success" as const)
+        : ("info" as const);
+  const audioOutputTitle =
+    preview.status === "failed"
+      ? "音频生成失败"
+      : audioUrl
+        ? "音频结果已同步"
+        : "等待音频执行器";
+  const audioOutputBody =
+    preview.status === "failed"
+      ? [
+          preview.statusMessage?.trim(),
+          errorCode ? `错误码：${errorCode}` : null,
+          errorMessage ? `原因：${errorMessage}` : null,
+        ]
+          .filter((item): item is string => Boolean(item))
+          .join("\n")
+      : audioUrl
+        ? `音频路径：${audioUrl}`
+        : "当前步骤只创建标准任务产物，不生成真实音频、不伪造云端提交；后续执行器会回写 audio_output.audio_path。";
+
+  return {
+    schemaVersion: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+    artifactId: `audio-generate:${preview.taskId}`,
+    kind: "brief" as const,
+    title: preview.title?.trim() || "配音生成任务",
+    status:
+      preview.status === "failed"
+        ? ("failed" as const)
+        : preview.status === "complete" || preview.status === "partial"
+          ? ("ready" as const)
+          : ("streaming" as const),
+    language: "zh-CN",
+    summary:
+      preview.status === "running"
+        ? "配音任务已经写入标准 audio_task/audio_output 产物，等待执行器同步音频结果。"
+        : preview.statusMessage || "配音任务已经进入统一多模态运行合同主链。",
+    blocks: [
+      {
+        id: "hero",
+        type: "hero_summary" as const,
+        eyebrow: "配音生成",
+        title: preview.prompt || "配音任务",
+        summary:
+          preview.statusMessage ||
+          "配音任务已经写入标准 audio_task/audio_output 产物。",
+        highlights,
+      },
+      {
+        id: "source-text",
+        type: "rich_text" as const,
+        contentFormat: "markdown" as const,
+        content: preview.sourceText || preview.prompt,
+        markdown: `### 待配音文本\n\n${preview.sourceText || preview.prompt}`,
+        text: preview.sourceText || preview.prompt,
+      },
+      {
+        id: "audio-output",
+        type: "callout" as const,
+        tone: audioOutputTone,
+        title: audioOutputTitle,
+        body: audioOutputBody,
+      },
+    ],
+    sources: taskFilePath
+      ? [
+          {
+            id: "audio-task-file",
+            type: "file" as const,
+            label: "audio_generate task file",
+            locator: {
+              path: taskFilePath,
+            },
+            reliability: "primary" as const,
+          },
+        ]
+      : [],
+    metadata: {
+      generatedBy: "agent" as const,
+      rendererHints: {
+        density: "comfortable" as const,
+      },
+      taskId: preview.taskId,
+      taskType: "audio_generate",
+      taskFilePath,
+      audioUrl: audioUrl || null,
+      mimeType: preview.mimeType || null,
+      durationMs: preview.durationMs || null,
+      voice: preview.voice || null,
+      errorCode: errorCode || null,
+      errorMessage: errorMessage || null,
+      modalityContractKey: "voice_generation",
+    },
+  };
+}
+
+export function buildTranscriptionTaskArtifactDocument(
+  preview: MessageGenericTaskPreview,
+) {
+  const taskFilePath = preview.taskFilePath?.trim();
+  const transcriptPath = preview.transcriptPath?.trim();
+  const transcriptText =
+    typeof preview.transcriptText === "string" && preview.transcriptText.trim()
+      ? preview.transcriptText
+      : null;
+  const sourcePath = preview.sourcePath?.trim();
+  const sourceUrl = preview.sourceUrl?.trim();
+  const errorCode = preview.errorCode?.trim();
+  const errorMessage = preview.errorMessage?.trim();
+  const transcriptSegments = normalizeTranscriptSegments(
+    preview.transcriptSegments || [],
+  );
+  const speakerCount = countTranscriptSpeakers(transcriptSegments);
+  const highlights = [
+    preview.status === "running" ? "状态：待转写" : `状态：${preview.status}`,
+    preview.language?.trim() ? `语言：${preview.language.trim()}` : null,
+    preview.outputFormat?.trim()
+      ? `格式：${preview.outputFormat.trim()}`
+      : null,
+    preview.model?.trim() ? `模型：${preview.model.trim()}` : null,
+    transcriptSegments.length > 0 ? `段落：${transcriptSegments.length}` : null,
+    speakerCount > 0 ? `说话人：${speakerCount}` : null,
+    transcriptText ? `字数：${transcriptText.trim().length}` : null,
+    errorCode ? `错误码：${errorCode}` : null,
+  ].filter((item): item is string => Boolean(item));
+  const sourceLabel = sourcePath || sourceUrl || preview.prompt || "音频来源";
+  const transcriptTone =
+    preview.status === "failed"
+      ? ("danger" as const)
+      : transcriptPath
+        ? ("success" as const)
+        : ("info" as const);
+  const transcriptTitle =
+    preview.status === "failed"
+      ? "转写失败"
+      : transcriptPath
+        ? "Transcript 已同步，可校对保存"
+        : "等待转写执行器";
+  const transcriptBody =
+    preview.status === "failed"
+      ? [
+          preview.statusMessage?.trim(),
+          errorCode ? `错误码：${errorCode}` : null,
+          errorMessage ? `原因：${errorMessage}` : null,
+        ]
+          .filter((item): item is string => Boolean(item))
+          .join("\n")
+      : transcriptPath
+        ? transcriptText
+          ? `Transcript 已载入，可直接在下方编辑校对；保存后会作为同一运行时文档的新版本记录，不改写原始 ASR 输出。源文件路径：${transcriptPath}`
+          : `Transcript 路径：${transcriptPath}`
+        : "当前步骤只创建标准 transcription_generate 任务产物；lime-transcription-worker 会回写 transcript.completed 或 transcript.failed，不回退 frontend ASR。";
+
+  const transcriptBlocks = transcriptText
+    ? [
+        {
+          id: "transcript-text",
+          type: "code_block" as const,
+          title: "转写文本（可编辑校对）",
+          language: "text",
+          code: transcriptText,
+        },
+      ]
+    : [];
+  const segmentBlocks =
+    transcriptSegments.length > 0
+      ? [
+          {
+            id: "transcript-segments",
+            type: "table" as const,
+            title: "转写时间轴（可逐段编辑校对）",
+            columns: ["时间", "说话人", "内容"],
+            rows: transcriptSegments.map((segment) => [
+              formatTranscriptSegmentRange(segment),
+              segment.speaker?.trim() || "未标注",
+              segment.text,
+            ]),
+          },
+        ]
+      : [];
+
+  return {
+    schemaVersion: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+    artifactId: `transcription-generate:${preview.taskId}`,
+    kind: "brief" as const,
+    title: preview.title?.trim() || "内容转写任务",
+    status:
+      preview.status === "failed"
+        ? ("failed" as const)
+        : preview.status === "complete" || preview.status === "partial"
+          ? ("ready" as const)
+          : ("streaming" as const),
+    language: "zh-CN",
+    summary:
+      preview.status === "running"
+        ? "转写任务已经写入标准 transcription_generate/transcript 产物，等待执行器同步结果。"
+        : preview.statusMessage || "转写任务已经进入统一多模态运行合同主链。",
+    blocks: [
+      {
+        id: "hero",
+        type: "hero_summary" as const,
+        eyebrow: "内容转写",
+        title: preview.prompt || "转写任务",
+        summary:
+          preview.statusMessage ||
+          "转写任务已经写入标准 transcription_generate/transcript 产物。",
+        highlights,
+      },
+      {
+        id: "source",
+        type: "rich_text" as const,
+        contentFormat: "markdown" as const,
+        content: sourceLabel,
+        markdown: `### 转写来源\n\n${sourceLabel}`,
+        text: sourceLabel,
+      },
+      ...segmentBlocks,
+      ...transcriptBlocks,
+      {
+        id: "transcript-output",
+        type: "callout" as const,
+        tone: transcriptTone,
+        title: transcriptTitle,
+        body: transcriptBody,
+      },
+    ],
+    sources: [
+      taskFilePath
+        ? {
+            id: "transcription-task-file",
+            type: "file" as const,
+            label: "transcription_generate task file",
+            locator: {
+              path: taskFilePath,
+            },
+            reliability: "primary" as const,
+          }
+        : null,
+      transcriptPath
+        ? {
+            id: "transcript-file",
+            type: "file" as const,
+            label: "transcript output",
+            locator: {
+              path: transcriptPath,
+            },
+            reliability: "primary" as const,
+          }
+        : null,
+    ].filter((item): item is NonNullable<typeof item> => Boolean(item)),
+    metadata: {
+      generatedBy: "agent" as const,
+      rendererHints: {
+        density: "comfortable" as const,
+      },
+      taskId: preview.taskId,
+      taskType: "transcription_generate",
+      taskFilePath,
+      transcriptPath: transcriptPath || null,
+      sourcePath: sourcePath || null,
+      sourceUrl: sourceUrl || null,
+      language: preview.language || null,
+      outputFormat: preview.outputFormat || null,
+      transcriptText: transcriptText || null,
+      transcriptSegments,
+      transcriptCorrectionEnabled: Boolean(
+        transcriptText || transcriptSegments.length > 0,
+      ),
+      transcriptCorrectionStatus:
+        transcriptText || transcriptSegments.length > 0
+          ? "available"
+          : "waiting_transcript",
+      transcriptCorrectionSource: "artifact_document_version",
+      transcriptCorrectionPatchKind: "artifact_document_version",
+      transcriptCorrectionOriginalImmutable: true,
+      providerId: preview.providerId || null,
+      model: preview.model || null,
+      errorCode: errorCode || null,
+      errorMessage: errorMessage || null,
+      modalityContractKey: "audio_transcription",
+    },
+  };
 }
 
 export function buildImageTaskPreviewFromToolResult(
@@ -980,6 +1511,17 @@ function buildGenericTaskPreviewFromToolResult(
     extractArtifactProtocolPathsFromValue(taskResult)[0] ||
     extractArtifactProtocolPathsFromValue(metadata)[0] ||
     null;
+  const taskFilePath =
+    readMetadataString(
+      [metadata, resultRecord, taskResult],
+      ["artifact_path", "artifactPath"],
+    ) ||
+    readMetadataString(
+      [metadata, resultRecord, taskResult],
+      ["path", "absolute_path", "absolutePath"],
+    ) ||
+    artifactPath ||
+    null;
   const prompt =
     parsedArguments.prompt ||
     parsedArguments.query ||
@@ -991,6 +1533,34 @@ function buildGenericTaskPreviewFromToolResult(
     params.fallbackPrompt.trim() ||
     "任务进行中";
   const candidates = [metadata, resultRecord, taskResult];
+  const transcriptRecordCandidates = [
+    metadata,
+    resultRecord,
+    taskResult,
+    asRecord(metadata?.transcript),
+    asRecord(resultRecord?.transcript),
+    asRecord(taskResult?.transcript),
+  ];
+  const rawTranscriptText =
+    kind === "transcription_generate"
+      ? readMetadataString(transcriptRecordCandidates, [
+          "transcript_text",
+          "transcriptText",
+          "text",
+        ]) || null
+      : null;
+  const parsedTranscript =
+    kind === "transcription_generate"
+      ? parseTranscriptContent(rawTranscriptText)
+      : { text: null, segments: [] };
+  const extractedTranscriptSegments =
+    kind === "transcription_generate"
+      ? extractTranscriptSegmentsFromRecords(transcriptRecordCandidates)
+      : [];
+  const transcriptSegments =
+    extractedTranscriptSegments.length > 0
+      ? extractedTranscriptSegments
+      : parsedTranscript.segments;
   const metaItems = buildGenericTaskMetaItems(
     kind,
     parsedArguments,
@@ -1016,7 +1586,10 @@ function buildGenericTaskPreviewFromToolResult(
         [metadata, resultRecord, taskResult],
         ["content_id", "contentId"],
       ) || null,
-    artifactPath,
+    artifactPath:
+      kind === "transcription_generate"
+        ? buildTranscriptionTaskPreviewArtifactPath(taskId)
+        : artifactPath,
     providerId:
       readMetadataString(
         [metadata, resultRecord, taskResult],
@@ -1032,6 +1605,59 @@ function buildGenericTaskPreviewFromToolResult(
     ),
     metaItems,
     imageCandidates: kind === "modal_resource_search" ? [] : undefined,
+    taskFilePath: kind === "transcription_generate" ? taskFilePath : undefined,
+    sourcePath:
+      kind === "transcription_generate"
+        ? parsedArguments.sourcePath ||
+          readMetadataString(
+            [metadata, resultRecord, taskResult],
+            ["source_path", "sourcePath"],
+          ) ||
+          null
+        : undefined,
+    sourceUrl:
+      kind === "transcription_generate"
+        ? parsedArguments.sourceUrl ||
+          readMetadataString(
+            [metadata, resultRecord, taskResult],
+            ["source_url", "sourceUrl"],
+          ) ||
+          null
+        : undefined,
+    language:
+      kind === "transcription_generate"
+        ? parsedArguments.language ||
+          parsedArguments.targetLanguage ||
+          readMetadataString(
+            [metadata, resultRecord, taskResult],
+            ["language", "target_language", "targetLanguage"],
+          ) ||
+          null
+        : undefined,
+    outputFormat:
+      kind === "transcription_generate"
+        ? parsedArguments.outputFormat ||
+          readMetadataString(
+            [metadata, resultRecord, taskResult],
+            ["output_format", "outputFormat", "format"],
+          ) ||
+          null
+        : undefined,
+    transcriptPath:
+      kind === "transcription_generate"
+        ? readMetadataString(
+            [metadata, resultRecord, taskResult],
+            ["transcript_path", "transcriptPath"],
+          ) || null
+        : undefined,
+    transcriptText:
+      kind === "transcription_generate"
+        ? parsedTranscript.text || rawTranscriptText || null
+        : undefined,
+    transcriptSegments:
+      kind === "transcription_generate"
+        ? normalizeTranscriptSegments(transcriptSegments)
+        : undefined,
   };
 }
 
@@ -1042,6 +1668,68 @@ export function buildToolResultArtifactFromToolResult(
   content: string;
   metadata: Record<string, unknown>;
 } | null {
+  const audioPreview = buildAudioTaskPreviewFromToolResult(params);
+  if (audioPreview) {
+    const artifactPath =
+      audioPreview.artifactPath ||
+      buildAudioTaskPreviewArtifactPath(audioPreview.taskId);
+    return {
+      filePath: artifactPath,
+      content: "",
+      metadata: {
+        artifactDocument: buildAudioTaskArtifactDocument(audioPreview),
+        artifact_type: "document",
+        previewText:
+          audioPreview.statusMessage || "配音任务已写入统一任务产物协议",
+        taskId: audioPreview.taskId,
+        taskType: "audio_generate",
+        taskFilePath: audioPreview.taskFilePath || null,
+        audioUrl: audioPreview.audioUrl || null,
+        modalityContractKey: "voice_generation",
+      },
+    };
+  }
+
+  const taskPreview = buildGenericTaskPreviewFromToolResult(params);
+  if (taskPreview?.kind === "transcription_generate") {
+    const artifactPath =
+      taskPreview.artifactPath ||
+      buildTranscriptionTaskPreviewArtifactPath(taskPreview.taskId);
+    return {
+      filePath: artifactPath,
+      content: "",
+      metadata: {
+        artifactDocument: buildTranscriptionTaskArtifactDocument(taskPreview),
+        artifact_type: "document",
+        previewText:
+          taskPreview.statusMessage || "转写任务已写入统一任务产物协议",
+        taskId: taskPreview.taskId,
+        taskType: "transcription_generate",
+        taskFilePath: taskPreview.taskFilePath || null,
+        transcriptPath: taskPreview.transcriptPath || null,
+        transcriptText: taskPreview.transcriptText || null,
+        transcriptSegments: taskPreview.transcriptSegments || [],
+        transcriptCorrectionEnabled: Boolean(
+          taskPreview.transcriptText ||
+          (taskPreview.transcriptSegments || []).length > 0,
+        ),
+        transcriptCorrectionStatus:
+          taskPreview.transcriptText ||
+          (taskPreview.transcriptSegments || []).length > 0
+            ? "available"
+            : "waiting_transcript",
+        transcriptCorrectionSource: "artifact_document_version",
+        transcriptCorrectionPatchKind: "artifact_document_version",
+        transcriptCorrectionOriginalImmutable: true,
+        sourcePath: taskPreview.sourcePath || null,
+        sourceUrl: taskPreview.sourceUrl || null,
+        language: taskPreview.language || null,
+        outputFormat: taskPreview.outputFormat || null,
+        modalityContractKey: "audio_transcription",
+      },
+    };
+  }
+
   const webImageSearch = readWebImageSearchResult(params);
   if (!webImageSearch) {
     return null;
@@ -1084,6 +1772,7 @@ export function buildTaskPreviewFromToolResult(
 ): MessageTaskPreview | null {
   return (
     buildVideoTaskPreviewFromToolResult(params) ||
+    buildAudioTaskPreviewFromToolResult(params) ||
     buildWebImageSearchTaskPreviewFromToolResult(params) ||
     buildGenericTaskPreviewFromToolResult(params)
   );

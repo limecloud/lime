@@ -1,5 +1,5 @@
 import {
-  BROWSER_CONTROL_DEFAULT_ENTRY_SOURCE,
+  resolveBrowserControlEntrySource,
   resolveBrowserControlRuntimeContractBinding,
 } from "@/lib/governance/modalityRuntimeContracts";
 import type { ParsedBrowserWorkbenchCommand } from "../utils/browserWorkbenchCommand";
@@ -40,7 +40,7 @@ export function buildBrowserControlLaunchRequestMetadata(
         required_capabilities: runtimeContract.requiredCapabilities,
         routing_slot: runtimeContract.routingSlot,
         runtime_contract: runtimeContract.runtimeContract,
-        entry_source: BROWSER_CONTROL_DEFAULT_ENTRY_SOURCE,
+        entry_source: resolveBrowserControlEntrySource(parsedCommand.trigger),
         requirement: parsedCommand.browserRequirement,
         requirement_reason: parsedCommand.browserRequirementReason,
         prompt: parsedCommand.prompt || parsedCommand.body,

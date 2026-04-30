@@ -31,6 +31,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::RwLock;
 
+const SENSENOVA_OLD_OPENAI_COMPATIBLE_API_HOST: &str =
+    "https://api.sensenova.cn/compatible-mode/v1";
+const SENSENOVA_OPENAI_COMPATIBLE_API_HOST: &str = "https://api.sensenova.cn/compatible-mode/v2";
+
 // ============================================================================
 // 连接测试结果
 // ============================================================================
@@ -50,7 +54,10 @@ pub struct ConnectionTestResult {
 
 #[cfg(test)]
 mod tests {
-    use super::ApiKeyProviderService;
+    use super::{
+        ApiKeyProviderService, SENSENOVA_OLD_OPENAI_COMPATIBLE_API_HOST,
+        SENSENOVA_OPENAI_COMPATIBLE_API_HOST,
+    };
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
     use chrono::Utc;
     use lime_core::database::dao::api_key_provider::ApiProviderType;
@@ -417,6 +424,74 @@ data: [DONE]\n";
             .expect("系统 Provider 应存在");
 
         assert_eq!(persisted.provider.provider_type, ApiProviderType::Openai);
+    }
+
+    #[test]
+    fn test_initialize_system_providers_updates_legacy_sensenova_default_host() {
+        let db = init_test_database();
+        let service = ApiKeyProviderService::new();
+
+        service
+            .initialize_system_providers(&db)
+            .expect("初始化系统 Provider 失败");
+
+        {
+            let conn = db.lock().expect("获取数据库锁失败");
+            let mut provider = ApiKeyProviderDao::get_provider_by_id(&conn, "sensenova")
+                .expect("读取 SenseNova Provider 失败")
+                .expect("SenseNova Provider 应存在");
+            provider.api_host = SENSENOVA_OLD_OPENAI_COMPATIBLE_API_HOST.to_string();
+            ApiKeyProviderDao::update_provider(&conn, &provider)
+                .expect("写入旧 SenseNova 地址失败");
+        }
+
+        service
+            .initialize_system_providers(&db)
+            .expect("重新初始化系统 Provider 失败");
+
+        let persisted = service
+            .get_provider(&db, "sensenova")
+            .expect("读取 SenseNova Provider 失败")
+            .expect("SenseNova Provider 应存在");
+
+        assert_eq!(
+            persisted.provider.api_host,
+            SENSENOVA_OPENAI_COMPATIBLE_API_HOST
+        );
+    }
+
+    #[test]
+    fn test_initialize_system_providers_keeps_user_custom_sensenova_host() {
+        let db = init_test_database();
+        let service = ApiKeyProviderService::new();
+
+        service
+            .initialize_system_providers(&db)
+            .expect("初始化系统 Provider 失败");
+
+        {
+            let conn = db.lock().expect("获取数据库锁失败");
+            let mut provider = ApiKeyProviderDao::get_provider_by_id(&conn, "sensenova")
+                .expect("读取 SenseNova Provider 失败")
+                .expect("SenseNova Provider 应存在");
+            provider.api_host = "https://proxy.example.com/sensenova".to_string();
+            ApiKeyProviderDao::update_provider(&conn, &provider)
+                .expect("写入自定义 SenseNova 地址失败");
+        }
+
+        service
+            .initialize_system_providers(&db)
+            .expect("重新初始化系统 Provider 失败");
+
+        let persisted = service
+            .get_provider(&db, "sensenova")
+            .expect("读取 SenseNova Provider 失败")
+            .expect("SenseNova Provider 应存在");
+
+        assert_eq!(
+            persisted.provider.api_host,
+            "https://proxy.example.com/sensenova"
+        );
     }
 
     #[test]
@@ -1900,25 +1975,52 @@ impl ApiKeyProviderService {
         let conn = lime_core::database::lock_db(db)?;
         let system_providers = get_system_providers();
         let mut inserted_count = 0;
+        let mut updated_count = 0;
 
         for def in &system_providers {
             // 检查是否已存在
             let existing =
                 ApiKeyProviderDao::get_provider_by_id(&conn, def.id).map_err(|e| e.to_string())?;
 
-            if existing.is_none() {
-                // 插入新的系统 Provider
-                let provider = to_api_key_provider(def);
-                ApiKeyProviderDao::insert_provider(&conn, &provider).map_err(|e| e.to_string())?;
-                inserted_count += 1;
+            match existing {
+                Some(mut provider) => {
+                    if Self::should_update_system_provider_default_api_host(&provider, def.api_host)
+                    {
+                        provider.api_host = def.api_host.to_string();
+                        provider.updated_at = Utc::now();
+                        ApiKeyProviderDao::update_provider(&conn, &provider)
+                            .map_err(|e| e.to_string())?;
+                        updated_count += 1;
+                    }
+                }
+                None => {
+                    // 插入新的系统 Provider
+                    let provider = to_api_key_provider(def);
+                    ApiKeyProviderDao::insert_provider(&conn, &provider)
+                        .map_err(|e| e.to_string())?;
+                    inserted_count += 1;
+                }
             }
         }
 
         if inserted_count > 0 {
             tracing::info!("初始化了 {} 个系统 Provider", inserted_count);
         }
+        if updated_count > 0 {
+            tracing::info!("同步了 {} 个系统 Provider 默认地址", updated_count);
+        }
 
         Ok(inserted_count)
+    }
+
+    fn should_update_system_provider_default_api_host(
+        provider: &ApiKeyProvider,
+        next_api_host: &str,
+    ) -> bool {
+        provider.id == "sensenova"
+            && provider.is_system
+            && provider.api_host.trim_end_matches('/') == SENSENOVA_OLD_OPENAI_COMPATIBLE_API_HOST
+            && next_api_host == SENSENOVA_OPENAI_COMPATIBLE_API_HOST
     }
 
     /// 获取所有 Provider（包含 API Keys）

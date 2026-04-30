@@ -5,6 +5,9 @@ import {
   InputBarContainer,
   InputColumn,
   InputIconButton,
+  InputSuggestionKeycap,
+  InputSuggestionLayer,
+  InputSuggestionText,
   MainRow,
   MetaSlot,
   StyledTextarea,
@@ -78,6 +81,16 @@ interface InputbarCoreProps {
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   onRemoveQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   showMetaTools?: boolean;
+  inputSuggestion?: {
+    label: string;
+    prompt: string;
+    testId?: string;
+  } | null;
+  onAcceptInputSuggestion?: (suggestion: {
+    label: string;
+    prompt: string;
+    testId?: string;
+  }) => void;
 }
 
 export const InputbarCore: React.FC<InputbarCoreProps> = ({
@@ -105,6 +118,8 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
   showMetaTools = true,
+  inputSuggestion = null,
+  onAcceptInputSuggestion,
 }) => {
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const inputBarContainerRef = useRef<HTMLDivElement | null>(null);
@@ -184,6 +199,57 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       : dictationEnabled || !voiceConfigLoaded
         ? "开始语音输入"
         : "语音输入未启用";
+  const shouldShowInputSuggestion =
+    Boolean(inputSuggestion) && text.trim().length === 0 && !disabled;
+
+  const handleInputSuggestionKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (
+        !inputSuggestion ||
+        event.key !== "Tab" ||
+        event.shiftKey ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        text.trim().length > 0 ||
+        disabled
+      ) {
+        return;
+      }
+
+      const nativeEvent = event.nativeEvent as KeyboardEvent & {
+        isComposing?: boolean;
+      };
+      if (
+        nativeEvent.isComposing ||
+        nativeEvent.key === "Process" ||
+        nativeEvent.keyCode === 229
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      const acceptedText = inputSuggestion.prompt;
+      if (onAcceptInputSuggestion) {
+        onAcceptInputSuggestion(inputSuggestion);
+      } else {
+        setText(acceptedText);
+      }
+      window.requestAnimationFrame(() => {
+        const textarea = resolvedTextareaRef.current;
+        textarea?.focus();
+        textarea?.setSelectionRange(acceptedText.length, acceptedText.length);
+      });
+    },
+    [
+      disabled,
+      inputSuggestion,
+      onAcceptInputSuggestion,
+      resolvedTextareaRef,
+      setText,
+      text,
+    ],
+  );
 
   const handleRemoveImageMouseDown = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -215,6 +281,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       isLoading={isLoading}
       disabled={disabled}
       onPaste={onPaste}
+      onKeyDown={handleInputSuggestionKeyDown}
       isFullscreen={isFullscreen}
       fillHeightWhenFullscreen
       hasAdditionalContent={pendingImages.length > 0}
@@ -224,10 +291,12 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       allowSendWhileLoading
       rows={isTextareaExpanded ? 7 : isFloatingVariant ? 3 : 1}
       placeholder={
-        placeholder ||
-        (isFullscreen
-          ? "全屏编辑模式，按 ESC 退出，Enter 发送"
-          : "在这里输入消息, 按 Enter 发送")
+        shouldShowInputSuggestion
+          ? ""
+          : placeholder ||
+            (isFullscreen
+              ? "全屏编辑模式，按 ESC 退出，Enter 发送"
+              : "在这里输入消息, 按 Enter 发送")
       }
     >
       {({ textareaProps, textareaRef, isPrimaryDisabled, onPrimaryAction }) => {
@@ -295,6 +364,18 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                   <ImagePlus size={14} />
                 </InputIconButton>
                 <InputColumn>
+                  {shouldShowInputSuggestion && inputSuggestion ? (
+                    <InputSuggestionLayer
+                      className={textareaClassName}
+                      data-testid="home-input-tab-suggestion"
+                      title="按 Tab 使用这条起手建议"
+                    >
+                      <InputSuggestionText>
+                        {inputSuggestion.label}
+                      </InputSuggestionText>
+                      <InputSuggestionKeycap>tab</InputSuggestionKeycap>
+                    </InputSuggestionLayer>
+                  ) : null}
                   <StyledTextarea
                     ref={textareaRef}
                     {...textareaProps}

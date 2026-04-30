@@ -97,4 +97,55 @@ describe("BrowserAssistRenderer", () => {
       container.querySelector('[data-testid="browser-runtime-workspace"]'),
     ).toBeNull();
   });
+
+  it("带 browserActionIndex 的 Artifact 应展示 Browser Assist 复盘", async () => {
+    const container = await renderArtifact(
+      createArtifact({
+        meta: {
+          browserActionIndex: {
+            actionCount: 2,
+            sessionCount: 1,
+            observationCount: 1,
+            screenshotCount: 1,
+            lastUrl: "https://example.com/",
+            sessionIds: ["browser-session-1"],
+            targetIds: ["target-1"],
+            profileKeys: ["general_browser_assist"],
+            items: [
+              {
+                artifactKind: "browser_session",
+                action: "navigate",
+                status: "completed",
+                success: true,
+                sessionId: "browser-session-1",
+                targetId: "target-1",
+                backend: "cdp_direct",
+                lastUrl: "https://example.com/",
+              },
+              {
+                artifactKind: "browser_snapshot",
+                action: "get_page_info",
+                status: "completed",
+                success: true,
+                sessionId: "browser-session-1",
+                targetId: "target-1",
+                entrySource: "at_browser_agent_command",
+                backend: "lime_extension_bridge",
+                lastUrl: "https://example.com/",
+                observationAvailable: true,
+                screenshotAvailable: true,
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    expect(container.textContent).toContain("browser_replay_viewer");
+    expect(container.textContent).toContain("Browser Assist 复盘");
+    expect(container.textContent).toContain("get_page_info");
+    expect(container.textContent).toContain("browser_snapshot");
+    expect(container.textContent).toContain("https://example.com/");
+    expect(container.textContent).toContain("observation / screenshot");
+  });
 });

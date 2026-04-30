@@ -2,14 +2,17 @@ use super::*;
 use crate::agent_tools::catalog::LIME_CREATE_AUDIO_TASK_TOOL_NAME;
 use crate::commands::media_task_cmd::{
     create_audio_generation_task_artifact_inner, create_image_generation_task_artifact_inner,
-    finalize_audio_generation_task_creation, finalize_image_generation_task_creation,
+    create_transcription_task_artifact_inner, finalize_audio_generation_task_creation,
+    finalize_image_generation_task_creation, finalize_transcription_task_creation,
     CreateAudioGenerationTaskArtifactRequest, CreateImageGenerationTaskArtifactRequest,
-    ImageStoryboardSlotInput,
+    CreateTranscriptionTaskArtifactRequest, ImageStoryboardSlotInput,
 };
 use crate::commands::modality_runtime_contracts::{
-    image_generation_required_capabilities, IMAGE_GENERATION_CONTRACT_KEY,
-    IMAGE_GENERATION_MODALITY, IMAGE_GENERATION_ROUTING_SLOT, VOICE_GENERATION_CONTRACT_KEY,
-    VOICE_GENERATION_MODALITY, VOICE_GENERATION_ROUTING_SLOT,
+    audio_transcription_required_capabilities, image_generation_required_capabilities,
+    AUDIO_TRANSCRIPTION_CONTRACT_KEY, AUDIO_TRANSCRIPTION_MODALITY,
+    AUDIO_TRANSCRIPTION_ROUTING_SLOT, IMAGE_GENERATION_CONTRACT_KEY, IMAGE_GENERATION_MODALITY,
+    IMAGE_GENERATION_ROUTING_SLOT, VOICE_GENERATION_CONTRACT_KEY, VOICE_GENERATION_MODALITY,
+    VOICE_GENERATION_ROUTING_SLOT,
 };
 use lime_media_runtime::{
     write_task_artifact, MediaTaskType, TaskRelationships, TaskType, TaskWriteOptions,
@@ -684,6 +687,18 @@ struct TranscriptionTaskInput {
     #[serde(default)]
     entry_source: Option<String>,
     #[serde(default)]
+    modality_contract_key: Option<String>,
+    #[serde(default)]
+    modality: Option<String>,
+    #[serde(default)]
+    required_capabilities: Vec<String>,
+    #[serde(default)]
+    routing_slot: Option<String>,
+    #[serde(default)]
+    runtime_contract: Option<serde_json::Value>,
+    #[serde(default)]
+    requested_target: Option<String>,
+    #[serde(default)]
     output_path: Option<String>,
 }
 
@@ -1332,10 +1347,11 @@ fn submit_audio_generation_task_record(
     input: AudioTaskInput,
 ) -> Result<ToolResult, ToolError> {
     let request = build_audio_generation_task_request(context, input);
+    let project_root_path = request.project_root_path.trim().to_string();
     let output = create_audio_generation_task_artifact_inner(request)
         .map_err(|error| ToolError::execution_failed(format!("创建音频任务失败: {error}")))?;
 
-    finalize_audio_generation_task_creation(Some(app_handle), &output);
+    finalize_audio_generation_task_creation(Some(app_handle), project_root_path.as_str(), &output);
 
     let serialized = serde_json::to_string_pretty(&output)
         .unwrap_or_else(|_| serde_json::json!(&output).to_string());
@@ -1449,31 +1465,56 @@ impl Tool for LimeCreateTranscriptionTaskTool {
             ));
         }
 
-        let payload = serde_json::json!({
-            "prompt": input.prompt,
-            "raw_text": input.raw_text,
-            "source_url": source_url,
-            "source_path": source_path,
-            "language": input.language,
-            "output_format": input.output_format,
-            "speaker_labels": input.speaker_labels,
-            "timestamps": input.timestamps,
-            "provider_id": input.provider_id,
-            "model": input.model,
-            "session_id": input.session_id,
-            "project_id": input.project_id,
-            "content_id": input.content_id,
-            "entry_source": input.entry_source
-        });
-        submit_creation_task_record(
-            &self.app_handle,
-            context,
-            TaskType::TranscriptionGenerate,
-            input.title,
-            payload,
-            None,
-            input.output_path.as_deref(),
-        )
+        let output =
+            create_transcription_task_artifact_inner(CreateTranscriptionTaskArtifactRequest {
+                project_root_path: context.working_directory.to_string_lossy().to_string(),
+                prompt: input.prompt,
+                title: input.title,
+                raw_text: input.raw_text,
+                source_url: source_url.map(ToString::to_string),
+                source_path: source_path.map(ToString::to_string),
+                language: input.language,
+                output_format: input.output_format,
+                speaker_labels: input.speaker_labels,
+                timestamps: input.timestamps,
+                provider_id: input.provider_id,
+                model: input.model,
+                session_id: input.session_id,
+                project_id: input.project_id,
+                content_id: input.content_id,
+                entry_source: input.entry_source,
+                modality_contract_key: input
+                    .modality_contract_key
+                    .or_else(|| Some(AUDIO_TRANSCRIPTION_CONTRACT_KEY.to_string())),
+                modality: input
+                    .modality
+                    .or_else(|| Some(AUDIO_TRANSCRIPTION_MODALITY.to_string())),
+                required_capabilities: if input.required_capabilities.is_empty() {
+                    audio_transcription_required_capabilities()
+                } else {
+                    input.required_capabilities
+                },
+                routing_slot: input
+                    .routing_slot
+                    .or_else(|| Some(AUDIO_TRANSCRIPTION_ROUTING_SLOT.to_string())),
+                runtime_contract: input.runtime_contract,
+                requested_target: input
+                    .requested_target
+                    .or_else(|| Some("transcript".to_string())),
+                output_path: input.output_path,
+            })
+            .map_err(ToolError::execution_failed)?;
+        finalize_transcription_task_creation(
+            Some(&self.app_handle),
+            context.working_directory.to_string_lossy().as_ref(),
+            &output,
+        );
+        let serialized = serde_json::to_string_pretty(&output)
+            .unwrap_or_else(|_| serde_json::json!(&output).to_string());
+        Ok(media_cli_bridge::attach_media_task_metadata(
+            ToolResult::success(serialized),
+            &output,
+        ))
     }
 }
 

@@ -1,7 +1,10 @@
 import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
 import type { AgentThreadItem, AgentThreadTurn, Message } from "../types";
 import { filterConversationThreadItems } from "../utils/threadTimelineView";
-import { normalizeHistoryMessages } from "./agentChatHistory";
+import {
+  compactHistoricalRestoreMessages,
+  normalizeHistoryMessages,
+} from "./agentChatHistory";
 import {
   loadPersisted,
   loadTransient,
@@ -62,8 +65,9 @@ const MAX_PERSISTED_CACHED_SESSION_MESSAGES = 12;
 const MAX_PERSISTED_CACHED_SESSION_TURNS = 8;
 const MAX_PERSISTED_CACHED_SESSION_ITEMS = 32;
 const TRANSIENT_SNAPSHOT_TTL_MS = 10 * 60 * 1000;
-const PERSISTED_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
+const PERSISTED_SNAPSHOT_TTL_MS = 12 * 60 * 60 * 1000;
 const SNAPSHOT_STALE_GRACE_MS = 2 * 60 * 1000;
+const PERSISTED_SNAPSHOT_STALE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface AgentSessionCachedSnapshotTrimLimits {
   maxMessages: number;
@@ -114,16 +118,20 @@ const PERSISTED_SNAPSHOT_POLICY: AgentSessionCachedSnapshotPolicy = {
   limits: PERSISTED_SNAPSHOT_LIMITS,
   maxEntries: MAX_PERSISTED_CACHED_SESSION_SNAPSHOTS,
   ttlMs: PERSISTED_SNAPSHOT_TTL_MS,
-  staleGraceMs: SNAPSHOT_STALE_GRACE_MS,
+  staleGraceMs: PERSISTED_SNAPSHOT_STALE_GRACE_MS,
 };
 
 function trimCachedSnapshot(
   snapshot: AgentSessionCachedSnapshot,
   limits: AgentSessionCachedSnapshotTrimLimits = TRANSIENT_SNAPSHOT_LIMITS,
 ): AgentSessionCachedSnapshot {
-  const messages = normalizeHistoryMessages(
-    snapshot.messages.slice(-limits.maxMessages),
-  );
+  const shouldCompactMessages =
+    !(snapshot.threadTurns || []).some((turn) => turn.status === "running") &&
+    !(snapshot.threadItems || []).some((item) => item.status === "in_progress");
+  const rawMessages = snapshot.messages.slice(-limits.maxMessages);
+  const messages = shouldCompactMessages
+    ? compactHistoricalRestoreMessages(rawMessages)
+    : normalizeHistoryMessages(rawMessages);
   const threadTurns = snapshot.threadTurns.slice(-limits.maxTurns);
   const retainedTurnIds = new Set(
     threadTurns
@@ -225,10 +233,17 @@ function normalizeOptionalTimeMs(
   }
 
   if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
+    return value > 0 && value < 10_000_000_000 ? value * 1000 : value;
   }
 
   if (typeof value === "string" && value.trim()) {
+    const numericValue = Number(value);
+    if (Number.isFinite(numericValue)) {
+      return numericValue > 0 && numericValue < 10_000_000_000
+        ? numericValue * 1000
+        : numericValue;
+    }
+
     const timestamp = Date.parse(value);
     return Number.isFinite(timestamp) ? timestamp : null;
   }
@@ -258,9 +273,9 @@ function normalizeCachedSnapshotRecord(
     readFiniteNumber(record.expiresAt) ?? updatedAt + policy.ttlMs;
   const staleUntil =
     readFiniteNumber(record.staleUntil) ?? expiresAt + policy.staleGraceMs;
-  const sessionUpdatedAt =
-    readFiniteNumber(record.sessionUpdatedAt) ??
-    normalizeOptionalTimeMs(record.sessionUpdatedAt as string | null);
+  const sessionUpdatedAt = normalizeOptionalTimeMs(
+    record.sessionUpdatedAt as number | string | null,
+  );
   const messagesCount = normalizeOptionalCount(record.messagesCount);
   const snapshot = trimCachedSnapshot(
     {

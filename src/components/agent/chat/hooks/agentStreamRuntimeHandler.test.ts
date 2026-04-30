@@ -175,6 +175,183 @@ describe("agentStreamRuntimeHandler", () => {
     expect(setMessages).not.toHaveBeenCalled();
   });
 
+  it("thinking 关闭时不应把 reasoning_delta 渲染进助手正文", () => {
+    let messages: Message[] = [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-30T10:00:00.000Z"),
+        isThinking: true,
+        contentParts: [{ type: "thinking", text: "隐藏推理" }],
+      },
+    ];
+    const requestState = {
+      accumulatedContent: "",
+      queuedTurnId: null,
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+    };
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+    const activateStream = vi.fn();
+    const baseOptions = {
+      requestState,
+      callbacks: {
+        activateStream,
+        isStreamActivated: () => true,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener: () => {},
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch: () => true,
+        upsertQueuedTurn: () => {},
+        removeQueuedTurnState: () => {},
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+        appendThinkingToParts: () => {
+          throw new Error("thinking 关闭时不应追加 thinking part");
+        },
+      },
+      eventName: "agent-runtime-thinking-disabled-test",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-1",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react" as const,
+      surfaceThinkingDeltas: false,
+      content: "只回复一个字：好",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      setMessages: setMessages as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: vi.fn() as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: vi.fn() as never,
+    };
+
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: {
+        type: "thinking_delta",
+        text: "我们只：好。",
+      } as AgentEvent,
+    });
+
+    expect(activateStream).toHaveBeenCalledTimes(1);
+    expect(setMessages).not.toHaveBeenCalled();
+
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: {
+        type: "text_delta",
+        text: "好",
+      } as AgentEvent,
+    });
+
+    expect(messages[0]?.content).toBe("好");
+    expect(messages[0]?.thinkingContent).toBeUndefined();
+    expect(messages[0]?.contentParts).toEqual([{ type: "text", text: "好" }]);
+  });
+
+  it("连续 text_delta 应合并到低频渲染，避免每个字符都刷新消息树", () => {
+    vi.useFakeTimers();
+    let messages: Message[] = [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-30T10:00:00.000Z"),
+        isThinking: true,
+        contentParts: [],
+      },
+    ];
+    const requestState = {
+      accumulatedContent: "",
+      queuedTurnId: null,
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+    };
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+    const baseOptions = {
+      requestState,
+      callbacks: {
+        activateStream: vi.fn(),
+        isStreamActivated: () => true,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener: () => {},
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch: () => true,
+        upsertQueuedTurn: () => {},
+        removeQueuedTurnState: () => {},
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+        appendThinkingToParts: (parts: NonNullable<Message["contentParts"]>) =>
+          parts,
+      },
+      eventName: "agent-runtime-text-batch-test",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-1",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react" as const,
+      content: "数数",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      setMessages: setMessages as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: vi.fn() as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: vi.fn() as never,
+    };
+
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: { type: "text_delta", text: "1" } as AgentEvent,
+    });
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: { type: "text_delta", text: "2" } as AgentEvent,
+    });
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: { type: "text_delta", text: "3" } as AgentEvent,
+    });
+
+    expect(setMessages).toHaveBeenCalledTimes(1);
+    expect(messages[0]?.content).toBe("1");
+
+    vi.advanceTimersByTime(32);
+
+    expect(setMessages).toHaveBeenCalledTimes(2);
+    expect(messages[0]?.content).toBe("123");
+    expect(messages[0]?.contentParts).toEqual([{ type: "text", text: "123" }]);
+  });
+
   it("高频 reasoning item_updated 事件不应持续刷新时间线状态", () => {
     const setThreadItems = vi.fn();
     const activateStream = vi.fn();
@@ -309,6 +486,9 @@ describe("agentStreamRuntimeHandler", () => {
     });
 
     expect(messages[0]?.content).toBe("已保存到项目目录。");
+    expect(messages[0]?.contentParts).toEqual([
+      { type: "text", text: "已保存到项目目录。" },
+    ]);
   });
 
   it("收到空 final_done 且没有真实产物信号时应落成失败态", () => {

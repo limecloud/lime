@@ -15,11 +15,13 @@ import {
   getLatestSelectableModel,
   getFieldsForProviderType,
   getSpecialProtocolHint,
+  normalizeKnownProviderApiHost,
   parseCustomModelsValue,
   providerTypeRequiresField,
   PROVIDER_TYPE_FIELDS,
   PROVIDER_TYPE_VALUES,
   serializeCustomModels,
+  SENSENOVA_OPENAI_COMPATIBLE_API_HOST,
   sortSelectableModels,
 } from "./providerConfigUtils";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
@@ -353,5 +355,29 @@ describe("模型辅助函数", () => {
 
   test("getLatestSelectableModel 在空列表时应返回 null", () => {
     expect(getLatestSelectableModel([])).toBeNull();
+  });
+});
+
+describe("已知 Provider API Host 归一化", () => {
+  test("应把 SenseNova 文档页和旧 v1 地址修正为 v2 OpenAI 兼容 Base URL", () => {
+    expect(
+      normalizeKnownProviderApiHost("https://platform.sensenova.cn/docs"),
+    ).toBe(SENSENOVA_OPENAI_COMPATIBLE_API_HOST);
+    expect(
+      normalizeKnownProviderApiHost(
+        "https://www.sensecore.cn/help/docs/model-as-a-service/nova/overview/compatible-mode",
+      ),
+    ).toBe(SENSENOVA_OPENAI_COMPATIBLE_API_HOST);
+    expect(
+      normalizeKnownProviderApiHost(
+        "https://api.sensenova.cn/compatible-mode/v1",
+      ),
+    ).toBe(SENSENOVA_OPENAI_COMPATIBLE_API_HOST);
+  });
+
+  test("未知地址只做 trim，不改写用户输入", () => {
+    expect(normalizeKnownProviderApiHost(" https://api.example.com/v1 ")).toBe(
+      "https://api.example.com/v1",
+    );
   });
 });

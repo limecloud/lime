@@ -1,7 +1,7 @@
 # Warp 对照下的 Lime 多模态管理路线图
 
-> 状态：current planning source  
-> 更新时间：2026-04-29  
+> 状态：current planning source
+> 更新时间：2026-04-30
 > 目标：吸收 Warp 开源客户端在 Agent Harness、Execution Profile、Artifact、Attachment、Task Index 与 Cloud/Local 分层上的可借鉴原则，把 Lime 的多模态能力收敛成统一运行合同，而不是继续按 `@` 命令和单点 viewer 分散扩张。
 
 ## 1. 本路线图回答什么
@@ -143,6 +143,10 @@ Lime 的 artifact graph 不应只有 `document` / `file`。
 
 通用文件只作为兜底，不作为多模态默认主结果。
 
+当前 `browser_session` / `browser_snapshot` 不新建平行 task 协议；Browser Assist tool timeline 先通过 evidence `snapshotIndex.browserActionIndex` 进入可查询索引层，并已在 Harness evidence panel 暴露摘要、通过最小 `browser_replay_viewer` 打开复盘。后续完整交互回放、权限 profile 与截图/DOM/network 深层展开继续消费同一事实源。
+
+当前 `transcript` 已绑定到底层 `audio_transcription` contract；`@转写 / @transcribe / @Audio Extractor` 只是上层入口，前端、Rust metadata、`transcription_generate` task file、CLI 回退入口与 `lime-transcription-worker` 会保留同一份 `audio_transcription` runtime contract snapshot。当前闭环已经能写入 `.lime/tasks/transcription_generate/*.json`，在 payload 下生成 `transcript.pending`，通过 OpenAI-compatible transcription provider seam 回写 `transcript.completed/failed`，并把 transcript 状态/路径/来源/语言/格式/Provider 错误纳入 `list_media_task_artifacts`、聊天任务卡、`.lime/runtime/transcription-generate/*.md` 运行时文档、Evidence Pack `snapshotIndex.transcriptIndex` 与 Replay / grader。第四十三刀已让运行时文档读取 `.lime/runtime/transcripts/*` 文本内容，打开任务卡即可看到可复制校对的转写文本；第四十四刀继续解析 JSON / SRT / VTT transcript 的时间轴与说话人，并在聊天轻卡和运行时文档中展示可逐段编辑校对的段落表；第四十五刀复用 ArtifactDocument 保存链路，保存校对稿时写入 `transcriptCorrection*` / `transcriptSegmentsCorrected` metadata，并明确不改写原始 ASR 输出文件；第四十六刀补上 viewer 内“校对稿已保存”状态卡与 `transcriptCorrectionDiffSummary`，让原文/校对稿的文本长度、段落、说话人数差异可见。后续仍需要更专用的逐段 transcript viewer 交互、更多 ASR adapter 与本地离线 ASR 执行器。
+
 ## 4. 目录文档分工
 
 1. [runtime-fact-map.md](./runtime-fact-map.md)
@@ -151,40 +155,46 @@ Lime 的 artifact graph 不应只有 `document` / `file`。
    - Phase 1 `ModalityRuntimeContract` 字段语义与机器校验入口。
 3. [capability-matrix.md](./capability-matrix.md)
    - Phase 2 多模态能力矩阵、模型角色槽位与 capability gap 口径。
-4. [implementation-plan.md](./implementation-plan.md)
+4. [execution-profile.md](./execution-profile.md)
+   - Phase 3 / Phase 5 `ModalityExecutionProfile`、executor adapter registry 与治理守卫。
+5. [artifact-graph.md](./artifact-graph.md)
+   - Phase 4 领域化产物图，明确 artifact kind、truth source、viewer、evidence 与 task index 映射。
+6. [implementation-plan.md](./implementation-plan.md)
    - 分阶段开发计划、改动面、验收输出和验证入口。
-5. [evolution-guide.md](./evolution-guide.md)
+7. [evolution-guide.md](./evolution-guide.md)
    - Lime 自下而上的演进总图、泳道图、阶段门禁和每轮收口模板。
-6. [acceptance.md](./acceptance.md)
+8. [acceptance.md](./acceptance.md)
    - 关键场景验收标准，防止路线图停留在抽象层。
 
 当前机器可检查事实源：
 
 1. `src/lib/governance/modalityRuntimeContracts.json`
 2. `src/lib/governance/modalityCapabilityMatrix.json`
-3. `scripts/check-modality-runtime-contracts.mjs`
-4. `npm run governance:modality-contracts`
+3. `src/lib/governance/modalityArtifactGraph.json`
+4. `src/lib/governance/modalityExecutionProfiles.json`
+5. `src/lib/governance/modalityExecutionProfiles.ts`
+6. `scripts/check-modality-runtime-contracts.mjs`
+7. `npm run governance:modality-contracts`
 
 后续如果继续推进，再按需新增：
 
-1. `artifact-graph.md`
-2. `limecore-integration.md`
-3. `browser-computer-use.md`
-4. `migration-map.md`
+1. `limecore-integration.md`
+2. `browser-computer-use.md`
+3. `migration-map.md`
 
 ## 5. 分阶段总览
 
-| 阶段 | 目标 | 主产物 |
-| --- | --- | --- |
-| Phase 0 | 盘点底层运行事实源 | runtime fact map |
-| Phase 1 | 建底层运行合同 schema | `ModalityRuntimeContract` + governance check |
-| Phase 2 | 扩展模型能力矩阵 | modality capability matrix + routing evidence |
-| Phase 3 | 建统一 execution profile | model roles + permission profile + tenant override |
-| Phase 4 | 领域化 artifact graph | domain artifact kinds + viewer mapping |
-| Phase 5 | 建 executor / Browser typed action 边界 | executor adapter + browser evidence |
-| Phase 6 | LimeCore 目录与策略接线 | cloud catalog + model offer + Gateway/Scene policy |
-| Phase 7 | 绑定上层入口 | `@` / button / scene launch mapping |
-| Phase 8 | 任务索引与复盘 | modality task index + audit + replay hooks |
+| 阶段    | 目标                                    | 主产物                                             |
+| ------- | --------------------------------------- | -------------------------------------------------- |
+| Phase 0 | 盘点底层运行事实源                      | runtime fact map                                   |
+| Phase 1 | 建底层运行合同 schema                   | `ModalityRuntimeContract` + governance check       |
+| Phase 2 | 扩展模型能力矩阵                        | modality capability matrix + routing evidence      |
+| Phase 3 | 建统一 execution profile                | `modalityExecutionProfiles.json` + profile / policy guard |
+| Phase 4 | 领域化 artifact graph                   | domain artifact kinds + viewer mapping             |
+| Phase 5 | 建 executor / Browser typed action 边界 | executor adapter registry + browser evidence       |
+| Phase 6 | LimeCore 目录与策略接线                 | cloud catalog + model offer + Gateway/Scene policy |
+| Phase 7 | 绑定上层入口                            | `@` / button / scene launch mapping                |
+| Phase 8 | 任务索引与复盘                          | modality task index + audit + replay hooks         |
 
 ## 6. 当前必须避免的误区
 

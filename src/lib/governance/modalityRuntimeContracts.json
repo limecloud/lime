@@ -253,7 +253,83 @@
         ]
       },
       "owner_surface": "browser_runtime",
-      "bound_entries": []
+      "bound_entries": [
+        {
+          "entry_key": "at_browser_command",
+          "entry_kind": "command",
+          "display_name": "@浏览器 / @browser / @browse",
+          "launch_metadata_path": "harness.browser_assist",
+          "entry_source": "at_browser_command",
+          "default_input_mapping": ["user_text", "url", "browser_state"],
+          "entry_visibility_policy": [
+            "browser_runtime_available",
+            "profile_allows_browser_control"
+          ]
+        },
+        {
+          "entry_key": "at_browser_agent_command",
+          "entry_kind": "command",
+          "display_name": "@Browser Agent",
+          "launch_metadata_path": "harness.browser_assist",
+          "entry_source": "at_browser_agent_command",
+          "default_input_mapping": ["user_text", "url", "browser_state"],
+          "entry_visibility_policy": [
+            "browser_runtime_available",
+            "profile_allows_browser_control"
+          ]
+        },
+        {
+          "entry_key": "at_mini_tester_command",
+          "entry_kind": "command",
+          "display_name": "@Mini Tester",
+          "launch_metadata_path": "harness.browser_assist",
+          "entry_source": "at_mini_tester_command",
+          "default_input_mapping": [
+            "user_text",
+            "url",
+            "browser_state",
+            "test_goal"
+          ],
+          "entry_visibility_policy": [
+            "browser_runtime_available",
+            "profile_allows_browser_control"
+          ]
+        },
+        {
+          "entry_key": "at_web_scheduler_command",
+          "entry_kind": "command",
+          "display_name": "@Web Scheduler",
+          "launch_metadata_path": "harness.browser_assist",
+          "entry_source": "at_web_scheduler_command",
+          "default_input_mapping": [
+            "user_text",
+            "url",
+            "browser_state",
+            "schedule_goal"
+          ],
+          "entry_visibility_policy": [
+            "browser_runtime_available",
+            "profile_allows_browser_control"
+          ]
+        },
+        {
+          "entry_key": "at_web_manage_command",
+          "entry_kind": "command",
+          "display_name": "@Web Manage",
+          "launch_metadata_path": "harness.browser_assist",
+          "entry_source": "at_web_manage_command",
+          "default_input_mapping": [
+            "user_text",
+            "url",
+            "browser_state",
+            "operation_goal"
+          ],
+          "entry_visibility_policy": [
+            "browser_runtime_available",
+            "profile_allows_browser_control"
+          ]
+        }
+      ]
     },
     {
       "contract_key": "pdf_extract",
@@ -418,6 +494,100 @@
             "skill_catalog_visible",
             "profile_allows_voice_generation",
             "requires_voice_runtime_skill"
+          ]
+        }
+      ]
+    },
+    {
+      "contract_key": "audio_transcription",
+      "lifecycle": "current",
+      "modality": "audio",
+      "runtime_identity": [
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "task_id",
+        "content_id",
+        "artifact_id"
+      ],
+      "input_context_kinds": [
+        "audio_reference",
+        "video_reference",
+        "text_prompt",
+        "workspace_context"
+      ],
+      "required_capabilities": [
+        "text_generation",
+        "audio_transcription"
+      ],
+      "permission_profile_keys": [
+        "read_files",
+        "write_artifacts",
+        "media_upload",
+        "service_api_call",
+        "ask_user_question"
+      ],
+      "routing_slot": "audio_transcription_model",
+      "executor_binding": {
+        "executor_kind": "skill",
+        "binding_key": "transcription_generate",
+        "current_path": "Runtime contract -> Skill(transcription_generate) -> transcription task file / transcript artifact",
+        "supports_progress": true,
+        "supports_cancel": true,
+        "supports_resume": false,
+        "supports_artifact": true,
+        "failure_mapping": [
+          "permission_denied",
+          "capability_gap",
+          "file_unavailable",
+          "executor_error"
+        ]
+      },
+      "truth_source": ["transcript_artifact", "runtime_timeline_event"],
+      "artifact_kinds": ["transcript"],
+      "viewer_surface": ["transcript_viewer", "document_viewer"],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "model_routing_decision",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "limecore_policy_refs": [
+        "model_catalog",
+        "provider_offer",
+        "tenant_feature_flags"
+      ],
+      "fallback_policy": [
+        "ask_on_missing_audio_source",
+        "block_on_no_audio_transcription_model"
+      ],
+      "detour_policy": {
+        "allowed": ["ask_user_question"],
+        "denied": [
+          "frontend_direct_asr",
+          "generic_file_transcript",
+          "tool_search_before_transcription_skill",
+          "web_search_before_transcription_skill"
+        ]
+      },
+      "owner_surface": "agent_runtime",
+      "bound_entries": [
+        {
+          "entry_key": "at_transcription_command",
+          "entry_kind": "command",
+          "display_name": "@转写 / @transcribe / @Audio Extractor",
+          "launch_metadata_path": "harness.transcription_skill_launch.transcription_task",
+          "entry_source": "at_transcription_command",
+          "default_input_mapping": [
+            "user_text",
+            "audio_or_video_reference",
+            "transcript_options",
+            "workspace_context"
+          ],
+          "entry_visibility_policy": [
+            "skill_catalog_visible",
+            "profile_allows_audio_transcription",
+            "requires_audio_or_video_source"
           ]
         }
       ]

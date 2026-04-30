@@ -9,8 +9,10 @@ import styled, { keyframes } from "styled-components";
 import { getConfig } from "@/lib/api/appConfig";
 import {
   getSkillCatalog,
+  listSkillCatalogEntries,
   listSkillCatalogSceneEntries,
   subscribeSkillCatalogChanged,
+  type SkillCatalogEntry,
   type SkillCatalogSceneEntry,
 } from "@/lib/api/skillCatalog";
 import type { CreationMode } from "./types";
@@ -88,12 +90,19 @@ import {
 import { HomeSkillGallery } from "../home/HomeSkillGallery";
 import {
   buildHomeGalleryItems,
+  buildHomeGuideCards,
+  buildHomeInputSuggestions,
   buildHomeSkillItems,
   buildHomeSkillSections,
   buildHomeStarterChips,
 } from "../home/buildHomeSkillSurface";
-import { HOME_COMPOSER_PLACEHOLDER } from "../home/homeSurfaceCopy";
+import {
+  HOME_COMPOSER_PLACEHOLDER,
+  HOME_GUIDE_HELP_CONTEXT_LABEL,
+  HOME_GUIDE_HELP_PLACEHOLDER,
+} from "../home/homeSurfaceCopy";
 import type {
+  HomeGuideCard,
   HomeSkillSurfaceItem,
   HomeStarterChip,
 } from "../home/homeSurfaceTypes";
@@ -198,7 +207,7 @@ const ComposerGlowFrame = styled.div`
 const ScrollCue = styled.a`
   position: absolute;
   left: 50%;
-  bottom: clamp(0.62rem, 1.8vh, 1.15rem);
+  bottom: clamp(0.7rem, 1.9vh, 1.25rem);
   z-index: 8;
   display: grid;
   width: min(680px, calc(100% - 2rem));
@@ -209,9 +218,9 @@ const ScrollCue = styled.a`
   gap: 0.9rem;
   transform: translateX(-50%);
   padding: 0.35rem 0;
-  color: var(--lime-text-muted, rgb(100 116 139));
-  font-size: 12px;
-  font-weight: 680;
+  color: var(--lime-brand-strong, rgb(47 83 60));
+  font-size: 13px;
+  font-weight: 760;
   line-height: 1;
   text-decoration: none;
   white-space: nowrap;
@@ -240,7 +249,20 @@ const ScrollCueLine = styled.span`
 const ScrollCueText = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 0.22rem;
+  gap: 0.32rem;
+  border-radius: 999px;
+  border: 1px solid rgba(187, 247, 208, 0.86);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.94),
+      rgba(240, 253, 244, 0.88)
+    ),
+    var(--lime-surface, #fff);
+  padding: 0.42rem 0.78rem;
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 `;
 
 const ScrollCueArrow = styled.span`
@@ -443,10 +465,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onImportSkill,
   onRefreshSkills,
   onLaunchBrowserAssist,
-  browserAssistLoading = false,
   featuredSceneApps = [],
-  sceneAppsLoading = false,
-  sceneAppLaunchingId = null,
   onLaunchSceneApp,
   canResumeRecentSceneApp = false,
   onResumeRecentSceneApp,
@@ -994,10 +1013,19 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     return presets;
   }, []);
 
-  const homeStarterChips = useMemo(() => buildHomeStarterChips(), []);
+  const [homeCatalogEntries, setHomeCatalogEntries] = useState<
+    SkillCatalogEntry[]
+  >([]);
   const [homeCatalogSceneEntries, setHomeCatalogSceneEntries] = useState<
     SkillCatalogSceneEntry[]
   >([]);
+  const [guideHelpActive, setGuideHelpActive] = useState(false);
+
+  useEffect(() => {
+    if (!isGeneralTheme) {
+      setGuideHelpActive(false);
+    }
+  }, [isGeneralTheme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1007,6 +1035,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         if (cancelled) {
           return;
         }
+        const entries = listSkillCatalogEntries(catalog).filter((entry) =>
+          (entry.surfaceScopes ?? []).includes("home"),
+        );
+        setHomeCatalogEntries(entries);
         setHomeCatalogSceneEntries(
           listSkillCatalogSceneEntries(catalog).filter((entry) =>
             (entry.surfaceScopes ?? []).includes("home"),
@@ -1014,6 +1046,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         );
       } catch {
         if (!cancelled) {
+          setHomeCatalogEntries([]);
           setHomeCatalogSceneEntries([]);
         }
       }
@@ -1034,6 +1067,27 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     () => listFeaturedHomeServiceSkills(serviceSkills ?? [], { limit: 6 }),
     [serviceSkills],
   );
+  const homeStarterChips = useMemo(
+    () => buildHomeStarterChips(homeCatalogEntries),
+    [homeCatalogEntries],
+  );
+  const homeInputSuggestions = useMemo(
+    () => buildHomeInputSuggestions(homeCatalogEntries),
+    [homeCatalogEntries],
+  );
+  const homeGuideCards = useMemo(
+    () => buildHomeGuideCards(homeCatalogEntries),
+    [homeCatalogEntries],
+  );
+  const guideHelpStarterLabel = useMemo(
+    () =>
+      homeStarterChips.find((chip) => chip.launchKind === "toggle_guide")
+        ?.label,
+    [homeStarterChips],
+  );
+  const guideHelpLabel = guideHelpStarterLabel
+    ? `Lime ${guideHelpStarterLabel}`
+    : HOME_GUIDE_HELP_CONTEXT_LABEL;
 
   const homeSkillItems = useMemo(() => {
     void slashEntryUsageVersion;
@@ -1148,15 +1202,65 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         onOpenSceneAppsDirectory?.();
         return;
       }
+      if (chip.launchKind === "prefill_prompt") {
+        setGuideHelpActive(false);
+        const prompt = chip.prompt?.trim();
+        if (prompt) {
+          setInput(prompt);
+        }
+        return;
+      }
 
       const targetItem = chip.targetItemId
         ? homeSkillItems.find((item) => item.id === chip.targetItemId)
         : null;
       if (targetItem) {
+        if (targetItem.launchKind === "curated_task_launcher") {
+          const template = findCuratedTaskTemplateById(targetItem.id);
+          if (!template) {
+            return;
+          }
+          const prefill = resolveCuratedTaskTemplateLaunchPrefill(template);
+          setGuideHelpActive(false);
+          setActiveCapability({
+            kind: "curated_task",
+            task: template,
+            launchInputValues: prefill?.inputValues,
+            referenceMemoryIds:
+              prefill?.referenceMemoryIds ??
+              effectiveDefaultCuratedTaskReferenceMemoryIds,
+            referenceEntries:
+              prefill?.referenceEntries ??
+              effectiveDefaultCuratedTaskReferenceEntries,
+          });
+          if (prefill?.hint) {
+            toast.info(prefill.hint);
+          }
+          return;
+        }
+        setGuideHelpActive(false);
         handleSelectHomeSkillItem(targetItem);
       }
     },
-    [handleSelectHomeSkillItem, homeSkillItems, onOpenSceneAppsDirectory],
+    [
+      effectiveDefaultCuratedTaskReferenceEntries,
+      effectiveDefaultCuratedTaskReferenceMemoryIds,
+      handleSelectHomeSkillItem,
+      homeSkillItems,
+      onOpenSceneAppsDirectory,
+      setInput,
+    ],
+  );
+
+  const handleSelectHomeGuideCard = useCallback(
+    (card: HomeGuideCard) => {
+      setGuideHelpActive(true);
+      const prompt = card.prompt.trim();
+      if (prompt) {
+        setInput(prompt);
+      }
+    },
+    [setInput],
   );
 
   const recentSessionLinkLabel = useMemo(() => {
@@ -1197,66 +1301,23 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       });
     }
 
-    featuredSceneApps.slice(0, 2).forEach((item) => {
-      actions.push({
-        id: `sceneapp-${item.id}`,
-        label:
-          sceneAppLaunchingId === item.id
-            ? `${item.title} 准备中…`
-            : item.title,
-        title: `${item.businessLabel} · ${item.summary}`,
-        testId: `sceneapp-launch-${item.id}`,
-        onSelect: () => {
-          if (item.disabledReason || sceneAppLaunchingId === item.id) {
-            return;
-          }
-          void onLaunchSceneApp?.(item.id);
-        },
-      });
-    });
-
-    if (onOpenSceneAppsDirectory) {
-      actions.push({
-        id: "sceneapps-directory",
-        label: sceneAppsLoading ? "做法加载中" : "查看全部做法",
-        testId: "entry-sceneapps-directory",
-        onSelect: onOpenSceneAppsDirectory,
-      });
-    }
-
-    if (onLaunchBrowserAssist) {
-      actions.push({
-        id: "connect-browser",
-        label: browserAssistLoading ? "浏览器连接准备中" : "连接浏览器",
-        testId: "entry-connect-browser",
-        onSelect: () => {
-          void onLaunchBrowserAssist();
-        },
-      });
-    }
-
     return actions;
   }, [
-    browserAssistLoading,
     canResumeRecentSceneApp,
-    featuredSceneApps,
-    onLaunchBrowserAssist,
-    onLaunchSceneApp,
-    onOpenSceneAppsDirectory,
     onResumeRecentSceneApp,
     onResumeRecentSession,
     recentSessionLinkLabel,
     recentSessionLinkTitle,
     recentSessionTitle,
-    sceneAppLaunchingId,
-    sceneAppsLoading,
   ]);
 
   const composerPanel = (
     <ComposerGlowFrame>
       <EmptyStateComposerPanel
         input={input}
-        placeholder={getPlaceholder()}
+        placeholder={
+          guideHelpActive ? HOME_GUIDE_HELP_PLACEHOLDER : getPlaceholder()
+        }
         onSend={handleSend}
         activeTheme={activeTheme}
         providerType={providerType}
@@ -1330,6 +1391,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         onFileSelect={handleFileSelect}
         onPaste={handlePaste}
         onRemoveImage={handleRemoveImage}
+        inputSuggestions={
+          hasAutoLaunchSiteSkill || guideHelpActive ? [] : homeInputSuggestions
+        }
+        guideHelpActive={guideHelpActive}
+        guideHelpLabel={guideHelpLabel}
+        onClearGuideHelp={() => setGuideHelpActive(false)}
       />
     </ComposerGlowFrame>
   );
@@ -1352,9 +1419,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const homeStartSurfacePanel = (
     <HomeStartSurface
       starterChips={homeStarterChips}
+      guideCards={homeGuideCards}
+      guideOpen={guideHelpActive}
       sections={homeSkillSections}
       supplementalActions={homeSupplementalActions}
+      onGuideOpenChange={setGuideHelpActive}
       onSelectStarterChip={handleSelectHomeStarterChip}
+      onSelectGuideCard={handleSelectHomeGuideCard}
       onSelectSkillItem={handleSelectHomeSkillItem}
     />
   );
@@ -1389,12 +1460,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           <ScrollCue
             href="#home-skill-gallery-screen"
             data-testid="home-scroll-cue"
-            aria-label="向下滚动或点击以查看示例"
+            aria-label="向下滑，看看 Lime 可以帮你做什么"
           >
             <ScrollCueLine aria-hidden />
             <ScrollCueText>
-              向下滚动或点击以查看示例
-              <ScrollCueArrow aria-hidden>⌄</ScrollCueArrow>
+              向下滑，看看 Lime 可以帮你做什么
+              <ScrollCueArrow aria-hidden>↓</ScrollCueArrow>
             </ScrollCueText>
             <ScrollCueLine aria-hidden />
           </ScrollCue>

@@ -9,7 +9,7 @@ import React, { memo, useMemo, useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ExternalLink, FileText } from "lucide-react";
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
-import { MarkdownRenderer } from "./MarkdownRenderer";
+import { MarkdownRenderer, type MarkdownRenderMode } from "./MarkdownRenderer";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
 import { ActionRequestA2UIPreviewCard } from "./ActionRequestA2UIPreviewCard";
 import { InlineToolProcessStep } from "./InlineToolProcessStep";
@@ -52,6 +52,42 @@ import { resolveToolProcessNarrative } from "../utils/toolProcessSummary";
 const STRUCTURED_CONTENT_HINT_RE = /<a2ui|```\s*a2ui|<write_file|<document/i;
 const STRUCTURED_PARSE_CACHE_LIMIT = 64;
 const STREAMING_STRUCTURED_PARSE_DEBOUNCE_MS = 48;
+const STREAMING_TEXT_LARGE_BACKLOG_CHARS = 240;
+const STREAMING_TEXT_MEDIUM_BACKLOG_CHARS = 80;
+const STREAMING_TEXT_SMALL_BACKLOG_CHARS = 24;
+const STREAMING_TEXT_INITIAL_VISIBLE_CHARS = 12;
+
+function resolveStreamingTextStepSize(
+  pendingChars: number,
+  elapsedMs: number,
+  charInterval: number,
+): number {
+  const timedStep = Math.max(1, Math.floor(elapsedMs / charInterval));
+
+  if (pendingChars > STREAMING_TEXT_LARGE_BACKLOG_CHARS) {
+    return Math.max(timedStep, Math.ceil(pendingChars * 0.5));
+  }
+
+  if (pendingChars > STREAMING_TEXT_MEDIUM_BACKLOG_CHARS) {
+    return Math.max(timedStep, Math.ceil(pendingChars * 0.3));
+  }
+
+  if (pendingChars > STREAMING_TEXT_SMALL_BACKLOG_CHARS) {
+    return Math.max(timedStep, 8);
+  }
+
+  return timedStep;
+}
+
+function resolveInitialStreamingDisplayText(text: string, isStreaming: boolean) {
+  if (!isStreaming || !text || hasStructuredContentHint(text)) {
+    return isStreaming ? "" : text;
+  }
+
+  return Array.from(text)
+    .slice(0, STREAMING_TEXT_INITIAL_VISIBLE_CHARS)
+    .join("");
+}
 
 // ============ 思考内容组件 ============
 
@@ -311,6 +347,7 @@ interface PlanAwareMarkdownOptions {
   renderProposedPlanBlocks?: boolean;
   showBlockActions?: boolean;
   onQuoteContent?: (content: string) => void;
+  markdownRenderMode?: MarkdownRenderMode;
 }
 
 function renderPlanAwareMarkdown(
@@ -326,6 +363,7 @@ function renderPlanAwareMarkdown(
     renderProposedPlanBlocks = true,
     showBlockActions = false,
     onQuoteContent,
+    markdownRenderMode = "standard",
   }: PlanAwareMarkdownOptions,
 ) {
   if (!renderProposedPlanBlocks) {
@@ -345,6 +383,7 @@ function renderPlanAwareMarkdown(
         isStreaming={isStreaming}
         showBlockActions={showBlockActions}
         onQuoteContent={onQuoteContent}
+        renderMode={markdownRenderMode}
       />
     );
   }
@@ -373,6 +412,7 @@ function renderPlanAwareMarkdown(
         isStreaming={isStreaming}
         showBlockActions={showBlockActions}
         onQuoteContent={onQuoteContent}
+        renderMode={markdownRenderMode}
       />
     ),
   );
@@ -411,6 +451,8 @@ interface StreamingTextProps {
   showBlockActions?: boolean;
   /** 引用当前正文块 */
   onQuoteContent?: (content: string) => void;
+  /** Markdown 渲染模式；历史恢复可使用 light 降低首帧成本。 */
+  markdownRenderMode?: MarkdownRenderMode;
 }
 
 /**
@@ -436,14 +478,21 @@ const StreamingText: React.FC<StreamingTextProps> = memo(
     onCodeBlockClick,
     showBlockActions = false,
     onQuoteContent,
+    markdownRenderMode = "standard",
   }) => {
-    const [displayText, setDisplayText] = useState("");
-    const displayIndexRef = useRef(0);
+    const initialDisplayText = resolveInitialStreamingDisplayText(
+      text,
+      isStreaming,
+    );
+    const [displayText, setDisplayText] = useState(() => initialDisplayText);
+    const displayIndexRef = useRef(initialDisplayText.length);
     const animationRef = useRef<number | null>(null);
-    const prevTextRef = useRef("");
+    const prevTextRef = useRef(isStreaming ? "" : text);
+    const targetTextRef = useRef(text);
     const parseCacheRef = useRef<Map<string, ParseResult>>(new Map());
 
     useEffect(() => {
+      targetTextRef.current = text;
       // 如果不是流式输出，直接显示完整文本
       if (!isStreaming) {
         // 调试：确认非流式时是否正确设置完整文本
@@ -461,6 +510,19 @@ const StreamingText: React.FC<StreamingTextProps> = memo(
           animationRef.current = null;
         }
         return;
+      }
+
+      if (
+        !text.startsWith(prevTextRef.current) ||
+        displayIndexRef.current > text.length
+      ) {
+        const seededText = resolveInitialStreamingDisplayText(
+          text,
+          isStreaming,
+        );
+        displayIndexRef.current = seededText.length;
+        prevTextRef.current = "";
+        setDisplayText(seededText);
       }
 
       // 检测文本是否有新增
@@ -483,23 +545,31 @@ const StreamingText: React.FC<StreamingTextProps> = memo(
         const elapsed = currentTime - lastTime;
 
         if (elapsed >= charInterval) {
-          // 计算这一帧应该显示多少个字符
-          const charsToAdd = Math.max(1, Math.floor(elapsed / charInterval));
+          const targetText = targetTextRef.current;
+          const pendingChars = Math.max(
+            0,
+            targetText.length - displayIndexRef.current,
+          );
+          const charsToAdd = resolveStreamingTextStepSize(
+            pendingChars,
+            elapsed,
+            charInterval,
+          );
           const newIndex = Math.min(
             displayIndexRef.current + charsToAdd,
-            text.length,
+            targetText.length,
           );
 
           if (newIndex > displayIndexRef.current) {
             displayIndexRef.current = newIndex;
-            setDisplayText(text.slice(0, newIndex));
+            setDisplayText(targetText.slice(0, newIndex));
           }
 
           lastTime = currentTime;
         }
 
         // 继续动画直到追上目标
-        if (displayIndexRef.current < text.length) {
+        if (displayIndexRef.current < targetTextRef.current.length) {
           animationRef.current = requestAnimationFrame(animate);
         } else {
           animationRef.current = null;
@@ -570,6 +640,7 @@ const StreamingText: React.FC<StreamingTextProps> = memo(
           isStreaming,
           showBlockActions,
           onQuoteContent,
+          markdownRenderMode,
         });
       }
 
@@ -627,6 +698,7 @@ const StreamingText: React.FC<StreamingTextProps> = memo(
                   isStreaming,
                   showBlockActions,
                   onQuoteContent,
+                  markdownRenderMode,
                 });
               }
             }
@@ -913,6 +985,8 @@ interface StreamingRendererProps {
   suppressProcessFlow?: boolean;
   showContentBlockActions?: boolean;
   onQuoteContent?: (content: string) => void;
+  /** Markdown 渲染模式；历史恢复可使用 light 降低首帧成本。 */
+  markdownRenderMode?: MarkdownRenderMode;
 }
 
 /**
@@ -953,6 +1027,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     suppressProcessFlow = false,
     showContentBlockActions = false,
     onQuoteContent,
+    markdownRenderMode = "standard",
   }) => {
     const shouldRenderInlineActionRequest = React.useCallback(
       (request: ActionRequired) =>
@@ -1368,6 +1443,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
                   onCodeBlockClick={onCodeBlockClick}
                   showBlockActions={showContentBlockActions}
                   onQuoteContent={onQuoteContent}
+                  markdownRenderMode={markdownRenderMode}
                 />
               );
             }
@@ -1383,6 +1459,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
         onA2UISubmit,
         onCodeBlockClick,
         onQuoteContent,
+        markdownRenderMode,
         renderA2UIInline,
         renderProposedPlanBlocks,
         renderWriteFileIndicator,
@@ -1434,6 +1511,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
             onCodeBlockClick={onCodeBlockClick}
             showBlockActions={showContentBlockActions}
             onQuoteContent={onQuoteContent}
+            markdownRenderMode={markdownRenderMode}
           />
         );
       },
@@ -1450,6 +1528,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
         onQuoteContent,
         renderParsedResultParts,
         renderProposedPlanBlocks,
+        markdownRenderMode,
         showContentBlockActions,
         shouldCollapseCodeBlock,
         shouldShowCursor,

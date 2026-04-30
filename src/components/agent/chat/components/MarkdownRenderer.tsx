@@ -502,7 +502,11 @@ interface MarkdownRendererProps {
   showBlockActions?: boolean;
   /** 引用当前正文块 */
   onQuoteContent?: (content: string) => void;
+  /** 历史恢复等冷路径可用轻量模式，避开高成本 HTML/Katex/语法高亮。 */
+  renderMode?: MarkdownRenderMode;
 }
+
+export type MarkdownRenderMode = "standard" | "light";
 
 function normalizeCodeLanguage(language: string): string {
   const normalized = language.trim().toLowerCase();
@@ -567,6 +571,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
     isStreaming = false,
     showBlockActions = false,
     onQuoteContent,
+    renderMode = "standard",
   }) => {
     const [copied, setCopied] = React.useState<string | null>(null);
     const [bundleImageOverrides, setBundleImageOverrides] = React.useState<
@@ -577,6 +582,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
     const selectionSnapshotRef = React.useRef<string | null>(null);
     const useLightweightStreamingRender =
       isStreaming && content.length >= STREAMING_LIGHT_RENDER_THRESHOLD;
+    const useLightweightMarkdownRender =
+      renderMode === "light" || useLightweightStreamingRender;
     const debouncedStreamingContent = useDebouncedValue(
       content,
       useLightweightStreamingRender
@@ -592,13 +599,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
 
     const remarkPlugins = React.useMemo(
       () =>
-        useLightweightStreamingRender ? [remarkGfm] : [remarkGfm, remarkMath],
-      [useLightweightStreamingRender],
+        useLightweightMarkdownRender ? [remarkGfm] : [remarkGfm, remarkMath],
+      [useLightweightMarkdownRender],
     );
 
     const rehypePlugins = React.useMemo(
-      () => (useLightweightStreamingRender ? [] : [rehypeRaw, rehypeKatex]),
-      [useLightweightStreamingRender],
+      () => (useLightweightMarkdownRender ? [] : [rehypeRaw, rehypeKatex]),
+      [useLightweightMarkdownRender],
     );
     const hasRemoteImageReferences = React.useMemo(
       () => /https?:\/\//i.test(content),
@@ -995,7 +1002,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
             <ReactMarkdown
               remarkPlugins={remarkPlugins}
               rehypePlugins={rehypePlugins}
-              skipHtml={useLightweightStreamingRender}
+              skipHtml={useLightweightMarkdownRender}
               components={{
                 // 使用 pre 组件来处理代码块，以便更好地控制 a2ui 的渲染
                 pre({ children, ...props }: any) {
@@ -1068,7 +1075,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                     );
                   }
 
-                  if (useLightweightStreamingRender) {
+                  if (useLightweightMarkdownRender) {
                     return (
                       <pre {...props}>
                         <code className={className}>{codeContent}</code>

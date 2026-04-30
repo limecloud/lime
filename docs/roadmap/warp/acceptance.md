@@ -1,7 +1,7 @@
 # Warp 对照多模态管理验收标准
 
-> 状态：current planning source  
-> 更新时间：2026-04-29  
+> 状态：current planning source
+> 更新时间：2026-04-30
 > 目标：为 [implementation-plan.md](./implementation-plan.md) 提供可验证场景，避免“参考 Warp”停留在架构口号。
 
 ## 1. 总体验收口径
@@ -32,6 +32,7 @@
 1. 上层入口不得直接创建任务、写 artifact 或决定 viewer。
 2. 上层入口不得直接决定模型和权限。
 3. 上层入口只能补 launch metadata，并绑定到底层 contract。
+4. 找不到 execution profile 或 executor adapter 的 current contract 不能继续绑定入口。
 
 ## 2. `@配图` 验收
 
@@ -62,7 +63,7 @@
 4. 执行动作是 typed browser/computer action。
 5. 每次关键动作产生 observation：screenshot、DOM、network 或 URL state。
 6. timeline 展示真实 browser tool 过程。
-7. evidence pack 导出 browser trace。
+7. evidence pack 导出 browser trace，并在 `snapshotIndex.browserActionIndex` 中提供 action/session/URL/observation 可查询摘要；Harness evidence panel 能展示该摘要，并能打开最小 `browser_replay_viewer` 复盘最近浏览器动作。
 8. 禁用 browser_control 时给出阻断或询问，不回退 WebSearch 假装完成。
 
 禁止：
@@ -93,17 +94,19 @@
 必须证明：
 
 1. `@配音` 走 `service_scene_launch(scene_key=voice_runtime)` 或后续同构 contract。
-2. `@转写` 走 transcription contract，不和普通文件读取混淆。
+2. `@转写` 走 `audio_transcription` contract，不和普通文件读取混淆；前端与 Rust metadata 都保留同一份 runtime contract snapshot。
 3. 模型路由分别识别 `voice_generation` / `audio_transcription`。
 4. 媒体上传、读取和生成权限进入 profile。
 5. 输出区分 `audio_task`、`audio_output`、`transcript`。
 6. 音频 artifact 带时长、mime、来源、任务状态。
-7. evidence pack 能导出媒体任务与产物。
+7. evidence pack 能导出媒体任务与产物；`audio_transcription` 必须把 `transcription_generate` task 与 `transcript` 子产物纳入同一 `snapshotIndex.transcriptIndex`，Replay / grader 能检查 transcript 状态、来源、语言、格式与失败码。
+8. 当前转写 worker 必须通过同一 task artifact 回写 `transcript.completed` 或 `transcript.failed`；成功时 transcript 文件落在 `.lime/runtime/transcripts/*`，失败时保留 provider/source/contract 错误码，聊天任务卡与 `.lime/runtime/transcription-generate/*.md` 运行时文档必须优先消费 `list_media_task_artifacts` 的 `transcript_*` snapshot，并在完成态读取 `transcript_path` 指向的文本内容用于内部校对；如果 transcript 文件是 JSON / SRT / VTT，还必须解析时间轴与说话人并在同一运行时文档里展示可逐段编辑校对的段落表。用户保存校对稿时必须落回同一 ArtifactDocument 新版本，并写入 `transcriptCorrection*` / `transcriptSegmentsCorrected` / `transcriptCorrectionDiffSummary` metadata，同时在 viewer 中展示“校对稿已保存”状态；原始 ASR 输出文件保持不可变，不能另写普通文件卡。
 
 禁止：
 
 1. 回流旧本地 TTS 测试命令作为 current。
 2. 把音频输出只当通用文件卡。
+3. 前端直连 ASR、普通文件读取或 generic file transcript 绕过 `audio_transcription` 合同。
 
 ## 6. `@搜索` / `@深搜` / `@研报` 验收
 
@@ -179,10 +182,11 @@
 每次推进本路线图，至少选择相关命令：
 
 1. 文档/contract 改动：`npm run harness:doc-freshness` 或等价文档检查。
-2. command/runtime contract 改动：`npm run test:contracts`。
-3. UI 可见改动：相关 `*.test.tsx` 与 `npm run verify:gui-smoke`。
-4. 模型路由改动：相关 Rust / TS 路由测试与 thread read 断言。
-5. LimeCore 接口改动：同步改 LimeCore OpenAPI、SDK、类型与客户端消费测试。
+2. contract / profile / artifact graph 改动：`npm run governance:modality-contracts`。
+3. command/runtime contract 改动：`npm run test:contracts`。
+4. UI 可见改动：相关 `*.test.tsx` 与 `npm run verify:gui-smoke`。
+5. 模型路由改动：相关 Rust / TS 路由测试与 thread read 断言。
+6. LimeCore 接口改动：同步改 LimeCore OpenAPI、SDK、类型与客户端消费测试。
 
 最终收口前，至少跑：
 

@@ -1,0 +1,300 @@
+{
+  "version": 1,
+  "status": "current",
+  "owner": "docs/roadmap/warp/artifact-graph.md",
+  "artifact_kinds": [
+    {
+      "kind": "image_task",
+      "lifecycle": "current",
+      "modality": "image",
+      "implementation_status": "current",
+      "truth_sources": ["image_task_artifact", "runtime_timeline_event"],
+      "viewer_surfaces": ["image_workbench"],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["image_generation"],
+      "notes": "图片生成任务的主事实源，承载 routing、payload、进度和输出关联。"
+    },
+    {
+      "kind": "image_output",
+      "lifecycle": "current",
+      "modality": "image",
+      "implementation_status": "current",
+      "truth_sources": ["image_task_artifact", "runtime_timeline_event"],
+      "viewer_surfaces": ["image_workbench"],
+      "evidence_events": ["executor_invoked", "artifact_written"],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["image_generation"],
+      "notes": "图片生成结果，不应自动降级成普通文件卡。"
+    },
+    {
+      "kind": "audio_task",
+      "lifecycle": "current",
+      "modality": "audio",
+      "implementation_status": "current",
+      "truth_sources": ["audio_task_artifact", "runtime_timeline_event"],
+      "viewer_surfaces": ["audio_player"],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "audio_output_status",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["voice_generation"],
+      "notes": "标准 audio_generate task file，voice_generation 的 primary source。"
+    },
+    {
+      "kind": "audio_output",
+      "lifecycle": "current",
+      "modality": "audio",
+      "implementation_status": "current",
+      "truth_sources": ["audio_task_artifact", "runtime_timeline_event"],
+      "viewer_surfaces": ["audio_player"],
+      "evidence_events": ["executor_invoked", "artifact_written"],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "audio_output_status",
+        "audio_output_path",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["voice_generation"],
+      "notes": "音频完成/失败输出，必须保留 mime、duration、provider、error code 等事实。"
+    },
+    {
+      "kind": "transcript",
+      "lifecycle": "current",
+      "modality": "audio",
+      "implementation_status": "partial",
+      "truth_sources": ["transcript_artifact", "runtime_timeline_event"],
+      "viewer_surfaces": ["transcript_viewer", "document_viewer"],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "transcript_status",
+        "transcript_path",
+        "transcript_source_path",
+        "transcript_source_url",
+        "transcript_language",
+        "transcript_output_format",
+        "transcript_error_code",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["audio_transcription"],
+      "notes": "audio_transcription 的 transcript 领域产物；当前已由 transcription_generate task 写入 transcript.pending，并由 lime-transcription-worker 回写 transcript.completed/failed，再通过媒体任务索引恢复到聊天任务卡和 .lime/runtime/transcription-generate 运行时文档；运行时文档会读取 transcript_path 文本内容供复制校对，并从 JSON/SRT/VTT 解析时间轴与说话人段落表；保存校对稿时只写回同一 ArtifactDocument 新版本与 transcriptCorrection metadata，不改写原始 ASR 输出，并在 viewer 中展示校对稿状态与 transcriptCorrectionDiffSummary；Evidence transcriptIndex 与 Replay 检查继续消费同一事实源，不能由 generic_file 冒充。"
+    },
+    {
+      "kind": "browser_session",
+      "lifecycle": "current",
+      "modality": "browser",
+      "implementation_status": "partial",
+      "truth_sources": ["browser_action_trace", "runtime_timeline_event"],
+      "viewer_surfaces": ["browser_replay_viewer"],
+      "evidence_events": [
+        "browser_action_requested",
+        "browser_observation_recorded",
+        "artifact_written"
+      ],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "browser_session_id",
+        "action_count",
+        "last_url",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["browser_control"],
+      "notes": "浏览器会话/动作 trace 已进入 evidence/replay，并由 snapshotIndex.browserActionIndex 提供 session/action/URL 可查询摘要；权限 profile 与完整 viewer 仍需继续补齐。"
+    },
+    {
+      "kind": "browser_snapshot",
+      "lifecycle": "current",
+      "modality": "browser",
+      "implementation_status": "partial",
+      "truth_sources": ["browser_action_trace", "runtime_timeline_event"],
+      "viewer_surfaces": ["browser_replay_viewer"],
+      "evidence_events": [
+        "browser_action_requested",
+        "browser_observation_recorded",
+        "artifact_written"
+      ],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "browser_session_id",
+        "observation_count",
+        "screenshot_count",
+        "last_url",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["browser_control"],
+      "notes": "截图/DOM/URL/network observation 的领域产物，不等同 image_output；当前 evidence 索引已按 browser_snapshot 记录 observation/screenshot 摘要。"
+    },
+    {
+      "kind": "pdf_extract",
+      "lifecycle": "current",
+      "modality": "document",
+      "implementation_status": "partial",
+      "truth_sources": ["pdf_extract_artifact", "runtime_timeline_event"],
+      "viewer_surfaces": ["document_viewer"],
+      "evidence_events": [
+        "file_read_authorized",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "source_path",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["pdf_extract"],
+      "notes": "PDF 抽取结果需要页码、引用和来源恢复；当前 evidence 已接入，专属 artifact/viewer 仍未完全闭环。"
+    },
+    {
+      "kind": "report_document",
+      "lifecycle": "current",
+      "modality": "document",
+      "implementation_status": "partial",
+      "truth_sources": [
+        "report_document_artifact",
+        "research_timeline_event",
+        "runtime_timeline_event"
+      ],
+      "viewer_surfaces": ["document_viewer", "report_viewer"],
+      "evidence_events": [
+        "web_search_performed",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "source_count",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["pdf_extract", "web_research", "text_transform"],
+      "notes": "报告/分析/总结类文档产物，不能只留聊天总结。"
+    },
+    {
+      "kind": "presentation_document",
+      "lifecycle": "current",
+      "modality": "document",
+      "implementation_status": "planned",
+      "truth_sources": ["presentation_artifact", "runtime_timeline_event"],
+      "viewer_surfaces": ["presentation_viewer", "document_viewer"],
+      "evidence_events": [
+        "runtime_identity_bound",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": [],
+      "notes": "为 presentation_generate contract 预留；当前不应被 report_document 或 generic_file 偷换。"
+    },
+    {
+      "kind": "webpage_artifact",
+      "lifecycle": "current",
+      "modality": "document",
+      "implementation_status": "planned",
+      "truth_sources": [
+        "webpage_artifact",
+        "research_timeline_event",
+        "runtime_timeline_event"
+      ],
+      "viewer_surfaces": ["webpage_viewer", "document_viewer"],
+      "evidence_events": [
+        "web_search_performed",
+        "executor_invoked",
+        "artifact_written"
+      ],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "url",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["web_research"],
+      "notes": "网页生成或网页读取产物，后续需要从 report_document 分离 viewer mapping。"
+    },
+    {
+      "kind": "generic_file",
+      "lifecycle": "compat",
+      "modality": "mixed",
+      "implementation_status": "current",
+      "truth_sources": ["runtime_timeline_event", "report_document_artifact"],
+      "viewer_surfaces": ["generic_file_viewer", "document_viewer"],
+      "evidence_events": ["executor_invoked", "artifact_written"],
+      "task_index_fields": [
+        "task_id",
+        "contract_key",
+        "artifact_kind",
+        "status",
+        "path",
+        "created_at",
+        "updated_at"
+      ],
+      "current_contracts": ["text_transform"],
+      "notes": "只允许作为兜底；新增多模态主结果不得默认落到 generic_file。"
+    }
+  ]
+}

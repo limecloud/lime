@@ -1,5 +1,6 @@
 import type { HomeStarterChip } from "./homeSurfaceTypes";
 import styled from "styled-components";
+import { Lightbulb, Settings } from "lucide-react";
 
 const StarterRow = styled.div`
   display: flex;
@@ -51,9 +52,42 @@ const StarterButton = styled.button<{ $primary?: boolean }>`
   }
 `;
 
+const StarterIcon = styled.span`
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+`;
+
 interface HomeStarterChipsProps {
   chips: HomeStarterChip[];
   onSelect: (chip: HomeStarterChip) => void;
+}
+
+function renderStarterIcon(chip: HomeStarterChip) {
+  const token = chip.iconToken?.trim();
+  if (token === "lightbulb" || chip.groupKey === "guide_help") {
+    return (
+      <StarterIcon aria-hidden>
+        <Lightbulb strokeWidth={1.9} />
+      </StarterIcon>
+    );
+  }
+  if (chip.label === "⚙" || token === "settings") {
+    return (
+      <StarterIcon aria-hidden>
+        <Settings strokeWidth={1.9} />
+      </StarterIcon>
+    );
+  }
+  return null;
 }
 
 export function HomeStarterChips({ chips, onSelect }: HomeStarterChipsProps) {
@@ -69,7 +103,8 @@ export function HomeStarterChips({ chips, onSelect }: HomeStarterChipsProps) {
           title={chip.label === "⚙" ? "管理做法" : chip.label}
           onClick={() => onSelect(chip)}
         >
-          {chip.label}
+          {renderStarterIcon(chip)}
+          {chip.label === "⚙" ? null : chip.label}
         </StarterButton>
       ))}
     </StarterRow>

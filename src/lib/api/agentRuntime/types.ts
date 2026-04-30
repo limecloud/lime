@@ -545,6 +545,73 @@ export interface AgentRuntimeEvidenceSignalCoverageEntry {
   detail: string;
 }
 
+export interface AgentRuntimeEvidenceCountEntry {
+  count: number;
+}
+
+export interface AgentRuntimeEvidenceStatusCount extends AgentRuntimeEvidenceCountEntry {
+  status: string;
+}
+
+export interface AgentRuntimeEvidenceArtifactKindCount extends AgentRuntimeEvidenceCountEntry {
+  artifact_kind: string;
+}
+
+export interface AgentRuntimeEvidenceActionCount extends AgentRuntimeEvidenceCountEntry {
+  action: string;
+}
+
+export interface AgentRuntimeEvidenceBackendCount extends AgentRuntimeEvidenceCountEntry {
+  backend: string;
+}
+
+export interface AgentRuntimeEvidenceBrowserActionItem {
+  artifact_path?: string;
+  contract_key?: string;
+  source?: string;
+  entry_source?: string;
+  artifact_kind?: string;
+  tool_name?: string;
+  action?: string;
+  status?: string;
+  success?: boolean;
+  session_id?: string;
+  target_id?: string;
+  profile_key?: string;
+  backend?: string;
+  request_id?: string;
+  last_url?: string;
+  title?: string;
+  attempt_count?: number;
+  observation_available?: boolean;
+  screenshot_available?: boolean;
+}
+
+export interface AgentRuntimeEvidenceBrowserActionIndex {
+  action_count: number;
+  session_count: number;
+  observation_count: number;
+  screenshot_count: number;
+  last_url?: string;
+  session_ids: string[];
+  target_ids: string[];
+  profile_keys: string[];
+  status_counts: AgentRuntimeEvidenceStatusCount[];
+  artifact_kind_counts: AgentRuntimeEvidenceArtifactKindCount[];
+  action_counts: AgentRuntimeEvidenceActionCount[];
+  backend_counts: AgentRuntimeEvidenceBackendCount[];
+  items: AgentRuntimeEvidenceBrowserActionItem[];
+}
+
+export interface AgentRuntimeEvidenceSnapshotIndex {
+  browser_action_index?: AgentRuntimeEvidenceBrowserActionIndex;
+}
+
+export interface AgentRuntimeEvidenceModalityRuntimeContracts {
+  snapshot_count: number;
+  snapshot_index?: AgentRuntimeEvidenceSnapshotIndex;
+}
+
 export interface AgentRuntimeArtifactValidatorVerificationSummary {
   applicable: boolean;
   record_count: number;
@@ -592,6 +659,7 @@ export interface AgentRuntimeEvidenceObservabilitySummary {
   known_gaps: string[];
   signal_coverage: AgentRuntimeEvidenceSignalCoverageEntry[];
   verification_summary?: AgentRuntimeEvidenceVerificationSummary;
+  modality_runtime_contracts?: AgentRuntimeEvidenceModalityRuntimeContracts;
 }
 
 export interface AgentRuntimeEvidencePack {
@@ -1096,6 +1164,16 @@ export interface CreateAudioGenerationTaskArtifactRequest {
   outputPath?: string;
 }
 
+export interface CompleteAudioGenerationTaskArtifactRequest {
+  projectRootPath: string;
+  taskRef: string;
+  audioPath: string;
+  mimeType?: string;
+  durationMs?: number;
+  providerId?: string;
+  model?: string;
+}
+
 export interface MediaTaskArtifactRecord {
   task_id: string;
   task_type: string;
@@ -1172,10 +1250,34 @@ export interface MediaTaskModalityRuntimeContractIndexEntry {
   failure_code?: string | null;
   model_capability_assessment_source?: string | null;
   model_supports_image_generation?: boolean | null;
+  audio_output_status?: string | null;
+  audio_output_path?: string | null;
+  audio_output_mime_type?: string | null;
+  audio_output_duration_ms?: number | null;
+  audio_output_error_code?: string | null;
+  audio_output_retryable?: boolean | null;
+  transcript_status?: string | null;
+  transcript_path?: string | null;
+  transcript_source_url?: string | null;
+  transcript_source_path?: string | null;
+  transcript_language?: string | null;
+  transcript_output_format?: string | null;
+  transcript_error_code?: string | null;
+  transcript_retryable?: boolean | null;
 }
 
 export interface MediaTaskRoutingOutcomeCount {
   outcome: string;
+  count: number;
+}
+
+export interface MediaTaskAudioOutputStatusCount {
+  status: string;
+  count: number;
+}
+
+export interface MediaTaskTranscriptStatusCount {
+  status: string;
   count: number;
 }
 
@@ -1185,6 +1287,12 @@ export interface MediaTaskModalityRuntimeContractIndex {
   blocked_count: number;
   routing_outcomes: MediaTaskRoutingOutcomeCount[];
   model_registry_assessment_count: number;
+  audio_output_count: number;
+  audio_output_statuses: MediaTaskAudioOutputStatusCount[];
+  audio_output_error_codes: string[];
+  transcript_count: number;
+  transcript_statuses: MediaTaskTranscriptStatusCount[];
+  transcript_error_codes: string[];
   snapshots: MediaTaskModalityRuntimeContractIndexEntry[];
 }
 

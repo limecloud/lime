@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildImageTaskPreviewFromToolResult,
   buildTaskPreviewFromToolResult,
+  buildToolResultArtifactFromToolResult,
 } from "./taskPreviewFromToolResult";
 
 describe("buildImageTaskPreviewFromToolResult", () => {
@@ -209,6 +210,238 @@ describe("buildTaskPreviewFromToolResult video", () => {
       status: "running",
       phase: "queued",
       statusMessage: "视频任务已进入排队队列，稍后会自动开始生成。",
+    });
+  });
+});
+
+describe("buildTaskPreviewFromToolResult audio", () => {
+  it("配音任务应输出 audio_generate 预览并指向可打开的运行时文档", () => {
+    const preview = buildTaskPreviewFromToolResult({
+      toolId: "tool-audio-1",
+      toolName: "lime_create_audio_generation_task",
+      toolArguments: JSON.stringify({
+        sourceText: "欢迎来到 Lime 多模态工作台。",
+        voice: "warm_female",
+        voiceStyle: "温暖克制",
+        targetLanguage: "zh-CN",
+        durationMs: 8200,
+      }),
+      toolResult: {
+        metadata: {
+          task_id: "task-audio-1",
+          task_type: "audio_generate",
+          status: "pending_submit",
+          prompt: "欢迎来到 Lime 多模态工作台。",
+          artifact_path: ".lime/tasks/audio_generate/task-audio-1.json",
+          provider_id: "voice-runtime",
+          model: "voice-pro",
+        },
+      },
+      fallbackPrompt: "@配音 欢迎来到 Lime 多模态工作台。",
+    });
+
+    expect(preview).toMatchObject({
+      kind: "audio_generate",
+      taskId: "task-audio-1",
+      taskType: "audio_generate",
+      prompt: "欢迎来到 Lime 多模态工作台。",
+      status: "running",
+      phase: "queued",
+      artifactPath: ".lime/runtime/audio-generate/task-audio-1.md",
+      taskFilePath: ".lime/tasks/audio_generate/task-audio-1.json",
+      providerId: "voice-runtime",
+      model: "voice-pro",
+      voice: "warm_female",
+      durationMs: 8200,
+      metaItems: ["warm_female", "温暖克制", "zh-CN", "8 秒"],
+      statusMessage:
+        "配音任务已写入 audio_task/audio_output，工作区会继续同步音频结果。",
+    });
+  });
+
+  describe("buildTaskPreviewFromToolResult transcription", () => {
+    it("转写任务应输出 transcription_generate 预览并指向运行时文档", () => {
+      const preview = buildTaskPreviewFromToolResult({
+        toolId: "tool-transcription-1",
+        toolName: "lime_create_transcription_task",
+        toolArguments: JSON.stringify({
+          prompt: "请转写访谈音频",
+          sourcePath: "materials/interview.wav",
+          language: "zh-CN",
+          outputFormat: "txt",
+        }),
+        toolResult: {
+          metadata: {
+            task_id: "task-transcription-1",
+            task_type: "transcription_generate",
+            status: "pending_submit",
+            prompt: "请转写访谈音频",
+            artifact_path:
+              ".lime/tasks/transcription_generate/task-transcription-1.json",
+            provider_id: "openai-asr",
+            model: "gpt-4o-transcribe",
+          },
+        },
+        fallbackPrompt: "@转写 materials/interview.wav",
+      });
+
+      expect(preview).toMatchObject({
+        kind: "transcription_generate",
+        taskId: "task-transcription-1",
+        taskType: "transcription_generate",
+        prompt: "请转写访谈音频",
+        status: "running",
+        phase: "queued",
+        artifactPath:
+          ".lime/runtime/transcription-generate/task-transcription-1.md",
+        taskFilePath:
+          ".lime/tasks/transcription_generate/task-transcription-1.json",
+        sourcePath: "materials/interview.wav",
+        language: "zh-CN",
+        outputFormat: "txt",
+        providerId: "openai-asr",
+        model: "gpt-4o-transcribe",
+        metaItems: ["materials/interview.wav", "zh-CN", "txt"],
+        statusMessage: "转写任务已提交，工作区会继续同步最新进度。",
+      });
+    });
+
+    it("转写任务工具结果应生成 transcript viewer 文档，避免打开隐藏 task json", () => {
+      const artifact = buildToolResultArtifactFromToolResult({
+        toolId: "tool-transcription-2",
+        toolName: "lime_create_transcription_task",
+        toolArguments: JSON.stringify({
+          prompt: "请转写访谈音频",
+          sourcePath: "materials/interview.wav",
+          language: "zh-CN",
+          outputFormat: "txt",
+        }),
+        toolResult: {
+          metadata: {
+            task_id: "task-transcription-2",
+            task_type: "transcription_generate",
+            status: "succeeded",
+            artifact_path:
+              ".lime/tasks/transcription_generate/task-transcription-2.json",
+            transcript_path:
+              ".lime/runtime/transcripts/task-transcription-2.txt",
+            transcript_text: "欢迎来到 Lime 访谈节目。",
+            transcript_segments: [
+              {
+                start: 1,
+                end: 3.2,
+                speaker: "主持人",
+                text: "欢迎来到 Lime 访谈节目。",
+              },
+            ],
+          },
+        },
+        fallbackPrompt: "@转写 materials/interview.wav",
+      });
+
+      expect(artifact).toMatchObject({
+        filePath:
+          ".lime/runtime/transcription-generate/task-transcription-2.md",
+        metadata: {
+          artifact_type: "document",
+          taskId: "task-transcription-2",
+          taskType: "transcription_generate",
+          taskFilePath:
+            ".lime/tasks/transcription_generate/task-transcription-2.json",
+          transcriptPath: ".lime/runtime/transcripts/task-transcription-2.txt",
+          transcriptText: "欢迎来到 Lime 访谈节目。",
+          modalityContractKey: "audio_transcription",
+        },
+      });
+      expect(artifact?.metadata.artifactDocument).toMatchObject({
+        artifactId: "transcription-generate:task-transcription-2",
+        title: "内容转写任务",
+        metadata: {
+          taskFilePath:
+            ".lime/tasks/transcription_generate/task-transcription-2.json",
+          transcriptPath: ".lime/runtime/transcripts/task-transcription-2.txt",
+          transcriptText: "欢迎来到 Lime 访谈节目。",
+          transcriptCorrectionEnabled: true,
+          transcriptCorrectionStatus: "available",
+          transcriptCorrectionSource: "artifact_document_version",
+          transcriptCorrectionPatchKind: "artifact_document_version",
+          transcriptCorrectionOriginalImmutable: true,
+          transcriptSegments: [
+            {
+              id: "segment-1",
+              index: 1,
+              startMs: 1000,
+              endMs: 3200,
+              speaker: "主持人",
+              text: "欢迎来到 Lime 访谈节目。",
+            },
+          ],
+        },
+      });
+      expect(artifact?.metadata.artifactDocument).toMatchObject({
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "transcript-segments",
+            type: "table",
+            title: "转写时间轴（可逐段编辑校对）",
+            rows: [["00:01 - 00:03", "主持人", "欢迎来到 Lime 访谈节目。"]],
+          }),
+          expect.objectContaining({
+            id: "transcript-text",
+            type: "code_block",
+            title: "转写文本（可编辑校对）",
+            code: "欢迎来到 Lime 访谈节目。",
+          }),
+          expect.objectContaining({
+            id: "transcript-output",
+            type: "callout",
+            title: "Transcript 已同步，可校对保存",
+            body: expect.stringContaining("不改写原始 ASR 输出"),
+          }),
+        ]),
+      });
+    });
+  });
+
+  it("配音任务工具结果应生成轻量 artifact document，避免打开隐藏 task json", () => {
+    const artifact = buildToolResultArtifactFromToolResult({
+      toolId: "tool-audio-2",
+      toolName: "lime_create_audio_generation_task",
+      toolArguments: JSON.stringify({
+        sourceText: "请用轻快语气播报新品发布。",
+        voice: "brand_voice",
+        audioPath: "https://cdn.example/audio/task-audio-2.mp3",
+      }),
+      toolResult: {
+        metadata: {
+          task_id: "task-audio-2",
+          task_type: "audio_generate",
+          status: "succeeded",
+          artifact_path: ".lime/tasks/audio_generate/task-audio-2.json",
+          mime_type: "audio/mpeg",
+        },
+      },
+      fallbackPrompt: "@配音 请用轻快语气播报新品发布。",
+    });
+
+    expect(artifact).toMatchObject({
+      filePath: ".lime/runtime/audio-generate/task-audio-2.md",
+      metadata: {
+        artifact_type: "document",
+        taskId: "task-audio-2",
+        taskType: "audio_generate",
+        taskFilePath: ".lime/tasks/audio_generate/task-audio-2.json",
+        audioUrl: "https://cdn.example/audio/task-audio-2.mp3",
+        modalityContractKey: "voice_generation",
+      },
+    });
+    expect(artifact?.metadata.artifactDocument).toMatchObject({
+      artifactId: "audio-generate:task-audio-2",
+      title: "配音生成任务",
+      metadata: {
+        taskFilePath: ".lime/tasks/audio_generate/task-audio-2.json",
+        audioUrl: "https://cdn.example/audio/task-audio-2.mp3",
+      },
     });
   });
 });

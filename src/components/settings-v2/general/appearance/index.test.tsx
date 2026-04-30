@@ -177,16 +177,24 @@ describe("AppearanceSettings", () => {
     expect(text).toContain("外观");
     expect(text).toContain("管理主题、语言、提示音效、推荐行为和底部入口。");
     expect(text).toContain("主题：跟随系统");
-    expect(text).toContain("配色：Lime 经典");
+    expect(text).toContain("配色：墨绿");
     expect(text).toContain("语言：中文");
     expect(text).toContain("提示音效：已开启");
     expect(text).toContain("基础外观");
     expect(text).toContain("主题模式");
     expect(text).toContain("色彩方案");
-    expect(text).toContain("Lime 经典");
-    expect(text).toContain("森林");
-    expect(text).toContain("海雾");
-    expect(text).toContain("砂岩");
+    expect(text).toContain("随机");
+    expect(text).toContain("墨绿");
+    expect(text).toContain("自然");
+    expect(text).toContain("海洋");
+    expect(text).toContain("复古");
+    expect(text).toContain("霓虹");
+    expect(text).toContain("青柠");
+    expect(text).toContain("黄昏");
+    expect(text).toContain("极简");
+    expect(text).toContain("活力");
+    expect(text).toContain("文艺");
+    expect(text).toContain("奢华");
     expect(text).toContain("界面语言");
     expect(text).toContain("可选系统入口");
     expect(text).not.toContain("持续流程");
@@ -246,27 +254,55 @@ describe("AppearanceSettings", () => {
 
   it("切换色彩方案时应持久化并立即应用到根节点", async () => {
     const { container } = await renderPage();
-    const forestButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("森林"),
+    const luxuryButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("奢华"),
     );
 
-    expect(forestButton).toBeInstanceOf(HTMLButtonElement);
+    expect(luxuryButton).toBeInstanceOf(HTMLButtonElement);
 
     await act(async () => {
-      forestButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      luxuryButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 
     expect(localStorage.getItem(LIME_COLOR_SCHEME_STORAGE_KEY)).toBe(
-      "lime-forest",
+      "lime-luxury",
     );
     expect(document.documentElement.dataset.limeColorScheme).toBe(
-      "lime-forest",
+      "lime-luxury",
     );
     expect(
       document.documentElement.style.getPropertyValue("--lime-chrome-rail"),
-    ).toBe("#f4f7f1");
-    expect(container.textContent ?? "").toContain("配色：森林");
+    ).toBe("#f4efe2");
+    expect(container.textContent ?? "").toContain("配色：奢华");
+  });
+
+  it("点击随机配色时应落到真实预设并持久化", async () => {
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+
+    try {
+      const { container } = await renderPage();
+      const randomButton = Array.from(
+        container.querySelectorAll("button"),
+      ).find((button) => button.textContent?.includes("随机"));
+
+      expect(randomButton).toBeInstanceOf(HTMLButtonElement);
+
+      await act(async () => {
+        randomButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await Promise.resolve();
+      });
+
+      expect(localStorage.getItem(LIME_COLOR_SCHEME_STORAGE_KEY)).toBe(
+        "lime-forest",
+      );
+      expect(document.documentElement.dataset.limeColorScheme).toBe(
+        "lime-forest",
+      );
+      expect(container.textContent ?? "").toContain("配色：自然");
+    } finally {
+      randomSpy.mockRestore();
+    }
   });
 
   it("切换主题模式时应持久化并立即应用到整个应用根节点", async () => {

@@ -106,9 +106,61 @@ export const InputColumn = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
+`;
+
+export const InputSuggestionLayer = styled.div`
+  position: absolute;
+  top: 4px;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  color: hsl(var(--muted-foreground) / 0.58);
+  font-size: 14px;
+  line-height: 1.5;
+  pointer-events: none;
+
+  &.floating-composer {
+    top: 4px;
+    font-size: 17px;
+    line-height: 1.78;
+  }
+
+  &.floating-composer.floating-collapsed {
+    top: 8px;
+    line-height: 1.35;
+  }
+`;
+
+export const InputSuggestionText = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+export const InputSuggestionKeycap = styled.span`
+  display: inline-flex;
+  min-height: 25px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.11);
+  padding: 0 0.62rem;
+  color: hsl(var(--muted-foreground) / 0.82);
+  font-size: 0.82em;
+  font-weight: 760;
+  letter-spacing: 0.01em;
 `;
 
 export const StyledTextarea = styled.textarea`
+  position: relative;
+  z-index: 1;
   flex: 1;
   padding: 4px 0 0;
   border-radius: 0;

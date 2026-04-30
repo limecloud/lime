@@ -4824,6 +4824,13 @@ mod tests {
         assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
         assert!(merged.contains("应立即改为直调 Skill(transcription_generate)"));
         assert!(merged.contains("不要伪造“转写已完成”"));
+        assert!(merged.contains(
+            "modality_contract_key=audio_transcription, modality=audio, routing_slot=audio_transcription_model"
+        ));
+        assert!(merged.contains("当前合同所需能力：text_generation, audio_transcription"));
+        assert!(merged.contains("frontend_direct_asr"));
+        assert!(merged.contains("runtime_contract(JSON)"));
+        assert!(merged.contains("contract_key\":\"audio_transcription"));
         assert!(merged.contains("当前任务已经显式进入转写技能主链"));
     }
 
@@ -5493,6 +5500,63 @@ mod tests {
                 .and_then(|value| value.get("binding_key"))
                 .and_then(serde_json::Value::as_str),
             Some("pdf_read")
+        );
+    }
+
+    #[test]
+    fn test_prepare_transcription_skill_launch_request_metadata_sets_contract_fields() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "transcription_skill_launch": {
+                    "skill_name": "transcription_generate",
+                    "kind": "transcription_task",
+                    "transcription_task": {
+                        "source_url": "https://example.com/interview.mp4"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_transcription_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        let launch = harness
+            .get("transcription_skill_launch")
+            .and_then(serde_json::Value::as_object)
+            .expect("transcription_skill_launch");
+        assert_eq!(
+            launch
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("audio_transcription")
+        );
+        let transcription_task = launch
+            .get("transcription_task")
+            .and_then(serde_json::Value::as_object)
+            .expect("transcription_task");
+        assert_eq!(
+            transcription_task
+                .get("modality_contract_key")
+                .and_then(serde_json::Value::as_str),
+            Some("audio_transcription")
+        );
+        assert_eq!(
+            transcription_task
+                .get("routing_slot")
+                .and_then(serde_json::Value::as_str),
+            Some("audio_transcription_model")
+        );
+        assert_eq!(
+            transcription_task
+                .get("runtime_contract")
+                .and_then(|value| value.get("executor_binding"))
+                .and_then(|value| value.get("binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("transcription_generate")
         );
     }
 

@@ -293,7 +293,7 @@ pub fn get_system_providers() -> Vec<SystemProviderDef> {
             id: "sensenova",
             name: "SenseNova",
             provider_type: ApiProviderType::Openai,
-            api_host: "https://api.sensenova.cn/compatible-mode/v1",
+            api_host: "https://api.sensenova.cn/compatible-mode/v2",
             group: ProviderGroup::Chinese,
             sort_order: 29,
             api_version: None,

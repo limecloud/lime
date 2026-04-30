@@ -3798,6 +3798,20 @@ describe("useWorkspaceSendActions", () => {
                 timestamps: true,
                 speaker_labels: true,
                 entry_source: "at_transcription_command",
+                modality_contract_key: "audio_transcription",
+                modality: "audio",
+                required_capabilities: [
+                  "text_generation",
+                  "audio_transcription",
+                ],
+                routing_slot: "audio_transcription_model",
+                runtime_contract: expect.objectContaining({
+                  contract_key: "audio_transcription",
+                  routing_slot: "audio_transcription_model",
+                  executor_binding: expect.objectContaining({
+                    binding_key: "transcription_generate",
+                  }),
+                }),
               },
             },
           },
@@ -5810,6 +5824,7 @@ describe("useWorkspaceSendActions", () => {
               runtime_contract: expect.objectContaining({
                 contract_key: "browser_control",
               }),
+              entry_source: "at_browser_agent_command",
             }),
           },
         },
@@ -5863,6 +5878,7 @@ describe("useWorkspaceSendActions", () => {
               runtime_contract: expect.objectContaining({
                 contract_key: "browser_control",
               }),
+              entry_source: "at_mini_tester_command",
             }),
           },
         },

@@ -1,88 +1,111 @@
-## Lime v1.24.0
+## Lime v1.25.0
 
 发布日期：`2026-04-30`
 
 ### 发布概览
 
-- 本次发布目标 tag 为 `v1.24.0`。
-- 本次发布聚焦多模态运行合同底座、Browser / PDF / Voice / Research / Text Transform 合同闭环、任务中心与旧会话打开体验、工作台首页技能入口，以及版本发布配置同步。
-- 本轮待递交内容覆盖 Rust 后端、Tauri 配置、前端 Agent Workspace / Home / Settings / Provider / DevBridge、治理合同 registry、测试覆盖、版本锁文件、图片素材与执行计划文档。
+- 本次发布目标 tag 为 `v1.25.0`，重点把 Lime 的语音输入、音频转写、AgentUI 旧会话体验和多模态运行合同推进到同一条 current 主链。
+- 版本文件、Tauri 配置、Cargo / npm lockfile、CLI wrapper、浏览器 mock 与 release updater 测试样例已同步到 `1.25.0`。
+- 该版本继续坚持“一个事实源”：语音、音频、转写、任务轻卡、Evidence Pack、Replay 与 GUI 恢复层都消费统一的 runtime contract / task artifact / media task index，而不是新增平行协议。
 
-### 重点更新
+### 用户可见更新
 
-#### 1. 版本号同步到 v1.24.0
+#### 1. 离线语音模型与 Fn 听写
 
-- 应用版本已同步为 `1.24.0`：
-  - `package.json`
-  - `package-lock.json`
-  - `src-tauri/Cargo.toml`
-  - `src-tauri/Cargo.lock`
-  - `src-tauri/tauri.conf.json`
-  - `src-tauri/tauri.conf.headless.json`
-- `packages/lime-cli-npm/package.json` 与 `packages/lime-cli-npm/README.md` 已同步到 `1.24.0`，保持 CLI wrapper 与桌面 release 版本一致。
-- 浏览器模式默认 mock 的 update current version 已同步为 `1.24.0`。
-- GitHub release asset staging 测试中的当前发布样例已同步到 `v1.24.0`。
+- 设置页新增 `SenseVoice Small` 本地语音模型主链：可查看安装状态、下载模型、删除本地模型、设为默认 ASR、执行 WAV 文件测试转写。
+- 本地模型按需下载到 Lime 数据目录，不进入桌面安装包；缺失模型文件时会给出明确引导，不会静默拉取大模型。
+- `voice-core` 接入 `sherpa-onnx` offline recognizer，支持通过 `model.int8.onnx` 与 `tokens.txt` 运行 SenseVoice 本地转写。
+- `voice_asr_service` 新增 `SenseVoiceLocal` 分支，录音采样率非 `16kHz` 时会转换为 `16kHz` mono float samples 后再识别。
+- macOS 新增 Fn 按住录音第一刀：按住 Fn 打开语音输入，松开 Fn 停止并转写；Fn 不可用或权限不足时保留普通全局快捷键 fallback。
+- 语音设置、快捷键设置、onboarding 语音测试与 ASR Provider UI 已补齐 SenseVoice / Fn 状态展示和回归覆盖。
 
-#### 2. 多模态运行合同底座
+#### 2. Audio Transcription 转写任务
 
-- 新增并扩展 `ModalityRuntimeContract` 前端 registry 与 Rust 侧合同常量，统一 `image_generation`、`browser_control`、`pdf_extract`、`voice_generation`、`web_research`、`text_transform` 六类底层运行合同。
-- `scripts/check-modality-runtime-contracts.mjs` 与 `npm run governance:modality-contracts` 继续作为合同 registry 的机器校验入口，保护 contract key、entry binding、executor binding 与 metadata path 不漂移。
-- 图片生成任务、媒体任务 API、DevBridge mock 与治理目录册同步合同字段，避免入口层直接拥有底层 task / model / artifact / evidence 事实源。
-- `docs/roadmap/warp/contract-schema.md` 与 `docs/exec-plans/multimodal-runtime-contract-plan.md` 更新合同 schema、执行阶段与 current / compat / deprecated / dead 分类。
+- `@转写 / @transcribe / @Audio Extractor` 归并到 `audio_transcription` 运行合同，入口只作为 binding，不再直接伪造 transcript 事实源。
+- 新增 `transcription_generate` task artifact 主链：任务会写入 contract snapshot、transcript 状态、provider 结果、错误码与统一媒体任务索引。
+- 最小 `lime-transcription-worker` 接入 OpenAI-compatible `/audio/transcriptions` provider：支持本地 `source_path` 与远程 `source_url`，成功后写入 `.lime/runtime/transcripts/*`。
+- 转写失败会保留结构化错误，例如 provider 未配置、source 不可读、provider 请求失败、空 transcript、输出写入失败等；不会退回前端直连 ASR 或普通文件读取。
+- 前端转写轻卡和 workspace viewer 可从媒体任务索引恢复完成态或失败态，完成态支持 transcript 文本、语言、输出格式、路径和时间轴信息展示。
+- Transcript parser 支持从 verbose JSON、VTT / SRT 内容中恢复分段、时间戳和说话人信息。
+- 转写校对产物新增 `transcriptCorrection*` metadata：保存修订版本时保留原始 transcript 不可变，并记录修订文本、分段数量、说话人数量和来源路径。
 
-#### 3. Browser / PDF / Voice / Research / Text Transform 合同闭环
+#### 3. 音频生成与多模态任务恢复
 
-- `@浏览器` / Browser Assist 发送链路注入 `browser_control` 合同快照，Rust 侧保留 Browser Assist runtime hint，并把 browser tool timeline metadata 纳入 evidence / replay。
-- `@读PDF` 入口收敛到 `pdf_extract` 合同，前端 metadata、Rust prompt 准备、Skill(pdf_read) timeline、evidence pack 与 replay 检查保持同一份合同事实源。
-- `@配音` 服务型入口收敛到 `voice_generation` 合同，ServiceSkill / voice runtime 的 request metadata、timeline args 与 replay grader 统一识别音频运行证据。
-- `@搜索`、`@深搜`、`@站点搜索`、`@研报`、`@竞品` 统一归入 `web_research` 合同，并补齐 evidence `snapshotIndex`，让联网研究可以按 contract/source/routing/tool trace 检索。
-- `@读文件`、`@总结`、`@翻译`、`@分析`、`@发布合规`、`@Logo拆解` 统一归入 `text_transform` 合同，禁止回退为前端直出、ToolSearch / WebSearch 或普通聊天摘要。
+- `audio_generate` 与 `transcription_generate` 继续统一到媒体任务索引，任务轻卡、运行时文档、DevBridge mock 和恢复层消费同一份 artifact。
+- 音频预览 runtime 会优先读取统一索引中的 audio output 状态，不再依赖隐藏 task JSON；provider 失败时不会保留旧音频路径或伪造可播放结果。
+- `TaskMessagePreview`、`taskPreviewFromToolResult`、媒体任务 API 与 mock 输出补齐 audio / transcript 状态字段，减少完成态、失败态、缺 trace 之间的误判。
 
-#### 4. Evidence Pack / Replay / Task Runtime
+#### 4. AgentUI 首页、任务中心与旧会话性能
 
-- `runtime_evidence_pack_service` 与 `runtime_replay_case_service` 扩展多模态合同快照、索引、expected checks 与 grader 规则，回放样本能判断是否真实命中对应 executor trace。
-- 媒体 runtime 与 `media_task_cmd` 补齐合同字段归一化、能力缺口提示、artifact payload 与任务预览字段。
-- 前端 `agentRuntime` media/session 类型、`mediaTasks` API、ImageTask viewer 与工作台预览 runtime 同步消费合同字段，减少 viewer 自行猜测 artifact 类型。
-- `modalityRuntimeContracts` 的前端/Rust 双侧测试覆盖合同解析、fallback 与 mock 分发，保持浏览器模式不是假绿。
+- Agent Chat 首页补齐 Home Start Surface、引导卡、技能卡片、更多技能抽屉、Starter Chips 与稳定回归。
+- 新建任务、打开已有会话、任务中心 tab、侧栏会话列表之间的事件链收敛到 `taskCenterDraftTaskEvents`，减少旧导航和本地 tab 状态双写。
+- 旧会话打开继续降载：最近会话首屏请求从大窗口降到 `11`，任务中心 topics 初始请求降到 `21`，归档列表也改为可见数量 `+1` 的哨兵分页。
+- 侧栏 hover / focus 旧会话预取延迟到约 `900ms`，点击时取消未触发预取，避免鼠标扫过列表时抢占正式切换链路。
+- 侧栏打开旧会话后，路由追平会在短窗口内去重，避免同一用户意图触发两次 `switchTopic` / `agent_runtime_get_session`。
+- 旧会话恢复首帧优先正文和输入区，运行轨迹、thread items、queued turns、pending actions 等投影延迟到 idle；正在发送、聚焦 timeline 或存在 A2UI 待处理时不会延迟实时反馈。
+- `MessageList` 继续强化旧会话轻量渲染：历史窗口只先渲染最近消息，timeline 延迟构建，长历史 Markdown 使用轻量预览，Provider / Prompt Cache 配置扫描推迟到首帧后。
+- 新增 `window.__LIME_AGENTUI_PERF__` 性能采集器，可按 session 汇总 `clickToMessageListPaintMs`、`runtimeGetSessionDurationMs`、隐藏历史数量、最终渲染消息数量和可用堆内存指标。
 
-#### 5. 工作台首页、任务中心与旧会话体验
+#### 5. Browser Assist 与工作区展示
 
-- Agent Chat 新增 Home Start Surface、技能卡片画廊、更多技能抽屉与场景技能管理弹窗，并提交对应 home cover 素材。
-- EmptyState / Workspace / AppSidebar 接入新的首页入口、补充快捷入口与任务中心事件桥，一级“新建任务”与会话侧栏切换保持可取消草稿语义。
-- 旧会话打开性能继续收口：首屏优先最近消息、timeline 延后物化、历史消息与流式 delta overlap 合并，降低旧会话切换卡顿与布局跳动。
-- MessageList / Team Workspace / Workspace Send Actions 增补回归，覆盖新建草稿、旧会话切换、图片任务预览和合同 metadata 发送。
+- Browser Assist renderer 增强运行结果展示，支持更清晰地呈现浏览器会话、页面、操作结果与可恢复状态。
+- Workspace 的音频任务预览、转写任务预览、图片任务预览和 general workbench 恢复逻辑进一步对齐 task artifact / media index 事实源。
+- Inputbar 与消息渲染继续收紧多模态、运行态、队列态和任务文件展示，减少过程信息污染最终正文。
 
-#### 6. Provider / 设置页 / 云端能力边界
+#### 6. Provider、模型能力与设置体验
 
-- Provider 与 API Key 设置页进一步收口模型能力、Prompt Cache、云端套餐 / 权益 / API Key 展示口径，避免本地设置页重新承载用户中心商业工作台。
-- OEM cloud access、LimeHub provider sync、model registry service 与 provider list 工具函数补齐测试，保护登录态、权益摘要、模型支持和 provider capability 展示。
-- `withI18nPatch`、Settings Provider 页面与相关 hooks 做格式化和回归更新，保持当前设置入口与 mock / Rust 模型事实源一致。
+- API Key Provider 设置页补齐 provider 配置、模型能力和 Prompt Cache 相关展示与回归。
+- OpenAI-compatible provider 和 credential bridge 增强，为音频转写、模型能力推断和 provider 解析提供更稳定的后端事实源。
+- LimeHub local dev models 与本地 provider 模型列表同步更新，减少设置页和运行时模型认知漂移。
+- 外观配色扩展：在原有配色基础上新增 `霓虹`、`青柠`、`暮色`、`极简`、`鲜活`、`文学`、`奢华` 等主题，并调整现有配色名称与描述。
 
-### 待递交范围确认
+### 开发者与治理更新
 
-- 版本与发布：版本文件、lockfile、Tauri 配置、CLI wrapper、release updater 测试样例与 release notes。
-- Rust 主链：多模态合同、媒体任务、Browser Assist、PDF / Research / Summary / Translation / Analysis / ServiceSkill launch、evidence pack、replay case、model registry。
-- 前端主链：Agent Chat Workspace、Home Start Surface、MessageList、ImageTask Viewer、任务中心事件桥、Settings Provider、API Key Provider、DevBridge、tauri mock。
-- 治理与文档：`modalityRuntimeContracts` registry / 校验脚本、Warp contract schema、执行计划与旧会话性能计划。
-- 素材与测试：home cover 素材、新增/更新的 Vitest、Rust 回归与治理合同测试。
+#### 1. 运行合同与治理校验
+
+- `modalityRuntimeContracts` 新增 / 更新 `audio_transcription`，并同步 Rust 合同常量、前端 registry、mock 和校验脚本。
+- 新增 `modalityArtifactGraph.json`，把 entry binding、executor binding、artifact、viewer 和 evidence / replay 关系显式化。
+- `scripts/check-modality-runtime-contracts.mjs` 扩展校验范围，覆盖 capability、model role、artifact kind、artifact graph 与 current contract 同步关系。
+- `npm run test:contracts` 现在覆盖 agent runtime client 生成检查、命令契约、harness 契约、modality contracts 与 cleanup report contract。
+
+#### 2. Evidence Pack 与 Replay
+
+- Evidence Pack 可导出 audio transcription contract snapshot、transcript 索引、audio output 索引、provider 失败状态与 runtime verification 信息。
+- Replay case 可携带 `audio_transcription`、`voice_generation`、`pdf_extract`、`browser_control`、`web_research`、`text_transform` 等合同进入 grader checks。
+- Replay 对音频和转写失败做更细分类：可区分 provider failure、缺少输出、缺少 trace、合同不匹配等情况。
+
+#### 3. 文档与路线图
+
+- 新增 AgentUI 路线图文档，覆盖目标架构、代码地图、事件流、时序图、后端协作和实施路线。
+- 新增离线语音模型路线图，明确 SenseVoice Small、Fn 听写、模型下载、测试转写和后续 VAD / 历史规划。
+- Warp roadmap 补齐 artifact graph、contract schema、acceptance 与 evolution guide，用于多模态 / runtime contract 后续演进。
+- Playwright E2E 指南补充真实 GUI 续测约束，继续优先复用稳定桌面 Chrome / Lime 页签。
+- `AGENTS.md` 与执行计划文档同步更新，保留本轮关键决策和验证记录。
+
+### 已知说明
+
+- SenseVoice Small 当前按需从上游 release 下载；内置清单会记录下载摘要，但上游未在本地清单内提供可信 sha256 时不会声明强校验完成。
+- Fn 按住录音当前只作为 macOS 第一刀能力；第三方键盘或缺少系统权限时，用户应继续使用普通语音快捷键。
+- `audio_transcription` 执行器当前只接入 OpenAI-compatible transcription adapter；其他 provider runtime type 仍需要后续补 client。
+- 真实联网 web search 测试默认 gated，需要设置 `LIME_REAL_API_TEST=1` 才会执行。
 
 ### 校验状态
 
-- 已执行：
+- 已通过：
   - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
   - `npm run format`
-  - `npm run verify:app-version`
-  - `cargo test --manifest-path "src-tauri/Cargo.toml" --target-dir "src-tauri/target/codex-release-v124"`
-  - `cargo clippy --manifest-path "src-tauri/Cargo.toml" --target-dir "src-tauri/target/codex-release-v124" --all-targets --all-features`
+  - `npm run verify:app-version`（版本一致性检查通过：`1.25.0`）
   - `npm run lint`
-  - `npm test`
+  - `npm run typecheck`
+  - `npm test`（`44` 个 Vitest 批次通过）
   - `npm run test:contracts`
-  - `npm run verify:gui-smoke`
-  - `git diff --check`
-- 结果：上述校验均已通过；`cargo test` 结果为 `1103 passed; 0 failed; 0 ignored`，另有 2 个真实联网测试按预期 ignored。
-- 备注：`cargo clippy` 仍保留既有 warning（`manual_repeat_n`、`too_many_arguments`、`needless_lifetimes`），本轮未扩大 warning 面。
-- GUI 主路径：`npm run verify:gui-smoke` 已通过，覆盖 DevBridge、默认 workspace、browser runtime、site adapter catalog、服务技能入口与 runtime tool surface 页面烟测。
+  - `npm run lint:rust`（命令通过；仓库仍保留若干既有 Clippy warning，未配置为阻断）
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" -p voice-core`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml"`（主库 `1120` 项通过，DeepSeek runtime `2` 项通过，真实联网 web search `2` 项按环境变量门禁 ignored）
+  - `npm run verify:gui-smoke -- --reuse-running --timeout-ms 600000`
+- 说明：完整 `cargo test` 首次因本机磁盘空间不足中断；清理已确认无进程占用的临时 GUI smoke target 后重跑通过。
+- GUI 主路径：已复用运行中的 headless Tauri 完成最小冒烟，覆盖 DevBridge、默认 workspace、browser runtime、site adapter、Agent service skill entry 与 runtime tool surface。
 
 ---
 
-**完整变更**: `v1.23.0` -> `v1.24.0`
+**完整变更**: `v1.24.0` -> `v1.25.0`

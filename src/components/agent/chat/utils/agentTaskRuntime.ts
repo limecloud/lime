@@ -113,32 +113,37 @@ function resolveLatestTurn(
 }
 
 function resolveLatestAssistantMessage(messages: Message[]): Message | null {
-  return (
-    [...messages].reverse().find((message) => message.role === "assistant") ||
-    null
-  );
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === "assistant") {
+      return message;
+    }
+  }
+  return null;
 }
 
 function resolveLatestUserMessage(messages: Message[]): Message | null {
-  return (
-    [...messages]
-      .reverse()
-      .find(
-        (message) =>
-          message.role === "user" &&
-          (message.content.trim().length > 0 ||
-            (Array.isArray(message.images) && message.images.length > 0)),
-      ) || null
-  );
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (
+      message?.role === "user" &&
+      (message.content.trim().length > 0 ||
+        (Array.isArray(message.images) && message.images.length > 0))
+    ) {
+      return message;
+    }
+  }
+  return null;
 }
 
 function resolveLatestUsage(messages: Message[]): AgentTokenUsage | undefined {
-  return [...messages]
-    .reverse()
-    .find(
-      (message) =>
-        message.role === "assistant" && !message.isThinking && message.usage,
-    )?.usage;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === "assistant" && !message.isThinking && message.usage) {
+      return message.usage;
+    }
+  }
+  return undefined;
 }
 
 function resolveTaskStatus(params: {
@@ -266,14 +271,18 @@ function resolveCompletedSummary(
   latestAssistant: Message | null,
   latestTurnItems: AgentThreadItem[],
 ): string | null {
-  const latestTurnSummary = [...latestTurnItems]
-    .reverse()
-    .find(
-      (item) =>
-        item.type === "turn_summary" &&
-        item.status === "completed" &&
-        !isInternalRoutingTurnSummaryText(item.text),
-    );
+  let latestTurnSummary: AgentThreadItem | null = null;
+  for (let index = latestTurnItems.length - 1; index >= 0; index -= 1) {
+    const item = latestTurnItems[index];
+    if (
+      item?.type === "turn_summary" &&
+      item.status === "completed" &&
+      !isInternalRoutingTurnSummaryText(item.text)
+    ) {
+      latestTurnSummary = item;
+      break;
+    }
+  }
   if (latestTurnSummary?.type === "turn_summary") {
     return shorten(firstMeaningfulLine(latestTurnSummary.text), 96) || null;
   }
@@ -322,10 +331,19 @@ export function buildAgentTaskRuntimeCardModel({
   const latestTurn = resolveLatestTurn(turns, currentTurnId);
   const latestAssistant = resolveLatestAssistantMessage(messages);
   const latestUser = resolveLatestUserMessage(messages);
-  const latestTurnItems = latestTurn
-    ? threadItems.filter((item) => item.turn_id === latestTurn.id)
-    : [];
-  const latestProcessItems = latestTurnItems.filter(isProcessItem);
+  const latestTurnItems: AgentThreadItem[] = [];
+  const latestProcessItems: AgentThreadItem[] = [];
+  if (latestTurn) {
+    for (const item of threadItems) {
+      if (item.turn_id !== latestTurn.id) {
+        continue;
+      }
+      latestTurnItems.push(item);
+      if (isProcessItem(item)) {
+        latestProcessItems.push(item);
+      }
+    }
+  }
   const visibleToolCalls =
     latestAssistant?.toolCalls?.filter(
       (toolCall) => toolCall.status !== "failed",
@@ -364,12 +382,17 @@ export function buildAgentTaskRuntimeCardModel({
     (childSubagentSessions.length > 0 ? "正在协调子任务" : "当前任务");
   const title = shorten(firstMeaningfulLine(titleSource), 120) || "当前任务";
   const subtaskStats = resolveSubtaskStats(childSubagentSessions);
-  const latestPreviewItem = [...latestProcessItems]
-    .reverse()
-    .find((item) => Boolean(resolveAgentThreadToolProcessPreview(item)));
-  const latestPreview =
-    (latestPreviewItem &&
-      resolveAgentThreadToolProcessPreview(latestPreviewItem)) ||
+  let latestPreview: string | null = null;
+  for (let index = latestProcessItems.length - 1; index >= 0; index -= 1) {
+    latestPreview = resolveAgentThreadToolProcessPreview(
+      latestProcessItems[index]!,
+    );
+    if (latestPreview) {
+      break;
+    }
+  }
+  latestPreview =
+    latestPreview ||
     shorten(firstMeaningfulLine(latestAssistant?.runtimeStatus?.detail), 96) ||
     null;
 

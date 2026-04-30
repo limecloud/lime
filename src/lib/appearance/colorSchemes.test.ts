@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_LIME_COLOR_SCHEME_ID,
   LIME_COLOR_SCHEME_CHANGED_EVENT,
+  LIME_COLOR_SCHEMES,
   LIME_COLOR_SCHEME_STORAGE_KEY,
   applyLimeColorScheme,
   persistLimeColorScheme,
@@ -22,6 +23,25 @@ describe("colorSchemes", () => {
       DEFAULT_LIME_COLOR_SCHEME_ID,
     );
     expect(resolveLimeColorSchemeId(null)).toBe(DEFAULT_LIME_COLOR_SCHEME_ID);
+  });
+
+  it("应提供参考图中的完整预设配色矩阵", () => {
+    expect(LIME_COLOR_SCHEMES.map((scheme) => scheme.label)).toEqual([
+      "墨绿",
+      "自然",
+      "海洋",
+      "复古",
+      "霓虹",
+      "青柠",
+      "黄昏",
+      "极简",
+      "活力",
+      "文艺",
+      "奢华",
+    ]);
+    expect(
+      LIME_COLOR_SCHEMES.every((scheme) => scheme.swatches.length === 3),
+    ).toBe(true);
   });
 
   it("应用配色时应写入根节点 dataset 与 CSS 变量", () => {
@@ -73,15 +93,15 @@ describe("colorSchemes", () => {
     const listener = vi.fn();
     window.addEventListener(LIME_COLOR_SCHEME_CHANGED_EVENT, listener);
 
-    const resolvedId = persistLimeColorScheme("lime-forest");
+    const resolvedId = persistLimeColorScheme("lime-luxury");
 
-    expect(resolvedId).toBe("lime-forest");
+    expect(resolvedId).toBe("lime-luxury");
     expect(localStorage.getItem(LIME_COLOR_SCHEME_STORAGE_KEY)).toBe(
-      "lime-forest",
+      "lime-luxury",
     );
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener.mock.calls[0]?.[0]).toMatchObject({
-      detail: { colorSchemeId: "lime-forest" },
+      detail: { colorSchemeId: "lime-luxury" },
     });
 
     window.removeEventListener(LIME_COLOR_SCHEME_CHANGED_EVENT, listener);

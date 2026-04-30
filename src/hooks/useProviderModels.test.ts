@@ -287,9 +287,7 @@ describe("loadProviderModels", () => {
       hasApiKey: true,
     });
 
-    expect(models.map((model) => model.id)).toEqual(
-      expect.arrayContaining(["gpt-5.5", "deepseek-v4-flash"]),
-    );
+    expect(models.map((model) => model.id)).toEqual(["gpt-5.5", "gpt-5.4"]);
     expect(models.every((model) => model.provider_id === "lime-hub")).toBe(
       true,
     );

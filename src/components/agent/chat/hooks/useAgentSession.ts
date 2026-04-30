@@ -20,6 +20,7 @@ import type {
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
 import { logAgentDebug } from "@/lib/agentDebug";
+import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
 import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
 import { isAsterSessionNotFoundError } from "@/lib/asterSessionRecovery";
 import type { AgentThreadItem, AgentThreadTurn, Message } from "../types";
@@ -37,6 +38,7 @@ import {
   hydrateSessionDetailMessages,
   mergeHydratedMessagesWithLocalState,
   normalizeHistoryMessages,
+  shouldCompactCompletedSessionHistory,
 } from "./agentChatHistory";
 import {
   getAgentSessionScopedKeys,
@@ -88,7 +90,7 @@ import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayId
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 
 const INITIAL_TOPICS_IDLE_TIMEOUT_MS = 1_500;
-const INITIAL_TOPICS_SESSION_REQUEST_LIMIT = 60;
+const INITIAL_TOPICS_SESSION_REQUEST_LIMIT = 21;
 const SESSION_HISTORY_LOAD_PAGE_SIZE = 50;
 const ACTIVE_SESSION_TRANSIENT_MESSAGES_LIMIT = 48;
 const ACTIVE_SESSION_TRANSIENT_TURNS_LIMIT = 48;
@@ -97,6 +99,29 @@ const ACTIVE_SESSION_TRANSIENT_SAVE_DELAY_MS = 180;
 const ACTIVE_SESSION_TRANSIENT_SAVE_IDLE_TIMEOUT_MS = 1_800;
 const SESSION_METADATA_SYNC_DELAY_MS = 8_000;
 const SESSION_METADATA_SYNC_IDLE_TIMEOUT_MS = 15_000;
+const SESSION_DETAIL_PREFETCH_HISTORY_LIMIT = 40;
+const SESSION_DETAIL_PREFETCH_RECENT_LIMIT = 1;
+const SESSION_DETAIL_PREFETCH_DELAY_MS = 5_000;
+const SESSION_DETAIL_PREFETCH_IDLE_TIMEOUT_MS = 8_000;
+const SESSION_DETAIL_DEFERRED_HYDRATION_DELAY_MS = 1_200;
+
+type AgentSessionRuntimeDetail = Awaited<
+  ReturnType<AgentRuntimeAdapter["getSession"]>
+>;
+
+interface SessionDetailPrefetchEntry {
+  signature: string;
+  promise: Promise<AgentSessionRuntimeDetail>;
+}
+
+const sessionDetailPrefetchRegistry = new Map<
+  string,
+  SessionDetailPrefetchEntry
+>();
+
+function buildSessionDetailPrefetchKey(workspaceId: string, topicId: string) {
+  return `${workspaceId.trim() || "global"}:${topicId.trim()}`;
+}
 
 function mapSessionDetailToTopic(
   sessionId: string,
@@ -146,6 +171,17 @@ function upsertTopicFromSessionDetail(
 
     return left.id.localeCompare(right.id);
   });
+}
+
+function buildSessionDetailPrefetchSignature(
+  topicId: string,
+  topic?: Topic,
+): string {
+  return [
+    topicId,
+    topic?.updatedAt?.getTime() ?? "unknown-updated",
+    topic?.messagesCount ?? "unknown-count",
+  ].join(":");
 }
 
 export interface AgentSessionHistoryWindow {
@@ -485,6 +521,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const hydratedSessionRef = useRef<string | null>(null);
   const skipAutoRestoreRef = useRef(false);
   const sessionSwitchRequestVersionRef = useRef(0);
+  const activeSessionSwitchRef = useRef<{
+    topicId: string;
+    promise: Promise<void>;
+  } | null>(null);
   const deferredSessionHydrationCancelRef = useRef<(() => void) | null>(null);
   const pendingSessionMetadataSyncCancelRef = useRef<(() => void) | null>(null);
   const createFreshSessionPromiseRef = useRef<Promise<string | null> | null>(
@@ -1309,7 +1349,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             }
           : null,
       );
-      logAgentDebug("useAgentSession", "switchTopic.cachedSnapshotApplied", {
+      const cachedSnapshotMetricContext = {
         cacheFreshness: metadata?.freshness ?? null,
         cacheStorageKind: metadata?.storageKind ?? null,
         cachedMessagesCount: cachedSnapshot.messages.length,
@@ -1317,7 +1357,16 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         cachedTurnsCount: cachedSnapshot.threadTurns.length,
         topicId,
         workspaceId,
-      });
+      };
+      recordAgentUiPerformanceMetric(
+        "session.switch.cachedSnapshotApplied",
+        cachedSnapshotMetricContext,
+      );
+      logAgentDebug(
+        "useAgentSession",
+        "switchTopic.cachedSnapshotApplied",
+        cachedSnapshotMetricContext,
+      );
       return true;
     },
     [
@@ -1352,6 +1401,223 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     ],
   );
 
+  const prefetchTopic = useCallback(
+    async (topicId: string): Promise<boolean> => {
+      const resolvedTopicId = topicId.trim();
+      const resolvedWorkspaceId = normalizeProjectId(workspaceId);
+      if (
+        !resolvedTopicId ||
+        !resolvedWorkspaceId ||
+        isAuxiliaryAgentSessionId(resolvedTopicId) ||
+        sessionIdRef.current === resolvedTopicId
+      ) {
+        return false;
+      }
+
+      const selectedTopic = topics.find(
+        (topic) => topic.id === resolvedTopicId,
+      );
+      const signature = buildSessionDetailPrefetchSignature(
+        resolvedTopicId,
+        selectedTopic,
+      );
+      const prefetchKey = buildSessionDetailPrefetchKey(
+        resolvedWorkspaceId,
+        resolvedTopicId,
+      );
+      const existingPrefetch = sessionDetailPrefetchRegistry.get(prefetchKey);
+      if (existingPrefetch?.signature === signature) {
+        return existingPrefetch.promise.then(
+          () => true,
+          () => false,
+        );
+      }
+
+      const cachedSnapshot = loadAgentSessionCachedSnapshot(
+        resolvedWorkspaceId,
+        resolvedTopicId,
+        {
+          topicUpdatedAt: selectedTopic?.updatedAt ?? null,
+          messagesCount: selectedTopic?.messagesCount ?? null,
+        },
+      );
+      if (cachedSnapshot?.cacheMetadata?.freshness === "fresh") {
+        return false;
+      }
+
+      const prefetchStartedAt = Date.now();
+      const prefetchMetricContext = {
+        cacheFreshness: cachedSnapshot?.cacheMetadata?.freshness ?? null,
+        sessionId: resolvedTopicId,
+        workspaceId: resolvedWorkspaceId,
+      };
+      recordAgentUiPerformanceMetric(
+        "session.prefetch.start",
+        prefetchMetricContext,
+      );
+      logAgentDebug(
+        "useAgentSession",
+        "sessionPrefetch.start",
+        prefetchMetricContext,
+      );
+
+      const promise = runtime
+        .getSession(resolvedTopicId, {
+          historyLimit: SESSION_DETAIL_PREFETCH_HISTORY_LIMIT,
+        })
+        .then((detail) => {
+          const detailWorkspaceId = normalizeProjectId(detail.workspace_id);
+          if (
+            detailWorkspaceId &&
+            resolvedWorkspaceId &&
+            detailWorkspaceId !== resolvedWorkspaceId
+          ) {
+            logAgentDebug("useAgentSession", "sessionPrefetch.skipped", {
+              detailWorkspaceId,
+              reason: "workspace_mismatch",
+              sessionId: resolvedTopicId,
+              workspaceId: resolvedWorkspaceId,
+            });
+            return detail;
+          }
+
+          const messages = hydrateSessionDetailMessages(
+            detail,
+            resolvedTopicId,
+            {
+              compactCompletedHistory:
+                shouldCompactCompletedSessionHistory(detail),
+            },
+          );
+          const threadTurns = detail.turns || [];
+          const threadItems = filterConversationThreadItems(
+            normalizeLegacyThreadItems(detail.items || []),
+          );
+          saveAgentSessionCachedSnapshot(
+            resolvedWorkspaceId,
+            resolvedTopicId,
+            {
+              messages,
+              threadTurns,
+              threadItems,
+              currentTurnId: null,
+            },
+            {
+              sessionUpdatedAt: detail.updated_at * 1000,
+              messagesCount: detail.messages_count ?? messages.length,
+              historyTruncated:
+                detail.history_truncated === true ||
+                (typeof detail.messages_count === "number" &&
+                  detail.messages_count > messages.length),
+            },
+          );
+          if (detailWorkspaceId) {
+            savePersistedSessionWorkspaceId(resolvedTopicId, detailWorkspaceId);
+          }
+          const prefetchSuccessMetricContext = {
+            durationMs: Date.now() - prefetchStartedAt,
+            itemsCount: threadItems.length,
+            messagesCount: messages.length,
+            sessionId: resolvedTopicId,
+            turnsCount: threadTurns.length,
+            workspaceId: resolvedWorkspaceId,
+          };
+          recordAgentUiPerformanceMetric(
+            "session.prefetch.success",
+            prefetchSuccessMetricContext,
+          );
+          logAgentDebug(
+            "useAgentSession",
+            "sessionPrefetch.success",
+            prefetchSuccessMetricContext,
+          );
+          return detail;
+        })
+        .catch((error) => {
+          recordAgentUiPerformanceMetric("session.prefetch.error", {
+            durationMs: Date.now() - prefetchStartedAt,
+            sessionId: resolvedTopicId,
+            workspaceId: resolvedWorkspaceId,
+          });
+          logAgentDebug(
+            "useAgentSession",
+            "sessionPrefetch.error",
+            {
+              error,
+              sessionId: resolvedTopicId,
+              workspaceId: resolvedWorkspaceId,
+            },
+            { level: "warn", throttleMs: 1000 },
+          );
+          throw error;
+        })
+        .finally(() => {
+          const current = sessionDetailPrefetchRegistry.get(prefetchKey);
+          if (current?.promise === promise) {
+            sessionDetailPrefetchRegistry.delete(prefetchKey);
+          }
+        });
+
+      sessionDetailPrefetchRegistry.set(prefetchKey, {
+        signature,
+        promise,
+      });
+
+      return promise.then(
+        () => true,
+        () => false,
+      );
+    },
+    [runtime, sessionIdRef, topics, workspaceId],
+  );
+
+  useEffect(() => {
+    if (
+      import.meta.env?.MODE === "test" ||
+      import.meta.env?.VITEST ||
+      !topicsReady ||
+      disableSessionRestore ||
+      !workspaceId?.trim()
+    ) {
+      return;
+    }
+
+    const candidates = topics
+      .filter(
+        (topic) =>
+          topic.id !== sessionIdRef.current &&
+          !isAuxiliaryAgentSessionId(topic.id),
+      )
+      .slice(0, SESSION_DETAIL_PREFETCH_RECENT_LIMIT);
+    if (candidates.length === 0) {
+      return;
+    }
+
+    return scheduleMinimumDelayIdleTask(
+      () => {
+        void (async () => {
+          for (const topic of candidates) {
+            if (sessionIdRef.current === topic.id) {
+              continue;
+            }
+            await prefetchTopic(topic.id);
+          }
+        })();
+      },
+      {
+        minimumDelayMs: SESSION_DETAIL_PREFETCH_DELAY_MS,
+        idleTimeoutMs: SESSION_DETAIL_PREFETCH_IDLE_TIMEOUT_MS,
+      },
+    );
+  }, [
+    disableSessionRestore,
+    prefetchTopic,
+    sessionIdRef,
+    topics,
+    topicsReady,
+    workspaceId,
+  ]);
+
   const loadRuntimeSessionDetail = useCallback(
     async (params: {
       topicId: string;
@@ -1366,35 +1632,112 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         resumeSessionStartHooks = false,
       } = params;
       const requestStartedAt = Date.now();
-      logAgentDebug("useAgentSession", "switchTopic.fetchDetail.start", {
+      const fetchDetailStartMetricContext = {
         elapsedBeforeRequestMs: requestStartedAt - startedAt,
         mode,
         resumeSessionStartHooks,
+        sessionId: topicId,
         topicId,
         workspaceId,
-      });
+      };
+      recordAgentUiPerformanceMetric(
+        "session.switch.fetchDetail.start",
+        fetchDetailStartMetricContext,
+      );
+      logAgentDebug(
+        "useAgentSession",
+        "switchTopic.fetchDetail.start",
+        fetchDetailStartMetricContext,
+      );
 
       try {
+        const prefetchedDetail =
+          !resumeSessionStartHooks &&
+          sessionDetailPrefetchRegistry.get(
+            buildSessionDetailPrefetchKey(
+              normalizeProjectId(workspaceId) || "",
+              topicId,
+            ),
+          );
+        if (prefetchedDetail) {
+          try {
+            const detail = await prefetchedDetail.promise;
+            const fetchPrefetchMetricContext = {
+              itemsCount: detail.items?.length ?? 0,
+              messagesCount: detail.messages.length,
+              mode,
+              queuedTurnsCount: detail.queued_turns?.length ?? 0,
+              requestDurationMs: Date.now() - requestStartedAt,
+              sessionId: topicId,
+              topicId,
+              totalElapsedMs: Date.now() - startedAt,
+              turnsCount: detail.turns?.length ?? 0,
+              workspaceId,
+            };
+            recordAgentUiPerformanceMetric(
+              "session.switch.fetchDetail.prefetch",
+              fetchPrefetchMetricContext,
+            );
+            logAgentDebug(
+              "useAgentSession",
+              "switchTopic.fetchDetail.prefetch",
+              fetchPrefetchMetricContext,
+            );
+            return detail;
+          } catch (prefetchError) {
+            logAgentDebug(
+              "useAgentSession",
+              "switchTopic.fetchDetail.prefetchFallback",
+              {
+                error: prefetchError,
+                mode,
+                topicId,
+                workspaceId,
+              },
+              { level: "warn", throttleMs: 1000 },
+            );
+          }
+        }
+
         const detail = resumeSessionStartHooks
           ? await runtime.getSession(topicId, {
               resumeSessionStartHooks: true,
               historyLimit: 40,
             })
           : await runtime.getSession(topicId, { historyLimit: 40 });
-        logAgentDebug("useAgentSession", "switchTopic.fetchDetail.success", {
+        const fetchSuccessMetricContext = {
           itemsCount: detail.items?.length ?? 0,
           messagesCount: detail.messages.length,
           mode,
           queuedTurnsCount: detail.queued_turns?.length ?? 0,
           requestDurationMs: Date.now() - requestStartedAt,
           resumeSessionStartHooks,
+          sessionId: topicId,
           topicId,
           totalElapsedMs: Date.now() - startedAt,
           turnsCount: detail.turns?.length ?? 0,
           workspaceId,
-        });
+        };
+        recordAgentUiPerformanceMetric(
+          "session.switch.fetchDetail.success",
+          fetchSuccessMetricContext,
+        );
+        logAgentDebug(
+          "useAgentSession",
+          "switchTopic.fetchDetail.success",
+          fetchSuccessMetricContext,
+        );
         return detail;
       } catch (error) {
+        recordAgentUiPerformanceMetric("session.switch.fetchDetail.error", {
+          mode,
+          requestDurationMs: Date.now() - requestStartedAt,
+          resumeSessionStartHooks,
+          sessionId: topicId,
+          topicId,
+          totalElapsedMs: Date.now() - startedAt,
+          workspaceId,
+        });
         logAgentDebug(
           "useAgentSession",
           "switchTopic.fetchDetail.error",
@@ -1566,7 +1909,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         sessionMetadataPatch.accessMode = workspaceDefaultAccessMode;
       }
 
-      logAgentDebug("useAgentSession", "switchTopic.success", {
+      const switchSuccessMetricContext = {
+        accessModeSource: runtimeAccessMode
+          ? "execution_runtime"
+          : shadowAccessMode
+            ? "session_storage"
+            : "workspace_default",
         durationMs: Date.now() - startedAt,
         executionStrategySource: runtimeExecutionStrategy
           ? "session_detail"
@@ -1582,16 +1930,21 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           : topicPreference
             ? "session_storage"
             : null,
-        accessModeSource: runtimeAccessMode
-          ? "execution_runtime"
-          : shadowAccessMode
-            ? "session_storage"
-            : "workspace_default",
         queuedTurnsCount: detail.queued_turns?.length ?? 0,
+        sessionId: topicId,
         topicId,
         turnsCount: detail.turns?.length ?? 0,
         workspaceId,
-      });
+      };
+      recordAgentUiPerformanceMetric(
+        "session.switch.success",
+        switchSuccessMetricContext,
+      );
+      logAgentDebug(
+        "useAgentSession",
+        "switchTopic.success",
+        switchSuccessMetricContext,
+      );
 
       const persistedWorkspaceId = runtimeWorkspaceId || resolvedWorkspaceId;
       if (persistedWorkspaceId) {
@@ -1841,6 +2194,31 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         return;
       }
 
+      const canReuseActiveSwitch =
+        !options?.forceRefresh &&
+        !options?.resumeSessionStartHooks &&
+        !options?.allowDetachedSession &&
+        options?.restoreSource !== "auto";
+      const activeSwitch = activeSessionSwitchRef.current;
+      if (canReuseActiveSwitch && activeSwitch?.topicId === topicId) {
+        logAgentDebug("useAgentSession", "switchTopic.reuseInFlight", {
+          topicId,
+          workspaceId,
+        });
+        return activeSwitch.promise;
+      }
+
+      let resolveActiveSwitch: () => void = () => {};
+      const activeSwitchPromise = new Promise<void>((resolve) => {
+        resolveActiveSwitch = resolve;
+      });
+      if (canReuseActiveSwitch) {
+        activeSessionSwitchRef.current = {
+          topicId,
+          promise: activeSwitchPromise,
+        };
+      }
+
       const currentSessionId = sessionIdRef.current;
       if (currentSessionId) {
         persistSessionModelPreference(
@@ -1876,7 +2254,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           cachedSnapshotMetadata?.freshness === "stale" ||
           selectedTopic?.status === "running" ||
           selectedTopic?.status === "waiting";
-        logAgentDebug("useAgentSession", "switchTopic.start", {
+        const switchStartMetricContext = {
           cacheFreshness: cachedSnapshotMetadata?.freshness ?? null,
           cacheStorageKind: cachedSnapshotMetadata?.storageKind ?? null,
           cachedLocalMessagesCount: cachedTargetSnapshot?.messages.length ?? 0,
@@ -1884,9 +2262,19 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           messagesCount: messages.length,
           refreshCachedSnapshotImmediately:
             shouldRefreshCachedSnapshotImmediately,
+          sessionId: topicId,
           topicId,
           workspaceId,
-        });
+        };
+        recordAgentUiPerformanceMetric(
+          "session.switch.start",
+          switchStartMetricContext,
+        );
+        logAgentDebug(
+          "useAgentSession",
+          "switchTopic.start",
+          switchStartMetricContext,
+        );
         if (currentSessionId !== topicId) {
           applyCachedTopicSnapshot(topicId, cachedTargetSnapshot);
         }
@@ -1903,16 +2291,26 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           persistSessionRestoreCandidate(topicId);
           setIsAutoRestoringSession(false);
           setIsSessionHydrating(false);
-          logAgentDebug("useAgentSession", "switchTopic.deferHydration", {
+          const deferHydrationMetricContext = {
             cacheFreshness: cachedSnapshotMetadata?.freshness ?? null,
             cacheStorageKind: cachedSnapshotMetadata?.storageKind ?? null,
             cachedLocalMessagesCount:
               cachedTargetSnapshot?.messages.length ?? 0,
             currentSessionId,
             refreshImmediately: shouldRefreshCachedSnapshotImmediately,
+            sessionId: topicId,
             topicId,
             workspaceId,
-          });
+          };
+          recordAgentUiPerformanceMetric(
+            "session.switch.deferHydration",
+            deferHydrationMetricContext,
+          );
+          logAgentDebug(
+            "useAgentSession",
+            "switchTopic.deferHydration",
+            deferHydrationMetricContext,
+          );
           const hydrateCachedTopic = () => {
             deferredSessionHydrationCancelRef.current = null;
             void (async () => {
@@ -1964,7 +2362,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           } else {
             deferredSessionHydrationCancelRef.current =
               scheduleMinimumDelayIdleTask(hydrateCachedTopic, {
-                minimumDelayMs: 0,
+                minimumDelayMs:
+                  cachedSnapshotMetadata?.freshness === "fresh"
+                    ? SESSION_DETAIL_DEFERRED_HYDRATION_DELAY_MS
+                    : 0,
                 idleTimeoutMs: 1_500,
               });
           }
@@ -1986,11 +2387,21 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           applyCachedTopicChromeState(topicId);
           persistSessionRestoreCandidate(topicId);
           setIsSessionHydrating(true);
-          logAgentDebug("useAgentSession", "switchTopic.pendingShellApplied", {
+          const pendingShellMetricContext = {
             currentSessionId,
+            sessionId: topicId,
             topicId,
             workspaceId,
-          });
+          };
+          recordAgentUiPerformanceMetric(
+            "session.switch.pendingShellApplied",
+            pendingShellMetricContext,
+          );
+          logAgentDebug(
+            "useAgentSession",
+            "switchTopic.pendingShellApplied",
+            pendingShellMetricContext,
+          );
         }
 
         const detail = await loadRuntimeSessionDetail({
@@ -2017,12 +2428,18 @@ export function useAgentSession(options: UseAgentSessionOptions) {
                 }
               : null,
           switchRequestVersion,
+          useTransition: currentSessionId !== topicId,
         });
       } catch (error) {
         if (sessionSwitchRequestVersionRef.current !== switchRequestVersion) {
           return;
         }
         handleSwitchTopicError(error, topicId);
+      } finally {
+        if (activeSessionSwitchRef.current?.promise === activeSwitchPromise) {
+          activeSessionSwitchRef.current = null;
+        }
+        resolveActiveSwitch();
       }
     },
     [
@@ -2116,6 +2533,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       const incomingMessages = hydrateSessionDetailMessages(
         detail,
         targetSessionId,
+        {
+          compactCompletedHistory: shouldCompactCompletedSessionHistory(detail),
+        },
       );
       const mergedMessages = mergeHydratedMessagesWithLocalState(
         messagesRef.current,
@@ -2835,6 +3255,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     createFreshSession,
     ensureSession,
     switchTopic,
+    prefetchTopic,
     loadFullSessionHistory,
     deleteTopic,
     renameTopic,

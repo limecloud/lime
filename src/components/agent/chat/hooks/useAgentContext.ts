@@ -38,7 +38,6 @@ import {
   normalizeProjectId,
 } from "../utils/topicProjectResolution";
 import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
-import { useWechatRuntimeModelSync } from "./useWechatRuntimeModelSync";
 
 interface UseAgentContextOptions {
   workspaceId: string;
@@ -127,12 +126,6 @@ export function useAgentContext(options: UseAgentContextOptions) {
 
   providerTypeRef.current = providerType;
   modelRef.current = model;
-
-  useWechatRuntimeModelSync({
-    providerId: providerType,
-    modelId: model,
-    source: "workspace",
-  });
 
   const persistSessionModelPreference = useCallback(
     (

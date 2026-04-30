@@ -9,7 +9,12 @@ import { safeInvoke } from "@/lib/dev-bridge";
 // ============ ASR Provider 类型 ============
 
 /** ASR Provider 类型 */
-export type AsrProviderType = "whisper_local" | "xunfei" | "baidu" | "openai";
+export type AsrProviderType =
+  | "whisper_local"
+  | "sensevoice_local"
+  | "xunfei"
+  | "baidu"
+  | "openai";
 
 /** Whisper 模型大小 */
 export type WhisperModelSize = "tiny" | "base" | "small" | "medium";
@@ -18,6 +23,15 @@ export type WhisperModelSize = "tiny" | "base" | "small" | "medium";
 export interface WhisperLocalConfig {
   model: WhisperModelSize;
   model_path?: string;
+}
+
+/** SenseVoice 本地配置 */
+export interface SenseVoiceLocalConfig {
+  model_id: string;
+  model_dir?: string;
+  use_itn: boolean;
+  num_threads: number;
+  vad_model_id?: string;
 }
 
 /** 讯飞配置 */
@@ -49,6 +63,7 @@ export interface AsrCredentialEntry {
   disabled: boolean;
   language: string;
   whisper_config?: WhisperLocalConfig;
+  sensevoice_config?: SenseVoiceLocalConfig;
   xunfei_config?: XunfeiConfig;
   baidu_config?: BaiduConfig;
   openai_config?: OpenAIAsrConfig;

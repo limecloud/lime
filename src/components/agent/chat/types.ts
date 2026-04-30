@@ -104,8 +104,18 @@ export interface MessageTaskPreviewImageCandidate {
   name?: string;
 }
 
+export interface MessageTranscriptSegment {
+  id: string;
+  index: number;
+  startMs?: number | null;
+  endMs?: number | null;
+  speaker?: string | null;
+  text: string;
+}
+
 export interface MessageGenericTaskPreview {
   kind:
+    | "audio_generate"
     | "broadcast_generate"
     | "modal_resource_search"
     | "transcription_generate"
@@ -126,6 +136,21 @@ export interface MessageGenericTaskPreview {
   retryable?: boolean;
   metaItems?: string[];
   imageCandidates?: MessageTaskPreviewImageCandidate[];
+  taskFilePath?: string | null;
+  audioUrl?: string | null;
+  mimeType?: string | null;
+  durationMs?: number | null;
+  sourceText?: string | null;
+  voice?: string | null;
+  transcriptPath?: string | null;
+  sourcePath?: string | null;
+  sourceUrl?: string | null;
+  language?: string | null;
+  outputFormat?: string | null;
+  transcriptText?: string | null;
+  transcriptSegments?: MessageTranscriptSegment[];
+  errorCode?: string | null;
+  errorMessage?: string | null;
 }
 
 export type MessageTaskPreview =

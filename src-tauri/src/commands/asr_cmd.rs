@@ -4,11 +4,17 @@
 
 use crate::config::{
     load_config, save_config, AsrCredentialEntry, AsrProviderType, BaiduConfig, OpenAIAsrConfig,
-    WhisperLocalConfig, XunfeiConfig,
+    SenseVoiceLocalConfig, WhisperLocalConfig, XunfeiConfig,
 };
+use lime_core::app_paths;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use tauri::command;
 use uuid::Uuid;
+
+const SENSEVOICE_MODEL_FILE: &str = "model.int8.onnx";
+const SENSEVOICE_TOKENS_FILE: &str = "tokens.txt";
+const SENSEVOICE_VAD_FILE: &str = "silero_vad.onnx";
 
 /// 获取所有 ASR 凭证
 #[command]
@@ -31,6 +37,8 @@ pub struct AddAsrCredentialRequest {
     pub language: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub whisper_config: Option<WhisperLocalConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sensevoice_config: Option<SenseVoiceLocalConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xunfei_config: Option<XunfeiConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -68,6 +76,7 @@ pub async fn add_asr_credential(
         disabled: entry.disabled,
         language: entry.language,
         whisper_config: entry.whisper_config,
+        sensevoice_config: entry.sensevoice_config,
         xunfei_config: entry.xunfei_config,
         baidu_config: entry.baidu_config,
         openai_config: entry.openai_config,
@@ -189,6 +198,27 @@ pub async fn test_asr_credential(id: String) -> Result<TestResult, String> {
                 message: "本地 Whisper 已就绪".to_string(),
             })
         }
+        AsrProviderType::SenseVoiceLocal => {
+            let Some(sensevoice_config) = credential.sensevoice_config.as_ref() else {
+                return Ok(TestResult {
+                    success: false,
+                    message: "SenseVoice 本地配置缺失".to_string(),
+                });
+            };
+
+            match resolve_sensevoice_model_dir(sensevoice_config)
+                .and_then(|model_dir| ensure_sensevoice_model_files(&model_dir))
+            {
+                Ok(()) => Ok(TestResult {
+                    success: true,
+                    message: "SenseVoice Small 本地模型已就绪".to_string(),
+                }),
+                Err(error) => Ok(TestResult {
+                    success: false,
+                    message: error,
+                }),
+            }
+        }
         AsrProviderType::Xunfei => {
             // TODO: 实现讯飞 API 测试
             if credential.xunfei_config.is_some() {
@@ -231,6 +261,42 @@ pub async fn test_asr_credential(id: String) -> Result<TestResult, String> {
                 })
             }
         }
+    }
+}
+
+fn resolve_sensevoice_model_dir(config: &SenseVoiceLocalConfig) -> Result<PathBuf, String> {
+    if let Some(model_dir) = config.model_dir.as_ref() {
+        let trimmed = model_dir.trim();
+        if !trimmed.is_empty() {
+            return Ok(PathBuf::from(trimmed));
+        }
+    }
+
+    Ok(app_paths::preferred_data_dir()?
+        .join("models")
+        .join("voice")
+        .join(&config.model_id))
+}
+
+fn ensure_sensevoice_model_files(model_dir: &Path) -> Result<(), String> {
+    let required_files = [
+        SENSEVOICE_MODEL_FILE,
+        SENSEVOICE_TOKENS_FILE,
+        SENSEVOICE_VAD_FILE,
+    ];
+    let missing_files = required_files
+        .iter()
+        .filter(|file_name| !model_dir.join(file_name).is_file())
+        .copied()
+        .collect::<Vec<_>>();
+
+    if missing_files.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "SenseVoice Small 本地模型文件不完整，请先在设置 -> 语音模型中下载；缺失文件: {}",
+            missing_files.join(", ")
+        ))
     }
 }
 

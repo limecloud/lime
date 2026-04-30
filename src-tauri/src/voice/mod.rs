@@ -9,6 +9,7 @@
 pub mod asr_service;
 pub mod commands;
 pub mod config;
+pub mod fn_shortcut;
 pub mod output_service;
 pub mod processor;
 pub mod recording_service;
@@ -16,6 +17,17 @@ pub mod shortcut;
 pub mod window;
 
 use tauri::AppHandle;
+
+pub(crate) fn register_fn_shortcut_if_supported(app: &AppHandle) {
+    if !fn_shortcut::is_supported() {
+        tracing::info!("[语音输入] 当前平台不支持 Fn 按住录音，使用普通快捷键回退");
+        return;
+    }
+
+    if let Err(error) = fn_shortcut::register(app) {
+        tracing::warn!("[语音输入] Fn 按住录音监听注册失败: {}", error);
+    }
+}
 
 /// 初始化语音输入模块
 pub fn init(app: &AppHandle) -> Result<(), String> {
@@ -30,6 +42,7 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
 
     // 注册全局快捷键
     shortcut::register(app, &config.shortcut)?;
+    register_fn_shortcut_if_supported(app);
 
     // 注册翻译快捷键（如果配置了）
     if let Some(translate_shortcut) = &config.translate_shortcut {
@@ -61,6 +74,9 @@ pub fn cleanup(app: &AppHandle) -> Result<(), String> {
 
     // 注销翻译快捷键
     let _ = shortcut::unregister_translate(app);
+
+    // 注销 Fn 监听
+    let _ = fn_shortcut::unregister();
 
     // 关闭悬浮窗口
     window::close_voice_window(app)?;

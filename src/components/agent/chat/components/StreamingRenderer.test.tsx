@@ -20,15 +20,18 @@ const mockMarkdownRenderer = vi.fn(
     content,
     showBlockActions,
     onQuoteContent,
+    renderMode,
   }: {
     content: string;
     showBlockActions?: boolean;
     onQuoteContent?: (content: string) => void;
+    renderMode?: "standard" | "light";
   }) => (
     <div
       data-testid="markdown-renderer"
       data-show-block-actions={showBlockActions ? "yes" : "no"}
       data-has-on-quote-content={onQuoteContent ? "yes" : "no"}
+      data-render-mode={renderMode || "standard"}
     >
       {content}
     </div>
@@ -50,6 +53,7 @@ vi.mock("./MarkdownRenderer", () => ({
     content: string;
     showBlockActions?: boolean;
     onQuoteContent?: (content: string) => void;
+    renderMode?: "standard" | "light";
   }) => mockMarkdownRenderer(props),
 }));
 
@@ -107,6 +111,7 @@ afterEach(() => {
     });
     mounted.container.remove();
   }
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
@@ -135,6 +140,7 @@ function renderHarness(props: {
   suppressProcessFlow?: boolean;
   showContentBlockActions?: boolean;
   onQuoteContent?: (content: string) => void;
+  markdownRenderMode?: "standard" | "light";
 }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -239,6 +245,36 @@ describe("StreamingRenderer", () => {
     expect(parseAIResponseMock).not.toHaveBeenCalled();
   });
 
+  it("流式纯文本首帧应立即显示前缀，避免等待下一帧才吐字", () => {
+    const fullText = "这是第一段流式输出，应该马上可见。";
+    const { container } = renderHarness({
+      content: fullText,
+      isStreaming: true,
+    });
+
+    const renderedText = container.textContent || "";
+    expect(renderedText.length).toBeGreaterThan(0);
+    expect(fullText.startsWith(renderedText)).toBe(true);
+    expect(renderedText.length).toBeLessThan(fullText.length);
+  });
+
+  it("流式正文积压较多时应快速追上最新目标文本", () => {
+    vi.useFakeTimers();
+    const fullText = "流式输出".repeat(80);
+    const { container } = renderHarness({
+      content: fullText,
+      isStreaming: true,
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    const renderedText = container.textContent || "";
+    expect(renderedText.length).toBeGreaterThan(120);
+    expect(fullText.startsWith(renderedText)).toBe(true);
+  });
+
   it("开启正文块操作时应向 MarkdownRenderer 透传引用/复制能力", () => {
     const onQuoteContent = vi.fn();
 
@@ -253,6 +289,20 @@ describe("StreamingRenderer", () => {
         content: "这是最终输出",
         showBlockActions: true,
         onQuoteContent,
+      }),
+    );
+  });
+
+  it("历史恢复轻量模式应向 MarkdownRenderer 透传 light 渲染模式", () => {
+    renderHarness({
+      content: "这是历史会话正文\n\n```ts\nconsole.log('heavy')\n```",
+      markdownRenderMode: "light",
+    });
+
+    expect(mockMarkdownRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining("这是历史会话正文"),
+        renderMode: "light",
       }),
     );
   });

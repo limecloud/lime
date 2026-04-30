@@ -37,6 +37,8 @@ import { toast } from "sonner";
 import type { StepStatus } from "@/lib/workspace/workbenchContract";
 import type {
   AgentRuntimeAnalysisHandoff,
+  AgentRuntimeEvidenceBrowserActionIndex,
+  AgentRuntimeEvidenceBrowserActionItem,
   AgentRuntimeEvidencePack,
   AgentRuntimeHandoffBundle,
   AgentRuntimeSaveReviewDecisionRequest,
@@ -60,6 +62,8 @@ import {
   saveAgentRuntimeReviewDecision,
 } from "@/lib/api/agentRuntime";
 import { getMcpInnerToolName } from "@/lib/api/mcp";
+import { ArtifactRenderer } from "@/components/artifact/ArtifactRenderer";
+import type { Artifact } from "@/lib/artifact/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -192,6 +196,7 @@ interface PreviewDialogState {
   displayName: string;
   content?: string;
   preview?: string;
+  artifact?: Artifact;
   error?: string;
   isBinary: boolean;
   size?: number;
@@ -487,6 +492,44 @@ function formatEvidenceArtifactKindLabel(
       return "产物";
     default:
       return kind;
+  }
+}
+
+function formatBrowserActionArtifactKindLabel(kind?: string): string {
+  switch (kind?.trim()) {
+    case "browser_session":
+      return "browser_session";
+    case "browser_snapshot":
+      return "browser_snapshot";
+    default:
+      return kind?.trim() || "未知产物";
+  }
+}
+
+function formatBrowserActionStatusLabel(
+  item: AgentRuntimeEvidenceBrowserActionItem,
+): string {
+  if (item.success === true && !item.status) {
+    return "成功";
+  }
+  if (item.success === false && !item.status) {
+    return "失败";
+  }
+
+  switch (item.status?.trim()) {
+    case "completed":
+    case "success":
+    case "succeeded":
+      return "成功";
+    case "failed":
+    case "error":
+      return "失败";
+    case "running":
+      return "执行中";
+    case "pending":
+      return "待处理";
+    default:
+      return item.status?.trim() || "未知状态";
   }
 }
 
@@ -1596,6 +1639,209 @@ function InventoryStatCard({
   );
 }
 
+function BrowserActionIndexSummarySection({
+  index,
+  onOpenReplay,
+}: {
+  index: AgentRuntimeEvidenceBrowserActionIndex;
+  onOpenReplay?: () => void;
+}) {
+  if (index.action_count <= 0 && index.items.length === 0) {
+    return null;
+  }
+
+  const recentItems = index.items.slice(-3).reverse();
+  const latestUrl =
+    index.last_url ||
+    recentItems.find((item) => item.last_url)?.last_url ||
+    "暂无 URL";
+
+  return (
+    <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-sky-950">
+        <Eye className="h-4 w-4 text-sky-700" />
+        <span>Browser Assist 索引</span>
+      </div>
+      <p className="mt-1 text-xs text-sky-800">
+        来自 modalityRuntimeContracts.snapshotIndex.browserActionIndex，复盘
+        browser_session / browser_snapshot 的执行证据。
+      </p>
+
+      {onOpenReplay ? (
+        <div className="mt-3">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-2 bg-background"
+            onClick={onOpenReplay}
+            aria-label="打开 Browser Assist 复盘"
+          >
+            <Eye className="h-4 w-4" />
+            打开复盘
+          </Button>
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <InventoryStatCard
+          title="浏览器动作"
+          value={`${index.action_count}`}
+          hint="browser_control action"
+        />
+        <InventoryStatCard
+          title="会话"
+          value={`${index.session_count}`}
+          hint={
+            index.profile_keys.length > 0
+              ? `profile ${index.profile_keys.slice(0, 2).join(" / ")}`
+              : "session / target"
+          }
+        />
+        <InventoryStatCard
+          title="观察 / 截图"
+          value={`${index.observation_count} / ${index.screenshot_count}`}
+          hint="observation / screenshot"
+        />
+        <InventoryStatCard
+          title="最近 URL"
+          value={latestUrl === "暂无 URL" ? latestUrl : "已记录"}
+          hint={latestUrl}
+        />
+      </div>
+
+      {recentItems.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {recentItems.map((item, indexInList) => {
+            const itemKey = [
+              item.request_id,
+              item.session_id,
+              item.action,
+              indexInList,
+            ]
+              .filter(Boolean)
+              .join(":");
+            return (
+              <div
+                key={itemKey}
+                className="rounded-lg border border-sky-200/80 bg-background/85 p-2.5"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">
+                    {item.action || item.tool_name || "browser action"}
+                  </span>
+                  <Badge variant="outline">
+                    {formatBrowserActionArtifactKindLabel(item.artifact_kind)}
+                  </Badge>
+                  <Badge
+                    variant={
+                      item.success === false ? "destructive" : "secondary"
+                    }
+                  >
+                    {formatBrowserActionStatusLabel(item)}
+                  </Badge>
+                  {item.backend ? (
+                    <Badge variant="outline">{item.backend}</Badge>
+                  ) : null}
+                </div>
+                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {item.last_url ? (
+                    <div className="break-all">
+                      URL：
+                      <span className="ml-1 font-mono text-foreground">
+                        {item.last_url}
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {item.session_id ? (
+                      <span>
+                        session：
+                        <span className="ml-1 font-mono text-foreground">
+                          {item.session_id}
+                        </span>
+                      </span>
+                    ) : null}
+                    {item.target_id ? (
+                      <span>
+                        target：
+                        <span className="ml-1 font-mono text-foreground">
+                          {item.target_id}
+                        </span>
+                      </span>
+                    ) : null}
+                    {item.entry_source ? (
+                      <span>
+                        entry：
+                        <span className="ml-1 font-mono text-foreground">
+                          {item.entry_source}
+                        </span>
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function buildBrowserReplayArtifact(
+  evidencePack: AgentRuntimeEvidencePack,
+  index: AgentRuntimeEvidenceBrowserActionIndex,
+): Artifact {
+  const timestamp = Date.parse(evidencePack.exported_at);
+  return {
+    id: `browser-replay:${evidencePack.session_id}`,
+    type: "browser_assist",
+    title: "Browser Assist 复盘",
+    content: "",
+    status: "complete",
+    meta: {
+      browserActionIndex: {
+        actionCount: index.action_count,
+        sessionCount: index.session_count,
+        observationCount: index.observation_count,
+        screenshotCount: index.screenshot_count,
+        lastUrl: index.last_url,
+        sessionIds: index.session_ids,
+        targetIds: index.target_ids,
+        profileKeys: index.profile_keys,
+        items: index.items.map((item) => ({
+          artifactKind: item.artifact_kind,
+          toolName: item.tool_name,
+          action: item.action,
+          status: item.status,
+          success: item.success,
+          sessionId: item.session_id,
+          targetId: item.target_id,
+          profileKey: item.profile_key,
+          backend: item.backend,
+          requestId: item.request_id,
+          lastUrl: item.last_url,
+          title: item.title,
+          entrySource: item.entry_source,
+          observationAvailable: item.observation_available,
+          screenshotAvailable: item.screenshot_available,
+        })),
+      },
+      modalityContractKey: "browser_control",
+      viewerSurface: "browser_replay_viewer",
+      evidencePackRoot: evidencePack.pack_relative_root,
+      sessionId: index.session_ids[0] || evidencePack.session_id,
+      profileKey: index.profile_keys[0],
+      targetId: index.target_ids[0],
+      url: index.last_url,
+    },
+    position: { start: 0, end: 0 },
+    createdAt: Number.isFinite(timestamp) ? timestamp : Date.now(),
+    updatedAt: Number.isFinite(timestamp) ? timestamp : Date.now(),
+  };
+}
+
 function Section({
   sectionKey,
   title,
@@ -2526,6 +2772,7 @@ export function HarnessStatusPanel({
         displayName: path ? getFileName(path) : title,
         content: content?.trim() || preview?.trim(),
         preview,
+        artifact: undefined,
         error:
           content?.trim() || preview?.trim()
             ? undefined
@@ -2634,6 +2881,25 @@ export function HarnessStatusPanel({
       toast.error(error instanceof Error ? error.message : "复制内容失败");
     }
   }, [previewDialog.content]);
+
+  const openBrowserReplayPreview = useCallback(
+    (
+      pack: AgentRuntimeEvidencePack,
+      index: AgentRuntimeEvidenceBrowserActionIndex,
+    ) => {
+      setPreviewDialog({
+        open: true,
+        title: "Browser Assist 复盘",
+        description:
+          "来自 evidence browserActionIndex 的 browser_session / browser_snapshot 复盘。",
+        displayName: "browser_replay_viewer",
+        artifact: buildBrowserReplayArtifact(pack, index),
+        isBinary: false,
+        loading: false,
+      });
+    },
+    [],
+  );
 
   const handleOpenPathValue = useCallback(
     async (path: string) => {
@@ -3407,6 +3673,28 @@ export function HarnessStatusPanel({
                               </div>
                             </div>
                           </div>
+
+                          {evidencePack.observability_summary
+                            ?.modality_runtime_contracts?.snapshot_index
+                            ?.browser_action_index
+                            ? (() => {
+                                const browserActionIndex =
+                                  evidencePack.observability_summary
+                                    .modality_runtime_contracts.snapshot_index
+                                    .browser_action_index;
+                                return (
+                                  <BrowserActionIndexSummarySection
+                                    index={browserActionIndex}
+                                    onOpenReplay={() =>
+                                      openBrowserReplayPreview(
+                                        evidencePack,
+                                        browserActionIndex,
+                                      )
+                                    }
+                                  />
+                                );
+                              })()
+                            : null}
 
                           {evidencePack.observability_summary
                             ?.verification_summary ? (
@@ -6454,7 +6742,15 @@ export function HarnessStatusPanel({
             </div>
 
             <ScrollArea className="max-h-[60vh] rounded-xl border border-border bg-muted/30">
-              {previewDialog.isBinary ? (
+              {previewDialog.artifact ? (
+                <div className="h-[58vh] min-h-[360px] bg-background">
+                  <ArtifactRenderer
+                    artifact={previewDialog.artifact}
+                    tone="light"
+                    hideToolbar
+                  />
+                </div>
+              ) : previewDialog.isBinary ? (
                 <div className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
                   <HardDriveDownload className="h-4 w-4" />
                   该文件为二进制内容，暂不支持文本预览。

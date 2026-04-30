@@ -7,6 +7,7 @@ interface ResolveChatLayoutVisibilityParams {
   hasUnconsumedInitialDispatch: boolean;
   isPreparingSend: boolean;
   isSending: boolean;
+  isSessionHydrating?: boolean;
   queuedTurnCount: number;
 }
 
@@ -19,6 +20,7 @@ export function shouldShowChatLayout({
   hasUnconsumedInitialDispatch,
   isPreparingSend,
   isSending,
+  isSessionHydrating = false,
   queuedTurnCount,
 }: ResolveChatLayoutVisibilityParams): boolean {
   return (
@@ -29,6 +31,7 @@ export function shouldShowChatLayout({
     hasUnconsumedInitialDispatch ||
     isPreparingSend ||
     isSending ||
+    isSessionHydrating ||
     queuedTurnCount > 0
   );
 }

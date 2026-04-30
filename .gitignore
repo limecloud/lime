@@ -51,6 +51,10 @@ docs/roadmap/*
 !docs/roadmap/harness-engine/diagrams.md
 !docs/roadmap/warp/
 !docs/roadmap/warp/*.md
+!docs/roadmap/agentui/
+!docs/roadmap/agentui/*.md
+!docs/roadmap/voice/
+!docs/roadmap/voice/*.md
 docs/gongzonghao/
 docs/bussniss/
 docs/oem/

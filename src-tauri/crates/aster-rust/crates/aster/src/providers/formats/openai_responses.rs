@@ -450,7 +450,7 @@ pub fn create_responses_request(
     }
 
     if !tools.is_empty() {
-        let tools_spec: Vec<Value> = tools
+        let mut tools_spec: Vec<Value> = tools
             .iter()
             .map(|tool| {
                 json!({
@@ -461,6 +461,11 @@ pub fn create_responses_request(
                 })
             })
             .collect();
+        for tool in tools_spec.iter_mut() {
+            if let Some(parameters) = tool.get_mut("parameters") {
+                super::openai::ensure_valid_json_schema(parameters);
+            }
+        }
 
         payload
             .as_object_mut()

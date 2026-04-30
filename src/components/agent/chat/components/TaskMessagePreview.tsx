@@ -8,10 +8,15 @@ import {
   Mic,
   PlayCircle,
   Search,
+  Volume2,
 } from "lucide-react";
 import { emitVideoWorkbenchTaskAction } from "@/lib/videoWorkbenchEvents";
 import { cn } from "@/lib/utils";
 import type { MessageTaskPreview } from "../types";
+import {
+  countTranscriptSpeakers,
+  formatTranscriptSegmentRange,
+} from "../utils/transcriptSegments";
 
 interface TaskMessagePreviewProps {
   preview: MessageTaskPreview;
@@ -20,6 +25,8 @@ interface TaskMessagePreviewProps {
 
 function resolveTaskLabel(preview: MessageTaskPreview): string {
   switch (preview.kind) {
+    case "audio_generate":
+      return "配音生成";
     case "video_generate":
       return "视频生成";
     case "broadcast_generate":
@@ -95,6 +102,23 @@ function resolveDescription(preview: MessageTaskPreview): string {
     }
   }
 
+  if (preview.kind === "audio_generate") {
+    switch (preview.status) {
+      case "complete":
+      case "partial":
+        return preview.audioUrl?.trim()
+          ? "音频结果已同步，打开查看即可继续预览与管理任务。"
+          : "配音任务已完成，正在同步音频结果。";
+      case "failed":
+        return "配音生成失败，请调整文本、音色或模型后重试。";
+      case "cancelled":
+        return "配音任务已经取消，当前不会继续生成音频。";
+      case "running":
+      default:
+        return "配音任务已写入统一 audio_task/audio_output 协议，工作区会继续同步结果。";
+    }
+  }
+
   switch (preview.status) {
     case "complete":
     case "partial":
@@ -151,6 +175,28 @@ function buildMetaItems(preview: MessageTaskPreview): string[] {
   if (preview.model?.trim()) {
     items.push(preview.model.trim());
   }
+  if (
+    (preview.kind === "audio_generate" ||
+      preview.kind === "transcription_generate") &&
+    preview.errorCode?.trim()
+  ) {
+    items.push(`错误码: ${preview.errorCode.trim()}`);
+  }
+  if (preview.kind === "transcription_generate") {
+    if (preview.language?.trim()) {
+      items.push(preview.language.trim());
+    }
+    if (preview.outputFormat?.trim()) {
+      items.push(preview.outputFormat.trim());
+    }
+    if (preview.transcriptSegments && preview.transcriptSegments.length > 0) {
+      items.push(`${preview.transcriptSegments.length} 段时间轴`);
+      const speakerCount = countTranscriptSpeakers(preview.transcriptSegments);
+      if (speakerCount > 0) {
+        items.push(`${speakerCount} 位说话人`);
+      }
+    }
+  }
   return items.filter((item) => item.trim().length > 0);
 }
 
@@ -158,6 +204,8 @@ function resolveGenericTaskIcon(
   preview: Exclude<MessageTaskPreview, { kind: "video_generate" }>,
 ) {
   switch (preview.kind) {
+    case "audio_generate":
+      return Volume2;
     case "broadcast_generate":
       return Mic;
     case "modal_resource_search":
@@ -175,6 +223,38 @@ function renderGenericTaskMedia(
   preview: Exclude<MessageTaskPreview, { kind: "video_generate" }>,
   Icon: ReturnType<typeof resolveGenericTaskIcon>,
 ) {
+  if (preview.kind === "audio_generate") {
+    const playableAudioUrl = preview.audioUrl?.trim();
+    return (
+      <div className="flex h-20 w-28 shrink-0 flex-col justify-between rounded-[18px] border border-sky-100 bg-[radial-gradient(circle_at_top,rgba(14,165,233,0.18),transparent_48%),linear-gradient(180deg,#f8fafc,#eef6ff)] p-2 text-sky-700">
+        <div className="flex items-center justify-between gap-2">
+          <Volume2 className="h-5 w-5" />
+          <span className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+            audio
+          </span>
+        </div>
+        {playableAudioUrl ? (
+          <audio
+            controls
+            src={playableAudioUrl}
+            className="h-7 w-full"
+            aria-label="配音任务音频预览"
+          />
+        ) : (
+          <div className="flex items-end gap-1 text-sky-400">
+            {[14, 22, 11, 28, 18].map((height, index) => (
+              <span
+                key={`${preview.taskId}-wave-${index}`}
+                className="w-1.5 rounded-full bg-sky-300"
+                style={{ height }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (
     preview.kind === "modal_resource_search" &&
     preview.imageCandidates &&
@@ -210,6 +290,68 @@ function renderGenericTaskMedia(
   return (
     <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] border border-slate-200 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_46%),linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] text-sky-600">
       <Icon className="h-7 w-7" />
+    </div>
+  );
+}
+
+function renderTaskFailureDetails(
+  preview: Exclude<MessageTaskPreview, { kind: "video_generate" }>,
+) {
+  if (
+    (preview.kind !== "audio_generate" &&
+      preview.kind !== "transcription_generate") ||
+    preview.status !== "failed"
+  ) {
+    return null;
+  }
+  const errorCode = preview.errorCode?.trim();
+  const errorMessage = preview.errorMessage?.trim();
+  if (!errorCode && !errorMessage) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-rose-100 bg-rose-50/80 px-3 py-2 text-xs leading-5 text-rose-700">
+      {errorCode ? (
+        <div className="font-semibold">错误码：{errorCode}</div>
+      ) : null}
+      {errorMessage ? <div>{errorMessage}</div> : null}
+    </div>
+  );
+}
+
+function renderTranscriptionSegmentSummary(
+  preview: Exclude<MessageTaskPreview, { kind: "video_generate" }>,
+) {
+  if (
+    preview.kind !== "transcription_generate" ||
+    !preview.transcriptSegments ||
+    preview.transcriptSegments.length === 0
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+      <div className="mb-1.5 text-[11px] font-semibold text-slate-500">
+        时间轴预览
+      </div>
+      <div className="space-y-1.5">
+        {preview.transcriptSegments.slice(0, 2).map((segment) => (
+          <div
+            key={`${preview.taskId}-${segment.id}`}
+            className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-xs leading-5"
+          >
+            <span className="font-medium text-slate-500">
+              {formatTranscriptSegmentRange(segment)}
+            </span>
+            <span className="line-clamp-2 text-slate-700">
+              {segment.speaker ? `${segment.speaker}：` : ""}
+              {segment.text}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -364,6 +506,11 @@ function renderGenericTaskPreview(
 ) {
   const Icon = resolveGenericTaskIcon(preview);
   const media = renderGenericTaskMedia(preview, Icon);
+  const titleText =
+    preview.kind === "audio_generate" ||
+    preview.kind === "transcription_generate"
+      ? preview.prompt || preview.title?.trim() || resolveTaskLabel(preview)
+      : preview.title?.trim() || preview.prompt || resolveTaskLabel(preview);
   return (
     <button
       type="button"
@@ -403,14 +550,15 @@ function renderGenericTaskPreview(
           <div className="min-w-0 flex-1 space-y-2.5 py-1">
             <div className="space-y-1.5">
               <div className="line-clamp-2 text-sm font-semibold leading-6 text-slate-900">
-                {preview.title?.trim() ||
-                  preview.prompt ||
-                  resolveTaskLabel(preview)}
+                {titleText}
               </div>
               <p className="text-sm leading-6 text-slate-600">
                 {resolveDescription(preview)}
               </p>
             </div>
+
+            {renderTaskFailureDetails(preview)}
+            {renderTranscriptionSegmentSummary(preview)}
 
             {metaItems.length > 0 ? (
               <div className="flex flex-wrap gap-2">
@@ -428,6 +576,21 @@ function renderGenericTaskPreview(
             {preview.artifactPath?.trim() ? (
               <div className="truncate text-xs text-slate-500">
                 任务文件: {preview.artifactPath.trim()}
+              </div>
+            ) : null}
+
+            {(preview.kind === "audio_generate" ||
+              preview.kind === "transcription_generate") &&
+            preview.taskFilePath?.trim() ? (
+              <div className="truncate text-xs text-slate-500">
+                源任务: {preview.taskFilePath.trim()}
+              </div>
+            ) : null}
+
+            {preview.kind === "transcription_generate" &&
+            preview.transcriptPath?.trim() ? (
+              <div className="truncate text-xs text-slate-500">
+                转写结果: {preview.transcriptPath.trim()}
               </div>
             ) : null}
           </div>

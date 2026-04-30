@@ -12,6 +12,7 @@ import {
   useRef,
   useCallback,
   type ReactElement,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import styled from "styled-components";
 import {
@@ -27,10 +28,13 @@ import {
   Languages,
   LogIn,
   LogOut,
+  MessageSquare,
+  MessageSquarePlus,
   Monitor,
   Moon,
   Palette,
   RefreshCw,
+  Shuffle,
   Sun,
   Search,
   PanelLeftClose,
@@ -54,10 +58,12 @@ import {
   buildHomeAgentParams,
 } from "@/lib/workspace/navigation";
 import {
+  notifyTaskCenterTaskPrefetch,
   notifyTaskCenterTaskOpen,
   requestTaskCenterDraftTask,
 } from "@/components/agent/chat/taskCenterDraftTaskEvents";
 import {
+  deleteAgentRuntimeSession,
   listAgentRuntimeSessions,
   updateAgentRuntimeSession,
   type AsterSessionInfo,
@@ -81,6 +87,10 @@ import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import { AppSidebarConversationShelf } from "@/components/app-sidebar/AppSidebarConversationShelf";
+import {
+  formatSidebarSessionMeta,
+  resolveSidebarSessionTitle,
+} from "@/components/app-sidebar/sidebarSessionFormatting";
 import { shouldReserveMacWindowControls } from "@/lib/windowControls";
 import {
   clearStoredOemCloudSessionState,
@@ -149,6 +159,7 @@ interface AppSidebarProps {
   requestedPage?: Page;
   requestedPageParams?: PageParams;
   onNavigate: (page: Page, params?: PageParams) => void;
+  onStartWindowDrag?: (event: ReactMouseEvent<HTMLElement>) => void;
 }
 
 type SidebarNavItem = SidebarNavItemDefinition;
@@ -158,8 +169,8 @@ const SIDEBAR_PLUGIN_CENTER_NAV_ITEM_ID = "plugins";
 const SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS = 1200;
 const SIDEBAR_PLUGIN_BROWSER_IDLE_TIMEOUT_MS = 6000;
 const SIDEBAR_RECENT_SESSION_PAGE_SIZE = 10;
-const SIDEBAR_RECENT_SESSION_PREFETCH_LIMIT = 37;
 const SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE = 8;
+const SIDEBAR_SEARCH_RESULT_LIMIT = 8;
 const SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS = 12_000;
 
 const APP_SIDEBAR_LANGUAGE_OPTIONS: Array<{
@@ -184,7 +195,7 @@ function buildSidebarSessionRequestLimit(
   pageSize: number,
 ): number {
   const normalizedVisibleCount = Math.max(visibleCount, pageSize);
-  return normalizedVisibleCount + pageSize + 1;
+  return normalizedVisibleCount + 1;
 }
 
 function splitSidebarSessionResult(params: {
@@ -196,7 +207,7 @@ function splitSidebarSessionResult(params: {
   hasMore: boolean;
 } {
   const { sessions, visibleCount, pageSize } = params;
-  const targetCount = Math.max(visibleCount, pageSize) + pageSize;
+  const targetCount = Math.max(visibleCount, pageSize);
   return {
     sessions: sessions.slice(0, targetCount),
     hasMore: sessions.length > targetCount,
@@ -493,6 +504,292 @@ const SearchButton = styled.button<{ $collapsed?: boolean }>`
     font-size: 14px;
     font-weight: 600;
     display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
+  }
+`;
+
+const SidebarSearchSurface = styled.div`
+  display: flex;
+  min-height: min(620px, calc(100vh - 96px));
+  max-height: calc(100vh - 96px);
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.9));
+  background: var(--lime-surface, #ffffff);
+  color: var(--lime-text, #1a3b2b);
+  box-shadow:
+    0 32px 80px rgba(15, 23, 42, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.78) inset;
+`;
+
+const SidebarSearchHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 26px 18px;
+  color: var(--lime-text-muted, #6b826b);
+
+  svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+`;
+
+const SidebarSearchInput = styled.input`
+  min-width: 0;
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--lime-text-strong, #0f172a);
+  font-size: 19px;
+  font-weight: 650;
+  outline: none;
+
+  &::placeholder {
+    color: var(--lime-text-soft, #9aa89a);
+    font-weight: 600;
+  }
+`;
+
+const SidebarSearchShortcut = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+`;
+
+const SidebarSearchKey = styled.kbd`
+  min-width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.86));
+  background: var(--lime-muted-surface, #f5f8f3);
+  color: var(--lime-text-muted, #6b826b);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+`;
+
+const SidebarSearchCloseButton = styled.button`
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--lime-text-muted, #6b826b);
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+
+  &:hover {
+    background: var(--lime-surface-hover, #f4fdf4);
+    color: var(--lime-text-strong, #0f172a);
+  }
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
+`;
+
+const SidebarSearchDivider = styled.div`
+  height: 1px;
+  margin: 0 26px;
+  background: var(--lime-divider-subtle, rgba(226, 240, 226, 0.86));
+`;
+
+const SidebarSearchBody = styled.div`
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 20px 26px 28px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--lime-divider-strong, rgba(180, 196, 180, 0.7));
+  }
+`;
+
+const SidebarSearchCreateButton = styled.button`
+  min-height: 58px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  background: var(--lime-surface-hover, #f4f7f2);
+  color: var(--lime-text-strong, #0f172a);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    transform 0.16s ease;
+
+  &:hover {
+    border-color: var(--lime-card-subtle-border, #bbf7d0);
+    background: var(--lime-surface, #ffffff);
+    transform: translateY(-1px);
+  }
+
+  svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    color: var(--lime-text-muted, #6b826b);
+  }
+`;
+
+const SidebarSearchCreateText = styled.span`
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 760;
+`;
+
+const SidebarSearchEnterHint = styled.span`
+  flex-shrink: 0;
+  color: var(--lime-text-soft, #9aa89a);
+  font-size: 20px;
+  font-weight: 800;
+`;
+
+const SidebarSearchSectionLabel = styled.div`
+  padding: 0 16px;
+  color: var(--lime-text-soft, #9aa89a);
+  font-size: 13px;
+  font-weight: 760;
+`;
+
+const SidebarSearchResultList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const SidebarSearchResultButton = styled.button<{ $active?: boolean }>`
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid
+    ${({ $active }) =>
+      $active
+        ? "var(--lime-card-subtle-border, #bbf7d0)"
+        : "transparent"};
+  border-radius: 16px;
+  background: ${({ $active }) =>
+    $active ? "var(--lime-surface-hover, #f4fdf4)" : "transparent"};
+  color: var(--lime-text, #1a3b2b);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease;
+
+  &:hover {
+    border-color: var(--lime-card-subtle-border, rgba(187, 247, 208, 0.92));
+    background: var(--lime-surface-hover, #f4fdf4);
+    color: var(--lime-text-strong, #0f172a);
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: var(--lime-text-muted, #6b826b);
+  }
+`;
+
+const SidebarSearchResultTitle = styled.span`
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+`;
+
+const SidebarSearchResultMeta = styled.span`
+  flex-shrink: 0;
+  color: var(--lime-text-soft, #9aa89a);
+  font-size: 14px;
+  font-weight: 650;
+`;
+
+const SidebarSearchEmptyState = styled.div`
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  border: 1px dashed var(--lime-card-subtle-border, rgba(226, 240, 226, 0.9));
+  color: var(--lime-text-muted, #6b826b);
+  background: var(--lime-muted-surface, #f8faf7);
+  font-size: 14px;
+  font-weight: 680;
+`;
+
+const SidebarSearchMoreButton = styled.button`
+  min-height: 42px;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.86));
+  border-radius: 14px;
+  background: var(--lime-surface, #ffffff);
+  color: var(--lime-text-muted, #6b826b);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 760;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--lime-card-subtle-border, #bbf7d0);
+    background: var(--lime-surface-hover, #f4fdf4);
+    color: var(--lime-text-strong, #0f172a);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
   }
 `;
 
@@ -964,8 +1261,10 @@ const AppearancePopover = styled.div`
   left: calc(100% + 12px);
   bottom: -2px;
   z-index: 70;
-  width: 228px;
-  max-width: min(228px, calc(100vw - 24px));
+  width: 252px;
+  max-width: min(252px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - 24px));
+  overflow-y: auto;
   border-radius: 18px;
   border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.92));
   background: var(--lime-card-subtle, var(--lime-surface, #ffffff));
@@ -1125,6 +1424,43 @@ const ColorSchemeList = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+`;
+
+const RandomColorSchemeButton = styled.button`
+  grid-column: 1 / -1;
+  min-height: 40px;
+  border-radius: 13px;
+  border: 1px solid var(--lime-card-subtle-border, rgba(226, 240, 226, 0.82));
+  background: var(--lime-surface, #ffffff);
+  color: var(--lime-text, #1a3b2b);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 750;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+
+  &:hover {
+    border-color: var(--lime-card-subtle-border, #bbf7d0);
+    background: var(
+      --lime-chrome-tab-hover,
+      var(--lime-surface-hover, #f4fdf4)
+    );
+    color: var(--lime-text-strong, #0f172a);
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--lime-brand-strong, #166534);
+  }
 `;
 
 const ColorSchemeButton = styled.button<{ $active?: boolean }>`
@@ -1824,6 +2160,23 @@ function buildVisibleSidebarSessions(params: {
   return [...visibleSessions.slice(0, Math.max(limit - 1, 0)), currentSession];
 }
 
+function normalizeSidebarSearchText(value: string): string {
+  return value.trim().toLocaleLowerCase();
+}
+
+function matchesSidebarSessionTitle(
+  session: AsterSessionInfo,
+  normalizedQuery: string,
+): boolean {
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  return normalizeSidebarSearchText(
+    resolveSidebarSessionTitle(session),
+  ).includes(normalizedQuery);
+}
+
 function resolveAccountDisplayName(
   sessionState: OemCloudStoredSessionState | null,
 ): string {
@@ -1954,6 +2307,7 @@ export function AppSidebar({
   requestedPage,
   requestedPageParams,
   onNavigate,
+  onStartWindowDrag,
 }: AppSidebarProps) {
   const activePage = requestedPage ?? currentPage;
   const activePageParams = requestedPageParams ?? currentPageParams;
@@ -2033,6 +2387,8 @@ export function AppSidebar({
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteReloadKey, setInviteReloadKey] = useState(0);
+  const [sidebarSearchOpen, setSidebarSearchOpen] = useState(false);
+  const [sidebarSearchQuery, setSidebarSearchQuery] = useState("");
   const { setLanguage: setI18nLanguage } = useI18nPatch();
 
   const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
@@ -2064,6 +2420,7 @@ export function AppSidebar({
     useState(SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE);
   const [archivedSessionsCollapsed, setArchivedSessionsCollapsed] =
     useState(true);
+  const sidebarSearchInputRef = useRef<HTMLInputElement | null>(null);
   const appearanceControlRef = useRef<HTMLDivElement | null>(null);
   const accountControlRef = useRef<HTMLDivElement | null>(null);
   const reserveWindowControls = shouldReserveMacWindowControls();
@@ -2076,6 +2433,56 @@ export function AppSidebar({
       archivedSidebarSessionsRef.current,
       currentSessionId,
     );
+
+  const openSidebarSearchDialog = useCallback(() => {
+    setAccountMenuOpen(false);
+    setLanguageMenuOpen(false);
+    setAppearancePopoverOpen(false);
+    setSidebarSearchOpen(true);
+  }, []);
+
+  const closeSidebarSearchDialog = useCallback(() => {
+    setSidebarSearchOpen(false);
+    setSidebarSearchQuery("");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleSearchShortcut = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "k" ||
+        (!event.metaKey && !event.ctrlKey)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      openSidebarSearchDialog();
+    };
+
+    window.addEventListener("keydown", handleSearchShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleSearchShortcut);
+    };
+  }, [openSidebarSearchDialog]);
+
+  useEffect(() => {
+    if (!sidebarSearchOpen || typeof window === "undefined") {
+      return;
+    }
+
+    const focusTimer = window.setTimeout(() => {
+      sidebarSearchInputRef.current?.focus();
+      sidebarSearchInputRef.current?.select();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+    };
+  }, [sidebarSearchOpen]);
 
   useEffect(() => {
     const loadNavConfig = async () => {
@@ -2499,7 +2906,8 @@ export function AppSidebar({
     !collapsed &&
     !(activePage === "agent" && activeAgentPageParams?.immersiveHome);
   const shouldLoadWorkspaceScopedConversations =
-    shouldShowConversationList && Boolean(currentProjectId);
+    (shouldShowConversationList || sidebarSearchOpen) &&
+    Boolean(currentProjectId);
   const shouldShowSessionLoadingState =
     sidebarSessionsLoading && sidebarSessions.length === 0;
   const shouldShowArchivedSessionLoadingState =
@@ -2522,12 +2930,10 @@ export function AppSidebar({
   }, [currentProjectId]);
 
   const recentSessionRequestLimit = useMemo(() => {
-    const requestLimit = buildSidebarSessionRequestLimit(
+    return buildSidebarSessionRequestLimit(
       recentSessionsVisibleCount,
       SIDEBAR_RECENT_SESSION_PAGE_SIZE,
     );
-
-    return Math.max(requestLimit, SIDEBAR_RECENT_SESSION_PREFETCH_LIMIT);
   }, [recentSessionsVisibleCount]);
   const archivedSessionRequestLimit = useMemo(
     () =>
@@ -2810,6 +3216,45 @@ export function AppSidebar({
   const hasMoreArchivedSidebarSessions =
     archivedSessionEntriesHasMore ||
     archivedSessionsVisibleCount < archivedSidebarSessions.length;
+  const normalizedSidebarSearchQuery = useMemo(
+    () => normalizeSidebarSearchText(sidebarSearchQuery),
+    [sidebarSearchQuery],
+  );
+  const sidebarSearchResultLimit = Math.max(
+    recentSessionsVisibleCount,
+    SIDEBAR_SEARCH_RESULT_LIMIT,
+  );
+  const sidebarSearchMatchedSessions = useMemo(() => {
+    if (!normalizedSidebarSearchQuery) {
+      return recentSidebarSessions;
+    }
+
+    return recentSidebarSessions.filter((session) =>
+      matchesSidebarSessionTitle(session, normalizedSidebarSearchQuery),
+    );
+  }, [normalizedSidebarSearchQuery, recentSidebarSessions]);
+  const sidebarSearchResultSessions = useMemo(() => {
+    if (!normalizedSidebarSearchQuery) {
+      return buildVisibleSidebarSessions({
+        sessions: recentSidebarSessions,
+        currentSessionId,
+        limit: sidebarSearchResultLimit,
+      });
+    }
+
+    return sidebarSearchMatchedSessions.slice(0, sidebarSearchResultLimit);
+  }, [
+    currentSessionId,
+    normalizedSidebarSearchQuery,
+    recentSidebarSessions,
+    sidebarSearchMatchedSessions,
+    sidebarSearchResultLimit,
+  ]);
+  const sidebarSearchHasQuery = normalizedSidebarSearchQuery.length > 0;
+  const sidebarSearchHasMoreResults = sidebarSearchHasQuery
+    ? sidebarSessionsHasMore ||
+      sidebarSearchResultLimit < sidebarSearchMatchedSessions.length
+    : hasMoreRecentSidebarSessions;
 
   const isActive = (item: SidebarNavItem): boolean => {
     if (!item.page) {
@@ -2950,6 +3395,7 @@ export function AppSidebar({
         workspaceId: session.workspace_id ?? currentProjectId ?? null,
         source: "sidebar",
       });
+      return;
     }
 
     const targetParams = buildClawAgentParams({
@@ -2976,7 +3422,19 @@ export function AppSidebar({
     onNavigate(target.page, target.rawParams);
   };
 
-  const handleNavigateToNewTask = () => {
+  const handlePrefetchConversation = (session: AsterSessionInfo) => {
+    if (!isAgentWorkspace) {
+      return;
+    }
+
+    notifyTaskCenterTaskPrefetch({
+      sessionId: session.id,
+      workspaceId: session.workspace_id ?? currentProjectId ?? null,
+      source: "conversation_shelf",
+    });
+  };
+
+  const handleNavigateToNewTask = useCallback(() => {
     if (tryOpenTaskCenterDraftFromSidebar()) {
       return;
     }
@@ -3002,7 +3460,65 @@ export function AppSidebar({
 
     requestedNavigationTargetRef.current = target;
     onNavigate(target.page, target.rawParams);
+  }, [currentProjectId, onNavigate, tryOpenTaskCenterDraftFromSidebar]);
+
+  const handleSidebarSearchCreateConversation = () => {
+    closeSidebarSearchDialog();
+    handleNavigateToNewTask();
   };
+
+  const handleSidebarSearchNavigateToConversation = (
+    session: AsterSessionInfo,
+  ) => {
+    closeSidebarSearchDialog();
+    handleNavigateToConversation(session);
+  };
+
+  const handleRenameConversation = useCallback(
+    async (session: AsterSessionInfo) => {
+      const currentTitle = resolveSidebarSessionTitle(session);
+      const nextTitle = window.prompt("重命名对话", currentTitle)?.trim();
+      if (!nextTitle || nextTitle === currentTitle) {
+        return;
+      }
+
+      const nextUpdatedAt = Math.floor(Date.now() / 1000);
+      const nextSession = {
+        ...session,
+        name: nextTitle,
+        updated_at: nextUpdatedAt,
+      } satisfies AsterSessionInfo;
+      setSidebarSessionActionId(session.id);
+      setSidebarSessions((current) =>
+        sortSidebarSessions(
+          current.map((item) => (item.id === session.id ? nextSession : item)),
+        ),
+      );
+      setArchivedSessionEntries((current) =>
+        sortSidebarSessions(
+          current.map((item) => (item.id === session.id ? nextSession : item)),
+        ),
+      );
+
+      try {
+        await updateAgentRuntimeSession({
+          session_id: session.id,
+          name: nextTitle,
+        });
+        toast.success("已重命名对话");
+        await refreshSidebarSessions();
+      } catch (error) {
+        console.error("重命名会话失败:", error);
+        toast.error("重命名失败，请稍后重试");
+        await refreshSidebarSessions();
+      } finally {
+        setSidebarSessionActionId((current) =>
+          current === session.id ? null : current,
+        );
+      }
+    },
+    [refreshSidebarSessions],
+  );
 
   const handleToggleSessionArchive = useCallback(
     async (session: AsterSessionInfo, archived: boolean) => {
@@ -3048,6 +3564,45 @@ export function AppSidebar({
     [refreshSidebarSessions],
   );
 
+  const handleDeleteConversation = useCallback(
+    async (session: AsterSessionInfo) => {
+      const title = resolveSidebarSessionTitle(session);
+      const confirmed = window.confirm(
+        `确定要删除“${title}”吗？删除后无法恢复。`,
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      setSidebarSessionActionId(session.id);
+      setSidebarSessions((current) =>
+        current.filter((item) => item.id !== session.id),
+      );
+      setArchivedSessionEntries((current) =>
+        current.filter((item) => item.id !== session.id),
+      );
+
+      try {
+        await deleteAgentRuntimeSession(session.id);
+        toast.success("已删除对话");
+        if (currentSessionId === session.id) {
+          handleNavigateToNewTask();
+        } else {
+          await refreshSidebarSessions();
+        }
+      } catch (error) {
+        console.error("删除会话失败:", error);
+        toast.error("删除失败，请稍后重试");
+        await refreshSidebarSessions();
+      } finally {
+        setSidebarSessionActionId((current) =>
+          current === session.id ? null : current,
+        );
+      }
+    },
+    [currentSessionId, handleNavigateToNewTask, refreshSidebarSessions],
+  );
+
   const currentColorScheme = getLimeColorScheme(colorSchemeId);
   const currentThemeLabel =
     LIME_THEME_MODE_OPTIONS.find((option) => option.id === themeState.themeMode)
@@ -3091,6 +3646,16 @@ export function AppSidebar({
     },
     [],
   );
+
+  const handleRandomColorScheme = useCallback(() => {
+    const candidates = LIME_COLOR_SCHEMES.filter(
+      (scheme) => scheme.id !== colorSchemeId,
+    );
+    const nextScheme =
+      candidates[Math.floor(Math.random() * candidates.length)] ??
+      LIME_COLOR_SCHEMES[0];
+    handleColorSchemeChange(nextScheme.id);
+  }, [colorSchemeId, handleColorSchemeChange]);
 
   const handleAccountMenuNavigate = useCallback(
     (params: PageParams) => {
@@ -3240,7 +3805,9 @@ export function AppSidebar({
         $themeMode={themeState.effectiveThemeMode}
         $reserveWindowControls={reserveWindowControls}
         data-testid="app-sidebar"
+        data-lime-window-drag-region
         data-window-controls-reserved={String(reserveWindowControls)}
+        onMouseDown={onStartWindowDrag}
       >
         <HeaderArea $collapsed={collapsed} data-testid="app-sidebar-header">
           <HeaderTopRow $collapsed={collapsed}>
@@ -3301,16 +3868,12 @@ export function AppSidebar({
           {maybeWrapWithTooltip(
             <SearchButton
               $collapsed={collapsed}
-              onClick={() =>
-                onNavigate(
-                  "agent",
-                  buildHomeAgentParams({
-                    projectId: currentProjectId ?? undefined,
-                  }),
-                )
-              }
+              onClick={openSidebarSearchDialog}
               title="搜索任务"
               aria-label="搜索任务"
+              aria-haspopup="dialog"
+              aria-expanded={sidebarSearchOpen ? true : undefined}
+              data-testid="app-sidebar-search-button"
             >
               <Search size={14} />
               <span>搜索任务</span>
@@ -3337,6 +3900,9 @@ export function AppSidebar({
               actionSessionId={sidebarSessionActionId}
               onCreateConversation={handleNavigateToNewTask}
               onNavigateToConversation={handleNavigateToConversation}
+              onPrefetchConversation={handlePrefetchConversation}
+              onRenameConversation={handleRenameConversation}
+              onDeleteConversation={handleDeleteConversation}
               onToggleArchive={(session, archived) => {
                 void handleToggleSessionArchive(session, archived);
               }}
@@ -3461,6 +4027,15 @@ export function AppSidebar({
                   <AppearanceGroup>
                     <AppearanceGroupLabel>配色</AppearanceGroupLabel>
                     <ColorSchemeList>
+                      <RandomColorSchemeButton
+                        type="button"
+                        aria-label="随机切换配色"
+                        title="随机切换一个颜色主题"
+                        onClick={handleRandomColorScheme}
+                      >
+                        <Shuffle />
+                        <span>随机</span>
+                      </RandomColorSchemeButton>
                       {LIME_COLOR_SCHEMES.map((scheme) => {
                         const active = scheme.id === colorSchemeId;
                         return (
@@ -3810,6 +4385,120 @@ export function AppSidebar({
           </AccountActionSlot>
         </FooterArea>
       </Container>
+      <Modal
+        isOpen={sidebarSearchOpen}
+        onClose={closeSidebarSearchDialog}
+        className="border-none bg-transparent p-0 shadow-none"
+        maxWidth="max-w-[832px]"
+        showCloseButton={false}
+      >
+        <SidebarSearchSurface data-testid="app-sidebar-search-dialog">
+          <SidebarSearchHeader>
+            <Search aria-hidden="true" />
+            <SidebarSearchInput
+              ref={sidebarSearchInputRef}
+              value={sidebarSearchQuery}
+              onChange={(event) => setSidebarSearchQuery(event.target.value)}
+              placeholder="搜索对话标题"
+              aria-label="搜索对话标题"
+              data-testid="app-sidebar-search-input"
+            />
+            <SidebarSearchShortcut aria-hidden="true">
+              <SidebarSearchKey>⌘</SidebarSearchKey>
+              <SidebarSearchKey>K</SidebarSearchKey>
+            </SidebarSearchShortcut>
+            <SidebarSearchCloseButton
+              type="button"
+              aria-label="关闭搜索弹窗"
+              onClick={closeSidebarSearchDialog}
+            >
+              <X />
+            </SidebarSearchCloseButton>
+          </SidebarSearchHeader>
+          <SidebarSearchDivider />
+          <SidebarSearchBody>
+            <SidebarSearchCreateButton
+              type="button"
+              onClick={handleSidebarSearchCreateConversation}
+              data-testid="app-sidebar-search-new-conversation"
+            >
+              <MessageSquarePlus />
+              <SidebarSearchCreateText>新建对话</SidebarSearchCreateText>
+              <SidebarSearchEnterHint aria-hidden="true">
+                ↵
+              </SidebarSearchEnterHint>
+            </SidebarSearchCreateButton>
+
+            <SidebarSearchSectionLabel>
+              {sidebarSearchHasQuery ? "匹配结果" : "最近"}
+            </SidebarSearchSectionLabel>
+
+            {shouldShowSessionLoadingState ? (
+              <SidebarSearchEmptyState role="status">
+                正在加载对话
+              </SidebarSearchEmptyState>
+            ) : sidebarSearchResultSessions.length > 0 ? (
+              <SidebarSearchResultList>
+                {sidebarSearchResultSessions.map((session) => {
+                  const title = resolveSidebarSessionTitle(session);
+                  const isCurrentConversation = currentSessionId === session.id;
+                  return (
+                    <SidebarSearchResultButton
+                      key={session.id}
+                      type="button"
+                      $active={isCurrentConversation}
+                      aria-current={
+                        isCurrentConversation ? "page" : undefined
+                      }
+                      title={title}
+                      data-testid="app-sidebar-search-result"
+                      onClick={() =>
+                        handleSidebarSearchNavigateToConversation(session)
+                      }
+                    >
+                      <MessageSquare />
+                      <SidebarSearchResultTitle>
+                        {title}
+                      </SidebarSearchResultTitle>
+                      <SidebarSearchResultMeta>
+                        {formatSidebarSessionMeta(session)}
+                      </SidebarSearchResultMeta>
+                    </SidebarSearchResultButton>
+                  );
+                })}
+              </SidebarSearchResultList>
+            ) : (
+              <SidebarSearchEmptyState role="status">
+                {!currentProjectId
+                  ? "请先选择项目工作区"
+                  : sidebarSearchHasQuery
+                    ? "没有匹配的对话标题"
+                    : "还没有最近对话"}
+              </SidebarSearchEmptyState>
+            )}
+
+            {sidebarSearchHasMoreResults ? (
+              <SidebarSearchMoreButton
+                type="button"
+                disabled={sidebarSessionsLoading}
+                onClick={() =>
+                  setRecentSessionsVisibleCount(
+                    (current) => current + SIDEBAR_RECENT_SESSION_PAGE_SIZE,
+                  )
+                }
+                data-testid="app-sidebar-search-more"
+              >
+                {sidebarSessionsLoading
+                  ? "正在加载..."
+                  : sidebarSearchHasQuery
+                    ? "查看更多匹配结果"
+                    : "查看更多对话"}
+                <ChevronDown />
+              </SidebarSearchMoreButton>
+            ) : null}
+          </SidebarSearchBody>
+        </SidebarSearchSurface>
+      </Modal>
       <Modal
         isOpen={inviteDialogOpen}
         onClose={() => setInviteDialogOpen(false)}

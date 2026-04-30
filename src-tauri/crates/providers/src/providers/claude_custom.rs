@@ -4,11 +4,15 @@ use lime_core::database::dao::api_key_provider::{
 };
 use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::{ChatCompletionRequest, ContentPart, MessageContent};
-use reqwest::Client;
+use reqwest::{Client, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::error::Error;
 use std::time::Duration;
+use url::{form_urlencoded, Url};
+
+const LIME_TENANT_HEADER: &str = "X-Lime-Tenant-ID";
+const LIME_TENANT_PARAM: &str = "lime_tenant_id";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
@@ -140,7 +144,7 @@ impl ClaudeCustomProvider {
     /// 构建完整的 API URL
     /// 智能处理用户输入的 base_url，无论是否带 /v1 都能正确工作
     fn build_url(&self, endpoint: &str) -> String {
-        let base = self.get_base_url();
+        let base = Self::strip_config_url_metadata(&self.get_base_url());
         let base = base.trim_end_matches('/');
 
         // 如果用户输入了带 /v1 的 URL，直接拼接 endpoint
@@ -150,6 +154,65 @@ impl ClaudeCustomProvider {
         } else {
             format!("{base}/v1/{endpoint}")
         }
+    }
+
+    fn parse_config_url(base_url: &str) -> Option<Url> {
+        let trimmed = base_url.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        Url::parse(trimmed)
+            .or_else(|_| Url::parse(&format!("https://{trimmed}")))
+            .ok()
+    }
+
+    fn strip_config_url_metadata(base_url: &str) -> String {
+        if let Some(mut url) = Self::parse_config_url(base_url) {
+            url.set_query(None);
+            url.set_fragment(None);
+            return url.to_string().trim_end_matches('/').to_string();
+        }
+
+        let trimmed = base_url.trim();
+        let end = [trimmed.find('?'), trimmed.find('#')]
+            .into_iter()
+            .flatten()
+            .min()
+            .unwrap_or(trimmed.len());
+        trimmed[..end].trim_end_matches('/').to_string()
+    }
+
+    fn normalize_lime_tenant_id(value: &str) -> Option<String> {
+        let tenant_id = value.trim();
+        if tenant_id.is_empty() {
+            return None;
+        }
+
+        tenant_id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+            .then(|| tenant_id.to_string())
+    }
+
+    fn parse_lime_tenant_id_from_pairs(value: &str) -> Option<String> {
+        form_urlencoded::parse(value.as_bytes()).find_map(|(key, value)| {
+            (key == LIME_TENANT_PARAM)
+                .then(|| Self::normalize_lime_tenant_id(&value))
+                .flatten()
+        })
+    }
+
+    fn lime_tenant_id_from_base_url(&self) -> Option<String> {
+        let base_url = self.config.base_url.as_deref()?;
+        let url = Self::parse_config_url(base_url)?;
+
+        url.query()
+            .and_then(Self::parse_lime_tenant_id_from_pairs)
+            .or_else(|| {
+                url.fragment()
+                    .and_then(Self::parse_lime_tenant_id_from_pairs)
+            })
     }
 
     /// 将 OpenAI 图片 URL 格式转换为 Claude 图片格式
@@ -378,14 +441,13 @@ impl ClaudeCustomProvider {
     }
 
     fn effective_runtime_spec(&self) -> ProviderRuntimeSpec {
-        infer_managed_runtime_spec(self.config.provider_type, &self.get_base_url())
+        infer_managed_runtime_spec(
+            self.config.provider_type,
+            &Self::strip_config_url_metadata(&self.get_base_url()),
+        )
     }
 
-    fn apply_runtime_headers(
-        &self,
-        request: reqwest::RequestBuilder,
-        api_key: &str,
-    ) -> reqwest::RequestBuilder {
+    fn apply_runtime_headers(&self, request: RequestBuilder, api_key: &str) -> RequestBuilder {
         let api_key = api_key.trim();
         let runtime_spec = self.effective_runtime_spec();
         let auth_value = runtime_spec
@@ -410,6 +472,10 @@ impl ClaudeCustomProvider {
 
         for (name, value) in runtime_spec.extra_headers {
             request = request.header(*name, *value);
+        }
+
+        if let Some(tenant_id) = self.lime_tenant_id_from_base_url() {
+            request = request.header(LIME_TENANT_HEADER, tenant_id);
         }
 
         request
@@ -1273,6 +1339,23 @@ mod tests {
     }
 
     #[test]
+    fn test_lime_tenant_id_from_base_url_fragment() {
+        let provider = ClaudeCustomProvider::with_config(
+            "test-key".to_string(),
+            Some("https://llm.limeai.run#lime_tenant_id=tenant-0001".to_string()),
+        );
+
+        assert_eq!(
+            provider.lime_tenant_id_from_base_url().as_deref(),
+            Some("tenant-0001")
+        );
+        assert_eq!(
+            provider.build_url("messages"),
+            "https://llm.limeai.run/v1/messages"
+        );
+    }
+
+    #[test]
     fn test_apply_runtime_headers_adds_dual_auth_headers_for_minimax_host() {
         let provider = ClaudeCustomProvider::with_config(
             "test-key".to_string(),
@@ -1307,6 +1390,30 @@ mod tests {
                 .get("anthropic-version")
                 .and_then(|value| value.to_str().ok()),
             Some("2023-06-01")
+        );
+    }
+
+    #[test]
+    fn test_apply_runtime_headers_adds_lime_tenant_header_from_fragment() {
+        let provider = ClaudeCustomProvider::with_config(
+            "test-key".to_string(),
+            Some("https://llm.limeai.run#lime_tenant_id=tenant-0001".to_string()),
+        );
+
+        let request = provider
+            .apply_runtime_headers(
+                reqwest::Client::new().post("https://example.com"),
+                "test-key",
+            )
+            .build()
+            .expect("构建请求失败");
+
+        assert_eq!(
+            request
+                .headers()
+                .get(LIME_TENANT_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("tenant-0001")
         );
     }
 

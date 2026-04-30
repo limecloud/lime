@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   resolveBrowserControlRuntimeContractBinding,
+  resolveBrowserControlEntrySource,
   isImageGenerationBoundEntrySource,
+  resolveAudioTranscriptionRuntimeContractBinding,
   resolveImageGenerationRuntimeContractBinding,
   resolvePdfExtractRuntimeContractBinding,
   resolveTextTransformRuntimeContractBinding,
@@ -63,7 +65,28 @@ describe("modalityRuntimeContracts", () => {
         "browser_control_planning",
       ]),
     );
-    expect(contract.boundEntrySources).toEqual([]);
+    expect(contract.boundEntrySources).toEqual(
+      expect.arrayContaining([
+        "at_browser_command",
+        "at_browser_agent_command",
+        "at_mini_tester_command",
+      ]),
+    );
+  });
+
+  it("browser_control entry source 应从 contract registry 派生", () => {
+    expect(resolveBrowserControlEntrySource("@浏览器")).toBe(
+      "at_browser_command",
+    );
+    expect(resolveBrowserControlEntrySource("@Browser Agent")).toBe(
+      "at_browser_agent_command",
+    );
+    expect(resolveBrowserControlEntrySource("@Mini Tester")).toBe(
+      "at_mini_tester_command",
+    );
+    expect(resolveBrowserControlEntrySource("@unknown")).toBe(
+      "at_browser_command",
+    );
   });
 
   it("pdf_extract contract 应提供 Skill(pdf_read) 底层运行字段与上层入口绑定", () => {
@@ -115,6 +138,30 @@ describe("modalityRuntimeContracts", () => {
     );
     expect(contract.boundEntrySources).toEqual(
       expect.arrayContaining(["at_voice_command"]),
+    );
+  });
+
+  it("audio_transcription contract 应提供 Skill(transcription_generate) 底层运行字段与上层入口绑定", () => {
+    const contract = resolveAudioTranscriptionRuntimeContractBinding();
+
+    expect(contract).toMatchObject({
+      contractKey: "audio_transcription",
+      modality: "audio",
+      routingSlot: "audio_transcription_model",
+      runtimeContract: expect.objectContaining({
+        contract_key: "audio_transcription",
+        routing_slot: "audio_transcription_model",
+        executor_binding: expect.objectContaining({
+          executor_kind: "skill",
+          binding_key: "transcription_generate",
+        }),
+      }),
+    });
+    expect(contract.requiredCapabilities).toEqual(
+      expect.arrayContaining(["text_generation", "audio_transcription"]),
+    );
+    expect(contract.boundEntrySources).toEqual(
+      expect.arrayContaining(["at_transcription_command"]),
     );
   });
 
