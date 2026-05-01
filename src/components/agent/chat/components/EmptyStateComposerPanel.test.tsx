@@ -339,6 +339,64 @@ describe("EmptyStateComposerPanel", () => {
     expect(composer?.className).toContain("floating-composer");
   });
 
+  it("首页空态输入区应显示文件管理器按钮并触发开关", () => {
+    const onToggleFileManager = vi.fn();
+    const container = renderPanel({
+      onToggleFileManager,
+      fileManagerOpen: false,
+    });
+
+    const toggleButton = container.querySelector(
+      '[data-testid="inputbar-file-manager-toggle"]',
+    ) as HTMLButtonElement | null;
+
+    expect(toggleButton).toBeTruthy();
+    expect(toggleButton?.getAttribute("aria-label")).toBe(
+      "打开左侧文件管理器",
+    );
+
+    act(() => {
+      toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onToggleFileManager).toHaveBeenCalledTimes(1);
+  });
+
+  it("首页空态输入区应展示本地路径 chip 并支持移除", () => {
+    const onRemovePathReference = vi.fn();
+    const container = renderPanel({
+      pathReferences: [
+        {
+          id: "dir:/Users/lime/Downloads",
+          path: "/Users/lime/Downloads",
+          name: "Downloads",
+          isDir: true,
+          size: null,
+          mimeType: null,
+          source: "file_manager",
+        },
+      ],
+      onRemovePathReference,
+    });
+
+    expect(
+      container.querySelector('[data-testid="inputbar-path-reference-chip"]')
+        ?.textContent,
+    ).toContain("Downloads");
+
+    const removeButton = container.querySelector(
+      'button[aria-label="移除路径 Downloads"]',
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      removeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onRemovePathReference).toHaveBeenCalledWith(
+      "dir:/Users/lime/Downloads",
+    );
+  });
+
   it("输入为空时展示 Tab 起手建议，按 Tab 后填入当前建议", async () => {
     const container = renderPanel({
       inputSuggestions: [

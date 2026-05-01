@@ -7,6 +7,8 @@ import {
   deleteAsrCredential,
   deleteVoiceInstruction,
   getAsrCredentials,
+  getRecordingSegment,
+  getRecordingSnapshot,
   getRecordingStatus,
   getVoiceInputConfig,
   getVoiceInstructions,
@@ -133,6 +135,19 @@ describe("asrProvider API", () => {
         sample_rate: 16000,
         duration: 1,
       })
+      .mockResolvedValueOnce({
+        audio_data: [1, 2],
+        sample_rate: 16000,
+        duration: 1,
+      })
+      .mockResolvedValueOnce({
+        audio_data: [3, 4],
+        sample_rate: 16000,
+        duration: 0.8,
+        start_sample: 16000,
+        end_sample: 28800,
+        total_samples: 28800,
+      })
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({ is_recording: false, volume: 0, duration: 0 })
       .mockResolvedValueOnce(undefined);
@@ -154,6 +169,12 @@ describe("asrProvider API", () => {
     await expect(stopRecording()).resolves.toEqual(
       expect.objectContaining({ sample_rate: 16000 }),
     );
+    await expect(getRecordingSnapshot()).resolves.toEqual(
+      expect.objectContaining({ sample_rate: 16000 }),
+    );
+    await expect(getRecordingSegment(16000, 0.8)).resolves.toEqual(
+      expect.objectContaining({ end_sample: 28800 }),
+    );
     await expect(cancelRecording()).resolves.toBeUndefined();
     await expect(getRecordingStatus()).resolves.toEqual(
       expect.objectContaining({ is_recording: false }),
@@ -171,7 +192,12 @@ describe("asrProvider API", () => {
     expect(safeInvoke).toHaveBeenNthCalledWith(6, "start_recording", {
       deviceId: "default",
     });
-    expect(safeInvoke).toHaveBeenNthCalledWith(10, "open_input_with_text", {
+    expect(safeInvoke).toHaveBeenNthCalledWith(8, "get_recording_snapshot");
+    expect(safeInvoke).toHaveBeenNthCalledWith(9, "get_recording_segment", {
+      startSample: 16000,
+      maxDurationSecs: 0.8,
+    });
+    expect(safeInvoke).toHaveBeenNthCalledWith(12, "open_input_with_text", {
       text: "prefilled",
     });
   });

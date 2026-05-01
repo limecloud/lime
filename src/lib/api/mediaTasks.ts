@@ -9,6 +9,8 @@ export type {
   MediaTaskArtifactOutput,
   MediaTaskArtifactRecord,
   MediaTaskAudioOutputStatusCount,
+  MediaTaskLimeCorePolicyEvaluationStatusCount,
+  MediaTaskLimeCorePolicySnapshotStatusCount,
   MediaTaskListFilters,
   MediaTaskRoutingOutcomeCount,
   MediaTaskTranscriptStatusCount,

@@ -1,6 +1,7 @@
 use super::*;
 use crate::commands::modality_runtime_contracts::{
-    insert_web_research_contract_fields, web_research_required_capabilities,
+    hydrate_limecore_policy_hits_from_request_metadata, insert_web_research_contract_fields,
+    runtime_contract_with_policy_hits_from_request_metadata, web_research_required_capabilities,
     web_research_runtime_contract, WEB_RESEARCH_CONTRACT_KEY, WEB_RESEARCH_MODALITY,
     WEB_RESEARCH_ROUTING_SLOT,
 };
@@ -150,6 +151,7 @@ pub(crate) fn prepare_report_skill_launch_request_metadata(
     ) {
         ensure_web_research_contract_metadata(launch);
     }
+    hydrate_limecore_policy_hits_from_request_metadata(&mut metadata);
 
     Some(metadata)
 }
@@ -297,20 +299,24 @@ fn build_report_skill_launch_system_prompt(
     let runtime_contract =
         extract_object_value(report_request, &["runtime_contract", "runtimeContract"])
             .unwrap_or_else(web_research_runtime_contract);
+    let runtime_contract =
+        runtime_contract_with_policy_hits_from_request_metadata(runtime_contract, request_metadata);
+    let mut report_request_payload = report_request.clone();
+    report_request_payload.insert("runtime_contract".to_string(), runtime_contract.clone());
     let args_payload = serde_json::json!({
         "user_input": raw_text
             .clone()
             .or(prompt.clone())
             .or(query.clone())
             .unwrap_or_else(|| "请根据当前要求执行研报任务".to_string()),
-        "report_request": serde_json::Value::Object(report_request.clone()),
+        "report_request": serde_json::Value::Object(report_request_payload.clone()),
     });
     let args_json = truncate_prompt_text(
         serde_json::to_string(&args_payload).unwrap_or_else(|_| "{}".to_string()),
         4_000,
     );
     let request_json = truncate_prompt_text(
-        serde_json::to_string(report_request).unwrap_or_else(|_| "{}".to_string()),
+        serde_json::to_string(&report_request_payload).unwrap_or_else(|_| "{}".to_string()),
         4_000,
     );
     let has_query = query

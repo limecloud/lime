@@ -785,6 +785,115 @@ describe("Inputbar", () => {
     );
   });
 
+  it("仅添加路径引用时应允许发送并写入 request metadata", async () => {
+    const onSend = vi.fn();
+    renderInputbar({
+      input: "",
+      onSend,
+      pathReferences: [
+        {
+          id: "dir:/Users/demo/Downloads",
+          path: "/Users/demo/Downloads",
+          name: "Downloads",
+          isDir: true,
+          source: "file_manager",
+        },
+      ],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      "请查看这些文件或文件夹。",
+      "react",
+      undefined,
+      {
+        requestMetadata: {
+          path_references: [
+            {
+              path: "/Users/demo/Downloads",
+              name: "Downloads",
+              is_dir: true,
+              isDir: true,
+              size: null,
+              mime_type: null,
+              mimeType: null,
+              source: "file_manager",
+            },
+          ],
+          harness: {
+            file_references: [
+              {
+                path: "/Users/demo/Downloads",
+                name: "Downloads",
+                is_dir: true,
+                isDir: true,
+                size: null,
+                mime_type: null,
+                mimeType: null,
+                source: "file_manager",
+              },
+            ],
+            fileReferences: [
+              {
+                path: "/Users/demo/Downloads",
+                name: "Downloads",
+                is_dir: true,
+                isDir: true,
+                size: null,
+                mime_type: null,
+                mimeType: null,
+                source: "file_manager",
+              },
+            ],
+          },
+        },
+      },
+    );
+  });
+
+  it("应在输入框底栏提供文件管理器打开按钮", async () => {
+    const onToggleFileManager = vi.fn();
+    const { container } = renderInputbar({
+      onToggleFileManager,
+      fileManagerOpen: false,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const toggleButton = container.querySelector(
+      '[data-testid="inputbar-file-manager-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(toggleButton).toBeTruthy();
+    expect(toggleButton?.getAttribute("aria-label")).toBe(
+      "打开左侧文件管理器",
+    );
+
+    await act(async () => {
+      toggleButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onToggleFileManager).toHaveBeenCalledTimes(1);
+  });
+
   it("带着初始已安装技能进入时，应恢复 capability badge 并继续按 route 发送", async () => {
     const onSend = vi.fn();
     const skill = {

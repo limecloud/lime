@@ -9,13 +9,29 @@
 //! - 获取文件元信息
 //! - 获取文件权限和 MIME 类型
 
+#![allow(deprecated, unexpected_cfgs)]
+
+use base64::{engine::general_purpose, Engine as _};
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::{self, Metadata};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::sync::Semaphore;
 use tracing::{debug, error};
+
+static FILE_ICON_DATA_URL_CACHE: Lazy<Mutex<HashMap<String, Option<String>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static FILE_ICON_RESOLVE_SEMAPHORE: Lazy<Arc<Semaphore>> =
+    Lazy::new(|| Arc::new(Semaphore::new(2)));
+
+const FILE_ICON_RESOLVE_ACQUIRE_TIMEOUT: Duration = Duration::from_millis(80);
+const FILE_ICON_RESOLVE_TIMEOUT: Duration = Duration::from_millis(900);
 
 /// 文件条目
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +65,9 @@ pub struct FileEntry {
     /// 是否为符号链接
     #[serde(rename = "isSymlink")]
     pub is_symlink: bool,
+    /// 原生文件/应用图标，PNG data URL
+    #[serde(rename = "iconDataUrl", skip_serializing_if = "Option::is_none")]
+    pub icon_data_url: Option<String>,
 }
 
 /// 目录列表结果
@@ -81,6 +100,19 @@ pub struct FilePreview {
     pub error: Option<String>,
 }
 
+/// 文件管理器快捷入口
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileManagerLocation {
+    /// 稳定 ID
+    pub id: String,
+    /// 展示名称
+    pub label: String,
+    /// 入口目录绝对路径
+    pub path: String,
+    /// 入口类型
+    pub kind: String,
+}
+
 /// 获取文件扩展名
 fn get_file_extension(path: &Path) -> Option<String> {
     path.extension()
@@ -91,6 +123,468 @@ fn get_file_extension(path: &Path) -> Option<String> {
 /// 判断是否为隐藏文件
 fn is_hidden_file(name: &str) -> bool {
     name.starts_with('.')
+}
+
+fn encode_png_data_url(bytes: &[u8]) -> Option<String> {
+    if bytes.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "data:image/png;base64,{}",
+        general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
+fn temporary_icon_png_path() -> PathBuf {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    std::env::temp_dir().join(format!(
+        "lime-file-icon-{}-{unique}.png",
+        std::process::id()
+    ))
+}
+
+fn normalize_bundle_icon_file_name(value: &str) -> Option<String> {
+    let trimmed = value.trim().trim_matches('"').trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Path::new(trimmed)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.trim().to_string())
+        .filter(|name| !name.is_empty())
+}
+
+fn resolve_cached_file_icon_data_url(
+    path: &Path,
+    metadata: &Metadata,
+    name: &str,
+) -> Option<String> {
+    if !should_resolve_file_icon(path, metadata, name) {
+        return None;
+    }
+
+    let cache_key = path.to_string_lossy().to_string();
+    if let Some(cached) = FILE_ICON_DATA_URL_CACHE.lock().get(&cache_key).cloned() {
+        return cached;
+    }
+
+    let icon_data_url = resolve_platform_file_icon_data_url(path, metadata, name);
+    FILE_ICON_DATA_URL_CACHE
+        .lock()
+        .insert(cache_key, icon_data_url.clone());
+    icon_data_url
+}
+
+fn get_cached_file_icon_data_url(path: &Path) -> Option<String> {
+    FILE_ICON_DATA_URL_CACHE
+        .lock()
+        .get(&path.to_string_lossy().to_string())
+        .and_then(|cached| cached.clone())
+}
+
+fn get_file_icon_cache_entry(path: &Path) -> Option<Option<String>> {
+    FILE_ICON_DATA_URL_CACHE
+        .lock()
+        .get(&path.to_string_lossy().to_string())
+        .cloned()
+}
+
+fn should_resolve_file_icon(path: &Path, metadata: &Metadata, name: &str) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = (path, metadata, name);
+        return true;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = metadata;
+        let extension = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or("");
+        return matches!(
+            extension.to_ascii_lowercase().as_str(),
+            "exe" | "lnk" | "appref-ms"
+        ) || name.ends_with(".lnk");
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = (path, metadata, name);
+        false
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn resolve_platform_file_icon_data_url(
+    path: &Path,
+    metadata: &Metadata,
+    _name: &str,
+) -> Option<String> {
+    resolve_macos_system_icon_data_url(path).or_else(|| {
+        if is_macos_app_bundle(path, metadata) {
+            resolve_macos_app_icon_data_url(path)
+        } else {
+            None
+        }
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_platform_file_icon_data_url(
+    path: &Path,
+    _metadata: &Metadata,
+    _name: &str,
+) -> Option<String> {
+    resolve_windows_associated_icon_data_url(path)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn resolve_platform_file_icon_data_url(
+    _path: &Path,
+    _metadata: &Metadata,
+    _name: &str,
+) -> Option<String> {
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn resolve_macos_app_icon_data_url(app_path: &Path) -> Option<String> {
+    let resources_dir = app_path.join("Contents").join("Resources");
+    let icon_path = resolve_macos_bundle_icon_path(app_path, &resources_dir)
+        .or_else(|| find_first_icns_file(&resources_dir))?;
+    convert_macos_icns_to_png_data_url(&icon_path)
+}
+
+#[cfg(target_os = "macos")]
+fn is_macos_app_bundle(path: &Path, metadata: &Metadata) -> bool {
+    metadata.is_dir()
+        && path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| extension.eq_ignore_ascii_case("app"))
+            .unwrap_or(false)
+}
+
+#[cfg(target_os = "macos")]
+fn resolve_macos_system_icon_data_url(path: &Path) -> Option<String> {
+    use cocoa::base::{id, nil};
+    use cocoa::foundation::{NSAutoreleasePool, NSDictionary, NSSize, NSString, NSUInteger};
+    use objc::{class, msg_send, sel, sel_impl};
+
+    unsafe {
+        let pool = NSAutoreleasePool::new(nil);
+        let path_string = path.to_string_lossy();
+        let ns_path = NSString::alloc(nil).init_str(path_string.as_ref());
+        let workspace: id = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let icon: id = msg_send![workspace, iconForFile: ns_path];
+        if icon == nil {
+            pool.drain();
+            return None;
+        }
+
+        let _: () = msg_send![icon, setSize: NSSize::new(128.0, 128.0)];
+        let tiff_data: id = msg_send![icon, TIFFRepresentation];
+        if tiff_data == nil {
+            pool.drain();
+            return None;
+        }
+
+        let bitmap_rep: id = msg_send![class!(NSBitmapImageRep), imageRepWithData: tiff_data];
+        if bitmap_rep == nil {
+            pool.drain();
+            return None;
+        }
+
+        let properties = NSDictionary::dictionary(nil);
+        let png_type = 4 as NSUInteger;
+        let png_data: id =
+            msg_send![bitmap_rep, representationUsingType: png_type properties: properties];
+        let bytes = nsdata_to_vec(png_data);
+        pool.drain();
+        bytes.and_then(|bytes| encode_png_data_url(&bytes))
+    }
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn nsdata_to_vec(data: cocoa::base::id) -> Option<Vec<u8>> {
+    use cocoa::base::nil;
+    use cocoa::foundation::NSData;
+
+    if data == nil {
+        return None;
+    }
+    let len = data.length() as usize;
+    if len == 0 {
+        return None;
+    }
+    let ptr = data.bytes() as *const u8;
+    if ptr.is_null() {
+        return None;
+    }
+    Some(std::slice::from_raw_parts(ptr, len).to_vec())
+}
+
+#[cfg(target_os = "macos")]
+fn resolve_macos_bundle_icon_path(app_path: &Path, resources_dir: &Path) -> Option<PathBuf> {
+    let info_plist = app_path.join("Contents").join("Info.plist");
+    if !info_plist.is_file() {
+        return None;
+    }
+
+    let output = std::process::Command::new("/usr/bin/plutil")
+        .args(["-extract", "CFBundleIconFile", "raw", "-o", "-"])
+        .arg(info_plist)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let icon_name = normalize_bundle_icon_file_name(&String::from_utf8_lossy(&output.stdout))?;
+    let mut candidates = Vec::with_capacity(2);
+    candidates.push(resources_dir.join(&icon_name));
+    if Path::new(&icon_name).extension().is_none() {
+        candidates.push(resources_dir.join(format!("{icon_name}.icns")));
+    }
+
+    candidates.into_iter().find(|candidate| candidate.is_file())
+}
+
+#[cfg(target_os = "macos")]
+fn find_first_icns_file(resources_dir: &Path) -> Option<PathBuf> {
+    let read_dir = fs::read_dir(resources_dir).ok()?;
+    let mut candidates: Vec<PathBuf> = read_dir
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| {
+            path.extension()
+                .and_then(|extension| extension.to_str())
+                .map(|extension| extension.eq_ignore_ascii_case("icns"))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    candidates.sort_by_key(|path| {
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        (
+            !file_name.contains("appicon"),
+            !file_name.contains("icon"),
+            file_name,
+        )
+    });
+    candidates.into_iter().next()
+}
+
+#[cfg(target_os = "macos")]
+fn convert_macos_icns_to_png_data_url(icon_path: &Path) -> Option<String> {
+    let output_path = temporary_icon_png_path();
+    let result = std::process::Command::new("/usr/bin/sips")
+        .args(["-s", "format", "png"])
+        .arg(icon_path)
+        .arg("--out")
+        .arg(&output_path)
+        .output();
+
+    let converted = match result {
+        Ok(output) if output.status.success() => fs::read(&output_path).ok(),
+        _ => None,
+    };
+    let _ = fs::remove_file(&output_path);
+    converted.and_then(|bytes| encode_png_data_url(&bytes))
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_windows_associated_icon_data_url(path: &Path) -> Option<String> {
+    let output_path = temporary_icon_png_path();
+    let script = r#"
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+$icon = [System.Drawing.Icon]::ExtractAssociatedIcon($env:LIME_ICON_SOURCE)
+if ($null -eq $icon) { exit 2 }
+$bitmap = $icon.ToBitmap()
+$bitmap.Save($env:LIME_ICON_OUTPUT, [System.Drawing.Imaging.ImageFormat]::Png)
+$bitmap.Dispose()
+$icon.Dispose()
+"#;
+
+    let encoded_script = encode_powershell_script(script);
+    let result = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+            &encoded_script,
+        ])
+        .env("LIME_ICON_SOURCE", path)
+        .env("LIME_ICON_OUTPUT", &output_path)
+        .output();
+
+    let rendered = match result {
+        Ok(output) if output.status.success() => fs::read(&output_path).ok(),
+        _ => None,
+    };
+    let _ = fs::remove_file(&output_path);
+    rendered.and_then(|bytes| encode_png_data_url(&bytes))
+}
+
+#[cfg(target_os = "windows")]
+fn encode_powershell_script(script: &str) -> String {
+    let mut bytes = Vec::with_capacity(script.len() * 2);
+    for unit in script.encode_utf16() {
+        bytes.extend_from_slice(&unit.to_le_bytes());
+    }
+    general_purpose::STANDARD.encode(bytes)
+}
+
+fn append_file_manager_location(
+    locations: &mut Vec<FileManagerLocation>,
+    seen_paths: &mut std::collections::HashSet<String>,
+    id: &str,
+    label: &str,
+    kind: &str,
+    path: Option<PathBuf>,
+) {
+    let Some(path) = path else {
+        return;
+    };
+
+    if !path.is_dir() {
+        return;
+    }
+
+    let normalized_path = path.to_string_lossy().to_string();
+    if normalized_path.trim().is_empty() || !seen_paths.insert(normalized_path.clone()) {
+        return;
+    }
+
+    locations.push(FileManagerLocation {
+        id: id.to_string(),
+        label: label.to_string(),
+        path: normalized_path,
+        kind: kind.to_string(),
+    });
+}
+
+/// 获取文件管理器快捷入口
+pub fn file_manager_locations() -> Vec<FileManagerLocation> {
+    let mut locations = Vec::new();
+    let mut seen_paths = std::collections::HashSet::new();
+    let home_dir = dirs::home_dir();
+
+    append_file_manager_location(
+        &mut locations,
+        &mut seen_paths,
+        "home",
+        "个人",
+        "home",
+        home_dir.clone(),
+    );
+    append_file_manager_location(
+        &mut locations,
+        &mut seen_paths,
+        "desktop",
+        "桌面",
+        "desktop",
+        dirs::desktop_dir(),
+    );
+    append_file_manager_location(
+        &mut locations,
+        &mut seen_paths,
+        "documents",
+        "文档",
+        "documents",
+        dirs::document_dir(),
+    );
+    append_file_manager_location(
+        &mut locations,
+        &mut seen_paths,
+        "downloads",
+        "下载",
+        "downloads",
+        dirs::download_dir(),
+    );
+
+    #[cfg(target_os = "macos")]
+    {
+        append_file_manager_location(
+            &mut locations,
+            &mut seen_paths,
+            "applications",
+            "应用程序",
+            "applications",
+            Some(PathBuf::from("/Applications")),
+        );
+        append_file_manager_location(
+            &mut locations,
+            &mut seen_paths,
+            "user-applications",
+            "用户应用程序",
+            "applications",
+            home_dir.map(|home| home.join("Applications")),
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        append_file_manager_location(
+            &mut locations,
+            &mut seen_paths,
+            "start-menu-programs",
+            "应用程序",
+            "applications",
+            std::env::var_os("APPDATA").map(|dir| {
+                PathBuf::from(dir)
+                    .join("Microsoft")
+                    .join("Windows")
+                    .join("Start Menu")
+                    .join("Programs")
+            }),
+        );
+        append_file_manager_location(
+            &mut locations,
+            &mut seen_paths,
+            "common-start-menu-programs",
+            "公共应用程序",
+            "applications",
+            std::env::var_os("PROGRAMDATA").map(|dir| {
+                PathBuf::from(dir)
+                    .join("Microsoft")
+                    .join("Windows")
+                    .join("Start Menu")
+                    .join("Programs")
+            }),
+        );
+        append_file_manager_location(
+            &mut locations,
+            &mut seen_paths,
+            "program-files",
+            "Program Files",
+            "applications",
+            std::env::var_os("ProgramFiles").map(PathBuf::from),
+        );
+        append_file_manager_location(
+            &mut locations,
+            &mut seen_paths,
+            "program-files-x86",
+            "Program Files (x86)",
+            "applications",
+            std::env::var_os("ProgramFiles(x86)").map(PathBuf::from),
+        );
+    }
+
+    locations
 }
 
 /// 将 Unix 文件模式转换为权限字符串（如 -rw-r--r--）
@@ -391,6 +885,7 @@ pub fn list_directory(path: &str) -> DirectoryListing {
 
                     // 获取 MIME 类型
                     let mime_type = get_mime_type(&path, &metadata);
+                    let icon_data_url = get_cached_file_icon_data_url(&path);
 
                     Some(FileEntry {
                         name: name.clone(),
@@ -404,6 +899,7 @@ pub fn list_directory(path: &str) -> DirectoryListing {
                         mode,
                         mime_type: Some(mime_type),
                         is_symlink,
+                        icon_data_url,
                     })
                 })
                 .collect();
@@ -523,7 +1019,9 @@ pub fn read_file_preview(path: &str, max_size: Option<usize>) -> FilePreview {
 
 /// 服务接口：列出目录
 pub async fn list_dir(path: String) -> Result<DirectoryListing, String> {
-    Ok(list_directory(&path))
+    tokio::task::spawn_blocking(move || list_directory(&path))
+        .await
+        .map_err(|e| format!("目录读取任务失败: {e}"))
 }
 
 /// 服务接口：读取文件预览
@@ -531,7 +1029,43 @@ pub async fn read_file_preview_cmd(
     path: String,
     max_size: Option<usize>,
 ) -> Result<FilePreview, String> {
-    Ok(read_file_preview(&path, max_size))
+    tokio::task::spawn_blocking(move || read_file_preview(&path, max_size))
+        .await
+        .map_err(|e| format!("文件预览任务失败: {e}"))
+}
+
+/// 服务接口：异步获取文件图标
+pub async fn get_file_icon_data_url(path: String) -> Result<Option<String>, String> {
+    let path_buf = PathBuf::from(&path);
+    if let Some(cached) = get_file_icon_cache_entry(&path_buf) {
+        return Ok(cached);
+    }
+
+    let semaphore = Arc::clone(&FILE_ICON_RESOLVE_SEMAPHORE);
+    let permit =
+        match tokio::time::timeout(FILE_ICON_RESOLVE_ACQUIRE_TIMEOUT, semaphore.acquire_owned())
+            .await
+        {
+            Ok(Ok(permit)) => permit,
+            Ok(Err(_)) => return Ok(None),
+            Err(_) => return Ok(None),
+        };
+
+    let resolve_task = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        let metadata = fs::metadata(&path_buf).ok()?;
+        let name = path_buf
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        resolve_cached_file_icon_data_url(&path_buf, &metadata, name)
+    });
+
+    match tokio::time::timeout(FILE_ICON_RESOLVE_TIMEOUT, resolve_task).await {
+        Ok(Ok(icon_data_url)) => Ok(icon_data_url),
+        Ok(Err(join_error)) => Err(format!("文件图标读取任务失败: {join_error}")),
+        Err(_) => Ok(None),
+    }
 }
 
 /// 服务接口：获取用户主目录
@@ -539,6 +1073,11 @@ pub async fn get_home_dir() -> Result<String, String> {
     dirs::home_dir()
         .map(|p| p.to_string_lossy().to_string())
         .ok_or_else(|| "无法获取主目录".to_string())
+}
+
+/// 服务接口：获取文件管理器快捷入口
+pub async fn get_file_manager_locations() -> Result<Vec<FileManagerLocation>, String> {
+    Ok(file_manager_locations())
 }
 
 /// 服务接口：创建新文件
@@ -720,6 +1259,48 @@ mod tests {
         assert!(is_hidden_file(".gitignore"));
         assert!(is_hidden_file(".config"));
         assert!(!is_hidden_file("readme.md"));
+    }
+
+    #[test]
+    fn test_normalize_bundle_icon_file_name() {
+        assert_eq!(
+            normalize_bundle_icon_file_name(" AppIcon.icns\n"),
+            Some("AppIcon.icns".to_string())
+        );
+        assert_eq!(
+            normalize_bundle_icon_file_name("../Resources/AppIcon"),
+            Some("AppIcon".to_string())
+        );
+        assert_eq!(normalize_bundle_icon_file_name("   "), None);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_resolve_macos_bundle_icon_path_from_plist() {
+        let temp_dir = tempfile::tempdir().expect("应创建临时目录");
+        let app_dir = temp_dir.path().join("Demo.app");
+        let contents_dir = app_dir.join("Contents");
+        let resources_dir = contents_dir.join("Resources");
+        fs::create_dir_all(&resources_dir).expect("应创建应用资源目录");
+        fs::write(resources_dir.join("AppIcon.icns"), []).expect("应创建图标文件");
+        fs::write(
+            contents_dir.join("Info.plist"),
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+</dict>
+</plist>
+"#,
+        )
+        .expect("应写入 Info.plist");
+
+        assert_eq!(
+            resolve_macos_bundle_icon_path(&app_dir, &resources_dir),
+            Some(resources_dir.join("AppIcon.icns"))
+        );
     }
 
     #[test]

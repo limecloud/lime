@@ -12,6 +12,24 @@ export interface AgentUiPerformanceEntry {
 export interface AgentUiPerformanceSessionSummary {
   sessionId: string;
   workspaceId?: string | null;
+  homeInputToPendingShellMs?: number;
+  homeInputToPendingPreviewPaintMs?: number;
+  homeInputToSendDispatchMs?: number;
+  homeInputToStreamRequestStartMs?: number;
+  homeInputToSubmitAcceptedMs?: number;
+  homeInputToFirstEventMs?: number;
+  homeInputToFirstRuntimeStatusMs?: number;
+  homeInputToFirstTextDeltaMs?: number;
+  homeInputToFirstTextRenderFlushMs?: number;
+  homeInputToFirstTextPaintMs?: number;
+  sendDispatchToSubmitAcceptedMs?: number;
+  streamSubmitDispatchedToAcceptedMs?: number;
+  submitAcceptedToFirstEventMs?: number;
+  firstEventToFirstTextDeltaMs?: number;
+  firstTextDeltaToFirstTextPaintMs?: number;
+  streamEnsureSessionDurationMs?: number;
+  streamSubmitInvokeDurationMs?: number;
+  homeInputMaterializeDurationMs?: number;
   clickToSwitchStartMs?: number;
   clickToCachedSnapshotMs?: number;
   clickToPendingShellMs?: number;
@@ -19,6 +37,7 @@ export interface AgentUiPerformanceSessionSummary {
   fetchDetailDurationMs?: number;
   runtimeGetSessionDurationMs?: number;
   clickToSwitchSuccessMs?: number;
+  clickToFirstMessageListPaintMs?: number;
   clickToMessageListPaintMs?: number;
   switchStartCount?: number;
   fetchDetailStartCount?: number;
@@ -33,6 +52,15 @@ export interface AgentUiPerformanceSessionSummary {
   persistedHiddenHistoryCount?: number;
   historicalContentPartsDeferredMax?: number;
   historicalMarkdownDeferredMax?: number;
+  longTaskCount?: number;
+  longTaskMaxMs?: number;
+  messageListComputeMaxMs?: number;
+  messageListGroupBuildMaxMs?: number;
+  messageListHistoricalContentPartsScanMaxMs?: number;
+  messageListHistoricalMarkdownTargetScanMaxMs?: number;
+  messageListRenderGroupsMaxMs?: number;
+  messageListThreadItemsScanMaxMs?: number;
+  messageListTimelineBuildMaxMs?: number;
   threadItemsScanDeferredCount?: number;
   maxUsedJSHeapSize?: number;
   phases: string[];
@@ -54,6 +82,10 @@ type MetricValue = string | number | boolean | null;
 const MAX_AGENT_UI_PERFORMANCE_ENTRIES = 500;
 const entries: AgentUiPerformanceEntry[] = [];
 let nextEntryId = 1;
+let latestSessionId: string | null = null;
+let latestWorkspaceId: string | null = null;
+let longTaskObserverInstallAttempted = false;
+let longTaskObserver: PerformanceObserver | null = null;
 
 declare global {
   interface Window {
@@ -202,6 +234,17 @@ function maxMetric(
   return max === undefined ? undefined : Math.round(max);
 }
 
+function maxMetricForPhase(
+  sessionEntries: AgentUiPerformanceEntry[],
+  phase: string,
+  key: string,
+): number | undefined {
+  return maxMetric(
+    sessionEntries.filter((entry) => entry.phase === phase),
+    key,
+  );
+}
+
 function countEntries(
   sessionEntries: AgentUiPerformanceEntry[],
   phase: string,
@@ -220,6 +263,53 @@ function countMetricTrue(
     (count, entry) => count + (entry.metrics[key] === true ? 1 : 0),
     0,
   );
+}
+
+function installLongTaskObserver(): void {
+  if (
+    typeof window === "undefined" ||
+    longTaskObserverInstallAttempted ||
+    longTaskObserver
+  ) {
+    return;
+  }
+  longTaskObserverInstallAttempted = true;
+
+  const ObserverCtor = window.PerformanceObserver;
+  if (typeof ObserverCtor !== "function") {
+    return;
+  }
+
+  const supportedEntryTypes = ObserverCtor.supportedEntryTypes;
+  if (
+    Array.isArray(supportedEntryTypes) &&
+    !supportedEntryTypes.includes("longtask")
+  ) {
+    return;
+  }
+
+  try {
+    const observer = new ObserverCtor((list) => {
+      for (const entry of list.getEntries()) {
+        recordAgentUiPerformanceMetric("agentUi.longTask", {
+          durationMs: entry.duration,
+          name: entry.name,
+          sessionId: latestSessionId,
+          startTimeMs: entry.startTime,
+          workspaceId: latestWorkspaceId,
+        });
+      }
+    });
+
+    try {
+      observer.observe({ type: "longtask", buffered: true });
+    } catch {
+      observer.observe({ entryTypes: ["longtask"] });
+    }
+    longTaskObserver = observer;
+  } catch {
+    // 当前 WebView / 测试环境可能不支持 longtask，忽略即可。
+  }
 }
 
 export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot {
@@ -260,6 +350,60 @@ export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot
       "agentRuntime.getSession.success",
     );
     const switchSuccess = lastEntry(sessionEntries, "session.switch.success");
+    const homeInputSubmit = firstEntry(sessionEntries, "homeInput.submit");
+    const homeInputPendingShell = firstEntry(
+      sessionEntries,
+      "homeInput.pendingShellApplied",
+    );
+    const homeInputPendingPreviewPaint = firstEntry(
+      sessionEntries,
+      "homeInput.pendingPreviewPaint",
+    );
+    const homeInputSendDispatch = firstEntry(
+      sessionEntries,
+      "homeInput.sendDispatch.start",
+    );
+    const streamRequestStart = firstEntry(
+      sessionEntries,
+      "agentStream.request.start",
+    );
+    const streamEnsureSessionDone = lastEntry(
+      sessionEntries,
+      "agentStream.ensureSession.done",
+    );
+    const streamSubmitDispatched = firstEntry(
+      sessionEntries,
+      "agentStream.submitDispatched",
+    );
+    const streamSubmitAccepted = firstEntry(
+      sessionEntries,
+      "agentStream.submitAccepted",
+    );
+    const streamFirstEvent = firstEntry(
+      sessionEntries,
+      "agentStream.firstEvent",
+    );
+    const streamFirstRuntimeStatus = firstEntry(
+      sessionEntries,
+      "agentStream.firstRuntimeStatus",
+    );
+    const streamFirstTextDelta = firstEntry(
+      sessionEntries,
+      "agentStream.firstTextDelta",
+    );
+    const streamFirstTextRenderFlush = firstEntry(
+      sessionEntries,
+      "agentStream.firstTextRenderFlush",
+    );
+    const streamFirstTextPaint = firstEntry(
+      sessionEntries,
+      "agentStream.firstTextPaint",
+    );
+    const draftMaterializeSuccess = lastEntry(
+      sessionEntries,
+      "taskCenter.draftMaterialize.success",
+    );
+    const firstMessageListPaint = firstEntry(sessionEntries, "messageList.paint");
     const messageListPaint = lastEntry(sessionEntries, "messageList.paint");
     const finalMessageList =
       messageListPaint ?? lastEntry(sessionEntries, "messageList.commit");
@@ -268,6 +412,69 @@ export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot
       sessionId,
       workspaceId:
         sessionEntries.find((entry) => entry.workspaceId)?.workspaceId ?? null,
+      homeInputToPendingShellMs: deltaMs(
+        homeInputSubmit,
+        homeInputPendingShell,
+      ),
+      homeInputToPendingPreviewPaintMs: deltaMs(
+        homeInputSubmit,
+        homeInputPendingPreviewPaint,
+      ),
+      homeInputToSendDispatchMs: deltaMs(homeInputSubmit, homeInputSendDispatch),
+      homeInputToStreamRequestStartMs: deltaMs(
+        homeInputSubmit,
+        streamRequestStart,
+      ),
+      homeInputToSubmitAcceptedMs: deltaMs(homeInputSubmit, streamSubmitAccepted),
+      homeInputToFirstEventMs: deltaMs(homeInputSubmit, streamFirstEvent),
+      homeInputToFirstRuntimeStatusMs: deltaMs(
+        homeInputSubmit,
+        streamFirstRuntimeStatus,
+      ),
+      homeInputToFirstTextDeltaMs: deltaMs(
+        homeInputSubmit,
+        streamFirstTextDelta,
+      ),
+      homeInputToFirstTextRenderFlushMs: deltaMs(
+        homeInputSubmit,
+        streamFirstTextRenderFlush,
+      ),
+      homeInputToFirstTextPaintMs: deltaMs(
+        homeInputSubmit,
+        streamFirstTextPaint,
+      ),
+      sendDispatchToSubmitAcceptedMs: deltaMs(
+        homeInputSendDispatch,
+        streamSubmitAccepted,
+      ),
+      streamSubmitDispatchedToAcceptedMs: deltaMs(
+        streamSubmitDispatched,
+        streamSubmitAccepted,
+      ),
+      submitAcceptedToFirstEventMs: deltaMs(
+        streamSubmitAccepted,
+        streamFirstEvent,
+      ),
+      firstEventToFirstTextDeltaMs: deltaMs(
+        streamFirstEvent,
+        streamFirstTextDelta,
+      ),
+      firstTextDeltaToFirstTextPaintMs: deltaMs(
+        streamFirstTextDelta,
+        streamFirstTextPaint,
+      ),
+      streamEnsureSessionDurationMs: metricNumber(
+        streamEnsureSessionDone,
+        "durationMs",
+      ),
+      streamSubmitInvokeDurationMs: metricNumber(
+        streamSubmitAccepted,
+        "submitInvokeMs",
+      ),
+      homeInputMaterializeDurationMs: metricNumber(
+        draftMaterializeSuccess,
+        "durationMs",
+      ),
       clickToSwitchStartMs: deltaMs(click, switchStart),
       clickToCachedSnapshotMs: deltaMs(click, cachedSnapshot),
       clickToPendingShellMs: deltaMs(click, pendingShell),
@@ -278,6 +485,7 @@ export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot
         "durationMs",
       ),
       clickToSwitchSuccessMs: deltaMs(click, switchSuccess),
+      clickToFirstMessageListPaintMs: deltaMs(click, firstMessageListPaint),
       clickToMessageListPaintMs: deltaMs(click, messageListPaint),
       switchStartCount: countEntries(sessionEntries, "session.switch.start"),
       fetchDetailStartCount: countEntries(
@@ -316,6 +524,37 @@ export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot
         sessionEntries,
         "historicalMarkdownDeferredCount",
       ),
+      longTaskCount: countEntries(sessionEntries, "agentUi.longTask"),
+      longTaskMaxMs: maxMetricForPhase(
+        sessionEntries,
+        "agentUi.longTask",
+        "durationMs",
+      ),
+      messageListComputeMaxMs: maxMetric(sessionEntries, "messageListComputeMs"),
+      messageListGroupBuildMaxMs: maxMetric(
+        sessionEntries,
+        "messageListGroupBuildMs",
+      ),
+      messageListHistoricalContentPartsScanMaxMs: maxMetric(
+        sessionEntries,
+        "messageListHistoricalContentPartsScanMs",
+      ),
+      messageListHistoricalMarkdownTargetScanMaxMs: maxMetric(
+        sessionEntries,
+        "messageListHistoricalMarkdownTargetScanMs",
+      ),
+      messageListRenderGroupsMaxMs: maxMetric(
+        sessionEntries,
+        "messageListRenderGroupsMs",
+      ),
+      messageListThreadItemsScanMaxMs: maxMetric(
+        sessionEntries,
+        "messageListThreadItemsScanMs",
+      ),
+      messageListTimelineBuildMaxMs: maxMetric(
+        sessionEntries,
+        "messageListTimelineBuildMs",
+      ),
       threadItemsScanDeferredCount: countMetricTrue(
         sessionEntries,
         "threadItemsScanDeferred",
@@ -335,6 +574,8 @@ export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot
 export function clearAgentUiPerformanceMetrics(): void {
   entries.splice(0, entries.length);
   nextEntryId = 1;
+  latestSessionId = null;
+  latestWorkspaceId = null;
 }
 
 export function getAgentUiPerformanceMetrics(): AgentUiPerformanceEntry[] {
@@ -345,13 +586,20 @@ export function recordAgentUiPerformanceMetric(
   phase: string,
   context?: Record<string, unknown>,
 ): AgentUiPerformanceEntry {
+  const sessionId = normalizeSessionId(context);
+  const workspaceId = normalizeString(context?.workspaceId);
+  if (sessionId && phase !== "agentUi.longTask") {
+    latestSessionId = sessionId;
+    latestWorkspaceId = workspaceId;
+  }
+
   const entry: AgentUiPerformanceEntry = {
     id: nextEntryId,
     phase,
     at: now(),
     wallTime: Date.now(),
-    sessionId: normalizeSessionId(context),
-    workspaceId: normalizeString(context?.workspaceId),
+    sessionId,
+    workspaceId,
     source: normalizeString(context?.source),
     metrics: normalizeMetrics(context),
   };
@@ -365,6 +613,8 @@ export function installAgentUiPerformanceApi(): AgentUiPerformanceApi | null {
   if (typeof window === "undefined") {
     return null;
   }
+
+  installLongTaskObserver();
 
   const api: AgentUiPerformanceApi = {
     entries: getAgentUiPerformanceMetrics,

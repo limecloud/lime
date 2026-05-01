@@ -12,6 +12,7 @@ import {
   buildFailedAgentRuntimeStatus,
   formatAgentRuntimeStatusSummary,
 } from "../utils/agentRuntimeStatus";
+import type { AgentUiPerformanceTraceMetadata } from "./agentStreamPerformanceMetrics";
 
 export interface ActiveStreamState {
   assistantMsgId: string;
@@ -32,6 +33,7 @@ export interface StreamRequestState {
   firstRuntimeStatusAt?: number | null;
   firstTextDeltaAt?: number | null;
   firstTextPaintAt?: number | null;
+  firstTextPaintScheduled?: boolean;
   firstTextRenderFlushAt?: number | null;
   lastTextRenderFlushAt?: number | null;
   textDeltaBufferedCount?: number;
@@ -42,6 +44,7 @@ export interface StreamRequestState {
   queuedDraftCleanupTimerId?: ReturnType<typeof setTimeout> | null;
   pendingTextRenderTimerId?: ReturnType<typeof setTimeout> | null;
   renderedContent?: string;
+  performanceTrace?: AgentUiPerformanceTraceMetadata | null;
 }
 
 interface CreateSubmissionLifecycleOptions {
@@ -100,6 +103,7 @@ export function createAgentStreamSubmissionLifecycle(
     firstRuntimeStatusAt: null,
     firstTextDeltaAt: null,
     firstTextPaintAt: null,
+    firstTextPaintScheduled: false,
     firstTextRenderFlushAt: null,
     lastTextRenderFlushAt: null,
     textDeltaBufferedCount: 0,
@@ -110,6 +114,7 @@ export function createAgentStreamSubmissionLifecycle(
     queuedDraftCleanupTimerId: null,
     pendingTextRenderTimerId: null,
     renderedContent: "",
+    performanceTrace: null,
   };
   const optimisticStartedAt = assistantMsg.timestamp.toISOString();
   const pendingTurnKey = createPendingTurnKey();

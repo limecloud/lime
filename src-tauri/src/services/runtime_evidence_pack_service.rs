@@ -6,11 +6,22 @@
 use crate::agent::SessionDetail;
 use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
 use crate::commands::modality_runtime_contracts::{
-    AUDIO_TRANSCRIPTION_CONTRACT_KEY, AUDIO_TRANSCRIPTION_ROUTING_SLOT,
-    BROWSER_CONTROL_CONTRACT_KEY, BROWSER_CONTROL_ROUTING_SLOT, IMAGE_GENERATION_CONTRACT_KEY,
-    IMAGE_GENERATION_ROUTING_SLOT, PDF_EXTRACT_CONTRACT_KEY, PDF_EXTRACT_ROUTING_SLOT,
-    TEXT_TRANSFORM_CONTRACT_KEY, TEXT_TRANSFORM_ROUTING_SLOT, VOICE_GENERATION_CONTRACT_KEY,
-    VOICE_GENERATION_ROUTING_SLOT, WEB_RESEARCH_CONTRACT_KEY, WEB_RESEARCH_ROUTING_SLOT,
+    AUDIO_TRANSCRIPTION_CONTRACT_KEY, AUDIO_TRANSCRIPTION_LIMECORE_POLICY_REFS,
+    AUDIO_TRANSCRIPTION_ROUTING_SLOT, BROWSER_CONTROL_CONTRACT_KEY,
+    BROWSER_CONTROL_LIMECORE_POLICY_REFS, BROWSER_CONTROL_ROUTING_SLOT,
+    IMAGE_GENERATION_CONTRACT_KEY, IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+    IMAGE_GENERATION_ROUTING_SLOT, LIMECORE_POLICY_DECISION_ALLOW,
+    LIMECORE_POLICY_DECISION_REASON_NO_LOCAL_DENY,
+    LIMECORE_POLICY_DECISION_SCOPE_LOCAL_DEFAULTS_ONLY,
+    LIMECORE_POLICY_DECISION_SOURCE_LOCAL_DEFAULT, LIMECORE_POLICY_INPUT_STATUS_DECLARED_ONLY,
+    LIMECORE_POLICY_INPUT_STATUS_RESOLVED, LIMECORE_POLICY_INPUT_VALUE_SOURCE_LIMECORE_PENDING,
+    LIMECORE_POLICY_SNAPSHOT_STATUS_LOCAL_DEFAULTS_EVALUATED,
+    LIMECORE_POLICY_VALUE_HIT_STATUS_RESOLVED, PDF_EXTRACT_CONTRACT_KEY,
+    PDF_EXTRACT_LIMECORE_POLICY_REFS, PDF_EXTRACT_ROUTING_SLOT, TEXT_TRANSFORM_CONTRACT_KEY,
+    TEXT_TRANSFORM_LIMECORE_POLICY_REFS, TEXT_TRANSFORM_ROUTING_SLOT,
+    VOICE_GENERATION_CONTRACT_KEY, VOICE_GENERATION_LIMECORE_POLICY_REFS,
+    VOICE_GENERATION_ROUTING_SLOT, WEB_RESEARCH_CONTRACT_KEY, WEB_RESEARCH_LIMECORE_POLICY_REFS,
+    WEB_RESEARCH_ROUTING_SLOT,
 };
 use crate::database::DbConnection;
 use crate::services::artifact_document_validator::ARTIFACT_DOCUMENT_SCHEMA_VERSION;
@@ -782,11 +793,24 @@ fn build_modality_runtime_contracts_observability_summary_json(
                 "items": []
             })
         });
+    let limecore_policy_index = snapshot_index
+        .get("limecorePolicyIndex")
+        .cloned()
+        .unwrap_or_else(|| {
+            json!({
+                "snapshotCount": 0,
+                "refKeys": [],
+                "statusCounts": [],
+                "decisionCounts": [],
+                "items": []
+            })
+        });
 
     json!({
         "snapshotCount": summary.snapshots.len(),
         "snapshotIndex": {
-            "browserActionIndex": browser_action_index
+            "browserActionIndex": browser_action_index,
+            "limecorePolicyIndex": limecore_policy_index
         }
     })
 }
@@ -809,6 +833,13 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
     let mut expected_routing_slots = BTreeSet::new();
     let mut execution_profile_keys = BTreeSet::new();
     let mut executor_adapter_keys = BTreeSet::new();
+    let mut limecore_policy_refs = BTreeSet::new();
+    let mut limecore_policy_missing_inputs = BTreeSet::new();
+    let mut limecore_policy_pending_hit_refs = BTreeSet::new();
+    let mut limecore_policy_value_hit_count = 0usize;
+    let mut limecore_policy_statuses: BTreeMap<String, usize> = BTreeMap::new();
+    let mut limecore_policy_decisions: BTreeMap<String, usize> = BTreeMap::new();
+    let mut limecore_policy_items = Vec::new();
     let mut trace_items = Vec::new();
     let mut audio_output_statuses: BTreeMap<String, usize> = BTreeMap::new();
     let mut audio_output_error_codes = BTreeSet::new();
@@ -835,6 +866,11 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
         let expected_routing_slot = snapshot_string(snapshot, "expectedRoutingSlot");
         let execution_profile_key = snapshot_string(snapshot, "executionProfileKey");
         let executor_adapter_key = snapshot_string(snapshot, "executorAdapterKey");
+        let snapshot_limecore_policy_refs =
+            read_json_string_array(snapshot, &[&["limecorePolicyRefs"][..]]);
+        let limecore_policy_snapshot = snapshot
+            .get("limecorePolicySnapshot")
+            .filter(|value| value.is_object());
 
         if let Some(contract_key) = contract_key.as_deref() {
             contract_keys.insert(contract_key.to_string());
@@ -856,6 +892,159 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
         if let Some(executor_adapter_key) = executor_adapter_key.as_deref() {
             executor_adapter_keys.insert(executor_adapter_key.to_string());
         }
+        for policy_ref in &snapshot_limecore_policy_refs {
+            limecore_policy_refs.insert(policy_ref.to_string());
+        }
+        if !snapshot_limecore_policy_refs.is_empty() || limecore_policy_snapshot.is_some() {
+            let status = limecore_policy_snapshot
+                .and_then(|value| snapshot_string(value, "status"))
+                .unwrap_or_else(|| {
+                    LIMECORE_POLICY_SNAPSHOT_STATUS_LOCAL_DEFAULTS_EVALUATED.to_string()
+                });
+            let decision = limecore_policy_snapshot
+                .and_then(|value| snapshot_string(value, "decision"))
+                .unwrap_or_else(|| LIMECORE_POLICY_DECISION_ALLOW.to_string());
+            let decision_source = limecore_policy_snapshot
+                .and_then(|value| {
+                    read_json_string(value, &[&["decision_source"][..], &["decisionSource"][..]])
+                })
+                .unwrap_or_else(|| LIMECORE_POLICY_DECISION_SOURCE_LOCAL_DEFAULT.to_string());
+            let decision_scope = limecore_policy_snapshot
+                .and_then(|value| {
+                    read_json_string(value, &[&["decision_scope"][..], &["decisionScope"][..]])
+                })
+                .unwrap_or_else(|| LIMECORE_POLICY_DECISION_SCOPE_LOCAL_DEFAULTS_ONLY.to_string());
+            let decision_reason = limecore_policy_snapshot
+                .and_then(|value| {
+                    read_json_string(value, &[&["decision_reason"][..], &["decisionReason"][..]])
+                })
+                .unwrap_or_else(|| LIMECORE_POLICY_DECISION_REASON_NO_LOCAL_DENY.to_string());
+            let policy_evaluation = limecore_policy_snapshot
+                .and_then(|value| {
+                    value
+                        .get("policy_evaluation")
+                        .or_else(|| value.get("policyEvaluation"))
+                        .filter(|item| item.is_object())
+                        .cloned()
+                })
+                .unwrap_or(Value::Null);
+            let policy_value_hits = limecore_policy_snapshot
+                .and_then(|value| {
+                    value
+                        .get("policy_value_hits")
+                        .or_else(|| value.get("policyValueHits"))
+                        .filter(|item| item.is_array())
+                        .cloned()
+                })
+                .unwrap_or_else(|| json!([]));
+            let resolved_hit_refs = limecore_policy_resolved_hit_refs(&policy_value_hits);
+            let mut unresolved_refs = limecore_policy_snapshot
+                .map(|value| {
+                    read_json_string_array(
+                        value,
+                        &[&["unresolved_refs"][..], &["unresolvedRefs"][..]],
+                    )
+                })
+                .unwrap_or_default();
+            if unresolved_refs.is_empty() {
+                unresolved_refs = limecore_policy_refs_without_resolved_hits(
+                    &snapshot_limecore_policy_refs,
+                    &resolved_hit_refs,
+                );
+            }
+            let policy_inputs = limecore_policy_snapshot
+                .and_then(|value| {
+                    value
+                        .get("policy_inputs")
+                        .or_else(|| value.get("policyInputs"))
+                        .filter(|item| item.is_array())
+                        .cloned()
+                })
+                .unwrap_or_else(|| {
+                    build_limecore_policy_inputs_value_with_hits(
+                        &snapshot_limecore_policy_refs,
+                        &policy_value_hits,
+                    )
+                });
+            let mut missing_inputs = limecore_policy_snapshot
+                .map(|value| {
+                    read_json_string_array(
+                        value,
+                        &[&["missing_inputs"][..], &["missingInputs"][..]],
+                    )
+                })
+                .unwrap_or_default();
+            if missing_inputs.is_empty() {
+                missing_inputs = unresolved_refs.clone();
+            }
+            if missing_inputs.is_empty() {
+                missing_inputs = limecore_policy_refs_without_resolved_hits(
+                    &snapshot_limecore_policy_refs,
+                    &resolved_hit_refs,
+                );
+            }
+            for missing_input in &missing_inputs {
+                limecore_policy_missing_inputs.insert(missing_input.to_string());
+            }
+            let policy_value_hit_count = limecore_policy_snapshot
+                .and_then(|value| {
+                    read_json_usize(
+                        value,
+                        &[
+                            &["policy_value_hit_count"][..],
+                            &["policyValueHitCount"][..],
+                        ],
+                    )
+                })
+                .unwrap_or_else(|| {
+                    policy_value_hits
+                        .as_array()
+                        .map(|items| items.len())
+                        .unwrap_or_default()
+                });
+            limecore_policy_value_hit_count += policy_value_hit_count;
+            let mut pending_hit_refs = limecore_policy_snapshot
+                .map(|value| {
+                    read_json_string_array(
+                        value,
+                        &[&["pending_hit_refs"][..], &["pendingHitRefs"][..]],
+                    )
+                })
+                .unwrap_or_default();
+            if pending_hit_refs.is_empty() {
+                pending_hit_refs = missing_inputs.clone();
+            }
+            for pending_hit_ref in &pending_hit_refs {
+                limecore_policy_pending_hit_refs.insert(pending_hit_ref.to_string());
+            }
+            *limecore_policy_statuses.entry(status.clone()).or_insert(0) += 1;
+            *limecore_policy_decisions
+                .entry(decision.clone())
+                .or_insert(0) += 1;
+            limecore_policy_items.push(json!({
+                "artifactPath": snapshot.get("artifactPath").cloned().unwrap_or(Value::Null),
+                "contractKey": contract_key.clone(),
+                "executionProfileKey": snapshot.get("executionProfileKey").cloned().unwrap_or(Value::Null),
+                "executorAdapterKey": snapshot.get("executorAdapterKey").cloned().unwrap_or(Value::Null),
+                "refs": snapshot_limecore_policy_refs,
+                "status": status,
+                "decision": decision,
+                "decisionSource": decision_source,
+                "decisionScope": decision_scope,
+                "decisionReason": decision_reason,
+                "policyEvaluation": policy_evaluation,
+                "policyInputs": policy_inputs,
+                "policyValueHits": policy_value_hits,
+                "policyValueHitCount": policy_value_hit_count,
+                "pendingHitRefs": pending_hit_refs,
+                "unresolvedRefs": unresolved_refs,
+                "missingInputs": missing_inputs,
+                "source": limecore_policy_snapshot
+                    .and_then(|value| value.get("source"))
+                    .cloned()
+                    .unwrap_or_else(|| Value::String("modality_runtime_contract".to_string())),
+            }));
+        }
 
         if source
             .as_deref()
@@ -871,6 +1060,7 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
                 "expectedRoutingSlot": snapshot.get("expectedRoutingSlot").cloned().unwrap_or(Value::Null),
                 "executionProfileKey": snapshot.get("executionProfileKey").cloned().unwrap_or(Value::Null),
                 "executorAdapterKey": snapshot.get("executorAdapterKey").cloned().unwrap_or(Value::Null),
+                "limecorePolicyRefs": snapshot.get("limecorePolicyRefs").cloned().unwrap_or(Value::Null),
                 "entrySource": snapshot.get("entrySource").cloned().unwrap_or(Value::Null),
                 "executorBindingKey": snapshot
                     .pointer("/runtimeContract/executor_binding/binding_key")
@@ -986,6 +1176,8 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
         }
     }
 
+    let limecore_policy_ref_keys = limecore_policy_refs.into_iter().collect::<Vec<_>>();
+
     json!({
         "contractKeys": contract_keys.into_iter().collect::<Vec<_>>(),
         "sourceCounts": sources
@@ -999,6 +1191,23 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
         "expectedRoutingSlots": expected_routing_slots.into_iter().collect::<Vec<_>>(),
         "executionProfileKeys": execution_profile_keys.into_iter().collect::<Vec<_>>(),
         "executorAdapterKeys": executor_adapter_keys.into_iter().collect::<Vec<_>>(),
+        "limecorePolicyRefs": limecore_policy_ref_keys.clone(),
+        "limecorePolicyIndex": {
+            "snapshotCount": limecore_policy_items.len(),
+            "refKeys": limecore_policy_ref_keys,
+            "missingInputs": limecore_policy_missing_inputs.into_iter().collect::<Vec<_>>(),
+            "pendingHitRefs": limecore_policy_pending_hit_refs.into_iter().collect::<Vec<_>>(),
+            "policyValueHitCount": limecore_policy_value_hit_count,
+            "statusCounts": limecore_policy_statuses
+                .into_iter()
+                .map(|(status, count)| json!({ "status": status, "count": count }))
+                .collect::<Vec<_>>(),
+            "decisionCounts": limecore_policy_decisions
+                .into_iter()
+                .map(|(decision, count)| json!({ "decision": decision, "count": count }))
+                .collect::<Vec<_>>(),
+            "items": limecore_policy_items,
+        },
         "toolTraceIndex": {
             "traceCount": trace_items.len(),
             "items": trace_items,
@@ -3180,6 +3389,10 @@ fn extract_modality_runtime_contract_snapshot(
         .as_deref()
         .map(is_modality_contract_routing_failure_code)
         .unwrap_or(false);
+    let is_runtime_preflight_failure = failure_code
+        .as_deref()
+        .map(is_modality_runtime_preflight_failure_code)
+        .unwrap_or(false);
     let is_image_generation_contract = contract_key == IMAGE_GENERATION_CONTRACT_KEY;
     let is_browser_control_contract = contract_key == BROWSER_CONTROL_CONTRACT_KEY;
     let is_pdf_extract_contract = contract_key == PDF_EXTRACT_CONTRACT_KEY;
@@ -3201,6 +3414,8 @@ fn extract_modality_runtime_contract_snapshot(
                 .contains(".lime/tasks/transcription_generate/"));
     let routing_event = if is_contract_routing_failure {
         "routing_not_possible"
+    } else if is_runtime_preflight_failure {
+        "runtime_preflight"
     } else if is_browser_control_contract {
         "browser_action_requested"
     } else if is_pdf_extract_contract
@@ -3213,13 +3428,17 @@ fn extract_modality_runtime_contract_snapshot(
     } else {
         "model_routing_decision"
     };
-    let routing_outcome = if is_contract_routing_failure {
+    let routing_outcome = if is_contract_routing_failure || is_runtime_preflight_failure {
         "blocked"
     } else if normalized_status.as_deref() == Some("failed") {
         "failed"
     } else {
         "accepted"
     };
+    let limecore_policy_refs =
+        extract_runtime_contract_limecore_policy_refs(document, contract_key.as_str());
+    let limecore_policy_snapshot =
+        extract_runtime_contract_limecore_policy_snapshot(document, &limecore_policy_refs);
 
     Some(json!({
         "artifactPath": artifact_path,
@@ -3320,6 +3539,8 @@ fn extract_modality_runtime_contract_snapshot(
         ),
         "executionProfileKey": extract_runtime_contract_execution_profile_key(document),
         "executorAdapterKey": extract_runtime_contract_executor_adapter_key(document),
+        "limecorePolicyRefs": limecore_policy_refs,
+        "limecorePolicySnapshot": limecore_policy_snapshot,
         "providerId": read_json_string(
             document,
             &[
@@ -3390,6 +3611,313 @@ fn extract_modality_runtime_contract_snapshot(
             ],
         )
         .cloned()
+    }))
+}
+
+fn default_limecore_policy_refs_for_contract(contract_key: &str) -> &'static [&'static str] {
+    match contract_key {
+        IMAGE_GENERATION_CONTRACT_KEY => IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+        BROWSER_CONTROL_CONTRACT_KEY => BROWSER_CONTROL_LIMECORE_POLICY_REFS,
+        PDF_EXTRACT_CONTRACT_KEY => PDF_EXTRACT_LIMECORE_POLICY_REFS,
+        VOICE_GENERATION_CONTRACT_KEY => VOICE_GENERATION_LIMECORE_POLICY_REFS,
+        AUDIO_TRANSCRIPTION_CONTRACT_KEY => AUDIO_TRANSCRIPTION_LIMECORE_POLICY_REFS,
+        WEB_RESEARCH_CONTRACT_KEY => WEB_RESEARCH_LIMECORE_POLICY_REFS,
+        TEXT_TRANSFORM_CONTRACT_KEY => TEXT_TRANSFORM_LIMECORE_POLICY_REFS,
+        _ => &[],
+    }
+}
+
+fn push_unique_text(values: &mut Vec<String>, candidates: Vec<String>) {
+    for candidate in candidates {
+        if values.iter().any(|value| value == &candidate) {
+            continue;
+        }
+        values.push(candidate);
+    }
+}
+
+fn read_limecore_policy_hit_ref(value: &Value) -> Option<String> {
+    read_json_string(value, &[&["ref_key"][..], &["refKey"][..], &["ref"][..]])
+}
+
+fn read_limecore_policy_hit_status(value: &Value) -> Option<String> {
+    read_json_string(value, &[&["status"][..]])
+}
+
+fn read_limecore_policy_hit_value_source(value: &Value) -> Option<String> {
+    read_json_string(value, &[&["value_source"][..], &["valueSource"][..]])
+}
+
+fn limecore_policy_resolved_hit_refs(policy_value_hits: &Value) -> BTreeSet<String> {
+    policy_value_hits
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter(|item| {
+                    read_limecore_policy_hit_status(item).as_deref()
+                        == Some(LIMECORE_POLICY_VALUE_HIT_STATUS_RESOLVED)
+                })
+                .filter_map(read_limecore_policy_hit_ref)
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn limecore_policy_refs_without_resolved_hits(
+    refs: &[String],
+    resolved_hit_refs: &BTreeSet<String>,
+) -> Vec<String> {
+    refs.iter()
+        .filter(|ref_key| !resolved_hit_refs.contains(*ref_key))
+        .cloned()
+        .collect()
+}
+
+fn build_limecore_policy_inputs_value(refs: &[String]) -> Value {
+    build_limecore_policy_inputs_value_with_hits(refs, &json!([]))
+}
+
+fn build_limecore_policy_inputs_value_with_hits(
+    refs: &[String],
+    policy_value_hits: &Value,
+) -> Value {
+    let resolved_hit_refs = limecore_policy_resolved_hit_refs(policy_value_hits);
+    Value::Array(
+        refs.iter()
+            .map(|policy_ref| {
+                let resolved_hit = policy_value_hits.as_array().and_then(|items| {
+                    items.iter().find(|item| {
+                        resolved_hit_refs.contains(policy_ref)
+                            && read_limecore_policy_hit_ref(item).as_deref()
+                                == Some(policy_ref.as_str())
+                    })
+                });
+                json!({
+                    "ref_key": policy_ref,
+                    "status": resolved_hit
+                        .map(|_| LIMECORE_POLICY_INPUT_STATUS_RESOLVED)
+                        .unwrap_or(LIMECORE_POLICY_INPUT_STATUS_DECLARED_ONLY),
+                    "source": "modality_runtime_contract",
+                    "value_source": resolved_hit
+                        .and_then(read_limecore_policy_hit_value_source)
+                        .unwrap_or_else(|| LIMECORE_POLICY_INPUT_VALUE_SOURCE_LIMECORE_PENDING.to_string()),
+                })
+            })
+            .collect(),
+    )
+}
+
+fn extract_runtime_contract_limecore_policy_refs(
+    document: &Value,
+    contract_key: &str,
+) -> Vec<String> {
+    let mut refs = Vec::new();
+    push_unique_text(
+        &mut refs,
+        read_json_string_array(
+            document,
+            &[
+                &["limecore_policy_refs"][..],
+                &["limecorePolicyRefs"][..],
+                &["runtime_contract", "limecore_policy_refs"][..],
+                &["runtimeContract", "limecorePolicyRefs"][..],
+                &["payload", "limecore_policy_refs"][..],
+                &["payload", "limecorePolicyRefs"][..],
+                &["payload", "runtime_contract", "limecore_policy_refs"][..],
+                &["payload", "runtimeContract", "limecorePolicyRefs"][..],
+                &["record", "payload", "limecore_policy_refs"][..],
+                &["record", "payload", "limecorePolicyRefs"][..],
+                &[
+                    "record",
+                    "payload",
+                    "runtime_contract",
+                    "limecore_policy_refs",
+                ][..],
+                &["record", "payload", "runtimeContract", "limecorePolicyRefs"][..],
+            ],
+        ),
+    );
+    push_unique_text(
+        &mut refs,
+        read_json_string_array(
+            document,
+            &[
+                &["limecore_policy_snapshot", "refs"][..],
+                &["limecorePolicySnapshot", "refs"][..],
+                &["runtime_contract", "limecore_policy_snapshot", "refs"][..],
+                &["runtimeContract", "limecorePolicySnapshot", "refs"][..],
+                &["payload", "limecore_policy_snapshot", "refs"][..],
+                &["payload", "limecorePolicySnapshot", "refs"][..],
+                &[
+                    "payload",
+                    "runtime_contract",
+                    "limecore_policy_snapshot",
+                    "refs",
+                ][..],
+                &[
+                    "payload",
+                    "runtimeContract",
+                    "limecorePolicySnapshot",
+                    "refs",
+                ][..],
+                &["record", "payload", "limecore_policy_snapshot", "refs"][..],
+                &["record", "payload", "limecorePolicySnapshot", "refs"][..],
+                &[
+                    "record",
+                    "payload",
+                    "runtime_contract",
+                    "limecore_policy_snapshot",
+                    "refs",
+                ][..],
+                &[
+                    "record",
+                    "payload",
+                    "runtimeContract",
+                    "limecorePolicySnapshot",
+                    "refs",
+                ][..],
+            ],
+        ),
+    );
+
+    if refs.is_empty() {
+        refs.extend(
+            default_limecore_policy_refs_for_contract(contract_key)
+                .iter()
+                .map(|value| (*value).to_string()),
+        );
+    }
+
+    refs
+}
+
+fn extract_runtime_contract_limecore_policy_snapshot(
+    document: &Value,
+    refs: &[String],
+) -> Option<Value> {
+    if let Some(existing) = find_json_value_at_paths(
+        document,
+        &[
+            &["limecore_policy_snapshot"][..],
+            &["limecorePolicySnapshot"][..],
+            &["runtime_contract", "limecore_policy_snapshot"][..],
+            &["runtimeContract", "limecorePolicySnapshot"][..],
+            &["payload", "limecore_policy_snapshot"][..],
+            &["payload", "limecorePolicySnapshot"][..],
+            &["payload", "runtime_contract", "limecore_policy_snapshot"][..],
+            &["payload", "runtimeContract", "limecorePolicySnapshot"][..],
+            &["record", "payload", "limecore_policy_snapshot"][..],
+            &["record", "payload", "limecorePolicySnapshot"][..],
+            &[
+                "record",
+                "payload",
+                "runtime_contract",
+                "limecore_policy_snapshot",
+            ][..],
+            &[
+                "record",
+                "payload",
+                "runtimeContract",
+                "limecorePolicySnapshot",
+            ][..],
+        ],
+    )
+    .filter(|value| value.is_object())
+    {
+        let mut snapshot = existing.clone();
+        let policy_value_hits = snapshot
+            .get("policy_value_hits")
+            .or_else(|| snapshot.get("policyValueHits"))
+            .filter(|value| value.is_array())
+            .cloned()
+            .unwrap_or_else(|| json!([]));
+        let resolved_hit_refs = limecore_policy_resolved_hit_refs(&policy_value_hits);
+        let pending_refs = limecore_policy_refs_without_resolved_hits(refs, &resolved_hit_refs);
+        if let Some(object) = snapshot.as_object_mut() {
+            object.entry("status".to_string()).or_insert_with(|| {
+                Value::String(LIMECORE_POLICY_SNAPSHOT_STATUS_LOCAL_DEFAULTS_EVALUATED.to_string())
+            });
+            object
+                .entry("decision".to_string())
+                .or_insert_with(|| Value::String(LIMECORE_POLICY_DECISION_ALLOW.to_string()));
+            object
+                .entry("source".to_string())
+                .or_insert_with(|| Value::String("modality_runtime_contract".to_string()));
+            object
+                .entry("decision_source".to_string())
+                .or_insert_with(|| {
+                    Value::String(LIMECORE_POLICY_DECISION_SOURCE_LOCAL_DEFAULT.to_string())
+                });
+            object
+                .entry("decision_scope".to_string())
+                .or_insert_with(|| {
+                    Value::String(LIMECORE_POLICY_DECISION_SCOPE_LOCAL_DEFAULTS_ONLY.to_string())
+                });
+            object
+                .entry("decision_reason".to_string())
+                .or_insert_with(|| {
+                    Value::String(LIMECORE_POLICY_DECISION_REASON_NO_LOCAL_DENY.to_string())
+                });
+            if !object.contains_key("refs") {
+                object.insert("refs".to_string(), json!(refs));
+            }
+            if !object.contains_key("evaluated_refs") {
+                object.insert(
+                    "evaluated_refs".to_string(),
+                    json!(resolved_hit_refs.iter().cloned().collect::<Vec<_>>()),
+                );
+            }
+            if !object.contains_key("unresolved_refs") {
+                object.insert("unresolved_refs".to_string(), json!(pending_refs.clone()));
+            }
+            if !object.contains_key("missing_inputs") {
+                object.insert("missing_inputs".to_string(), json!(pending_refs.clone()));
+            }
+            if !object.contains_key("policy_inputs") {
+                object.insert(
+                    "policy_inputs".to_string(),
+                    build_limecore_policy_inputs_value_with_hits(refs, &policy_value_hits),
+                );
+            }
+            if !object.contains_key("pending_hit_refs") {
+                object.insert("pending_hit_refs".to_string(), json!(pending_refs.clone()));
+            }
+            if !object.contains_key("policy_value_hits") {
+                object.insert("policy_value_hits".to_string(), policy_value_hits.clone());
+            }
+            if !object.contains_key("policy_value_hit_count") {
+                object.insert(
+                    "policy_value_hit_count".to_string(),
+                    json!(policy_value_hits
+                        .as_array()
+                        .map(Vec::len)
+                        .unwrap_or_default()),
+                );
+            }
+        }
+        return Some(snapshot);
+    }
+
+    if refs.is_empty() {
+        return None;
+    }
+
+    Some(json!({
+        "status": LIMECORE_POLICY_SNAPSHOT_STATUS_LOCAL_DEFAULTS_EVALUATED,
+        "decision": LIMECORE_POLICY_DECISION_ALLOW,
+        "source": "modality_runtime_contract",
+        "decision_source": LIMECORE_POLICY_DECISION_SOURCE_LOCAL_DEFAULT,
+        "decision_scope": LIMECORE_POLICY_DECISION_SCOPE_LOCAL_DEFAULTS_ONLY,
+        "decision_reason": LIMECORE_POLICY_DECISION_REASON_NO_LOCAL_DENY,
+        "refs": refs,
+        "evaluated_refs": [],
+        "unresolved_refs": refs,
+        "missing_inputs": refs,
+        "policy_inputs": build_limecore_policy_inputs_value(refs),
+        "pending_hit_refs": refs,
+        "policy_value_hits": [],
+        "policy_value_hit_count": 0,
     }))
 }
 
@@ -3519,6 +4047,16 @@ fn is_modality_contract_routing_failure_code(code: &str) -> bool {
             | "image_generation_routing_slot_mismatch"
             | "image_generation_model_capability_gap"
     )
+}
+
+fn is_modality_runtime_preflight_failure_code(code: &str) -> bool {
+    let normalized = code.trim();
+    normalized.ends_with("_execution_profile_missing")
+        || normalized.ends_with("_execution_profile_mismatch")
+        || normalized.ends_with("_executor_adapter_missing")
+        || normalized.ends_with("_executor_adapter_mismatch")
+        || normalized.ends_with("_executor_binding_missing")
+        || normalized.ends_with("_executor_binding_mismatch")
 }
 
 fn extract_auxiliary_runtime_snapshot(document: Value, artifact_path: &str) -> Option<Value> {
@@ -4078,11 +4616,71 @@ fn normalize_optional_text(value: Option<String>) -> Option<String> {
 mod tests {
     use super::*;
     use crate::agent::QueuedTurnSnapshot;
+    use crate::commands::modality_runtime_contracts::{
+        LIMECORE_POLICY_DECISION_REASON_POLICY_INPUTS_MISSING,
+        LIMECORE_POLICY_DECISION_SOURCE_POLICY_INPUT_EVALUATOR,
+    };
     use lime_core::database::dao::agent_timeline::{
         AgentThreadItem, AgentThreadItemPayload, AgentThreadItemStatus, AgentThreadTurn,
         AgentThreadTurnStatus,
     };
     use tempfile::TempDir;
+
+    #[test]
+    fn extract_limecore_policy_snapshot_should_derive_pending_refs_from_policy_value_hits() {
+        let document = json!({
+            "runtime_contract": {
+                "contract_key": IMAGE_GENERATION_CONTRACT_KEY,
+                "limecore_policy_refs": [
+                    "model_catalog",
+                    "provider_offer",
+                    "tenant_feature_flags"
+                ],
+                "limecore_policy_snapshot": {
+                    "refs": [
+                        "model_catalog",
+                        "provider_offer",
+                        "tenant_feature_flags"
+                    ],
+                    "policy_value_hits": [
+                        {
+                            "ref_key": "model_catalog",
+                            "status": "resolved",
+                            "source": "limecore_policy_hit_resolver",
+                            "value_source": "local_model_catalog",
+                            "value": {
+                                "model_id": "gpt-image-1",
+                                "capability": "image_generation"
+                            }
+                        }
+                    ]
+                }
+            }
+        });
+        let refs =
+            extract_runtime_contract_limecore_policy_refs(&document, IMAGE_GENERATION_CONTRACT_KEY);
+        let snapshot = extract_runtime_contract_limecore_policy_snapshot(&document, &refs)
+            .expect("limecore policy snapshot");
+
+        assert_eq!(snapshot["evaluated_refs"], json!(["model_catalog"]));
+        assert_eq!(
+            snapshot["pending_hit_refs"],
+            json!(["provider_offer", "tenant_feature_flags"])
+        );
+        assert_eq!(
+            snapshot["missing_inputs"],
+            json!(["provider_offer", "tenant_feature_flags"])
+        );
+        assert_eq!(snapshot["policy_value_hit_count"], json!(1));
+        assert_eq!(
+            snapshot["policy_inputs"][0]["status"],
+            json!(LIMECORE_POLICY_INPUT_STATUS_RESOLVED)
+        );
+        assert_eq!(
+            snapshot["policy_inputs"][0]["value_source"],
+            json!("local_model_catalog")
+        );
+    }
 
     fn build_detail() -> SessionDetail {
         SessionDetail {
@@ -4468,6 +5066,32 @@ mod tests {
                         },
                         "executor_adapter": {
                             "adapter_key": "skill:image_generate"
+                        },
+                        "limecore_policy_refs": IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+                        "limecore_policy_snapshot": {
+                            "status": LIMECORE_POLICY_SNAPSHOT_STATUS_LOCAL_DEFAULTS_EVALUATED,
+                            "decision": LIMECORE_POLICY_DECISION_ALLOW,
+                            "source": "modality_runtime_contract",
+                            "decision_source": LIMECORE_POLICY_DECISION_SOURCE_LOCAL_DEFAULT,
+                            "decision_scope": LIMECORE_POLICY_DECISION_SCOPE_LOCAL_DEFAULTS_ONLY,
+                            "decision_reason": LIMECORE_POLICY_DECISION_REASON_NO_LOCAL_DENY,
+                            "refs": IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+                            "evaluated_refs": [],
+                            "unresolved_refs": IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+                            "missing_inputs": IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+                            "pending_hit_refs": IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+                            "policy_value_hits": [],
+                            "policy_value_hit_count": 0,
+                            "policy_evaluation": {
+                                "status": "input_gap",
+                                "decision": "ask",
+                                "decision_source": LIMECORE_POLICY_DECISION_SOURCE_POLICY_INPUT_EVALUATOR,
+                                "decision_scope": "pending_policy_inputs",
+                                "decision_reason": LIMECORE_POLICY_DECISION_REASON_POLICY_INPUTS_MISSING,
+                                "blocking_refs": [],
+                                "ask_refs": IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+                                "pending_refs": IMAGE_GENERATION_LIMECORE_POLICY_REFS
+                            }
                         },
                         "truth_source": ["image_task_artifact", "runtime_timeline_event"]
                     }
@@ -5250,6 +5874,173 @@ mod tests {
                 .pointer("/modalityRuntimeContracts/snapshotIndex/executorAdapterKeys/0")
                 .and_then(Value::as_str),
             Some("skill:image_generate")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/limecorePolicyRefs/0")
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/limecorePolicySnapshot/status")
+                .and_then(Value::as_str),
+            Some("local_defaults_evaluated")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/limecorePolicySnapshot/decision")
+                .and_then(Value::as_str),
+            Some("allow")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshots/0/limecorePolicySnapshot/decision_source"
+                )
+                .and_then(Value::as_str),
+            Some("local_default_policy")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshots/0/limecorePolicySnapshot/decision_scope"
+                )
+                .and_then(Value::as_str),
+            Some("local_defaults_only")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/decisionSource"
+                )
+                .and_then(Value::as_str),
+            Some("local_default_policy")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/policyEvaluation/status"
+                )
+                .and_then(Value::as_str),
+            Some("input_gap")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/policyEvaluation/decision_source"
+                )
+                .and_then(Value::as_str),
+            Some("policy_input_evaluator")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/policyEvaluation/pending_refs/0"
+                )
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/unresolvedRefs/0"
+                )
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/missingInputs/0"
+                )
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/policyInputs/0/ref_key"
+                )
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/policyInputs/0/value_source"
+                )
+                .and_then(Value::as_str),
+            Some("limecore_pending")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/pendingHitRefs/0"
+                )
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/policyValueHitCount"
+                )
+                .and_then(Value::as_u64),
+            Some(0)
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/policyValueHits"
+                )
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(0)
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/missingInputs/0"
+                )
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/pendingHitRefs/0"
+                )
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/policyValueHitCount"
+                )
+                .and_then(Value::as_u64),
+            Some(0)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/limecorePolicyRefs/0")
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            runtime
+                .pointer(
+                    "/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/snapshotCount"
+                )
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/statusCounts/0/status")
+                .and_then(Value::as_str),
+            Some("local_defaults_evaluated")
         );
         assert_eq!(
             runtime

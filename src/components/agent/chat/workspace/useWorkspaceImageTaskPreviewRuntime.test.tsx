@@ -66,6 +66,12 @@ const DEFAULT_TASK_CONTEXT = {
 const EMPTY_MODALITY_RUNTIME_CONTRACT_INDEX = {
   snapshot_count: 0,
   contract_keys: [],
+  execution_profile_keys: [],
+  executor_adapter_keys: [],
+  limecore_policy_refs: [],
+  limecore_policy_snapshot_count: 0,
+  limecore_policy_snapshot_statuses: [],
+  limecore_policy_decisions: [],
   blocked_count: 0,
   routing_outcomes: [],
   model_registry_assessment_count: 0,

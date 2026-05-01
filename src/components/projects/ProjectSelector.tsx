@@ -44,6 +44,7 @@ import { toProjectView } from "@/lib/projectView";
 import type { Project } from "@/types/project";
 import { WorkspaceTypeLabels } from "@/types/workspace";
 import { cn } from "@/lib/utils";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import {
   canDeleteProject,
@@ -52,6 +53,8 @@ import {
   resolveProjectDeletionFallback,
   resolveSelectedProject,
 } from "./projectSelectorUtils";
+
+const PASSIVE_DEFERRED_PROJECT_SUMMARY_LOAD_MS = 12_000;
 
 export interface ProjectSelectorProps {
   /** 当前选中的项目 ID */
@@ -207,6 +210,10 @@ export function ProjectSelector({
   const [projectListHydrating, setProjectListHydrating] = useState(false);
   const [hasLoadedProjectList, setHasLoadedProjectList] =
     useState(!deferProjectListLoad);
+  const projectSummaryLoadDelayMs =
+    deferProjectListLoad && passiveTrigger
+      ? PASSIVE_DEFERRED_PROJECT_SUMMARY_LOAD_MS
+      : 0;
   const compact = density === "compact";
   const embedded = chrome === "embedded";
   const workspaceTab = chrome === "workspace-tab";
@@ -344,12 +351,29 @@ export function ProjectSelector({
       }
     };
 
+    if (projectSummaryLoadDelayMs > 0) {
+      const cancelSummaryLoad = scheduleMinimumDelayIdleTask(loadProjectSummary, {
+        minimumDelayMs: projectSummaryLoadDelayMs,
+        idleTimeoutMs: 1_500,
+      });
+      return () => {
+        cancelled = true;
+        cancelSummaryLoad();
+      };
+    }
+
     void loadProjectSummary();
 
     return () => {
       cancelled = true;
     };
-  }, [deferProjectListLoad, onChange, value, workspaceType]);
+  }, [
+    deferProjectListLoad,
+    onChange,
+    projectSummaryLoadDelayMs,
+    value,
+    workspaceType,
+  ]);
 
   useEffect(() => {
     if (deferProjectListLoad && !hasLoadedProjectList) {

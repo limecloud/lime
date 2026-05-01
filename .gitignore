@@ -55,10 +55,13 @@ docs/roadmap/*
 !docs/roadmap/agentui/*.md
 !docs/roadmap/voice/
 !docs/roadmap/voice/*.md
+!docs/roadmap/memory/
+!docs/roadmap/memory/*.md
 docs/gongzonghao/
 docs/bussniss/
 docs/oem/
 docs/tech/
+docs/knowledge
 # docs/research/
 
 # Issues tracking (internal use only)

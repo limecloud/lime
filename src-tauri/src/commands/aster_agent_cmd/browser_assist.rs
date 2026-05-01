@@ -1,7 +1,8 @@
 use super::*;
 use crate::commands::modality_runtime_contracts::{
     browser_control_required_capabilities, browser_control_runtime_contract,
-    BROWSER_CONTROL_CONTRACT_KEY, BROWSER_CONTROL_MODALITY, BROWSER_CONTROL_ROUTING_SLOT,
+    runtime_contract_with_policy_hits_from_request_metadata, BROWSER_CONTROL_CONTRACT_KEY,
+    BROWSER_CONTROL_MODALITY, BROWSER_CONTROL_ROUTING_SLOT,
 };
 
 pub(crate) const BROWSER_PROFILE_KEY_ENV_KEYS: &[&str] =
@@ -149,11 +150,11 @@ pub(crate) fn extract_browser_assist_modality_runtime_contract(
             &["routing_slot", "routingSlot"],
         )
         .unwrap_or_else(|| BROWSER_CONTROL_ROUTING_SLOT.to_string()),
-        runtime_contract: extract_browser_assist_value(
-            browser_assist,
-            &["runtime_contract", "runtimeContract"],
-        )
-        .unwrap_or_else(browser_control_runtime_contract),
+        runtime_contract: runtime_contract_with_policy_hits_from_request_metadata(
+            extract_browser_assist_value(browser_assist, &["runtime_contract", "runtimeContract"])
+                .unwrap_or_else(browser_control_runtime_contract),
+            request_metadata,
+        ),
         entry_source: extract_browser_assist_string(
             browser_assist,
             &["entry_source", "entrySource"],

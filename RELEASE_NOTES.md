@@ -1,11 +1,11 @@
-## Lime v1.25.0
+## Lime v1.26.0
 
-发布日期：`2026-04-30`
+发布日期：`2026-05-01`
 
 ### 发布概览
 
-- 本次发布目标 tag 为 `v1.25.0`，重点把 Lime 的语音输入、音频转写、AgentUI 旧会话体验和多模态运行合同推进到同一条 current 主链。
-- 版本文件、Tauri 配置、Cargo / npm lockfile、CLI wrapper、浏览器 mock 与 release updater 测试样例已同步到 `1.25.0`。
+- 本次发布目标 tag 为 `v1.26.0`，重点继续收敛语音输入、音频转写、AgentUI 旧会话体验与多模态运行合同，让 current 主链只保留单一事实源。
+- 版本文件、Tauri 配置、CLI wrapper、浏览器 mock、release updater 测试样例与相关发布说明已同步到 `1.26.0`。
 - 该版本继续坚持“一个事实源”：语音、音频、转写、任务轻卡、Evidence Pack、Replay 与 GUI 恢复层都消费统一的 runtime contract / task artifact / media task index，而不是新增平行协议。
 
 ### 用户可见更新
@@ -67,6 +67,7 @@
 - 新增 `modalityArtifactGraph.json`，把 entry binding、executor binding、artifact、viewer 和 evidence / replay 关系显式化。
 - `scripts/check-modality-runtime-contracts.mjs` 扩展校验范围，覆盖 capability、model role、artifact kind、artifact graph 与 current contract 同步关系。
 - `npm run test:contracts` 现在覆盖 agent runtime client 生成检查、命令契约、harness 契约、modality contracts 与 cleanup report contract。
+- 收紧 runtime evidence pack 和 modality contract 的测试专用边界，移除生产构建里的 unused import / dead code 噪音，并把 API Key 候选解密失败降为 debug，避免启动阶段无意义 warn 刷屏。
 
 #### 2. Evidence Pack 与 Replay
 
@@ -94,7 +95,7 @@
 - 已通过：
   - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
   - `npm run format`
-  - `npm run verify:app-version`（版本一致性检查通过：`1.25.0`）
+- `npm run verify:app-version`（版本一致性检查通过：`1.26.0`）
   - `npm run lint`
   - `npm run typecheck`
   - `npm test`（`44` 个 Vitest 批次通过）
@@ -108,4 +109,4 @@
 
 ---
 
-**完整变更**: `v1.24.0` -> `v1.25.0`
+**完整变更**: `v1.25.0` -> `v1.26.0`

@@ -39,6 +39,7 @@ const {
   mockToastSuccess,
   mockToastError,
   mockToastInfo,
+  mockRecordAgentUiPerformanceMetric,
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(),
   mockSaveConfig: vi.fn(),
@@ -65,6 +66,7 @@ const {
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
   mockToastInfo: vi.fn(),
+  mockRecordAgentUiPerformanceMetric: vi.fn(),
 }));
 
 vi.mock("@/lib/api/appConfig", () => ({
@@ -117,6 +119,10 @@ vi.mock("@/lib/siteAdapterCatalogBootstrap", () => ({
 
 vi.mock("@/lib/utils/scheduleMinimumDelayIdleTask", () => ({
   scheduleMinimumDelayIdleTask: mockScheduleMinimumDelayIdleTask,
+}));
+
+vi.mock("@/lib/agentUiPerformanceMetrics", () => ({
+  recordAgentUiPerformanceMetric: mockRecordAgentUiPerformanceMetric,
 }));
 
 interface MountedSidebar {
@@ -385,6 +391,46 @@ describe("AppSidebar", () => {
     expect(localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY)).toBe(
       "false",
     );
+  });
+
+  it("文件管理器临时折叠导航栏后应恢复用户原始状态", async () => {
+    localStorage.setItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY, "false");
+
+    const container = mountSidebarContainer();
+    await flushEffects();
+
+    expect(
+      container.querySelector('button[aria-label="折叠导航栏"]'),
+    ).not.toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("lime:app-sidebar-collapse", {
+          detail: { collapsed: true, source: "file-manager" },
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('button[aria-label="展开导航栏"]'),
+    ).not.toBeNull();
+    expect(localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY)).toBe(
+      "false",
+    );
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("lime:app-sidebar-collapse", {
+          detail: { collapsed: false, source: "file-manager" },
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('button[aria-label="折叠导航栏"]'),
+    ).not.toBeNull();
   });
 
   it("默认应渲染一级主导航，并将系统入口收进用户弹框", async () => {
@@ -1468,9 +1514,179 @@ describe("AppSidebar", () => {
         initialSessionId: "session-target",
       }),
     );
+    expect(mockRecordAgentUiPerformanceMetric).toHaveBeenCalledWith(
+      "sidebar.conversation.click",
+      expect.objectContaining({
+        sessionId: "session-target",
+        source: "sidebar_search",
+        workspaceId: "project-1",
+      }),
+    );
     expect(
       document.body.querySelector('[data-testid="app-sidebar-search-dialog"]'),
     ).toBeNull();
+  });
+
+  it("搜索结果悬停应延迟触发旧会话预取，避免抢占点击切换", async () => {
+    vi.useFakeTimers();
+    const receivedDetails: unknown[] = [];
+    const listener = (event: Event) => {
+      receivedDetails.push(
+        event instanceof CustomEvent ? event.detail : undefined,
+      );
+    };
+    window.addEventListener(TASK_CENTER_PREFETCH_TASK_EVENT, listener);
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: "session-prefetch-search",
+        name: "搜索预取历史会话",
+        created_at: 1713000000,
+        updated_at: 1713000600,
+        archived_at: null,
+        workspace_id: "project-1",
+        messages_count: 3,
+      },
+    ]);
+
+    try {
+      const container = mountSidebarContainer({
+        currentPage: "agent",
+        currentPageParams: {
+          agentEntry: "new-task",
+          projectId: "project-1",
+        } as AgentPageParams,
+      });
+      await flushEffects(2);
+
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="app-sidebar-search-button"]',
+          )
+          ?.click();
+        await Promise.resolve();
+      });
+      await flushEffects(5);
+
+      const dialog = document.body.querySelector<HTMLElement>(
+        '[data-testid="app-sidebar-search-dialog"]',
+      );
+      const resultButton = dialog?.querySelector<HTMLButtonElement>(
+        'button[title="搜索预取历史会话"]',
+      );
+      expect(resultButton?.disabled).toBe(false);
+
+      await act(async () => {
+        resultButton?.dispatchEvent(
+          new Event("pointerover", { bubbles: true }),
+        );
+        await Promise.resolve();
+      });
+
+      expect(receivedDetails).toEqual([]);
+
+      act(() => {
+        vi.advanceTimersByTime(899);
+      });
+      expect(receivedDetails).toEqual([]);
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+
+      expect(receivedDetails).toEqual([
+        {
+          sessionId: "session-prefetch-search",
+          workspaceId: "project-1",
+          source: "sidebar_search",
+        },
+      ]);
+      expect(mockRecordAgentUiPerformanceMetric).toHaveBeenCalledWith(
+        "sidebar.conversation.prefetchFired",
+        expect.objectContaining({
+          sessionId: "session-prefetch-search",
+          source: "sidebar_search",
+          workspaceId: "project-1",
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+      window.removeEventListener(TASK_CENTER_PREFETCH_TASK_EVENT, listener);
+    }
+  });
+
+  it("搜索结果快速点击应取消预取计时器并直接导航", async () => {
+    vi.useFakeTimers();
+    const onNavigate = vi.fn();
+    const receivedPrefetchDetails: unknown[] = [];
+    const listener = (event: Event) => {
+      receivedPrefetchDetails.push(
+        event instanceof CustomEvent ? event.detail : undefined,
+      );
+    };
+    window.addEventListener(TASK_CENTER_PREFETCH_TASK_EVENT, listener);
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: "session-click-search",
+        name: "搜索点击历史会话",
+        created_at: 1713000000,
+        updated_at: 1713000600,
+        archived_at: null,
+        workspace_id: "project-1",
+        messages_count: 3,
+      },
+    ]);
+
+    try {
+      const container = mountSidebarContainer({
+        currentPage: "agent",
+        currentPageParams: {
+          agentEntry: "new-task",
+          projectId: "project-1",
+        } as AgentPageParams,
+        onNavigate,
+      });
+      await flushEffects(2);
+
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="app-sidebar-search-button"]',
+          )
+          ?.click();
+        await Promise.resolve();
+      });
+
+      const dialog = document.body.querySelector<HTMLElement>(
+        '[data-testid="app-sidebar-search-dialog"]',
+      );
+      const resultButton = dialog?.querySelector<HTMLButtonElement>(
+        'button[title="搜索点击历史会话"]',
+      );
+
+      await act(async () => {
+        resultButton?.focus();
+        resultButton?.click();
+        await Promise.resolve();
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(900);
+      });
+
+      expect(receivedPrefetchDetails).toEqual([]);
+      expect(onNavigate).toHaveBeenCalledWith(
+        "agent",
+        expect.objectContaining({
+          agentEntry: "claw",
+          projectId: "project-1",
+          initialSessionId: "session-click-search",
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+      window.removeEventListener(TASK_CENTER_PREFETCH_TASK_EVENT, listener);
+    }
   });
 
   it("搜索弹窗的新建对话入口应复用现有新建导航", async () => {

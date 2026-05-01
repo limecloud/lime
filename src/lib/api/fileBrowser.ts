@@ -13,6 +13,7 @@ export interface FileEntry {
   mode?: number;
   mimeType?: string;
   isSymlink?: boolean;
+  iconDataUrl?: string | null;
 }
 
 export interface DirectoryListing {
@@ -30,8 +31,31 @@ export interface FilePreview {
   error: string | null;
 }
 
+export interface FileManagerLocation {
+  id: string;
+  label: string;
+  path: string;
+  kind:
+    | "home"
+    | "desktop"
+    | "documents"
+    | "downloads"
+    | "applications"
+    | string;
+}
+
 export async function listDirectory(path: string): Promise<DirectoryListing> {
   return safeInvoke<DirectoryListing>("list_dir", { path });
+}
+
+export async function getFileManagerLocations(): Promise<
+  FileManagerLocation[]
+> {
+  return safeInvoke<FileManagerLocation[]>("get_file_manager_locations");
+}
+
+export async function getFileIconDataUrl(path: string): Promise<string | null> {
+  return safeInvoke<string | null>("get_file_icon_data_url", { path });
 }
 
 export async function readFilePreview(

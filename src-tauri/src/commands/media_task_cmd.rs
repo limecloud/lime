@@ -22,17 +22,35 @@ use crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState;
 use crate::commands::aster_agent_cmd::tool_runtime::media_cli_bridge;
 use crate::commands::modality_runtime_contracts::{
     assess_image_generation_model_capability_from_registry, audio_transcription_runtime_contract,
-    image_generation_runtime_contract, looks_like_text_model_for_image_generation,
-    normalize_audio_transcription_contract_key, normalize_audio_transcription_modality,
-    normalize_audio_transcription_required_capabilities,
+    image_generation_model_catalog_policy_value_hit,
+    image_generation_provider_offer_policy_value_hit, image_generation_runtime_contract,
+    image_generation_runtime_contract_with_policy_value_hits,
+    looks_like_text_model_for_image_generation, normalize_audio_transcription_contract_key,
+    normalize_audio_transcription_modality, normalize_audio_transcription_required_capabilities,
     normalize_audio_transcription_routing_slot, normalize_image_generation_contract_key,
     normalize_image_generation_modality, normalize_image_generation_required_capabilities,
     normalize_image_generation_routing_slot, normalize_voice_generation_contract_key,
     normalize_voice_generation_modality, normalize_voice_generation_required_capabilities,
     normalize_voice_generation_routing_slot, voice_generation_runtime_contract,
     ImageGenerationModelCapabilityAssessment, AUDIO_TRANSCRIPTION_CONTRACT_KEY,
-    AUDIO_TRANSCRIPTION_ROUTING_SLOT, IMAGE_GENERATION_CONTRACT_KEY, IMAGE_GENERATION_ROUTING_SLOT,
-    VOICE_GENERATION_CONTRACT_KEY, VOICE_GENERATION_ROUTING_SLOT,
+    AUDIO_TRANSCRIPTION_EXECUTION_PROFILE_KEY, AUDIO_TRANSCRIPTION_EXECUTOR_ADAPTER_KEY,
+    AUDIO_TRANSCRIPTION_EXECUTOR_BINDING_KEY, AUDIO_TRANSCRIPTION_LIMECORE_POLICY_REFS,
+    AUDIO_TRANSCRIPTION_ROUTING_SLOT, BROWSER_CONTROL_CONTRACT_KEY,
+    BROWSER_CONTROL_LIMECORE_POLICY_REFS, IMAGE_GENERATION_CONTRACT_KEY,
+    IMAGE_GENERATION_EXECUTION_PROFILE_KEY, IMAGE_GENERATION_EXECUTOR_ADAPTER_KEY,
+    IMAGE_GENERATION_EXECUTOR_BINDING_KEY, IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+    IMAGE_GENERATION_ROUTING_SLOT, LIMECORE_POLICY_DECISION_ALLOW, LIMECORE_POLICY_DECISION_ASK,
+    LIMECORE_POLICY_DECISION_REASON_NO_LOCAL_DENY,
+    LIMECORE_POLICY_DECISION_REASON_POLICY_INPUTS_MISSING,
+    LIMECORE_POLICY_DECISION_SCOPE_LOCAL_DEFAULTS_ONLY,
+    LIMECORE_POLICY_DECISION_SOURCE_LOCAL_DEFAULT,
+    LIMECORE_POLICY_DECISION_SOURCE_POLICY_INPUT_EVALUATOR,
+    LIMECORE_POLICY_SNAPSHOT_STATUS_LOCAL_DEFAULTS_EVALUATED, PDF_EXTRACT_CONTRACT_KEY,
+    PDF_EXTRACT_LIMECORE_POLICY_REFS, TEXT_TRANSFORM_CONTRACT_KEY,
+    TEXT_TRANSFORM_LIMECORE_POLICY_REFS, VOICE_GENERATION_CONTRACT_KEY,
+    VOICE_GENERATION_EXECUTION_PROFILE_KEY, VOICE_GENERATION_EXECUTOR_ADAPTER_KEY,
+    VOICE_GENERATION_EXECUTOR_BINDING_KEY, VOICE_GENERATION_LIMECORE_POLICY_REFS,
+    VOICE_GENERATION_ROUTING_SLOT, WEB_RESEARCH_CONTRACT_KEY, WEB_RESEARCH_LIMECORE_POLICY_REFS,
 };
 use crate::commands::model_registry_cmd::ModelRegistryState;
 use crate::config::GlobalConfigManagerState;
@@ -51,6 +69,8 @@ const AUDIO_TASK_OUTPUT_RELATIVE_DIR: &str = ".lime/runtime/audio";
 const TRANSCRIPTION_TASK_DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 const TRANSCRIPTION_TASK_RUNNER_TIMEOUT_SECS: u64 = 300;
 const TRANSCRIPTION_TASK_OUTPUT_RELATIVE_DIR: &str = ".lime/runtime/transcripts";
+const LIMECORE_POLICY_EVALUATION_STATUS_INPUT_GAP: &str = "input_gap";
+const LIMECORE_POLICY_EVALUATION_SCOPE_PENDING_INPUTS: &str = "pending_policy_inputs";
 
 static ACTIVE_IMAGE_TASK_EXECUTIONS: Lazy<Mutex<HashSet<String>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
@@ -302,6 +322,29 @@ pub struct MediaTaskModalityRuntimeContractIndexEntry {
     pub routing_slot: Option<String>,
     pub provider_id: Option<String>,
     pub model: Option<String>,
+    pub execution_profile_key: Option<String>,
+    pub executor_adapter_key: Option<String>,
+    pub executor_kind: Option<String>,
+    pub executor_binding_key: Option<String>,
+    pub limecore_policy_refs: Vec<String>,
+    pub limecore_policy_snapshot_status: Option<String>,
+    pub limecore_policy_decision: Option<String>,
+    pub limecore_policy_decision_source: Option<String>,
+    pub limecore_policy_decision_scope: Option<String>,
+    pub limecore_policy_decision_reason: Option<String>,
+    pub limecore_policy_evaluation_status: Option<String>,
+    pub limecore_policy_evaluation_decision: Option<String>,
+    pub limecore_policy_evaluation_decision_source: Option<String>,
+    pub limecore_policy_evaluation_decision_scope: Option<String>,
+    pub limecore_policy_evaluation_decision_reason: Option<String>,
+    pub limecore_policy_evaluation_blocking_refs: Vec<String>,
+    pub limecore_policy_evaluation_ask_refs: Vec<String>,
+    pub limecore_policy_evaluation_pending_refs: Vec<String>,
+    pub limecore_policy_unresolved_refs: Vec<String>,
+    pub limecore_policy_missing_inputs: Vec<String>,
+    pub limecore_policy_pending_hit_refs: Vec<String>,
+    pub limecore_policy_value_hits: Vec<serde_json::Value>,
+    pub limecore_policy_value_hit_count: usize,
     pub routing_event: String,
     pub routing_outcome: String,
     pub failure_code: Option<String>,
@@ -342,9 +385,38 @@ pub struct MediaTaskTranscriptStatusCount {
 }
 
 #[derive(Debug, Serialize)]
+pub struct MediaTaskLimeCorePolicySnapshotStatusCount {
+    pub status: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MediaTaskLimeCorePolicyEvaluationStatusCount {
+    pub status: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Serialize)]
 pub struct MediaTaskModalityRuntimeContractIndex {
     pub snapshot_count: usize,
     pub contract_keys: Vec<String>,
+    pub execution_profile_keys: Vec<String>,
+    pub executor_adapter_keys: Vec<String>,
+    pub limecore_policy_refs: Vec<String>,
+    pub limecore_policy_snapshot_count: usize,
+    pub limecore_policy_snapshot_statuses: Vec<MediaTaskLimeCorePolicySnapshotStatusCount>,
+    pub limecore_policy_decisions: Vec<String>,
+    pub limecore_policy_decision_sources: Vec<String>,
+    pub limecore_policy_evaluation_statuses: Vec<MediaTaskLimeCorePolicyEvaluationStatusCount>,
+    pub limecore_policy_evaluation_decisions: Vec<String>,
+    pub limecore_policy_evaluation_decision_sources: Vec<String>,
+    pub limecore_policy_evaluation_blocking_refs: Vec<String>,
+    pub limecore_policy_evaluation_ask_refs: Vec<String>,
+    pub limecore_policy_evaluation_pending_refs: Vec<String>,
+    pub limecore_policy_unresolved_refs: Vec<String>,
+    pub limecore_policy_missing_inputs: Vec<String>,
+    pub limecore_policy_pending_hit_refs: Vec<String>,
+    pub limecore_policy_value_hit_count: usize,
     pub blocked_count: usize,
     pub routing_outcomes: Vec<MediaTaskRoutingOutcomeCount>,
     pub model_registry_assessment_count: usize,
@@ -887,6 +959,140 @@ fn build_task_error_with_provider_code(
     error
 }
 
+#[derive(Debug, Clone, Copy)]
+struct ModalityRuntimePreflightExpectation {
+    contract_key: &'static str,
+    execution_profile_key: &'static str,
+    executor_adapter_key: &'static str,
+    executor_kind: &'static str,
+    executor_binding_key: &'static str,
+}
+
+fn build_runtime_preflight_error(
+    expectation: &ModalityRuntimePreflightExpectation,
+    suffix: &str,
+    message: impl Into<String>,
+) -> TaskErrorRecord {
+    let code = format!("{}_{}", expectation.contract_key, suffix);
+    build_task_error(&code, message, false, "runtime_preflight")
+}
+
+fn image_generation_runtime_preflight_expectation() -> ModalityRuntimePreflightExpectation {
+    ModalityRuntimePreflightExpectation {
+        contract_key: IMAGE_GENERATION_CONTRACT_KEY,
+        execution_profile_key: IMAGE_GENERATION_EXECUTION_PROFILE_KEY,
+        executor_adapter_key: IMAGE_GENERATION_EXECUTOR_ADAPTER_KEY,
+        executor_kind: "skill",
+        executor_binding_key: IMAGE_GENERATION_EXECUTOR_BINDING_KEY,
+    }
+}
+
+fn voice_generation_runtime_preflight_expectation() -> ModalityRuntimePreflightExpectation {
+    ModalityRuntimePreflightExpectation {
+        contract_key: VOICE_GENERATION_CONTRACT_KEY,
+        execution_profile_key: VOICE_GENERATION_EXECUTION_PROFILE_KEY,
+        executor_adapter_key: VOICE_GENERATION_EXECUTOR_ADAPTER_KEY,
+        executor_kind: "service_skill",
+        executor_binding_key: VOICE_GENERATION_EXECUTOR_BINDING_KEY,
+    }
+}
+
+fn audio_transcription_runtime_preflight_expectation() -> ModalityRuntimePreflightExpectation {
+    ModalityRuntimePreflightExpectation {
+        contract_key: AUDIO_TRANSCRIPTION_CONTRACT_KEY,
+        execution_profile_key: AUDIO_TRANSCRIPTION_EXECUTION_PROFILE_KEY,
+        executor_adapter_key: AUDIO_TRANSCRIPTION_EXECUTOR_ADAPTER_KEY,
+        executor_kind: "skill",
+        executor_binding_key: AUDIO_TRANSCRIPTION_EXECUTOR_BINDING_KEY,
+    }
+}
+
+fn validate_modality_runtime_execution_preflight(
+    output: &MediaTaskOutput,
+    expectation: &ModalityRuntimePreflightExpectation,
+) -> Result<(), TaskErrorRecord> {
+    let execution_profile_key = media_task_execution_profile_key(output).ok_or_else(|| {
+        build_runtime_preflight_error(
+            expectation,
+            "execution_profile_missing",
+            format!(
+                "{} runtime_contract 缺少 execution_profile.profile_key，已阻止进入执行器。",
+                expectation.contract_key
+            ),
+        )
+    })?;
+    if execution_profile_key != expectation.execution_profile_key {
+        return Err(build_runtime_preflight_error(
+            expectation,
+            "execution_profile_mismatch",
+            format!(
+                "{} execution_profile 必须是 {}，收到 {}。",
+                expectation.contract_key, expectation.execution_profile_key, execution_profile_key
+            ),
+        ));
+    }
+
+    let executor_adapter_key = media_task_executor_adapter_key(output).ok_or_else(|| {
+        build_runtime_preflight_error(
+            expectation,
+            "executor_adapter_missing",
+            format!(
+                "{} runtime_contract 缺少 executor_adapter.adapter_key，已阻止进入执行器。",
+                expectation.contract_key
+            ),
+        )
+    })?;
+    if executor_adapter_key != expectation.executor_adapter_key {
+        return Err(build_runtime_preflight_error(
+            expectation,
+            "executor_adapter_mismatch",
+            format!(
+                "{} executor_adapter 必须是 {}，收到 {}。",
+                expectation.contract_key, expectation.executor_adapter_key, executor_adapter_key
+            ),
+        ));
+    }
+
+    let executor_kind = media_task_executor_kind(output).ok_or_else(|| {
+        build_runtime_preflight_error(
+            expectation,
+            "executor_binding_missing",
+            format!(
+                "{} runtime_contract 缺少 executor_binding.executor_kind，已阻止进入执行器。",
+                expectation.contract_key
+            ),
+        )
+    })?;
+    let executor_binding_key = media_task_executor_binding_key(output).ok_or_else(|| {
+        build_runtime_preflight_error(
+            expectation,
+            "executor_binding_missing",
+            format!(
+                "{} runtime_contract 缺少 executor_binding.binding_key，已阻止进入执行器。",
+                expectation.contract_key
+            ),
+        )
+    })?;
+    if executor_kind != expectation.executor_kind
+        || executor_binding_key != expectation.executor_binding_key
+    {
+        return Err(build_runtime_preflight_error(
+            expectation,
+            "executor_binding_mismatch",
+            format!(
+                "{} executor_binding 必须是 {}:{}，收到 {}:{}。",
+                expectation.contract_key,
+                expectation.executor_kind,
+                expectation.executor_binding_key,
+                executor_kind,
+                executor_binding_key
+            ),
+        ));
+    }
+
+    Ok(())
+}
+
 fn summarize_audio_response_body(raw: &str) -> String {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -1253,6 +1459,16 @@ fn is_image_generation_contract_routing_failure_code(code: &str) -> bool {
     )
 }
 
+fn is_modality_runtime_preflight_failure_code(code: &str) -> bool {
+    let normalized = code.trim();
+    normalized.ends_with("_execution_profile_missing")
+        || normalized.ends_with("_execution_profile_mismatch")
+        || normalized.ends_with("_executor_adapter_missing")
+        || normalized.ends_with("_executor_adapter_mismatch")
+        || normalized.ends_with("_executor_binding_missing")
+        || normalized.ends_with("_executor_binding_mismatch")
+}
+
 fn media_task_contract_key(output: &MediaTaskOutput) -> Option<String> {
     read_image_task_payload_string(&output.record.payload, &["modality_contract_key"])
         .or_else(|| {
@@ -1268,15 +1484,576 @@ fn media_task_contract_key(output: &MediaTaskOutput) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn media_task_runtime_contract(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
+    output
+        .record
+        .payload
+        .get("runtime_contract")
+        .filter(|value| value.is_object())
+        .or_else(|| {
+            output
+                .record
+                .payload
+                .get("runtimeContract")
+                .filter(|value| value.is_object())
+        })
+}
+
+fn media_task_execution_profile_key(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(
+        &output.record.payload,
+        &["execution_profile_key", "executionProfileKey"],
+    )
+    .or_else(|| {
+        media_task_runtime_contract(output)
+            .and_then(|value| {
+                value
+                    .get("execution_profile")
+                    .and_then(|profile| profile.get("profile_key"))
+                    .or_else(|| {
+                        value
+                            .get("executionProfile")
+                            .and_then(|profile| profile.get("profileKey"))
+                    })
+            })
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    })
+    .map(ToString::to_string)
+}
+
+fn media_task_executor_adapter_key(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(
+        &output.record.payload,
+        &["executor_adapter_key", "executorAdapterKey"],
+    )
+    .or_else(|| {
+        media_task_runtime_contract(output)
+            .and_then(|value| {
+                value
+                    .get("executor_adapter")
+                    .and_then(|adapter| adapter.get("adapter_key"))
+                    .or_else(|| {
+                        value
+                            .get("executorAdapter")
+                            .and_then(|adapter| adapter.get("adapterKey"))
+                    })
+            })
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    })
+    .map(ToString::to_string)
+}
+
+fn media_task_executor_kind(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(&output.record.payload, &["executor_kind", "executorKind"])
+        .or_else(|| {
+            media_task_runtime_contract(output)
+                .and_then(|value| {
+                    value
+                        .get("executor_binding")
+                        .and_then(|binding| binding.get("executor_kind"))
+                        .or_else(|| {
+                            value
+                                .get("executorBinding")
+                                .and_then(|binding| binding.get("executorKind"))
+                        })
+                })
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        })
+        .map(ToString::to_string)
+}
+
+fn media_task_executor_binding_key(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(
+        &output.record.payload,
+        &["executor_binding_key", "executorBindingKey"],
+    )
+    .or_else(|| {
+        media_task_runtime_contract(output)
+            .and_then(|value| {
+                value
+                    .get("executor_binding")
+                    .and_then(|binding| binding.get("binding_key"))
+                    .or_else(|| {
+                        value
+                            .get("executorBinding")
+                            .and_then(|binding| binding.get("bindingKey"))
+                    })
+            })
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    })
+    .map(ToString::to_string)
+}
+
+fn read_payload_string_array_from_keys(payload: &serde_json::Value, keys: &[&str]) -> Vec<String> {
+    for key in keys {
+        if let Some(values) = read_image_task_payload_string_array(payload, key) {
+            return values;
+        }
+    }
+    Vec::new()
+}
+
+fn push_unique_string_values(values: &mut Vec<String>, candidates: Vec<String>) {
+    for candidate in candidates {
+        push_unique_string(values, Some(candidate));
+    }
+}
+
+fn default_limecore_policy_refs_for_contract(contract_key: &str) -> &'static [&'static str] {
+    match contract_key {
+        IMAGE_GENERATION_CONTRACT_KEY => IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+        BROWSER_CONTROL_CONTRACT_KEY => BROWSER_CONTROL_LIMECORE_POLICY_REFS,
+        PDF_EXTRACT_CONTRACT_KEY => PDF_EXTRACT_LIMECORE_POLICY_REFS,
+        VOICE_GENERATION_CONTRACT_KEY => VOICE_GENERATION_LIMECORE_POLICY_REFS,
+        AUDIO_TRANSCRIPTION_CONTRACT_KEY => AUDIO_TRANSCRIPTION_LIMECORE_POLICY_REFS,
+        WEB_RESEARCH_CONTRACT_KEY => WEB_RESEARCH_LIMECORE_POLICY_REFS,
+        TEXT_TRANSFORM_CONTRACT_KEY => TEXT_TRANSFORM_LIMECORE_POLICY_REFS,
+        _ => &[],
+    }
+}
+
+fn media_task_limecore_policy_snapshot(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
+    output
+        .record
+        .payload
+        .get("limecore_policy_snapshot")
+        .filter(|value| value.is_object())
+        .or_else(|| {
+            output
+                .record
+                .payload
+                .get("limecorePolicySnapshot")
+                .filter(|value| value.is_object())
+        })
+        .or_else(|| {
+            media_task_runtime_contract(output).and_then(|contract| {
+                contract
+                    .get("limecore_policy_snapshot")
+                    .filter(|value| value.is_object())
+                    .or_else(|| {
+                        contract
+                            .get("limecorePolicySnapshot")
+                            .filter(|value| value.is_object())
+                    })
+            })
+        })
+}
+
+fn media_task_limecore_policy_refs(output: &MediaTaskOutput) -> Vec<String> {
+    let mut refs = Vec::new();
+    let payload = &output.record.payload;
+    push_unique_string_values(
+        &mut refs,
+        read_payload_string_array_from_keys(
+            payload,
+            &["limecore_policy_refs", "limecorePolicyRefs"],
+        ),
+    );
+
+    if let Some(contract) = media_task_runtime_contract(output) {
+        push_unique_string_values(
+            &mut refs,
+            read_payload_string_array_from_keys(
+                contract,
+                &["limecore_policy_refs", "limecorePolicyRefs"],
+            ),
+        );
+        if let Some(snapshot) = contract
+            .get("limecore_policy_snapshot")
+            .or_else(|| contract.get("limecorePolicySnapshot"))
+        {
+            push_unique_string_values(
+                &mut refs,
+                read_payload_string_array_from_keys(
+                    snapshot,
+                    &["refs", "policy_refs", "policyRefs"],
+                ),
+            );
+        }
+    }
+
+    if let Some(snapshot) = media_task_limecore_policy_snapshot(output) {
+        push_unique_string_values(
+            &mut refs,
+            read_payload_string_array_from_keys(snapshot, &["refs", "policy_refs", "policyRefs"]),
+        );
+    }
+
+    if refs.is_empty() {
+        if let Some(contract_key) = media_task_contract_key(output) {
+            refs.extend(
+                default_limecore_policy_refs_for_contract(&contract_key)
+                    .iter()
+                    .map(|value| (*value).to_string()),
+            );
+        }
+    }
+
+    refs
+}
+
+fn media_task_limecore_policy_snapshot_status(
+    output: &MediaTaskOutput,
+    refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_snapshot(output)
+        .and_then(|value| {
+            read_image_task_payload_string(value, &["status"]).map(ToString::to_string)
+        })
+        .or_else(|| {
+            if refs.is_empty() {
+                None
+            } else {
+                Some(LIMECORE_POLICY_SNAPSHOT_STATUS_LOCAL_DEFAULTS_EVALUATED.to_string())
+            }
+        })
+}
+
+fn media_task_limecore_policy_decision(
+    output: &MediaTaskOutput,
+    refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_snapshot(output)
+        .and_then(|value| {
+            read_image_task_payload_string(value, &["decision"]).map(ToString::to_string)
+        })
+        .or_else(|| {
+            if refs.is_empty() {
+                None
+            } else {
+                Some(LIMECORE_POLICY_DECISION_ALLOW.to_string())
+            }
+        })
+}
+
+fn media_task_limecore_policy_snapshot_string(
+    output: &MediaTaskOutput,
+    keys: &[&str],
+) -> Option<String> {
+    media_task_limecore_policy_snapshot(output)
+        .and_then(|value| read_image_task_payload_string(value, keys).map(ToString::to_string))
+}
+
+fn media_task_limecore_policy_decision_source(
+    output: &MediaTaskOutput,
+    refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_snapshot_string(output, &["decision_source", "decisionSource"])
+        .or_else(|| {
+            if refs.is_empty() {
+                None
+            } else {
+                Some(LIMECORE_POLICY_DECISION_SOURCE_LOCAL_DEFAULT.to_string())
+            }
+        })
+}
+
+fn media_task_limecore_policy_decision_scope(
+    output: &MediaTaskOutput,
+    refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_snapshot_string(output, &["decision_scope", "decisionScope"])
+        .or_else(|| {
+            if refs.is_empty() {
+                None
+            } else {
+                Some(LIMECORE_POLICY_DECISION_SCOPE_LOCAL_DEFAULTS_ONLY.to_string())
+            }
+        })
+}
+
+fn media_task_limecore_policy_decision_reason(
+    output: &MediaTaskOutput,
+    refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_snapshot_string(output, &["decision_reason", "decisionReason"])
+        .or_else(|| {
+            if refs.is_empty() {
+                None
+            } else {
+                Some(LIMECORE_POLICY_DECISION_REASON_NO_LOCAL_DENY.to_string())
+            }
+        })
+}
+
+fn media_task_limecore_policy_evaluation(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
+    media_task_limecore_policy_snapshot(output).and_then(|snapshot| {
+        snapshot
+            .get("policy_evaluation")
+            .filter(|value| value.is_object())
+            .or_else(|| {
+                snapshot
+                    .get("policyEvaluation")
+                    .filter(|value| value.is_object())
+            })
+    })
+}
+
+fn media_task_limecore_policy_evaluation_string(
+    output: &MediaTaskOutput,
+    keys: &[&str],
+) -> Option<String> {
+    media_task_limecore_policy_evaluation(output)
+        .and_then(|value| read_image_task_payload_string(value, keys).map(ToString::to_string))
+}
+
+fn media_task_limecore_policy_evaluation_status(
+    output: &MediaTaskOutput,
+    pending_refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_evaluation_string(output, &["status"]).or_else(|| {
+        if pending_refs.is_empty() {
+            None
+        } else {
+            Some(LIMECORE_POLICY_EVALUATION_STATUS_INPUT_GAP.to_string())
+        }
+    })
+}
+
+fn media_task_limecore_policy_evaluation_decision(
+    output: &MediaTaskOutput,
+    pending_refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_evaluation_string(output, &["decision"]).or_else(|| {
+        if pending_refs.is_empty() {
+            None
+        } else {
+            Some(LIMECORE_POLICY_DECISION_ASK.to_string())
+        }
+    })
+}
+
+fn media_task_limecore_policy_evaluation_decision_source(
+    output: &MediaTaskOutput,
+    pending_refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_evaluation_string(output, &["decision_source", "decisionSource"])
+        .or_else(|| {
+            if pending_refs.is_empty() {
+                None
+            } else {
+                Some(LIMECORE_POLICY_DECISION_SOURCE_POLICY_INPUT_EVALUATOR.to_string())
+            }
+        })
+}
+
+fn media_task_limecore_policy_evaluation_decision_scope(
+    output: &MediaTaskOutput,
+    pending_refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_evaluation_string(output, &["decision_scope", "decisionScope"])
+        .or_else(|| {
+            if pending_refs.is_empty() {
+                None
+            } else {
+                Some(LIMECORE_POLICY_EVALUATION_SCOPE_PENDING_INPUTS.to_string())
+            }
+        })
+}
+
+fn media_task_limecore_policy_evaluation_decision_reason(
+    output: &MediaTaskOutput,
+    pending_refs: &[String],
+) -> Option<String> {
+    media_task_limecore_policy_evaluation_string(output, &["decision_reason", "decisionReason"])
+        .or_else(|| {
+            if pending_refs.is_empty() {
+                None
+            } else {
+                Some(LIMECORE_POLICY_DECISION_REASON_POLICY_INPUTS_MISSING.to_string())
+            }
+        })
+}
+
+fn media_task_limecore_policy_evaluation_refs(
+    output: &MediaTaskOutput,
+    keys: &[&str],
+    fallback_refs: &[String],
+) -> Vec<String> {
+    let mut refs = Vec::new();
+    if let Some(evaluation) = media_task_limecore_policy_evaluation(output) {
+        push_unique_string_values(
+            &mut refs,
+            read_payload_string_array_from_keys(evaluation, keys),
+        );
+    }
+    if refs.is_empty() {
+        push_unique_string_values(&mut refs, fallback_refs.to_vec());
+    }
+    refs
+}
+
+fn media_task_limecore_policy_unresolved_refs(
+    output: &MediaTaskOutput,
+    refs: &[String],
+) -> Vec<String> {
+    let mut unresolved_refs = Vec::new();
+    if let Some(snapshot) = media_task_limecore_policy_snapshot(output) {
+        push_unique_string_values(
+            &mut unresolved_refs,
+            read_payload_string_array_from_keys(snapshot, &["unresolved_refs", "unresolvedRefs"]),
+        );
+    }
+    if unresolved_refs.is_empty() {
+        push_unique_string_values(
+            &mut unresolved_refs,
+            media_task_policy_refs_without_resolved_hits(
+                refs,
+                &media_task_limecore_policy_resolved_hit_refs(output),
+            ),
+        );
+    }
+    unresolved_refs
+}
+
+fn media_task_limecore_policy_missing_inputs(
+    output: &MediaTaskOutput,
+    refs: &[String],
+) -> Vec<String> {
+    let mut missing_inputs = Vec::new();
+    if let Some(snapshot) = media_task_limecore_policy_snapshot(output) {
+        push_unique_string_values(
+            &mut missing_inputs,
+            read_payload_string_array_from_keys(snapshot, &["missing_inputs", "missingInputs"]),
+        );
+        if missing_inputs.is_empty() {
+            push_unique_string_values(
+                &mut missing_inputs,
+                read_payload_string_array_from_keys(
+                    snapshot,
+                    &["unresolved_refs", "unresolvedRefs"],
+                ),
+            );
+        }
+    }
+    if missing_inputs.is_empty() {
+        push_unique_string_values(
+            &mut missing_inputs,
+            media_task_policy_refs_without_resolved_hits(
+                refs,
+                &media_task_limecore_policy_resolved_hit_refs(output),
+            ),
+        );
+    }
+    missing_inputs
+}
+
+fn media_task_limecore_policy_pending_hit_refs(
+    output: &MediaTaskOutput,
+    missing_inputs: &[String],
+) -> Vec<String> {
+    let mut pending_hit_refs = Vec::new();
+    if let Some(snapshot) = media_task_limecore_policy_snapshot(output) {
+        push_unique_string_values(
+            &mut pending_hit_refs,
+            read_payload_string_array_from_keys(snapshot, &["pending_hit_refs", "pendingHitRefs"]),
+        );
+    }
+    if pending_hit_refs.is_empty() {
+        push_unique_string_values(&mut pending_hit_refs, missing_inputs.to_vec());
+    }
+    pending_hit_refs
+}
+
+fn media_task_limecore_policy_value_hits(output: &MediaTaskOutput) -> Vec<serde_json::Value> {
+    media_task_limecore_policy_snapshot(output)
+        .and_then(|snapshot| {
+            snapshot
+                .get("policy_value_hits")
+                .or_else(|| snapshot.get("policyValueHits"))
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+        })
+        .unwrap_or_default()
+}
+
+fn media_task_limecore_policy_hit_ref(value: &serde_json::Value) -> Option<String> {
+    value
+        .get("ref_key")
+        .or_else(|| value.get("refKey"))
+        .or_else(|| value.get("ref"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn media_task_limecore_policy_hit_status(value: &serde_json::Value) -> Option<&str> {
+    value
+        .get("status")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn media_task_limecore_policy_resolved_hit_refs(output: &MediaTaskOutput) -> Vec<String> {
+    let mut refs = Vec::new();
+    for hit in media_task_limecore_policy_value_hits(output) {
+        if media_task_limecore_policy_hit_status(&hit) != Some("resolved") {
+            continue;
+        }
+        push_unique_string(&mut refs, media_task_limecore_policy_hit_ref(&hit));
+    }
+    refs
+}
+
+fn media_task_policy_refs_without_resolved_hits(
+    refs: &[String],
+    resolved_hit_refs: &[String],
+) -> Vec<String> {
+    refs.iter()
+        .filter(|ref_key| {
+            !resolved_hit_refs
+                .iter()
+                .any(|resolved| resolved == *ref_key)
+        })
+        .cloned()
+        .collect()
+}
+
+fn media_task_limecore_policy_value_hit_count(output: &MediaTaskOutput) -> usize {
+    media_task_limecore_policy_snapshot(output)
+        .and_then(|snapshot| {
+            ["policy_value_hit_count", "policyValueHitCount"]
+                .iter()
+                .filter_map(|key| snapshot.get(*key))
+                .find_map(serde_json::Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok())
+                .or_else(|| {
+                    snapshot
+                        .get("policy_value_hits")
+                        .or_else(|| snapshot.get("policyValueHits"))
+                        .and_then(serde_json::Value::as_array)
+                        .map(Vec::len)
+                })
+        })
+        .unwrap_or_default()
+}
+
 fn media_task_routing_outcome(output: &MediaTaskOutput) -> (&'static str, &'static str) {
     let is_contract_routing_failure = output
         .last_error
         .as_ref()
         .map(|error| is_image_generation_contract_routing_failure_code(&error.code))
         .unwrap_or(false);
+    let is_runtime_preflight_failure = output
+        .last_error
+        .as_ref()
+        .map(|error| is_modality_runtime_preflight_failure_code(&error.code))
+        .unwrap_or(false);
 
     if is_contract_routing_failure {
         ("routing_not_possible", "blocked")
+    } else if is_runtime_preflight_failure {
+        ("runtime_preflight", "blocked")
     } else if matches!(
         media_task_contract_key(output).as_deref(),
         Some(VOICE_GENERATION_CONTRACT_KEY) | Some(AUDIO_TRANSCRIPTION_CONTRACT_KEY)
@@ -1361,6 +2138,34 @@ fn increment_transcript_status_count(
     });
 }
 
+fn increment_limecore_policy_snapshot_status_count(
+    counts: &mut Vec<MediaTaskLimeCorePolicySnapshotStatusCount>,
+    status: &str,
+) {
+    if let Some(item) = counts.iter_mut().find(|item| item.status == status) {
+        item.count += 1;
+        return;
+    }
+    counts.push(MediaTaskLimeCorePolicySnapshotStatusCount {
+        status: status.to_string(),
+        count: 1,
+    });
+}
+
+fn increment_limecore_policy_evaluation_status_count(
+    counts: &mut Vec<MediaTaskLimeCorePolicyEvaluationStatusCount>,
+    status: &str,
+) {
+    if let Some(item) = counts.iter_mut().find(|item| item.status == status) {
+        item.count += 1;
+        return;
+    }
+    counts.push(MediaTaskLimeCorePolicyEvaluationStatusCount {
+        status: status.to_string(),
+        count: 1,
+    });
+}
+
 fn media_task_audio_output(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
     output
         .record
@@ -1437,6 +2242,23 @@ fn build_modality_runtime_contract_index(
     tasks: &[MediaTaskOutput],
 ) -> MediaTaskModalityRuntimeContractIndex {
     let mut contract_keys = Vec::new();
+    let mut execution_profile_keys = Vec::new();
+    let mut executor_adapter_keys = Vec::new();
+    let mut limecore_policy_refs = Vec::new();
+    let mut limecore_policy_snapshot_count = 0;
+    let mut limecore_policy_snapshot_statuses = Vec::new();
+    let mut limecore_policy_decisions = Vec::new();
+    let mut limecore_policy_decision_sources = Vec::new();
+    let mut limecore_policy_evaluation_statuses = Vec::new();
+    let mut limecore_policy_evaluation_decisions = Vec::new();
+    let mut limecore_policy_evaluation_decision_sources = Vec::new();
+    let mut limecore_policy_evaluation_blocking_refs = Vec::new();
+    let mut limecore_policy_evaluation_ask_refs = Vec::new();
+    let mut limecore_policy_evaluation_pending_refs = Vec::new();
+    let mut limecore_policy_unresolved_refs = Vec::new();
+    let mut limecore_policy_missing_inputs = Vec::new();
+    let mut limecore_policy_pending_hit_refs = Vec::new();
+    let mut limecore_policy_value_hit_count = 0usize;
     let mut blocked_count = 0;
     let mut routing_outcomes = Vec::new();
     let mut model_registry_assessment_count = 0;
@@ -1455,6 +2277,131 @@ fn build_modality_runtime_contract_index(
         }
 
         push_unique_string(&mut contract_keys, contract_key.clone());
+        let execution_profile_key = media_task_execution_profile_key(output);
+        let executor_adapter_key = media_task_executor_adapter_key(output);
+        let executor_kind = media_task_executor_kind(output);
+        let executor_binding_key = media_task_executor_binding_key(output);
+        let task_limecore_policy_refs = media_task_limecore_policy_refs(output);
+        let limecore_policy_snapshot_status =
+            media_task_limecore_policy_snapshot_status(output, &task_limecore_policy_refs);
+        let limecore_policy_decision =
+            media_task_limecore_policy_decision(output, &task_limecore_policy_refs);
+        let limecore_policy_decision_source =
+            media_task_limecore_policy_decision_source(output, &task_limecore_policy_refs);
+        let limecore_policy_decision_scope =
+            media_task_limecore_policy_decision_scope(output, &task_limecore_policy_refs);
+        let limecore_policy_decision_reason =
+            media_task_limecore_policy_decision_reason(output, &task_limecore_policy_refs);
+        let task_limecore_policy_unresolved_refs =
+            media_task_limecore_policy_unresolved_refs(output, &task_limecore_policy_refs);
+        let task_limecore_policy_missing_inputs =
+            media_task_limecore_policy_missing_inputs(output, &task_limecore_policy_refs);
+        let task_limecore_policy_pending_hit_refs = media_task_limecore_policy_pending_hit_refs(
+            output,
+            &task_limecore_policy_missing_inputs,
+        );
+        let limecore_policy_evaluation_status = media_task_limecore_policy_evaluation_status(
+            output,
+            &task_limecore_policy_pending_hit_refs,
+        );
+        let limecore_policy_evaluation_decision = media_task_limecore_policy_evaluation_decision(
+            output,
+            &task_limecore_policy_pending_hit_refs,
+        );
+        let limecore_policy_evaluation_decision_source =
+            media_task_limecore_policy_evaluation_decision_source(
+                output,
+                &task_limecore_policy_pending_hit_refs,
+            );
+        let limecore_policy_evaluation_decision_scope =
+            media_task_limecore_policy_evaluation_decision_scope(
+                output,
+                &task_limecore_policy_pending_hit_refs,
+            );
+        let limecore_policy_evaluation_decision_reason =
+            media_task_limecore_policy_evaluation_decision_reason(
+                output,
+                &task_limecore_policy_pending_hit_refs,
+            );
+        let task_limecore_policy_evaluation_blocking_refs =
+            media_task_limecore_policy_evaluation_refs(
+                output,
+                &["blocking_refs", "blockingRefs"],
+                &[],
+            );
+        let task_limecore_policy_evaluation_ask_refs = media_task_limecore_policy_evaluation_refs(
+            output,
+            &["ask_refs", "askRefs"],
+            &task_limecore_policy_pending_hit_refs,
+        );
+        let task_limecore_policy_evaluation_pending_refs =
+            media_task_limecore_policy_evaluation_refs(
+                output,
+                &["pending_refs", "pendingRefs"],
+                &task_limecore_policy_pending_hit_refs,
+            );
+        let task_limecore_policy_value_hits = media_task_limecore_policy_value_hits(output);
+        let task_limecore_policy_value_hit_count =
+            media_task_limecore_policy_value_hit_count(output);
+        push_unique_string(&mut execution_profile_keys, execution_profile_key.clone());
+        push_unique_string(&mut executor_adapter_keys, executor_adapter_key.clone());
+        push_unique_string_values(&mut limecore_policy_refs, task_limecore_policy_refs.clone());
+        push_unique_string_values(
+            &mut limecore_policy_unresolved_refs,
+            task_limecore_policy_unresolved_refs.clone(),
+        );
+        push_unique_string_values(
+            &mut limecore_policy_missing_inputs,
+            task_limecore_policy_missing_inputs.clone(),
+        );
+        push_unique_string_values(
+            &mut limecore_policy_pending_hit_refs,
+            task_limecore_policy_pending_hit_refs.clone(),
+        );
+        limecore_policy_value_hit_count += task_limecore_policy_value_hit_count;
+        if !task_limecore_policy_refs.is_empty() {
+            limecore_policy_snapshot_count += 1;
+        }
+        if let Some(status) = limecore_policy_snapshot_status.as_deref() {
+            increment_limecore_policy_snapshot_status_count(
+                &mut limecore_policy_snapshot_statuses,
+                status,
+            );
+        }
+        push_unique_string(
+            &mut limecore_policy_decisions,
+            limecore_policy_decision.clone(),
+        );
+        push_unique_string(
+            &mut limecore_policy_decision_sources,
+            limecore_policy_decision_source.clone(),
+        );
+        if let Some(status) = limecore_policy_evaluation_status.as_deref() {
+            increment_limecore_policy_evaluation_status_count(
+                &mut limecore_policy_evaluation_statuses,
+                status,
+            );
+        }
+        push_unique_string(
+            &mut limecore_policy_evaluation_decisions,
+            limecore_policy_evaluation_decision.clone(),
+        );
+        push_unique_string(
+            &mut limecore_policy_evaluation_decision_sources,
+            limecore_policy_evaluation_decision_source.clone(),
+        );
+        push_unique_string_values(
+            &mut limecore_policy_evaluation_blocking_refs,
+            task_limecore_policy_evaluation_blocking_refs.clone(),
+        );
+        push_unique_string_values(
+            &mut limecore_policy_evaluation_ask_refs,
+            task_limecore_policy_evaluation_ask_refs.clone(),
+        );
+        push_unique_string_values(
+            &mut limecore_policy_evaluation_pending_refs,
+            task_limecore_policy_evaluation_pending_refs.clone(),
+        );
         let (routing_event, routing_outcome) = media_task_routing_outcome(output);
         if routing_outcome == "blocked" {
             blocked_count += 1;
@@ -1508,6 +2455,29 @@ fn build_modality_runtime_contract_index(
             provider_id: read_image_task_payload_string(payload, &["provider_id", "providerId"])
                 .map(ToString::to_string),
             model: read_image_task_payload_string(payload, &["model"]).map(ToString::to_string),
+            execution_profile_key,
+            executor_adapter_key,
+            executor_kind,
+            executor_binding_key,
+            limecore_policy_refs: task_limecore_policy_refs,
+            limecore_policy_snapshot_status,
+            limecore_policy_decision,
+            limecore_policy_decision_source,
+            limecore_policy_decision_scope,
+            limecore_policy_decision_reason,
+            limecore_policy_evaluation_status,
+            limecore_policy_evaluation_decision,
+            limecore_policy_evaluation_decision_source,
+            limecore_policy_evaluation_decision_scope,
+            limecore_policy_evaluation_decision_reason,
+            limecore_policy_evaluation_blocking_refs: task_limecore_policy_evaluation_blocking_refs,
+            limecore_policy_evaluation_ask_refs: task_limecore_policy_evaluation_ask_refs,
+            limecore_policy_evaluation_pending_refs: task_limecore_policy_evaluation_pending_refs,
+            limecore_policy_unresolved_refs: task_limecore_policy_unresolved_refs,
+            limecore_policy_missing_inputs: task_limecore_policy_missing_inputs,
+            limecore_policy_pending_hit_refs: task_limecore_policy_pending_hit_refs,
+            limecore_policy_value_hits: task_limecore_policy_value_hits,
+            limecore_policy_value_hit_count: task_limecore_policy_value_hit_count,
             routing_event: routing_event.to_string(),
             routing_outcome: routing_outcome.to_string(),
             failure_code: output.last_error.as_ref().map(|error| error.code.clone()),
@@ -1556,6 +2526,23 @@ fn build_modality_runtime_contract_index(
     MediaTaskModalityRuntimeContractIndex {
         snapshot_count: snapshots.len(),
         contract_keys,
+        execution_profile_keys,
+        executor_adapter_keys,
+        limecore_policy_refs,
+        limecore_policy_snapshot_count,
+        limecore_policy_snapshot_statuses,
+        limecore_policy_decisions,
+        limecore_policy_decision_sources,
+        limecore_policy_evaluation_statuses,
+        limecore_policy_evaluation_decisions,
+        limecore_policy_evaluation_decision_sources,
+        limecore_policy_evaluation_blocking_refs,
+        limecore_policy_evaluation_ask_refs,
+        limecore_policy_evaluation_pending_refs,
+        limecore_policy_unresolved_refs,
+        limecore_policy_missing_inputs,
+        limecore_policy_pending_hit_refs,
+        limecore_policy_value_hit_count,
         blocked_count,
         routing_outcomes,
         model_registry_assessment_count,
@@ -1627,6 +2614,11 @@ fn validate_image_generation_task_execution_contract(
             ));
         }
     }
+
+    validate_modality_runtime_execution_preflight(
+        output,
+        &image_generation_runtime_preflight_expectation(),
+    )?;
 
     if let Some(assessment) = model_capability {
         if !assessment.supports_image_generation {
@@ -1743,22 +2735,80 @@ fn image_generation_model_capability_assessment_payload(
     })
 }
 
+fn image_task_policy_value_hits_with_model_catalog(
+    output: &MediaTaskOutput,
+    assessment: &ImageGenerationModelCapabilityAssessment,
+) -> Vec<serde_json::Value> {
+    let mut hits = media_task_limecore_policy_value_hits(output)
+        .into_iter()
+        .filter(|hit| media_task_limecore_policy_hit_ref(hit).as_deref() != Some("model_catalog"))
+        .collect::<Vec<_>>();
+    hits.push(image_generation_model_catalog_policy_value_hit(assessment));
+    hits
+}
+
+fn image_task_policy_value_hits_with_provider_offer(
+    output: &MediaTaskOutput,
+    runner_config: &ImageGenerationRunnerConfig,
+) -> Vec<serde_json::Value> {
+    let payload = &output.record.payload;
+    let provider_id = read_image_task_payload_string(payload, &["provider_id", "providerId"]);
+    let model = read_image_task_payload_string(payload, &["model"]);
+    let mut hits = media_task_limecore_policy_value_hits(output)
+        .into_iter()
+        .filter(|hit| media_task_limecore_policy_hit_ref(hit).as_deref() != Some("provider_offer"))
+        .collect::<Vec<_>>();
+    hits.push(image_generation_provider_offer_policy_value_hit(
+        provider_id,
+        model,
+        &runner_config.endpoint,
+    ));
+    hits
+}
+
 fn patch_image_task_model_capability_assessment(
     workspace_root: &Path,
     task_id: &str,
     assessment: &ImageGenerationModelCapabilityAssessment,
 ) -> Result<MediaTaskOutput, String> {
+    let current = load_current_image_task(workspace_root, task_id)?;
+    let policy_value_hits = image_task_policy_value_hits_with_model_catalog(&current, assessment);
     patch_image_task(
         workspace_root,
         task_id,
         TaskArtifactPatch {
             payload_patch: Some(json!({
-                "model_capability_assessment": image_generation_model_capability_assessment_payload(assessment)
+                "model_capability_assessment": image_generation_model_capability_assessment_payload(assessment),
+                "runtime_contract": image_generation_runtime_contract_with_policy_value_hits(policy_value_hits),
             })),
             ..TaskArtifactPatch::default()
         },
     )
     .map_err(|error| format!("写回图片任务模型能力评估失败: {error}"))
+}
+
+fn patch_image_task_provider_offer(
+    workspace_root: &Path,
+    task_id: &str,
+    runner_config: &ImageGenerationRunnerConfig,
+) -> Result<MediaTaskOutput, String> {
+    if runner_config.api_key.trim().is_empty() {
+        return Err("图片任务 provider_offer 缺少已解析 API Key，已拒绝写入策略命中。".to_string());
+    }
+    let current = load_current_image_task(workspace_root, task_id)?;
+    let policy_value_hits =
+        image_task_policy_value_hits_with_provider_offer(&current, runner_config);
+    patch_image_task(
+        workspace_root,
+        task_id,
+        TaskArtifactPatch {
+            payload_patch: Some(json!({
+                "runtime_contract": image_generation_runtime_contract_with_policy_value_hits(policy_value_hits),
+            })),
+            ..TaskArtifactPatch::default()
+        },
+    )
+    .map_err(|error| format!("写回图片任务 provider_offer 命中失败: {error}"))
 }
 
 fn emit_image_task_event(app: Option<&AppHandle>, output: &MediaTaskOutput) {
@@ -2162,6 +3212,11 @@ fn validate_audio_generation_task_execution_contract(
             ));
         }
     }
+
+    validate_modality_runtime_execution_preflight(
+        output,
+        &voice_generation_runtime_preflight_expectation(),
+    )?;
 
     Ok(())
 }
@@ -2617,6 +3672,11 @@ fn validate_transcription_task_execution_contract(
         }
     }
 
+    validate_modality_runtime_execution_preflight(
+        output,
+        &audio_transcription_runtime_preflight_expectation(),
+    )?;
+
     Ok(())
 }
 
@@ -2872,12 +3932,13 @@ async fn execute_image_generation_task(
     let current = load_current_image_task(&workspace_root, &task_id)?;
     let model_capability =
         resolve_image_generation_model_capability_assessment(app.as_ref(), &current).await;
-    let current = match model_capability.as_ref() {
+    let _current = match model_capability.as_ref() {
         Some(assessment) => {
             patch_image_task_model_capability_assessment(&workspace_root, &task_id, assessment)?
         }
         None => current,
     };
+    let current = patch_image_task_provider_offer(&workspace_root, &task_id, &runner_config)?;
     if let Err(task_error) =
         validate_image_generation_task_execution_contract(&current, model_capability.as_ref())
     {
@@ -3812,6 +4873,14 @@ pub fn cancel_media_task_artifact(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::modality_runtime_contracts::{
+        AUDIO_TRANSCRIPTION_EXECUTION_PROFILE_KEY, AUDIO_TRANSCRIPTION_EXECUTOR_ADAPTER_KEY,
+        AUDIO_TRANSCRIPTION_EXECUTOR_BINDING_KEY, AUDIO_TRANSCRIPTION_LIMECORE_POLICY_REFS,
+        IMAGE_GENERATION_EXECUTION_PROFILE_KEY, IMAGE_GENERATION_EXECUTOR_ADAPTER_KEY,
+        IMAGE_GENERATION_EXECUTOR_BINDING_KEY, IMAGE_GENERATION_LIMECORE_POLICY_REFS,
+        VOICE_GENERATION_EXECUTION_PROFILE_KEY, VOICE_GENERATION_EXECUTOR_ADAPTER_KEY,
+        VOICE_GENERATION_EXECUTOR_BINDING_KEY, VOICE_GENERATION_LIMECORE_POLICY_REFS,
+    };
     use axum::{
         http::{HeaderMap, StatusCode},
         routing::post,
@@ -3859,6 +4928,174 @@ mod tests {
             reference_images: Vec::new(),
             storyboard_slots: Vec::new(),
         }
+    }
+
+    #[test]
+    fn modality_runtime_contract_index_should_derive_pending_refs_from_policy_value_hits() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let mut created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("gpt-image-1"),
+            ))
+            .expect("create image task");
+        created.record.payload["runtime_contract"] =
+            image_generation_runtime_contract_with_policy_value_hits(vec![json!({
+                "ref_key": "model_catalog",
+                "status": "resolved",
+                "source": "limecore_policy_hit_resolver",
+                "value_source": "local_model_catalog",
+                "value": {
+                    "model_id": "gpt-image-1",
+                    "capability": "image_generation"
+                }
+            })]);
+
+        let index = build_modality_runtime_contract_index(&[created]);
+
+        assert_eq!(index.limecore_policy_value_hit_count, 1);
+        assert_eq!(
+            index.limecore_policy_evaluation_statuses[0].status,
+            "input_gap"
+        );
+        assert_eq!(
+            index.limecore_policy_evaluation_pending_refs,
+            vec![
+                "provider_offer".to_string(),
+                "tenant_feature_flags".to_string()
+            ]
+        );
+        assert_eq!(
+            index.limecore_policy_unresolved_refs,
+            vec![
+                "provider_offer".to_string(),
+                "tenant_feature_flags".to_string()
+            ]
+        );
+        assert_eq!(
+            index.limecore_policy_missing_inputs,
+            vec![
+                "provider_offer".to_string(),
+                "tenant_feature_flags".to_string()
+            ]
+        );
+        assert_eq!(
+            index.limecore_policy_pending_hit_refs,
+            vec![
+                "provider_offer".to_string(),
+                "tenant_feature_flags".to_string()
+            ]
+        );
+        assert_eq!(
+            index.snapshots[0].limecore_policy_value_hits[0]["ref_key"],
+            json!("model_catalog")
+        );
+        assert_eq!(
+            index.snapshots[0].limecore_policy_unresolved_refs,
+            vec![
+                "provider_offer".to_string(),
+                "tenant_feature_flags".to_string()
+            ]
+        );
+        assert_eq!(
+            index.snapshots[0]
+                .limecore_policy_evaluation_status
+                .as_deref(),
+            Some("input_gap")
+        );
+        assert_eq!(
+            index.snapshots[0].limecore_policy_evaluation_pending_refs,
+            vec![
+                "provider_offer".to_string(),
+                "tenant_feature_flags".to_string()
+            ]
+        );
+        assert_eq!(index.snapshots[0].limecore_policy_value_hit_count, 1);
+    }
+
+    #[test]
+    fn modality_runtime_contract_index_should_surface_evaluated_policy_blocks() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let mut created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("gpt-5.2"),
+            ))
+            .expect("create image task");
+        created.record.payload["runtime_contract"] =
+            image_generation_runtime_contract_with_policy_value_hits(vec![
+                json!({
+                    "ref_key": "model_catalog",
+                    "status": "resolved",
+                    "source": "limecore_policy_hit_resolver",
+                    "value_source": "local_model_catalog",
+                    "value": {
+                        "model_id": "gpt-5.2",
+                        "supports_image_generation": false
+                    }
+                }),
+                json!({
+                    "ref_key": "provider_offer",
+                    "status": "resolved",
+                    "source": "limecore_policy_hit_resolver",
+                    "value_source": "local_provider_offer",
+                    "value": {
+                        "provider_id": "openai",
+                        "credential_state": "configured"
+                    }
+                }),
+                json!({
+                    "ref_key": "tenant_feature_flags",
+                    "status": "resolved",
+                    "source": "limecore_policy_hit_resolver",
+                    "value_source": "oem_cloud_bootstrap_features",
+                    "value": {
+                        "flags": {
+                            "imageGeneration": true
+                        }
+                    }
+                }),
+            ]);
+
+        let index = build_modality_runtime_contract_index(&[created]);
+
+        assert_eq!(index.limecore_policy_decisions, vec!["deny".to_string()]);
+        assert_eq!(
+            index.limecore_policy_decision_sources,
+            vec!["policy_input_evaluator".to_string()]
+        );
+        assert_eq!(
+            index.limecore_policy_evaluation_statuses[0].status,
+            "evaluated"
+        );
+        assert_eq!(
+            index.limecore_policy_evaluation_decisions,
+            vec!["deny".to_string()]
+        );
+        assert_eq!(
+            index.limecore_policy_evaluation_blocking_refs,
+            vec!["model_catalog".to_string()]
+        );
+        assert!(index.limecore_policy_evaluation_pending_refs.is_empty());
+        assert_eq!(
+            index.snapshots[0]
+                .limecore_policy_evaluation_status
+                .as_deref(),
+            Some("evaluated")
+        );
+        assert_eq!(
+            index.snapshots[0]
+                .limecore_policy_evaluation_decision
+                .as_deref(),
+            Some("deny")
+        );
+        assert_eq!(
+            index.snapshots[0].limecore_policy_evaluation_blocking_refs,
+            vec!["model_catalog".to_string()]
+        );
+        assert!(index.snapshots[0]
+            .limecore_policy_evaluation_ask_refs
+            .is_empty());
     }
 
     #[test]
@@ -4227,6 +5464,68 @@ mod tests {
             "pending"
         );
         assert_eq!(
+            listed.modality_runtime_contracts.execution_profile_keys,
+            vec![VOICE_GENERATION_EXECUTION_PROFILE_KEY.to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.executor_adapter_keys,
+            vec![VOICE_GENERATION_EXECUTOR_ADAPTER_KEY.to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.limecore_policy_refs,
+            VOICE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_snapshot_count,
+            1
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_snapshot_statuses[0]
+                .status,
+            "local_defaults_evaluated"
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.limecore_policy_decisions,
+            vec!["allow".to_string()]
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_decision_sources,
+            vec!["local_default_policy".to_string()]
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_missing_inputs,
+            VOICE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_pending_hit_refs,
+            VOICE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_value_hit_count,
+            0
+        );
+        assert_eq!(
             listed.modality_runtime_contracts.snapshots[0]
                 .routing_event
                 .as_str(),
@@ -4238,6 +5537,127 @@ mod tests {
                 .as_deref(),
             Some("pending")
         );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .execution_profile_key
+                .as_deref(),
+            Some(VOICE_GENERATION_EXECUTION_PROFILE_KEY)
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .executor_adapter_key
+                .as_deref(),
+            Some(VOICE_GENERATION_EXECUTOR_ADAPTER_KEY)
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .executor_kind
+                .as_deref(),
+            Some("service_skill")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .executor_binding_key
+                .as_deref(),
+            Some(VOICE_GENERATION_EXECUTOR_BINDING_KEY)
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_refs,
+            VOICE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .limecore_policy_snapshot_status
+                .as_deref(),
+            Some("local_defaults_evaluated")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .limecore_policy_decision
+                .as_deref(),
+            Some("allow")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .limecore_policy_decision_source
+                .as_deref(),
+            Some("local_default_policy")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_unresolved_refs,
+            VOICE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_missing_inputs,
+            VOICE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_pending_hit_refs,
+            VOICE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert!(listed.modality_runtime_contracts.snapshots[0]
+            .limecore_policy_value_hits
+            .is_empty());
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_value_hit_count,
+            0
+        );
+    }
+
+    #[test]
+    fn validate_audio_generation_task_execution_contract_should_reject_wrong_profile() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let mut created =
+            create_audio_generation_task_artifact_inner(CreateAudioGenerationTaskArtifactRequest {
+                project_root_path: temp_dir.path().to_string_lossy().to_string(),
+                source_text: "这是一段需要生成温暖旁白的发布文案。".to_string(),
+                title: Some("发布配音".to_string()),
+                raw_text: Some("@配音 风格: 温暖 这是一段发布文案".to_string()),
+                voice: Some("warm_narrator".to_string()),
+                voice_style: None,
+                target_language: None,
+                mime_type: None,
+                audio_path: None,
+                duration_ms: None,
+                provider_id: Some("limecore".to_string()),
+                model: Some("voice-pro".to_string()),
+                session_id: None,
+                project_id: None,
+                content_id: None,
+                entry_source: None,
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
+                requested_target: None,
+                output_path: None,
+            })
+            .expect("create audio generation task");
+        *created
+            .record
+            .payload
+            .pointer_mut("/runtime_contract/execution_profile/profile_key")
+            .expect("execution profile key") = json!("image_generation_profile");
+
+        let error = validate_audio_generation_task_execution_contract(&created)
+            .expect_err("wrong profile should be rejected by runtime preflight");
+
+        assert_eq!(error.code, "voice_generation_execution_profile_mismatch");
+        assert_eq!(error.stage.as_deref(), Some("runtime_preflight"));
+        assert!(!error.retryable);
     }
 
     #[test]
@@ -4398,6 +5818,34 @@ mod tests {
             "pending"
         );
         assert_eq!(
+            listed.modality_runtime_contracts.execution_profile_keys,
+            vec![AUDIO_TRANSCRIPTION_EXECUTION_PROFILE_KEY.to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.executor_adapter_keys,
+            vec![AUDIO_TRANSCRIPTION_EXECUTOR_ADAPTER_KEY.to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.limecore_policy_refs,
+            AUDIO_TRANSCRIPTION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_snapshot_count,
+            1
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_snapshot_statuses[0]
+                .status,
+            "local_defaults_evaluated"
+        );
+        assert_eq!(
             listed.modality_runtime_contracts.snapshots[0]
                 .routing_event
                 .as_str(),
@@ -4415,6 +5863,87 @@ mod tests {
                 .as_deref(),
             Some("/tmp/interview.wav")
         );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .execution_profile_key
+                .as_deref(),
+            Some(AUDIO_TRANSCRIPTION_EXECUTION_PROFILE_KEY)
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .executor_adapter_key
+                .as_deref(),
+            Some(AUDIO_TRANSCRIPTION_EXECUTOR_ADAPTER_KEY)
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .executor_kind
+                .as_deref(),
+            Some("skill")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .executor_binding_key
+                .as_deref(),
+            Some(AUDIO_TRANSCRIPTION_EXECUTOR_BINDING_KEY)
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_refs,
+            AUDIO_TRANSCRIPTION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .limecore_policy_snapshot_status
+                .as_deref(),
+            Some("local_defaults_evaluated")
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_transcription_task_execution_contract_should_reject_wrong_executor_binding() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let mut created =
+            create_transcription_task_artifact_inner(CreateTranscriptionTaskArtifactRequest {
+                project_root_path: temp_dir.path().to_string_lossy().to_string(),
+                prompt: Some("生成逐字稿".to_string()),
+                title: Some("会议转写".to_string()),
+                raw_text: Some("@转写 /tmp/interview.wav 生成逐字稿".to_string()),
+                source_url: None,
+                source_path: Some("/tmp/interview.wav".to_string()),
+                language: Some("zh-CN".to_string()),
+                output_format: Some("srt".to_string()),
+                speaker_labels: Some(true),
+                timestamps: Some(true),
+                provider_id: Some("limecore".to_string()),
+                model: Some("asr-pro".to_string()),
+                session_id: None,
+                project_id: None,
+                content_id: None,
+                entry_source: None,
+                modality_contract_key: None,
+                modality: None,
+                required_capabilities: Vec::new(),
+                routing_slot: None,
+                runtime_contract: None,
+                requested_target: None,
+                output_path: None,
+            })
+            .expect("create transcription task");
+        *created
+            .record
+            .payload
+            .pointer_mut("/runtime_contract/executor_binding/binding_key")
+            .expect("executor binding key") = json!("frontend_direct_asr");
+
+        let error = validate_transcription_task_execution_contract(&created)
+            .expect_err("wrong binding should be rejected by runtime preflight");
+
+        assert_eq!(error.code, "audio_transcription_executor_binding_mismatch");
+        assert_eq!(error.stage.as_deref(), Some("runtime_preflight"));
+        assert!(!error.retryable);
     }
 
     #[tokio::test]
@@ -5165,6 +6694,29 @@ mod tests {
     }
 
     #[test]
+    fn validate_image_generation_task_execution_contract_should_reject_wrong_executor_adapter() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let mut created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("gpt-image-1"),
+            ))
+            .expect("create task");
+        *created
+            .record
+            .payload
+            .pointer_mut("/runtime_contract/executor_adapter/adapter_key")
+            .expect("executor adapter key") = json!("local_cli:lime_media_image_generate");
+
+        let error = validate_image_generation_task_execution_contract(&created, None)
+            .expect_err("wrong adapter should be rejected by runtime preflight");
+
+        assert_eq!(error.code, "image_generation_executor_adapter_mismatch");
+        assert_eq!(error.stage.as_deref(), Some("runtime_preflight"));
+        assert!(!error.retryable);
+    }
+
+    #[test]
     fn validate_image_generation_task_execution_contract_should_reject_registry_text_model() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
         let created =
@@ -5241,6 +6793,124 @@ mod tests {
                 .and_then(serde_json::Value::as_str),
             Some("lime-text-router")
         );
+        assert_eq!(
+            patched
+                .record
+                .payload
+                .pointer("/runtime_contract/limecore_policy_snapshot/evaluated_refs/0")
+                .and_then(serde_json::Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            patched
+                .record
+                .payload
+                .pointer("/runtime_contract/limecore_policy_snapshot/policy_value_hit_count")
+                .and_then(serde_json::Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            patched
+                .record
+                .payload
+                .pointer("/runtime_contract/limecore_policy_snapshot/policy_value_hits/0/value/supports_image_generation")
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            patched
+                .record
+                .payload
+                .pointer("/runtime_contract/limecore_policy_snapshot/missing_inputs"),
+            Some(&json!(["provider_offer", "tenant_feature_flags"]))
+        );
+        assert_eq!(
+            patched
+                .record
+                .attempts
+                .first()
+                .and_then(|attempt| {
+                    attempt.input_snapshot.pointer(
+                        "/runtime_contract/limecore_policy_snapshot/policy_value_hits/0/ref_key",
+                    )
+                })
+                .and_then(serde_json::Value::as_str),
+            Some("model_catalog")
+        );
+    }
+
+    #[test]
+    fn patch_image_task_provider_offer_should_persist_runner_config_hit_without_api_key() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created =
+            create_image_generation_task_artifact_inner(minimal_image_generation_request(
+                temp_dir.path().to_string_lossy().to_string(),
+                Some("gpt-image-1"),
+            ))
+            .expect("create task");
+        let assessment = ImageGenerationModelCapabilityAssessment {
+            model_id: "gpt-image-1".to_string(),
+            provider_id: Some("openai".to_string()),
+            source: "model_registry",
+            supports_image_generation: true,
+            reason: "registry_declares_image_generation",
+        };
+        patch_image_task_model_capability_assessment(
+            temp_dir.path(),
+            &created.task_id,
+            &assessment,
+        )
+        .expect("patch model capability assessment");
+
+        let patched = patch_image_task_provider_offer(
+            temp_dir.path(),
+            &created.task_id,
+            &ImageGenerationRunnerConfig {
+                endpoint: "http://127.0.0.1:4567/v1/images/generations?api_key=secret".to_string(),
+                api_key: "secret-key-should-not-be-serialized".to_string(),
+            },
+        )
+        .expect("patch provider offer");
+        let snapshot = patched
+            .record
+            .payload
+            .pointer("/runtime_contract/limecore_policy_snapshot")
+            .expect("policy snapshot");
+        let serialized_snapshot = snapshot.to_string();
+
+        assert_eq!(
+            snapshot.pointer("/evaluated_refs"),
+            Some(&json!(["model_catalog", "provider_offer"]))
+        );
+        assert_eq!(
+            snapshot.pointer("/missing_inputs"),
+            Some(&json!(["tenant_feature_flags"]))
+        );
+        assert_eq!(snapshot.pointer("/policy_value_hit_count"), Some(&json!(2)));
+        assert_eq!(
+            snapshot.pointer("/policy_value_hits/1/ref_key"),
+            Some(&json!("provider_offer"))
+        );
+        assert_eq!(
+            snapshot.pointer("/policy_value_hits/1/value/provider_id"),
+            Some(&json!("fal"))
+        );
+        assert_eq!(
+            snapshot.pointer("/policy_value_hits/1/value/model"),
+            Some(&json!("gpt-image-1"))
+        );
+        assert_eq!(
+            snapshot.pointer("/policy_value_hits/1/value/endpoint_origin"),
+            Some(&json!("http://127.0.0.1:4567"))
+        );
+        assert_eq!(
+            snapshot.pointer("/policy_value_hits/1/value/endpoint_path"),
+            Some(&json!("/v1/images/generations"))
+        );
+        assert!(!serialized_snapshot.contains("secret"));
+        assert!(snapshot
+            .pointer("/policy_value_hits/1/value/api_key")
+            .is_none());
     }
 
     #[test]
@@ -5361,10 +7031,129 @@ mod tests {
             vec![IMAGE_GENERATION_CONTRACT_KEY.to_string()]
         );
         assert_eq!(
+            listed.modality_runtime_contracts.execution_profile_keys,
+            vec![IMAGE_GENERATION_EXECUTION_PROFILE_KEY.to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.executor_adapter_keys,
+            vec![IMAGE_GENERATION_EXECUTOR_ADAPTER_KEY.to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.limecore_policy_refs,
+            IMAGE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_snapshot_count,
+            1
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.limecore_policy_decisions,
+            vec!["allow".to_string()]
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_decision_sources,
+            vec!["local_default_policy".to_string()]
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_missing_inputs,
+            IMAGE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_pending_hit_refs,
+            IMAGE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_value_hit_count,
+            0
+        );
+        assert_eq!(
             listed.modality_runtime_contracts.snapshots[0]
                 .routing_outcome
                 .as_str(),
             "accepted"
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .execution_profile_key
+                .as_deref(),
+            Some(IMAGE_GENERATION_EXECUTION_PROFILE_KEY)
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .executor_adapter_key
+                .as_deref(),
+            Some(IMAGE_GENERATION_EXECUTOR_ADAPTER_KEY)
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .executor_kind
+                .as_deref(),
+            Some("skill")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .executor_binding_key
+                .as_deref(),
+            Some(IMAGE_GENERATION_EXECUTOR_BINDING_KEY)
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_refs,
+            IMAGE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .limecore_policy_decision
+                .as_deref(),
+            Some("allow")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .limecore_policy_decision_scope
+                .as_deref(),
+            Some("local_defaults_only")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_missing_inputs,
+            IMAGE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_pending_hit_refs,
+            IMAGE_GENERATION_LIMECORE_POLICY_REFS
+                .iter()
+                .map(|value| (*value).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert!(listed.modality_runtime_contracts.snapshots[0]
+            .limecore_policy_value_hits
+            .is_empty());
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_value_hit_count,
+            0
         );
 
         let cancelled = cancel_media_task_artifact_inner(MediaTaskLookupRequest {
@@ -5452,6 +7241,23 @@ mod tests {
         assert_eq!(
             listed.modality_runtime_contracts.snapshots[0].model_supports_image_generation,
             Some(false)
+        );
+        assert_eq!(
+            listed
+                .modality_runtime_contracts
+                .limecore_policy_missing_inputs,
+            vec![
+                "provider_offer".to_string(),
+                "tenant_feature_flags".to_string()
+            ]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_value_hit_count,
+            1
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0].limecore_policy_value_hits[0]["ref_key"],
+            json!("model_catalog")
         );
     }
 
@@ -5715,6 +7521,33 @@ mod tests {
                 .clone(),
             Some("b64_json".to_string())
         );
+        assert_eq!(
+            loaded
+                .record
+                .payload
+                .pointer("/runtime_contract/limecore_policy_snapshot/evaluated_refs"),
+            Some(&json!(["provider_offer"]))
+        );
+        assert_eq!(
+            loaded
+                .record
+                .payload
+                .pointer("/runtime_contract/limecore_policy_snapshot/missing_inputs"),
+            Some(&json!(["model_catalog", "tenant_feature_flags"]))
+        );
+        assert_eq!(
+            loaded.record.payload.pointer(
+                "/runtime_contract/limecore_policy_snapshot/policy_value_hits/0/value/provider_id"
+            ),
+            Some(&json!("fal"))
+        );
+        assert_eq!(
+            loaded.record.payload.pointer(
+                "/runtime_contract/limecore_policy_snapshot/policy_value_hits/0/value/model"
+            ),
+            Some(&json!("fal-ai/nano-banana-pro"))
+        );
+        assert!(!loaded.record.payload.to_string().contains("test-key"));
 
         server.abort();
     }

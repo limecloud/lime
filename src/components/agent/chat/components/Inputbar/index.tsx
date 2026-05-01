@@ -1,6 +1,6 @@
 import React from "react";
 import styled from "styled-components";
-import type { MessageImage } from "../../types";
+import type { MessageImage, MessagePathReference } from "../../types";
 import type { Character } from "@/lib/api/memory";
 import type {
   AsterSessionExecutionRuntime,
@@ -108,6 +108,12 @@ interface InputbarProps extends SkillSelectionSourceProps {
   contextVariant?: "default" | "task-center";
   projectId?: string | null;
   sessionId?: string | null;
+  pathReferences?: MessagePathReference[];
+  onAddPathReferences?: (references: MessagePathReference[]) => void;
+  onRemovePathReference?: (id: string) => void;
+  onClearPathReferences?: () => void;
+  fileManagerOpen?: boolean;
+  onToggleFileManager?: () => void;
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
   inputCompletionEnabled?: boolean;
@@ -165,6 +171,12 @@ export const Inputbar: React.FC<InputbarProps> = ({
   contextVariant = "default",
   projectId = null,
   sessionId = null,
+  pathReferences = [],
+  onAddPathReferences,
+  onRemovePathReference,
+  onClearPathReferences,
+  fileManagerOpen = false,
+  onToggleFileManager,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
   inputCompletionEnabled = true,
@@ -226,6 +238,9 @@ export const Inputbar: React.FC<InputbarProps> = ({
     onEnableSuggestedTeam,
     projectId,
     sessionId,
+    pathReferences,
+    onAddPathReferences,
+    onClearPathReferences,
     skills,
     serviceSkills,
     serviceSkillGroups,
@@ -305,6 +320,10 @@ export const Inputbar: React.FC<InputbarProps> = ({
         executionStrategy={executionStrategy}
         pendingImages={pendingImages}
         onRemoveImage={handleRemoveImage}
+        pathReferences={pathReferences}
+        onRemovePathReference={onRemovePathReference}
+        fileManagerOpen={fileManagerOpen}
+        onToggleFileManager={onToggleFileManager}
         onPaste={handlePaste}
         isFullscreen={isFullscreen}
         isWorkspaceVariant={isWorkspaceVariant}

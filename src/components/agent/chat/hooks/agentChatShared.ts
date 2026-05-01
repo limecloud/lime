@@ -86,6 +86,8 @@ export interface SendMessageOptions {
   skillRequest?: SlashSkillRequest;
   providerOverride?: string;
   modelOverride?: string;
+  systemPromptOverride?: string;
+  skipSessionRestore?: boolean;
 }
 
 export interface WorkspacePathMissingState {

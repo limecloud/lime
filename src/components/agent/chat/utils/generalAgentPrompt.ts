@@ -49,6 +49,7 @@ const GENERAL_THEME_GUIDANCE: Record<string, string[]> = {
 export interface GeneralAgentPromptOptions {
   now?: Date;
   toolPreferences?: Partial<ChatToolPreferences>;
+  compact?: boolean;
   harness?: {
     sessionMode?: HarnessSessionModeInput | null;
     gateKey?: string | null;
@@ -59,6 +60,42 @@ export interface GeneralAgentPromptOptions {
   };
 }
 
+function buildCompactGeneralAgentSystemPrompt(
+  params: {
+    absoluteDate: string;
+    themeLabel: string;
+    themeGuidanceBlock: string;
+    toolPreferenceLines: string;
+    harnessLines: string;
+    browserAssistLines: string;
+  },
+): string {
+  return `你是 Lime 的通用 AI Agent，默认服务通用对话、知识处理、现实任务推进和多模态协作，不默认进入编程、落盘或重型执行模式。
+
+当前日期：${params.absoluteDate}
+当前主题：${params.themeLabel}
+
+核心规则：
+- 能直接回答就直接回答；只有关键信息缺失且会改变结果时，才追问 1 个最关键问题。
+- 如果能用合理假设继续，就明确假设并继续推进，不一次性抛出问卷。
+- 用户要答案、改写、总结、比较、方案或行动清单时，默认在对话里完成，不主动创建文件。
+- 涉及本地项目、文件、路径、源码、页面或实时事实时，先取证再判断；涉及最新/价格/政策/新闻/版本/日期敏感内容时先核实。
+- 工具按需升级：WebSearch 用于联网核实；深度思考用于复杂推理；计划执行用于长链路；任务拆分只用于天然可并行或上下文会过载的任务。
+- 不输出思维链，只输出结论、关键依据、必要假设、时间口径和可执行下一步。
+
+当前能力开关：
+${params.toolPreferenceLines}
+
+Harness 上下文：
+${params.harnessLines}
+
+Browser Assist 协议：
+${params.browserAssistLines}
+
+当前主题侧重点：
+${params.themeGuidanceBlock}`;
+}
+
 function describeEnabledState(value?: boolean): string {
   return value ? "已开启" : "默认关闭";
 }
@@ -67,7 +104,7 @@ export function buildGeneralAgentSystemPrompt(
   theme: ThemeType | string = "general",
   options: GeneralAgentPromptOptions = {},
 ): string {
-  const { now = new Date(), toolPreferences, harness } = options;
+  const { now = new Date(), toolPreferences, compact = false, harness } = options;
   const normalizedTheme = theme.trim().toLowerCase();
   const themeLabel =
     GENERAL_THEME_LABELS[normalizedTheme] || GENERAL_THEME_LABELS.general;
@@ -96,26 +133,46 @@ export function buildGeneralAgentSystemPrompt(
           .join("\n")
       : "- 当前会话处于默认对话模式，可直接回答，也可在必要时升级到工具、计划执行或子任务分工。";
   const browserAssistLines = harness?.browserAssistEnabled
-    ? [
-        "- 当前通用对话已启用 Browser Assist。只要任务涉及打开网站、点击、表单、登录、搜索、验证码、多因素认证或其他网页交互，必须优先使用 Lime Browser Assist 浏览器工具。",
-        harness.browserAssistProfileKey
-          ? `- 当前 Browser Assist Profile：${harness.browserAssistProfileKey}`
-          : null,
-        "- 如果用户显式给出 URL、域名，或明确要求打开/访问/进入某个页面，并要求在浏览器工作台接管实时浏览器，必须先复用或启动 Browser Assist 并导航到该地址，不得先退化成 WebSearch。",
-        "- 网页任务的第一步应先建立或复用 Browser Assist 浏览器会话，并尽量显式带上当前 profile_key。",
-        "- 新闻、最新动态、热点盘点等规则，只有在用户没有提供明确 URL 时才优先走 WebSearch；一旦给了 URL，先打开页面，再决定是否补充检索。",
-        "- 不要改用 Playwright code、browser_run_code、browser_navigate 或其他通用 Playwright 浏览器工具，否则 Lime 无法继续复用浏览器工作台里的实时会话。",
-        "- 如果当前回合的 request metadata / harness 里带有 service_skill_launch，说明这是服务技能入口经由对话内 A2UI 补参后交给 Claw 执行的站点任务。此时应优先调用 lime_site_run，而不是停留在普通文本回答。",
-        "- 兼容旧链路时，用户消息里也可能仍出现 [站点技能启动上下文]；它和 service_skill_launch 属于同一类站点技能启动信号。",
-        "- 站点技能 metadata 里如果已经给出 adapter_name、args、profile_key、target_id，执行 lime_site_run 时应显式透传这些值。",
-        "- 一旦命中站点技能启动，不要直接调用 mcp__lime-browser__browser_navigate、mcp__lime-browser__read_page、browser_navigate、browser_run_code 或其他 mcp__lime-browser__* / browser_* 底层浏览器工具；这些只允许在 lime_site_run 完成后再决定是否补充使用。",
-        "- 调用 lime_site_run 时，参数必须是一个严格 JSON 对象；不要漏引号、不要写半截对象、不要混入注释，也不要把整个 JSON 包成字符串。",
-        "- 站点技能若缺少附着会话，或 lime_site_run 返回 attached_session_required / no_matching_context，不要伪造采集结果；直接说明当前缺少浏览器上下文，需要用户先完成连接、登录或授权后再重试，不要在对话里制造额外的“继续执行”确认步骤。",
-        "- 浏览器工具输出必须保留 browser session 信息，确保浏览器工作台可以继续接管和调试浏览器。",
-      ]
+    ? (compact
+        ? [
+            "- 网页交互、登录、点击、表单、验证码或用户给出 URL 时，优先复用 Lime Browser Assist，不先退化成 WebSearch。",
+            harness.browserAssistProfileKey
+              ? `- 当前 Browser Assist Profile：${harness.browserAssistProfileKey}`
+              : null,
+            "- 命中 service_skill_launch / 站点技能启动上下文时，优先调用 lime_site_run；缺少附着会话时直接说明需要用户先连接或授权。",
+            "- 不改用 Playwright code / browser_run_code / browser_navigate 等通用 Playwright 工具，确保浏览器工作台可继续接管。",
+          ]
+        : [
+            "- 当前通用对话已启用 Browser Assist。只要任务涉及打开网站、点击、表单、登录、搜索、验证码、多因素认证或其他网页交互，必须优先使用 Lime Browser Assist 浏览器工具。",
+            harness.browserAssistProfileKey
+              ? `- 当前 Browser Assist Profile：${harness.browserAssistProfileKey}`
+              : null,
+            "- 如果用户显式给出 URL、域名，或明确要求打开/访问/进入某个页面，并要求在浏览器工作台接管实时浏览器，必须先复用或启动 Browser Assist 并导航到该地址，不得先退化成 WebSearch。",
+            "- 网页任务的第一步应先建立或复用 Browser Assist 浏览器会话，并尽量显式带上当前 profile_key。",
+            "- 新闻、最新动态、热点盘点等规则，只有在用户没有提供明确 URL 时才优先走 WebSearch；一旦给了 URL，先打开页面，再决定是否补充检索。",
+            "- 不要改用 Playwright code、browser_run_code、browser_navigate 或其他通用 Playwright 浏览器工具，否则 Lime 无法继续复用浏览器工作台里的实时会话。",
+            "- 如果当前回合的 request metadata / harness 里带有 service_skill_launch，说明这是服务技能入口经由对话内 A2UI 补参后交给 Claw 执行的站点任务。此时应优先调用 lime_site_run，而不是停留在普通文本回答。",
+            "- 兼容旧链路时，用户消息里也可能仍出现 [站点技能启动上下文]；它和 service_skill_launch 属于同一类站点技能启动信号。",
+            "- 站点技能 metadata 里如果已经给出 adapter_name、args、profile_key、target_id，执行 lime_site_run 时应显式透传这些值。",
+            "- 一旦命中站点技能启动，不要直接调用 mcp__lime-browser__browser_navigate、mcp__lime-browser__read_page、browser_navigate、browser_run_code 或其他 mcp__lime-browser__* / browser_* 底层浏览器工具；这些只允许在 lime_site_run 完成后再决定是否补充使用。",
+            "- 调用 lime_site_run 时，参数必须是一个严格 JSON 对象；不要漏引号、不要写半截对象、不要混入注释，也不要把整个 JSON 包成字符串。",
+            "- 站点技能若缺少附着会话，或 lime_site_run 返回 attached_session_required / no_matching_context，不要伪造采集结果；直接说明当前缺少浏览器上下文，需要用户先完成连接、登录或授权后再重试，不要在对话里制造额外的“继续执行”确认步骤。",
+            "- 浏览器工具输出必须保留 browser session 信息，确保浏览器工作台可以继续接管和调试浏览器。",
+          ])
         .filter(Boolean)
         .join("\n")
     : "- 当前任务未显式绑定 Browser Assist；只有在确实需要网页交互时，才升级到浏览器会话。";
+
+  if (compact) {
+    return buildCompactGeneralAgentSystemPrompt({
+      absoluteDate,
+      themeLabel,
+      themeGuidanceBlock,
+      toolPreferenceLines,
+      harnessLines,
+      browserAssistLines,
+    });
+  }
 
   return `你是 Lime 的通用 AI Agent。你参考的是具备纪律性、可升级工具链、会规划与会自检的 agent 工作方式，但你的默认服务对象是通用对话、知识处理、现实任务推进和多模态协作，不是只面向编程。
 

@@ -1011,8 +1011,8 @@ impl EncryptionService {
                 Ok(_) => {
                     last_error = Some("解密结果不符合 API Key 格式".to_string());
                 }
-                Err(error) => {
-                    last_error = Some(format!("UTF-8 解码失败: {error}"));
+                Err(_error) => {
+                    last_error = Some("解密结果不是有效 UTF-8".to_string());
                 }
             }
         }
@@ -1141,7 +1141,7 @@ impl ApiKeyProviderService {
     }
 
     fn log_skipped_invalid_api_key(&self, key: &ApiKeyEntry, error: &str) {
-        tracing::warn!(
+        tracing::debug!(
             "[ApiKeyProviderService] 跳过不可解密 API Key {} (provider={}): {}",
             key.id,
             key.provider_id,
@@ -1209,7 +1209,7 @@ impl ApiKeyProviderService {
                     }
                     Ok(_) => {}
                     Err(error) => {
-                        tracing::warn!(
+                        tracing::info!(
                             "[ApiKeyProviderService] 跳过异常 API Key {} (provider={}): {}",
                             key.id,
                             provider.provider.id,

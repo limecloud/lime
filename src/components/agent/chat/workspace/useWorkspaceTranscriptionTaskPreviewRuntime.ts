@@ -22,6 +22,10 @@ import {
   parseTranscriptContent,
 } from "../utils/transcriptSegments";
 import { buildImageTaskLookupRequest } from "./imageTaskLocator";
+import {
+  areTaskMetaItemsEqual,
+  mergeMediaTaskPolicyEvaluationMetaItems,
+} from "./mediaTaskPolicyEvaluation";
 import { doesWorkspaceFileCandidateMatch } from "./workspaceFilePathMatch";
 import { resolveAbsoluteWorkspacePath } from "./workspacePath";
 
@@ -483,6 +487,10 @@ function buildTranscriptionPreviewFromIndexEntry(
         ? null
         : loadedTranscript?.text || currentPreview.transcriptText || null,
     transcriptSegments: nextSegments,
+    metaItems: mergeMediaTaskPolicyEvaluationMetaItems(
+      currentPreview.metaItems,
+      entry,
+    ),
     errorCode,
     errorMessage,
     retryable,
@@ -512,6 +520,7 @@ function areTranscriptionPreviewsEqual(
     left.model === right.model &&
     left.phase === right.phase &&
     left.statusMessage === right.statusMessage &&
+    areTaskMetaItemsEqual(left.metaItems, right.metaItems) &&
     left.errorCode === right.errorCode &&
     left.errorMessage === right.errorMessage &&
     left.retryable === right.retryable

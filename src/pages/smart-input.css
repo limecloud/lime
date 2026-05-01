@@ -1,7 +1,6 @@
 /**
  * @file smart-input.css
- * @description 截图对话输入框样式 - 参考 Google Gemini 浮动栏设计
- *              半透明药丸形状，毛玻璃效果
+ * @description 截图对话输入框样式 - Lime 实体药丸浮层
  */
 
 /* 全局重置 */
@@ -61,7 +60,7 @@ body,
   }
 }
 
-/* 输入框容器 - Gemini 风格半透明药丸 */
+/* 输入框容器 */
 .screenshot-input-bar {
   display: flex;
   align-items: center;
@@ -70,27 +69,22 @@ body,
   min-height: 48px;
   max-height: 150px;
   padding: 8px 12px;
-  /* 半透明毛玻璃效果 */
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  /* 圆角 */
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 24px;
-  /* 柔和阴影 */
   box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    0 4px 24px rgba(0, 0, 0, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+    0 18px 34px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
 .screenshot-input-bar:focus-within {
-  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(16, 185, 129, 0.42);
   box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.1),
-    0 8px 32px rgba(0, 0, 0, 0.15),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+    0 0 0 3px rgba(16, 185, 129, 0.16),
+    0 18px 34px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 /* 拖动手柄 */
@@ -129,10 +123,10 @@ body,
   align-items: center;
   gap: 4px;
   padding: 4px 8px 4px 6px;
-  background: rgba(124, 77, 255, 0.1);
-  border: 1px solid rgba(124, 77, 255, 0.2);
+  background: rgba(236, 253, 245, 0.92);
+  border: 1px solid rgba(16, 185, 129, 0.2);
   border-radius: 14px;
-  color: #5c3dbd;
+  color: #166534;
   font-size: 11px;
   font-weight: 500;
   flex-shrink: 0;
@@ -140,11 +134,11 @@ body,
 }
 
 .screenshot-attachment:hover {
-  background: rgba(124, 77, 255, 0.15);
+  background: rgba(220, 252, 231, 0.96);
 }
 
 .screenshot-attachment svg:first-child {
-  color: #7c4dff;
+  color: #16a34a;
   width: 12px;
   height: 12px;
 }
@@ -166,8 +160,8 @@ body,
 }
 
 .screenshot-attachment-remove:hover {
-  background: rgba(124, 77, 255, 0.2);
-  color: #5c3dbd;
+  background: rgba(16, 185, 129, 0.16);
+  color: #166534;
 }
 
 /* 录音状态标签 */
@@ -246,11 +240,10 @@ body,
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  /* 左对齐，不想挤在一起 */
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
   height: 100%;
   cursor: default;
-  /* 容器本身不作为按钮，避免误触 */
   padding-left: 4px;
 }
 
@@ -265,10 +258,68 @@ body,
 }
 
 .screenshot-recording-text {
-  color: #374151;
-  /* 深灰色文字，更清晰 */
+  color: #166534;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 13px;
+}
+
+.screenshot-recording-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.screenshot-recording-hint {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.screenshot-recording-preview {
+  max-width: 100%;
+  overflow: hidden;
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screenshot-recording-meter {
+  display: inline-flex;
+  height: 18px;
+  align-items: flex-end;
+  gap: 3px;
+  margin-left: auto;
+  padding-right: 4px;
+}
+
+.screenshot-recording-meter span {
+  display: block;
+  width: 3px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.32);
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.screenshot-recording-meter span:nth-child(2),
+.screenshot-recording-meter span:nth-child(4) {
+  height: 10px;
+}
+
+.screenshot-recording-meter span:nth-child(3) {
+  height: 15px;
+}
+
+.screenshot-recording-meter span.active {
+  background: #166534;
+  transform: translateY(-1px);
 }
 
 /* 停止按钮 - 显眼的圆形红底按钮 */
@@ -356,8 +407,8 @@ body,
 }
 
 .screenshot-mic-btn:hover {
-  background: rgba(124, 77, 255, 0.1);
-  color: #7c4dff;
+  background: rgba(236, 253, 245, 0.95);
+  color: #166534;
 }
 
 /* 工具按钮（+号菜单风格） */
@@ -396,15 +447,15 @@ body,
 }
 
 .screenshot-send-btn.active {
-  background: linear-gradient(135deg, #7c4dff 0%, #536dfe 100%);
+  background: #0f172a;
   color: white;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.3);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
 }
 
 .screenshot-send-btn.active:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(124, 77, 255, 0.4);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.22);
 }
 
 /* 暗色模式支持 */
@@ -438,10 +489,14 @@ body,
     color: #6b7280;
   }
 
+  .screenshot-recording-preview {
+    color: #f3f4f6;
+  }
+
   .screenshot-attachment {
-    background: rgba(124, 77, 255, 0.2);
-    border-color: rgba(124, 77, 255, 0.3);
-    color: #a78bfa;
+    background: rgba(6, 78, 59, 0.42);
+    border-color: rgba(16, 185, 129, 0.28);
+    color: #86efac;
   }
 
   .screenshot-close-btn {
@@ -458,8 +513,8 @@ body,
   }
 
   .screenshot-mic-btn:hover {
-    background: rgba(124, 77, 255, 0.2);
-    color: #a78bfa;
+    background: rgba(6, 78, 59, 0.42);
+    color: #86efac;
   }
 
   .screenshot-tools-btn {

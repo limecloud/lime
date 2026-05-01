@@ -23,20 +23,49 @@
 //! let text = AsrService::transcribe(&credential, &audio_data, 16000).await?;
 //! ```
 
+#[cfg(any(feature = "local-whisper", feature = "local-sensevoice"))]
 use std::path::PathBuf;
 
+#[cfg(feature = "local-sensevoice")]
 use lime_core::app_paths;
 #[cfg(feature = "local-whisper")]
 use lime_core::config::WhisperModelSize;
 use lime_core::config::{AsrCredentialEntry, AsrProviderType};
+#[cfg(feature = "local-sensevoice")]
+use once_cell::sync::Lazy;
+#[cfg(feature = "local-sensevoice")]
+use parking_lot::Mutex;
 
 use super::voice_config_service;
 use voice_core::asr_client::{AsrClient, BaiduClient, OpenAIWhisperClient, XunfeiClient};
 use voice_core::types::AudioData;
 
+#[cfg(feature = "local-sensevoice")]
 const SENSEVOICE_MODEL_FILE: &str = "model.int8.onnx";
+#[cfg(feature = "local-sensevoice")]
 const SENSEVOICE_TOKENS_FILE: &str = "tokens.txt";
+#[cfg(feature = "local-sensevoice")]
 const SENSEVOICE_VAD_FILE: &str = "silero_vad.onnx";
+
+#[cfg(feature = "local-sensevoice")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct SenseVoiceCacheKey {
+    model_path: PathBuf,
+    tokens_path: PathBuf,
+    language: String,
+    use_itn: bool,
+    num_threads: u16,
+}
+
+#[cfg(feature = "local-sensevoice")]
+struct CachedSenseVoiceTranscriber {
+    key: SenseVoiceCacheKey,
+    transcriber: voice_core::SenseVoiceTranscriber,
+}
+
+#[cfg(feature = "local-sensevoice")]
+static SENSEVOICE_TRANSCRIBER_CACHE: Lazy<Mutex<Option<CachedSenseVoiceTranscriber>>> =
+    Lazy::new(|| Mutex::new(None));
 
 /// ASR 服务
 pub struct AsrService;
@@ -190,8 +219,8 @@ impl AsrService {
         Err("本地 Whisper 功能未启用。请使用云端 ASR 服务（OpenAI、百度、讯飞）".to_string())
     }
 
-    /// 本地 SenseVoice 识别。
     #[cfg(feature = "local-sensevoice")]
+    /// 本地 SenseVoice 识别。
     async fn transcribe_sensevoice_local(
         credential: &AsrCredentialEntry,
         audio_data: &[u8],
@@ -224,16 +253,46 @@ impl AsrService {
         };
         let use_itn = config.use_itn;
         let num_threads = config.num_threads;
+        let key = SenseVoiceCacheKey {
+            model_path,
+            tokens_path,
+            language,
+            use_itn,
+            num_threads,
+        };
 
         tokio::task::spawn_blocking(move || {
-            let transcriber = voice_core::SenseVoiceTranscriber::new(
-                model_path,
-                tokens_path,
-                &language,
-                use_itn,
-                num_threads,
-            )
-            .map_err(|error| format!("SenseVoice 模型加载失败: {error}"))?;
+            let mut cache = SENSEVOICE_TRANSCRIBER_CACHE.lock();
+            let should_reload = cache
+                .as_ref()
+                .map(|cached| cached.key != key)
+                .unwrap_or(true);
+
+            if should_reload {
+                tracing::info!(
+                    "[SenseVoice] 加载本地识别器: model={}, language={}, threads={}",
+                    key.model_path.display(),
+                    key.language,
+                    key.num_threads
+                );
+                let transcriber = voice_core::SenseVoiceTranscriber::new(
+                    key.model_path.clone(),
+                    key.tokens_path.clone(),
+                    &key.language,
+                    key.use_itn,
+                    key.num_threads,
+                )
+                .map_err(|error| format!("SenseVoice 模型加载失败: {error}"))?;
+                *cache = Some(CachedSenseVoiceTranscriber {
+                    key: key.clone(),
+                    transcriber,
+                });
+            }
+
+            let transcriber = cache
+                .as_ref()
+                .map(|cached| &cached.transcriber)
+                .ok_or("SenseVoice 识别器缓存初始化失败")?;
 
             let result = transcriber
                 .transcribe(&audio)
@@ -245,8 +304,8 @@ impl AsrService {
         .map_err(|error| format!("SenseVoice 识别任务执行失败: {error}"))?
     }
 
-    /// 本地 SenseVoice 识别（未启用 local-sensevoice feature 时的 stub）
     #[cfg(not(feature = "local-sensevoice"))]
+    /// 本地 SenseVoice 识别（未启用 local-sensevoice feature 时的 stub）
     async fn transcribe_sensevoice_local(
         _credential: &AsrCredentialEntry,
         _audio_data: &[u8],
@@ -258,6 +317,7 @@ impl AsrService {
         )
     }
 
+    #[cfg(feature = "local-sensevoice")]
     fn get_sensevoice_model_dir(
         config: &lime_core::config::SenseVoiceLocalConfig,
     ) -> Result<PathBuf, String> {
@@ -274,6 +334,7 @@ impl AsrService {
             .join(&config.model_id))
     }
 
+    #[cfg(feature = "local-sensevoice")]
     fn ensure_sensevoice_required_files(files: &[(&PathBuf, &str)]) -> Result<(), String> {
         let missing_files = files
             .iter()
@@ -432,8 +493,10 @@ impl AsrService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "local-sensevoice")]
     use lime_core::config::SenseVoiceLocalConfig;
 
+    #[cfg(feature = "local-sensevoice")]
     #[test]
     fn sensevoice_model_dir_prefers_explicit_config_path() {
         let config = SenseVoiceLocalConfig {
@@ -446,6 +509,7 @@ mod tests {
         assert_eq!(path, PathBuf::from("/tmp/lime-sensevoice"));
     }
 
+    #[cfg(feature = "local-sensevoice")]
     #[test]
     fn sensevoice_required_files_reports_missing_names() {
         let temp = tempfile::tempdir().expect("tempdir");

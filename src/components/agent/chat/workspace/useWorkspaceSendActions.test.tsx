@@ -405,6 +405,22 @@ function createBootstrapDispatchSnapshot(
   };
 }
 
+function createConfiguredProvider(
+  overrides: Partial<
+    NonNullable<HookProps["configuredProviders"]>[number]
+  > = {},
+): NonNullable<HookProps["configuredProviders"]>[number] {
+  return {
+    key: "deepseek",
+    label: "DeepSeek",
+    registryId: "deepseek",
+    type: "deepseek",
+    providerId: "deepseek",
+    customModels: [],
+    ...overrides,
+  };
+}
+
 function mountHook(initialProps?: Partial<HookProps>): HookHarness {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -566,6 +582,116 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("首轮轻量对话有 DeepSeek 时应注入快速响应路由", async () => {
+    const harness = mountHook({
+      currentProviderType: "lime-hub",
+      currentModel: "gpt-5.5",
+      configuredProviders: [createConfiguredProvider()],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend([], false, false, "请只回复一个字：好", "react");
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const sendOptions = mockSendMessage.mock.calls[0]?.[8];
+      expect(sendOptions).toMatchObject({
+        providerOverride: "deepseek",
+        modelOverride: "deepseek-chat",
+        systemPromptOverride: expect.stringContaining("快速响应助手"),
+        assistantDraft: {
+          initialRuntimeStatus: {
+            title: "快速响应已启用",
+          },
+          waitingRuntimeStatus: {
+            title: "快速响应处理中",
+          },
+        },
+        requestMetadata: {
+          harness: {
+            fast_response_routing: {
+              mode: "auto",
+              label: "快速响应",
+              reason: "first-turn-low-latency",
+              provider: "deepseek",
+              model: "deepseek-chat",
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("当前为 DeepSeek 推理模型时首轮轻量对话应降级到非推理 chat", async () => {
+    const harness = mountHook({
+      currentProviderType: "deepseek",
+      currentModel: "deepseek-v4-flash",
+      configuredProviders: [
+        createConfiguredProvider({
+          customModels: ["deepseek-v4-pro", "deepseek-v4-flash"],
+        }),
+      ],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend([], false, false, "只回答一个字：好", "react");
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const sendOptions = mockSendMessage.mock.calls[0]?.[8];
+      expect(sendOptions).toMatchObject({
+        providerOverride: "deepseek",
+        modelOverride: "deepseek-chat",
+        systemPromptOverride: expect.stringContaining("只输出一个字"),
+        requestMetadata: {
+          harness: {
+            fast_response_routing: {
+              provider: "deepseek",
+              model: "deepseek-chat",
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("DeepSeek 推理模型首轮降级不应等待 Provider 列表预加载", async () => {
+    const harness = mountHook({
+      currentProviderType: "deepseek",
+      currentModel: "deepseek-reasoner",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend([], false, false, "只回答一个字：好", "react");
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        providerOverride: "deepseek",
+        modelOverride: "deepseek-chat",
+        systemPromptOverride: expect.stringContaining("快速响应助手"),
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("OEM 云端低额度应透传到 harness oem_routing 供后端生成 quota_low 事件", async () => {
     mockResolveOemCloudRuntimeContext.mockReturnValue({
       baseUrl: "https://lime.example.com",
@@ -634,6 +760,70 @@ describe("useWorkspaceSendActions", () => {
           },
         },
       });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("OEM bootstrap features 应透传为 tenant_feature_flags 策略输入", async () => {
+    mockResolveOemCloudRuntimeContext.mockReturnValue({
+      baseUrl: "https://lime.example.com",
+      controlPlaneBaseUrl: "https://lime.example.com",
+      sceneBaseUrl: "https://lime.example.com",
+      gatewayBaseUrl: "https://gateway.example.com",
+      tenantId: "tenant-1",
+      sessionToken: "session-token",
+      hubProviderName: "lime-hub",
+      loginPath: "/login",
+      desktopClientId: "desktop-client",
+      desktopOauthRedirectUrl: "lime://oauth/callback",
+      desktopOauthNextPath: "/welcome",
+    });
+    mockGetOemCloudBootstrapSnapshot.mockReturnValue({
+      features: {
+        oauthLoginEnabled: true,
+        emailCodeLoginEnabled: true,
+        passwordLoginEnabled: false,
+        profileEditable: true,
+        hubTokensEnabled: false,
+        billingEnabled: true,
+        referralEnabled: false,
+        gatewayEnabled: true,
+      },
+    });
+    const harness = mountHook();
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend([], false, false, "继续处理当前话题", "react");
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      const args = mockSendMessage.mock.calls[0] as Parameters<
+        HookProps["sendMessage"]
+      >;
+      expect(args?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            tenant_feature_flags: {
+              tenant_id: "tenant-1",
+              source: "oem_cloud_bootstrap",
+              flags: {
+                gatewayEnabled: true,
+                billingEnabled: true,
+                referralEnabled: false,
+                passwordLoginEnabled: false,
+              },
+            },
+          },
+        },
+      });
+      expect(JSON.stringify(args?.[8]?.requestMetadata)).not.toContain(
+        "session-token",
+      );
     } finally {
       harness.unmount();
     }

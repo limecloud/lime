@@ -243,6 +243,20 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   defaultCuratedTaskReferenceEntries?: ComponentProps<
     typeof EmptyState
   >["defaultCuratedTaskReferenceEntries"];
+  pathReferences?: ComponentProps<typeof EmptyState>["pathReferences"];
+  onAddPathReferences?: ComponentProps<
+    typeof EmptyState
+  >["onAddPathReferences"];
+  onRemovePathReference?: ComponentProps<
+    typeof EmptyState
+  >["onRemovePathReference"];
+  onClearPathReferences?: ComponentProps<
+    typeof EmptyState
+  >["onClearPathReferences"];
+  fileManagerOpen?: ComponentProps<typeof EmptyState>["fileManagerOpen"];
+  onToggleFileManager?: ComponentProps<
+    typeof EmptyState
+  >["onToggleFileManager"];
   sceneAppExecutionSummaryCard?: WorkspaceChatContentParams["sceneAppExecutionSummaryCard"];
   serviceSkillExecutionCard?: WorkspaceChatContentParams["serviceSkillExecutionCard"];
   stepProgressProps?: WorkspaceChatContentParams["stepProgressProps"];
@@ -421,6 +435,12 @@ export function WorkspaceConversationScene({
   creationReplaySurface,
   defaultCuratedTaskReferenceMemoryIds,
   defaultCuratedTaskReferenceEntries,
+  pathReferences,
+  onAddPathReferences,
+  onRemovePathReference,
+  onClearPathReferences,
+  fileManagerOpen,
+  onToggleFileManager,
   sceneAppExecutionSummaryCard,
   serviceSkillExecutionCard,
   stepProgressProps,
@@ -604,6 +624,12 @@ export function WorkspaceConversationScene({
     creationReplaySurface,
     defaultCuratedTaskReferenceMemoryIds,
     defaultCuratedTaskReferenceEntries,
+    pathReferences,
+    onAddPathReferences,
+    onRemovePathReference,
+    onClearPathReferences,
+    fileManagerOpen,
+    onToggleFileManager,
   });
 
   const chatContent = renderWorkspaceChatContent({

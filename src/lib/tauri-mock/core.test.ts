@@ -65,6 +65,20 @@ describe("tauri-mock/core invoke", () => {
     expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
   });
 
+  it("默认项目 mock 应返回可规范化的工作区对象", async () => {
+    await expect(
+      invokeMockOnly("get_or_create_default_project"),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: "workspace-default",
+        workspace_type: "general",
+        is_default: true,
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
   it("SceneApp 自动化命令在浏览器模式下应返回结构化结果", async () => {
     vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
 
@@ -609,6 +623,57 @@ describe("tauri-mock/core invoke", () => {
           modality_runtime_contracts: expect.objectContaining({
             snapshot_count: 1,
             contract_keys: ["image_generation"],
+            execution_profile_keys: ["image_generation_profile"],
+            executor_adapter_keys: ["skill:image_generate"],
+            limecore_policy_refs: [
+              "model_catalog",
+              "provider_offer",
+              "tenant_feature_flags",
+            ],
+            limecore_policy_snapshot_count: 1,
+            limecore_policy_decisions: ["allow"],
+            limecore_policy_decision_sources: ["local_default_policy"],
+            limecore_policy_unresolved_refs: [
+              "model_catalog",
+              "provider_offer",
+              "tenant_feature_flags",
+            ],
+            limecore_policy_missing_inputs: [
+              "model_catalog",
+              "provider_offer",
+              "tenant_feature_flags",
+            ],
+            limecore_policy_pending_hit_refs: [
+              "model_catalog",
+              "provider_offer",
+              "tenant_feature_flags",
+            ],
+            limecore_policy_value_hit_count: 0,
+            snapshots: expect.arrayContaining([
+              expect.objectContaining({
+                executor_kind: "skill",
+                executor_binding_key: "image_generate",
+                limecore_policy_refs: [
+                  "model_catalog",
+                  "provider_offer",
+                  "tenant_feature_flags",
+                ],
+                limecore_policy_snapshot_status: "local_defaults_evaluated",
+                limecore_policy_decision_source: "local_default_policy",
+                limecore_policy_missing_inputs: [
+                  "model_catalog",
+                  "provider_offer",
+                  "tenant_feature_flags",
+                ],
+                limecore_policy_pending_hit_refs: [
+                  "model_catalog",
+                  "provider_offer",
+                  "tenant_feature_flags",
+                ],
+                limecore_policy_value_hits: [],
+                limecore_policy_value_hit_count: 0,
+              }),
+            ]),
           }),
           tasks: expect.arrayContaining([
             expect.objectContaining({
@@ -700,12 +765,49 @@ describe("tauri-mock/core invoke", () => {
         total: 1,
         modality_runtime_contracts: expect.objectContaining({
           contract_keys: ["voice_generation"],
+          execution_profile_keys: ["voice_generation_profile"],
+          executor_adapter_keys: ["service_skill:voice_runtime"],
+          limecore_policy_refs: [
+            "client_scenes",
+            "tenant_feature_flags",
+            "provider_offer",
+          ],
+          limecore_policy_snapshot_count: 1,
           audio_output_count: 1,
           audio_output_statuses: [{ status: "pending", count: 1 }],
           snapshots: expect.arrayContaining([
             expect.objectContaining({
               task_type: "audio_generate",
               contract_key: "voice_generation",
+              execution_profile_key: "voice_generation_profile",
+              executor_adapter_key: "service_skill:voice_runtime",
+              executor_kind: "service_skill",
+              executor_binding_key: "voice_runtime",
+              limecore_policy_refs: [
+                "client_scenes",
+                "tenant_feature_flags",
+                "provider_offer",
+              ],
+              limecore_policy_snapshot_status: "local_defaults_evaluated",
+              limecore_policy_decision: "allow",
+              limecore_policy_decision_source: "local_default_policy",
+              limecore_policy_unresolved_refs: [
+                "client_scenes",
+                "tenant_feature_flags",
+                "provider_offer",
+              ],
+              limecore_policy_missing_inputs: [
+                "client_scenes",
+                "tenant_feature_flags",
+                "provider_offer",
+              ],
+              limecore_policy_pending_hit_refs: [
+                "client_scenes",
+                "tenant_feature_flags",
+                "provider_offer",
+              ],
+              limecore_policy_value_hits: [],
+              limecore_policy_value_hit_count: 0,
               routing_event: "executor_invoked",
               audio_output_status: "pending",
             }),

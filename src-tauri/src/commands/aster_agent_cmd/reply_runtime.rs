@@ -500,7 +500,7 @@ pub(super) async fn stream_reply_once<F>(
     mut on_event: F,
 ) -> Result<StreamReplyExecution, ReplyAttemptError>
 where
-    F: FnMut(&RuntimeAgentEvent),
+    F: FnMut(&RuntimeAgentEvent) -> bool,
 {
     stream_message_reply_with_policy(
         agent,
@@ -510,9 +510,11 @@ where
         Some(cancel_token),
         request_tool_policy,
         |event| {
-            on_event(event);
-            if let Err(error) = app.emit(event_name, event) {
-                tracing::error!("[AsterAgent] 发送事件失败: {}", error);
+            let already_emitted = on_event(event);
+            if !already_emitted {
+                if let Err(error) = app.emit(event_name, event) {
+                    tracing::error!("[AsterAgent] 发送事件失败: {}", error);
+                }
             }
             let app = app.clone();
             let event_name = event_name.to_string();

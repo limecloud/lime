@@ -12,6 +12,7 @@ import {
   buildHarnessRequestMetadata,
   extractExistingHarnessMetadata,
   type HarnessOemRoutingRequestMetadata,
+  type HarnessTenantFeatureFlagsRequestMetadata,
 } from "../utils/harnessRequestMetadata";
 import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
 import type { AssistantDraftState } from "../hooks/agentChatShared";
@@ -43,10 +44,23 @@ import {
 } from "../utils/agentRuntimeStatus";
 import { normalizeTeamWorkspaceDisplayValue } from "../utils/teamWorkspaceDisplay";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
-import type { OemCloudBootstrapResponse } from "@/lib/api/oemCloudControlPlane";
+import type {
+  OemCloudBootstrapResponse,
+  OemCloudFeatureFlags,
+} from "@/lib/api/oemCloudControlPlane";
 import { getOemCloudBootstrapSnapshot } from "@/lib/oemCloudSession";
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
+const OEM_CLOUD_FEATURE_FLAG_KEYS = [
+  "oauthLoginEnabled",
+  "emailCodeLoginEnabled",
+  "passwordLoginEnabled",
+  "profileEditable",
+  "hubTokensEnabled",
+  "billingEnabled",
+  "referralEnabled",
+  "gatewayEnabled",
+] as const satisfies readonly (keyof OemCloudFeatureFlags)[];
 
 type PreparedRuntimeTeamState = NonNullable<
   Awaited<
@@ -401,6 +415,53 @@ function readExistingOemRouting(
   };
 }
 
+function readBooleanFlagMap(value: unknown): Record<string, boolean> {
+  const source = asRecord(value);
+  if (!source) {
+    return {};
+  }
+
+  return Object.entries(source).reduce<Record<string, boolean>>(
+    (flags, [key, flagValue]) => {
+      if (typeof flagValue === "boolean") {
+        flags[key] = flagValue;
+      }
+      return flags;
+    },
+    {},
+  );
+}
+
+function readExistingTenantFeatureFlags(
+  metadata: Record<string, unknown> | undefined,
+): HarnessTenantFeatureFlagsRequestMetadata | undefined {
+  const rawFlags =
+    asRecord(metadata?.tenant_feature_flags) ??
+    asRecord(metadata?.tenantFeatureFlags);
+  const tenantId =
+    readMetadataText(rawFlags, "tenant_id") ||
+    readMetadataText(rawFlags, "tenantId");
+  if (!tenantId) {
+    return undefined;
+  }
+
+  const flags = readBooleanFlagMap(
+    rawFlags?.flags ?? rawFlags?.features ?? rawFlags?.featureFlags,
+  );
+  if (Object.keys(flags).length === 0) {
+    return undefined;
+  }
+
+  return {
+    tenant_id: tenantId,
+    source:
+      readMetadataText(rawFlags, "source") ||
+      readMetadataText(rawFlags, "value_source") ||
+      readMetadataText(rawFlags, "valueSource"),
+    flags,
+  };
+}
+
 function buildOemRoutingRequestMetadata():
   | HarnessOemRoutingRequestMetadata
   | undefined {
@@ -429,6 +490,37 @@ function buildOemRoutingRequestMetadata():
     quota_status: matchedOffer?.quotaStatus,
     fallback_to_local_allowed: matchedOffer?.fallbackToLocalAllowed,
     can_invoke: matchedOffer?.canInvoke,
+  };
+}
+
+function buildTenantFeatureFlagsRequestMetadata():
+  | HarnessTenantFeatureFlagsRequestMetadata
+  | undefined {
+  const runtime = resolveOemCloudRuntimeContext();
+  const snapshot = getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>();
+  const features = snapshot?.features;
+  if (!runtime || !features) {
+    return undefined;
+  }
+
+  const flags = OEM_CLOUD_FEATURE_FLAG_KEYS.reduce<Record<string, boolean>>(
+    (nextFlags, key) => {
+      const value = features[key];
+      if (typeof value === "boolean") {
+        nextFlags[key] = value;
+      }
+      return nextFlags;
+    },
+    {},
+  );
+  if (Object.keys(flags).length === 0) {
+    return undefined;
+  }
+
+  return {
+    tenant_id: runtime.tenantId,
+    source: "oem_cloud_bootstrap",
+    flags,
   };
 }
 
@@ -823,6 +915,9 @@ export function buildWorkspaceRequestMetadata(
   const resolvedOemRouting =
     buildOemRoutingRequestMetadata() ||
     readExistingOemRouting(existingHarnessMetadata);
+  const resolvedTenantFeatureFlags =
+    buildTenantFeatureFlagsRequestMetadata() ||
+    readExistingTenantFeatureFlags(existingHarnessMetadata);
 
   return {
     ...(workspaceRequestMetadataBase || {}),
@@ -859,6 +954,7 @@ export function buildWorkspaceRequestMetadata(
       selectedTeamRoles: resolvedSelectedTeamRoles,
       teamMemoryShadow: resolvedTeamMemoryShadow,
       oemRouting: resolvedOemRouting,
+      tenantFeatureFlags: resolvedTenantFeatureFlags,
     }),
   };
 }

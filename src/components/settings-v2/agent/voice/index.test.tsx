@@ -1,6 +1,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  persistVoiceModelSettingsFocusRequest,
+  VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY,
+  VOICE_MODEL_SETTINGS_SECTION_ID,
+} from "@/lib/voiceModelSettingsNavigation";
 
 const {
   mockGetConfig,
@@ -12,6 +17,7 @@ const {
   mockListVoiceModelCatalog,
   mockGetVoiceModelInstallState,
   mockDownloadVoiceModel,
+  mockListenVoiceModelDownloadProgress,
   mockDeleteVoiceModel,
   mockSetDefaultVoiceModel,
   mockTestTranscribeVoiceModelFile,
@@ -27,6 +33,7 @@ const {
   mockListVoiceModelCatalog: vi.fn(),
   mockGetVoiceModelInstallState: vi.fn(),
   mockDownloadVoiceModel: vi.fn(),
+  mockListenVoiceModelDownloadProgress: vi.fn(),
   mockDeleteVoiceModel: vi.fn(),
   mockSetDefaultVoiceModel: vi.fn(),
   mockTestTranscribeVoiceModelFile: vi.fn(),
@@ -53,6 +60,7 @@ vi.mock("@/lib/api/voiceModels", () => ({
   listVoiceModelCatalog: mockListVoiceModelCatalog,
   getVoiceModelInstallState: mockGetVoiceModelInstallState,
   downloadVoiceModel: mockDownloadVoiceModel,
+  listenVoiceModelDownloadProgress: mockListenVoiceModelDownloadProgress,
   deleteVoiceModel: mockDeleteVoiceModel,
   setDefaultVoiceModel: mockSetDefaultVoiceModel,
   testTranscribeVoiceModelFile: mockTestTranscribeVoiceModelFile,
@@ -212,6 +220,17 @@ interface Mounted {
 }
 
 const mounted: Mounted[] = [];
+let emitVoiceModelProgress:
+  | ((event: {
+      model_id: string;
+      phase: string;
+      downloaded_bytes: number;
+      total_bytes?: number | null;
+      overall_progress: number;
+      message: string;
+    }) => void)
+  | null = null;
+const scrollIntoViewMock = vi.fn();
 
 function renderComponent(): HTMLDivElement {
   const container = document.createElement("div");
@@ -292,6 +311,19 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 
   vi.clearAllMocks();
+  scrollIntoViewMock.mockClear();
+  emitVoiceModelProgress = null;
+  Object.defineProperty(Element.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoViewMock,
+  });
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    (callback: (timestamp: number) => void) => {
+      callback(0);
+      return 1;
+    },
+  );
 
   mockGetConfig.mockResolvedValue({
     workspace_preferences: {
@@ -374,6 +406,10 @@ beforeEach(() => {
       default_credential_id: null,
     },
   });
+  mockListenVoiceModelDownloadProgress.mockImplementation(async (callback) => {
+    emitVoiceModelProgress = callback;
+    return vi.fn();
+  });
   mockDeleteVoiceModel.mockResolvedValue({
     model_id: "sensevoice-small-int8-2024-07-17",
     installed: false,
@@ -418,6 +454,8 @@ afterEach(() => {
     });
     target.container.remove();
   }
+  window.sessionStorage.removeItem(VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY);
+  vi.unstubAllGlobals();
 });
 
 describe("VoiceSettings", () => {
@@ -434,7 +472,7 @@ describe("VoiceSettings", () => {
     expect(text).toContain("SenseVoice Small");
     expect(text).toContain("本地");
     expect(text).toContain("未安装（ONNX int8 量化");
-    expect(text).toContain("下载并设为默认后可离线转写");
+    expect(text).toContain("本地离线 ASR，按需下载。");
     expect(text).toContain("下载模型");
     expect(text).toContain("当前平台不支持 Fn，已使用快捷键回退");
     expect(text).toContain("语音处理");
@@ -479,7 +517,29 @@ describe("VoiceSettings", () => {
     expect(container.textContent ?? "").toContain("已安装");
   });
 
-  it("模型下载中应展示下载状态占位进度", async () => {
+  it("缺模型跳转进入设置页时应聚焦语音模型区块", async () => {
+    persistVoiceModelSettingsFocusRequest({
+      source: "inputbar",
+      reason: "missing-model",
+      modelId: "sensevoice-small-int8-2024-07-17",
+    });
+
+    const container = renderComponent();
+    await flushEffects(6);
+
+    const voiceModelSection = container.querySelector(
+      `#${VOICE_MODEL_SETTINGS_SECTION_ID}`,
+    );
+    expect(voiceModelSection).toBeInstanceOf(HTMLElement);
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({
+      block: "start",
+      behavior: "smooth",
+    });
+    expect(window.sessionStorage.getItem(VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY))
+      .toBeNull();
+  });
+
+  it("模型下载中应从 0 开始并跟随真实进度事件", async () => {
     const pendingDownload = createDeferred<{
       state: {
         model_id: string;
@@ -510,10 +570,30 @@ describe("VoiceSettings", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent ?? "").toContain(
-      "正在下载 model.int8.onnx (1/2)",
-    );
-    expect(container.textContent ?? "").toContain("完成后自动校验并安装");
+    const progressbar = container.querySelector(
+      "[role='progressbar'][aria-label='语音模型下载进度']",
+    ) as HTMLDivElement | null;
+    expect(progressbar).toBeInstanceOf(HTMLDivElement);
+    expect(progressbar?.getAttribute("aria-valuenow")).toBe("0");
+    expect(progressbar?.style.width).toBe("0%");
+    expect(container.textContent ?? "").toContain("准备下载模型");
+    expect(container.textContent ?? "").toContain("0%");
+
+    await act(async () => {
+      emitVoiceModelProgress?.({
+        model_id: "sensevoice-small-int8-2024-07-17",
+        phase: "archive",
+        downloaded_bytes: 42,
+        total_bytes: 100,
+        overall_progress: 0.42,
+        message: "正在下载模型包",
+      });
+      await Promise.resolve();
+    });
+
+    expect(progressbar?.getAttribute("aria-valuenow")).toBe("42");
+    expect(progressbar?.style.width).toBe("42%");
+    expect(container.textContent ?? "").toContain("正在下载模型包");
 
     pendingDownload.resolve({
       state: {

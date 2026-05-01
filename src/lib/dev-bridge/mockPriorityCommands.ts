@@ -16,6 +16,8 @@ const mockPriorityCommands = new Set<string>([
   "companion_launch_pet",
   "companion_send_pet_command",
   "list_dir",
+  "get_file_icon_data_url",
+  "get_file_manager_locations",
   "get_plugin_status",
   "get_plugins",
   "list_installed_plugins",
@@ -74,12 +76,6 @@ const mockPriorityCommands = new Set<string>([
   "launch_browser_session",
   "launch_browser_profile_runtime_assist_cmd",
   "get_browser_action_audit_logs",
-  "voice_models_list_catalog",
-  "voice_models_get_install_state",
-  "voice_models_download",
-  "voice_models_delete",
-  "voice_models_set_default",
-  "voice_models_test_transcribe_file",
 ]);
 
 /**
@@ -92,6 +88,7 @@ const bridgeTruthCommands = new Set<string>([
   "aster_agent_init",
   "aster_agent_status",
   "agent_generate_title",
+  "get_or_create_default_project",
   "workspace_list",
   "workspace_get_default",
   "workspace_get",
@@ -156,9 +153,14 @@ const bridgeTruthCommands = new Set<string>([
   "read_file_preview_cmd",
   "session_files_resolve_file_path",
   "upload_material",
+  "voice_models_download",
+  "voice_models_delete",
+  "voice_models_set_default",
+  "voice_models_test_transcribe_file",
 ]);
 
 const bridgeTruthEventPrefixes = [
+  "voice-model-download-progress",
   "aster_stream_",
   "agent_subagent_status:",
   "agent_subagent_stream:",

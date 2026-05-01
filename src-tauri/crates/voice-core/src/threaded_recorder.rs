@@ -27,6 +27,11 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
+const MAX_RECORDING_DURATION_SECS: usize = 300;
+const INITIAL_RECORDING_CAPACITY_SECS: usize = 30;
+const DEFAULT_SEGMENT_DURATION_SECS: f32 = 1.25;
+const MAX_SEGMENT_DURATION_SECS: f32 = 2.0;
+
 /// 录音控制命令
 #[derive(Debug)]
 pub enum RecordingCommand {
@@ -34,6 +39,13 @@ pub enum RecordingCommand {
     Start(Option<String>),
     /// 停止录音
     Stop,
+    /// 获取当前录音快照，不停止录音
+    Snapshot,
+    /// 获取当前录音片段，不停止录音
+    Segment {
+        start_sample: usize,
+        max_duration_secs: Option<f32>,
+    },
     /// 取消录音
     Cancel,
     /// 关闭录音线程
@@ -47,6 +59,13 @@ pub enum RecordingResponse {
     Ok,
     /// 停止录音成功，返回音频数据
     AudioData(AudioData),
+    /// 录音片段数据
+    AudioSegment {
+        audio: AudioData,
+        start_sample: usize,
+        end_sample: usize,
+        total_samples: usize,
+    },
     /// 操作失败
     Error(String),
 }
@@ -146,6 +165,50 @@ impl RecordingService {
         }
     }
 
+    /// 获取当前录音快照，不停止录音
+    pub fn snapshot(&mut self) -> Result<AudioData, String> {
+        let tx = self.command_tx.as_ref().ok_or("录音线程未启动")?;
+        let rx = self.response_rx.as_ref().ok_or("录音线程未启动")?;
+
+        tx.send(RecordingCommand::Snapshot)
+            .map_err(|e| format!("发送命令失败: {e}"))?;
+
+        match rx.recv() {
+            Ok(RecordingResponse::AudioData(audio)) => Ok(audio),
+            Ok(RecordingResponse::Error(e)) => Err(e),
+            Ok(_) => Err("意外的响应".to_string()),
+            Err(e) => Err(format!("接收响应失败: {e}")),
+        }
+    }
+
+    /// 获取当前录音片段，不停止录音
+    pub fn segment(
+        &mut self,
+        start_sample: usize,
+        max_duration_secs: Option<f32>,
+    ) -> Result<(AudioData, usize, usize, usize), String> {
+        let tx = self.command_tx.as_ref().ok_or("录音线程未启动")?;
+        let rx = self.response_rx.as_ref().ok_or("录音线程未启动")?;
+
+        tx.send(RecordingCommand::Segment {
+            start_sample,
+            max_duration_secs,
+        })
+        .map_err(|e| format!("发送命令失败: {e}"))?;
+
+        match rx.recv() {
+            Ok(RecordingResponse::AudioSegment {
+                audio,
+                start_sample,
+                end_sample,
+                total_samples,
+            }) => Ok((audio, start_sample, end_sample, total_samples)),
+            Ok(RecordingResponse::Error(e)) => Err(e),
+            Ok(_) => Err("意外的响应".to_string()),
+            Err(e) => Err(format!("接收响应失败: {e}")),
+        }
+    }
+
     /// 取消录音
     pub fn cancel(&mut self) {
         if let Some(tx) = &self.command_tx {
@@ -214,6 +277,67 @@ impl Drop for RecordingService {
     }
 }
 
+fn max_recording_samples(sample_rate: u32) -> usize {
+    (sample_rate as usize).saturating_mul(MAX_RECORDING_DURATION_SECS)
+}
+
+fn initial_recording_capacity(sample_rate: u32) -> usize {
+    (sample_rate as usize).saturating_mul(INITIAL_RECORDING_CAPACITY_SECS)
+}
+
+fn reset_sample_buffer(samples: &mut Vec<i16>, sample_rate: u32) {
+    let initial_capacity = initial_recording_capacity(sample_rate);
+    if samples.capacity() > initial_capacity.saturating_mul(2) {
+        *samples = Vec::with_capacity(initial_capacity);
+        return;
+    }
+
+    samples.clear();
+    if samples.capacity() < initial_capacity {
+        samples.reserve(initial_capacity);
+    }
+}
+
+fn clamp_segment_duration(max_duration_secs: Option<f32>) -> f32 {
+    max_duration_secs
+        .filter(|duration| duration.is_finite() && *duration > 0.0)
+        .unwrap_or(DEFAULT_SEGMENT_DURATION_SECS)
+        .min(MAX_SEGMENT_DURATION_SECS)
+}
+
+fn sample_to_i16(sample: f32) -> i16 {
+    (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16
+}
+
+fn append_callback_samples(
+    target: &mut Vec<i16>,
+    data: &[f32],
+    channels: u16,
+    sample_cap: usize,
+) -> usize {
+    if data.is_empty() || target.len() >= sample_cap {
+        return 0;
+    }
+
+    let remaining = sample_cap - target.len();
+    let channels = usize::from(channels.max(1));
+
+    if channels == 1 {
+        let sample_count = data.len().min(remaining);
+        for sample in data.iter().take(sample_count) {
+            target.push(sample_to_i16(*sample));
+        }
+        return sample_count;
+    }
+
+    let frame_count = data.chunks_exact(channels).len().min(remaining);
+    for frame in data.chunks_exact(channels).take(frame_count) {
+        let mono = frame.iter().copied().sum::<f32>() / channels as f32;
+        target.push(sample_to_i16(mono));
+    }
+    frame_count
+}
+
 /// 录音线程主函数
 ///
 /// 在独立线程中运行，拥有 cpal::Stream
@@ -245,9 +369,6 @@ fn recording_thread_main(
                     let _ = resp_tx.send(RecordingResponse::Error("已在录音中".to_string()));
                     continue;
                 }
-
-                // 清空缓冲区
-                samples.lock().clear();
 
                 // 获取输入设备
                 let host = cpal::default_host();
@@ -303,15 +424,21 @@ fn recording_thread_main(
                     buffer_size: cpal::BufferSize::Default,
                 };
 
+                {
+                    let mut sample_buffer = samples.lock();
+                    reset_sample_buffer(&mut sample_buffer, actual_sample_rate);
+                }
+
                 // 创建共享状态的克隆
                 let samples_clone = Arc::clone(&samples);
                 let volume_clone = Arc::clone(&volume_level);
                 let is_rec_clone = Arc::clone(&is_recording);
                 let channels = actual_channels;
+                let sample_cap = max_recording_samples(actual_sample_rate);
 
-                // 回调计数器（用于调试）
-                let callback_count = Arc::new(AtomicU32::new(0));
-                let callback_count_clone = Arc::clone(&callback_count);
+                // 避免每个 callback 创建临时 Vec，降低实时音频线程分配抖动。
+                let mut callback_count = 0_u32;
+                let mut sample_cap_logged = false;
 
                 // 创建输入流
                 let stream = match device.build_input_stream(
@@ -320,14 +447,16 @@ fn recording_thread_main(
                         if !is_rec_clone.load(Ordering::SeqCst) {
                             return;
                         }
-
-                        // 增加回调计数
-                        let count = callback_count_clone.fetch_add(1, Ordering::SeqCst);
-                        if count == 0 {
-                            tracing::info!("[录音线程] 首次收到音频数据，数据长度: {}", data.len());
-                        } else if count.is_multiple_of(100) {
-                            tracing::debug!("[录音线程] 已收到 {} 次音频回调", count);
+                        if data.is_empty() {
+                            return;
                         }
+
+                        if callback_count == 0 {
+                            tracing::info!("[录音线程] 首次收到音频数据，数据长度: {}", data.len());
+                        } else if callback_count.is_multiple_of(500) {
+                            tracing::trace!("[录音线程] 已收到 {} 次音频回调", callback_count);
+                        }
+                        callback_count = callback_count.wrapping_add(1);
 
                         // 计算音量级别（使用 RMS 均方根，更准确反映音量）
                         let sum_sq: f32 = data.iter().map(|s| s * s).sum();
@@ -337,29 +466,26 @@ fn recording_thread_main(
                         // 使用更高的系数来提高灵敏度
                         let level = ((rms * 1500.0).min(100.0)) as u32;
 
-                        // 每 50 次回调打印一次音量（用于调试）
-                        if count.is_multiple_of(50) {
+                        // 降低实时线程日志频率，避免录音时被日志 I/O 干扰。
+                        if callback_count.is_multiple_of(500) {
                             tracing::debug!("[录音线程] RMS: {:.6}, 音量: {}%", rms, level);
                         }
 
                         volume_clone.store(level, Ordering::SeqCst);
 
-                        // 如果是多声道，转换为单声道
-                        let mono_data: Vec<f32> = if channels > 1 {
-                            data.chunks(channels as usize)
-                                .map(|chunk| chunk.iter().sum::<f32>() / channels as f32)
-                                .collect()
-                        } else {
-                            data.to_vec()
+                        let reached_sample_cap = {
+                            let mut sample_buffer = samples_clone.lock();
+                            let was_below_cap = sample_buffer.len() < sample_cap;
+                            append_callback_samples(&mut sample_buffer, data, channels, sample_cap);
+                            was_below_cap && sample_buffer.len() >= sample_cap
                         };
-
-                        // 转换为 i16 并存储
-                        let i16_samples: Vec<i16> = mono_data
-                            .iter()
-                            .map(|&s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
-                            .collect();
-
-                        samples_clone.lock().extend(i16_samples);
+                        if reached_sample_cap && !sample_cap_logged {
+                            tracing::warn!(
+                                "[录音线程] 已达到单次录音上限 {} 秒，后续音频不再写入内存",
+                                MAX_RECORDING_DURATION_SECS
+                            );
+                            sample_cap_logged = true;
+                        }
                     },
                     |err| {
                         tracing::error!("[录音线程] 录音流错误: {}", err);
@@ -410,7 +536,10 @@ fn recording_thread_main(
                 }
 
                 // 获取录音数据（已转换为单声道）
-                let audio_samples = samples.lock().clone();
+                let audio_samples = {
+                    let mut sample_buffer = samples.lock();
+                    std::mem::take(&mut *sample_buffer)
+                };
                 let audio = AudioData::new(audio_samples, actual_sample_rate, 1);
 
                 // 重置开始时间
@@ -429,6 +558,45 @@ fn recording_thread_main(
                 tracing::info!("[录音线程] 停止录音");
             }
 
+            Ok(RecordingCommand::Snapshot) => {
+                if !is_recording.load(Ordering::SeqCst) {
+                    let _ = resp_tx.send(RecordingResponse::Error("未在录音中".to_string()));
+                    continue;
+                }
+
+                let audio_samples = samples.lock().clone();
+                let audio = AudioData::new(audio_samples, actual_sample_rate, 1);
+                let _ = resp_tx.send(RecordingResponse::AudioData(audio));
+            }
+
+            Ok(RecordingCommand::Segment {
+                start_sample,
+                max_duration_secs,
+            }) => {
+                if !is_recording.load(Ordering::SeqCst) {
+                    let _ = resp_tx.send(RecordingResponse::Error("未在录音中".to_string()));
+                    continue;
+                }
+
+                let locked_samples = samples.lock();
+                let total_samples = locked_samples.len();
+                let safe_start = start_sample.min(total_samples);
+                let max_samples = (clamp_segment_duration(max_duration_secs)
+                    * actual_sample_rate as f32)
+                    .ceil() as usize;
+                let end_sample = safe_start.saturating_add(max_samples).min(total_samples);
+                let audio_samples = locked_samples[safe_start..end_sample].to_vec();
+                drop(locked_samples);
+
+                let audio = AudioData::new(audio_samples, actual_sample_rate, 1);
+                let _ = resp_tx.send(RecordingResponse::AudioSegment {
+                    audio,
+                    start_sample: safe_start,
+                    end_sample,
+                    total_samples,
+                });
+            }
+
             Ok(RecordingCommand::Cancel) => {
                 // 停止录音
                 is_recording.store(false, Ordering::SeqCst);
@@ -439,7 +607,7 @@ fn recording_thread_main(
                 }
 
                 // 清空缓冲区
-                samples.lock().clear();
+                *samples.lock() = Vec::new();
 
                 // 重置状态
                 *start_time.lock() = None;
@@ -465,5 +633,44 @@ fn recording_thread_main(
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn append_callback_samples_converts_mono_without_exceeding_cap() {
+        let mut samples = Vec::new();
+        let written = append_callback_samples(&mut samples, &[0.0, 0.5, -1.0], 1, 2);
+
+        assert_eq!(written, 2);
+        assert_eq!(samples.len(), 2);
+        assert_eq!(samples[0], 0);
+        assert!(samples[1] > 16_000);
+    }
+
+    #[test]
+    fn append_callback_samples_downmixes_stereo_without_temp_vectors() {
+        let mut samples = Vec::new();
+        let written = append_callback_samples(&mut samples, &[1.0, -1.0, 0.5, 0.5], 2, 8);
+
+        assert_eq!(written, 2);
+        assert_eq!(samples[0], 0);
+        assert!(samples[1] > 16_000);
+    }
+
+    #[test]
+    fn clamp_segment_duration_defaults_and_caps_live_segments() {
+        assert_eq!(clamp_segment_duration(None), DEFAULT_SEGMENT_DURATION_SECS);
+        assert_eq!(
+            clamp_segment_duration(Some(10.0)),
+            MAX_SEGMENT_DURATION_SECS
+        );
+        assert_eq!(
+            clamp_segment_duration(Some(f32::NAN)),
+            DEFAULT_SEGMENT_DURATION_SECS
+        );
     }
 }

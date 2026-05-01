@@ -1,17 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { safeInvoke } from "@/lib/dev-bridge";
+import { safeInvoke, safeListen } from "@/lib/dev-bridge";
 import { resolveOemCloudRuntimeContext } from "./oemCloudRuntime";
 import {
+  DEFAULT_SENSEVOICE_MODEL_ID,
   deleteVoiceModel,
   downloadVoiceModel,
+  getDefaultLocalVoiceModelReadiness,
   getVoiceModelInstallState,
+  listenVoiceModelDownloadProgress,
   listVoiceModelCatalog,
   setDefaultVoiceModel,
   testTranscribeVoiceModelFile,
+  VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT,
 } from "./voiceModels";
 
 vi.mock("@/lib/dev-bridge", () => ({
   safeInvoke: vi.fn(),
+  safeListen: vi.fn(),
 }));
 
 vi.mock("./oemCloudRuntime", () => ({
@@ -91,6 +96,65 @@ describe("voiceModels API", () => {
     );
   });
 
+  it("默认 ASR 为 SenseVoice 本地时应检查模型安装状态", async () => {
+    vi.mocked(safeInvoke)
+      .mockResolvedValueOnce([
+        {
+          id: "sensevoice-local-sensevoice-small-int8-2024-07-17",
+          provider: "sensevoice_local",
+          is_default: true,
+          disabled: false,
+          language: "auto",
+          sensevoice_config: {
+            model_id: DEFAULT_SENSEVOICE_MODEL_ID,
+            use_itn: true,
+            num_threads: 4,
+          },
+        },
+      ])
+      .mockResolvedValueOnce({
+        model_id: DEFAULT_SENSEVOICE_MODEL_ID,
+        installed: false,
+        installing: false,
+        install_dir: "/mock/lime/models/voice/sensevoice-small-int8-2024-07-17",
+        installed_bytes: 0,
+        missing_files: ["model.int8.onnx"],
+      });
+
+    await expect(getDefaultLocalVoiceModelReadiness()).resolves.toEqual({
+      ready: false,
+      model_id: DEFAULT_SENSEVOICE_MODEL_ID,
+      installed: false,
+      message: "先下载语音模型",
+    });
+
+    expect(safeInvoke).toHaveBeenNthCalledWith(1, "get_asr_credentials");
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      2,
+      "voice_models_get_install_state",
+      { modelId: DEFAULT_SENSEVOICE_MODEL_ID },
+    );
+  });
+
+  it("默认 ASR 不是本地 SenseVoice 时不应阻塞录音入口", async () => {
+    vi.mocked(safeInvoke).mockResolvedValueOnce([
+      {
+        id: "openai-default",
+        provider: "openai",
+        is_default: true,
+        disabled: false,
+        language: "zh-CN",
+      },
+    ]);
+
+    await expect(getDefaultLocalVoiceModelReadiness()).resolves.toEqual({
+      ready: true,
+    });
+
+    expect(safeInvoke).toHaveBeenCalledTimes(1);
+    expect(safeInvoke).toHaveBeenCalledWith("get_asr_credentials");
+  });
+
   it("应优先使用 limecore 下发的语音模型目录并传给下载命令", async () => {
     vi.mocked(resolveOemCloudRuntimeContext).mockReturnValue({
       baseUrl: "https://cloud.example.com",
@@ -164,6 +228,41 @@ describe("voiceModels API", () => {
         vad_download_url: "https://models.example.com/voice/silero_vad.onnx",
         checksum_sha256: "abc123",
       }),
+    });
+  });
+
+  it("应通过 API 网关监听语音模型下载进度事件", async () => {
+    const unlisten = vi.fn();
+    vi.mocked(safeListen).mockImplementationOnce(async (_event, handler) => {
+      handler({
+        payload: {
+          model_id: "sensevoice-small-int8-2024-07-17",
+          phase: "archive",
+          downloaded_bytes: 42,
+          total_bytes: 100,
+          overall_progress: 0.42,
+          message: "正在下载模型包",
+        },
+      });
+      return unlisten;
+    });
+    const listener = vi.fn();
+
+    await expect(listenVoiceModelDownloadProgress(listener)).resolves.toBe(
+      unlisten,
+    );
+
+    expect(safeListen).toHaveBeenCalledWith(
+      VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT,
+      expect.any(Function),
+    );
+    expect(listener).toHaveBeenCalledWith({
+      model_id: "sensevoice-small-int8-2024-07-17",
+      phase: "archive",
+      downloaded_bytes: 42,
+      total_bytes: 100,
+      overall_progress: 0.42,
+      message: "正在下载模型包",
     });
   });
 });

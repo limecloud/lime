@@ -187,6 +187,12 @@ function buildEmptyTranscriptionTaskIndex(): ListMediaTaskArtifactsOutput {
     modality_runtime_contracts: {
       snapshot_count: 0,
       contract_keys: [],
+      execution_profile_keys: [],
+      executor_adapter_keys: [],
+      limecore_policy_refs: [],
+      limecore_policy_snapshot_count: 0,
+      limecore_policy_snapshot_statuses: [],
+      limecore_policy_decisions: [],
       blocked_count: 0,
       routing_outcomes: [],
       model_registry_assessment_count: 0,
@@ -209,6 +215,18 @@ function buildCompletedTranscriptionTaskIndex(): ListMediaTaskArtifactsOutput {
     modality_runtime_contracts: {
       snapshot_count: 1,
       contract_keys: ["audio_transcription"],
+      execution_profile_keys: ["audio_transcription_profile"],
+      executor_adapter_keys: ["skill:transcription_generate"],
+      limecore_policy_refs: [
+        "model_catalog",
+        "provider_offer",
+        "tenant_feature_flags",
+      ],
+      limecore_policy_snapshot_count: 1,
+      limecore_policy_snapshot_statuses: [
+        { status: "local_defaults_evaluated", count: 1 },
+      ],
+      limecore_policy_decisions: ["allow"],
       blocked_count: 0,
       routing_outcomes: [{ outcome: "accepted", count: 1 }],
       model_registry_assessment_count: 0,
@@ -227,6 +245,15 @@ function buildCompletedTranscriptionTaskIndex(): ListMediaTaskArtifactsOutput {
           routing_slot: "audio_transcription_model",
           provider_id: "openai-asr",
           model: "gpt-4o-transcribe",
+          execution_profile_key: "audio_transcription_profile",
+          executor_adapter_key: "skill:transcription_generate",
+          limecore_policy_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          limecore_policy_snapshot_status: "local_defaults_evaluated",
+          limecore_policy_decision: "allow",
           routing_event: "task_created",
           routing_outcome: "accepted",
           failure_code: null,
@@ -251,6 +278,18 @@ function buildFailedTranscriptionTaskIndex(): ListMediaTaskArtifactsOutput {
     modality_runtime_contracts: {
       snapshot_count: 1,
       contract_keys: ["audio_transcription"],
+      execution_profile_keys: ["audio_transcription_profile"],
+      executor_adapter_keys: ["skill:transcription_generate"],
+      limecore_policy_refs: [
+        "model_catalog",
+        "provider_offer",
+        "tenant_feature_flags",
+      ],
+      limecore_policy_snapshot_count: 1,
+      limecore_policy_snapshot_statuses: [
+        { status: "local_defaults_evaluated", count: 1 },
+      ],
+      limecore_policy_decisions: ["allow"],
       blocked_count: 0,
       routing_outcomes: [{ outcome: "failed", count: 1 }],
       model_registry_assessment_count: 0,
@@ -269,6 +308,15 @@ function buildFailedTranscriptionTaskIndex(): ListMediaTaskArtifactsOutput {
           routing_slot: "audio_transcription_model",
           provider_id: "missing-provider",
           model: "gpt-4o-transcribe",
+          execution_profile_key: "audio_transcription_profile",
+          executor_adapter_key: "skill:transcription_generate",
+          limecore_policy_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          limecore_policy_snapshot_status: "local_defaults_evaluated",
+          limecore_policy_decision: "allow",
           routing_event: "task_created",
           routing_outcome: "failed",
           failure_code: "transcription_provider_unconfigured",
@@ -284,6 +332,42 @@ function buildFailedTranscriptionTaskIndex(): ListMediaTaskArtifactsOutput {
       ],
     },
   };
+}
+
+function buildFailedTranscriptionTaskIndexWithPolicyDeny(): ListMediaTaskArtifactsOutput {
+  const output = buildFailedTranscriptionTaskIndex();
+  const blockingRefs = ["model_catalog"];
+  output.modality_runtime_contracts = {
+    ...output.modality_runtime_contracts,
+    blocked_count: 1,
+    routing_outcomes: [{ outcome: "blocked", count: 1 }],
+    limecore_policy_evaluation_statuses: [{ status: "evaluated", count: 1 }],
+    limecore_policy_evaluation_decisions: ["deny"],
+    limecore_policy_evaluation_decision_sources: ["policy_input_evaluator"],
+    limecore_policy_evaluation_blocking_refs: blockingRefs,
+    limecore_policy_evaluation_ask_refs: [],
+    limecore_policy_evaluation_pending_refs: [],
+    snapshots: output.modality_runtime_contracts.snapshots.map((snapshot) => ({
+      ...snapshot,
+      routing_outcome: "blocked",
+      failure_code: "limecore_policy_denied",
+      limecore_policy_snapshot_status: "policy_inputs_evaluated",
+      limecore_policy_decision: "deny",
+      limecore_policy_decision_source: "policy_input_evaluator",
+      limecore_policy_decision_scope: "resolved_policy_inputs",
+      limecore_policy_decision_reason: "model_catalog_capability_gap",
+      limecore_policy_evaluation_status: "evaluated",
+      limecore_policy_evaluation_decision: "deny",
+      limecore_policy_evaluation_decision_source: "policy_input_evaluator",
+      limecore_policy_evaluation_decision_scope: "resolved_policy_inputs",
+      limecore_policy_evaluation_decision_reason:
+        "model_catalog_capability_gap",
+      limecore_policy_evaluation_blocking_refs: blockingRefs,
+      limecore_policy_evaluation_ask_refs: [],
+      limecore_policy_evaluation_pending_refs: [],
+    })),
+  };
+  return output;
 }
 
 function renderHook(props?: Partial<HookProps>) {
@@ -508,6 +592,26 @@ describe("useWorkspaceTranscriptionTaskPreviewRuntime", () => {
         retryable: true,
         statusMessage:
           "转写 Provider 未配置，请先在转写设置中选择可用 Provider；任务保留在 transcription_generate，不会回退 frontend ASR。",
+      });
+    });
+    expect(getMediaTaskArtifact).not.toHaveBeenCalled();
+  });
+
+  it("应从统一媒体任务索引把 LimeCore policy deny 恢复到任务卡 meta", async () => {
+    vi.mocked(listMediaTaskArtifacts).mockResolvedValueOnce(
+      buildFailedTranscriptionTaskIndexWithPolicyDeny(),
+    );
+    const { render, getMessages } = renderHook();
+
+    await render();
+
+    await vi.waitFor(() => {
+      expect(getMessages()[0]?.taskPreview).toMatchObject({
+        kind: "transcription_generate",
+        status: "failed",
+        metaItems: expect.arrayContaining([
+          "LimeCore 策略输入阻断: model_catalog",
+        ]),
       });
     });
     expect(getMediaTaskArtifact).not.toHaveBeenCalled();

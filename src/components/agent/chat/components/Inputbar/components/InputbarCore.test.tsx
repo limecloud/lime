@@ -2,6 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { OPEN_VOICE_MODEL_SETTINGS_EVENT } from "@/lib/voiceModelSettingsNavigation";
 import { InputbarCore } from "./InputbarCore";
 
 const {
@@ -11,6 +12,10 @@ const {
   mockTranscribeAudio,
   mockPolishVoiceText,
   mockCancelRecording,
+  mockGetRecordingSegment,
+  mockGetRecordingStatus,
+  mockGetDefaultLocalVoiceModelReadiness,
+  mockToastError,
 } = vi.hoisted(() => ({
   mockGetVoiceInputConfig: vi.fn(async () => ({
     enabled: true,
@@ -42,6 +47,23 @@ const {
     instruction_name: "默认润色",
   })),
   mockCancelRecording: vi.fn(async () => undefined),
+  mockGetRecordingSegment: vi.fn(async () => ({
+    audio_data: [1, 2, 3, 4],
+    sample_rate: 16000,
+    duration: 0.8,
+    start_sample: 0,
+    end_sample: 12800,
+    total_samples: 12800,
+  })),
+  mockGetRecordingStatus: vi.fn(async () => ({
+    is_recording: true,
+    volume: 62,
+    duration: 3.4,
+  })),
+  mockGetDefaultLocalVoiceModelReadiness: vi.fn(async () => ({
+    ready: true,
+  })),
+  mockToastError: vi.fn(),
 }));
 
 vi.mock("./InputbarTools", () => ({
@@ -55,6 +77,19 @@ vi.mock("@/lib/api/asrProvider", () => ({
   transcribeAudio: mockTranscribeAudio,
   polishVoiceText: mockPolishVoiceText,
   cancelRecording: mockCancelRecording,
+  getRecordingSegment: mockGetRecordingSegment,
+  getRecordingStatus: mockGetRecordingStatus,
+}));
+
+vi.mock("@/lib/api/voiceModels", () => ({
+  getDefaultLocalVoiceModelReadiness: mockGetDefaultLocalVoiceModelReadiness,
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: mockToastError,
+    info: vi.fn(),
+  },
 }));
 
 vi.mock("@/hooks/useVoiceSound", () => ({
@@ -84,6 +119,7 @@ afterEach(() => {
     mounted.container.remove();
   }
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 const renderInputbarCore = async (
@@ -166,6 +202,70 @@ describe("InputbarCore", () => {
     ).toBeTruthy();
   });
 
+  it("添加路径引用时应显示 chip 并允许移除", async () => {
+    const onRemovePathReference = vi.fn();
+    const container = await renderInputbarCore({
+      pathReferences: [
+        {
+          id: "dir:/Users/demo/Downloads",
+          path: "/Users/demo/Downloads",
+          name: "Downloads",
+          isDir: true,
+          source: "file_manager",
+        },
+      ],
+      onRemovePathReference,
+    });
+
+    expect(container.textContent).toContain("Downloads");
+    expect(container.textContent).toContain("/Users/demo/Downloads");
+    expect(
+      container.querySelector('[data-testid="inputbar-path-reference-chip"]'),
+    ).toBeTruthy();
+
+    const removeButton = container.querySelector(
+      'button[aria-label="移除路径 Downloads"]',
+    ) as HTMLButtonElement | null;
+    expect(removeButton).toBeTruthy();
+
+    await act(async () => {
+      removeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onRemovePathReference).toHaveBeenCalledWith(
+      "dir:/Users/demo/Downloads",
+    );
+  });
+
+  it("从输入框正文区域拖放时应由容器优先接收 drop", async () => {
+    const onDrop = vi.fn((event: React.DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    const onDragOver = vi.fn((event: React.DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    const container = await renderInputbarCore({
+      onDrop,
+      onDragOver,
+    });
+    const textarea = container.querySelector(
+      "textarea",
+    ) as HTMLTextAreaElement | null;
+    expect(textarea).toBeTruthy();
+
+    await act(async () => {
+      textarea?.dispatchEvent(new Event("dragover", { bubbles: true }));
+      textarea?.dispatchEvent(new Event("drop", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onDragOver).toHaveBeenCalledTimes(1);
+    expect(onDrop).toHaveBeenCalledTimes(1);
+  });
+
   it("点击展开按钮应切换输入框展开态", async () => {
     const container = await renderInputbarCore({
       visualVariant: "default",
@@ -216,11 +316,15 @@ describe("InputbarCore", () => {
 
     expect(mockGetVoiceInputConfig).toHaveBeenCalledTimes(1);
     expect(mockStartRecording).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[aria-live="polite"]')).toBeNull();
 
-    const stopDictationButton = container.querySelector(
-      'button[aria-label="停止语音输入"]',
-    ) as HTMLButtonElement | null;
+    const stopDictationButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button.getAttribute("aria-label")?.startsWith("录音中"),
+    ) as HTMLButtonElement | undefined;
     expect(stopDictationButton).toBeTruthy();
+    expect(stopDictationButton?.textContent).toMatch(/\d+:\d{2}/);
 
     await act(async () => {
       stopDictationButton?.dispatchEvent(
@@ -234,6 +338,173 @@ describe("InputbarCore", () => {
     expect(mockTranscribeAudio).toHaveBeenCalledTimes(1);
     expect(mockPolishVoiceText).toHaveBeenCalledWith("原始识别文本");
     expect(setText).toHaveBeenCalledWith("润色后的文本");
+  });
+
+  it("录音中应定时写回实时识别文本", async () => {
+    vi.useFakeTimers();
+    mockTranscribeAudio.mockResolvedValueOnce({
+      text: "实时识别文本",
+      provider: "mock",
+    });
+    const setText = vi.fn();
+    const container = await renderInputbarCore({
+      visualVariant: "default",
+      toolMode: "default",
+      setText,
+    });
+
+    const micButton = container.querySelector(
+      'button[aria-label="开始语音输入"]',
+    ) as HTMLButtonElement | null;
+
+    await act(async () => {
+      micButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(750);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockGetRecordingSegment).toHaveBeenCalledWith(0, 1.2);
+    expect(mockTranscribeAudio).toHaveBeenCalledWith(
+      new Uint8Array([1, 2, 3, 4]),
+      16000,
+    );
+    expect(setText).toHaveBeenCalledWith("实时识别文本");
+    const recordingButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button.getAttribute("aria-label")?.includes("实时识别"),
+    );
+    expect(recordingButton).toBeTruthy();
+  });
+
+  it("录音中遇到静音片段时不应触发实时识别", async () => {
+    vi.useFakeTimers();
+    mockGetRecordingSegment.mockResolvedValueOnce({
+      audio_data: [0, 0, 0, 0],
+      sample_rate: 16000,
+      duration: 0.8,
+      start_sample: 0,
+      end_sample: 12800,
+      total_samples: 12800,
+    });
+    const setText = vi.fn();
+    const container = await renderInputbarCore({
+      visualVariant: "default",
+      toolMode: "default",
+      setText,
+    });
+
+    const micButton = container.querySelector(
+      'button[aria-label="开始语音输入"]',
+    ) as HTMLButtonElement | null;
+
+    await act(async () => {
+      micButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(750);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockGetRecordingSegment).toHaveBeenCalledWith(0, 1.2);
+    expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    expect(setText).not.toHaveBeenCalledWith("实时识别文本");
+  });
+
+  it("语音润色失败时应保留原始识别内容且不弹错误提示", async () => {
+    mockPolishVoiceText.mockRejectedValueOnce(new Error("模型不可用"));
+    const setText = vi.fn();
+    const container = await renderInputbarCore({
+      visualVariant: "default",
+      toolMode: "default",
+      setText,
+    });
+
+    const micButton = container.querySelector(
+      'button[aria-label="开始语音输入"]',
+    ) as HTMLButtonElement | null;
+
+    await act(async () => {
+      micButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const stopDictationButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button.getAttribute("aria-label")?.startsWith("录音中"),
+    ) as HTMLButtonElement | undefined;
+
+    await act(async () => {
+      stopDictationButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockPolishVoiceText).toHaveBeenCalledWith("原始识别文本");
+    expect(setText).toHaveBeenCalledWith("原始识别文本");
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("本地语音模型未安装时不应开始录音", async () => {
+    mockGetDefaultLocalVoiceModelReadiness.mockResolvedValueOnce({
+      ready: false,
+      model_id: "sensevoice-small-int8-2024-07-17",
+      installed: false,
+      message: "先下载语音模型",
+    } as any);
+    const navigationRequests: unknown[] = [];
+    const handleNavigationRequest = (event: Event) => {
+      navigationRequests.push(
+        event instanceof CustomEvent ? event.detail : undefined,
+      );
+    };
+    window.addEventListener(
+      OPEN_VOICE_MODEL_SETTINGS_EVENT,
+      handleNavigationRequest,
+    );
+    const container = await renderInputbarCore({
+      visualVariant: "default",
+      toolMode: "default",
+    });
+
+    const micButton = container.querySelector(
+      'button[aria-label="开始语音输入"]',
+    ) as HTMLButtonElement | null;
+    expect(micButton).toBeTruthy();
+
+    await act(async () => {
+      micButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    window.removeEventListener(
+      OPEN_VOICE_MODEL_SETTINGS_EVENT,
+      handleNavigationRequest,
+    );
+
+    expect(mockGetDefaultLocalVoiceModelReadiness).toHaveBeenCalledTimes(1);
+    expect(mockStartRecording).not.toHaveBeenCalled();
+    expect(container.querySelector('[aria-live="polite"]')).toBeNull();
+    expect(navigationRequests).toEqual([
+      expect.objectContaining({
+        source: "inputbar",
+        reason: "missing-model",
+        modelId: "sensevoice-small-int8-2024-07-17",
+      }),
+    ]);
   });
 
   it("生成中应显示稍后处理与停止按钮，并渲染待处理列表", async () => {

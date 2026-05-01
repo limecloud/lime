@@ -10,6 +10,10 @@ default = []
 local-whisper = ["voice-core/local-whisper"]
 local-sensevoice = ["voice-core/local-sensevoice"]
 
+[lints.rust]
+# 允许 objc 宏展开时携带的 cargo-clippy 伪 feature，避免 unexpected_cfgs 噪音。
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }
+
 [dependencies]
 # 项目内 crate
 lime-core.workspace = true
@@ -71,3 +75,7 @@ proptest.workspace = true
 [target.'cfg(windows)'.dependencies]
 winapi.workspace = true
 winreg.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa.workspace = true
+objc.workspace = true

@@ -1,7 +1,7 @@
 /**
  * @file smart-input.tsx
- * @description 截图对话悬浮窗口 - 参考 Google Gemini 浮动栏设计
- *              半透明药丸形状，简洁的输入界面
+ * @description 截图对话悬浮窗口 - Lime 药丸输入栏
+ *              简洁的输入、录音和识别界面
  *              支持语音输入模式
  * @module pages/smart-input
  */
@@ -25,6 +25,15 @@ import {
 import { useVoiceSound } from "@/hooks/useVoiceSound";
 import { safeEmit, safeListen } from "@/lib/dev-bridge";
 import { COMPANION_PET_VOICE_TRANSCRIPT_EVENT } from "@/lib/api/companion";
+import { broadcastOpenVoiceModelSettingsRequest } from "@/lib/voiceModelSettingsNavigation";
+import {
+  isAudiblePcm16LeSegment,
+  LIVE_TRANSCRIBE_INTERVAL_MS,
+  LIVE_TRANSCRIBE_MAX_DURATION_SECONDS,
+  LIVE_TRANSCRIBE_MIN_DURATION_SECONDS,
+  mergeLiveTranscript,
+} from "@/lib/voiceLivePreview";
+import type { RecordingStatus } from "@/lib/api/asrProvider";
 import "./smart-input.css";
 
 // Lime Logo组件
@@ -104,11 +113,21 @@ function getVoiceTargetFromUrl(): VoiceTarget | null {
 /** 语音状态 */
 type VoiceState = "idle" | "recording" | "transcribing" | "polishing";
 
+function formatRecordingDuration(duration = 0): string {
+  const safeDuration = Number.isFinite(duration) ? Math.max(0, duration) : 0;
+  const minutes = Math.floor(safeDuration / 60);
+  const seconds = Math.floor(safeDuration % 60);
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 export function SmartInputPage() {
   const [imagePath, setImagePath] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [recordingStatus, setRecordingStatus] =
+    useState<RecordingStatus | null>(null);
+  const [liveTranscript, setLiveTranscript] = useState("");
   const [voiceMode, setVoiceMode] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [translateMode, setTranslateMode] = useState(false);
@@ -121,9 +140,114 @@ export function SmartInputPage() {
   // 追踪是否已经从 URL 初始化过语音模式
   const voiceModeInitializedRef = useRef(false);
   const voiceTargetRef = useRef<VoiceTarget | null>(getVoiceTargetFromUrl());
+  const processingVoiceRef = useRef(false);
+  const lastLiveTranscriptRef = useRef("");
+  const lastLiveTranscribedSampleRef = useRef(0);
 
   // 语音音效
   const { playStartSound, playStopSound } = useVoiceSound(soundEnabled);
+
+  useEffect(() => {
+    if (voiceState !== "recording") {
+      setRecordingStatus(null);
+      return;
+    }
+
+    let disposed = false;
+    const refreshRecordingStatus = async () => {
+      try {
+        const { getRecordingStatus } = await import("@/lib/api/asrProvider");
+        const status = await getRecordingStatus();
+        if (!disposed) {
+          setRecordingStatus(status);
+        }
+      } catch (err) {
+        console.error("[语音输入] 获取录音状态失败:", err);
+      }
+    };
+
+    void refreshRecordingStatus();
+    const timer = window.setInterval(() => {
+      void refreshRecordingStatus();
+    }, 250);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [voiceState]);
+
+  useEffect(() => {
+    if (voiceState !== "recording") {
+      return;
+    }
+
+    let disposed = false;
+    let transcribing = false;
+
+    const transcribeSnapshot = async () => {
+      if (disposed || transcribing) {
+        return;
+      }
+
+      transcribing = true;
+      try {
+        const { getRecordingSegment, transcribeAudio } = await import(
+          "@/lib/api/asrProvider"
+        );
+        const segment = await getRecordingSegment(
+          lastLiveTranscribedSampleRef.current,
+          LIVE_TRANSCRIBE_MAX_DURATION_SECONDS,
+        );
+        if (
+          disposed ||
+          segment.duration < LIVE_TRANSCRIBE_MIN_DURATION_SECONDS ||
+          segment.end_sample <= lastLiveTranscribedSampleRef.current
+        ) {
+          return;
+        }
+
+        if (!isAudiblePcm16LeSegment(segment.audio_data)) {
+          lastLiveTranscribedSampleRef.current = segment.end_sample;
+          return;
+        }
+
+        const audioBytes = new Uint8Array(segment.audio_data);
+        const result = await transcribeAudio(
+          audioBytes,
+          segment.sample_rate,
+        );
+        lastLiveTranscribedSampleRef.current = segment.end_sample;
+        const nextText = result.text.trim();
+        if (!disposed && nextText) {
+          const mergedText = mergeLiveTranscript(
+            lastLiveTranscriptRef.current,
+            nextText,
+          );
+          if (mergedText !== lastLiveTranscriptRef.current) {
+            lastLiveTranscriptRef.current = mergedText;
+            setLiveTranscript(mergedText);
+            setInputValue(mergedText);
+          }
+        }
+      } catch (err) {
+        if (!disposed) {
+          console.debug("[语音输入] 实时识别跳过:", err);
+        }
+      } finally {
+        transcribing = false;
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      void transcribeSnapshot();
+    }, LIVE_TRANSCRIBE_INTERVAL_MS);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [voiceState]);
 
   // 加载音效配置
   useEffect(() => {
@@ -165,16 +289,43 @@ export function SmartInputPage() {
       console.log("[语音输入] 已在录音状态，跳过");
       return;
     }
-    setVoiceMode(true);
-    setVoiceState("recording");
-    setInputValue(""); // 清空之前的输入
-
-    // 播放开始录音音效
-    playStartSound();
 
     try {
       const { startRecording, getVoiceInputConfig, cancelRecording } =
         await import("@/lib/api/asrProvider");
+      const { getDefaultLocalVoiceModelReadiness } =
+        await import("@/lib/api/voiceModels");
+
+      const config = await getVoiceInputConfig();
+      try {
+        const readiness = await getDefaultLocalVoiceModelReadiness();
+        if (!readiness.ready) {
+          showError(readiness.message || "先下载语音模型");
+          void broadcastOpenVoiceModelSettingsRequest({
+            source: "smart-input",
+            reason: "missing-model",
+            modelId: readiness.model_id ?? null,
+          });
+          return;
+        }
+      } catch (err) {
+        console.error("[语音输入] 检查本地语音模型失败:", err);
+      }
+
+      setVoiceMode(true);
+      setVoiceState("recording");
+      setLiveTranscript("");
+      lastLiveTranscriptRef.current = "";
+      lastLiveTranscribedSampleRef.current = 0;
+      setRecordingStatus({
+        is_recording: true,
+        volume: 0,
+        duration: 0,
+      });
+      setInputValue(""); // 清空之前的输入
+
+      // 播放开始录音音效
+      playStartSound();
 
       // 先尝试取消任何正在进行的录音（可能是设置页面的测试没有停止）
       try {
@@ -184,10 +335,13 @@ export function SmartInputPage() {
         // 忽略取消错误
       }
 
-      // 获取配置中的设备 ID
-      const config = await getVoiceInputConfig();
       console.log("[语音输入] 使用设备ID:", config.selected_device_id);
       await startRecording(config.selected_device_id);
+      setRecordingStatus({
+        is_recording: true,
+        volume: 0,
+        duration: 0,
+      });
       console.log("[语音输入] 开始录音成功");
     } catch (err: any) {
       console.error("[语音输入] 开始录音失败:", err);
@@ -204,6 +358,7 @@ export function SmartInputPage() {
       }
 
       setVoiceState("idle");
+      setRecordingStatus(null);
       setVoiceMode(false);
     }
   }, [voiceState, showError, playStartSound]);
@@ -330,6 +485,116 @@ export function SmartInputPage() {
     translateInstructionIdRef.current = translateInstructionId;
   }, [translateMode, translateInstructionId]);
 
+  const finishVoiceProcessing = useCallback(() => {
+    setVoiceState("idle");
+    setRecordingStatus(null);
+    setVoiceMode(false);
+    setLiveTranscript("");
+  }, []);
+
+  const processRecordedVoice = useCallback(async () => {
+    if (processingVoiceRef.current) {
+      return;
+    }
+
+    processingVoiceRef.current = true;
+    playStopSoundRef.current();
+    setRecordingStatus(null);
+    setVoiceState("transcribing");
+
+    try {
+      const {
+        stopRecording,
+        transcribeAudio,
+        polishVoiceText,
+        getVoiceInputConfig,
+      } = await import("@/lib/api/asrProvider");
+
+      let result;
+      try {
+        result = await stopRecording();
+      } catch (recordingErr: any) {
+        console.error("停止录音异常:", recordingErr);
+        const errMsg =
+          typeof recordingErr === "string"
+            ? recordingErr
+            : recordingErr?.message || "";
+        showError(`录音停止失败: ${errMsg}`);
+        finishVoiceProcessing();
+        return;
+      }
+
+      console.log(
+        "[语音输入] 录音完成，时长:",
+        result.duration.toFixed(2),
+        "秒",
+      );
+
+      if (result.duration < 0.5) {
+        console.log("[语音输入] 录音时间过短");
+        finishVoiceProcessing();
+        return;
+      }
+
+      const audioData = new Uint8Array(result.audio_data);
+      const transcribeResult = await transcribeAudio(
+        audioData,
+        result.sample_rate,
+      );
+      console.log("[语音识别] 结果:", transcribeResult.text);
+
+      if (!transcribeResult.text.trim() && !lastLiveTranscriptRef.current) {
+        finishVoiceProcessing();
+        return;
+      }
+
+      let finalText =
+        transcribeResult.text.trim() || lastLiveTranscriptRef.current;
+      try {
+        const config = await getVoiceInputConfig();
+        console.log("[语音输入] 润色配置:", {
+          polish_enabled: config.processor.polish_enabled,
+          polish_model: config.processor.polish_model,
+          default_instruction_id: config.processor.default_instruction_id,
+          translateMode: translateModeRef.current,
+          translateInstructionId: translateInstructionIdRef.current,
+        });
+
+        if (translateModeRef.current && translateInstructionIdRef.current) {
+          console.log("[语音输入] 进入翻译模式分支");
+          setVoiceState("polishing");
+          const polished = await polishVoiceText(
+            finalText,
+            translateInstructionIdRef.current,
+          );
+          console.log("[语音输入] 翻译完成:", polished.text);
+          finalText = polished.text;
+        } else if (config.processor.polish_enabled) {
+          console.log("[语音输入] 进入润色模式分支");
+          setVoiceState("polishing");
+          const polished = await polishVoiceText(finalText);
+          console.log("[语音输入] 润色完成:", polished.text);
+          finalText = polished.text;
+        } else {
+          console.log("[语音输入] 润色未启用，直接使用原始文本");
+        }
+      } catch (e) {
+        console.warn("[语音润色] 失败，保留原始识别内容:", e);
+      }
+
+      finishVoiceProcessing();
+      await applyResolvedVoiceText(finalText);
+    } catch (err: any) {
+      console.error("[语音识别] 失败:", err);
+      const message =
+        typeof err === "string" ? err : err?.message || "语音识别失败";
+      showError(message);
+      finishVoiceProcessing();
+    } finally {
+      processingVoiceRef.current = false;
+    }
+  }, [applyResolvedVoiceText, finishVoiceProcessing, showError]);
+
   // 手动停止语音录音（点击按钮）
   const stopVoiceRecording = useCallback(
     async (e?: React.MouseEvent) => {
@@ -352,112 +617,9 @@ export function SmartInputPage() {
         return;
       }
 
-      // 播放停止录音音效
-      playStopSoundRef.current();
-
-      setVoiceState("transcribing");
-      try {
-        const {
-          stopRecording,
-          transcribeAudio,
-          polishVoiceText,
-          getVoiceInputConfig,
-        } = await import("@/lib/api/asrProvider");
-
-        let result;
-        try {
-          result = await stopRecording();
-        } catch (recordingErr: any) {
-          // 如果停止录音本身失败（例如后端没在录音，或者设备断开），强制重置
-          console.error("停止录音异常:", recordingErr);
-          const errMsg =
-            typeof recordingErr === "string"
-              ? recordingErr
-              : recordingErr?.message || "";
-          showError(`录音停止失败: ${errMsg}`);
-          setVoiceState("idle");
-          setVoiceMode(false);
-          return;
-        }
-
-        console.log(
-          "[语音输入] 录音完成，时长:",
-          result.duration.toFixed(2),
-          "秒",
-        );
-
-        if (result.duration < 0.5) {
-          console.log("[语音输入] 录音时间过短");
-          // 这里不要 alert，因为用户可能只是误触，直接静默取消即可
-          setVoiceState("idle");
-          setVoiceMode(false);
-          return;
-        }
-
-        const audioData = new Uint8Array(result.audio_data);
-        const transcribeResult = await transcribeAudio(
-          audioData,
-          result.sample_rate,
-        );
-        console.log("[语音识别] 结果:", transcribeResult.text);
-
-        if (!transcribeResult.text.trim()) {
-          setVoiceState("idle");
-          setVoiceMode(false);
-          return;
-        }
-
-        // 检查是否启用润色或翻译模式
-        let finalText = transcribeResult.text;
-        try {
-          const config = await getVoiceInputConfig();
-          console.log("[语音输入] 润色配置:", {
-            polish_enabled: config.processor.polish_enabled,
-            polish_model: config.processor.polish_model,
-            default_instruction_id: config.processor.default_instruction_id,
-            translateMode: translateModeRef.current,
-            translateInstructionId: translateInstructionIdRef.current,
-          });
-
-          // 翻译模式：使用指定的翻译指令
-          if (translateModeRef.current && translateInstructionIdRef.current) {
-            console.log("[语音输入] 进入翻译模式分支");
-            setVoiceState("polishing");
-            console.log(
-              "[语音输入] 翻译模式，使用指令:",
-              translateInstructionIdRef.current,
-            );
-            const polished = await polishVoiceText(
-              transcribeResult.text,
-              translateInstructionIdRef.current,
-            );
-            console.log("[语音输入] 翻译完成:", polished.text);
-            finalText = polished.text;
-          } else if (config.processor.polish_enabled) {
-            // 普通模式：使用默认润色
-            console.log("[语音输入] 进入润色模式分支");
-            setVoiceState("polishing");
-            const polished = await polishVoiceText(transcribeResult.text);
-            console.log("[语音输入] 润色完成:", polished.text);
-            finalText = polished.text;
-          } else {
-            console.log("[语音输入] 润色未启用，直接使用原始文本");
-          }
-        } catch (e) {
-          console.error("[语音润色] 失败:", e);
-        }
-
-        setVoiceState("idle");
-        setVoiceMode(false);
-        await applyResolvedVoiceText(finalText);
-      } catch (err) {
-        console.error("[语音识别] 失败:", err);
-        showError("语音识别过程中发生错误");
-        setVoiceState("idle");
-        setVoiceMode(false);
-      }
+      await processRecordedVoice();
     },
-    [applyResolvedVoiceText, showError],
+    [processRecordedVoice],
   ); // 依赖通过 Ref 和稳定回调控制，避免录音闭包拿到旧状态
 
   // 监听快捷键释放事件
@@ -468,99 +630,7 @@ export function SmartInputPage() {
       try {
         const unlisten = await onVoiceStopRecording(async () => {
           console.log("[语音输入] 收到停止录音事件");
-
-          // 播放停止录音音效
-          playStopSoundRef.current();
-
-          // 直接在这里执行停止录音逻辑，避免闭包问题
-          setVoiceState("transcribing");
-          try {
-            const {
-              stopRecording,
-              transcribeAudio,
-              polishVoiceText,
-              getVoiceInputConfig,
-            } = await import("@/lib/api/asrProvider");
-
-            const result = await stopRecording();
-            console.log(
-              "[语音输入] 录音完成，时长:",
-              result.duration.toFixed(2),
-              "秒",
-            );
-
-            if (result.duration < 0.5) {
-              console.log("[语音输入] 录音时间过短");
-              setVoiceState("idle");
-              setVoiceMode(false);
-              return;
-            }
-
-            const audioData = new Uint8Array(result.audio_data);
-            const transcribeResult = await transcribeAudio(
-              audioData,
-              result.sample_rate,
-            );
-            console.log("[语音识别] 结果:", transcribeResult.text);
-
-            if (!transcribeResult.text.trim()) {
-              setVoiceState("idle");
-              setVoiceMode(false);
-              return;
-            }
-
-            // 检查是否启用润色或翻译模式
-            let finalText = transcribeResult.text;
-            try {
-              const config = await getVoiceInputConfig();
-              console.log("[语音输入] 润色配置:", {
-                polish_enabled: config.processor.polish_enabled,
-                polish_model: config.processor.polish_model,
-                default_instruction_id: config.processor.default_instruction_id,
-                translateMode: translateModeRef.current,
-                translateInstructionId: translateInstructionIdRef.current,
-              });
-
-              // 翻译模式：使用指定的翻译指令
-              if (
-                translateModeRef.current &&
-                translateInstructionIdRef.current
-              ) {
-                console.log("[语音输入] 进入翻译模式分支");
-                setVoiceState("polishing");
-                console.log(
-                  "[语音输入] 翻译模式，使用指令:",
-                  translateInstructionIdRef.current,
-                );
-                const polished = await polishVoiceText(
-                  transcribeResult.text,
-                  translateInstructionIdRef.current,
-                );
-                console.log("[语音输入] 翻译完成:", polished.text);
-                finalText = polished.text;
-              } else if (config.processor.polish_enabled) {
-                // 普通模式：使用默认润色
-                console.log("[语音输入] 进入润色模式分支");
-                setVoiceState("polishing");
-                const polished = await polishVoiceText(transcribeResult.text);
-                console.log("[语音输入] 润色完成:", polished.text);
-                finalText = polished.text;
-              } else {
-                console.log("[语音输入] 润色未启用，直接使用原始文本");
-              }
-            } catch (e) {
-              console.error("[语音润色] 失败:", e);
-            }
-
-            setVoiceState("idle");
-            setVoiceMode(false);
-            await applyResolvedVoiceText(finalText);
-          } catch (err) {
-            console.error("[语音识别] 失败:", err);
-            showError("语音识别过程中发生错误");
-            setVoiceState("idle");
-            setVoiceMode(false);
-          }
+          await processRecordedVoice();
         });
         return unlisten;
       } catch (err) {
@@ -573,7 +643,7 @@ export function SmartInputPage() {
     return () => {
       unlistenPromise.then((unlisten) => unlisten());
     };
-  }, [applyResolvedVoiceText, voiceMode, showError]);
+  }, [processRecordedVoice, voiceMode]);
 
   // 关闭窗口
   const handleClose = useCallback(async () => {
@@ -649,6 +719,12 @@ export function SmartInputPage() {
     }
   };
 
+  const activeRecordingBars = Math.min(
+    5,
+    Math.max(1, Math.ceil((recordingStatus?.volume ?? 0) / 20)),
+  );
+  const recordingDuration = formatRecordingDuration(recordingStatus?.duration);
+
   return (
     <div className="screenshot-container">
       {errorMsg && <div className="screenshot-error-toast">{errorMsg}</div>}
@@ -669,9 +745,7 @@ export function SmartInputPage() {
         {(voiceState === "transcribing" || voiceState === "polishing") && (
           <div className="screenshot-attachment processing">
             <Loader2 size={12} className="animate-spin" />
-            <span>
-              {voiceState === "transcribing" ? "识别中..." : "润色中..."}
-            </span>
+            <span>{voiceState === "transcribing" ? "识别中" : "润色中"}</span>
           </div>
         )}
 
@@ -694,7 +768,25 @@ export function SmartInputPage() {
         {voiceState === "recording" ? (
           <div className="screenshot-recording-container">
             <div className="recording-dot" />
-            <span className="screenshot-recording-text">正在聆听...</span>
+            <div className="screenshot-recording-copy">
+              <span className="screenshot-recording-text">录音中</span>
+              <span className="screenshot-recording-hint">
+                {recordingDuration}
+              </span>
+              {liveTranscript ? (
+                <span className="screenshot-recording-preview">
+                  {liveTranscript}
+                </span>
+              ) : null}
+            </div>
+            <div className="screenshot-recording-meter" aria-hidden="true">
+              {[0, 1, 2, 3, 4].map((index) => (
+                <span
+                  key={index}
+                  className={index < activeRecordingBars ? "active" : undefined}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <textarea
@@ -743,7 +835,8 @@ export function SmartInputPage() {
                 position: "relative",
                 zIndex: 1000,
               }}
-              title="完成录音"
+              title="停止录音"
+              aria-label="停止录音"
             >
               <Square size={12} fill="#ffffff" color="#ffffff" />
             </button>

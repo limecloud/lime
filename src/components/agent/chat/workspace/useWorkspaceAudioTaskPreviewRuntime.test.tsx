@@ -182,6 +182,12 @@ function buildEmptyAudioTaskIndex(): ListMediaTaskArtifactsOutput {
     modality_runtime_contracts: {
       snapshot_count: 0,
       contract_keys: [],
+      execution_profile_keys: [],
+      executor_adapter_keys: [],
+      limecore_policy_refs: [],
+      limecore_policy_snapshot_count: 0,
+      limecore_policy_snapshot_statuses: [],
+      limecore_policy_decisions: [],
       blocked_count: 0,
       routing_outcomes: [],
       model_registry_assessment_count: 0,
@@ -204,6 +210,18 @@ function buildCompletedAudioTaskIndex(): ListMediaTaskArtifactsOutput {
     modality_runtime_contracts: {
       snapshot_count: 1,
       contract_keys: ["voice_generation"],
+      execution_profile_keys: ["voice_generation_profile"],
+      executor_adapter_keys: ["service_skill:voice_runtime"],
+      limecore_policy_refs: [
+        "client_scenes",
+        "tenant_feature_flags",
+        "provider_offer",
+      ],
+      limecore_policy_snapshot_count: 1,
+      limecore_policy_snapshot_statuses: [
+        { status: "local_defaults_evaluated", count: 1 },
+      ],
+      limecore_policy_decisions: ["allow"],
       blocked_count: 0,
       routing_outcomes: [{ outcome: "accepted", count: 1 }],
       model_registry_assessment_count: 0,
@@ -222,6 +240,15 @@ function buildCompletedAudioTaskIndex(): ListMediaTaskArtifactsOutput {
           routing_slot: "voice_generation_model",
           provider_id: "limecore",
           model: "voice-pro",
+          execution_profile_key: "voice_generation_profile",
+          executor_adapter_key: "service_skill:voice_runtime",
+          limecore_policy_refs: [
+            "client_scenes",
+            "tenant_feature_flags",
+            "provider_offer",
+          ],
+          limecore_policy_snapshot_status: "local_defaults_evaluated",
+          limecore_policy_decision: "allow",
           routing_event: "task_created",
           routing_outcome: "accepted",
           failure_code: null,
@@ -237,6 +264,41 @@ function buildCompletedAudioTaskIndex(): ListMediaTaskArtifactsOutput {
   };
 }
 
+function buildCompletedAudioTaskIndexWithPolicyInputGap(): ListMediaTaskArtifactsOutput {
+  const output = buildCompletedAudioTaskIndex();
+  const pendingRefs = [
+    "client_scenes",
+    "tenant_feature_flags",
+    "provider_offer",
+  ];
+  output.modality_runtime_contracts = {
+    ...output.modality_runtime_contracts,
+    limecore_policy_evaluation_statuses: [{ status: "input_gap", count: 1 }],
+    limecore_policy_evaluation_decisions: ["ask"],
+    limecore_policy_evaluation_decision_sources: ["policy_input_evaluator"],
+    limecore_policy_evaluation_blocking_refs: [],
+    limecore_policy_evaluation_ask_refs: pendingRefs,
+    limecore_policy_evaluation_pending_refs: pendingRefs,
+    limecore_policy_missing_inputs: pendingRefs,
+    limecore_policy_pending_hit_refs: pendingRefs,
+    snapshots: output.modality_runtime_contracts.snapshots.map((snapshot) => ({
+      ...snapshot,
+      limecore_policy_evaluation_status: "input_gap",
+      limecore_policy_evaluation_decision: "ask",
+      limecore_policy_evaluation_decision_source: "policy_input_evaluator",
+      limecore_policy_evaluation_decision_scope: "pending_policy_inputs",
+      limecore_policy_evaluation_decision_reason:
+        "declared_policy_refs_missing_inputs",
+      limecore_policy_evaluation_blocking_refs: [],
+      limecore_policy_evaluation_ask_refs: pendingRefs,
+      limecore_policy_evaluation_pending_refs: pendingRefs,
+      limecore_policy_missing_inputs: pendingRefs,
+      limecore_policy_pending_hit_refs: pendingRefs,
+    })),
+  };
+  return output;
+}
+
 function buildFailedAudioTaskIndex(): ListMediaTaskArtifactsOutput {
   return {
     ...buildEmptyAudioTaskIndex(),
@@ -244,6 +306,18 @@ function buildFailedAudioTaskIndex(): ListMediaTaskArtifactsOutput {
     modality_runtime_contracts: {
       snapshot_count: 1,
       contract_keys: ["voice_generation"],
+      execution_profile_keys: ["voice_generation_profile"],
+      executor_adapter_keys: ["service_skill:voice_runtime"],
+      limecore_policy_refs: [
+        "client_scenes",
+        "tenant_feature_flags",
+        "provider_offer",
+      ],
+      limecore_policy_snapshot_count: 1,
+      limecore_policy_snapshot_statuses: [
+        { status: "local_defaults_evaluated", count: 1 },
+      ],
+      limecore_policy_decisions: ["allow"],
       blocked_count: 0,
       routing_outcomes: [{ outcome: "failed", count: 1 }],
       model_registry_assessment_count: 0,
@@ -262,6 +336,15 @@ function buildFailedAudioTaskIndex(): ListMediaTaskArtifactsOutput {
           routing_slot: "voice_generation_model",
           provider_id: "missing-provider",
           model: "voice-pro",
+          execution_profile_key: "voice_generation_profile",
+          executor_adapter_key: "service_skill:voice_runtime",
+          limecore_policy_refs: [
+            "client_scenes",
+            "tenant_feature_flags",
+            "provider_offer",
+          ],
+          limecore_policy_snapshot_status: "local_defaults_evaluated",
+          limecore_policy_decision: "allow",
           routing_event: "task_created",
           routing_outcome: "failed",
           failure_code: "audio_provider_unconfigured",
@@ -371,6 +454,24 @@ describe("useWorkspaceAudioTaskPreviewRuntime", () => {
         model: "voice-pro",
         statusMessage:
           "音频结果已同步，工作区已从 audio_output 读取可播放结果。",
+      });
+    });
+    expect(getMediaTaskArtifact).not.toHaveBeenCalled();
+  });
+
+  it("应从统一媒体任务索引把 LimeCore policy input gap 恢复到任务卡 meta", async () => {
+    vi.mocked(listMediaTaskArtifacts).mockResolvedValueOnce(
+      buildCompletedAudioTaskIndexWithPolicyInputGap(),
+    );
+    const { render, getMessages } = renderHook();
+
+    await render();
+
+    await vi.waitFor(() => {
+      expect(getMessages()[0]?.taskPreview).toMatchObject({
+        kind: "audio_generate",
+        status: "complete",
+        metaItems: expect.arrayContaining(["LimeCore 策略输入待命中: 3"]),
       });
     });
     expect(getMediaTaskArtifact).not.toHaveBeenCalled();

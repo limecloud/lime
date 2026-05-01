@@ -7,6 +7,12 @@ import type {
   AgentRuntimeEvidenceBackendCount,
   AgentRuntimeEvidenceBrowserActionItem,
   AgentRuntimeEvidenceBrowserActionIndex,
+  AgentRuntimeEvidenceDecisionCount,
+  AgentRuntimeEvidenceLimeCorePolicyEvaluation,
+  AgentRuntimeEvidenceLimeCorePolicyIndex,
+  AgentRuntimeEvidenceLimeCorePolicyInput,
+  AgentRuntimeEvidenceLimeCorePolicyItem,
+  AgentRuntimeEvidenceLimeCorePolicyValueHit,
   AgentRuntimeEvidencePack,
   AgentRuntimeEvidenceStatusCount,
   AgentRuntimeHandoffArtifact,
@@ -207,6 +213,24 @@ function normalizeEvidenceBackendCount(
   };
 }
 
+function normalizeEvidenceDecisionCount(
+  value: unknown,
+): AgentRuntimeEvidenceDecisionCount | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const decision = readStringField(value, "decision");
+  if (!decision) {
+    return null;
+  }
+
+  return {
+    decision,
+    count: readNumberField(value, "count"),
+  };
+}
+
 function normalizeBrowserActionItem(
   value: unknown,
 ): AgentRuntimeEvidenceBrowserActionItem | null {
@@ -340,6 +364,265 @@ function normalizeBrowserActionIndex(
   return index;
 }
 
+function normalizeLimeCorePolicyItem(
+  value: unknown,
+): AgentRuntimeEvidenceLimeCorePolicyItem | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const refs = readStringListField(value, "refs");
+  const evaluatedRefs = readStringListField(
+    value,
+    "evaluatedRefs",
+    "evaluated_refs",
+  );
+  const unresolvedRefs = readStringListField(
+    value,
+    "unresolvedRefs",
+    "unresolved_refs",
+  );
+  const missingInputs = readStringListField(
+    value,
+    "missingInputs",
+    "missing_inputs",
+  );
+  const policyInputs = readArrayField(value, "policyInputs", "policy_inputs")
+    .map((entry: unknown) => normalizeLimeCorePolicyInput(entry))
+    .filter(Boolean) as AgentRuntimeEvidenceLimeCorePolicyInput[];
+  const pendingHitRefs = readStringListField(
+    value,
+    "pendingHitRefs",
+    "pending_hit_refs",
+  );
+  const policyValueHits = readArrayField(
+    value,
+    "policyValueHits",
+    "policy_value_hits",
+  )
+    .map((entry: unknown) => normalizeLimeCorePolicyValueHit(entry))
+    .filter(Boolean) as AgentRuntimeEvidenceLimeCorePolicyValueHit[];
+  const hasPolicyValueHitsField =
+    "policyValueHits" in value || "policy_value_hits" in value;
+  const policyValueHitCount =
+    readOptionalNumberField(
+      value,
+      "policyValueHitCount",
+      "policy_value_hit_count",
+    ) ?? (hasPolicyValueHitsField ? policyValueHits.length : undefined);
+  const policyEvaluation = normalizeLimeCorePolicyEvaluation(
+    value.policyEvaluation ?? value.policy_evaluation,
+  );
+  const item: AgentRuntimeEvidenceLimeCorePolicyItem = {
+    artifact_path: readOptionalStringField(
+      value,
+      "artifactPath",
+      "artifact_path",
+    ),
+    contract_key: readOptionalStringField(value, "contractKey", "contract_key"),
+    execution_profile_key: readOptionalStringField(
+      value,
+      "executionProfileKey",
+      "execution_profile_key",
+    ),
+    executor_adapter_key: readOptionalStringField(
+      value,
+      "executorAdapterKey",
+      "executor_adapter_key",
+    ),
+    refs,
+    status: readOptionalStringField(value, "status"),
+    decision: readOptionalStringField(value, "decision"),
+    decision_source: readOptionalStringField(
+      value,
+      "decisionSource",
+      "decision_source",
+    ),
+    decision_scope: readOptionalStringField(
+      value,
+      "decisionScope",
+      "decision_scope",
+    ),
+    decision_reason: readOptionalStringField(
+      value,
+      "decisionReason",
+      "decision_reason",
+    ),
+    ...(evaluatedRefs.length > 0 ? { evaluated_refs: evaluatedRefs } : {}),
+    ...(unresolvedRefs.length > 0 ? { unresolved_refs: unresolvedRefs } : {}),
+    ...(missingInputs.length > 0 ? { missing_inputs: missingInputs } : {}),
+    ...(policyInputs.length > 0 ? { policy_inputs: policyInputs } : {}),
+    ...(pendingHitRefs.length > 0 ? { pending_hit_refs: pendingHitRefs } : {}),
+    ...(hasPolicyValueHitsField ? { policy_value_hits: policyValueHits } : {}),
+    ...(policyValueHitCount !== undefined
+      ? { policy_value_hit_count: policyValueHitCount }
+      : {}),
+    ...(policyEvaluation ? { policy_evaluation: policyEvaluation } : {}),
+    source: readOptionalStringField(value, "source"),
+  };
+
+  const hasReadableField =
+    refs.length > 0 ||
+    Object.entries(item).some(
+      ([key, field]) => key !== "refs" && field !== undefined && field !== "",
+    );
+
+  return hasReadableField ? item : null;
+}
+
+function normalizeLimeCorePolicyEvaluation(
+  value: unknown,
+): AgentRuntimeEvidenceLimeCorePolicyEvaluation | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const evaluation: AgentRuntimeEvidenceLimeCorePolicyEvaluation = {
+    status: readOptionalStringField(value, "status"),
+    decision: readOptionalStringField(value, "decision"),
+    decision_source: readOptionalStringField(
+      value,
+      "decisionSource",
+      "decision_source",
+    ),
+    decision_scope: readOptionalStringField(
+      value,
+      "decisionScope",
+      "decision_scope",
+    ),
+    decision_reason: readOptionalStringField(
+      value,
+      "decisionReason",
+      "decision_reason",
+    ),
+    blocking_refs: readStringListField(value, "blockingRefs", "blocking_refs"),
+    ask_refs: readStringListField(value, "askRefs", "ask_refs"),
+    pending_refs: readStringListField(value, "pendingRefs", "pending_refs"),
+  };
+
+  return Object.values(evaluation).some((field) =>
+    Array.isArray(field) ? field.length > 0 : Boolean(field),
+  )
+    ? evaluation
+    : undefined;
+}
+
+function normalizeLimeCorePolicyInput(
+  value: unknown,
+): AgentRuntimeEvidenceLimeCorePolicyInput | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const refKey =
+    readOptionalStringField(value, "refKey", "ref_key") ??
+    readOptionalStringField(value, "ref");
+  if (!refKey) {
+    return null;
+  }
+
+  return {
+    ref_key: refKey,
+    status: readOptionalStringField(value, "status"),
+    source: readOptionalStringField(value, "source"),
+    value_source: readOptionalStringField(value, "valueSource", "value_source"),
+  };
+}
+
+function normalizeLimeCorePolicyValueHit(
+  value: unknown,
+): AgentRuntimeEvidenceLimeCorePolicyValueHit | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const refKey =
+    readOptionalStringField(value, "refKey", "ref_key") ??
+    readOptionalStringField(value, "ref");
+  if (!refKey) {
+    return null;
+  }
+
+  return {
+    ref_key: refKey,
+    status: readOptionalStringField(value, "status"),
+    source: readOptionalStringField(value, "source"),
+    value_source: readOptionalStringField(value, "valueSource", "value_source"),
+    value:
+      value.value !== undefined
+        ? value.value
+        : value.policyValue !== undefined
+          ? value.policyValue
+          : value.policy_value,
+    summary: readOptionalStringField(value, "summary"),
+    evidence_ref: readOptionalStringField(value, "evidenceRef", "evidence_ref"),
+    observed_at: readOptionalStringField(value, "observedAt", "observed_at"),
+  };
+}
+
+function normalizeLimeCorePolicyIndex(
+  value: unknown,
+): AgentRuntimeEvidenceLimeCorePolicyIndex | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const rawStatusCounts = readArrayField(
+    value,
+    "statusCounts",
+    "status_counts",
+  );
+  const rawDecisionCounts = readArrayField(
+    value,
+    "decisionCounts",
+    "decision_counts",
+  );
+  const rawItems = readArrayField(value, "items");
+  const index: AgentRuntimeEvidenceLimeCorePolicyIndex = {
+    snapshot_count: readNumberField(value, "snapshotCount", "snapshot_count"),
+    ref_keys: readStringListField(value, "refKeys", "ref_keys"),
+    missing_inputs: readStringListField(
+      value,
+      "missingInputs",
+      "missing_inputs",
+    ),
+    pending_hit_refs: readStringListField(
+      value,
+      "pendingHitRefs",
+      "pending_hit_refs",
+    ),
+    policy_value_hit_count: readNumberField(
+      value,
+      "policyValueHitCount",
+      "policy_value_hit_count",
+    ),
+    status_counts: rawStatusCounts
+      .map((entry: unknown) => normalizeEvidenceStatusCount(entry))
+      .filter(Boolean) as AgentRuntimeEvidenceStatusCount[],
+    decision_counts: rawDecisionCounts
+      .map((entry: unknown) => normalizeEvidenceDecisionCount(entry))
+      .filter(Boolean) as AgentRuntimeEvidenceDecisionCount[],
+    items: rawItems
+      .map((entry: unknown) => normalizeLimeCorePolicyItem(entry))
+      .filter(Boolean) as AgentRuntimeEvidenceLimeCorePolicyItem[],
+  };
+
+  if (
+    index.snapshot_count === 0 &&
+    index.ref_keys.length === 0 &&
+    (index.missing_inputs?.length ?? 0) === 0 &&
+    (index.pending_hit_refs?.length ?? 0) === 0 &&
+    (index.policy_value_hit_count ?? 0) === 0 &&
+    index.status_counts.length === 0 &&
+    index.decision_counts.length === 0 &&
+    index.items.length === 0
+  ) {
+    return undefined;
+  }
+
+  return index;
+}
+
 function normalizeEvidenceModalityRuntimeContracts(value: unknown) {
   if (!isRecord(value)) {
     return undefined;
@@ -359,23 +642,39 @@ function normalizeEvidenceModalityRuntimeContracts(value: unknown) {
         )
       : undefined,
   );
+  const limeCorePolicyIndex = normalizeLimeCorePolicyIndex(
+    snapshotIndexRecord
+      ? readRecordField(
+          snapshotIndexRecord,
+          "limecorePolicyIndex",
+          "limecore_policy_index",
+        )
+      : undefined,
+  );
   const snapshotCount = readNumberField(
     value,
     "snapshotCount",
     "snapshot_count",
   );
 
-  if (snapshotCount === 0 && !browserActionIndex) {
+  if (snapshotCount === 0 && !browserActionIndex && !limeCorePolicyIndex) {
     return undefined;
   }
+  const snapshotIndex =
+    browserActionIndex || limeCorePolicyIndex
+      ? {
+          ...(browserActionIndex
+            ? { browser_action_index: browserActionIndex }
+            : {}),
+          ...(limeCorePolicyIndex
+            ? { limecore_policy_index: limeCorePolicyIndex }
+            : {}),
+        }
+      : undefined;
 
   return {
     snapshot_count: snapshotCount,
-    snapshot_index: browserActionIndex
-      ? {
-          browser_action_index: browserActionIndex,
-        }
-      : undefined,
+    snapshot_index: snapshotIndex,
   };
 }
 

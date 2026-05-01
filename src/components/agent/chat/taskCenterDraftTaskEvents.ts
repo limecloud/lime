@@ -3,14 +3,20 @@ export const TASK_CENTER_CREATE_DRAFT_TASK_EVENT =
 export const TASK_CENTER_OPEN_TASK_EVENT = "lime:task-center:open-task";
 export const TASK_CENTER_PREFETCH_TASK_EVENT = "lime:task-center:prefetch-task";
 
+export type TaskCenterTaskEventSource =
+  | "sidebar"
+  | "sidebar_search"
+  | "conversation_shelf"
+  | "tab_strip";
+
 export interface TaskCenterCreateDraftTaskDetail {
-  source?: "sidebar" | "conversation_shelf" | "tab_strip";
+  source?: TaskCenterTaskEventSource;
 }
 
 export interface TaskCenterOpenTaskDetail {
   sessionId: string;
   workspaceId?: string | null;
-  source?: "sidebar" | "conversation_shelf" | "tab_strip";
+  source?: TaskCenterTaskEventSource;
 }
 
 export type TaskCenterPrefetchTaskDetail = TaskCenterOpenTaskDetail;

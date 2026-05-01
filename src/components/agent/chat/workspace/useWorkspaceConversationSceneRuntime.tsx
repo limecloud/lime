@@ -301,6 +301,12 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   creationReplaySurface?: CreationReplaySurfaceModel | null;
   defaultCuratedTaskReferenceMemoryIds?: ConversationScenePresentationParams["scene"]["defaultCuratedTaskReferenceMemoryIds"];
   defaultCuratedTaskReferenceEntries?: ConversationScenePresentationParams["scene"]["defaultCuratedTaskReferenceEntries"];
+  pathReferences?: ConversationScenePresentationParams["scene"]["pathReferences"];
+  onAddPathReferences?: ConversationScenePresentationParams["scene"]["onAddPathReferences"];
+  onRemovePathReference?: ConversationScenePresentationParams["scene"]["onRemovePathReference"];
+  onClearPathReferences?: ConversationScenePresentationParams["scene"]["onClearPathReferences"];
+  fileManagerOpen?: ConversationScenePresentationParams["scene"]["fileManagerOpen"];
+  onToggleFileManager?: ConversationScenePresentationParams["scene"]["onToggleFileManager"];
   sceneAppExecutionSummaryCard?: ConversationScenePresentationParams["scene"]["sceneAppExecutionSummaryCard"];
   serviceSkillExecutionCard?: ConversationScenePresentationParams["scene"]["serviceSkillExecutionCard"];
   contextWorkspaceEnabled: boolean;
@@ -456,6 +462,12 @@ export function useWorkspaceConversationSceneRuntime({
   creationReplaySurface,
   defaultCuratedTaskReferenceMemoryIds,
   defaultCuratedTaskReferenceEntries,
+  pathReferences,
+  onAddPathReferences,
+  onRemovePathReference,
+  onClearPathReferences,
+  fileManagerOpen,
+  onToggleFileManager,
   sceneAppExecutionSummaryCard,
   serviceSkillExecutionCard,
   contextWorkspaceEnabled,
@@ -1000,6 +1012,12 @@ export function useWorkspaceConversationSceneRuntime({
       creationReplaySurface,
       defaultCuratedTaskReferenceMemoryIds,
       defaultCuratedTaskReferenceEntries,
+      pathReferences,
+      onAddPathReferences,
+      onRemovePathReference,
+      onClearPathReferences,
+      fileManagerOpen,
+      onToggleFileManager,
       sceneAppExecutionSummaryCard,
       serviceSkillExecutionCard,
       showChatLayout: shellChromeRuntime.showChatLayout,

@@ -15,6 +15,8 @@ interface WorkspaceShellSceneProps {
   showSidebar: boolean;
   showGeneralWorkbenchLeftExpandButton: boolean;
   onExpandGeneralWorkbenchSidebar: () => void;
+  fileManagerNode?: ReactNode;
+  fileManagerToggleNode?: ReactNode;
   mainAreaNode: ReactNode;
   sidebarContextVariant?: ComponentProps<typeof ChatSidebar>["contextVariant"];
   currentTopicId: ComponentProps<typeof ChatSidebar>["currentTopicId"];
@@ -60,6 +62,8 @@ export function WorkspaceShellScene({
   showSidebar,
   showGeneralWorkbenchLeftExpandButton,
   onExpandGeneralWorkbenchSidebar,
+  fileManagerNode,
+  fileManagerToggleNode,
   mainAreaNode,
   sidebarContextVariant = "default",
   currentTopicId,
@@ -134,6 +138,8 @@ export function WorkspaceShellScene({
           <PanelLeftOpen size={14} />
         </GeneralWorkbenchLeftExpandButton>
       ) : null}
+      {fileManagerNode}
+      {fileManagerToggleNode}
 
       {mainAreaNode}
     </PageContainer>

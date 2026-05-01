@@ -38,6 +38,7 @@ interface UseWorkspaceTopicSwitchParams {
     topicId: string,
     options?: TopicSwitchOptions,
   ) => Promise<unknown>;
+  onBeforeTopicSwitch?: (topicId: string) => void;
   startTopicProjectResolution: () => boolean;
   finishTopicProjectResolution: () => void;
   deferTopicSwitch: (
@@ -58,6 +59,7 @@ export function useWorkspaceTopicSwitch({
   projectId,
   externalProjectId,
   originalSwitchTopic,
+  onBeforeTopicSwitch,
   startTopicProjectResolution,
   finishTopicProjectResolution,
   deferTopicSwitch,
@@ -68,7 +70,11 @@ export function useWorkspaceTopicSwitch({
   resetTopicLocalState,
 }: UseWorkspaceTopicSwitchParams) {
   const runTopicSwitch = useCallback(
-    async (topicId: string, options?: TopicSwitchOptions) => {
+    async (
+      topicId: string,
+      options?: TopicSwitchOptions,
+      runOptions?: { skipBeforeSwitch?: boolean },
+    ) => {
       const forwardedOptions =
         options?.forceRefresh === true ||
         options?.resumeSessionStartHooks === true ||
@@ -90,6 +96,9 @@ export function useWorkspaceTopicSwitch({
         forceRefresh: options?.forceRefresh === true,
         topicId,
       });
+      if (runOptions?.skipBeforeSwitch !== true) {
+        onBeforeTopicSwitch?.(topicId);
+      }
       resetTopicLocalState();
       try {
         if (forwardedOptions) {
@@ -119,7 +128,7 @@ export function useWorkspaceTopicSwitch({
         throw error;
       }
     },
-    [originalSwitchTopic, projectId, resetTopicLocalState],
+    [onBeforeTopicSwitch, originalSwitchTopic, projectId, resetTopicLocalState],
   );
 
   const switchTopic = useCallback(
@@ -148,6 +157,7 @@ export function useWorkspaceTopicSwitch({
       };
 
       try {
+        onBeforeTopicSwitch?.(topicId);
         const currentProjectId = normalizeProjectId(projectId);
         const topicBoundProjectId = normalizeProjectId(
           loadTopicBoundProjectId(topicId),
@@ -170,7 +180,7 @@ export function useWorkspaceTopicSwitch({
             topicId,
           });
           finishResolutionIfNeeded();
-          await runTopicSwitch(topicId, options);
+          await runTopicSwitch(topicId, options, { skipBeforeSwitch: true });
           return "success" as const;
         }
 
@@ -234,7 +244,7 @@ export function useWorkspaceTopicSwitch({
 
         rememberProjectId(targetProjectId);
         finishResolutionIfNeeded();
-        await runTopicSwitch(topicId, options);
+        await runTopicSwitch(topicId, options, { skipBeforeSwitch: true });
         return "success" as const;
       } catch (error) {
         console.error("[AgentChatPage] 解析任务项目失败:", error);
@@ -262,6 +272,7 @@ export function useWorkspaceTopicSwitch({
       finishTopicProjectResolution,
       getRememberedProjectId,
       loadTopicBoundProjectId,
+      onBeforeTopicSwitch,
       projectId,
       rememberProjectId,
       runTopicSwitch,

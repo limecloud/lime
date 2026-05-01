@@ -61,6 +61,7 @@ import {
   notifyTaskCenterTaskPrefetch,
   notifyTaskCenterTaskOpen,
   requestTaskCenterDraftTask,
+  type TaskCenterPrefetchTaskDetail,
 } from "@/components/agent/chat/taskCenterDraftTaskEvents";
 import {
   deleteAgentRuntimeSession,
@@ -86,6 +87,7 @@ import { Modal } from "@/components/Modal";
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
+import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
 import { AppSidebarConversationShelf } from "@/components/app-sidebar/AppSidebarConversationShelf";
 import {
   formatSidebarSessionMeta,
@@ -165,13 +167,18 @@ interface AppSidebarProps {
 type SidebarNavItem = SidebarNavItemDefinition;
 
 const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
+const APP_SIDEBAR_COLLAPSE_EVENT = "lime:app-sidebar-collapse";
 const SIDEBAR_PLUGIN_CENTER_NAV_ITEM_ID = "plugins";
 const SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS = 1200;
 const SIDEBAR_PLUGIN_BROWSER_IDLE_TIMEOUT_MS = 6000;
 const SIDEBAR_RECENT_SESSION_PAGE_SIZE = 10;
 const SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE = 8;
 const SIDEBAR_SEARCH_RESULT_LIMIT = 8;
-const SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS = 12_000;
+const SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS = 30_000;
+const SIDEBAR_SESSION_LOAD_RESTART_DEFER_MS = 160;
+const SIDEBAR_CONVERSATION_NAVIGATION_DEFER_MS =
+  SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS;
+const SIDEBAR_SEARCH_HOVER_PREFETCH_DELAY_MS = 900;
 
 const APP_SIDEBAR_LANGUAGE_OPTIONS: Array<{
   id: Language;
@@ -696,9 +703,7 @@ const SidebarSearchResultButton = styled.button<{ $active?: boolean }>`
   min-height: 54px;
   border: 1px solid
     ${({ $active }) =>
-      $active
-        ? "var(--lime-card-subtle-border, #bbf7d0)"
-        : "transparent"};
+      $active ? "var(--lime-card-subtle-border, #bbf7d0)" : "transparent"};
   border-radius: 16px;
   background: ${({ $active }) =>
     $active ? "var(--lime-surface-hover, #f4fdf4)" : "transparent"};
@@ -718,6 +723,17 @@ const SidebarSearchResultButton = styled.button<{ $active?: boolean }>`
     border-color: var(--lime-card-subtle-border, rgba(187, 247, 208, 0.92));
     background: var(--lime-surface-hover, #f4fdf4);
     color: var(--lime-text-strong, #0f172a);
+  }
+
+  &:disabled {
+    cursor: progress;
+    opacity: 0.58;
+  }
+
+  &:disabled:hover {
+    border-color: transparent;
+    background: transparent;
+    color: var(--lime-text, #1a3b2b);
   }
 
   svg {
@@ -2344,6 +2360,49 @@ export function AppSidebar({
       window.localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY) === "true"
     );
   });
+  const collapsedRef = useRef(collapsed);
+  const collapseRestoreBySourceRef = useRef<Record<string, boolean>>({});
+  useEffect(() => {
+    collapsedRef.current = collapsed;
+  }, [collapsed]);
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleCollapseRequest = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ collapsed?: boolean; source?: string }>
+      ).detail;
+      const source = detail?.source?.trim();
+      if (source) {
+        if (detail?.collapsed === false) {
+          const previous = collapseRestoreBySourceRef.current[source];
+          delete collapseRestoreBySourceRef.current[source];
+          if (typeof previous === "boolean") {
+            setCollapsed(previous);
+          }
+          return;
+        }
+
+        if (!(source in collapseRestoreBySourceRef.current)) {
+          collapseRestoreBySourceRef.current[source] = collapsedRef.current;
+        }
+        setCollapsed(true);
+        return;
+      }
+
+      setCollapsed(detail?.collapsed ?? true);
+    };
+
+    window.addEventListener(APP_SIDEBAR_COLLAPSE_EVENT, handleCollapseRequest);
+    return () => {
+      window.removeEventListener(
+        APP_SIDEBAR_COLLAPSE_EVENT,
+        handleCollapseRequest,
+      );
+    };
+  }, []);
   const [themeState, setThemeState] = useState<{
     themeMode: LimeThemeMode;
     effectiveThemeMode: LimeEffectiveThemeMode;
@@ -2420,10 +2479,42 @@ export function AppSidebar({
     useState(SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE);
   const [archivedSessionsCollapsed, setArchivedSessionsCollapsed] =
     useState(true);
+  const conversationNavigationDeferUntilRef = useRef(0);
+  const recentSidebarLoadInFlightRef = useRef(false);
+  const recentSidebarReloadPendingRef = useRef(false);
+  const recentSidebarReloadCancelRef = useRef<(() => void) | null>(null);
+  const archivedSidebarLoadInFlightRef = useRef(false);
+  const archivedSidebarReloadPendingRef = useRef(false);
+  const archivedSidebarReloadCancelRef = useRef<(() => void) | null>(null);
+  const sidebarSearchPrefetchTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const sidebarSearchPrefetchSessionRef = useRef<AsterSessionInfo | null>(null);
+  const loadRecentSidebarSessionsRef = useRef<() => Promise<void>>(
+    async () => undefined,
+  );
+  const loadArchivedSidebarSessionsRef = useRef<() => Promise<void>>(
+    async () => undefined,
+  );
   const sidebarSearchInputRef = useRef<HTMLInputElement | null>(null);
   const appearanceControlRef = useRef<HTMLDivElement | null>(null);
   const accountControlRef = useRef<HTMLDivElement | null>(null);
   const reserveWindowControls = shouldReserveMacWindowControls();
+
+  useEffect(() => {
+    return () => {
+      recentSidebarReloadCancelRef.current?.();
+      recentSidebarReloadCancelRef.current = null;
+      archivedSidebarReloadCancelRef.current?.();
+      archivedSidebarReloadCancelRef.current = null;
+      if (sidebarSearchPrefetchTimerRef.current !== null) {
+        clearTimeout(sidebarSearchPrefetchTimerRef.current);
+        sidebarSearchPrefetchTimerRef.current = null;
+        sidebarSearchPrefetchSessionRef.current = null;
+      }
+    };
+  }, []);
+
   const hasCachedCurrentSessionSidebarEntry =
     hasCachedSidebarSessionEntry(
       sidebarSessionsRef.current,
@@ -2442,6 +2533,11 @@ export function AppSidebar({
   }, []);
 
   const closeSidebarSearchDialog = useCallback(() => {
+    if (sidebarSearchPrefetchTimerRef.current !== null) {
+      clearTimeout(sidebarSearchPrefetchTimerRef.current);
+      sidebarSearchPrefetchTimerRef.current = null;
+      sidebarSearchPrefetchSessionRef.current = null;
+    }
     setSidebarSearchOpen(false);
     setSidebarSearchQuery("");
   }, []);
@@ -2882,6 +2978,9 @@ export function AppSidebar({
     if (typeof window === "undefined") {
       return;
     }
+    if (Object.keys(collapseRestoreBySourceRef.current).length > 0) {
+      return;
+    }
 
     window.localStorage.setItem(
       APP_SIDEBAR_COLLAPSED_STORAGE_KEY,
@@ -2944,6 +3043,43 @@ export function AppSidebar({
     [archivedSessionsVisibleCount],
   );
 
+  const scheduleRecentSidebarReload = useCallback((minimumDelayMs: number) => {
+    recentSidebarReloadCancelRef.current?.();
+    recentSidebarReloadCancelRef.current = scheduleMinimumDelayIdleTask(
+      () => {
+        recentSidebarReloadCancelRef.current = null;
+        void loadRecentSidebarSessionsRef.current();
+      },
+      {
+        minimumDelayMs,
+        idleTimeoutMs: Math.max(
+          minimumDelayMs,
+          SIDEBAR_SESSION_LOAD_RESTART_DEFER_MS,
+        ),
+      },
+    );
+  }, []);
+
+  const scheduleArchivedSidebarReload = useCallback(
+    (minimumDelayMs: number) => {
+      archivedSidebarReloadCancelRef.current?.();
+      archivedSidebarReloadCancelRef.current = scheduleMinimumDelayIdleTask(
+        () => {
+          archivedSidebarReloadCancelRef.current = null;
+          void loadArchivedSidebarSessionsRef.current();
+        },
+        {
+          minimumDelayMs,
+          idleTimeoutMs: Math.max(
+            minimumDelayMs,
+            SIDEBAR_SESSION_LOAD_RESTART_DEFER_MS,
+          ),
+        },
+      );
+    },
+    [],
+  );
+
   const loadRecentSidebarSessions = useCallback(async () => {
     if (!shouldLoadWorkspaceScopedConversations) {
       setSidebarSessions([]);
@@ -2952,6 +3088,19 @@ export function AppSidebar({
       return;
     }
 
+    if (recentSidebarLoadInFlightRef.current) {
+      recentSidebarReloadPendingRef.current = true;
+      return;
+    }
+
+    const deferRemainingMs =
+      conversationNavigationDeferUntilRef.current - Date.now();
+    if (deferRemainingMs > 0 && sidebarSessionsRef.current.length > 0) {
+      scheduleRecentSidebarReload(deferRemainingMs);
+      return;
+    }
+
+    recentSidebarLoadInFlightRef.current = true;
     setSidebarSessionsLoading(
       (current) => current || sidebarSessionsRef.current.length === 0,
     );
@@ -2973,15 +3122,20 @@ export function AppSidebar({
       setSidebarSessions([]);
       setSidebarSessionsHasMore(false);
     } finally {
+      recentSidebarLoadInFlightRef.current = false;
       setSidebarSessionsLoading(false);
+      if (recentSidebarReloadPendingRef.current) {
+        recentSidebarReloadPendingRef.current = false;
+        scheduleRecentSidebarReload(SIDEBAR_SESSION_LOAD_RESTART_DEFER_MS);
+      }
     }
   }, [
     currentProjectId,
     recentSessionRequestLimit,
     recentSessionsVisibleCount,
+    scheduleRecentSidebarReload,
     shouldLoadWorkspaceScopedConversations,
   ]);
-  const loadRecentSidebarSessionsRef = useRef(loadRecentSidebarSessions);
   useEffect(() => {
     loadRecentSidebarSessionsRef.current = loadRecentSidebarSessions;
   }, [loadRecentSidebarSessions]);
@@ -2994,6 +3148,19 @@ export function AppSidebar({
       return;
     }
 
+    if (archivedSidebarLoadInFlightRef.current) {
+      archivedSidebarReloadPendingRef.current = true;
+      return;
+    }
+
+    const deferRemainingMs =
+      conversationNavigationDeferUntilRef.current - Date.now();
+    if (deferRemainingMs > 0 && archivedSidebarSessionsRef.current.length > 0) {
+      scheduleArchivedSidebarReload(deferRemainingMs);
+      return;
+    }
+
+    archivedSidebarLoadInFlightRef.current = true;
     setArchivedSidebarSessionsLoading(
       (current) => current || archivedSidebarSessionsRef.current.length === 0,
     );
@@ -3018,16 +3185,21 @@ export function AppSidebar({
       setArchivedSessionEntries([]);
       setArchivedSessionEntriesHasMore(false);
     } finally {
+      archivedSidebarLoadInFlightRef.current = false;
       setArchivedSidebarSessionsLoading(false);
+      if (archivedSidebarReloadPendingRef.current) {
+        archivedSidebarReloadPendingRef.current = false;
+        scheduleArchivedSidebarReload(SIDEBAR_SESSION_LOAD_RESTART_DEFER_MS);
+      }
     }
   }, [
     archivedSessionRequestLimit,
     archivedSessionsCollapsed,
     archivedSessionsVisibleCount,
     currentProjectId,
+    scheduleArchivedSidebarReload,
     shouldLoadWorkspaceScopedConversations,
   ]);
-  const loadArchivedSidebarSessionsRef = useRef(loadArchivedSidebarSessions);
   useEffect(() => {
     loadArchivedSidebarSessionsRef.current = loadArchivedSidebarSessions;
   }, [loadArchivedSidebarSessions]);
@@ -3388,51 +3560,145 @@ export function AppSidebar({
     return maybeWrapWithTooltip(button, item.label);
   };
 
-  const handleNavigateToConversation = (session: AsterSessionInfo) => {
-    if (isClawTaskCenter) {
-      notifyTaskCenterTaskOpen({
+  const handleNavigateToConversation = useCallback(
+    (session: AsterSessionInfo) => {
+      conversationNavigationDeferUntilRef.current =
+        Date.now() + SIDEBAR_CONVERSATION_NAVIGATION_DEFER_MS;
+
+      if (isClawTaskCenter) {
+        notifyTaskCenterTaskOpen({
+          sessionId: session.id,
+          workspaceId: session.workspace_id ?? currentProjectId ?? null,
+          source: "sidebar",
+        });
+        return;
+      }
+
+      const targetParams = buildClawAgentParams({
+        projectId: session.workspace_id ?? currentProjectId ?? undefined,
+        initialSessionId: session.id,
+      });
+      const target = {
+        page: "agent" as Page,
+        rawParams: targetParams,
+        paramsKey: serializeNavigationParams(targetParams),
+      } satisfies SidebarNavigationTarget;
+
+      if (
+        isSameSidebarNavigationTarget(
+          target,
+          requestedNavigationTargetRef.current.page,
+          requestedNavigationTargetRef.current.rawParams,
+        )
+      ) {
+        return;
+      }
+
+      requestedNavigationTargetRef.current = target;
+      onNavigate(target.page, target.rawParams);
+    },
+    [currentProjectId, isClawTaskCenter, onNavigate],
+  );
+
+  const handlePrefetchConversation = useCallback(
+    (
+      session: AsterSessionInfo,
+      source: TaskCenterPrefetchTaskDetail["source"] = "conversation_shelf",
+    ) => {
+      if (!isAgentWorkspace) {
+        return;
+      }
+
+      notifyTaskCenterTaskPrefetch({
         sessionId: session.id,
         workspaceId: session.workspace_id ?? currentProjectId ?? null,
-        source: "sidebar",
+        source,
       });
+    },
+    [currentProjectId, isAgentWorkspace],
+  );
+
+  const clearSidebarSearchPrefetch = useCallback(() => {
+    if (sidebarSearchPrefetchTimerRef.current === null) {
       return;
     }
 
-    const targetParams = buildClawAgentParams({
-      projectId: session.workspace_id ?? currentProjectId ?? undefined,
-      initialSessionId: session.id,
-    });
-    const target = {
-      page: "agent" as Page,
-      rawParams: targetParams,
-      paramsKey: serializeNavigationParams(targetParams),
-    } satisfies SidebarNavigationTarget;
-
-    if (
-      isSameSidebarNavigationTarget(
-        target,
-        requestedNavigationTargetRef.current.page,
-        requestedNavigationTargetRef.current.rawParams,
-      )
-    ) {
-      return;
+    const session = sidebarSearchPrefetchSessionRef.current;
+    clearTimeout(sidebarSearchPrefetchTimerRef.current);
+    sidebarSearchPrefetchTimerRef.current = null;
+    sidebarSearchPrefetchSessionRef.current = null;
+    if (session) {
+      recordAgentUiPerformanceMetric("sidebar.conversation.prefetchCancelled", {
+        sessionId: session.id,
+        source: "sidebar_search",
+        workspaceId: session.workspace_id ?? currentProjectId ?? null,
+      });
     }
+  }, [currentProjectId]);
 
-    requestedNavigationTargetRef.current = target;
-    onNavigate(target.page, target.rawParams);
-  };
+  const scheduleSidebarSearchPrefetch = useCallback(
+    (session: AsterSessionInfo) => {
+      if (
+        !isAgentWorkspace ||
+        sidebarSessionsLoading ||
+        currentSessionId === session.id ||
+        conversationNavigationDeferUntilRef.current > Date.now()
+      ) {
+        return;
+      }
 
-  const handlePrefetchConversation = (session: AsterSessionInfo) => {
-    if (!isAgentWorkspace) {
-      return;
-    }
+      if (
+        sidebarSearchPrefetchTimerRef.current !== null &&
+        sidebarSearchPrefetchSessionRef.current?.id === session.id
+      ) {
+        return;
+      }
 
-    notifyTaskCenterTaskPrefetch({
-      sessionId: session.id,
-      workspaceId: session.workspace_id ?? currentProjectId ?? null,
-      source: "conversation_shelf",
-    });
-  };
+      clearSidebarSearchPrefetch();
+      sidebarSearchPrefetchSessionRef.current = session;
+      recordAgentUiPerformanceMetric("sidebar.conversation.prefetchScheduled", {
+        sessionId: session.id,
+        source: "sidebar_search",
+        workspaceId: session.workspace_id ?? currentProjectId ?? null,
+      });
+      sidebarSearchPrefetchTimerRef.current = setTimeout(() => {
+        sidebarSearchPrefetchTimerRef.current = null;
+        sidebarSearchPrefetchSessionRef.current = null;
+        recordAgentUiPerformanceMetric("sidebar.conversation.prefetchFired", {
+          sessionId: session.id,
+          source: "sidebar_search",
+          workspaceId: session.workspace_id ?? currentProjectId ?? null,
+        });
+        handlePrefetchConversation(session, "sidebar_search");
+      }, SIDEBAR_SEARCH_HOVER_PREFETCH_DELAY_MS);
+    },
+    [
+      clearSidebarSearchPrefetch,
+      currentProjectId,
+      currentSessionId,
+      handlePrefetchConversation,
+      isAgentWorkspace,
+      sidebarSessionsLoading,
+    ],
+  );
+
+  const handleSidebarSearchResultInteractionEnd = useCallback(() => {
+    clearSidebarSearchPrefetch();
+  }, [clearSidebarSearchPrefetch]);
+
+  const handleSidebarSearchResultFocus = useCallback(
+    (session: AsterSessionInfo) => {
+      scheduleSidebarSearchPrefetch(session);
+    },
+    [scheduleSidebarSearchPrefetch],
+  );
+
+  const handleSidebarSearchResultPointerEnter = useCallback(
+    (session: AsterSessionInfo) => {
+      scheduleSidebarSearchPrefetch(session);
+    },
+    [scheduleSidebarSearchPrefetch],
+  );
 
   const handleNavigateToNewTask = useCallback(() => {
     if (tryOpenTaskCenterDraftFromSidebar()) {
@@ -3467,12 +3733,26 @@ export function AppSidebar({
     handleNavigateToNewTask();
   };
 
-  const handleSidebarSearchNavigateToConversation = (
-    session: AsterSessionInfo,
-  ) => {
-    closeSidebarSearchDialog();
-    handleNavigateToConversation(session);
-  };
+  const handleSidebarSearchNavigateToConversation = useCallback(
+    (session: AsterSessionInfo) => {
+      closeSidebarSearchDialog();
+      recordAgentUiPerformanceMetric("sidebar.conversation.click", {
+        sessionId: session.id,
+        source: "sidebar_search",
+        workspaceId: session.workspace_id ?? currentProjectId ?? null,
+      });
+      handleNavigateToConversation(session);
+    },
+    [closeSidebarSearchDialog, currentProjectId, handleNavigateToConversation],
+  );
+
+  const handleSidebarSearchResultClick = useCallback(
+    (session: AsterSessionInfo) => {
+      clearSidebarSearchPrefetch();
+      handleSidebarSearchNavigateToConversation(session);
+    },
+    [clearSidebarSearchPrefetch, handleSidebarSearchNavigateToConversation],
+  );
 
   const handleRenameConversation = useCallback(
     async (session: AsterSessionInfo) => {
@@ -4447,14 +4727,17 @@ export function AppSidebar({
                       key={session.id}
                       type="button"
                       $active={isCurrentConversation}
-                      aria-current={
-                        isCurrentConversation ? "page" : undefined
-                      }
+                      disabled={sidebarSessionsLoading}
+                      aria-current={isCurrentConversation ? "page" : undefined}
                       title={title}
                       data-testid="app-sidebar-search-result"
-                      onClick={() =>
-                        handleSidebarSearchNavigateToConversation(session)
+                      onBlur={handleSidebarSearchResultInteractionEnd}
+                      onFocus={() => handleSidebarSearchResultFocus(session)}
+                      onPointerEnter={() =>
+                        handleSidebarSearchResultPointerEnter(session)
                       }
+                      onPointerLeave={handleSidebarSearchResultInteractionEnd}
+                      onClick={() => handleSidebarSearchResultClick(session)}
                     >
                       <MessageSquare />
                       <SidebarSearchResultTitle>

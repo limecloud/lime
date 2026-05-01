@@ -57,7 +57,7 @@ import {
 } from "../skill-selection/skillSelectionBindings";
 import type { Character } from "@/lib/api/memory";
 import type { WorkspaceSettings } from "@/types/workspace";
-import type { MessageImage } from "../types";
+import type { MessageImage, MessagePathReference } from "../types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import { isGeneralResearchTheme } from "../utils/generalAgentPrompt";
 import type { AgentAccessMode } from "../hooks/agentChatStorage";
@@ -65,6 +65,11 @@ import {
   getClipboardImageCandidates,
   readImageAttachment,
 } from "../utils/imageAttachments";
+import {
+  buildPathReferenceRequestMetadata,
+  readCustomPathReferencesFromDataTransfer,
+  readSystemPathReferencesFromFiles,
+} from "../utils/pathReferences";
 import {
   resolveInputCapabilityDispatch,
   type InputCapabilitySelection,
@@ -208,7 +213,7 @@ const ScrollCue = styled.a`
   position: absolute;
   left: 50%;
   bottom: clamp(0.7rem, 1.9vh, 1.25rem);
-  z-index: 8;
+  z-index: 0;
   display: grid;
   width: min(680px, calc(100% - 2rem));
   max-width: calc(100% - 2rem);
@@ -224,6 +229,7 @@ const ScrollCue = styled.a`
   line-height: 1;
   text-decoration: none;
   white-space: nowrap;
+  pointer-events: none;
   transition:
     color 160ms ease,
     transform 160ms ease;
@@ -391,6 +397,13 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   defaultCuratedTaskReferenceMemoryIds?: string[];
   /** 当前结果模板默认带入的参考对象 */
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
+  /** 输入框已添加的本地文件/文件夹引用 */
+  pathReferences?: MessagePathReference[];
+  onAddPathReferences?: (references: MessagePathReference[]) => void;
+  onRemovePathReference?: (id: string) => void;
+  onClearPathReferences?: () => void;
+  fileManagerOpen?: boolean;
+  onToggleFileManager?: () => void;
 }
 
 const CREATION_THEMES: string[] = [];
@@ -481,6 +494,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   creationReplaySurface = null,
   defaultCuratedTaskReferenceMemoryIds,
   defaultCuratedTaskReferenceEntries,
+  pathReferences = [],
+  onAddPathReferences,
+  onRemovePathReference,
+  onClearPathReferences,
+  fileManagerOpen = false,
+  onToggleFileManager,
 }) => {
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
   const [activeCapability, setActiveCapability] =
@@ -722,6 +741,60 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     });
   };
 
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleDrop = (event: React.DragEvent) => {
+    const customReferences = readCustomPathReferencesFromDataTransfer(
+      event.dataTransfer,
+    );
+    if (customReferences.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      onAddPathReferences?.(customReferences);
+      return;
+    }
+
+    const files = event.dataTransfer.files;
+    const systemReferences =
+      files && files.length > 0
+        ? readSystemPathReferencesFromFiles(files)
+        : [];
+    if (systemReferences.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      onAddPathReferences?.(systemReferences);
+      return;
+    }
+
+    const imageFiles = getClipboardImageCandidates(event.dataTransfer);
+    if (imageFiles.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      imageFiles.forEach(({ file, mediaType }, index) => {
+        void readImageAttachment(file, mediaType)
+          .then((image) => {
+            setPendingImages((prev) => [...prev, image]);
+            if (index === 0) {
+              toast.success("已添加图片");
+            }
+          })
+          .catch(() => {
+            toast.error(`图片读取失败: ${file.name || "未命名图片"}`);
+          });
+      });
+      return;
+    }
+
+    if (files && files.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      toast.error("无法读取系统文件路径，请从内置文件管理器拖入。");
+    }
+  };
+
   const handleRemoveImage = (index: number) => {
     setPendingImages((prev) =>
       prev.filter((_, currentIndex) => currentIndex !== index),
@@ -729,9 +802,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   };
 
   const handleSend = (inputOverride = input) => {
+    const hasPathReferences = pathReferences.length > 0;
     if (
       isComposerBusy ||
-      (!inputOverride.trim() && pendingImages.length === 0)
+      (!inputOverride.trim() && pendingImages.length === 0 && !hasPathReferences)
     ) {
       return;
     }
@@ -740,23 +814,37 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       activeCapability,
       inputOverride,
     );
+    const requestMetadata = buildPathReferenceRequestMetadata(
+      capabilityDispatch.requestMetadata,
+      pathReferences,
+    );
+    const effectiveInput = inputOverride.trim()
+      ? inputOverride
+      : hasPathReferences
+        ? "请查看这些文件或文件夹。"
+        : inputOverride;
     const sendOptions =
       capabilityDispatch.capabilityRoute ||
       capabilityDispatch.displayContent ||
-      capabilityDispatch.requestMetadata
+      requestMetadata
         ? {
-            capabilityRoute: capabilityDispatch.capabilityRoute,
-            displayContent: capabilityDispatch.displayContent,
-            requestMetadata: capabilityDispatch.requestMetadata,
+            ...(capabilityDispatch.capabilityRoute
+              ? { capabilityRoute: capabilityDispatch.capabilityRoute }
+              : {}),
+            ...(capabilityDispatch.displayContent
+              ? { displayContent: capabilityDispatch.displayContent }
+              : {}),
+            ...(requestMetadata ? { requestMetadata } : {}),
           }
         : undefined;
 
     if (sendOptions) {
-      onSend(inputOverride, executionStrategy, imagesToSend, sendOptions);
+      onSend(effectiveInput, executionStrategy, imagesToSend, sendOptions);
     } else {
-      onSend(inputOverride, executionStrategy, imagesToSend);
+      onSend(effectiveInput, executionStrategy, imagesToSend);
     }
     setPendingImages([]);
+    onClearPathReferences?.();
     clearSelectedSkill?.();
   };
 
@@ -1390,7 +1478,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         pendingImages={pendingImages}
         onFileSelect={handleFileSelect}
         onPaste={handlePaste}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
         onRemoveImage={handleRemoveImage}
+        pathReferences={pathReferences}
+        onRemovePathReference={onRemovePathReference}
+        fileManagerOpen={fileManagerOpen}
+        onToggleFileManager={onToggleFileManager}
         inputSuggestions={
           hasAutoLaunchSiteSkill || guideHelpActive ? [] : homeInputSuggestions
         }

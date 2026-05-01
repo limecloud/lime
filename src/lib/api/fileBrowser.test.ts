@@ -4,6 +4,8 @@ import {
   createDirectoryAtPath,
   createFileAtPath,
   deletePath,
+  getFileIconDataUrl,
+  getFileManagerLocations,
   listDirectory,
   readFilePreview,
   renamePath,
@@ -23,7 +25,16 @@ describe("fileBrowser API", () => {
       .mockResolvedValueOnce({
         path: "~",
         parentPath: null,
-        entries: [],
+        entries: [
+          {
+            name: "Lime.app",
+            path: "/Applications/Lime.app",
+            isDir: true,
+            size: 0,
+            modifiedAt: 1,
+            iconDataUrl: "data:image/png;base64,abc",
+          },
+        ],
         error: null,
       })
       .mockResolvedValueOnce({
@@ -35,7 +46,15 @@ describe("fileBrowser API", () => {
       });
 
     await expect(listDirectory("~")).resolves.toEqual(
-      expect.objectContaining({ path: "~" }),
+      expect.objectContaining({
+        path: "~",
+        entries: [
+          expect.objectContaining({
+            name: "Lime.app",
+            iconDataUrl: "data:image/png;base64,abc",
+          }),
+        ],
+      }),
     );
     await expect(readFilePreview("/tmp/demo.txt", 1024)).resolves.toEqual(
       expect.objectContaining({ path: "/tmp/demo.txt", content: "hello" }),
@@ -57,5 +76,32 @@ describe("fileBrowser API", () => {
       renamePath("/tmp/demo.txt", "/tmp/demo2.txt"),
     ).resolves.toBeUndefined();
     await expect(deletePath("/tmp/demo2.txt", false)).resolves.toBeUndefined();
+  });
+
+  it("应代理文件管理器快捷入口命令", async () => {
+    vi.mocked(safeInvoke).mockResolvedValueOnce([
+      {
+        id: "downloads",
+        label: "下载",
+        path: "/Users/demo/Downloads",
+        kind: "downloads",
+      },
+    ]);
+
+    await expect(getFileManagerLocations()).resolves.toEqual([
+      expect.objectContaining({ id: "downloads", label: "下载" }),
+    ]);
+    expect(safeInvoke).toHaveBeenCalledWith("get_file_manager_locations");
+  });
+
+  it("应代理文件图标异步读取命令", async () => {
+    vi.mocked(safeInvoke).mockResolvedValueOnce("data:image/png;base64,abc");
+
+    await expect(getFileIconDataUrl("/Applications/Lime.app")).resolves.toBe(
+      "data:image/png;base64,abc",
+    );
+    expect(safeInvoke).toHaveBeenCalledWith("get_file_icon_data_url", {
+      path: "/Applications/Lime.app",
+    });
   });
 });

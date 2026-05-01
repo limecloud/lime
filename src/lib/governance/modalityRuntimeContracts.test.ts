@@ -22,8 +22,51 @@ describe("modalityRuntimeContracts", () => {
       runtimeContract: expect.objectContaining({
         contract_key: "image_generation",
         routing_slot: "image_generation_model",
+        limecore_policy_refs: [
+          "model_catalog",
+          "provider_offer",
+          "tenant_feature_flags",
+        ],
+        limecore_policy_snapshot: expect.objectContaining({
+          status: "local_defaults_evaluated",
+          decision: "allow",
+          source: "modality_runtime_contract",
+          decision_source: "local_default_policy",
+          decision_scope: "local_defaults_only",
+          decision_reason: "declared_policy_refs_with_no_local_deny_rule",
+          refs: ["model_catalog", "provider_offer", "tenant_feature_flags"],
+          unresolved_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          missing_inputs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          policy_inputs: expect.arrayContaining([
+            expect.objectContaining({
+              ref_key: "model_catalog",
+              status: "declared_only",
+              value_source: "limecore_pending",
+            }),
+          ]),
+          pending_hit_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          policy_value_hits: [],
+          policy_value_hit_count: 0,
+        }),
       }),
     });
+    expect(contract.limecorePolicyRefs).toEqual([
+      "model_catalog",
+      "provider_offer",
+      "tenant_feature_flags",
+    ]);
     expect(contract.requiredCapabilities).toEqual(
       expect.arrayContaining([
         "text_generation",
@@ -40,6 +83,144 @@ describe("modalityRuntimeContracts", () => {
     expect(isImageGenerationBoundEntrySource("at_image_command")).toBe(true);
     expect(isImageGenerationBoundEntrySource("at_poster_command")).toBe(true);
     expect(isImageGenerationBoundEntrySource("at_video_command")).toBe(false);
+  });
+
+  it("policy value hit seam 应把真实命中值写回同一 snapshot 字段", () => {
+    const contract = resolveImageGenerationRuntimeContractBinding({
+      policyValueHits: [
+        {
+          ref_key: "model_catalog",
+          status: "resolved",
+          source: "limecore_policy_hit_resolver",
+          value_source: "local_model_catalog",
+          summary: "命中 gpt-image-1 的 image_generation capability",
+          value: {
+            model_id: "gpt-image-1",
+            capability: "image_generation",
+          },
+        },
+      ],
+    });
+
+    expect(contract.limecorePolicySnapshot).toMatchObject({
+      evaluated_refs: ["model_catalog"],
+      unresolved_refs: ["provider_offer", "tenant_feature_flags"],
+      missing_inputs: ["provider_offer", "tenant_feature_flags"],
+      pending_hit_refs: ["provider_offer", "tenant_feature_flags"],
+      policy_value_hit_count: 1,
+      policy_value_hits: [
+        expect.objectContaining({
+          ref_key: "model_catalog",
+          status: "resolved",
+          value_source: "local_model_catalog",
+        }),
+      ],
+    });
+    expect(contract.limecorePolicySnapshot.policy_inputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ref_key: "model_catalog",
+          status: "resolved",
+          value_source: "local_model_catalog",
+        }),
+        expect.objectContaining({
+          ref_key: "provider_offer",
+          status: "declared_only",
+          value_source: "limecore_pending",
+        }),
+      ]),
+    );
+    expect(contract.runtimeContract.limecore_policy_snapshot).toBe(
+      contract.limecorePolicySnapshot,
+    );
+  });
+
+  it("policy evaluator seam 应在所有输入命中后给出 resolved allow 决策", () => {
+    const contract = resolveBrowserControlRuntimeContractBinding({
+      policyValueHits: [
+        {
+          ref_key: "tenant_feature_flags",
+          status: "resolved",
+          source: "harness_tenant_feature_flags",
+          value_source: "oem_cloud_bootstrap_features",
+          value: {
+            tenant_id: "tenant-1",
+            flags: {
+              gatewayEnabled: true,
+            },
+          },
+        },
+        {
+          ref_key: "gateway_policy",
+          status: "resolved",
+          source: "harness_oem_routing",
+          value_source: "request_oem_routing",
+          value: {
+            tenant_id: "tenant-1",
+            can_invoke: true,
+            quota_low: false,
+          },
+        },
+      ],
+    });
+
+    expect(contract.limecorePolicySnapshot).toMatchObject({
+      status: "policy_inputs_evaluated",
+      decision: "allow",
+      decision_source: "policy_input_evaluator",
+      decision_scope: "resolved_policy_inputs",
+      decision_reason: "resolved_policy_inputs_with_no_deny_or_ask_signal",
+      missing_inputs: [],
+      pending_hit_refs: [],
+      policy_evaluation: expect.objectContaining({
+        status: "evaluated",
+        decision: "allow",
+        blocking_refs: [],
+        ask_refs: [],
+        pending_refs: [],
+      }),
+    });
+  });
+
+  it("policy evaluator seam 应把 gateway deny 信号转成可审计 deny 决策", () => {
+    const contract = resolveBrowserControlRuntimeContractBinding({
+      policyValueHits: [
+        {
+          ref_key: "tenant_feature_flags",
+          status: "resolved",
+          source: "harness_tenant_feature_flags",
+          value_source: "oem_cloud_bootstrap_features",
+          value: {
+            tenant_id: "tenant-1",
+            flags: {
+              gatewayEnabled: true,
+            },
+          },
+        },
+        {
+          ref_key: "gateway_policy",
+          status: "resolved",
+          source: "harness_oem_routing",
+          value_source: "request_oem_routing",
+          value: {
+            tenant_id: "tenant-1",
+            can_invoke: false,
+          },
+        },
+      ],
+    });
+
+    expect(contract.limecorePolicySnapshot).toMatchObject({
+      status: "policy_inputs_evaluated",
+      decision: "deny",
+      decision_source: "policy_input_evaluator",
+      decision_reason: "resolved_policy_inputs_contain_deny_signal",
+      policy_evaluation: expect.objectContaining({
+        status: "evaluated",
+        decision: "deny",
+        blocking_refs: ["gateway_policy"],
+      }),
+    });
   });
 
   it("browser_control contract 应提供 Browser Assist 底层运行字段", () => {

@@ -18,6 +18,7 @@ import { mapProviderName } from "./agentChatCoreUtils";
 import { handleTurnStreamEvent } from "./agentStreamRuntimeHandler";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import type { StreamRequestState } from "./agentStreamSubmissionLifecycle";
+import { recordAgentStreamPerformanceMetric } from "./agentStreamPerformanceMetrics";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 const STREAM_FIRST_EVENT_TIMEOUT_MS = 12_000;
@@ -153,6 +154,19 @@ export async function registerAgentStreamTurnEventBinding(
   } = options;
 
   requestState.requestStartedAt = Date.now();
+  recordAgentStreamPerformanceMetric(
+    "agentStream.request.start",
+    requestState.performanceTrace,
+    {
+      contentLength: content.trim().length,
+      eventName,
+      expectingQueue,
+      model: effectiveModel,
+      provider: effectiveProviderType,
+      sessionId: activeSessionId,
+      skipUserMessage,
+    },
+  );
   requestState.requestLogId = activityLogger.log({
     eventType: "chat_request_start",
     status: "pending",
@@ -176,6 +190,43 @@ export async function registerAgentStreamTurnEventBinding(
   let firstEventReceived = false;
   let lastEventReceivedAt = 0;
   const warnedUnknownEventTypes = new Set<string>();
+  const markFirstEventReceived = (params: {
+    eventReceivedAt: number;
+    eventType: string;
+    recognized: boolean;
+  }) => {
+    if (firstEventReceived) {
+      return;
+    }
+
+    firstEventReceived = true;
+    requestState.firstEventReceivedAt = params.eventReceivedAt;
+    recordAgentStreamPerformanceMetric(
+      "agentStream.firstEvent",
+      requestState.performanceTrace,
+      {
+        elapsedMs: params.eventReceivedAt - requestState.requestStartedAt,
+        eventName,
+        eventType: params.eventType,
+        recognized: params.recognized,
+        sessionId: activeSessionId,
+        submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
+          ? params.eventReceivedAt - requestState.submissionDispatchedAt
+          : null,
+      },
+    );
+    logAgentDebug("AgentStream", "firstEvent", {
+      elapsedMs: params.eventReceivedAt - requestState.requestStartedAt,
+      eventName,
+      eventType: params.eventType,
+      recognized: params.recognized,
+      sessionId: activeSessionId,
+      submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
+        ? params.eventReceivedAt - requestState.submissionDispatchedAt
+        : null,
+    });
+    clearFirstEventWatchdog();
+  };
   let inactivityWatchdogId: ReturnType<typeof setTimeout> | null = null;
   const clearInactivityWatchdog = () => {
     if (inactivityWatchdogId) {
@@ -194,6 +245,18 @@ export async function registerAgentStreamTurnEventBinding(
 
     firstEventReceived = true;
     lastEventReceivedAt = Date.now();
+    recordAgentStreamPerformanceMetric(
+      "agentStream.firstEventDeferred",
+      requestState.performanceTrace,
+      {
+        elapsedMs: lastEventReceivedAt - requestState.requestStartedAt,
+        eventName,
+        sessionId: activeSessionId,
+        submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
+          ? lastEventReceivedAt - requestState.submissionDispatchedAt
+          : null,
+      },
+    );
     callbacks.activateStream(activeSessionId, effectiveWaitingRuntimeStatus);
     scheduleInactivityWatchdog();
     return true;
@@ -355,19 +418,11 @@ export async function registerAgentStreamTurnEventBinding(
           return;
         }
         if (!firstEventReceived) {
-          firstEventReceived = true;
-          requestState.firstEventReceivedAt = eventReceivedAt;
-          logAgentDebug("AgentStream", "firstEvent", {
-            elapsedMs: eventReceivedAt - requestState.requestStartedAt,
-            eventName,
+          markFirstEventReceived({
+            eventReceivedAt,
             eventType,
             recognized: false,
-            sessionId: activeSessionId,
-            submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
-              ? eventReceivedAt - requestState.submissionDispatchedAt
-              : null,
           });
-          clearFirstEventWatchdog();
         }
         lastEventReceivedAt = eventReceivedAt;
         callbacks.activateStream(
@@ -384,19 +439,11 @@ export async function registerAgentStreamTurnEventBinding(
         return;
       }
       if (!firstEventReceived) {
-        firstEventReceived = true;
-        requestState.firstEventReceivedAt = eventReceivedAt;
-        logAgentDebug("AgentStream", "firstEvent", {
-          elapsedMs: eventReceivedAt - requestState.requestStartedAt,
-          eventName,
+        markFirstEventReceived({
+          eventReceivedAt,
           eventType: data.type,
           recognized: true,
-          sessionId: activeSessionId,
-          submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
-            ? eventReceivedAt - requestState.submissionDispatchedAt
-            : null,
         });
-        clearFirstEventWatchdog();
       }
       lastEventReceivedAt = eventReceivedAt;
 
@@ -452,6 +499,16 @@ export async function registerAgentStreamTurnEventBinding(
   );
 
   requestState.listenerBoundAt = Date.now();
+  recordAgentStreamPerformanceMetric(
+    "agentStream.listenerBound",
+    requestState.performanceTrace,
+    {
+      elapsedMs: requestState.listenerBoundAt - requestState.requestStartedAt,
+      eventName,
+      expectingQueue,
+      sessionId: activeSessionId,
+    },
+  );
   logAgentDebug("AgentStream", "listenerBound", {
     elapsedMs: requestState.listenerBoundAt - requestState.requestStartedAt,
     eventName,

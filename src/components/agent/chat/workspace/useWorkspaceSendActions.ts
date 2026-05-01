@@ -6,6 +6,8 @@ import type {
   ServiceModelPreferenceConfig,
   ServiceModelsConfig,
 } from "@/lib/api/appConfigTypes";
+import type { ConfiguredProvider } from "@/hooks/useConfiguredProviders";
+import { logAgentDebug } from "@/lib/agentDebug";
 import { useGlobalMediaGenerationDefaults } from "@/hooks/useGlobalMediaGenerationDefaults";
 import { getOrCreateDefaultProject } from "@/lib/api/project";
 import { normalizeMediaGenerationPreference } from "@/lib/mediaGeneration";
@@ -60,6 +62,14 @@ import { parseVideoWorkbenchCommand } from "../utils/videoWorkbenchCommand";
 import { parseVoiceWorkbenchCommand } from "../utils/voiceWorkbenchCommand";
 import { parseWritingWorkbenchCommand } from "../utils/writingWorkbenchCommand";
 import { parseWebpageWorkbenchCommand } from "../utils/webpageWorkbenchCommand";
+import {
+  AGENT_FAST_RESPONSE_MODE_STORAGE_KEY,
+  buildAgentFastResponseMetadata,
+  buildAgentFastResponseSystemPrompt,
+  resolveAgentFastResponseModel,
+  type AgentFastResponseDecision,
+  type AgentFastResponseMode,
+} from "../utils/fastResponseModel";
 import { detectBrowserTaskRequirement } from "../utils/browserTaskRequirement";
 import { isTeamRuntimeRecommendation } from "../utils/contextualRecommendations";
 import {
@@ -353,6 +363,66 @@ function resolveServiceModelSendOverrides(params: {
       (serviceScenePreferredProvider && serviceScenePreferredModel
         ? serviceScenePreferredModel
         : undefined),
+  };
+}
+
+function readFastResponseMode(): AgentFastResponseMode {
+  if (typeof window === "undefined") {
+    return "auto";
+  }
+
+  return window.localStorage.getItem(AGENT_FAST_RESPONSE_MODE_STORAGE_KEY) ===
+    "off"
+    ? "off"
+    : "auto";
+}
+
+function withFastResponseMetadata(
+  requestMetadata: Record<string, unknown> | undefined,
+  decision: AgentFastResponseDecision,
+): Record<string, unknown> | undefined {
+  const fastResponseMetadata = buildAgentFastResponseMetadata(decision);
+  if (!fastResponseMetadata) {
+    return requestMetadata;
+  }
+
+  const nextMetadata = { ...(requestMetadata || {}) };
+  const harness = asRecord(nextMetadata.harness) || {};
+  nextMetadata.harness = {
+    ...harness,
+    fast_response_routing: fastResponseMetadata,
+  };
+  return nextMetadata;
+}
+
+function buildFastResponseAssistantDraft(
+  decision: AgentFastResponseDecision,
+): HandleSendOptions["assistantDraft"] {
+  if (!decision.enabled || !decision.modelOverride) {
+    return undefined;
+  }
+
+  const providerLabel = decision.providerOverride || "低延迟 Provider";
+  const modelLabel = decision.modelOverride;
+  const checkpoints = [
+    `已切到 ${providerLabel} / ${modelLabel}`,
+    "仅当前轻量首轮请求生效",
+    "复杂任务仍保留原模型与工具策略",
+  ];
+
+  return {
+    initialRuntimeStatus: {
+      phase: "routing",
+      title: "快速响应已启用",
+      detail: `这轮先用 ${modelLabel} 降低首字等待。`,
+      checkpoints,
+    },
+    waitingRuntimeStatus: {
+      phase: "routing",
+      title: "快速响应处理中",
+      detail: `已提交给 ${modelLabel}，正在等待首个模型事件。`,
+      checkpoints,
+    },
   };
 }
 
@@ -2877,6 +2947,9 @@ interface UseWorkspaceSendActionsParams {
   browserAssistAutoLaunch?: boolean | null;
   workspaceRequestMetadataBase?: Record<string, unknown>;
   serviceModels?: ServiceModelsConfig;
+  currentProviderType?: string | null;
+  currentModel?: string | null;
+  configuredProviders?: ConfiguredProvider[];
   messages: Message[];
   bootstrapDispatchPreview?: InitialDispatchPreviewSnapshot | null;
   sendMessage: SendMessageFn;
@@ -2981,6 +3054,9 @@ export function useWorkspaceSendActions({
   browserAssistAutoLaunch,
   workspaceRequestMetadataBase,
   serviceModels,
+  currentProviderType,
+  currentModel,
+  configuredProviders,
   messages,
   bootstrapDispatchPreview,
   sendMessage,
@@ -3084,13 +3160,24 @@ export function useWorkspaceSendActions({
       autoContinuePayload?: AutoContinueRequestPayload,
       sendOptions?: HandleSendOptions,
     ): Promise<WorkspaceSendResolution> => {
+      const planStartedAt = Date.now();
       const inputCapabilityDispatch = resolveInputCapabilityDispatchContext({
         sourceText: textOverride ?? input,
         capabilityRoute: sendOptions?.capabilityRoute,
         displayContent: sendOptions?.displayContent,
       });
       let sourceText = inputCapabilityDispatch.sourceText;
+      logAgentDebug("WorkspaceSend", "plan.start", {
+        hasAutoContinue: Boolean(autoContinuePayload?.enabled),
+        hasPurpose: Boolean(sendOptions?.purpose),
+        imagesCount: images?.length ?? 0,
+        messagesCount,
+        sourceTextLength: sourceText.trim().length,
+      });
       if (!sourceText.trim() && (!images || images.length === 0)) {
+        logAgentDebug("WorkspaceSend", "plan.empty", {
+          durationMs: Date.now() - planStartedAt,
+        });
         return { kind: "done", result: false };
       }
       let effectiveImages = images || [];
@@ -3249,21 +3336,53 @@ export function useWorkspaceSendActions({
           current?.key === previewKey ? null : current,
         );
       };
-      const primeCommandSessionId = () => {
+      const primeCommandSessionId = (reason = "unspecified") => {
         if (commandSessionId !== undefined) {
+          logAgentDebug("WorkspaceSend", "primeSession.reuseResolved", {
+            reason,
+            sessionId: commandSessionId,
+          });
           return Promise.resolve(commandSessionId);
         }
         if (!commandSessionPromise) {
+          const primeStartedAt = Date.now();
+          logAgentDebug("WorkspaceSend", "primeSession.start", {
+            reason,
+          });
           commandSessionPromise = (async () => {
-            const resolvedSessionId = await ensureSessionForCommandMetadata?.();
-            commandSessionId = resolvedSessionId?.trim() || null;
-            return commandSessionId;
+            try {
+              const resolvedSessionId =
+                await ensureSessionForCommandMetadata?.();
+              commandSessionId = resolvedSessionId?.trim() || null;
+              logAgentDebug("WorkspaceSend", "primeSession.done", {
+                durationMs: Date.now() - primeStartedAt,
+                reason,
+                sessionId: commandSessionId,
+              });
+              return commandSessionId;
+            } catch (error) {
+              logAgentDebug(
+                "WorkspaceSend",
+                "primeSession.error",
+                {
+                  durationMs: Date.now() - primeStartedAt,
+                  error,
+                  reason,
+                },
+                { level: "error" },
+              );
+              throw error;
+            }
           })();
+        } else {
+          logAgentDebug("WorkspaceSend", "primeSession.reusePending", {
+            reason,
+          });
         }
         return commandSessionPromise;
       };
       const ensureCommandSessionId = async () => {
-        return primeCommandSessionId();
+        return primeCommandSessionId("await_binding");
       };
       const markCompletedMentionCommand = (
         commandKey: string,
@@ -3285,8 +3404,13 @@ export function useWorkspaceSendActions({
       };
 
       if (messagesCount === 0) {
+        const previewStartedAt = Date.now();
         ensureSubmissionPreview();
         await waitForNextPaint();
+        logAgentDebug("WorkspaceSend", "initialPreview.paintDone", {
+          durationMs: Date.now() - previewStartedAt,
+          messagesCount,
+        });
       }
 
       const parsedImageWorkbenchCommand =
@@ -5049,7 +5173,9 @@ export function useWorkspaceSendActions({
       try {
         const resolvedSubmissionPreviewKey = ensureSubmissionPreview();
         if (shouldPrimeSessionForInitialConversationSend) {
-          void primeCommandSessionId().catch(() => undefined);
+          void primeCommandSessionId("initial_conversation_send").catch(
+            () => undefined,
+          );
         }
         text = await buildWorkspaceSendText({
           sourceText: dispatchText,
@@ -5074,6 +5200,12 @@ export function useWorkspaceSendActions({
           }
         }
         submissionPreviewKey = resolvedSubmissionPreviewKey;
+        logAgentDebug("WorkspaceSend", "plan.ready", {
+          durationMs: Date.now() - planStartedAt,
+          hasPendingSessionBinding: Boolean(pendingCommandSessionBinding),
+          primedSessionId: commandSessionId ?? null,
+          sourceTextLength: sourceText.trim().length,
+        });
       } catch (error) {
         clearSubmissionPreview();
         throw error;
@@ -5144,15 +5276,26 @@ export function useWorkspaceSendActions({
         completedMentionUsage,
       } = plan;
 
+      const executeStartedAt = Date.now();
+      logAgentDebug("WorkspaceSend", "execute.start", {
+        imagesCount: images.length,
+        messagesCount,
+        sourceTextLength: sourceText.trim().length,
+      });
       setRuntimeTeamDispatchPreview(null);
       setInput("");
       setMentionedCharacters([]);
 
       try {
+        const teamPrepareStartedAt = Date.now();
         const preparedRuntimeTeamState = await _prepareRuntimeTeamBeforeSend({
           input: sourceText,
           purpose: sendOptions?.purpose,
           subagentEnabled: effectiveToolPreferences.subagent,
+        });
+        logAgentDebug("WorkspaceSend", "runtimeTeam.prepareDone", {
+          durationMs: Date.now() - teamPrepareStartedAt,
+          hasPreparedRuntimeTeamState: Boolean(preparedRuntimeTeamState),
         });
         if (preparedRuntimeTeamState) {
           setRuntimeTeamDispatchPreview(
@@ -5192,21 +5335,76 @@ export function useWorkspaceSendActions({
           purpose: sendOptions?.purpose,
           serviceModels,
         });
+        const fastResponseDecision = resolveAgentFastResponseModel({
+          mode: readFastResponseMode(),
+          mappedTheme,
+          isThemeWorkbench,
+          contentId,
+          messageCount: messagesCount,
+          sourceText,
+          imagesCount: images.length,
+          currentProviderType,
+          currentModel,
+          configuredProviders,
+          toolPreferences: effectiveToolPreferences,
+          effectiveWebSearch,
+          effectiveThinking,
+          hasExplicitProviderOverride: Boolean(
+            sendOptions?.providerOverride?.trim(),
+          ),
+          hasExplicitModelOverride: Boolean(sendOptions?.modelOverride?.trim()),
+          hasServiceModelOverride: Boolean(
+            serviceModelSendOverrides.providerOverride ||
+              serviceModelSendOverrides.modelOverride,
+          ),
+          hasCapabilityRoute: Boolean(
+            sendOptions?.capabilityRoute || sendBoundary.browserRequirementMatch,
+          ),
+          hasSkillRequest: Boolean(sendOptions?.skillRequest),
+          hasSelectedTeam: Boolean(selectedTeam),
+          hasMentionedCharacters: mentionedCharacters.length > 0,
+          hasContextWorkspace: Boolean(
+            contextWorkspace.enabled ||
+              contextWorkspace.activeContextPrompt?.trim(),
+          ),
+          hasPurpose: Boolean(sendOptions?.purpose),
+          hasAutoContinue: Boolean(autoContinuePayload?.enabled),
+        });
+        const fastResponseAssistantDraft =
+          sendOptions?.assistantDraft ??
+          buildFastResponseAssistantDraft(fastResponseDecision);
         const nextSendOptions: HandleSendOptions = {
           ...(sendOptions || {}),
           displayContent:
             dispatchText !== sourceText
               ? (sendOptions?.displayContent ?? sourceText)
               : sendOptions?.displayContent,
-          requestMetadata: nextRequestMetadata,
+          requestMetadata: withFastResponseMetadata(
+            nextRequestMetadata,
+            fastResponseDecision,
+          ),
           providerOverride:
             sendOptions?.providerOverride ??
-            serviceModelSendOverrides.providerOverride,
+            serviceModelSendOverrides.providerOverride ??
+            fastResponseDecision.providerOverride,
           modelOverride:
             sendOptions?.modelOverride ??
-            serviceModelSendOverrides.modelOverride,
+            serviceModelSendOverrides.modelOverride ??
+            fastResponseDecision.modelOverride,
+          systemPromptOverride:
+            sendOptions?.systemPromptOverride ??
+            (fastResponseDecision.enabled
+              ? buildAgentFastResponseSystemPrompt()
+              : undefined),
+          assistantDraft: fastResponseAssistantDraft,
         };
 
+        logAgentDebug("WorkspaceSend", "sendMessage.start", {
+          durationMs: Date.now() - executeStartedAt,
+          fastResponseApplied: fastResponseDecision.enabled,
+          modelOverride: nextSendOptions.modelOverride ?? null,
+          providerOverride: nextSendOptions.providerOverride ?? null,
+        });
         await sendMessage(
           text,
           images,
@@ -5218,6 +5416,9 @@ export function useWorkspaceSendActions({
           autoContinuePayload,
           nextSendOptions,
         );
+        logAgentDebug("WorkspaceSend", "sendMessage.done", {
+          durationMs: Date.now() - executeStartedAt,
+        });
 
         if (completedMentionCommandUsage) {
           recordMentionEntryUsage({
@@ -5267,12 +5468,18 @@ export function useWorkspaceSendActions({
       browserAssistAutoLaunch,
       browserAssistPreferredBackend,
       browserAssistProfileKey,
+      configuredProviders,
       contentId,
+      contextWorkspace.activeContextPrompt,
+      contextWorkspace.enabled,
       currentGateKey,
+      currentModel,
+      currentProviderType,
       finalizeAfterSendSuccess,
       isThemeWorkbench,
       mappedTheme,
       messagesCount,
+      mentionedCharacters,
       preferredTeamPresetId,
       rollbackAfterSendFailure,
       selectedTeam,

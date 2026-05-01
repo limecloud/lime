@@ -291,6 +291,26 @@ export interface StopRecordingResult {
   duration: number;
 }
 
+/** 录音快照结果 */
+export interface RecordingSnapshotResult {
+  /** 音频数据（i16 样本的字节数组，小端序） */
+  audio_data: number[];
+  /** 采样率 */
+  sample_rate: number;
+  /** 录音时长（秒） */
+  duration: number;
+}
+
+/** 录音片段结果 */
+export interface RecordingSegmentResult extends RecordingSnapshotResult {
+  /** 片段起始 sample offset */
+  start_sample: number;
+  /** 片段结束 sample offset */
+  end_sample: number;
+  /** 当前录音总 sample 数 */
+  total_samples: number;
+}
+
 /** 开始录音 */
 export async function startRecording(deviceId?: string): Promise<void> {
   return safeInvoke<void>("start_recording", { deviceId });
@@ -299,6 +319,22 @@ export async function startRecording(deviceId?: string): Promise<void> {
 /** 停止录音并返回音频数据 */
 export async function stopRecording(): Promise<StopRecordingResult> {
   return safeInvoke<StopRecordingResult>("stop_recording");
+}
+
+/** 获取当前录音快照，不停止录音 */
+export async function getRecordingSnapshot(): Promise<RecordingSnapshotResult> {
+  return safeInvoke<RecordingSnapshotResult>("get_recording_snapshot");
+}
+
+/** 获取当前录音片段，不停止录音 */
+export async function getRecordingSegment(
+  startSample: number,
+  maxDurationSecs?: number,
+): Promise<RecordingSegmentResult> {
+  return safeInvoke<RecordingSegmentResult>("get_recording_segment", {
+    startSample,
+    maxDurationSecs,
+  });
 }
 
 /** 取消录音 */

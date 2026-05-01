@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { ChevronDown, ChevronUp, Settings2 } from "lucide-react";
+import { ChevronDown, ChevronUp, FolderOpen, Settings2 } from "lucide-react";
 import type { ChatInputAdapter } from "@/components/input-kit/adapters/types";
 import type { Character } from "@/lib/api/memory";
 import type {
   AsterSessionExecutionRuntime,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import type { MessageImage } from "../../../types";
+import type { MessageImage, MessagePathReference } from "../../../types";
 import { CharacterMention } from "../../../skill-selection/CharacterMention";
 import { InputbarCore } from "./InputbarCore";
 import { SkillSelector } from "../../../skill-selection/SkillSelector";
@@ -36,6 +36,7 @@ import type {
 } from "../../../utils/workflowInputState";
 import { Badge } from "@/components/ui/badge";
 import {
+  MetaIconButton,
   MetaToggleButton,
   MetaToggleCheck,
   MetaToggleGlyph,
@@ -74,6 +75,10 @@ interface InputbarComposerSectionProps {
   executionStrategy?: "react" | "code_orchestrated" | "auto";
   pendingImages: MessageImage[];
   onRemoveImage: (index: number) => void;
+  pathReferences?: MessagePathReference[];
+  onRemovePathReference?: (id: string) => void;
+  fileManagerOpen?: boolean;
+  onToggleFileManager?: () => void;
   onPaste: (event: React.ClipboardEvent) => void;
   isFullscreen: boolean;
   isWorkspaceVariant: boolean;
@@ -128,6 +133,10 @@ export const InputbarComposerSection: React.FC<
   executionStrategy,
   pendingImages,
   onRemoveImage,
+  pathReferences = [],
+  onRemovePathReference,
+  fileManagerOpen = false,
+  onToggleFileManager,
   onPaste,
   isFullscreen,
   isWorkspaceVariant,
@@ -211,7 +220,8 @@ export const InputbarComposerSection: React.FC<
     shouldShowTeamSelector ||
     Boolean(setExecutionStrategy) ||
     shouldShowModelControls ||
-    Boolean(setAccessMode);
+    Boolean(setAccessMode) ||
+    Boolean(onToggleFileManager);
   const leftExtra = shouldShowAdvancedToggle ? (
     <>
       <MetaToggleButton
@@ -262,6 +272,23 @@ export const InputbarComposerSection: React.FC<
           onManageProviders={onManageProviders}
           executionRuntime={executionRuntime}
         />
+      ) : null}
+
+      {onToggleFileManager ? (
+        <MetaIconButton
+          type="button"
+          $active={fileManagerOpen}
+          aria-label={
+            fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"
+          }
+          title={
+            fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"
+          }
+          data-testid="inputbar-file-manager-toggle"
+          onClick={onToggleFileManager}
+        >
+          <FolderOpen className="h-4 w-4" aria-hidden />
+        </MetaIconButton>
       ) : null}
 
       {showAdvancedControls ? (
@@ -376,6 +403,8 @@ export const InputbarComposerSection: React.FC<
         activeTools={activeTools}
         pendingImages={currentPendingImages}
         onRemoveImage={onRemoveImage}
+        pathReferences={pathReferences}
+        onRemovePathReference={onRemovePathReference}
         onPaste={onPaste}
         isFullscreen={isFullscreen}
         placeholder={

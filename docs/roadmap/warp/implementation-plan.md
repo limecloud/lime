@@ -1,7 +1,7 @@
 # Warp 对照多模态管理实施计划
 
 > 状态：current planning source
-> 更新时间：2026-04-30
+> 更新时间：2026-05-01
 > 目标：把 [README.md](./README.md) 的路线图拆成自下而上的执行阶段，先建设底层多模态运行合同，再把 `@` 命令、按钮和 Scene 这类上层入口绑定上来。
 
 ## 0. 排序修正
@@ -168,7 +168,7 @@
 
 ## Phase 3：ModalityExecutionProfile
 
-当前落点：见 [execution-profile.md](./execution-profile.md)、`src/lib/governance/modalityExecutionProfiles.json` 与 `src/lib/governance/modalityExecutionProfiles.ts`；最小 profile / executor adapter registry 与前端 launch metadata 快照已落地，真实 Rust runtime policy merge、tenant policy snapshot 与 GUI/evidence 可视化仍待继续。
+当前落点：见 [execution-profile.md](./execution-profile.md)、`src/lib/governance/modalityExecutionProfiles.json` 与 `src/lib/governance/modalityExecutionProfiles.ts`；最小 profile / executor adapter registry、前端 launch metadata、Rust runtime contract snapshot、Evidence / Replay、统一媒体任务索引快照、图片/配音/转写媒体 worker 的最小 adapter preflight，以及 LimeCore policy refs/snapshot 种子已落地；`pending_hit_refs` / `policy_value_hits` / `policy_value_hit_count` 已为真实 policy 命中值预留稳定接线，传入 `status=resolved` hit 时会把对应 ref 计入 `evaluated_refs` 并收缩 `missing_inputs / pending_hit_refs`；图片任务执行前已能从本地 model registry assessment 生成 `model_catalog` hit，并在进入真实执行器前从已解析的 runner config/API key 与 payload provider/model 生成 `provider_offer` hit；Browser Assist 与 Web Research 类 launch 已能从请求侧 `harness.oem_routing` 生成最小 `gateway_policy` hit，Workspace send metadata 也能从 OEM Cloud bootstrap `features` 生成最小 `tenant_feature_flags` hit；最小 `policy_input_evaluator` 已能在所有 refs resolved 时输出 `allow / ask / deny`，`thread_read.runtime_summary.limecorePolicy` 与统一媒体任务索引也已能投影最近一次 policy decision explanation 和 evaluator blocking / ask / pending refs；配音/转写任务卡恢复层已开始消费这些 refs 生成 policy evaluation meta；真实 Rust runtime policy merge、云端 policy evaluator 与更完整 GUI 可视化仍待继续。
 
 ### 目标
 
@@ -264,7 +264,7 @@
 
 ## Phase 5：Executor Adapter 与 Browser typed action
 
-当前落点：见 [execution-profile.md](./execution-profile.md) 与 `src/lib/governance/modalityExecutionProfiles.json` 的 `executor_adapters`；最小 adapter registry 已覆盖 `image_generation`、`browser_control`、`pdf_extract`、`voice_generation`、`audio_transcription`、`web_research`、`text_transform`，前端 runtime contract snapshot 已携带 `executor_adapter`，Rust runtime adapter preflight 仍待继续。
+当前落点：见 [execution-profile.md](./execution-profile.md) 与 `src/lib/governance/modalityExecutionProfiles.json` 的 `executor_adapters`；最小 adapter registry 已覆盖 `image_generation`、`browser_control`、`pdf_extract`、`voice_generation`、`audio_transcription`、`web_research`、`text_transform`，前端 runtime contract snapshot、Rust runtime contract snapshot、Evidence / Replay 与统一媒体任务索引已携带 `executor_adapter` 与最小 LimeCore policy snapshot，其中默认 `policy_value_hits=[]` / `policy_value_hit_count=0` 明确不伪造真实 policy 命中，传入 `status=resolved` hit 时只解释“该控制面输入已命中”；图片/配音/转写媒体 worker 已消费同一事实源做执行前检查，图片 worker 还会在真实执行器前写回最小 `provider_offer` hit，Browser Assist 与 Web Research 类 launch 也会从 `harness.oem_routing` 写回最小 `gateway_policy` hit，Workspace send metadata 会从 OEM Cloud bootstrap `features` 写回最小 `tenant_feature_flags` hit，所有 refs resolved 时会由最小 `policy_input_evaluator` 折叠为 `allow / ask / deny`，并通过 thread read 与统一媒体任务索引暴露 evaluator explanation；Browser / 通用 Skill / Gateway adapter preflight 仍待继续。
 
 ### 目标
 
@@ -305,6 +305,8 @@ Browser Assist 必须收成：
 6. 每个 current contract 的 `executor_binding` 必须能解析到 `executor_kind:binding_key` adapter，且 adapter 的 progress/cancel/resume/artifact 支持位、产物、权限与失败映射必须覆盖 contract。
 
 ## Phase 6：LimeCore 目录与策略接线
+
+当前落点：central runtime contract helper、前端 runtime contract resolver、Evidence Pack 与 `list_media_task_artifacts` 已携带 `limecore_policy_refs` 和最小本地默认 `limecore_policy_snapshot(status=local_defaults_evaluated, decision=allow, decision_source=local_default_policy, decision_scope=local_defaults_only, policy_inputs, missing_inputs, pending_hit_refs, policy_value_hits, policy_value_hit_count)`；这个 `allow` 只表示本地默认策略没有阻断 current 路由。默认 `policy_inputs` 是 `declared_only / limecore_pending` 输入清单，`pending_hit_refs` 指向等待真实值的 refs，`policy_value_hits=[]` / `policy_value_hit_count=0` 明确不伪造真实 tenant / provider / gateway 放行；如果已有 `status=resolved` 命中值，同一 seam 会把对应 ref 写入 `evaluated_refs`，将 input 标为 `resolved` 并使用 hit 的 `value_source`。当前已先把图片任务的本地 model registry assessment 接成 `model_catalog` hit producer，把已解析 runner config/API key 与 payload provider/model 接成最小 `provider_offer` hit producer，把请求侧 `harness.oem_routing` 接成 Browser Assist / Web Research 的最小 `gateway_policy` hit producer，并把 OEM Cloud bootstrap snapshot `features` 接成请求侧 `tenant_feature_flags` hit producer；`policy_evaluation` 会在所有 refs resolved 时用最小本地 `policy_input_evaluator` 折叠 `allow / ask / deny`，`thread_read.runtime_summary.limecorePolicy` 会把最近一次 runtime contract 的 policy decision explanation 投影给上层读取，`list_media_task_artifacts.modality_runtime_contracts` 也会汇总 evaluation status / decision / decision source 与 blocking / ask / pending refs；配音/转写任务卡恢复层已把 input gap / deny / ask 投影为轻卡 meta。这些 hit、evaluator、thread read 摘要、任务索引 explanation 与任务卡 meta 都只解释已命中的控制面输入，不代表 LimeCore 云 run/poll 或云默认执行。
 
 ### 目标
 

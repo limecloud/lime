@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  FolderOpen,
   Globe,
   Lightbulb,
   Settings2,
@@ -30,13 +31,14 @@ import type { WorkspaceSettings } from "@/types/workspace";
 import { CREATION_MODE_CONFIG } from "./constants";
 import type { CreationMode } from "./types";
 import type { Character } from "@/lib/api/memory";
-import type { MessageImage } from "../types";
+import type { MessageImage, MessagePathReference } from "../types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import {
   EMPTY_STATE_PASSIVE_BADGE_CLASSNAME,
   EMPTY_STATE_SELECT_TRIGGER_CLASSNAME,
 } from "./emptyStateSurfaceTokens";
 import {
+  MetaIconButton,
   MetaToggleButton,
   MetaToggleCheck,
   MetaToggleGlyph,
@@ -106,7 +108,13 @@ interface EmptyStateComposerPanelProps {
   pendingImages: MessageImage[];
   onFileSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onPaste?: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
+  onDragOver?: (event: React.DragEvent) => void;
+  onDrop?: (event: React.DragEvent) => void;
   onRemoveImage?: (index: number) => void;
+  pathReferences?: MessagePathReference[];
+  onRemovePathReference?: (id: string) => void;
+  fileManagerOpen?: boolean;
+  onToggleFileManager?: () => void;
   inputSuggestions?: HomeInputSuggestion[];
   guideHelpActive?: boolean;
   guideHelpLabel?: string;
@@ -209,7 +217,13 @@ export function EmptyStateComposerPanel({
   pendingImages,
   onFileSelect,
   onPaste,
+  onDragOver,
+  onDrop,
   onRemoveImage,
+  pathReferences = [],
+  onRemovePathReference,
+  fileManagerOpen = false,
+  onToggleFileManager,
   inputSuggestions = [],
   guideHelpActive = false,
   guideHelpLabel = "Lime 引导帮助",
@@ -466,7 +480,8 @@ export function EmptyStateComposerPanel({
     Boolean(setExecutionStrategy) ||
     shouldShowModelControls ||
     Boolean(setAccessMode) ||
-    shouldShowThemeSpecificExtra;
+    shouldShowThemeSpecificExtra ||
+    Boolean(onToggleFileManager);
   const leftExtra = shouldShowAdvancedToggle ? (
     <>
       <MetaToggleButton
@@ -509,6 +524,23 @@ export function EmptyStateComposerPanel({
           <span className="mr-1 text-slate-500">当前模型</span>
           <span className="truncate">{trimmedModel}</span>
         </Badge>
+      ) : null}
+
+      {onToggleFileManager ? (
+        <MetaIconButton
+          type="button"
+          $active={fileManagerOpen}
+          aria-label={
+            fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"
+          }
+          title={
+            fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"
+          }
+          data-testid="inputbar-file-manager-toggle"
+          onClick={onToggleFileManager}
+        >
+          <FolderOpen className="h-4 w-4" aria-hidden />
+        </MetaIconButton>
       ) : null}
 
       {showAdvancedControls ? (
@@ -650,12 +682,16 @@ export function EmptyStateComposerPanel({
                 onPaste(event as React.ClipboardEvent<HTMLTextAreaElement>)
             : undefined
         }
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         placeholder={placeholder}
         activeTheme={activeTheme}
         showDragHandle={false}
         visualVariant="floating"
         topExtra={topExtra}
         leftExtra={leftExtra}
+        pathReferences={pathReferences}
+        onRemovePathReference={onRemovePathReference}
         showMetaTools={showAdvancedControls}
         inputSuggestion={activeInputSuggestion}
         onAcceptInputSuggestion={handleAcceptInputSuggestion}

@@ -17,6 +17,16 @@ export interface MessageImage {
   mediaType: string;
 }
 
+export interface MessagePathReference {
+  id: string;
+  path: string;
+  name: string;
+  isDir: boolean;
+  size?: number | null;
+  mimeType?: string | null;
+  source?: "file_manager" | "system_drop";
+}
+
 export interface ImageStoryboardSlot {
   slotId: string;
   slotIndex: number;

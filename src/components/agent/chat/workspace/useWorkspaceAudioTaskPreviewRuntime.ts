@@ -16,6 +16,10 @@ import {
 } from "../utils/messageArtifacts";
 import { buildAudioTaskArtifactDocument } from "../utils/taskPreviewFromToolResult";
 import { buildImageTaskLookupRequest } from "./imageTaskLocator";
+import {
+  areTaskMetaItemsEqual,
+  mergeMediaTaskPolicyEvaluationMetaItems,
+} from "./mediaTaskPolicyEvaluation";
 import { doesWorkspaceFileCandidateMatch } from "./workspaceFilePathMatch";
 
 const AUDIO_TASK_EVENT_NAME = "lime://creation_task_submitted";
@@ -360,6 +364,10 @@ function buildAudioPreviewFromIndexEntry(
       entry.audio_output_duration_ms > 0
         ? entry.audio_output_duration_ms
         : currentPreview.durationMs || null,
+    metaItems: mergeMediaTaskPolicyEvaluationMetaItems(
+      currentPreview.metaItems,
+      entry,
+    ),
     errorCode,
     errorMessage,
     retryable,
@@ -385,6 +393,7 @@ function areAudioPreviewsEqual(
     left.model === right.model &&
     left.phase === right.phase &&
     left.statusMessage === right.statusMessage &&
+    areTaskMetaItemsEqual(left.metaItems, right.metaItems) &&
     left.errorCode === right.errorCode &&
     left.errorMessage === right.errorMessage &&
     left.retryable === right.retryable

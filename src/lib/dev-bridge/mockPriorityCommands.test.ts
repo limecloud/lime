@@ -35,6 +35,9 @@ describe("mockPriorityCommands", () => {
     expect(shouldDisallowMockFallbackInBrowser("agent_generate_title")).toBe(
       true,
     );
+    expect(
+      shouldDisallowMockFallbackInBrowser("get_or_create_default_project"),
+    ).toBe(true);
     expect(shouldDisallowMockFallbackInBrowser("workspace_list")).toBe(true);
     expect(shouldDisallowMockFallbackInBrowser("workspace_get_default")).toBe(
       true,
@@ -116,12 +119,24 @@ describe("mockPriorityCommands", () => {
     expect(
       shouldDisallowMockFallbackInBrowser("cancel_media_task_artifact"),
     ).toBe(true);
+    expect(shouldPreferMockInBrowser("voice_models_download")).toBe(false);
+    expect(shouldPreferMockInBrowser("voice_models_get_install_state")).toBe(
+      false,
+    );
+    expect(shouldDisallowMockFallbackInBrowser("voice_models_download")).toBe(
+      true,
+    );
     expect(shouldDisallowMockFallbackInBrowser("list_plugin_tasks")).toBe(
       false,
     );
   });
 
   it("运行时真相事件在浏览器模式下禁止静默退回 mock", () => {
+    expect(
+      shouldDisallowMockEventFallbackInBrowser(
+        "voice-model-download-progress",
+      ),
+    ).toBe(true);
     expect(
       shouldDisallowMockEventFallbackInBrowser("aster_stream_session-1"),
     ).toBe(true);

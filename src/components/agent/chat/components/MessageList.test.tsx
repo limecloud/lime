@@ -512,7 +512,7 @@ describe("MessageList", () => {
     expect(container.textContent).toContain("消息 30");
   });
 
-  it("旧会话消息较少但执行过程很多时也应延后构建 timeline", () => {
+  it("旧会话消息较少但执行过程很多时也应延后构建 timeline", async () => {
     vi.useFakeTimers();
     const turn: AgentThreadTurn = {
       id: "turn-history-many-items",
@@ -607,6 +607,9 @@ describe("MessageList", () => {
     act(() => {
       vi.advanceTimersByTime(60);
     });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(
       container.querySelector(
@@ -619,7 +622,7 @@ describe("MessageList", () => {
     expect(mockAgentThreadTimeline).not.toHaveBeenCalled();
   });
 
-  it("已分页旧会话首帧应只把尾部相关 turns 的 threadItems 纳入计算", async () => {
+  it("已分页旧会话展开执行过程前不应扫描 threadItems，展开后只纳入尾部相关 turns", async () => {
     vi.useFakeTimers();
     const turns: AgentThreadTurn[] = Array.from({ length: 8 }, (_, index) => {
       const minute = String(index + 1).padStart(2, "0");
@@ -650,7 +653,7 @@ describe("MessageList", () => {
       })),
     );
 
-    render(
+    const container = render(
       [
         {
           id: "msg-user-windowed-history",
@@ -705,7 +708,32 @@ describe("MessageList", () => {
       await Promise.resolve();
     });
 
-    const hydratedCommit = getAgentUiPerformanceMetrics()
+    const deferredPreview = container.querySelector<HTMLButtonElement>(
+      '[data-testid="message-list-historical-timeline-preview:leading"]',
+    );
+    expect(deferredPreview).not.toBeNull();
+    expect(deferredPreview?.textContent).toContain("点击展开后加载执行细节");
+    const idleCommit = getAgentUiPerformanceMetrics()
+      .filter((entry) => entry.phase === "messageList.commit")
+      .find(
+        (entry) =>
+          entry.metrics.threadItemsScanDeferred === true &&
+          entry.metrics.canBuildHistoricalTimeline === true,
+      );
+    expect(idleCommit?.metrics).toEqual(
+      expect.objectContaining({
+        renderedTurnsCount: 2,
+        threadItemsCount: 0,
+        turnsCount: 8,
+      }),
+    );
+
+    await act(async () => {
+      deferredPreview?.click();
+      await Promise.resolve();
+    });
+
+    const expandedCommit = getAgentUiPerformanceMetrics()
       .filter((entry) => entry.phase === "messageList.commit")
       .find(
         (entry) =>
@@ -713,7 +741,7 @@ describe("MessageList", () => {
           entry.metrics.threadItemsCount === 10,
       );
 
-    expect(hydratedCommit?.metrics).toEqual(
+    expect(expandedCommit?.metrics).toEqual(
       expect.objectContaining({
         renderedTurnsCount: 2,
         threadItemsCount: 10,
@@ -819,6 +847,9 @@ describe("MessageList", () => {
       expect.objectContaining({
         historicalContentPartsDeferredCount: 1,
         historicalMarkdownDeferredCount: 1,
+        messageListComputeMs: expect.any(Number),
+        messageListThreadItemsScanMs: expect.any(Number),
+        messageListTimelineBuildMs: expect.any(Number),
         threadItemsScanDeferred: true,
       }),
     );
@@ -846,9 +877,121 @@ describe("MessageList", () => {
       expect.objectContaining({
         historicalContentPartsDeferredCount: 0,
         historicalMarkdownDeferredCount: 0,
-        threadItemsCount: 30,
+        threadItemsCount: 0,
+        threadItemsScanDeferred: true,
       }),
     );
+  });
+
+  it("旧会话 idle 后应分批恢复历史 Markdown hydrate，避免一次性挂载", async () => {
+    vi.useFakeTimers();
+    const turn: AgentThreadTurn = {
+      id: "turn-history-markdown-batches",
+      thread_id: "thread-history-markdown-batches",
+      prompt_text: "检查 markdown hydrate",
+      status: "completed",
+      started_at: "2026-04-25T10:00:00.000Z",
+      completed_at: "2026-04-25T10:01:00.000Z",
+      created_at: "2026-04-25T10:00:00.000Z",
+      updated_at: "2026-04-25T10:01:00.000Z",
+    };
+    const threadItems: AgentThreadItem[] = Array.from(
+      { length: 30 },
+      (_, index): AgentThreadItem => ({
+        id: `history-markdown-batch-tool-${index + 1}`,
+        thread_id: turn.thread_id,
+        turn_id: turn.id,
+        sequence: index + 1,
+        status: "completed",
+        started_at: turn.started_at,
+        completed_at: turn.completed_at,
+        updated_at: turn.updated_at,
+        type: "tool_call",
+        tool_name: "Read",
+        arguments: { file_path: `/repo/batch-${index + 1}.ts` },
+      }),
+    );
+    const messages: Message[] = Array.from({ length: 10 }, (_, index) => ({
+      id: `msg-history-markdown-batch-${index + 1}`,
+      role: index % 2 === 0 ? "user" : "assistant",
+      content:
+        index % 2 === 0
+          ? `用户问题 ${index + 1}`
+          : `## 历史回复 ${index + 1}\n\n- 需要分批 hydrate`,
+      timestamp: new Date(
+        `2026-04-25T10:00:${String(index + 1).padStart(2, "0")}.000Z`,
+      ),
+    }));
+
+    const container = render(messages, {
+      sessionId: "session-history-markdown-batches",
+      currentTurnId: turn.id,
+      turns: [turn],
+      threadItems,
+      sessionHistoryWindow: {
+        loadedMessages: messages.length,
+        totalMessages: 220,
+        isLoadingFull: false,
+        error: null,
+      },
+    });
+
+    expect(
+      container.querySelectorAll(
+        '[data-testid="message-list-historical-markdown-preview"]',
+      ),
+    ).toHaveLength(5);
+    expect(
+      container.querySelectorAll('[data-testid="streaming-renderer"]'),
+    ).toHaveLength(0);
+
+    act(() => {
+      vi.advanceTimersByTime(940);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelectorAll('[data-testid="streaming-renderer"]'),
+    ).toHaveLength(2);
+    expect(
+      container.querySelectorAll(
+        '[data-testid="message-list-historical-markdown-preview"]',
+      ),
+    ).toHaveLength(3);
+
+    act(() => {
+      vi.advanceTimersByTime(160);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelectorAll('[data-testid="streaming-renderer"]'),
+    ).toHaveLength(4);
+    expect(
+      container.querySelectorAll(
+        '[data-testid="message-list-historical-markdown-preview"]',
+      ),
+    ).toHaveLength(1);
+
+    act(() => {
+      vi.advanceTimersByTime(160);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelectorAll('[data-testid="streaming-renderer"]'),
+    ).toHaveLength(5);
+    expect(
+      container.querySelectorAll(
+        '[data-testid="message-list-historical-markdown-preview"]',
+      ),
+    ).toHaveLength(0);
   });
 
   it("已分页旧会话的完成执行过程应先折叠为轻量摘要，点击后再挂载真实 timeline", () => {

@@ -770,3 +770,973 @@ npm run bridge:health -- --timeout-ms 5000
 1. DevBridge 恢复后复测真实旧会话，读取 `historicalMarkdownDeferredMax`、`historicalContentPartsDeferredMax`、`threadItemsScanDeferredCount`、`clickToMessageListPaintMs`、`longTaskMaxMs`。
 2. 若首帧仍慢，下一刀优先看 `visibleMessages.filter` / `buildMessageTurnGroups` 是否需要基于 sessionId 做更强 memo 或窗口化。
 3. 若首帧已快但 idle 后出现卡顿，把 Markdown hydrate / timeline hydrate 拆成分批 idle，而不是一次性恢复完整历史。
+
+### 2026-04-30：P1 第十五刀，旧会话 Markdown idle 分批 hydrate
+
+采集事实：
+
+- 第十四刀已经让旧会话首帧不挂载 `ReactMarkdown`，但 historical timeline idle-ready 后，所有短历史 assistant 会在同一轮恢复 `StreamingRenderer / MarkdownRenderer`。
+- 对消息窗口里有多条短 Markdown 回复的旧会话，一次性恢复仍可能在首帧之后造成第二段 CPU 峰值，表现为鼠标短暂 loading 或滚动卡顿。
+- 真实 Playwright 仍不可用：`DevBridge 3030` 未监听；本机同时存在 `rustc` 高 CPU 编译链，继续拉 GUI smoke 会污染性能采样。
+
+已完成：
+
+- `MessageList.tsx`：
+  - 增加 `MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_INITIAL_COUNT / BATCH_SIZE / DELAY_MS`。
+  - 将旧会话 Markdown hydrate 从“timeline ready 后全量恢复”改为“先恢复 2 条，再按 idle 每批 +2 条”。
+  - 复用 `scheduleMinimumDelayIdleTask` 分片恢复，避免一次性挂载多个 `StreamingRenderer / ReactMarkdown`。
+  - `historicalMarkdownDeferredCount` 现在表示尚未 hydrate 的历史 Markdown 数量；ready 后会随批次递减，而不是直接归零。
+  - `historicalContentPartsDeferredCount` 也跟随未 hydrate 的消息保持延后，避免 Markdown 未恢复但 contentParts 细节先被扫描。
+- `MessageList.test.tsx`：新增“旧会话 idle 后应分批恢复历史 Markdown hydrate”回归，覆盖 5 条历史 assistant：首帧 `0/5` hydrated，第一次 idle `2/5`，第二次 idle `4/5`，第三次 idle `5/5`。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/components/MessageList.test.tsx" -t "旧会话 idle 后应分批恢复历史 Markdown hydrate|旧会话首帧应延后历史助手 contentParts 与 Markdown 细节扫描|已分页旧会话首帧应只把尾部相关 turns 的 threadItems 纳入计算|旧会话消息较少但执行过程很多时也应延后构建 timeline"
+npx eslint "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" --max-warnings 0
+npm run bridge:health -- --timeout-ms 5000
+```
+
+结果：
+
+- MessageList 定向回归：通过，`4` 个测试通过。
+- ESLint touched files：通过。
+- DevBridge 健康检查：失败，`http://127.0.0.1:3030/health` 未监听。
+- TypeScript：本轮未追加全量 typecheck；当前已有外部 `tsc --noEmit` 与 `rustc` 高 CPU 进程，避免重复启动影响用户本机。
+
+下一步：
+
+1. DevBridge 恢复后跑真实 E2E，确认 `historicalMarkdownDeferredMax` 是否命中，且 `longTaskMaxMs` 是否下降。
+2. 若 idle 后仍有峰值，继续把 timeline hydrate 与 Markdown hydrate 分开调度，或给 Markdown hydrate 增加“仅当前视口附近消息优先”。
+3. 若真实卡顿转移到会话切换前，则回到 sidebar/list_sessions 与 getSession 并发争抢治理。
+
+### 2026-04-30：P1 第十六刀，旧会话 E2E 长任务指标内建采集
+
+采集事实：
+
+- 旧会话卡顿反馈里，`clickToMessageListPaintMs` 只能说明首屏是否出现，不能说明首屏后是否有第二段主线程峰值。
+- 之前 Playwright 复测依赖临时脚本读取 `PerformanceObserver(longtask)`，不够稳定；真实复测一旦 DevBridge 恢复，应能直接从 `window.__LIME_AGENTUI_PERF__.summary()` 读取 long task 指标。
+- 当前 DevBridge 仍未监听 `3030`，且本机有 `rustc / clang / vite` 高 CPU 进程；本刀只补内建采集与单测，不启动 GUI smoke。
+
+已完成：
+
+- `agentUiPerformanceMetrics.ts`：
+  - 在浏览器支持 `PerformanceObserver` 且支持 `longtask` entry 时，自动注册 long task observer。
+  - observer 会把长任务写入 `agentUi.longTask` phase，并绑定最近一次有 `sessionId` 的会话上下文。
+  - summary 增加 `longTaskCount / longTaskMaxMs`，避免 E2E 还要自行维护临时 long task 数组。
+  - 保持 WebView / jsdom 不支持 longtask 时静默降级，不阻塞页面。
+- `agentUiPerformanceMetrics.test.ts`：补充 summary 断言，确保 `session.switch.success.durationMs` 不会污染 `longTaskMaxMs`，只统计 `agentUi.longTask.durationMs`。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/lib/agentUiPerformanceMetrics.test.ts"
+npx eslint "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts" --max-warnings 0
+npx tsc --noEmit --pretty false --target ES2020 --module ESNext --moduleResolution node --skipLibCheck --lib DOM,ES2020 "src/lib/agentUiPerformanceMetrics.ts"
+npm run bridge:health -- --timeout-ms 5000
+```
+
+结果：
+
+- 性能指标汇总单测：通过，`2` 个测试通过。
+- ESLint touched metrics files：通过。
+- `agentUiPerformanceMetrics.ts` 聚焦类型检查：通过。
+- DevBridge 健康检查：失败，`http://127.0.0.1:3030/health` 未监听。
+- GUI / Playwright：本刀未执行，原因仍是 `DevBridge 3030` 未就绪且本机已有高 CPU 编译链，贸然启动会污染卡顿采样。
+
+下一步：
+
+1. DevBridge 恢复后，Playwright 复测只需读取 `window.__LIME_AGENTUI_PERF__.summary()`，重点看 `longTaskCount / longTaskMaxMs / historicalMarkdownDeferredMax / threadItemsScanDeferredCount`。
+2. 若 `longTaskMaxMs` 仍高但首屏快，下一刀继续把 historical timeline summary 构建或展开 hydrate 做视口优先 / idle 分批。
+3. 若 long task 主要出现在 `getSession` 返回前后，转后端分页/缓存和 sidebar refresh 优先级治理，不再只做 MessageList 微调。
+
+### 2026-04-30：P1 第十七刀，旧会话 threadItems 展开前不扫描
+
+采集事实：
+
+- 第十五刀已经把 Markdown hydrate 改为分批，但 historical timeline ready 后仍会对大 `threadItems` 数组做一次同步过滤与 timeline 构建。
+- 用户反馈的“打开旧对话后鼠标 loading、CPU/内存飙高”更像首屏之后的主线程峰值；如果用户没有展开历史执行过程，立即扫描完整工具轨迹不是首屏必要工作。
+- 当前真实 E2E 仍受 DevBridge `3030` 未就绪阻塞，本刀先把可确定的前端同步扫描从自动 idle 路径移到用户展开路径。
+
+已完成：
+
+- `MessageList.tsx`：
+  - 增加 `shouldDeferRestoredThreadItemsUntilExpand`，旧会话在没有聚焦 timeline、没有活动回合、没有用户展开历史执行过程时，即使 timeline ready 也继续保持 `renderedThreadItems=[]`。
+  - 旧会话仍会用轻量 turn/message 映射渲染“执行过程已折叠”按钮，但按钮文案改为“点击展开后加载执行细节”，避免空 timeline 直接消失。
+  - 用户点击折叠按钮后，才解除 `threadItems` 扫描，且继续只按当前渲染窗口相关 turns 过滤，避免全历史全部挂载。
+- `MessageList.test.tsx`：
+  - 更新已分页旧会话回归：首帧与 idle 后都保持 `threadItemsCount=0 / threadItemsScanDeferred=true`，点击执行过程折叠按钮后才出现 `threadItemsCount=10 / threadItemsScanDeferred=false`。
+  - 保留 contentParts / Markdown 分批回归，确认正文 hydrate 不再强制带动工具轨迹扫描。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/components/MessageList.test.tsx" -t "旧会话 idle 后应分批恢复历史 Markdown hydrate|旧会话首帧应延后历史助手 contentParts 与 Markdown 细节扫描|已分页旧会话展开执行过程前不应扫描 threadItems，展开后只纳入尾部相关 turns|旧会话消息较少但执行过程很多时也应延后构建 timeline"
+npm exec -- vitest run "src/components/agent/chat/components/MessageList.test.tsx" -t "旧会话|已分页旧会话|历史"
+npm exec -- vitest run "src/components/agent/chat/components/MessageList.test.tsx"
+npm exec -- vitest run "src/lib/agentUiPerformanceMetrics.test.ts"
+npx eslint "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts" --max-warnings 0
+npm run bridge:health -- --timeout-ms 5000
+```
+
+结果：
+
+- MessageList 关键旧会话回归：通过，`4` 个测试通过。
+- MessageList 旧会话相关回归：通过，`15` 个测试通过。
+- MessageList 全量组件单测：通过，`91` 个测试通过。
+- 性能指标汇总单测：通过，`2` 个测试通过。
+- ESLint touched files：通过。
+- DevBridge 健康检查：失败，`http://127.0.0.1:3030/health` 未监听。
+
+下一步：
+
+1. DevBridge 恢复后真实复测：如果 `longTaskMaxMs` 仍高，优先看 `buildMessageTurnGroups(renderedMessages)` 与大量 Markdown 视口外 hydrate；如果 `threadItemsScanDeferredCount` 命中且 long task 下降，则本刀有效。
+2. 若用户展开历史执行过程仍卡，下一刀把展开后的 timeline 也做分批/worker 化，而不是在展开瞬间一次性挂完整工具轨迹。
+3. 若真实卡顿已转移到 `getSession` 或 sidebar list 并发，回到后端分页/缓存与 sidebar refresh 优先级治理。
+
+### 2026-05-01：P1 第十八刀，DevBridge 事件流断线停止自动重连风暴
+
+采集事实：
+
+- 登录完成后，DevBridge `3030 /health` 一度恢复，旧会话可真实打开。
+- Playwright 真实采样：
+  - `PPT大纲规划`：`runtimeGetSessionDurationMs≈201ms`、`clickToMessageListPaintMs≈506ms`、`longTaskCount=2`、`longTaskMaxMs≈114ms`、`messages=2`、`threadItems=4`。
+  - `AI网关MVP规划`：`runtimeGetSessionDurationMs≈359ms`、`clickToMessageListPaintMs≈507ms`、`longTaskCount=1`、`longTaskMaxMs≈53ms`、`messages=2`、`threadItems=5`。
+- 这两个 recent 样本都不是大历史，无法验证第十七刀的大 `threadItems` 展开前延后收益。
+- 继续点击/加载更多时，DevBridge 再次掉线；页面产生大量 `/events?...` 的 `ERR_CONNECTION_REFUSED`，控制台 error 瞬间上涨到 `175+`。根因是浏览器 `EventSource` 在已打开事件流断线后自动重连，而 `listenViaHttpEvent` 之前选择保留连接。
+- 这类事件流重连风暴会直接放大 CPU、console 噪音与“鼠标 loading”体感，且与消息渲染优化无关，必须先止血。
+
+已完成：
+
+- `src/lib/dev-bridge/http-client.ts`：
+  - `listenViaHttpEvent` 在事件流已建立后遇到 `onerror` 时，改为关闭 `EventSource`、删除 hub，并停止浏览器自动重连。
+  - 保持“不把一次已建立事件流断开误标记为整体桥不可用”，避免单个 SSE 结束影响普通 invoke。
+  - 下次调用 `safeListen/listenViaHttpEvent` 时仍可重新建新连接，但不会由同一个 EventSource 在后台无限刷 `/events`。
+- `src/lib/dev-bridge/http-client.test.ts`：
+  - 更新回归为“已建立事件流断开后应关闭连接，避免自动重连风暴”。
+  - 保留“事件流结束不影响后续 invoke”的回归。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/lib/dev-bridge/http-client.test.ts"
+npm exec -- vitest run "src/lib/dev-bridge/http-client.test.ts" "src/lib/dev-bridge/safeInvoke.test.ts"
+npx eslint "src/lib/dev-bridge/http-client.ts" "src/lib/dev-bridge/http-client.test.ts" --max-warnings 0
+npm run test:contracts
+npm run bridge:health -- --timeout-ms 5000
+```
+
+结果：
+
+- DevBridge HTTP / safeInvoke 定向回归：通过，`28` 个测试通过。
+- ESLint touched bridge files：通过。
+- 命令契约：通过。
+- DevBridge 健康检查：最后再次失败，`http://127.0.0.1:3030/health` 未监听；因此本刀代码热更新后的真实浏览器复测未能闭环。
+
+下一步：
+
+1. DevBridge 稳定恢复后，刷新页面重测 `/events` 断线场景，确认 console 不再出现同一个事件的无限 `ERR_CONNECTION_REFUSED`。
+2. 再用 `Slow typing E2E` / `AI Trends Task` 这两个 40 消息样本做真实打开测试，读取 `historicalMarkdownDeferredMax`、`threadItemsScanDeferredCount`、`longTaskMaxMs`。
+3. 如果大历史仍有 long task，下一刀优先看 Markdown 视口外 hydrate 和展开后的 timeline 分批；如果 long task 主要来自 DevBridge 掉线/事件流，则继续治理事件桥生命周期。
+
+### 2026-05-01：P1 第十九刀，侧栏会话加载去重与导航后延迟
+
+采集事实：
+
+- DevBridge 稳定时的 Playwright 采样显示，打开 `Slow typing E2E` / `AI Trends Task` 这类旧会话时，`agent_runtime_get_session(historyLimit: 40)` 本身可在约 `172-364ms` 返回，但同一窗口内仍会出现 `agent_runtime_list_sessions(limit 21/31/41)`、`workspace_*` 和 `agent_runtime_update_session` 抢占 invoke 通道。
+- 侧栏搜索 / 加载更多路径会在旧会话点击前后继续触发 recent / archived list reload；在 invoke 单通道或 DevBridge 忙时，会放大“点击后鼠标 loading、CPU/内存飙高”的体感。
+- 搜索弹窗点击历史会话此前没有统一写入 `sidebar.conversation.click`，导致 E2E 只能看最终 paint，难以稳定还原 click-to-paint 链路。
+
+已完成：
+
+- `AppSidebar.tsx`：
+  - 搜索结果点击历史会话时记录 `sidebar.conversation.click`，补上 `source=sidebar_search / sessionId / workspaceId`。
+  - recent / archived 会话列表加载增加 in-flight 去重与 pending reload 合并，避免加载更多或焦点刷新同时发起多次 list invoke。
+  - 点击会话后设置 `conversationNavigationDeferUntilRef`，在已有缓存可展示时把侧栏列表刷新延后 `12s`，优先把 invoke 通道留给旧会话 `getSession`。
+  - 搜索结果在 `sidebarSessionsLoading` 时禁用并显示 progress 光标，避免用户在 list reload 中重复点击造成并发导航。
+- `AppSidebar.test.tsx`：补充搜索结果点击埋点断言，确保 search 来源的旧会话导航可被 E2E 采样。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/AppSidebar.test.tsx" -t "搜索弹窗|搜索结果"
+npx eslint "src/components/AppSidebar.tsx" "src/components/AppSidebar.test.tsx" --max-warnings 0
+```
+
+结果：
+
+- AppSidebar 搜索相关回归：通过，`5` 个测试通过。
+- ESLint touched sidebar files：通过。
+- DevBridge / Playwright：中途曾采到 `Slow typing E2E` 打开首屏约 `232ms`、`runtimeGetSessionDurationMs≈172ms`、`longTaskMaxMs≈69ms`；随后 `3030 /health` 再次掉线，无法把本刀做成稳定 E2E 结论。
+
+下一步：
+
+1. DevBridge 恢复后，复测加载更多后点击旧会话，确认点击后 `12s` 内不再出现侧栏 list reload 抢占 `getSession`。
+2. 如果仍看到 `agent_runtime_update_session` 与下一次旧会话切换重叠，继续治理 `AgentChatWorkspace` 的 background recent metadata sync。
+3. 如果 list reload 已延后但首屏仍慢，回到 `useAgentSession.getSession` 和 MessageList 首帧分片继续看 long task。
+
+### 2026-05-01：P1 第二十刀，会话切换期间延后 background recent metadata 回填
+
+采集事实：
+
+- 第十九刀后，侧栏 list reload 已经可以延后；但一次 Playwright trace 仍显示在连续打开旧会话时，`AgentChatWorkspace` 的 `agent_runtime_update_session` background 回填可能在约 `12-18s` 后与下一次 `getSession` 撞车。
+- 这类 `recent_preferences / recent_team_selection` 回填不是首屏必须项；它应该服务后续恢复体验，而不能和旧会话打开主链抢 DevBridge invoke 通道。
+- 本轮开始前，当前浏览器页签仍停留在 `http://127.0.0.1:1420/`，但 DevBridge `http://127.0.0.1:3030/health` 不可用；Playwright console 明确为 `ERR_CONNECTION_REFUSED`、`bridge cooldown active`、`workspace_get / agent_runtime_list_sessions / aster_agent_init` 失败。因此本刀先做可验证的前端调度治理，E2E 只记录阻塞原因，不宣布交互可交付。
+
+已完成：
+
+- `AgentChatWorkspace.tsx`：
+  - 新增 `SESSION_RECENT_METADATA_NAVIGATION_DEFER_MS=20s` 与 `sessionRecentMetadataNavigationDeferUntilRef`。
+  - 任意会话切换、子代理会话打开、返回父会话前，先标记 recent metadata background sync 的导航保护窗口。
+  - background priority 的 recent metadata flush 若命中导航保护窗口，不再立刻调用 `updateAgentRuntimeSession`，而是按剩余保护时间重新 idle 调度；immediate priority 不受影响。
+  - 保留“如果 background flush 触发时已经不是当前 session，则直接 resolve 并跳过更新”的原有保护。
+- `useWorkspaceTopicSwitch.ts`：
+  - 增加 `onBeforeTopicSwitch` 回调，并确保在项目解析后端查询前发出导航信号。
+  - `runTopicSwitch` 直接调用路径也会发出导航信号；`switchTopic` 内部 fast path 不重复发。
+- `useWorkspaceTopicSwitch.test.tsx`：新增 3 个回归，覆盖 current-project fast path、需要项目解析路径、直接 `runTopicSwitch` 路径的导航信号顺序。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/workspace/useWorkspaceTopicSwitch.test.tsx"
+npm exec -- vitest run "src/components/AppSidebar.test.tsx" -t "搜索弹窗|搜索结果" "src/components/agent/chat/workspace/useWorkspaceTopicSwitch.test.tsx"
+npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/useWorkspaceTopicSwitch.ts" "src/components/agent/chat/workspace/useWorkspaceTopicSwitch.test.tsx" --max-warnings 0
+npm run bridge:health -- --timeout-ms 5000
+```
+
+结果：
+
+- `useWorkspaceTopicSwitch` 定向回归：通过，`3` 个测试通过。
+- AppSidebar 搜索相关回归复跑：通过，`5` 个测试通过；同命令中的 `useWorkspaceTopicSwitch` 因 `-t` 过滤被跳过，已由上一条单独覆盖。
+- ESLint touched workspace files：通过。
+- DevBridge 健康检查：失败，`http://127.0.0.1:3030/health` 未监听。
+- Playwright 当前页：`http://127.0.0.1:1420/`，console 仍是 bridge 断线类错误；当前环境不能给出旧会话真实交互闭环。
+- Playwright 污染态数值：`traceCount=240`，最新 trace 包含 `aster_agent_init / sceneapp_list_catalog / workspace_get / get_provider_ui_state` bridge 失败；`window.__LIME_AGENTUI_PERF__.summary()` 捕获到 `agentRuntime.listSessions(limit=21)` 失败耗时约 `1635ms`，且 bridge 掉线状态下存在最高约 `4935ms` long task，因此这组数值只用于证明环境已污染，不用于判断旧会话优化效果。
+
+下一步：
+
+1. 先恢复 DevBridge，再刷新页面清空 `window.__LIME_AGENTUI_PERF__` 和 `lime_invoke_trace_buffer_v1`，重测 `Slow typing E2E` 与 `AI Trends Task`。
+2. 复测重点看 `agent_runtime_get_session` 前后 `20s` 内是否还出现 `agent_runtime_update_session` / `agent_runtime_list_sessions` 抢占。
+3. 如果 invoke 争抢消失但仍卡，下一刀转向 MessageList 视口外 Markdown hydrate 与 timeline 展开后的分批 / worker 化。
+
+### 2026-05-01：P1 第二十一刀，搜索弹窗预取延迟与点击取消
+
+采集事实：
+
+- 第十九刀已经让侧栏 conversation shelf 的 hover 预取延迟触发，但搜索弹窗结果仍在 `focus / pointerenter` 时立即调用 `notifyTaskCenterTaskPrefetch`。
+- 用户在搜索弹窗里快速移动鼠标或准备点击旧会话时，立即预取会先发 `agent_runtime_get_session(historyLimit=40)`；如果随后立刻点击同一会话，预取与切换链路会争抢同一 DevBridge invoke 通道。
+- 旧会话打开主线只需要“点击后尽快切换”；搜索 hover 预取是优化项，不能抢占点击链路。
+
+已完成：
+
+- `AppSidebar.tsx`：
+  - 搜索结果 hover / focus 改为 `900ms` dwell 后再预取，与 conversation shelf 保持一致。
+  - 搜索结果 `blur / pointerleave / click / 关闭弹窗 / 卸载` 会取消待触发预取。
+  - 搜索预取事件 source 改为 `sidebar_search`，便于和 conversation shelf E2E 指标区分。
+- `taskCenterDraftTaskEvents.ts`：补充 `sidebar_search` 事件来源类型。
+- `AppSidebar.test.tsx`：新增搜索结果延迟预取、快速点击取消预取并直接导航的回归。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/AppSidebar.test.tsx" -t "搜索结果|搜索弹窗|任务中心内悬停已有会话|点击已有会话时不应先触发旧会话预取"
+npx eslint "src/components/AppSidebar.tsx" "src/components/AppSidebar.test.tsx" "src/components/agent/chat/taskCenterDraftTaskEvents.ts" --max-warnings 0
+```
+
+结果：
+
+- AppSidebar 预取 / 搜索相关回归：通过，`9` 个测试通过。
+- ESLint touched sidebar/event files：通过。
+
+下一步：
+
+1. DevBridge 稳定后，在搜索弹窗中 hover 旧会话不足 `900ms` 后点击，确认 trace 中不出现点击前 `agent_runtime_get_session` 预取。
+2. 如果用户长停留后预取已完成，再点击同一会话，应走 prefetch 结果而不是再发重复 getSession。
+
+### 2026-05-01：P1 第二十二刀，旧会话恢复命令绕过短退避重新探测 DevBridge
+
+采集事实：
+
+- DevBridge 短暂恢复后，Playwright 点击 `Slow typing E2E`：
+  - `sidebar.conversation.click -> session.switch.start` 约 `324ms`。
+  - 新缓存快照立即应用，页面先显示最近 `1 / 170` 条消息。
+  - deferred hydration 在约 `1.26s` 后发 `agent_runtime_get_session(historyLimit=40)`，但前端 DevBridge client 仍处于 `bridge cooldown active`，导致 `getSession` 直接失败。
+  - 该次污染态中 `longTaskMaxMs≈397ms`、`threadItemsScanDeferredCount=7`；由于真实 getSession 失败，这组数值不能用作最终性能结论，但明确暴露了“后端已短暂恢复，前端 cooldown 仍挡住用户主链”的问题。
+- CLI `bridge:health` 曾返回 `status=ok (1398ms)`，说明后端可恢复；但浏览器端在 cooldown 内不会重新探测，用户点击旧会话时仍可能被短退避误伤。
+
+已完成：
+
+- `http-client.ts`：
+  - 新增 DevBridge cooldown bypass 命令集合。
+  - `agent_runtime_get_session / agent_runtime_submit_turn / agent_runtime_create_session / agent_runtime_send_subagent_input` 这类用户主链命令在 cooldown 窗口内允许重新发起 `/health` 探测。
+  - 普通后台命令仍保留 cooldown 快速失败，避免 bridge 掉线时继续刷大量后台请求。
+- `http-client.test.ts`：新增“旧会话恢复命令应允许绕过短退避重新探测”的回归。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/lib/dev-bridge/http-client.test.ts"
+npm exec -- vitest run "src/lib/dev-bridge/http-client.test.ts" "src/lib/dev-bridge/safeInvoke.test.ts"
+npx eslint "src/lib/dev-bridge/http-client.ts" "src/lib/dev-bridge/http-client.test.ts" --max-warnings 0
+```
+
+结果：
+
+- DevBridge HTTP 定向回归：通过，`13` 个测试通过。
+- DevBridge HTTP + safeInvoke 回归：通过，`29` 个测试通过。
+- ESLint touched bridge files：通过。
+- E2E：本刀发现问题时 DevBridge 曾短暂恢复，随后 `3030 /health` 再次超时；因此真实旧会话闭环仍未稳定完成。
+
+下一步：
+
+1. 等 DevBridge 再次稳定后刷新页面重测 `Slow typing E2E`：重点看 `agent_runtime_get_session` 是否能在 cooldown 污染后重新探测并成功。
+2. 若 `getSession` 成功且 trace 中无 `agent_runtime_update_session / agent_runtime_list_sessions` 抢占，再转向剩余前端 long task（当前污染态最高约 `397ms`）。
+3. 若 `getSession` 仍失败但 CLI health 正常，继续检查 browser client health cache 与 cooldown 状态暴露，必要时增加可视化 bridge 状态或手动 reset 入口。
+
+### 2026-05-01：P1 第二十三刀，DevBridge 瞬断后的旧会话恢复快速失败与读命令重试
+
+采集事实：
+
+- 复用现有 Playwright Lime 页签，刷新后点击 `Slow typing E2E`：
+  - `sidebar.conversation.click -> session.switch.start` 约 `60ms`。
+  - `click -> cachedSnapshotApplied` 约 `60ms`。
+  - `click -> messageList.paint` 约 `1700ms`，首屏先展示缓存窗口 `1 / 170` 条。
+  - `longTaskMaxMs` 从上一轮污染态约 `119ms` 降到约 `72ms`。
+- 但 `agent_runtime_get_session(historyLimit=40)` 在浏览器侧被 `net::ERR_ABORTED`，最终按 `60s` 超时失败；后续 `agent_runtime_list_sessions` 与 `agent_runtime_update_session` 也各自挂到约 `60s`。
+- 同一时间用命令行直接 POST DevBridge `agent_runtime_get_session(historyLimit=40)` 可在约 `236ms` 返回，说明不是会话数据必然需要 60s，而是浏览器端在 DevBridge 瞬断 / cooldown / 后台 invoke 叠加后把用户恢复链路拖进长超时。
+- 页面刷新基线还暴露：一次非关键 `get_config` 瞬断会把 HTTP client 标记进 `3s` cooldown，随后 `agent_runtime_list_sessions / workspace_get` 这类首页与侧栏真相命令会 `0-5ms` 快速失败，导致侧栏短暂显示“还没有开始对话”。
+
+已完成：
+
+- `src/lib/dev-bridge/http-client.ts`：
+  - `agent_runtime_get_session / agent_runtime_list_sessions` 从泛化 `agent_runtime_* = 60s` 收敛为 `8s` 读超时，并对连接类失败做一次强制 `/health` 探测后重试。
+  - `agent_runtime_update_session` 收敛为 `5s` 后台 patch 超时，避免 recent metadata 回填占住 DevBridge 通道一分钟。
+  - `agent_runtime_create_session` 单独保留 `15s` 用户主链窗口；`agent_runtime_submit_turn` 等真正长链路仍保留 `60s`。
+  - `agent_runtime_list_sessions` 与 `workspace_list / workspace_get_default / workspace_get / workspace_ensure_ready` 允许绕过短退避重新探测，避免一次瞬断把首页和侧栏恢复命令挡在 cooldown 里。
+- `src/components/AppSidebar.tsx`：旧会话点击后，侧栏 recent / archived 后台刷新保护窗口从 `12s` 延长到 `30s`，降低恢复期间 list 与 getSession 抢通道概率。
+- `src/components/agent/chat/AgentChatWorkspace.tsx`：recent metadata 后台回填导航保护窗口从 `20s` 延长到 `45s`，避免 `agent_runtime_update_session` 在旧会话恢复尚未稳定时启动。
+- `src/lib/dev-bridge/http-client.test.ts`：补充读命令短超时、读命令强制健康探测重试、首页 / 侧栏命令绕过 cooldown、后台 patch 快速超时回归。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/lib/dev-bridge/http-client.test.ts"
+npm exec -- vitest run "src/lib/dev-bridge/http-client.test.ts" "src/lib/dev-bridge/safeInvoke.test.ts"
+npm exec -- vitest run "src/components/AppSidebar.test.tsx" -t "搜索结果|搜索弹窗|任务中心内悬停已有会话|点击已有会话时不应先触发旧会话预取" "src/components/agent/chat/workspace/useWorkspaceTopicSwitch.test.tsx"
+npm exec -- vitest run "src/components/agent/chat/workspace/useWorkspaceTopicSwitch.test.tsx"
+npx eslint "src/lib/dev-bridge/http-client.ts" "src/lib/dev-bridge/http-client.test.ts" "src/components/AppSidebar.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" --max-warnings 0
+```
+
+结果：
+
+- DevBridge HTTP 定向回归：通过，`17` 个测试通过。
+- DevBridge HTTP + safeInvoke 回归：通过，`33` 个测试通过。
+- AppSidebar 预取 / 搜索相关回归：通过，`9` 个测试通过。
+- `useWorkspaceTopicSwitch` 回归：通过，`3` 个测试通过。
+- ESLint touched files：通过。
+- Playwright 交互复测：当前浏览器页签可复用，但 DevBridge 在 Rust/Tauri rebuild 期间未监听 `3030`；`bridge:health --timeout-ms 10000` 超时。已记录为环境阻塞，不能把本轮 E2E 闭环宣称为完全通过。
+
+下一步：
+
+1. 等 Tauri rebuild 完成、`bridge:health` 稳定后，再刷新页签清空 `window.__LIME_AGENTUI_PERF__` 与 invoke trace，重复点击 `Slow typing E2E`。
+2. 复测重点：`agent_runtime_get_session` 若再次瞬断，应在约 `8s` 内失败并重试，而不是挂到 `60s`；侧栏 `agent_runtime_list_sessions` 与 recent metadata `agent_runtime_update_session` 不应在点击后 `30-45s` 内抢通道。
+3. 若 DevBridge 稳定时 `getSession(historyLimit=40)` 仍超过 `8s`，下一刀应查 Rust 侧 `agent_runtime_get_session` 的 DB 查询、items/messages 组装与序列化耗时。
+
+### 2026-05-01：P1 第二十四刀，旧会话 hydration 超时不再立即重试并延后非关键后台抢占
+
+采集事实：
+
+- 复用现有 Playwright Lime 页签点击 `Slow typing E2E` 后，旧会话首屏已经能在缓存窗口先显示：
+  - `click -> switch.start` 约 `89ms`。
+  - `click -> cachedSnapshotApplied` 约 `89ms`。
+  - `click -> messageList.paint` 约 `1807ms`。
+  - `fetchDetailStartCount=1`、`runtimeGetSessionStartCount=1`。
+- 同轮 trace 中 `agent_runtime_get_session(historyLimit=40)` 在浏览器侧约 `8004ms` 超时；之前的立即重试会继续抢占 DevBridge，使旧会话恢复、侧栏刷新和后续操作一起变慢。
+- `get_or_create_default_project` 曾在短退避或 mock fallback 下返回空对象，触发 `normalizeProject(undefined)` 类重复错误；这类错误不阻塞主链，但会污染恢复期间 CPU 和日志。
+
+已完成：
+
+- `useAgentSession.ts` / `agentSessionDetailHydrationError.ts`：
+  - 将旧会话 deferred hydration 错误分为 `timeout / abort / bridge cooldown / bridge health / connection / other`。
+  - 对 `timeout after 8000ms` 与 abort 类错误不再立即重试，只记录 `session.switch.fetchDetail.retrySkipped`。
+  - 只对 bridge health / cooldown / 硬连接失败保留最多 `1` 次、`15s` 后的低优先级重试。
+- `http-client.ts` / `mockPriorityCommands.ts` / `tauri-mock/core.ts`：
+  - `get_or_create_default_project` 加入 cooldown bypass 与 bridge truth command 集合。
+  - 浏览器 bridge 失败时不再把该命令落到空 mock；默认 mock 返回完整可 normalize 的 workspace 对象。
+- `ProjectSelector.tsx`：被动展示 + `deferProjectListLoad` 时，项目摘要请求延迟到 `12s idle` 后触发，减少旧会话切换瞬间的 `workspace_get/default/list` 抢占。
+- `AgentChatWorkspace.tsx`：旧会话直达时 topics/listSessions 后台加载延迟从 `12s` 提高到 `45s`。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentSessionDetailHydrationError.test.ts" "src/lib/dev-bridge/http-client.test.ts" "src/lib/dev-bridge/safeInvoke.test.ts" "src/lib/dev-bridge/mockPriorityCommands.test.ts" "src/lib/tauri-mock/core.test.ts"
+npm exec -- vitest run "src/components/projects/ProjectSelector.ui.test.tsx" "src/components/agent/chat/components/ChatNavbar.test.tsx" "src/lib/dev-bridge/http-client.test.ts" "src/lib/dev-bridge/mockPriorityCommands.test.ts"
+npm exec -- vitest run "src/components/agent/chat/index.test.tsx" "src/components/projects/ProjectSelector.ui.test.tsx" "src/components/agent/chat/components/ChatNavbar.test.tsx"
+npm run test:contracts
+```
+
+结果：
+
+- hydration 错误分类 / DevBridge / mock 定向回归：通过。
+- ProjectSelector / AgentChatWorkspace 相关 UI 回归：通过。
+- 契约检查：通过。
+- E2E 污染态结论：浏览器侧 `getSession` 仍会 timeout，但已从多次重试收敛为单次失败并跳过即时 retry；下一刀需要解释“CLI 同命令快、浏览器页面内慢”的差异。
+
+下一步：
+
+1. 不再继续盲目优化 SQL；先验证浏览器同源连接池是否被 DevBridge SSE 长连接占满。
+2. 如果页面内直接 `fetch('/invoke', agent_runtime_get_session)` 仍明显慢于 Node/CLI，优先收敛 `/events` 连接数。
+
+### 2026-05-01：P1 第二十五刀，DevBridge SSE 事件流 multiplex，释放浏览器 invoke 连接槽
+
+采集事实：
+
+- timeout 污染态中，CLI/Node 直连同一 `agent_runtime_get_session(historyLimit=40)` 可在约 `222-1196ms` 返回；浏览器页面内 `fetch('http://127.0.0.1:3030/invoke')` 曾出现 `12s/20s` timeout。
+- Playwright network 曾多次看到 `GET /events?event=lime%3A%2F%2Fcreation_task_submitted => 200 OK` 常驻，以及大量 `/invoke => net::ERR_ABORTED`。
+- 这说明主要瓶颈不是 Rust handler 固定慢，而是浏览器同源 HTTP/1.1 连接槽容易被多个 EventSource/SSE 长连接占住，导致 POST `/invoke` 排队超时。
+
+已完成：
+
+- `src-tauri/src/dev_bridge.rs`：
+  - `/events` 保留兼容 `?event=...`，新增 `?events=[...]` multiplex 查询。
+  - 单条 SSE 连接可同时监听多个 Tauri event，并在每条消息中继续携带 `{ event, payload }`。
+  - 仍使用 `app_handle.listen(...)` 只监听 AppHandle 目标，避免退回 `listen_any` 后再次出现逐 token 重复吐字。
+  - `DevBridgeEventListenerGuard` 改为持有多个 `EventId`，连接关闭时成组释放监听。
+- `src/lib/dev-bridge/http-client.ts`：
+  - 前端 HTTP event bridge 从“每个事件一条 EventSource”收敛为“当前页面一条 multiplex EventSource”。
+  - 多个 `safeListen(...)` 并发注册时复用同一个 in-flight 连接初始化，按事件名分发 payload。
+  - 事件流已打开后断开仍会关闭连接并停止浏览器自动重连风暴，不把整个 bridge 误标记为 unavailable。
+- `src/lib/dev-bridge/http-client.test.ts` / `src-tauri/src/dev_bridge.rs`：
+  - 新增多事件共用一条 SSE 连接的前端回归。
+  - 新增 Rust 查询解析回归，覆盖单事件、JSON array multiplex 与逗号分隔调试格式。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/lib/dev-bridge/http-client.test.ts" "src/lib/dev-bridge/safeInvoke.test.ts" "src/lib/dev-bridge/mockPriorityCommands.test.ts"
+npx eslint "src/lib/dev-bridge/http-client.ts" "src/lib/dev-bridge/http-client.test.ts"
+cargo test --manifest-path "src-tauri/Cargo.toml" dev_bridge::tests::parses_
+npm run test:contracts
+git diff --check -- "src/lib/dev-bridge/http-client.ts" "src/lib/dev-bridge/http-client.test.ts" "src-tauri/src/dev_bridge.rs"
+npm run bridge:health -- --timeout-ms 10000
+```
+
+结果：
+
+- DevBridge HTTP / safeInvoke / mockPriority 定向回归：通过，`40` 个测试通过。
+- Rust DevBridge event query 解析回归：通过，`2` 个测试通过。
+- ESLint touched bridge files：通过。
+- 命令契约检查：通过。
+- diff 空白检查：通过。
+- DevBridge health：`41ms` 就绪。
+
+Playwright E2E 复测（复用现有 Lime 页签，点击 `Slow typing E2E`）：
+
+- `click -> session.switch.start`: `102ms`。
+- `click -> cachedSnapshotApplied`: `103ms`。
+- 首次可见 `messageList.paint`: 约 `216ms`（缓存窗口先显示最近消息）。
+- deferred hydration `fetchDetail.start`: `1305ms`。
+- `agent_runtime_get_session(historyLimit=40)`: 成功，`471ms`，`messages=40 / total=170`。
+- `click -> session.switch.success`: `1779ms`。
+- `runtimeGetSessionErrorCount=0`，`fetchDetailErrorCount=0`，invoke error buffer 为空。
+- `longTaskCount=1`，`longTaskMaxMs=129ms`，`maxUsedJSHeapSize≈499MB`。
+- 页面内直接 `fetch('/invoke', agent_runtime_get_session historyLimit=40)`：成功，`946ms`，`messages=40 / total=170`。
+- 控制台 error：`2` 条，均为 `user.limeai.run ... /client/skills 401`，属于云端目录鉴权噪音，非本地旧会话恢复阻塞。
+
+下一步：
+
+1. 继续把 “summary 中 clickToMessageListPaintMs 取最后一次 paint” 与“用户首屏已在约 216ms 出现”区分开，补一个首屏 paint 指标，避免后续误判。
+2. 针对 `longTaskMaxMs≈129ms` 与 `JSHeap≈499MB`，下一刀优先看 MessageList 首屏 restored-window 的 markdown / turn timeline 同步计算和 sidebar 常驻列表渲染，而不是继续加大 getSession 超时。
+3. 多开旧会话 / 新建对话后再复测 EventSource 数量，确认内部 tab 增多时仍不会回到每个事件一条长连接。
+
+### 2026-05-01：P1 第二十六刀，补齐首屏 paint 指标避免误判旧会话体感
+
+采集事实：
+
+- 第二十五刀 Playwright 复测中，旧会话实际首屏缓存窗口约 `216ms` 可见，但 `summary.clickToMessageListPaintMs` 取最后一次 `messageList.paint`，显示为约 `2704ms`。
+- 该字段容易把“首屏可见”与“hydration 后最终稳定 paint”混为一谈，后续分析会误判体感慢点。
+
+已完成：
+
+- `agentUiPerformanceMetrics.ts`：新增 `clickToFirstMessageListPaintMs`，保留原 `clickToMessageListPaintMs` 作为最后一次 paint 兼容字段。
+- `agentUiPerformanceMetrics.test.ts`：补两次 `messageList.paint` 的回归，确保 first paint 小于等于 final paint，且 final message 指标仍来自最后一次 paint。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/lib/agentUiPerformanceMetrics.test.ts"
+npm exec -- vitest run "src/lib/dev-bridge/http-client.test.ts" "src/lib/dev-bridge/safeInvoke.test.ts" "src/lib/dev-bridge/mockPriorityCommands.test.ts" "src/lib/agentUiPerformanceMetrics.test.ts"
+npx eslint "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts"
+git diff --check -- "src/lib/dev-bridge/http-client.ts" "src/lib/dev-bridge/http-client.test.ts" "src-tauri/src/dev_bridge.rs" "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- AgentUI perf metrics 定向回归：通过，`2` 个测试通过。
+- DevBridge + AgentUI metrics 组合回归：通过，`42` 个测试通过。
+- ESLint touched metrics files：通过。
+- diff 空白检查：通过。
+
+下一步：
+
+1. 后续 Playwright 汇报同时看 `clickToFirstMessageListPaintMs` 与 `clickToMessageListPaintMs`，前者代表用户首屏，后者代表最终稳定 paint。
+2. 若首屏仍偶发超过 `500ms`，优先查 sidebar click 期间 long task；若 final paint 慢但首屏快，优先查 hydration 后 MessageList timeline / markdown 懒加载。
+
+### 2026-05-01：P1 第二十七刀，多 tab / 新建 / 两个历史对话复测 multiplex 效果
+
+采集事实：
+
+- 复用现有 Playwright Lime 页签，注入 EventSource 统计后执行：`new-task-1 -> open-history(Slow typing E2E) -> open-history(配置 Lime API Key...) -> new-task-2`。
+- 最终活跃 EventSource 数：`1`，最终 URL 为 multiplex `/events?events=[...]`，说明第二十五刀已避免“每个事件一条 SSE 长连接”回流。
+- `agent_runtime_get_session(historyLimit=40)` 三次成功耗时约 `670ms / 299ms / 234ms`，invoke trace 无 error。
+- `Slow typing E2E`：`clickToFirstMessageListPaintMs≈95ms`、`runtimeGetSessionDurationMs≈235ms`、`longTaskMaxMs≈58ms`。
+- 第二个历史会话仍出现一次 `longTaskMaxMs≈228ms`，但不是 DevBridge 连接槽阻塞；下一步应继续看 MessageList / sidebar 渲染主线程负载。
+
+结论：
+
+- 多 tab 与两个历史对话已能打开，不再因为 EventSource 数量导致 `/invoke` 连接槽被占满。
+- 剩余体感慢点从“网络/bridge 排队”转向“局部主线程 long task + 后端模型首字”。
+
+### 2026-05-01：P0 第二十八刀，修复新建任务 createSession 失败后的永久创建锁
+
+采集事实：
+
+- Playwright 中复现：DevBridge 曾在 Tauri rebuild 瞬间不可用，第一次 `agent_runtime_create_session` 失败后，用户继续点击发送只反复出现：
+  - `AgentChatPage.taskCenter.draftTab.materialize.start`
+  - 不再出现 `useAgentSession.createFreshSession.start`
+  - invoke trace 为空，textarea 保留原文，页面看起来“点击无效 / 卡住”。
+- 源码定位到 `useAgentSession.ts`：`createFreshSessionPromiseRef.current` 保存的是 `trackedCreationPromise`，但 `finally` 中比较的是原始 `creationPromise`，因此无论成功还是失败都不会清空 ref；如果首次失败返回 `null`，后续新建任务会永久复用这个已失败 promise。
+
+已完成：
+
+- `src/components/agent/chat/hooks/useAgentSession.ts`：创建锁释放改为比较当前保存的 `trackedCreationPromise`，确保成功 / 失败后都能清空 `createFreshSessionPromiseRef`。
+- `src/components/agent/chat/hooks/useAsterAgentChat.test.tsx`：新增“新建任务失败后应释放创建锁，允许恢复桥接后再次新建”回归；覆盖首次 bridge error、第二次恢复成功。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "新建任务失败后应释放创建锁|从旧会话新建任务时应立即清空当前消息"
+npx eslint "src/components/agent/chat/hooks/useAgentSession.ts" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx"
+```
+
+结果：
+
+- 定向回归通过：`2` 个测试通过。
+- ESLint touched send/session files：通过。
+
+Playwright E2E 复测（刷新后新建任务发送短 prompt）：
+
+- `agent_runtime_create_session`: 成功，`168ms`。
+- `AgentStream.listenerBound`: 点击后约 `500ms`。
+- `agent_runtime_submit_turn`: 成功，`623ms`。
+- `AgentStream.submitAccepted`: 点击后约 `1124ms`。
+- `AgentStream.firstEvent/runtime_status`: 点击后约 `1257ms`。
+- `AgentStream.firstTextPaint`: 点击后约 `10246ms`，页面最终只输出一次“好”，未复现重复吐字。
+- invoke error buffer：空；long task：`0`。
+
+结论：
+
+- “新建任务点击无效 / 不能恢复 / 只能 materialize.start”已修复。
+- 前端发送链路在 `~1.1s` 内完成提交和 runtime status；首字剩余 `~9s` 主要落在模型侧首 token，而非按钮、createSession 或 listener 绑定。
+
+### 2026-05-01：P1 第二十九刀，首字路径裁掉默认占位记忆并启用通用紧凑 Prompt
+
+采集事实：
+
+- 首字 E2E 里 `turn_config.system_prompt` 混入默认项目记忆占位：`默认主角 / 待补充角色设定 / 待补充世界观背景与规则 / 第一章：待补充章节内容`。
+- 这些占位内容不会帮助回答，但会污染 prompt、增加 token 与模型路由成本。
+- 通用对话默认 Browser Assist 全量协议使首轮 system prompt 约 `4.4K` 字符；对“请只回复一个字”这类直接回答任务过重。
+
+已完成：
+
+- `src/lib/workspace/projectPrompt.ts`：过滤默认占位项目记忆；只有角色、世界观、大纲存在真实内容时才注入 `## 项目背景`。
+- `src/lib/workspace/projectPrompt.test.ts`：新增占位记忆不注入、真实记忆保留且过滤占位字段的回归。
+- `src/components/agent/chat/utils/generalAgentPrompt.ts`：新增 `compact` prompt 变体，保留核心边界、WebSearch / Browser Assist / `lime_site_run` 约束，但移除长篇重复协议。
+- `src/components/agent/chat/AgentChatWorkspace.tsx`：通用对话在默认轻量能力态（未开启 webSearch / thinking / task / subagent，且无 contentId）使用 compact prompt；重型能力或工作区上下文继续使用完整 prompt。
+- `src/components/agent/chat/utils/generalAgentPrompt.test.ts`：新增 compact prompt 回归，确保体积下降且核心边界保留。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" "src/components/agent/chat/utils/generalAgentPrompt.test.ts" "src/lib/workspace/projectPrompt.test.ts" -t "新建任务失败后应释放创建锁|从旧会话新建任务时应立即清空当前消息|generalAgentPrompt|generateProjectMemoryPrompt"
+npm exec -- vitest run "src/components/agent/chat/utils/generalAgentPrompt.test.ts" "src/lib/workspace/projectPrompt.test.ts"
+npx eslint "src/components/agent/chat/hooks/useAgentSession.ts" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" "src/components/agent/chat/utils/generalAgentPrompt.ts" "src/components/agent/chat/utils/generalAgentPrompt.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/lib/workspace/projectPrompt.ts" "src/lib/workspace/projectPrompt.test.ts"
+npm exec -- tsc --noEmit --pretty false --project tsconfig.json --incremental false
+git diff --check -- "src/components/agent/chat/hooks/useAgentSession.ts" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" "src/components/agent/chat/utils/generalAgentPrompt.ts" "src/components/agent/chat/utils/generalAgentPrompt.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/lib/workspace/projectPrompt.ts" "src/lib/workspace/projectPrompt.test.ts"
+```
+
+结果：
+
+- 定向 vitest：通过，`12` 个匹配测试通过。
+- prompt / projectPrompt 回归：通过，`10` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit`：通过。
+- diff 空白检查：通过。
+
+Playwright E2E 复测：
+
+- 占位记忆过滤后：`systemPromptHasPlaceholderMemory=false`，首次 `firstTextPaint≈4849ms`，`agent_runtime_create_session≈114ms`，`agent_runtime_submit_turn≈569ms`。
+- compact prompt 启用后：`systemPromptLength=938`（从约 `4431` 字符降到 `938`），`systemPromptHasPlaceholderMemory=false`。
+- compact prompt 同轮：`createSession≈97ms`，`listenerBound≈401ms`，`submitAccepted≈931ms`，`firstEvent≈1096ms`，`firstTextPaint≈5425ms`，long task `0`，invoke error buffer 空。
+- 旧会话再复测 `Slow typing E2E`：`clickToFirstMessageListPaintMs≈79ms`，`runtimeGetSessionDurationMs≈298ms`，`clickToSwitchSuccessMs≈1541ms`，long task `0`，invoke error buffer 空。
+
+结论：
+
+- 新建任务前端发送链路已恢复，首屏 runtime status 能在约 `1.1s` 出现。
+- 首字真实文本仍受当前 `gpt-5.5` 模型首 token 影响，当前实测约 `4.8-5.4s`；如需继续压到 `2s` 内，下一刀应做“低延迟模型 / DeepSeek 快速模式”与 UI 模型选择的自动化对比，而不是继续在 React 侧盲改。
+
+### 2026-05-01：P1 第三十刀，首字快速响应路由落地
+
+采集事实：
+
+- 上一轮 Playwright 对比显示，前端发送链路已在约 `0.1s` 收到 runtime status，慢点主要在模型首 token。
+- `lime-hub / gpt-5.5` 首字约 `4.1s`，`deepseek / deepseek-chat` 首字约 `1.6s`；同样 compact prompt 下均未复现重复吐字。
+- 因此本刀不继续盲改 React 渲染，而是在“首轮轻量普通对话”里做可回退、可观测的低延迟模型路由。
+
+已完成：
+
+- `src/components/agent/chat/utils/fastResponseModel.ts`：新增快速响应 resolver。仅当满足以下条件时自动生效：mappedTheme 为 general 的首轮轻量对话、无图片、无 contentId、无 webSearch / thinking / task / subagent、无团队/角色/上下文/技能/显式模型覆盖、当前模型为已知慢首字的 `lime-hub / gpt-5.5|gpt-5.4`，且已配置 DeepSeek provider。
+- `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`：发送前注入 `providerOverride=deepseek`、`modelOverride=deepseek-chat`，并把 `harness.fast_response_routing` 写入 metadata，便于后续 E2E 从 turn_config/日志追踪。
+- `src/components/agent/chat/hooks/handleSendTypes.ts`：允许 Workspace send options 携带 `assistantDraft`，让快速响应在等待阶段显示“快速响应已启用/处理中”，不是隐式降级。
+- `src/components/agent/chat/AgentChatWorkspace.tsx`：仅在空白普通对话且当前为 `lime-hub / gpt-5.5|gpt-5.4` 时预热配置 provider 列表，避免旧会话恢复路径额外争抢 provider 加载。
+- `src/components/agent/chat/utils/fastResponseModel.test.ts`、`src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`：补 resolver 与发送链集成回归。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/utils/fastResponseModel.test.ts"
+npm exec -- vitest run "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" -t "快速响应|普通发送不应把当前工作区模型当成 modelOverride|mappedTheme|自定义模型"
+npx eslint "src/components/agent/chat/utils/fastResponseModel.ts" "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/hooks/handleSendTypes.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx"
+npm exec -- tsc --noEmit --pretty false --project tsconfig.json --incremental false
+```
+
+结果：
+
+- 快速响应 resolver 单测：通过，`7` 个测试通过。
+- 发送链定向回归：通过，`6` 个匹配测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit`：通过。
+
+下一步：
+
+1. Playwright 复测真实新建对话，确认 `turn_config.provider_preference=deepseek`、`turn_config.model_preference=deepseek-chat`，并重新采集 `listenerBound / submitAccepted / firstEvent / firstTextDelta / firstTextPaint`。
+2. 若首字降到约 `1.6s`，保留当前“首轮轻量普通对话”范围；若仍慢，继续从 DevBridge trace 与 provider 返回事件排队排查。
+3. 后续再补可配置 UI 开关，把 `lime:agent-fast-response-mode=off` 暴露到设置或模型胶囊菜单。
+
+Playwright E2E 复测：
+
+- 复用现有 Lime 页签，先临时把当前工作区偏好切到 `lime-hub / gpt-5.5` 以触发快速响应，测试后已恢复到原始 `deepseek / deepseek-v4-flash` 偏好。
+- 第一次复测发现 DeepSeek provider 的 `custom_models` 只有 `deepseek-v4-pro / deepseek-v4-flash`，按自定义列表选择 `deepseek-v4-flash` 后虽然成功路由，但输出出现“已完成思考 / 我们被要求...”推理说明泄漏，且 `firstTextPaint≈4.6s`，不符合“只输出好”的流式体验。
+- 已调整 resolver：DeepSeek 快速响应固定使用非推理 `deepseek-chat`，不跟随自定义 flash/pro 列表，避免 reasoning UI 泄漏与排版回归。
+- 最终复测 `turn_config.provider_preference=deepseek`、`turn_config.model_preference=deepseek-chat`，`harness.fast_response_routing` 已写入 metadata。
+- 最终复测数据：`agent_runtime_create_session=96ms`，`agent_runtime_submit_turn=396ms`，`listenerBound=12ms`，`submitAccepted=410ms`，`firstEvent=652ms`，`firstRuntimeStatus=653ms`，`firstTextDelta=2962ms`，`firstTextPaint=2962ms`（从 requestStarted 计），脚本侧 click-to-first-paint 约 `4019ms`。
+- 可见输出只剩一个“好”，未复现重复吐字；invoke error buffer 为 `0`；测试期间无新增控制台 error，刷新基线仍有 `user.limeai.run /client/skills 401` 鉴权噪音。
+
+结论：
+
+- 快速响应路由已经按真实 turn_config 生效，并规避了 `deepseek-v4-flash` 的思考文本泄漏。
+- 首字较 `lime-hub / gpt-5.5` 的 `~5.4s` 有改善到 `~3.0s`（runtime 口径），但未稳定达到早前单独 DeepSeek 测试的 `~1.6s`；下一刀如果继续压首字，优先补“新建空白会话发送前预建 session / 减少 click->listenerBound 约 1s”的数据点，而不是再换模型。
+
+补充验证：
+
+```bash
+npm run verify:gui-smoke
+```
+
+结果：通过。已复用现有 headless Tauri / DevBridge，覆盖 workspace ready、browser runtime、site adapters、service skill entry、runtime tool surface 与页面级 tool surface smoke。
+
+### 2026-05-01：P1 第三十一刀，后端直发事件去重，收敛重复吐字风险
+
+采集事实：
+
+- 流式事件在 `record_runtime_stream_event` 中会对 `text_delta` / `runtime_status` 等低延迟事件先直发给前端。
+- 同一事件随后又会从 `stream_reply_once` 的统一 `app.emit` 路径再次发送，形成同一 `text_delta` 被前端处理两次的高风险路径。
+- `ItemStarted / ItemUpdated / ItemCompleted` 已由 `AgentTimelineRecorder` 持久化并发出等价 item 事件，也不应再由统一 emit 重复补发。
+- `Warning / Error / ArtifactSnapshot / ContextCompaction*` 会投影为不同 item 或保留原始语义，不能粗暴吞掉原始事件。
+
+已完成：
+
+- `src-tauri/src/commands/aster_agent_cmd/reply_runtime.rs`：`stream_reply_once` 的 `on_event` 回调改为返回 `bool`，表示当前事件是否已由更低层发送；已发送时跳过统一 `app.emit`。
+- `src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs`：`record_runtime_stream_event` 返回已发送状态；直接直发事件返回 `true`，timeline-owned item 事件在 recorder 成功后也返回 `true`。
+- `src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs`：新增 `timeline_recorder_emits_equivalent_runtime_event`，只对 runtime item 三类事件去重；warning/error/artifact 等继续保留原始 emit。
+- `src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs`：补充 warning 场景回归，防止把 timeline item 投影和原始 warning 语义混为一类。
+
+已验证：
+
+```bash
+rustfmt --edition 2021 --check "src-tauri/src/commands/aster_agent_cmd/reply_runtime.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentChatHistory.test.ts" -t "重复吐字|累计快照"
+cargo test --manifest-path "src-tauri/Cargo.toml" -p lime runtime_stream_ --no-fail-fast
+```
+
+结果：
+
+- Rust touched files 格式检查：通过。
+- 前端重复吐字/累计快照回归：通过，`2` 个匹配测试通过。
+- Rust runtime stream 定向测试：通过，`4` 个匹配测试通过；`1131` 个过滤。
+
+结论：
+
+- 后端低延迟直发事件不再被统一 emit 二次发送，重复吐字主风险路径已收敛。
+- 保留 warning/error/artifact 原始语义，不因去重破坏前端错误、告警或 artifact 处理。
+
+### 2026-05-01：P1 第三十二刀，快速响应专用短 Prompt 与真实 E2E 复测
+
+采集事实：
+
+- 后端去重后，真实 E2E 新建对话输出只出现一次“好”，未再复现重复吐字。
+- 同一轮采集显示前端链路已很快：`listenerBound≈121ms`、`submitAccepted≈253ms`、`firstRuntimeStatus≈287ms`。
+- 首字仍慢在模型首 token：快速响应路由命中 `deepseek / deepseek-chat` 后，普通 compact prompt 下 `firstTextPaint≈4665ms`。
+- 该请求仍携带通用 compact prompt、Browser Assist 协议和 harness 说明；对“只回答一个字”这类轻量首轮对话仍偏重。
+
+已完成：
+
+- `src/components/agent/chat/utils/fastResponseModel.ts`：新增 `buildAgentFastResponseSystemPrompt`，为快速响应路由生成约 `163` 字符的短系统提示词，强调直接回答、严格遵守单字/格式要求、不输出思维链、不主动联网/工具/落盘。
+- `src/components/agent/chat/hooks/agentChatShared.ts`、`src/components/agent/chat/hooks/handleSendTypes.ts`、`src/components/agent/chat/hooks/agentStreamUserInputSendPreparation.ts`：新增单次发送级 `systemPromptOverride`，避免把全局通用 prompt 改短，保证只影响快速响应命中的轻量首轮。
+- `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`：快速响应命中时同时注入 `providerOverride`、`modelOverride`、`harness.fast_response_routing`、assistant draft 和短 prompt override。
+- `src/components/agent/chat/utils/fastResponseModel.test.ts`、`src/components/agent/chat/hooks/agentStreamUserInputSendPreparation.test.ts`、`src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`：补齐短 prompt、单次 prompt override、发送链注入回归。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/hooks/agentStreamUserInputSendPreparation.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"
+npx eslint "src/components/agent/chat/utils/fastResponseModel.ts" "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/hooks/agentChatShared.ts" "src/components/agent/chat/hooks/handleSendTypes.ts" "src/components/agent/chat/hooks/agentStreamUserInputSendPreparation.ts" "src/components/agent/chat/hooks/agentStreamUserInputSendPreparation.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"
+npm exec -- tsc --noEmit --pretty false --project tsconfig.json --incremental false
+git diff --check -- "src/components/agent/chat/utils/fastResponseModel.ts" "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/hooks/agentChatShared.ts" "src/components/agent/chat/hooks/handleSendTypes.ts" "src/components/agent/chat/hooks/agentStreamUserInputSendPreparation.ts" "src/components/agent/chat/hooks/agentStreamUserInputSendPreparation.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src-tauri/src/commands/aster_agent_cmd/reply_runtime.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs"
+npm run bridge:health -- --timeout-ms 120000
+npm run verify:gui-smoke
+```
+
+结果：
+
+- 定向 vitest：通过，`134` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit`：通过。
+- diff 空白检查：通过。
+- DevBridge 健康检查：通过，`72ms` 就绪。
+- GUI smoke：通过，覆盖 workspace ready、browser runtime、site adapters、service skill entry、runtime tool surface 与页面级 tool surface。
+
+Playwright E2E 复测：
+
+- 复用现有 `http://127.0.0.1:1420/` Lime 页签，设置 `lime:agent-debug=1`、`lime:agent-fast-response-mode=auto`、`lime:onboarding-completed=true`。
+- 新建首轮轻量对话，输入 `只回答一个字：好 <timestamp>`。
+- 网络请求确认 `turn_config.provider_preference=deepseek`、`turn_config.model_preference=deepseek-chat`。
+- 网络请求确认 `turn_config.system_prompt` 已切为快速响应短 prompt，内容以“你是 Lime 的快速响应助手”开头，不再携带 Browser Assist 长协议。
+- 采集结果：`listenerBound≈7ms`、`submitAccepted≈215ms`、`firstEvent≈336ms`、`firstRuntimeStatus≈337ms`、`firstTextDelta≈3645ms`、`firstTextPaint≈3646ms`。
+- 可见输出只出现一次“好”；`textRenderFlush` 仅一次，`accumulatedChars=1`、`backlogChars=1`。
+- 控制台 error/warning：本轮复测后 `0`。
+
+结论：
+
+- 重复吐字风险已从后端 emit 层和前端累计文本层双向验证。
+- 快速响应短 prompt 把同环境首字从 `~4.7s` 压到 `~3.6s`，前端提交链路稳定在 `~0.3s` 内，剩余主要是 DeepSeek provider 首 token 波动。
+- 下一步若继续追 `2s` 内首字，不应再盲改 React；优先做 provider/model A/B（例如可控地评估非推理低延迟模型）和“首 token 到达前的可感知 UI”优化。
+
+### 2026-05-01：P1 第三十三刀，DeepSeek 推理模型首轮降级与 E2E 反证
+
+采集事实：
+
+- 复用现有 `http://127.0.0.1:1420/` Lime 页签，刷新后控制台基线为 `0` error / `0` warning。
+- 连续 4 轮新建首轮轻量对话（`只回答一个字：好 E2E-*`）显示前端链路仍快：`listenerBound=33-56ms`、`submitAccepted=160-298ms`、`firstRuntimeStatus=196-352ms`、`firstTextPaint=1581-4073ms`。
+- 但当当前模型是 `deepseek-v4-flash` 时，快速响应短 prompt 没有命中，真实请求仍为 `provider=deepseek`、`model=deepseek-v4-flash`、通用长 prompt。
+- 该路径复现了用户反馈的排版/吐字问题：可见“已完成思考 / 我们被要求...”推理文本，且 1 轮输出成 `好 E2E-*`，没有严格遵守单字输出。
+- 补丁首版后再次测到当前模型变为 `deepseek-reasoner` 时，仍未命中快速响应；原因是页面只在 `lime-hub / gpt-5.x` 预加载快速响应 Provider，DeepSeek 当前 Provider 场景会因为 Provider 列表尚未加载而走 `fast-provider-unavailable`。
+
+已完成：
+
+- `src/components/agent/chat/utils/fastResponseModel.ts`：把快速响应触发条件从“只识别 lime-hub 慢首字模型”扩展为“lime-hub gpt-5.x 或 DeepSeek 推理/flash/pro/r1 类模型”。
+- `src/components/agent/chat/utils/fastResponseModel.ts`：当前 Provider 已经是 DeepSeek 时，不再依赖 Provider 列表预加载；直接使用当前 `providerType` 作为本轮 `providerOverride`，并把模型降级到非推理 `deepseek-chat`。
+- `src/components/agent/chat/AgentChatWorkspace.tsx`：Provider 预加载条件改为复用同一个快速响应候选判断，避免 UI 层与发送层判断漂移。
+- `src/components/agent/chat/utils/fastResponseModel.test.ts`：新增 DeepSeek `deepseek-v4-flash`、`deepseek-reasoner` 与无需 Provider 列表的降级回归。
+- `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`：新增发送链回归，覆盖 DeepSeek 推理模型不等待 Provider 列表也能注入 `providerOverride=deepseek`、`modelOverride=deepseek-chat` 和快速响应短 prompt。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"
+npx eslint "src/components/agent/chat/utils/fastResponseModel.ts" "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"
+git diff --check -- "src/components/agent/chat/utils/fastResponseModel.ts" "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"
+```
+
+结果：
+
+- 定向 vitest：通过，`133` 个测试通过。
+- ESLint touched files：通过。
+- diff 空白检查：通过。
+
+补充验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"
+npx eslint "src/components/agent/chat/utils/fastResponseModel.ts" "src/components/agent/chat/utils/fastResponseModel.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"
+npm exec -- tsc --noEmit --pretty false --project tsconfig.json --incremental false
+npm run bridge:health -- --timeout-ms 120000
+npm run verify:gui-smoke
+npm run verify:local
+```
+
+结果：
+
+- 定向 vitest：通过，`133` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit`：通过。
+- DevBridge 健康检查：通过，首轮约 `26ms`，后续约 `2ms`。
+- GUI smoke：通过，覆盖 workspace ready、browser runtime、site adapters、service skill entry、runtime tool surface 与页面级 tool surface。
+- 完整 `npm run verify:local`：通过；包含 app version、lint、typecheck、vitest smart、contracts、Rust cargo test 与 GUI smoke。既有 warning 未阻塞：`runtime_evidence_pack_service.rs` unused imports、`modality_runtime_contracts.rs` dead_code、update 测试里的 signature mismatch / 404 diagnostic 文案。
+
+Playwright E2E 修复后复测：
+
+- 复用现有 `http://127.0.0.1:1420/` Lime 页签，设置 `lime:agent-debug=1`、`lime:agent-fast-response-mode=auto`、`lime:onboarding-completed=true`。
+- 当前 UI 仍显示 `deepseek-v4-flash` 属于预期；本轮只做单次发送降级，不修改全局模型选择。
+- 连续 2 轮输入 `只回答一个字：好 E2E-DEEPSEEK-DOWNGRADE-*`，请求体均确认 `turn_config.provider_preference=deepseek`、`turn_config.model_preference=deepseek-chat`。
+- 请求体均确认 `turn_config.system_prompt` 已切为快速响应短 prompt，开头为“你是 Lime 的快速响应助手”；`harness.fast_response_routing` 已写入 metadata。
+- Run 1：`listenerBound=24ms`、`submitAccepted=130ms`、`firstEvent=151ms`、`firstRuntimeStatus=151ms`、`firstTextDelta=1656ms`、`firstTextPaint=1657ms`、`flushCount=1`。
+- Run 2：`listenerBound=16ms`、`submitAccepted=95ms`、`firstEvent=114ms`、`firstRuntimeStatus=114ms`、`firstTextDelta=829ms`、`firstTextPaint=830ms`、`flushCount=1`。
+- 两轮可见输出都只包含“好”，未出现“已完成思考 / 我们被 / 推理”等思考文本或 marker 回显；控制台 error/warning 为 `0`。
+
+结论：
+
+- DeepSeek 推理/Flash 模型轻量首轮现在会自动走单次发送降级：`deepseek-v4-flash|reasoner -> deepseek-chat`，同时套用短 prompt。
+- 真实 E2E 已证明修复后不再泄漏思考文本、不再重复吐字，首字从此前 `1.5-5s` 波动收敛到 `0.83s / 1.66s` 两轮。
+- 完整 `npm run verify:local` 已通过，本刀达到 GUI 主路径可交付门槛。
+- 下一刀继续压旧会话恢复卡顿：优先采集会话打开 CPU/内存峰值与 `MessageList` timeline 主线程计算，不再在本刀内扩大快速响应逻辑范围。
+
+### 2026-05-01：P1 第三十四刀，旧会话 MessageList 同步计算细分采集
+
+采集事实：
+
+- 第三十三刀后，首字快速响应主链已收口；剩余用户体感慢点回到旧会话打开后的 CPU / 内存峰值与局部主线程 long task。
+- 现有 `agentUiPerformanceMetrics` 已能看到 `clickToFirstMessageListPaintMs`、`longTaskMaxMs`、JS heap 与是否延后 timeline / Markdown，但还不能区分 MessageList 内部是 `threadItems` 扫描、timeline 构建、消息分组还是 render group 拼装在耗时。
+- DevBridge 当前未就绪：`npm run bridge:health -- --timeout-ms 120000` 超时，`3030` 未监听；本机同时有 Tauri/Rust watch 编译链高 CPU，真实 Playwright 采样会被污染，本刀先补内建细分采集，不扩大 UI 行为。
+
+已完成：
+
+- `src/components/agent/chat/components/MessageList.tsx`：新增 `measureMessageListComputation`，在不引入渲染副作用的前提下记录同步计算耗时。
+- `MessageList` 旧会话 metric context 新增：
+  - `messageListThreadItemsScanMs`
+  - `messageListTimelineBuildMs`
+  - `messageListGroupBuildMs`
+  - `messageListRenderGroupsMs`
+  - `messageListHistoricalMarkdownTargetScanMs`
+  - `messageListHistoricalContentPartsScanMs`
+  - `messageListComputeMs`
+- `src/lib/agentUiPerformanceMetrics.ts`：summary 新增对应 max 字段，Playwright 可直接通过 `window.__LIME_AGENTUI_PERF__.summary()` 判断下一刀该打哪个热点，而不是只看 long task 总值。
+- `src/components/agent/chat/components/MessageList.test.tsx`、`src/lib/agentUiPerformanceMetrics.test.ts`：补旧会话 commit metric 与 summary 聚合回归。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/lib/agentUiPerformanceMetrics.test.ts" "src/components/agent/chat/components/MessageList.test.tsx" -t "agentUiPerformanceMetrics|旧会话首帧应延后历史助手 contentParts"
+npm exec -- vitest run "src/components/agent/chat/components/MessageList.test.tsx" -t "旧会话|已分页旧会话|历史"
+npx eslint "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts" --max-warnings 0
+git diff --check -- "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- 定向性能汇总与旧会话 contentParts 回归：通过，`3` 个测试通过。
+- MessageList 旧会话 / 已分页旧会话 / 历史回归：通过，`15` 个测试通过。
+- ESLint touched files：通过。
+- diff 空白检查：通过。
+
+暂未完成验证：
+
+- TypeScript 全量 `tsc --noEmit`：已启动但超过数分钟无输出；本机同时存在多路 `rustc` / Tauri watch 编译高 CPU，为避免继续污染用户反馈的 CPU 飙高场景，已停止本轮发起的 typecheck。上一刀完整 `npm run verify:local` 已通过；本刀后续在 DevBridge 稳定时补一次统一验证。
+- Playwright 旧会话真实采样：当前 DevBridge `3030` 未就绪，不能给出可信 E2E 数值。
+
+下一步：
+
+1. 等 DevBridge 恢复后，用 Playwright 连续打开 2-3 个旧会话，读取 `window.__LIME_AGENTUI_PERF__.summary()` 中新增的 MessageList 细分 max 字段。
+2. 若 `messageListTimelineBuildMaxMs` 或 `messageListThreadItemsScanMaxMs` 占主因，再继续把 timeline 构建移动到展开后或 Worker；若 `messageListRenderGroupsMaxMs` 占主因，优先看历史消息窗口和 DOM 虚拟化。
+3. 若细分项都低但 `longTaskMaxMs / maxUsedJSHeapSize` 仍高，下一刀转向常驻 sidebar/tab DOM 数量和 DevBridge/Rust watch 环境干扰，而不是继续改 MessageList。
+
+### 2026-05-01：P1 第三十五刀，首页回车首帧会话壳去阻塞
+
+采集事实：
+
+- 复用现有 `http://127.0.0.1:1420/` Lime 页签，不新启违规 Playwright 浏览器。
+- 修复前在 DevBridge 未就绪场景下复现：输入后按 Enter，`homeInputToPendingShellMs=11ms` 只是状态已入队，真实用户输入文本约 `1331ms` 才可见；同一请求出现 `542ms / 556ms` long task，`homeInputToSendDispatchMs=458ms`，体感会出现鼠标 busy。
+- 复现时还看到输入框内容变化后会触发空白首页后台 `ensureSession()` 预热；这会在用户尚未发送时就创建/恢复会话，容易和 Enter 后的发送链路、侧边栏 list、DevBridge invoke 抢主线程与桥接通道。
+
+已完成：
+
+- `src/components/agent/chat/AgentChatWorkspace.tsx`：移除空白首页输入后的自动 `ensureSession()` 预热；输入文字不再提前创建会话，避免未发送就触发 CPU / 内存峰值与空会话副作用。
+- `src/components/agent/chat/AgentChatWorkspace.tsx`：首页首发改为先写入轻量 `homePendingPreviewMessages`，立即渲染用户消息 + “正在进入对话”助手占位；真实 `handleSend` 延后到下一次 paint 后再派发。
+- `src/components/agent/chat/AgentChatWorkspace.tsx`：非草稿首页首发、以及已为空的草稿发送，不再调用重型 `clearMessages()`，避免在空白态重复 `applySessionSnapshot`、清 transient storage 与 reset streaming refs。
+- `src/lib/agentUiPerformanceMetrics.ts`：新增 `homeInput.pendingPreviewPaint` 与 `homeInputToPendingPreviewPaintMs`，Playwright 可直接区分“状态入队”与“用户可见预览已绘制”。
+- `src/components/agent/chat/index.test.tsx`：把旧的“输入即后台预热会话”回归改为“不应后台创建会话”，并新增“发送后立即展示轻量对话预览”回归。
+
+Playwright E2E 修复后复测：
+
+- 输入后停留 `500ms`，`window.__LIME_AGENTUI_PERF__.entries()` 仍为空，证明单纯输入不再触发会话创建/发送相关预热。
+- 按 Enter 后：`homeInputToPendingShellMs=0ms`、`homeInputToPendingPreviewPaintMs=63ms`、`homeInputToSendDispatchMs=64ms`。
+- 用户输入文本可见约 `110ms`；首页空态已退出，进入对话流预览。
+- 本轮请求 `longTaskMaxMs` 从修复前约 `556ms` 降到 `59ms`；同页 heap 未再出现 Enter 后瞬时大幅攀升。
+- 真实后端随后继续处理；本刀目标是“毫秒级先到达对话页面/壳”，不改变后端首 token 质量链。
+
+已验证：
+
+```bash
+npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/index.test.tsx" "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts" --max-warnings 0
+npm exec -- vitest run "src/lib/agentUiPerformanceMetrics.test.ts" "src/components/agent/chat/index.test.tsx" -t "首页输入|空白新建任务|草稿标签输入后应预热创建会话" --hookTimeout 180000 --testTimeout 120000
+npm run typecheck -- --pretty false
+npm run bridge:health -- --timeout-ms 120000
+npm run verify:gui-smoke
+git diff --check -- "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/index.test.tsx" "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- ESLint touched files：通过。
+- 定向 vitest：通过，`7` 个测试通过，`101` 个测试按过滤条件跳过。
+- TypeScript `tsc --noEmit`：通过。
+- DevBridge 健康检查：通过，`1710ms` 就绪。
+- GUI smoke：通过，覆盖 workspace ready、browser runtime、site adapters、service skill entry、runtime tool surface 与页面级 tool surface。
+- diff 空白检查：通过。
+
+下一步：
+
+1. 若仍觉得 Enter 后模型首字慢，继续看 `AgentStream.firstTextDelta / firstTextPaint`，不要再把“先进入对话页”与“后端首 token”混成同一个问题。
+2. 若首页打开后内存基线仍高，下一刀应从常驻 tab/sidebar DOM、历史对话列表与 keep-alive 页面裁剪入手。
+
+### 2026-05-01：P1 第三十六刀，首页首发流式首字链路拆段与跳过旧会话恢复
+
+采集事实：
+
+- 复用现有 `http://127.0.0.1:1420/` Lime 页签，不新启违规 Playwright 浏览器；先清空 `window.__LIME_AGENTUI_PERF__`，再从首页输入框发起真实首轮请求。
+- 复测样本 1：`homeInputToPendingPreviewPaintMs=49ms`、`homeInputToSubmitAcceptedMs=303ms`、`homeInputToFirstEventMs=331ms`、`homeInputToFirstTextPaintMs=2040ms`、`streamEnsureSessionDurationMs=91ms`、`streamSubmitInvokeDurationMs=119ms`、`firstEventToFirstTextDeltaMs=1674ms`、`longTaskCount=0`。
+- 复测样本 2：`homeInputToPendingPreviewPaintMs=17ms`、`homeInputToSubmitAcceptedMs=176ms`、`homeInputToFirstEventMs=199ms`、`homeInputToFirstTextPaintMs=2100ms`、`streamEnsureSessionDurationMs=35ms`、`streamSubmitInvokeDurationMs=86ms`、`firstEventToFirstTextDeltaMs=1879ms`、`longTaskCount=0`。
+- 结论：当前前端从 Enter 到会话壳 / 状态事件已经稳定在几十到两百毫秒；仍然约 `1.7-1.9s` 的等待主要发生在后端/Provider 从首个 `runtime_status` 到首个 `text_delta` 的阶段，不再是首页切壳、MessageList 或主线程 long task。
+
+已完成：
+
+- `src/components/agent/chat/hooks/agentStreamPerformanceMetrics.ts`：新增首页首发 trace 元数据，允许后续 stream 阶段继续按草稿请求维度汇总，而不是被真实 sessionId 打散。
+- `src/components/agent/chat/AgentChatWorkspace.tsx`：首页首发派发时写入 trace，并设置 `skipSessionRestore: true`；新对话首发不再先恢复上一次会话，避免误入旧会话 hydration 与历史消息拉取。
+- `src/components/agent/chat/hooks/useAgentSession.ts` 与 stream 发送链路：`ensureSession` 支持按请求跳过 restore candidate；普通恢复路径不变，仅首页新对话首发显式走创建新会话。
+- `src/components/agent/chat/hooks/agentStreamSubmitContext.ts`、`agentStreamSubmitExecution.ts`、`agentStreamTurnEventBinding.ts`、`agentStreamRuntimeHandler.ts`：新增 `agentStream.ensureSession.*`、`request.start`、`listenerBound`、`submitDispatched`、`submitAccepted`、`firstEvent`、`firstRuntimeStatus`、`firstTextDelta`、`firstTextRenderFlush`、`firstTextPaint` 采集。
+- `src/lib/agentUiPerformanceMetrics.ts`：summary 新增 `homeInputToFirstEventMs`、`homeInputToFirstRuntimeStatusMs`、`homeInputToFirstTextDeltaMs`、`homeInputToFirstTextPaintMs`、`streamEnsureSessionDurationMs`、`streamSubmitInvokeDurationMs` 等字段，Playwright 可直接读出前端、桥接、后端首 token 分段。
+
+已验证：
+
+```bash
+npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.ts" "src/components/agent/chat/hooks/agentStreamPreparedSendEnv.ts" "src/components/agent/chat/hooks/useAgentStream.ts" "src/components/agent/chat/hooks/agentStreamUserInputSendPreparation.ts" "src/components/agent/chat/hooks/agentStreamUserInputSubmission.ts" "src/components/agent/chat/hooks/agentStreamSubmissionLifecycle.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/useAgentSession.ts" "src/components/agent/chat/hooks/handleSendTypes.ts" "src/components/agent/chat/hooks/agentChatShared.ts" "src/lib/agentUiPerformanceMetrics.ts" "src/lib/agentUiPerformanceMetrics.test.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+npm exec -- vitest run "src/lib/agentUiPerformanceMetrics.test.ts" "src/components/agent/chat/index.test.tsx" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "agentUiPerformanceMetrics|空白新建任务|首页输入|sendMessage 后在首个流事件前应先注入本地回合占位" --hookTimeout 180000 --testTimeout 120000
+npm run bridge:health -- --timeout-ms 120000
+npm run verify:gui-smoke
+```
+
+结果：
+
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit`：通过。
+- 定向 vitest：通过，`9` 个测试通过。
+- DevBridge 健康检查：通过，`21ms` 就绪。
+- GUI smoke：通过，覆盖 workspace ready、browser runtime、site adapters、service skill entry、runtime tool surface 与页面级 tool surface。
+- Playwright 真实 GUI：两次首页新建对话首发均可快速进入对话壳；控制台 error 为 `0`；本轮链路没有 long task。
+
+下一步：
+
+1. 若要继续压缩真实首字，需要转向后端 runtime/provider：记录 submitOp 到 provider request、provider first byte、provider first text delta 的服务端分段。
+2. 前端侧可继续做感知优化：把 `firstEventToFirstTextDeltaMs > 1000` 时的运行态文案改成更明确的“模型正在生成首字”，但不要伪造模型文本。
+3. 若同一页面连续打开多个标签后仍卡顿，下一刀回到 tab/sidebar keep-alive DOM 裁剪与历史标签卸载策略。

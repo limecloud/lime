@@ -14,6 +14,7 @@ use crate::commands::auxiliary_model_selection::{
     build_auxiliary_runtime_metadata, build_auxiliary_turn_context_override,
     prepare_auxiliary_provider_scope, AuxiliaryProviderResolution, AuxiliaryServiceModelSlot,
 };
+use crate::commands::modality_runtime_contracts::hydrate_limecore_policy_hits_from_request_metadata;
 use aster::agents::extension::PlatformExtensionContext;
 use aster::hooks::{CompactTrigger, SessionSource};
 use aster::session::TurnContextOverride;
@@ -1574,6 +1575,9 @@ async fn prepare_runtime_turn_request(
             request.metadata.take(),
             image_input_policy.as_ref(),
         );
+        if let Some(metadata) = request.metadata.as_mut() {
+            hydrate_limecore_policy_hits_from_request_metadata(metadata);
+        }
     }
 
     let runtime_chat_mode = resolve_runtime_chat_mode(request.metadata.as_ref());
@@ -3741,7 +3745,7 @@ async fn execute_runtime_stream_attempt(
                     provider_continuation_capability,
                     &stream_timing,
                     event,
-                );
+                )
             }
         },
     )
@@ -3836,6 +3840,15 @@ fn should_record_runtime_stream_event_on_timeline(event: &RuntimeAgentEvent) -> 
             | RuntimeAgentEvent::ContextCompactionCompleted { .. }
             | RuntimeAgentEvent::Warning { .. }
             | RuntimeAgentEvent::Error { .. }
+    )
+}
+
+fn timeline_recorder_emits_equivalent_runtime_event(event: &RuntimeAgentEvent) -> bool {
+    matches!(
+        event,
+        RuntimeAgentEvent::ItemStarted { .. }
+            | RuntimeAgentEvent::ItemUpdated { .. }
+            | RuntimeAgentEvent::ItemCompleted { .. }
     )
 }
 
@@ -4164,8 +4177,9 @@ fn record_runtime_stream_event(
     provider_continuation_capability: ProviderContinuationCapability,
     stream_timing: &RuntimeStreamTiming,
     event: &RuntimeAgentEvent,
-) {
-    if should_emit_runtime_stream_event_directly(event) {
+) -> bool {
+    let emitted_directly = should_emit_runtime_stream_event_directly(event);
+    if emitted_directly {
         emit_direct_runtime_stream_event(app, event_name, stream_timing, event);
     }
 
@@ -4184,15 +4198,19 @@ fn record_runtime_stream_event(
     );
 
     if !should_record_runtime_stream_event_on_timeline(event) {
-        return;
+        return emitted_directly;
     }
 
     let mut recorder = match timeline_recorder.lock() {
         Ok(guard) => guard,
         Err(error) => error.into_inner(),
     };
-    if let Err(error) = recorder.record_runtime_event(app, event_name, event, workspace_root) {
-        tracing::warn!("[AsterAgent] 记录时间线事件失败（已降级继续）: {}", error);
+    match recorder.record_runtime_event(app, event_name, event, workspace_root) {
+        Ok(()) => emitted_directly || timeline_recorder_emits_equivalent_runtime_event(event),
+        Err(error) => {
+            tracing::warn!("[AsterAgent] 记录时间线事件失败（已降级继续）: {}", error);
+            emitted_directly
+        }
     }
 }
 
@@ -5593,6 +5611,19 @@ mod tests {
 
         assert!(!should_emit_runtime_stream_event_directly(&event));
         assert!(should_record_runtime_stream_event_on_timeline(&event));
+        assert!(timeline_recorder_emits_equivalent_runtime_event(&event));
+    }
+
+    #[test]
+    fn runtime_stream_warning_should_keep_original_emit_after_timeline_item() {
+        let event = RuntimeAgentEvent::Warning {
+            code: Some("runtime_warning".to_string()),
+            message: "需要提示用户".to_string(),
+        };
+
+        assert!(!should_emit_runtime_stream_event_directly(&event));
+        assert!(should_record_runtime_stream_event_on_timeline(&event));
+        assert!(!timeline_recorder_emits_equivalent_runtime_event(&event));
     }
 
     #[test]

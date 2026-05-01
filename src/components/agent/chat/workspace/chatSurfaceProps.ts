@@ -187,6 +187,20 @@ interface BuildWorkspaceEmptyStatePropsParams {
   defaultCuratedTaskReferenceEntries?: ComponentProps<
     typeof EmptyState
   >["defaultCuratedTaskReferenceEntries"];
+  pathReferences?: ComponentProps<typeof EmptyState>["pathReferences"];
+  onAddPathReferences?: ComponentProps<
+    typeof EmptyState
+  >["onAddPathReferences"];
+  onRemovePathReference?: ComponentProps<
+    typeof EmptyState
+  >["onRemovePathReference"];
+  onClearPathReferences?: ComponentProps<
+    typeof EmptyState
+  >["onClearPathReferences"];
+  fileManagerOpen?: ComponentProps<typeof EmptyState>["fileManagerOpen"];
+  onToggleFileManager?: ComponentProps<
+    typeof EmptyState
+  >["onToggleFileManager"];
 }
 
 export function buildWorkspaceEmptyStateProps({
@@ -250,6 +264,12 @@ export function buildWorkspaceEmptyStateProps({
   creationReplaySurface,
   defaultCuratedTaskReferenceMemoryIds,
   defaultCuratedTaskReferenceEntries,
+  pathReferences,
+  onAddPathReferences,
+  onRemovePathReference,
+  onClearPathReferences,
+  fileManagerOpen,
+  onToggleFileManager,
 }: BuildWorkspaceEmptyStatePropsParams): ComponentProps<typeof EmptyState> {
   return {
     input,
@@ -322,6 +342,12 @@ export function buildWorkspaceEmptyStateProps({
     creationReplaySurface,
     defaultCuratedTaskReferenceMemoryIds,
     defaultCuratedTaskReferenceEntries,
+    pathReferences,
+    onAddPathReferences,
+    onRemovePathReference,
+    onClearPathReferences,
+    fileManagerOpen,
+    onToggleFileManager,
   };
 }
 

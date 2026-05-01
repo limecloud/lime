@@ -368,6 +368,34 @@ export interface AgentRuntimeSummary {
   singleCandidateOnly?: boolean | null;
   oemLocked?: boolean | null;
   quotaLow?: boolean | null;
+  limecorePolicy?: AgentRuntimeThreadLimeCorePolicySummary | null;
+}
+
+export interface AgentRuntimeThreadLimeCorePolicySummary {
+  contractKey?: string | null;
+  snapshotStatus?: string | null;
+  decision?: string | null;
+  decisionSource?: string | null;
+  decisionScope?: string | null;
+  decisionReason?: string | null;
+  refs?: string[];
+  evaluatedRefs?: string[];
+  missingInputs?: string[];
+  pendingHitRefs?: string[];
+  policyValueHitCount?: number | null;
+  source?: string | null;
+  evaluation?: AgentRuntimeThreadLimeCorePolicyEvaluation | null;
+}
+
+export interface AgentRuntimeThreadLimeCorePolicyEvaluation {
+  status?: string | null;
+  decision?: string | null;
+  decisionSource?: string | null;
+  decisionScope?: string | null;
+  decisionReason?: string | null;
+  blockingRefs?: string[];
+  askRefs?: string[];
+  pendingRefs?: string[];
 }
 
 export interface AsterSubagentSessionInfo {
@@ -603,8 +631,75 @@ export interface AgentRuntimeEvidenceBrowserActionIndex {
   items: AgentRuntimeEvidenceBrowserActionItem[];
 }
 
+export interface AgentRuntimeEvidenceDecisionCount extends AgentRuntimeEvidenceCountEntry {
+  decision: string;
+}
+
+export interface AgentRuntimeEvidenceLimeCorePolicyItem {
+  artifact_path?: string;
+  contract_key?: string;
+  execution_profile_key?: string;
+  executor_adapter_key?: string;
+  refs: string[];
+  status?: string;
+  decision?: string;
+  decision_source?: string;
+  decision_scope?: string;
+  decision_reason?: string;
+  evaluated_refs?: string[];
+  unresolved_refs?: string[];
+  missing_inputs?: string[];
+  policy_inputs?: AgentRuntimeEvidenceLimeCorePolicyInput[];
+  pending_hit_refs?: string[];
+  policy_value_hits?: AgentRuntimeEvidenceLimeCorePolicyValueHit[];
+  policy_value_hit_count?: number;
+  policy_evaluation?: AgentRuntimeEvidenceLimeCorePolicyEvaluation;
+  source?: string;
+}
+
+export interface AgentRuntimeEvidenceLimeCorePolicyEvaluation {
+  status?: string;
+  decision?: string;
+  decision_source?: string;
+  decision_scope?: string;
+  decision_reason?: string;
+  blocking_refs?: string[];
+  ask_refs?: string[];
+  pending_refs?: string[];
+}
+
+export interface AgentRuntimeEvidenceLimeCorePolicyInput {
+  ref_key: string;
+  status?: string;
+  source?: string;
+  value_source?: string;
+}
+
+export interface AgentRuntimeEvidenceLimeCorePolicyValueHit {
+  ref_key: string;
+  status?: string;
+  source?: string;
+  value_source?: string;
+  value?: unknown;
+  summary?: string;
+  evidence_ref?: string;
+  observed_at?: string;
+}
+
+export interface AgentRuntimeEvidenceLimeCorePolicyIndex {
+  snapshot_count: number;
+  ref_keys: string[];
+  missing_inputs?: string[];
+  pending_hit_refs?: string[];
+  policy_value_hit_count?: number;
+  status_counts: AgentRuntimeEvidenceStatusCount[];
+  decision_counts: AgentRuntimeEvidenceDecisionCount[];
+  items: AgentRuntimeEvidenceLimeCorePolicyItem[];
+}
+
 export interface AgentRuntimeEvidenceSnapshotIndex {
   browser_action_index?: AgentRuntimeEvidenceBrowserActionIndex;
+  limecore_policy_index?: AgentRuntimeEvidenceLimeCorePolicyIndex;
 }
 
 export interface AgentRuntimeEvidenceModalityRuntimeContracts {
@@ -1245,6 +1340,29 @@ export interface MediaTaskModalityRuntimeContractIndexEntry {
   routing_slot?: string | null;
   provider_id?: string | null;
   model?: string | null;
+  execution_profile_key?: string | null;
+  executor_adapter_key?: string | null;
+  executor_kind?: string | null;
+  executor_binding_key?: string | null;
+  limecore_policy_refs: string[];
+  limecore_policy_snapshot_status?: string | null;
+  limecore_policy_decision?: string | null;
+  limecore_policy_decision_source?: string | null;
+  limecore_policy_decision_scope?: string | null;
+  limecore_policy_decision_reason?: string | null;
+  limecore_policy_evaluation_status?: string | null;
+  limecore_policy_evaluation_decision?: string | null;
+  limecore_policy_evaluation_decision_source?: string | null;
+  limecore_policy_evaluation_decision_scope?: string | null;
+  limecore_policy_evaluation_decision_reason?: string | null;
+  limecore_policy_evaluation_blocking_refs?: string[];
+  limecore_policy_evaluation_ask_refs?: string[];
+  limecore_policy_evaluation_pending_refs?: string[];
+  limecore_policy_unresolved_refs?: string[];
+  limecore_policy_missing_inputs?: string[];
+  limecore_policy_pending_hit_refs?: string[];
+  limecore_policy_value_hits?: unknown[];
+  limecore_policy_value_hit_count?: number;
   routing_event: string;
   routing_outcome: string;
   failure_code?: string | null;
@@ -1281,9 +1399,36 @@ export interface MediaTaskTranscriptStatusCount {
   count: number;
 }
 
+export interface MediaTaskLimeCorePolicySnapshotStatusCount {
+  status: string;
+  count: number;
+}
+
+export interface MediaTaskLimeCorePolicyEvaluationStatusCount {
+  status: string;
+  count: number;
+}
+
 export interface MediaTaskModalityRuntimeContractIndex {
   snapshot_count: number;
   contract_keys: string[];
+  execution_profile_keys: string[];
+  executor_adapter_keys: string[];
+  limecore_policy_refs: string[];
+  limecore_policy_snapshot_count: number;
+  limecore_policy_snapshot_statuses: MediaTaskLimeCorePolicySnapshotStatusCount[];
+  limecore_policy_decisions: string[];
+  limecore_policy_decision_sources?: string[];
+  limecore_policy_evaluation_statuses?: MediaTaskLimeCorePolicyEvaluationStatusCount[];
+  limecore_policy_evaluation_decisions?: string[];
+  limecore_policy_evaluation_decision_sources?: string[];
+  limecore_policy_evaluation_blocking_refs?: string[];
+  limecore_policy_evaluation_ask_refs?: string[];
+  limecore_policy_evaluation_pending_refs?: string[];
+  limecore_policy_unresolved_refs?: string[];
+  limecore_policy_missing_inputs?: string[];
+  limecore_policy_pending_hit_refs?: string[];
+  limecore_policy_value_hit_count?: number;
   blocked_count: number;
   routing_outcomes: MediaTaskRoutingOutcomeCount[];
   model_registry_assessment_count: number;

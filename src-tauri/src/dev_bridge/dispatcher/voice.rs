@@ -5,7 +5,10 @@ use super::{
 use crate::commands::asr_cmd::AddAsrCredentialRequest;
 use crate::config::AsrCredentialEntry;
 use crate::dev_bridge::DevBridgeState;
-use crate::voice::commands::{RecordingStatus, StopRecordingResult, VoiceShortcutRuntimeStatus};
+use crate::voice::commands::{
+    RecordingSegmentResult, RecordingSnapshotResult, RecordingStatus, StopRecordingResult,
+    VoiceShortcutRuntimeStatus,
+};
 use crate::voice::recording_service::RecordingServiceState;
 use lime_core::config::{VoiceInputConfig, VoiceInstruction};
 use serde_json::Value as JsonValue;
@@ -28,6 +31,20 @@ fn get_required_u32_arg(args: &JsonValue, primary: &str, secondary: &str) -> Res
         .and_then(|value| value.as_u64())
         .map(|value| value as u32)
         .ok_or_else(|| format!("缺少参数: {primary}/{secondary}").into())
+}
+
+fn get_required_u64_arg(args: &JsonValue, primary: &str, secondary: &str) -> Result<u64, DynError> {
+    args.get(primary)
+        .or_else(|| args.get(secondary))
+        .and_then(|value| value.as_u64())
+        .ok_or_else(|| format!("缺少参数: {primary}/{secondary}").into())
+}
+
+fn get_optional_f32_arg(args: &JsonValue, primary: &str, secondary: &str) -> Option<f32> {
+    args.get(primary)
+        .or_else(|| args.get(secondary))
+        .and_then(|value| value.as_f64())
+        .map(|value| value as f32)
 }
 
 pub(super) async fn try_handle(
@@ -82,9 +99,14 @@ pub(super) async fn try_handle(
             let model_id = get_string_arg(&args, "modelId", "model_id")?;
             let catalog_entry = parse_optional_nested_arg(&args, "catalogEntry")?
                 .or(parse_optional_nested_arg(&args, "catalog_entry")?);
+            let app_handle = require_app_handle(state)?;
             serde_json::to_value(
-                crate::commands::voice_model_cmd::voice_models_download(model_id, catalog_entry)
-                    .await?,
+                crate::commands::voice_model_cmd::voice_models_download_with_progress(
+                    Some(app_handle),
+                    model_id,
+                    catalog_entry,
+                )
+                .await?,
             )?
         }
         "voice_models_delete" => {
@@ -205,6 +227,36 @@ pub(super) async fn try_handle(
                 audio_data: audio.to_pcm16le_bytes(),
                 sample_rate: audio.sample_rate,
                 duration: audio.duration_secs,
+            })?
+        }
+        "get_recording_snapshot" => {
+            let app_handle = require_app_handle(state)?;
+            let recording_service = app_handle.state::<RecordingServiceState>();
+            let mut service = recording_service.0.lock();
+            let audio = service.snapshot()?;
+            serde_json::to_value(RecordingSnapshotResult {
+                audio_data: audio.to_pcm16le_bytes(),
+                sample_rate: audio.sample_rate,
+                duration: audio.duration_secs,
+            })?
+        }
+        "get_recording_segment" => {
+            let args = args_or_default(args);
+            let start_sample = get_required_u64_arg(&args, "startSample", "start_sample")?;
+            let max_duration_secs =
+                get_optional_f32_arg(&args, "maxDurationSecs", "max_duration_secs");
+            let app_handle = require_app_handle(state)?;
+            let recording_service = app_handle.state::<RecordingServiceState>();
+            let mut service = recording_service.0.lock();
+            let (audio, start_sample, end_sample, total_samples) =
+                service.segment(start_sample as usize, max_duration_secs)?;
+            serde_json::to_value(RecordingSegmentResult {
+                audio_data: audio.to_pcm16le_bytes(),
+                sample_rate: audio.sample_rate,
+                duration: audio.duration_secs,
+                start_sample: start_sample as u64,
+                end_sample: end_sample as u64,
+                total_samples: total_samples as u64,
             })?
         }
         "cancel_recording" => {

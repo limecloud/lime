@@ -8,7 +8,7 @@
  * _需求: 2.2, 3.2, 5.2_
  */
 
-import React, { Suspense, lazy, useState, useCallback } from "react";
+import React, { Suspense, lazy, useState, useCallback, useEffect } from "react";
 import styled from "styled-components";
 import { withI18nPatch } from "./i18n/withI18nPatch";
 import { AppPageContent } from "./components/AppPageContent";
@@ -48,6 +48,10 @@ import { SettingsTabs } from "./types/settings";
 import { hasTauriInvokeCapability } from "./lib/tauri-runtime";
 import { shouldReserveMacWindowControls } from "./lib/windowControls";
 import { startWindowDragFromMouseEvent } from "./lib/windowDrag";
+import {
+  listenOpenVoiceModelSettingsRequest,
+  persistVoiceModelSettingsFocusRequest,
+} from "./lib/voiceModelSettingsNavigation";
 
 const AppContainer = styled.div`
   display: flex;
@@ -199,6 +203,14 @@ function AppContent() {
   useCompanionProviderBridge({
     onNavigate: handleNavigate,
   });
+  useEffect(
+    () =>
+      listenOpenVoiceModelSettingsRequest((detail) => {
+        persistVoiceModelSettingsFocusRequest(detail);
+        handleNavigate("settings", { tab: SettingsTabs.MediaServices });
+      }),
+    [handleNavigate],
+  );
 
   const _handleRequestRecommendation = useCallback(
     (shortLabel: string, fullPrompt: string, currentTheme: string) => {

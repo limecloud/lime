@@ -1,4 +1,4 @@
-import type { SlashSkillRequest } from "./agentChatShared";
+import type { AssistantDraftState, SlashSkillRequest } from "./agentChatShared";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { InputCapabilitySendRoute } from "../skill-selection/inputCapabilitySelection";
 
@@ -19,4 +19,7 @@ export interface HandleSendOptions {
   capabilityRoute?: InputCapabilitySendRoute;
   providerOverride?: string;
   modelOverride?: string;
+  systemPromptOverride?: string;
+  assistantDraft?: AssistantDraftState;
+  skipSessionRestore?: boolean;
 }

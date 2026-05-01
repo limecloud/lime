@@ -1376,6 +1376,8 @@ pub fn run() {
             crate::services::file_browser_service::list_dir,
             crate::services::file_browser_service::read_file_preview_cmd,
             crate::services::file_browser_service::get_home_dir,
+            crate::services::file_browser_service::get_file_manager_locations,
+            crate::services::file_browser_service::get_file_icon_data_url,
             crate::services::file_browser_service::create_file,
             crate::services::file_browser_service::create_directory,
             crate::services::file_browser_service::delete_file,
@@ -1623,6 +1625,8 @@ pub fn run() {
             // 录音命令（使用独立线程 + channel 通信）
             crate::voice::commands::start_recording,
             crate::voice::commands::stop_recording,
+            crate::voice::commands::get_recording_snapshot,
+            crate::voice::commands::get_recording_segment,
             crate::voice::commands::cancel_recording,
             crate::voice::commands::get_recording_status,
             crate::voice::commands::list_audio_devices,

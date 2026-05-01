@@ -12,7 +12,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::command;
+use tauri::{command, AppHandle, Emitter, Runtime};
 use tokio::io::AsyncWriteExt;
 
 use crate::config::{
@@ -32,7 +32,12 @@ const VAD_DOWNLOAD_PATH: &str = "voice/silero-vad-onnx/silero_vad.onnx";
 const MODEL_ONNX_FILE: &str = "model.int8.onnx";
 const TOKENS_FILE: &str = "tokens.txt";
 const MANIFEST_FILE: &str = "lime-model.json";
-const DEFAULT_MODEL_BYTES: u64 = 250 * 1024 * 1024;
+const DEFAULT_VOICE_MODEL_ASSET_BASE_URL: &str =
+    "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev";
+const DEFAULT_MODEL_BYTES: u64 = 163_002_883;
+const DEFAULT_MODEL_ARCHIVE_SHA256: &str =
+    "7d1efa2138a65b0b488df37f8b89e3d91a60676e416f515b952358d83dfd347e";
+const VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT: &str = "voice-model-download-progress";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceModelCatalogEntry {
@@ -122,6 +127,16 @@ pub struct VoiceModelDownloadResult {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct VoiceModelDownloadProgressEvent {
+    pub model_id: String,
+    pub phase: String,
+    pub downloaded_bytes: u64,
+    pub total_bytes: Option<u64>,
+    pub overall_progress: f32,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct VoiceModelTestTranscribeResult {
     pub text: String,
     pub duration_secs: f32,
@@ -158,7 +173,16 @@ pub async fn voice_models_get_install_state(
 }
 
 #[command]
-pub async fn voice_models_download(
+pub async fn voice_models_download<R: Runtime>(
+    app_handle: AppHandle<R>,
+    model_id: String,
+    catalog_entry: Option<VoiceModelCatalogEntry>,
+) -> Result<VoiceModelDownloadResult, String> {
+    voice_models_download_with_progress(Some(app_handle), model_id, catalog_entry).await
+}
+
+pub async fn voice_models_download_with_progress<R: Runtime>(
+    app_handle: Option<AppHandle<R>>,
     model_id: String,
     catalog_entry: Option<VoiceModelCatalogEntry>,
 ) -> Result<VoiceModelDownloadResult, String> {
@@ -174,6 +198,10 @@ pub async fn voice_models_download(
     )?;
 
     let install_dir = model_install_dir(&model_id)?;
+    let progress = VoiceModelDownloadProgressEmitter::new(app_handle, model_id.clone());
+    let expected_archive_bytes = (catalog_entry.size_bytes > 0).then_some(catalog_entry.size_bytes);
+    progress.emit("preparing", 0, expected_archive_bytes, 0.0, "准备下载模型");
+
     let temp_root = models_root()?.join(".downloads").join(format!(
         "{}-{}",
         model_id,
@@ -184,9 +212,21 @@ pub async fn voice_models_download(
         .map_err(|error| format!("创建模型临时目录失败 {}: {error}", extract_dir.display()))?;
 
     let archive_path = temp_root.join(MODEL_ARCHIVE_FILE_NAME);
-    let archive_sha256 = download_file(&archive_url, &archive_path).await?;
+    let archive_sha256 = download_file(&archive_url, &archive_path, |downloaded, total| {
+        let total_bytes = total.or(expected_archive_bytes);
+        let phase_progress = progress_ratio(downloaded, total_bytes);
+        progress.emit(
+            "archive",
+            downloaded,
+            total_bytes,
+            0.9 * phase_progress,
+            "正在下载模型包",
+        );
+    })
+    .await?;
     let checksum_verified =
         verify_optional_sha256(&archive_sha256, catalog_entry.checksum_sha256.as_deref())?;
+    progress.emit("extracting", 0, None, 0.92, "正在校验并解压");
     extract_tar_bz2(&archive_path, &extract_dir)?;
 
     let model_source_dir = find_sensevoice_model_dir(&extract_dir)?;
@@ -201,7 +241,17 @@ pub async fn voice_models_download(
     copy_required_file(&model_source_dir, &staging_dir, MODEL_ONNX_FILE)?;
     copy_required_file(&model_source_dir, &staging_dir, TOKENS_FILE)?;
     let vad_path = staging_dir.join(VAD_FILE_NAME);
-    let _vad_sha256 = download_file(&vad_url, &vad_path).await?;
+    let _vad_sha256 = download_file(&vad_url, &vad_path, |downloaded, total| {
+        let phase_progress = progress_ratio(downloaded, total);
+        progress.emit(
+            "vad",
+            downloaded,
+            total,
+            0.92 + 0.05 * phase_progress,
+            "正在下载 VAD",
+        );
+    })
+    .await?;
 
     let manifest = VoiceModelManifest {
         model_id: model_id.clone(),
@@ -217,6 +267,7 @@ pub async fn voice_models_download(
         },
     };
     write_manifest(&staging_dir, &manifest)?;
+    progress.emit("installing", 0, None, 0.98, "正在安装");
 
     if install_dir.exists() {
         fs::remove_dir_all(&install_dir)
@@ -232,6 +283,7 @@ pub async fn voice_models_download(
         .map_err(|error| format!("安装模型目录失败 {}: {error}", install_dir.display()))?;
 
     let _ = fs::remove_dir_all(&temp_root);
+    progress.emit("done", 0, None, 1.0, "安装完成");
     Ok(VoiceModelDownloadResult {
         state: build_install_state(&model_id)?,
     })
@@ -373,7 +425,8 @@ fn sensevoice_catalog_entry() -> VoiceModelCatalogEntry {
         "LIME_VOICE_MODEL_ASSET_BASE_URL",
         "VOICE_MODEL_ASSET_BASE_URL",
         "SERVER_VOICE_MODEL_ASSET_BASE_URL",
-    ]);
+    ])
+    .unwrap_or_else(|| DEFAULT_VOICE_MODEL_ASSET_BASE_URL.to_string());
     VoiceModelCatalogEntry {
         id: SENSEVOICE_MODEL_ID.to_string(),
         name: "SenseVoice Small INT8".to_string(),
@@ -389,17 +442,12 @@ fn sensevoice_catalog_entry() -> VoiceModelCatalogEntry {
             "yue".to_string(),
         ],
         size_bytes: DEFAULT_MODEL_BYTES,
-        download_url: asset_base_url
-            .as_deref()
-            .and_then(|base_url| join_url(base_url, MODEL_ARCHIVE_DOWNLOAD_PATH))
-            .unwrap_or_default(),
+        download_url: join_url(&asset_base_url, MODEL_ARCHIVE_DOWNLOAD_PATH).unwrap_or_default(),
         vad_model_id: Some(SILERO_VAD_MODEL_ID.to_string()),
-        vad_download_url: asset_base_url
-            .as_deref()
-            .and_then(|base_url| join_url(base_url, VAD_DOWNLOAD_PATH)),
+        vad_download_url: join_url(&asset_base_url, VAD_DOWNLOAD_PATH),
         runtime: "sherpa-onnx".to_string(),
         bundled: false,
-        checksum_sha256: None,
+        checksum_sha256: Some(DEFAULT_MODEL_ARCHIVE_SHA256.to_string()),
     }
 }
 
@@ -601,6 +649,55 @@ fn join_url(base_url: &str, path: &str) -> Option<String> {
         return None;
     }
     Some(format!("{base}/{path}"))
+}
+
+#[derive(Debug, Clone)]
+struct VoiceModelDownloadProgressEmitter<R: Runtime> {
+    app_handle: Option<AppHandle<R>>,
+    model_id: String,
+}
+
+impl<R: Runtime> VoiceModelDownloadProgressEmitter<R> {
+    fn new(app_handle: Option<AppHandle<R>>, model_id: String) -> Self {
+        Self {
+            app_handle,
+            model_id,
+        }
+    }
+
+    fn emit(
+        &self,
+        phase: &str,
+        downloaded_bytes: u64,
+        total_bytes: Option<u64>,
+        overall_progress: f32,
+        message: &str,
+    ) {
+        let Some(app_handle) = self.app_handle.as_ref() else {
+            return;
+        };
+
+        let payload = VoiceModelDownloadProgressEvent {
+            model_id: self.model_id.clone(),
+            phase: phase.to_string(),
+            downloaded_bytes,
+            total_bytes,
+            overall_progress: overall_progress.clamp(0.0, 1.0),
+            message: message.to_string(),
+        };
+
+        if let Err(error) = app_handle.emit(VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT, &payload) {
+            tracing::warn!("发送语音模型下载进度事件失败: {error}");
+        }
+    }
+}
+
+fn progress_ratio(downloaded_bytes: u64, total_bytes: Option<u64>) -> f32 {
+    let Some(total_bytes) = total_bytes.filter(|value| *value > 0) else {
+        return 0.0;
+    };
+
+    (downloaded_bytes as f32 / total_bytes as f32).clamp(0.0, 1.0)
 }
 
 #[derive(Debug)]
@@ -818,7 +915,14 @@ fn build_install_state(model_id: &str) -> Result<VoiceModelInstallState, String>
     })
 }
 
-async fn download_file(url: &str, destination: &Path) -> Result<String, String> {
+async fn download_file<F>(
+    url: &str,
+    destination: &Path,
+    mut on_progress: F,
+) -> Result<String, String>
+where
+    F: FnMut(u64, Option<u64>),
+{
     if let Some(parent) = destination.parent() {
         tokio::fs::create_dir_all(parent)
             .await
@@ -835,6 +939,8 @@ async fn download_file(url: &str, destination: &Path) -> Result<String, String> 
         .map_err(|error| format!("下载模型失败: {error}"))?
         .error_for_status()
         .map_err(|error| format!("下载模型响应异常: {error}"))?;
+    let total_bytes = response.content_length();
+    on_progress(0, total_bytes);
 
     let temp_path = destination.with_extension("download");
     let mut file = tokio::fs::File::create(&temp_path)
@@ -842,13 +948,16 @@ async fn download_file(url: &str, destination: &Path) -> Result<String, String> 
         .map_err(|error| format!("创建下载文件失败 {}: {error}", temp_path.display()))?;
     let mut hasher = Sha256::new();
     let mut stream = response.bytes_stream();
+    let mut downloaded_bytes = 0_u64;
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|error| format!("读取下载数据失败: {error}"))?;
+        downloaded_bytes = downloaded_bytes.saturating_add(chunk.len() as u64);
         hasher.update(&chunk);
         file.write_all(&chunk)
             .await
             .map_err(|error| format!("写入下载文件失败: {error}"))?;
+        on_progress(downloaded_bytes, total_bytes);
     }
     file.flush()
         .await
@@ -953,6 +1062,9 @@ fn current_unix_secs() -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::{Mutex, OnceLock};
 
     #[test]
     fn parse_pcm16_wav_bytes_reads_mono_audio() {
@@ -1032,6 +1144,74 @@ mod tests {
         assert_eq!(entries[0].checksum_sha256.as_deref(), Some("abc123"));
     }
 
+    #[tokio::test]
+    async fn voice_models_list_catalog_fetches_configured_limecore_url() {
+        let _env_guard = env_test_lock().lock().expect("lock env");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind catalog fixture");
+        let addr = listener.local_addr().expect("fixture addr");
+        let catalog_url_guard = EnvVarGuard::set(
+            "LIME_VOICE_MODEL_CATALOG_URL",
+            format!("http://{addr}/api/v1/public/tenants/tenant-0001/client/voice-model-catalog"),
+        );
+
+        let payload = serde_json::json!({
+            "code": 200,
+            "message": "success",
+            "data": {
+                "assetBaseURL": "https://catalog.example.com",
+                "items": [
+                    {
+                        "id": SENSEVOICE_MODEL_ID,
+                        "name": "SenseVoice Small INT8",
+                        "provider": "FunAudioLLM / sherpa-onnx",
+                        "description": "服务端目录",
+                        "version": "2024-07-17",
+                        "languages": ["zh"],
+                        "runtime": "sherpa-onnx",
+                        "bundled": false,
+                        "sizeBytes": 123,
+                        "download": {
+                            "archive": {
+                                "downloadPath": MODEL_ARCHIVE_DOWNLOAD_PATH,
+                                "sha256": "server-sha"
+                            },
+                            "vad": {
+                                "modelId": SILERO_VAD_MODEL_ID,
+                                "downloadPath": VAD_DOWNLOAD_PATH
+                            }
+                        }
+                    }
+                ]
+            }
+        })
+        .to_string();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept request");
+            let mut buffer = [0_u8; 1024];
+            let _ = stream.read(&mut buffer);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                payload.len(),
+                payload
+            );
+            stream
+                .write_all(response.as_bytes())
+                .expect("write response");
+        });
+
+        let entries = voice_models_list_catalog().await.expect("fetch catalog");
+
+        drop(catalog_url_guard);
+        server.join().expect("fixture server");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].description, "服务端目录");
+        assert_eq!(
+            entries[0].download_url,
+            "https://catalog.example.com/voice/sensevoice-small-int8-2024-07-17/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2"
+        );
+        assert_eq!(entries[0].checksum_sha256.as_deref(), Some("server-sha"));
+    }
+
     #[test]
     fn verify_optional_sha256_rejects_mismatch() {
         let error = verify_optional_sha256("actual", Some("expected"))
@@ -1071,5 +1251,33 @@ mod tests {
             .iter()
             .flat_map(|sample| sample.to_le_bytes())
             .collect()
+    }
+
+    fn env_test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct EnvVarGuard {
+        key: &'static str,
+        previous: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: String) -> Self {
+            let previous = env::var(key).ok();
+            env::set_var(key, value);
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(previous) = &self.previous {
+                env::set_var(self.key, previous);
+            } else {
+                env::remove_var(self.key);
+            }
+        }
     }
 }

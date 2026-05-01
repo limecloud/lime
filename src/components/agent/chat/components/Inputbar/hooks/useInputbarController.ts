@@ -30,7 +30,7 @@ import { useWorkflowInputState } from "../../../utils/workflowInputState";
 import { TeamSuggestionBar } from "@/components/agent/chat/components/TeamSuggestionBar";
 import { getTeamSuggestion } from "@/components/agent/chat/utils/teamSuggestion";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
-import type { MessageImage } from "../../../types";
+import type { MessageImage, MessagePathReference } from "../../../types";
 import {
   resolveInputCapabilitySelectionFromRoute,
   type InputCapabilitySelection,
@@ -50,6 +50,11 @@ import {
   normalizeCuratedTaskReferenceMemoryIds,
   type CuratedTaskReferenceSelection,
 } from "../../../utils/curatedTaskReferenceSelection";
+import {
+  readCustomPathReferencesFromDataTransfer,
+  readSystemPathReferencesFromFiles,
+} from "../../../utils/pathReferences";
+import { toast } from "sonner";
 
 interface UseInputbarControllerParams {
   input: string;
@@ -82,6 +87,9 @@ interface UseInputbarControllerParams {
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
   projectId?: string | null;
   sessionId?: string | null;
+  pathReferences?: MessagePathReference[];
+  onAddPathReferences?: (references: MessagePathReference[]) => void;
+  onClearPathReferences?: () => void;
 }
 
 export function useInputbarController({
@@ -107,6 +115,9 @@ export function useInputbarController({
   onEnableSuggestedTeam,
   projectId = null,
   sessionId = null,
+  pathReferences = [],
+  onAddPathReferences,
+  onClearPathReferences,
   skills,
   serviceSkills,
   serviceSkillGroups,
@@ -132,11 +143,51 @@ export function useInputbarController({
     handleFileSelect,
     handlePaste,
     handleDragOver,
-    handleDrop,
+    handleDrop: handleImageDrop,
     handleRemoveImage,
     clearPendingImages,
     openFileDialog,
   } = useImageAttachments();
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      const customReferences = readCustomPathReferencesFromDataTransfer(
+        event.dataTransfer,
+      );
+      if (customReferences.length > 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        onAddPathReferences?.(customReferences);
+        return;
+      }
+
+      const files = event.dataTransfer.files;
+      const systemReferences =
+        files && files.length > 0
+          ? readSystemPathReferencesFromFiles(files)
+          : [];
+      if (systemReferences.length > 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        onAddPathReferences?.(systemReferences);
+        return;
+      }
+
+      if (files && files.length > 0) {
+        const hasImageFile = Array.from(files).some((file) =>
+          file.type.startsWith("image/"),
+        );
+        if (!hasImageFile) {
+          toast.error("无法读取系统文件路径，请从内置文件管理器拖入。");
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+
+      handleImageDrop(event);
+    },
+    [handleImageDrop, onAddPathReferences],
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isWorkspaceVariant = variant === "workspace";
   const activeSkill =
@@ -255,12 +306,14 @@ export function useInputbarController({
   const handleSend = useInputbarSend({
     input,
     pendingImages,
+    pathReferences,
     webSearchEnabled,
     thinkingEnabled,
     executionStrategy,
     activeCapability,
     onSend,
     clearPendingImages,
+    clearPathReferences: onClearPathReferences,
     clearActiveCapability: () => setActiveCapability(null),
   });
 

@@ -200,6 +200,34 @@ pub struct StopRecordingResult {
     pub duration: f32,
 }
 
+/// 录音快照的返回结果
+#[derive(serde::Serialize)]
+pub struct RecordingSnapshotResult {
+    /// 音频数据（i16 样本的字节数组，小端序）
+    pub audio_data: Vec<u8>,
+    /// 采样率
+    pub sample_rate: u32,
+    /// 录音时长（秒）
+    pub duration: f32,
+}
+
+/// 录音片段的返回结果
+#[derive(serde::Serialize)]
+pub struct RecordingSegmentResult {
+    /// 音频数据（i16 样本的字节数组，小端序）
+    pub audio_data: Vec<u8>,
+    /// 采样率
+    pub sample_rate: u32,
+    /// 片段时长（秒）
+    pub duration: f32,
+    /// 片段起始 sample offset
+    pub start_sample: u64,
+    /// 片段结束 sample offset
+    pub end_sample: u64,
+    /// 当前录音总 sample 数
+    pub total_samples: u64,
+}
+
 /// 开始录音
 #[command]
 pub async fn start_recording(
@@ -248,6 +276,42 @@ pub async fn stop_recording(
         audio_data: bytes,
         sample_rate: audio.sample_rate,
         duration: audio.duration_secs,
+    })
+}
+
+/// 获取当前录音快照，不停止录音
+#[command]
+pub async fn get_recording_snapshot(
+    recording_service: State<'_, RecordingServiceState>,
+) -> Result<RecordingSnapshotResult, String> {
+    let mut service = recording_service.0.lock();
+    let audio = service.snapshot()?;
+
+    Ok(RecordingSnapshotResult {
+        audio_data: audio.to_pcm16le_bytes(),
+        sample_rate: audio.sample_rate,
+        duration: audio.duration_secs,
+    })
+}
+
+/// 获取当前录音片段，不停止录音
+#[command]
+pub async fn get_recording_segment(
+    recording_service: State<'_, RecordingServiceState>,
+    start_sample: u64,
+    max_duration_secs: Option<f32>,
+) -> Result<RecordingSegmentResult, String> {
+    let mut service = recording_service.0.lock();
+    let (audio, start_sample, end_sample, total_samples) =
+        service.segment(start_sample as usize, max_duration_secs)?;
+
+    Ok(RecordingSegmentResult {
+        audio_data: audio.to_pcm16le_bytes(),
+        sample_rate: audio.sample_rate,
+        duration: audio.duration_secs,
+        start_sample: start_sample as u64,
+        end_sample: end_sample as u64,
+        total_samples: total_samples as u64,
     })
 }
 

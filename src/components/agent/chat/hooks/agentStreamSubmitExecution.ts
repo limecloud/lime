@@ -20,12 +20,18 @@ import { logAgentDebug } from "@/lib/agentDebug";
 import { buildUserInputSubmitOp } from "../utils/buildUserInputSubmitOp";
 import { resolveAgentStreamSubmitContext } from "./agentStreamSubmitContext";
 import { registerAgentStreamTurnEventBinding } from "./agentStreamTurnEventBinding";
+import {
+  extractAgentUiPerformanceTraceMetadata,
+  recordAgentStreamPerformanceMetric,
+} from "./agentStreamPerformanceMetrics";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 
 interface ExecuteAgentStreamSubmitOptions {
   runtime: AgentRuntimeAdapter;
-  ensureSession: () => Promise<string | null>;
+  ensureSession: (options?: {
+    skipSessionRestore?: boolean;
+  }) => Promise<string | null>;
   attemptSilentTurnRecovery: (
     sessionId: string,
     requestStartedAt: number,
@@ -54,6 +60,7 @@ interface ExecuteAgentStreamSubmitOptions {
   systemPrompt?: string;
   requestMetadata?: Record<string, unknown>;
   assistantDraft?: AssistantDraftState;
+  skipSessionRestore?: boolean;
   executionRuntime?: AsterSessionExecutionRuntime | null;
   syncedSessionModelPreference?: SessionModelPreference | null;
   eventName: string;
@@ -133,6 +140,7 @@ export async function executeAgentStreamSubmit(
     systemPrompt,
     requestMetadata,
     assistantDraft,
+    skipSessionRestore,
     executionRuntime,
     syncedSessionModelPreference,
     eventName,
@@ -160,6 +168,9 @@ export async function executeAgentStreamSubmit(
     setExecutionRuntime,
   } = options;
 
+  const performanceTrace = extractAgentUiPerformanceTraceMetadata(requestMetadata);
+  requestState.performanceTrace = performanceTrace;
+
   const {
     activeSessionId,
     resolvedWorkspaceId,
@@ -178,6 +189,8 @@ export async function executeAgentStreamSubmit(
     thinking,
     assistantDraft,
     expectingQueue,
+    skipSessionRestore,
+    performanceTrace,
     activateStream: callbacks.activateStream,
   });
 
@@ -233,6 +246,22 @@ export async function executeAgentStreamSubmit(
   callbacks.registerListener(unlisten);
 
   requestState.submissionDispatchedAt = Date.now();
+  recordAgentStreamPerformanceMetric(
+    "agentStream.submitDispatched",
+    performanceTrace,
+    {
+      elapsedMs:
+        requestState.submissionDispatchedAt - requestState.requestStartedAt,
+      eventName,
+      expectingQueue,
+      listenerBoundDeltaMs: requestState.listenerBoundAt
+        ? requestState.submissionDispatchedAt - requestState.listenerBoundAt
+        : null,
+      model: effectiveModel,
+      provider: effectiveProviderType,
+      sessionId: activeSessionId,
+    },
+  );
   logAgentDebug("AgentStream", "submitDispatched", {
     elapsedMs:
       requestState.submissionDispatchedAt - requestState.requestStartedAt,
@@ -270,6 +299,18 @@ export async function executeAgentStreamSubmit(
         autoContinue,
       }),
     );
+    recordAgentStreamPerformanceMetric(
+      "agentStream.submitAccepted",
+      performanceTrace,
+      {
+        elapsedMs: Date.now() - requestState.requestStartedAt,
+        eventName,
+        sessionId: activeSessionId,
+        submitInvokeMs: requestState.submissionDispatchedAt
+          ? Date.now() - requestState.submissionDispatchedAt
+          : null,
+      },
+    );
     logAgentDebug("AgentStream", "submitAccepted", {
       elapsedMs: Date.now() - requestState.requestStartedAt,
       eventName,
@@ -279,6 +320,19 @@ export async function executeAgentStreamSubmit(
         : null,
     });
   } catch (error) {
+    recordAgentStreamPerformanceMetric(
+      "agentStream.submitFailed",
+      performanceTrace,
+      {
+        elapsedMs: Date.now() - requestState.requestStartedAt,
+        error: error instanceof Error ? error.message : String(error),
+        eventName,
+        sessionId: activeSessionId,
+        submitInvokeMs: requestState.submissionDispatchedAt
+          ? Date.now() - requestState.submissionDispatchedAt
+          : null,
+      },
+    );
     logAgentDebug(
       "AgentStream",
       "submitFailed",

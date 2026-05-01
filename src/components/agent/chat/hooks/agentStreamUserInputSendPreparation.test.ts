@@ -259,6 +259,25 @@ describe("agentStreamUserInputSendPreparation", () => {
     expect(isSending).toBe(true);
   });
 
+  it("应允许单次发送覆盖系统提示词", () => {
+    vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000108")
+      .mockReturnValueOnce("00000000-0000-0000-0000-000000000109");
+
+    const result = prepareAgentStreamUserInputSend({
+      content: "请快速回答",
+      images: [],
+      skipUserMessage: false,
+      systemPrompt: "默认系统提示",
+      options: {
+        systemPromptOverride: "快速响应系统提示",
+      },
+      env: createEnv(),
+    });
+
+    expect(result.systemPrompt).toBe("快速响应系统提示");
+  });
+
   it("恢复态 thread 仍忙时也应直接进入 queue 模式", () => {
     vi.spyOn(crypto, "randomUUID")
       .mockReturnValueOnce("00000000-0000-0000-0000-000000000004")

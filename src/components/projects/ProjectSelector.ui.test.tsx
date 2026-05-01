@@ -421,6 +421,45 @@ describe("ProjectSelector 组件", () => {
     expect(container.textContent).toContain(selectedProject.name);
   });
 
+  it("被动展示模式延后列表加载时应推迟项目摘要请求", async () => {
+    vi.useFakeTimers();
+    try {
+      const selectedProject = createProject({
+        id: "general-1",
+        name: "当前项目",
+        workspaceType: "general",
+      });
+
+      mockUseProjects.mockReturnValue(
+        createUseProjectsResult({
+          projects: [],
+          generalProjects: [],
+          defaultProject: null,
+        }),
+      );
+      mockGetProject.mockResolvedValue(selectedProject);
+
+      renderProjectSelector({
+        value: selectedProject.id,
+        workspaceType: "general",
+        deferProjectListLoad: true,
+        passiveTrigger: true,
+      });
+
+      await flushAsync();
+      expect(mockGetProject).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(12_000);
+      });
+      await flushAsync();
+
+      expect(mockGetProject).toHaveBeenCalledWith(selectedProject.id);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("延后列表加载且未指定项目时应回填默认项目", async () => {
     const onChange = vi.fn();
     const defaultProject = createProject({

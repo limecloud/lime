@@ -59,7 +59,8 @@ pub struct InvokeResponse {
 #[cfg(debug_assertions)]
 #[derive(Debug, Deserialize)]
 pub struct EventStreamRequest {
-    pub event: String,
+    pub event: Option<String>,
+    pub events: Option<String>,
 }
 
 #[cfg(debug_assertions)]
@@ -190,14 +191,56 @@ impl DevBridgeServer {
 #[derive(Clone)]
 struct DevBridgeEventListenerGuard {
     app_handle: AppHandle,
-    listener_id: EventId,
+    listener_ids: Vec<EventId>,
 }
 
 #[cfg(debug_assertions)]
 impl Drop for DevBridgeEventListenerGuard {
     fn drop(&mut self) {
-        self.app_handle.unlisten(self.listener_id);
+        for listener_id in self.listener_ids.drain(..) {
+            self.app_handle.unlisten(listener_id);
+        }
     }
+}
+
+#[cfg(debug_assertions)]
+fn parse_event_stream_names(req: EventStreamRequest) -> Vec<String> {
+    let mut events = Vec::new();
+    if let Some(event) = req.event {
+        let trimmed = event.trim();
+        if !trimmed.is_empty() {
+            events.push(trimmed.to_string());
+        }
+    }
+
+    if let Some(raw_events) = req.events {
+        let trimmed = raw_events.trim();
+        if !trimmed.is_empty() {
+            if let Ok(parsed) = serde_json::from_str::<Vec<String>>(trimmed) {
+                events.extend(parsed.into_iter().filter_map(|event| {
+                    let trimmed = event.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                }));
+            } else {
+                events.extend(trimmed.split(',').filter_map(|event| {
+                    let trimmed = event.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                }));
+            }
+        }
+    }
+
+    events.sort();
+    events.dedup();
+    events
 }
 
 #[cfg(debug_assertions)]
@@ -227,11 +270,11 @@ async fn stream_events(
     State(state): State<DevBridgeState>,
     Query(req): Query<EventStreamRequest>,
 ) -> Response {
-    let event_name = req.event.trim().to_string();
-    if event_name.is_empty() {
+    let event_names = parse_event_stream_names(req);
+    if event_names.is_empty() {
         return (
             axum::http::StatusCode::BAD_REQUEST,
-            "missing event query parameter",
+            "missing event or events query parameter",
         )
             .into_response();
     }
@@ -245,26 +288,33 @@ async fn stream_events(
     };
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-    let listener_event_name = event_name.clone();
-    // 只监听 AppHandle 事件目标；listen_any 会同时收到 app/window 目标，浏览器 SSE 会把
-    // 同一个 runtime delta 转发两次，导致流式文字逐 token 重复。
-    let listener_id = app_handle.listen(listener_event_name.clone(), move |event| {
-        let payload = event.payload();
-        let payload_value = serde_json::from_str::<serde_json::Value>(payload)
-            .unwrap_or_else(|_| serde_json::Value::String(payload.to_string()));
-        let serialized = serde_json::json!({
-            "event": listener_event_name.clone(),
-            "payload": payload_value,
+    let listener_ids = event_names
+        .iter()
+        .map(|event_name| {
+            let tx = tx.clone();
+            let listener_event_name = event_name.clone();
+            // 只监听 AppHandle 事件目标；listen_any 会同时收到 app/window 目标，浏览器 SSE 会把
+            // 同一个 runtime delta 转发两次，导致流式文字逐 token 重复。
+            app_handle.listen(listener_event_name.clone(), move |event| {
+                let payload = event.payload();
+                let payload_value = serde_json::from_str::<serde_json::Value>(payload)
+                    .unwrap_or_else(|_| serde_json::Value::String(payload.to_string()));
+                let serialized = serde_json::json!({
+                    "event": listener_event_name.clone(),
+                    "payload": payload_value,
+                })
+                .to_string();
+                let _ = tx.send(serialized);
+            })
         })
-        .to_string();
-        let _ = tx.send(serialized);
-    });
+        .collect::<Vec<_>>();
+    drop(tx);
 
     let cleanup_handle = app_handle.clone();
     let stream = async_stream::stream! {
         let _listener_guard = DevBridgeEventListenerGuard {
             app_handle: cleanup_handle,
-            listener_id,
+            listener_ids,
         };
 
         // 先刷新一个 SSE 注释，避免浏览器 EventSource 在首个业务事件到达前一直不触发 open。
@@ -295,7 +345,7 @@ async fn health_check() -> impl IntoResponse {
 
 #[cfg(all(test, debug_assertions))]
 mod tests {
-    use super::is_allowed_loopback_origin;
+    use super::{is_allowed_loopback_origin, parse_event_stream_names, EventStreamRequest};
     use axum::http::{request::Parts as RequestParts, HeaderValue, Request};
 
     fn empty_parts() -> RequestParts {
@@ -334,5 +384,45 @@ mod tests {
             &HeaderValue::from_static("http://192.168.1.10:1420"),
             &parts,
         ));
+    }
+
+    #[test]
+    fn parses_single_and_multiplexed_event_stream_names() {
+        assert_eq!(
+            parse_event_stream_names(EventStreamRequest {
+                event: Some(" config-changed ".to_string()),
+                events: None,
+            }),
+            vec!["config-changed".to_string()],
+        );
+
+        assert_eq!(
+            parse_event_stream_names(EventStreamRequest {
+                event: Some("config-changed".to_string()),
+                events: Some(
+                    serde_json::json!(["lime://creation_task_submitted", "config-changed", " "])
+                        .to_string(),
+                ),
+            }),
+            vec![
+                "config-changed".to_string(),
+                "lime://creation_task_submitted".to_string(),
+            ],
+        );
+    }
+
+    #[test]
+    fn parses_comma_separated_event_stream_names_for_debugging() {
+        assert_eq!(
+            parse_event_stream_names(EventStreamRequest {
+                event: None,
+                events: Some("mcp-started, mcp-stopped,,browser-event".to_string()),
+            }),
+            vec![
+                "browser-event".to_string(),
+                "mcp-started".to_string(),
+                "mcp-stopped".to_string(),
+            ],
+        );
     }
 }

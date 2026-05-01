@@ -1461,6 +1461,116 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
     expect(container.querySelector('[data-testid="message-list"]')).toBeNull();
   });
 
+  it("草稿标签输入后应预热创建会话，发送时复用同一次创建", async () => {
+    const onNavigate = vi.fn();
+    vi.mocked(buildHomeAgentParams).mockClear();
+    type MockEmptyStateProps = {
+      input?: string;
+      setInput?: (value: string) => void;
+      onSend?: (
+        value: string,
+        executionStrategy?: "react" | "code_orchestrated" | "auto",
+      ) => void;
+    };
+    mockEmptyState.mockImplementation((props?: MockEmptyStateProps) => (
+      <div data-testid="empty-state" data-input={props?.input || ""}>
+        <button
+          type="button"
+          data-testid="mock-empty-type"
+          onClick={() => props?.setInput?.("你好")}
+        >
+          输入
+        </button>
+        <button
+          type="button"
+          data-testid="mock-empty-send"
+          onClick={() => props?.onSend?.(props.input || "你好")}
+        >
+          发送
+        </button>
+      </div>
+    ));
+
+    const creationController: { resolve?: () => void } = {};
+    const state: Record<string, unknown> = createMockAgentChatUnifiedState({
+      sessionId: "topic-current",
+      topics: [
+        {
+          id: "topic-current",
+          title: "当前会话",
+          updatedAt: new Date(FIXED_TOPIC_UPDATED_AT),
+          workspaceId: "workspace-test",
+        },
+      ],
+    });
+    const createFreshSession = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          creationController.resolve = () => {
+            state.sessionId = "new-topic";
+            state.topics = [
+              {
+                id: "new-topic",
+                title: "新对话",
+                updatedAt: new Date(FIXED_TOPIC_UPDATED_AT + 1_000),
+                workspaceId: "workspace-test",
+              },
+              ...((state.topics as Array<Record<string, unknown>>) || []),
+            ];
+            resolve("new-topic");
+          };
+        }),
+    );
+    state.createFreshSession = createFreshSession;
+    installMockAgentChatUnifiedState(state);
+
+    const mounted = mountPage({
+      agentEntry: "claw",
+      initialSessionId: "topic-current",
+      projectId: "workspace-test",
+      onNavigate,
+    });
+    await flushEffects();
+
+    expect(
+      await waitForElement(
+        mounted.container,
+        '[data-testid="task-center-tab-create-button"]',
+      ),
+    ).not.toBeNull();
+    clickButton(mounted.container, "task-center-tab-create-button");
+    await flushEffects();
+    mounted.rerender();
+    await flushEffects();
+
+    clickButton(mounted.container, "mock-empty-type");
+    await flushEffects(8);
+    expect(createFreshSession).toHaveBeenCalledTimes(1);
+
+    clickButton(mounted.container, "mock-empty-send");
+    await flushEffects(2);
+    expect(createFreshSession).toHaveBeenCalledTimes(1);
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    expect(getSendMessageCall().content).toBe("你好");
+    expect(
+      mounted.container.querySelector('[data-testid="empty-state"]'),
+    ).toBeNull();
+    expect(
+      mounted.container.querySelector('[data-testid="message-list"]'),
+    ).not.toBeNull();
+
+    expect(creationController.resolve).toBeTruthy();
+    creationController.resolve?.();
+    await flushEffects(10);
+    mounted.rerender();
+    await flushEffects();
+
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    expect(createFreshSession).toHaveBeenCalledTimes(1);
+    expect(buildHomeAgentParams).not.toHaveBeenCalled();
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
   it("从导航栏直达普通会话时应覆盖旧多任务标签", async () => {
     localStorage.setItem(
       TASK_CENTER_OPEN_TAB_IDS_STORAGE_KEY,
@@ -1591,7 +1701,7 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
       )
       .find((options) => options.workspaceId === "workspace-test");
     expect(workspaceCall?.initialTopicsLoadMode).toBe("deferred");
-    expect(workspaceCall?.initialTopicsDeferredDelayMs).toBe(12_000);
+    expect(workspaceCall?.initialTopicsDeferredDelayMs).toBe(45_000);
     expect(mockSkillsGetLocal).not.toHaveBeenCalled();
     expect(mockGetProjectMemory).not.toHaveBeenCalled();
   });
@@ -2501,6 +2611,152 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     expect(
       container.querySelector('[data-testid="empty-state"]'),
     ).not.toBeNull();
+  });
+
+  it("空白新建任务输入后不应后台创建会话，避免首页输入卡顿", async () => {
+    type MockEmptyStateProps = {
+      input?: string;
+      setInput?: (value: string) => void;
+    };
+    mockEmptyState.mockImplementation((props?: MockEmptyStateProps) => (
+      <div data-testid="empty-state" data-input={props?.input || ""}>
+        <button
+          type="button"
+          data-testid="mock-empty-type"
+          onClick={() => props?.setInput?.("你好")}
+        >
+          输入
+        </button>
+      </div>
+    ));
+    const state: Record<string, unknown> = createMockAgentChatUnifiedState({
+      sessionId: null,
+      topics: [],
+    });
+    const ensureSession = vi.fn(async () => "new-session");
+    state.ensureSession = ensureSession;
+    installMockAgentChatUnifiedState(state);
+
+    const mounted = mountPage({
+      agentEntry: "new-task",
+      showChatPanel: false,
+      theme: "general",
+      projectId: "project-home",
+    });
+    await flushEffects(10);
+
+    clickButton(mounted.container, "mock-empty-type");
+    await flushEffects(8);
+    mounted.rerender();
+    await flushEffects();
+
+    expect(ensureSession).not.toHaveBeenCalled();
+    expect(
+      mounted.container
+        .querySelector('[data-testid="empty-state"]')
+        ?.getAttribute("data-input"),
+    ).toBe("你好");
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+  });
+
+  it("空白新建任务发送后应立即展示轻量对话预览", async () => {
+    type MockEmptyStateProps = {
+      input?: string;
+      setInput?: (value: string) => void;
+      onSend?: (value: string) => void;
+    };
+    mockEmptyState.mockImplementation((props?: MockEmptyStateProps) => (
+      <div data-testid="empty-state" data-input={props?.input || ""}>
+        <button
+          type="button"
+          data-testid="mock-empty-type"
+          onClick={() => props?.setInput?.("你好")}
+        >
+          输入
+        </button>
+        <button
+          type="button"
+          data-testid="mock-empty-send"
+          onClick={() => props?.onSend?.(props.input || "你好")}
+        >
+          发送
+        </button>
+      </div>
+    ));
+    sharedSendMessageMock.mockImplementationOnce(
+      () => new Promise<void>(() => undefined),
+    );
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        sessionId: null,
+        topics: [],
+      }),
+    );
+
+    const mounted = mountPage({
+      agentEntry: "new-task",
+      showChatPanel: false,
+      theme: "general",
+      projectId: "project-home",
+    });
+    await flushEffects();
+
+    clickButton(mounted.container, "mock-empty-type");
+    await flushEffects(1);
+    clickButton(mounted.container, "mock-empty-send");
+
+    const latestMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | { messages?: Array<{ content?: string; role?: string }> }
+      | undefined;
+    expect(
+      mounted.container.querySelector('[data-testid="message-list"]'),
+    ).not.toBeNull();
+    expect(latestMessageListProps?.messages?.[0]).toMatchObject({
+      content: "你好",
+      role: "user",
+    });
+    expect(latestMessageListProps?.messages?.[1]).toMatchObject({
+      role: "assistant",
+    });
+  });
+
+  it("空白新建任务工作区缺失时不应后台预热会话", async () => {
+    mockEmptyState.mockImplementation(
+      (props?: { input?: string; setInput?: (value: string) => void }) => (
+        <div data-testid="empty-state" data-input={props?.input || ""}>
+          <button
+            type="button"
+            data-testid="mock-empty-type"
+            onClick={() => props?.setInput?.("你好")}
+          >
+            输入
+          </button>
+        </div>
+      ),
+    );
+    const ensureSession = vi.fn(async () => "new-session");
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        sessionId: null,
+        topics: [],
+        ensureSession,
+        workspacePathMissing: true,
+      }),
+    );
+
+    const container = renderPage({
+      agentEntry: "new-task",
+      showChatPanel: false,
+      theme: "general",
+      projectId: "project-home",
+    });
+    await flushEffects(10);
+
+    clickButton(container, "mock-empty-type");
+    await flushEffects(8);
+
+    expect(ensureSession).not.toHaveBeenCalled();
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
   });
 
   it("新建任务首页即使记住了文档项目也应保留真实首页", async () => {

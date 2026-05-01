@@ -3,9 +3,13 @@
  * @description 本地语音模型管理 API
  */
 
-import { safeInvoke } from "@/lib/dev-bridge";
+import { safeInvoke, safeListen } from "@/lib/dev-bridge";
 import { resolveOemCloudRuntimeContext } from "./oemCloudRuntime";
-import type { AsrCredentialEntry } from "./asrProvider";
+import { getAsrCredentials, type AsrCredentialEntry } from "./asrProvider";
+
+export const VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT =
+  "voice-model-download-progress";
+export const DEFAULT_SENSEVOICE_MODEL_ID = "sensevoice-small-int8-2024-07-17";
 
 export interface VoiceModelCatalogEntry {
   id: string;
@@ -41,11 +45,35 @@ export interface VoiceModelDownloadResult {
   state: VoiceModelInstallState;
 }
 
+export type VoiceModelDownloadPhase =
+  | "preparing"
+  | "archive"
+  | "extracting"
+  | "vad"
+  | "installing"
+  | "done";
+
+export interface VoiceModelDownloadProgressEvent {
+  model_id: string;
+  phase: VoiceModelDownloadPhase | string;
+  downloaded_bytes: number;
+  total_bytes?: number | null;
+  overall_progress: number;
+  message: string;
+}
+
 export interface VoiceModelTestTranscribeResult {
   text: string;
   duration_secs: number;
   sample_rate: number;
   language?: string | null;
+}
+
+export interface DefaultLocalVoiceModelReadiness {
+  ready: boolean;
+  model_id?: string | null;
+  installed?: boolean;
+  message?: string;
 }
 
 interface OemVoiceModelCatalogResponse {
@@ -179,6 +207,36 @@ export async function getVoiceModelInstallState(
   });
 }
 
+export async function getDefaultLocalVoiceModelReadiness(): Promise<DefaultLocalVoiceModelReadiness> {
+  const credentials = await getAsrCredentials();
+  const defaultCredential = credentials.find(
+    (credential) => credential.is_default && !credential.disabled,
+  );
+
+  if (defaultCredential?.provider !== "sensevoice_local") {
+    return { ready: true };
+  }
+
+  const modelId =
+    normalizeText(defaultCredential.sensevoice_config?.model_id) ??
+    DEFAULT_SENSEVOICE_MODEL_ID;
+  const state = await getVoiceModelInstallState(modelId);
+  if (state.installed) {
+    return {
+      ready: true,
+      model_id: modelId,
+      installed: true,
+    };
+  }
+
+  return {
+    ready: false,
+    model_id: modelId,
+    installed: false,
+    message: "先下载语音模型",
+  };
+}
+
 export async function downloadVoiceModel(
   modelId: string,
 ): Promise<VoiceModelDownloadResult> {
@@ -188,6 +246,15 @@ export async function downloadVoiceModel(
     modelId,
     ...(catalogEntry ? { catalogEntry } : {}),
   });
+}
+
+export async function listenVoiceModelDownloadProgress(
+  callback: (event: VoiceModelDownloadProgressEvent) => void,
+): Promise<() => void> {
+  return safeListen<VoiceModelDownloadProgressEvent>(
+    VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT,
+    (event) => callback(event.payload),
+  );
 }
 
 export async function deleteVoiceModel(

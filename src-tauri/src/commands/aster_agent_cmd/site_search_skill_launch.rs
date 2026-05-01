@@ -1,6 +1,7 @@
 use super::*;
 use crate::commands::modality_runtime_contracts::{
-    insert_web_research_contract_fields, web_research_required_capabilities,
+    hydrate_limecore_policy_hits_from_request_metadata, insert_web_research_contract_fields,
+    runtime_contract_with_policy_hits_from_request_metadata, web_research_required_capabilities,
     web_research_runtime_contract, WEB_RESEARCH_CONTRACT_KEY, WEB_RESEARCH_MODALITY,
     WEB_RESEARCH_ROUTING_SLOT,
 };
@@ -152,6 +153,7 @@ pub(crate) fn prepare_site_search_skill_launch_request_metadata(
     ) {
         ensure_web_research_contract_metadata(launch);
     }
+    hydrate_limecore_policy_hits_from_request_metadata(&mut metadata);
 
     Some(metadata)
 }
@@ -329,20 +331,24 @@ fn build_site_search_skill_launch_system_prompt(
         &["runtime_contract", "runtimeContract"],
     )
     .unwrap_or_else(web_research_runtime_contract);
+    let runtime_contract =
+        runtime_contract_with_policy_hits_from_request_metadata(runtime_contract, request_metadata);
+    let mut site_search_request_payload = site_search_request.clone();
+    site_search_request_payload.insert("runtime_contract".to_string(), runtime_contract.clone());
     let args_payload = serde_json::json!({
         "user_input": raw_text
             .clone()
             .or(prompt.clone())
             .or(query.clone())
             .unwrap_or_else(|| "请根据当前要求执行站点检索任务".to_string()),
-        "site_search_request": serde_json::Value::Object(site_search_request.clone()),
+        "site_search_request": serde_json::Value::Object(site_search_request_payload.clone()),
     });
     let args_json = truncate_prompt_text(
         serde_json::to_string(&args_payload).unwrap_or_else(|_| "{}".to_string()),
         4_000,
     );
     let request_json = truncate_prompt_text(
-        serde_json::to_string(site_search_request).unwrap_or_else(|_| "{}".to_string()),
+        serde_json::to_string(&site_search_request_payload).unwrap_or_else(|_| "{}".to_string()),
         4_000,
     );
     let has_site = site

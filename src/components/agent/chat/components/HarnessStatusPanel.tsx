@@ -39,6 +39,8 @@ import type {
   AgentRuntimeAnalysisHandoff,
   AgentRuntimeEvidenceBrowserActionIndex,
   AgentRuntimeEvidenceBrowserActionItem,
+  AgentRuntimeEvidenceLimeCorePolicyIndex,
+  AgentRuntimeEvidenceLimeCorePolicyItem,
   AgentRuntimeEvidencePack,
   AgentRuntimeHandoffBundle,
   AgentRuntimeSaveReviewDecisionRequest,
@@ -531,6 +533,101 @@ function formatBrowserActionStatusLabel(
     default:
       return item.status?.trim() || "未知状态";
   }
+}
+
+function formatLimeCorePolicyStatusLabel(value?: string): string {
+  switch (value?.trim()) {
+    case "local_defaults_evaluated":
+      return "本地默认已评估";
+    case "refs_declared":
+      return "已声明引用";
+    case "not_evaluated":
+      return "尚未评估";
+    default:
+      return value?.trim() || "未知状态";
+  }
+}
+
+function formatLimeCorePolicyDecisionLabel(value?: string): string {
+  switch (value?.trim()) {
+    case "allow":
+      return "本地允许";
+    case "ask":
+      return "需要确认";
+    case "deny":
+      return "已阻断";
+    case "not_evaluated":
+      return "未评估";
+    default:
+      return value?.trim() || "未知决策";
+  }
+}
+
+function formatLimeCorePolicyInputStatusLabel(value?: string): string {
+  switch (value?.trim()) {
+    case "declared_only":
+      return "仅声明";
+    default:
+      return value?.trim() || "未知";
+  }
+}
+
+function formatLimeCorePolicyInputSourceLabel(value?: string): string {
+  switch (value?.trim()) {
+    case "limecore_pending":
+      return "等待 LimeCore";
+    default:
+      return value?.trim() || "未知来源";
+  }
+}
+
+function uniqueNonEmptyStrings(values: Array<string | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
+function collectLimeCorePolicyRefKeys(
+  index: AgentRuntimeEvidenceLimeCorePolicyIndex,
+): string[] {
+  return uniqueNonEmptyStrings([
+    ...index.ref_keys,
+    ...index.items.flatMap((item) => item.refs),
+  ]);
+}
+
+function collectLimeCorePolicyMissingInputs(
+  index: AgentRuntimeEvidenceLimeCorePolicyIndex,
+): string[] {
+  return uniqueNonEmptyStrings([
+    ...(index.missing_inputs ?? []),
+    ...index.items.flatMap((item) => item.missing_inputs ?? []),
+    ...index.items.flatMap((item) => item.unresolved_refs ?? []),
+  ]);
+}
+
+function summarizeLimeCorePolicyDecision(
+  index: AgentRuntimeEvidenceLimeCorePolicyIndex,
+): string {
+  const decisionCounts = index.decision_counts.filter((entry) =>
+    entry.decision.trim(),
+  );
+  if (decisionCounts.length === 0) {
+    return "未评估";
+  }
+  if (decisionCounts.length === 1) {
+    return formatLimeCorePolicyDecisionLabel(decisionCounts[0].decision);
+  }
+  return decisionCounts
+    .map(
+      (entry) =>
+        `${formatLimeCorePolicyDecisionLabel(entry.decision)} ${entry.count}`,
+    )
+    .join(" / ");
 }
 
 function formatReplayArtifactKindLabel(
@@ -1783,6 +1880,191 @@ function BrowserActionIndexSummarySection({
               </div>
             );
           })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LimeCorePolicyItemCard({
+  item,
+}: {
+  item: AgentRuntimeEvidenceLimeCorePolicyItem;
+}) {
+  const missingInputs = uniqueNonEmptyStrings([
+    ...(item.missing_inputs ?? []),
+    ...(item.unresolved_refs ?? []),
+  ]);
+  const policyInputs = item.policy_inputs ?? [];
+  const policyInputPreview = policyInputs.slice(0, 4);
+  const contractLabel = item.contract_key || "runtime_contract";
+
+  return (
+    <div className="rounded-lg border border-amber-200/80 bg-background/85 p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-foreground">
+          {contractLabel}
+        </span>
+        <Badge variant="outline">
+          {formatLimeCorePolicyStatusLabel(item.status)}
+        </Badge>
+        <Badge variant={item.decision === "deny" ? "destructive" : "secondary"}>
+          {formatLimeCorePolicyDecisionLabel(item.decision)}
+        </Badge>
+        {item.decision_source ? (
+          <Badge variant="outline">{item.decision_source}</Badge>
+        ) : null}
+      </div>
+
+      <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {item.execution_profile_key ? (
+            <span>
+              profile：
+              <span className="ml-1 font-mono text-foreground">
+                {item.execution_profile_key}
+              </span>
+            </span>
+          ) : null}
+          {item.executor_adapter_key ? (
+            <span>
+              adapter：
+              <span className="ml-1 font-mono text-foreground">
+                {item.executor_adapter_key}
+              </span>
+            </span>
+          ) : null}
+          {item.decision_scope ? (
+            <span>
+              scope：
+              <span className="ml-1 font-mono text-foreground">
+                {item.decision_scope}
+              </span>
+            </span>
+          ) : null}
+        </div>
+        {item.decision_reason ? (
+          <div>
+            原因：
+            <span className="ml-1 text-foreground">{item.decision_reason}</span>
+          </div>
+        ) : null}
+        <div>
+          refs：
+          <span className="ml-1 font-mono text-foreground">
+            {item.refs.length > 0 ? item.refs.join(" / ") : "暂无"}
+          </span>
+        </div>
+        {missingInputs.length > 0 ? (
+          <div>
+            missing：
+            <span className="ml-1 font-mono text-foreground">
+              {missingInputs.join(" / ")}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      {policyInputPreview.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {policyInputPreview.map((input) => (
+            <Badge
+              key={`${contractLabel}:${input.ref_key}`}
+              variant="outline"
+              className="border-amber-300 bg-amber-50 text-amber-800"
+            >
+              {input.ref_key} ·{" "}
+              {formatLimeCorePolicyInputStatusLabel(input.status)} ·{" "}
+              {formatLimeCorePolicyInputSourceLabel(input.value_source)}
+            </Badge>
+          ))}
+          {policyInputs.length > policyInputPreview.length ? (
+            <Badge variant="outline">
+              +{policyInputs.length - policyInputPreview.length}
+            </Badge>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LimeCorePolicyIndexSummarySection({
+  index,
+}: {
+  index: AgentRuntimeEvidenceLimeCorePolicyIndex;
+}) {
+  const refKeys = collectLimeCorePolicyRefKeys(index);
+  const missingInputs = collectLimeCorePolicyMissingInputs(index);
+  const recentItems = index.items.slice(-3).reverse();
+
+  if (index.snapshot_count <= 0 && recentItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-amber-950">
+        <ShieldAlert className="h-4 w-4 text-amber-700" />
+        <span>LimeCore 策略缺口</span>
+      </div>
+      <p className="mt-1 text-xs text-amber-800">
+        来自 modalityRuntimeContracts.snapshotIndex.limecorePolicyIndex；当前
+        allow 仅代表本地默认未阻断，missing inputs 仍等待 LimeCore 控制面命中。
+      </p>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <InventoryStatCard
+          title="策略快照"
+          value={`${index.snapshot_count}`}
+          hint="runtime contract snapshots"
+        />
+        <InventoryStatCard
+          title="控制面引用"
+          value={`${refKeys.length}`}
+          hint={refKeys.slice(0, 3).join(" / ") || "暂无 refs"}
+        />
+        <InventoryStatCard
+          title="缺失输入"
+          value={`${missingInputs.length}`}
+          hint={missingInputs.slice(0, 3).join(" / ") || "暂无缺口"}
+        />
+        <InventoryStatCard
+          title="策略决策"
+          value={summarizeLimeCorePolicyDecision(index)}
+          hint="allow / ask / deny"
+        />
+      </div>
+
+      {missingInputs.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {missingInputs.map((input) => (
+            <Badge
+              key={input}
+              variant="outline"
+              className="border-amber-300 bg-background text-amber-800"
+            >
+              {input}
+            </Badge>
+          ))}
+        </div>
+      ) : null}
+
+      {recentItems.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {recentItems.map((item, indexInList) => (
+            <LimeCorePolicyItemCard
+              key={[
+                item.contract_key,
+                item.execution_profile_key,
+                item.executor_adapter_key,
+                indexInList,
+              ]
+                .filter(Boolean)
+                .join(":")}
+              item={item}
+            />
+          ))}
         </div>
       ) : null}
     </div>
@@ -3695,6 +3977,18 @@ export function HarnessStatusPanel({
                                 );
                               })()
                             : null}
+
+                          {evidencePack.observability_summary
+                            ?.modality_runtime_contracts?.snapshot_index
+                            ?.limecore_policy_index ? (
+                            <LimeCorePolicyIndexSummarySection
+                              index={
+                                evidencePack.observability_summary
+                                  .modality_runtime_contracts.snapshot_index
+                                  .limecore_policy_index
+                              }
+                            />
+                          ) : null}
 
                           {evidencePack.observability_summary
                             ?.verification_summary ? (

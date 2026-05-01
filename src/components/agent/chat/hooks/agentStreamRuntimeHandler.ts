@@ -57,6 +57,10 @@ import {
   buildTaskPreviewFromToolResult,
   buildToolResultArtifactFromToolResult,
 } from "../utils/taskPreviewFromToolResult";
+import {
+  recordAgentStreamPerformanceMetric,
+  type AgentUiPerformanceTraceMetadata,
+} from "./agentStreamPerformanceMetrics";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 
@@ -78,6 +82,7 @@ interface StreamRequestState {
   firstRuntimeStatusAt?: number | null;
   firstTextDeltaAt?: number | null;
   firstTextPaintAt?: number | null;
+  firstTextPaintScheduled?: boolean;
   firstTextRenderFlushAt?: number | null;
   lastTextRenderFlushAt?: number | null;
   textDeltaBufferedCount?: number;
@@ -87,6 +92,7 @@ interface StreamRequestState {
   queuedDraftCleanupTimerId?: ReturnType<typeof setTimeout> | null;
   pendingTextRenderTimerId?: ReturnType<typeof setTimeout> | null;
   renderedContent?: string;
+  performanceTrace?: AgentUiPerformanceTraceMetadata | null;
 }
 
 const EMPTY_FINAL_REPLY_ERROR_HINT = "模型未输出最终答复";
@@ -350,17 +356,25 @@ export function handleTurnStreamEvent({
     requestState.lastTextRenderFlushAt = flushStartedAt;
     if (!requestState.firstTextRenderFlushAt) {
       requestState.firstTextRenderFlushAt = flushStartedAt;
+      recordAgentStreamPerformanceMetric(
+        "agentStream.firstTextRenderFlush",
+        requestState.performanceTrace,
+        {
+          elapsedMs: flushStartedAt - requestState.requestStartedAt,
+          eventName,
+          firstTextDeltaDeltaMs: requestState.firstTextDeltaAt
+            ? flushStartedAt - requestState.firstTextDeltaAt
+            : null,
+          sessionId: activeSessionId,
+        },
+      );
     }
-    if (!requestState.firstTextPaintAt && nextContent.trim().length > 0) {
-      requestState.firstTextPaintAt = flushStartedAt;
-      logAgentDebug("AgentStream", "firstTextPaint", {
-        elapsedMs: flushStartedAt - requestState.requestStartedAt,
-        eventName,
-        firstTextDeltaDeltaMs: requestState.firstTextDeltaAt
-          ? flushStartedAt - requestState.firstTextDeltaAt
-          : null,
-        sessionId: activeSessionId,
-      });
+    const shouldScheduleFirstTextPaint =
+      !requestState.firstTextPaintAt &&
+      !requestState.firstTextPaintScheduled &&
+      nextContent.trim().length > 0;
+    if (shouldScheduleFirstTextPaint) {
+      requestState.firstTextPaintScheduled = true;
     }
     const backlogChars = Math.max(
       0,
@@ -410,6 +424,45 @@ export function handleTurnStreamEvent({
           : msg,
       ),
     );
+    if (shouldScheduleFirstTextPaint) {
+      const recordFirstTextPaint = () => {
+        const paintedAt = Date.now();
+        requestState.firstTextPaintAt = paintedAt;
+        recordAgentStreamPerformanceMetric(
+          "agentStream.firstTextPaint",
+          requestState.performanceTrace,
+          {
+            elapsedMs: paintedAt - requestState.requestStartedAt,
+            eventName,
+            firstTextDeltaDeltaMs: requestState.firstTextDeltaAt
+              ? paintedAt - requestState.firstTextDeltaAt
+              : null,
+            renderFlushDeltaMs: paintedAt - flushStartedAt,
+            sessionId: activeSessionId,
+          },
+        );
+        logAgentDebug("AgentStream", "firstTextPaint", {
+          elapsedMs: paintedAt - requestState.requestStartedAt,
+          eventName,
+          firstTextDeltaDeltaMs: requestState.firstTextDeltaAt
+            ? paintedAt - requestState.firstTextDeltaAt
+            : null,
+          renderFlushDeltaMs: paintedAt - flushStartedAt,
+          sessionId: activeSessionId,
+        });
+      };
+
+      if (
+        typeof window !== "undefined" &&
+        typeof window.requestAnimationFrame === "function"
+      ) {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(recordFirstTextPaint);
+        });
+      } else {
+        setTimeout(recordFirstTextPaint, 0);
+      }
+    }
   };
 
   const scheduleTextRenderFlush = () => {
@@ -677,6 +730,23 @@ export function handleTurnStreamEvent({
       {
         if (!requestState.firstRuntimeStatusAt) {
           requestState.firstRuntimeStatusAt = Date.now();
+          recordAgentStreamPerformanceMetric(
+            "agentStream.firstRuntimeStatus",
+            requestState.performanceTrace,
+            {
+              elapsedMs:
+                requestState.firstRuntimeStatusAt -
+                requestState.requestStartedAt,
+              eventName,
+              firstEventDeltaMs: requestState.firstEventReceivedAt
+                ? requestState.firstRuntimeStatusAt -
+                  requestState.firstEventReceivedAt
+                : null,
+              phase: data.status.phase,
+              sessionId: activeSessionId,
+              title: data.status.title,
+            },
+          );
           logAgentDebug("AgentStream", "firstRuntimeStatus", {
             elapsedMs:
               requestState.firstRuntimeStatusAt - requestState.requestStartedAt,
@@ -780,6 +850,25 @@ export function handleTurnStreamEvent({
         (requestState.textDeltaBufferedCount ?? 0) + 1;
       if (!requestState.firstTextDeltaAt) {
         requestState.firstTextDeltaAt = Date.now();
+        recordAgentStreamPerformanceMetric(
+          "agentStream.firstTextDelta",
+          requestState.performanceTrace,
+          {
+            deltaChars: data.text.length,
+            elapsedMs:
+              requestState.firstTextDeltaAt - requestState.requestStartedAt,
+            eventName,
+            firstEventDeltaMs: requestState.firstEventReceivedAt
+              ? requestState.firstTextDeltaAt -
+                requestState.firstEventReceivedAt
+              : null,
+            firstRuntimeStatusDeltaMs: requestState.firstRuntimeStatusAt
+              ? requestState.firstTextDeltaAt -
+                requestState.firstRuntimeStatusAt
+              : null,
+            sessionId: activeSessionId,
+          },
+        );
         logAgentDebug("AgentStream", "firstTextDelta", {
           deltaChars: data.text.length,
           elapsedMs:

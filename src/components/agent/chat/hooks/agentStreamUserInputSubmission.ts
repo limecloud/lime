@@ -31,6 +31,7 @@ export async function submitAgentStreamUserInput(
     systemPrompt,
     requestMetadata,
     assistantDraft,
+    skipSessionRestore,
     observer,
     syncedSessionModelPreference,
   } = preparedSend;
@@ -98,6 +99,7 @@ export async function submitAgentStreamUserInput(
       systemPrompt,
       requestMetadata,
       assistantDraft,
+      skipSessionRestore,
       executionRuntime: env.executionRuntime,
       syncedSessionModelPreference,
       eventName,

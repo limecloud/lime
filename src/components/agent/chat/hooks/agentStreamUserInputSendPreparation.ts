@@ -55,6 +55,7 @@ export interface PreparedAgentStreamUserInputSend {
   requestMetadata?: Record<string, unknown>;
   assistantDraft?: AssistantDraftState;
   skillRequest?: SendMessageOptions["skillRequest"];
+  skipSessionRestore?: boolean;
   expectingQueue: boolean;
   assistantMsgId: string;
   userMsgId: string | null;
@@ -94,6 +95,9 @@ export function prepareAgentStreamUserInputSend(
   const requestMetadata = sendOptions?.requestMetadata;
   const messagePurpose = sendOptions?.purpose;
   const assistantDraft = sendOptions?.assistantDraft;
+  const skipSessionRestore = sendOptions?.skipSessionRestore === true;
+  const resolvedSystemPrompt =
+    sendOptions?.systemPromptOverride?.trim() || systemPrompt;
   const displayContent = sendOptions?.displayContent;
   const skillRequest = sendOptions?.skillRequest;
   const expectingQueue =
@@ -131,12 +135,13 @@ export function prepareAgentStreamUserInputSend(
     effectiveModel,
     modelOverride: resolvedModelOverride,
     autoContinue,
-    systemPrompt,
+    systemPrompt: resolvedSystemPrompt,
     syncedSessionModelPreference,
     observer,
     requestMetadata,
     assistantDraft,
     skillRequest,
+    skipSessionRestore,
     expectingQueue,
     assistantMsgId,
     userMsgId,

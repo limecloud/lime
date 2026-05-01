@@ -11,6 +11,107 @@ import type {
   OutlineNode,
 } from "@/lib/api/memory";
 
+const DEFAULT_CHARACTER_NAME = "默认主角";
+const DEFAULT_OUTLINE_TITLE = "第一章";
+
+function normalizeText(value?: string): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isPlaceholderText(value?: string): boolean {
+  const normalized = normalizeText(value);
+  return !normalized || normalized.includes("待补充");
+}
+
+function isUsefulText(value?: string): boolean {
+  return !isPlaceholderText(value);
+}
+
+function hasUsefulCharacterContent(character: Character): boolean {
+  if (
+    character.aliases.some(isUsefulText) ||
+    isUsefulText(character.description) ||
+    isUsefulText(character.personality) ||
+    isUsefulText(character.background) ||
+    isUsefulText(character.appearance)
+  ) {
+    return true;
+  }
+
+  return (
+    isUsefulText(character.name) &&
+    normalizeText(character.name) !== DEFAULT_CHARACTER_NAME
+  );
+}
+
+function normalizeCharacter(character: Character): Character {
+  return {
+    ...character,
+    name: normalizeText(character.name),
+    aliases: character.aliases.filter(isUsefulText).map(normalizeText),
+    description: isUsefulText(character.description)
+      ? normalizeText(character.description)
+      : undefined,
+    personality: isUsefulText(character.personality)
+      ? normalizeText(character.personality)
+      : undefined,
+    background: isUsefulText(character.background)
+      ? normalizeText(character.background)
+      : undefined,
+    appearance: isUsefulText(character.appearance)
+      ? normalizeText(character.appearance)
+      : undefined,
+  };
+}
+
+function normalizeWorldBuilding(
+  worldBuilding?: WorldBuilding,
+): WorldBuilding | null {
+  if (!worldBuilding) {
+    return null;
+  }
+
+  const normalized: WorldBuilding = {
+    ...worldBuilding,
+    description: isUsefulText(worldBuilding.description)
+      ? normalizeText(worldBuilding.description)
+      : "",
+    era: isUsefulText(worldBuilding.era)
+      ? normalizeText(worldBuilding.era)
+      : undefined,
+    locations: isUsefulText(worldBuilding.locations)
+      ? normalizeText(worldBuilding.locations)
+      : undefined,
+    rules: isUsefulText(worldBuilding.rules)
+      ? normalizeText(worldBuilding.rules)
+      : undefined,
+  };
+
+  return normalized.description ||
+    normalized.era ||
+    normalized.locations ||
+    normalized.rules
+    ? normalized
+    : null;
+}
+
+function hasUsefulOutlineNode(node: OutlineNode): boolean {
+  const usefulTitle = isUsefulText(node.title);
+  const usefulContent = isUsefulText(node.content);
+  if (usefulContent) {
+    return true;
+  }
+  return usefulTitle && normalizeText(node.title) !== DEFAULT_OUTLINE_TITLE;
+}
+
+function normalizeOutlineNode(node: OutlineNode): OutlineNode {
+  return {
+    ...node,
+    title: isUsefulText(node.title) ? normalizeText(node.title) : "未命名章节",
+    content: isUsefulText(node.content) ? normalizeText(node.content) : undefined,
+  };
+}
+
 /**
  * 生成角色提示词
  */
@@ -96,7 +197,10 @@ function generateOutlinePrompt(outline: OutlineNode[]): string {
   const sortedOutline = [...outline].sort(
     (left, right) => left.order - right.order,
   );
-  const rootNodes = sortedOutline.filter((node) => !node.parent_id);
+  const outlineIds = new Set(sortedOutline.map((node) => node.id));
+  const rootNodes = sortedOutline.filter(
+    (node) => !node.parent_id || !outlineIds.has(node.parent_id),
+  );
 
   const renderNode = (node: OutlineNode, level = 0): string => {
     const indent = "  ".repeat(level);
@@ -127,18 +231,34 @@ function generateOutlinePrompt(outline: OutlineNode[]): string {
  * 生成项目 Memory 提示词
  */
 export function generateProjectMemoryPrompt(memory: ProjectMemory): string {
+  const characters = memory.characters
+    .filter(hasUsefulCharacterContent)
+    .map(normalizeCharacter);
+  const worldBuilding = normalizeWorldBuilding(memory.world_building);
+  const outline = memory.outline
+    .filter(hasUsefulOutlineNode)
+    .map(normalizeOutlineNode);
+
+  if (
+    characters.length === 0 &&
+    !worldBuilding &&
+    outline.length === 0
+  ) {
+    return "";
+  }
+
   let prompt = "## 项目背景\n\n";
 
-  if (memory.characters.length > 0) {
-    prompt += generateCharactersPrompt(memory.characters);
+  if (characters.length > 0) {
+    prompt += generateCharactersPrompt(characters);
   }
 
-  if (memory.world_building?.description) {
-    prompt += generateWorldBuildingPrompt(memory.world_building);
+  if (worldBuilding) {
+    prompt += generateWorldBuildingPrompt(worldBuilding);
   }
 
-  if (memory.outline.length > 0) {
-    prompt += generateOutlinePrompt(memory.outline);
+  if (outline.length > 0) {
+    prompt += generateOutlinePrompt(outline);
   }
 
   return prompt.trim();

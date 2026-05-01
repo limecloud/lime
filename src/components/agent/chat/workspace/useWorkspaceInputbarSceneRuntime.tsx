@@ -544,6 +544,12 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   chatToolPreferences?: ChatToolPreferences;
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
+  pathReferences: InputbarParams["pathReferences"];
+  onAddPathReferences: InputbarParams["onAddPathReferences"];
+  onRemovePathReference: InputbarParams["onRemovePathReference"];
+  onClearPathReferences: InputbarParams["onClearPathReferences"];
+  fileManagerOpen: InputbarParams["fileManagerOpen"];
+  onToggleFileManager: InputbarParams["onToggleFileManager"];
   inputCompletionEnabled?: boolean;
 }
 
@@ -653,6 +659,12 @@ export function useWorkspaceInputbarSceneRuntime({
   chatToolPreferences,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
+  pathReferences,
+  onAddPathReferences,
+  onRemovePathReference,
+  onClearPathReferences,
+  fileManagerOpen,
+  onToggleFileManager,
   inputCompletionEnabled = true,
 }: UseWorkspaceInputbarSceneRuntimeParams) {
   const resolvedQueuedTurns = useMemo(() => queuedTurns ?? [], [queuedTurns]);
@@ -773,6 +785,12 @@ export function useWorkspaceInputbarSceneRuntime({
         onRemoveQueuedTurn: removeQueuedTurn,
         defaultCuratedTaskReferenceMemoryIds,
         defaultCuratedTaskReferenceEntries,
+        pathReferences,
+        onAddPathReferences,
+        onRemovePathReference,
+        onClearPathReferences,
+        fileManagerOpen,
+        onToggleFileManager,
         inputCompletionEnabled,
       },
       floatingTeamWorkspaceDock: {

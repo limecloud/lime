@@ -704,6 +704,22 @@ fn build_success_criteria(
                 format_text_list(&executor_adapter_keys, "未记录 executor adapter")
             ));
         }
+        let limecore_policy_refs =
+            modality_contract_limecore_policy_refs(modality_runtime_contracts);
+        if modality_contract_has_limecore_policy_index(modality_runtime_contracts) {
+            criteria.push(format!(
+                "回放必须保留 `snapshotIndex.limecorePolicyIndex`，继续暴露 LimeCore policy refs：{}。",
+                format_text_list(&limecore_policy_refs, "未记录 LimeCore policy refs")
+            ));
+        }
+        let limecore_missing_inputs =
+            modality_contract_limecore_policy_missing_inputs(modality_runtime_contracts);
+        if !limecore_missing_inputs.is_empty() {
+            criteria.push(format!(
+                "回放必须保留 LimeCore missing inputs：{}；除非 replay 写回真实命中值，否则不能把本地默认 allow 当作 tenant/provider/gateway 真实放行。",
+                format_text_list(&limecore_missing_inputs, "未记录 missing inputs")
+            ));
+        }
     }
     if modality_contract_has_browser_control(modality_runtime_contracts) {
         criteria.push(
@@ -894,6 +910,14 @@ fn build_blocking_checks(
                 .to_string(),
         );
     }
+    let limecore_missing_inputs =
+        modality_contract_limecore_policy_missing_inputs(modality_runtime_contracts);
+    if !limecore_missing_inputs.is_empty() {
+        checks.push(format!(
+            "`limecorePolicyIndex` 仍有 missing inputs：{}；除非 replay 写回真实 `model_catalog / provider_offer / tenant_feature_flags / gateway_policy` 命中值，否则不能宣称真实 LimeCore policy 已放行。",
+            format_text_list(&limecore_missing_inputs, "未记录 missing inputs")
+        ));
+    }
 
     if checks.is_empty() {
         checks.push("当前没有额外阻塞检查项，按结果与证据判定即可。".to_string());
@@ -944,6 +968,43 @@ fn build_modality_contract_checks(modality_runtime_contracts: &Value) -> Vec<Str
             "确认 replay 保留 executor adapter：{}，用于解释真实执行器绑定、产物输出与失败映射。",
             format_text_list(&executor_adapter_keys, "未记录 executor adapter")
         ));
+    }
+    if modality_contract_has_limecore_policy_index(modality_runtime_contracts) {
+        checks.push(
+            "确认 replay 保留 `snapshotIndex.limecorePolicyIndex`，用于解释 LimeCore policy refs、decision source、missing inputs 与 allow / ask / deny 输入。"
+                .to_string(),
+        );
+        let policy_refs = modality_contract_limecore_policy_refs(modality_runtime_contracts);
+        if !policy_refs.is_empty() {
+            checks.push(format!(
+                "确认 LimeCore policy refs 仍可回溯：{}。",
+                format_text_list(&policy_refs, "未记录 LimeCore policy refs")
+            ));
+        }
+        let policy_decisions =
+            modality_contract_limecore_policy_decisions(modality_runtime_contracts);
+        if !policy_decisions.is_empty() {
+            checks.push(format!(
+                "确认 LimeCore policy decision 仍可解释：{}。",
+                format_text_list(&policy_decisions, "未记录 policy decision")
+            ));
+        }
+        let decision_sources =
+            modality_contract_limecore_policy_decision_sources(modality_runtime_contracts);
+        if !decision_sources.is_empty() {
+            checks.push(format!(
+                "确认 LimeCore policy decision source 没有漂移：{}。",
+                format_text_list(&decision_sources, "未记录 decision source")
+            ));
+        }
+        let missing_inputs =
+            modality_contract_limecore_policy_missing_inputs(modality_runtime_contracts);
+        if !missing_inputs.is_empty() {
+            checks.push(format!(
+                "确认 missing inputs 仍显式暴露：{}；如果 replay 已接真实 LimeCore 命中值，必须同步解释这些缺口为何关闭。",
+                format_text_list(&missing_inputs, "未记录 missing inputs")
+            ));
+        }
     }
 
     if modality_contract_has_routing_block(modality_runtime_contracts) {
@@ -1123,6 +1184,16 @@ fn infer_replay_suite_tags(
         if !modality_contract_executor_adapter_keys(modality_runtime_contracts).is_empty() {
             push_unique_text_tag(&mut tags, "executor-adapter");
         }
+        if modality_contract_has_limecore_policy_index(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "limecore-policy");
+        }
+        if !modality_contract_limecore_policy_missing_inputs(modality_runtime_contracts).is_empty()
+        {
+            push_unique_text_tag(&mut tags, "limecore-policy-gap");
+        }
+        if modality_contract_has_limecore_local_default_policy(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "limecore-local-default-policy");
+        }
     }
 
     if modality_contract_has_routing_block(modality_runtime_contracts) {
@@ -1253,6 +1324,12 @@ fn infer_replay_failure_modes(
 
     if modality_contract_has_routing_block(modality_runtime_contracts) {
         push_unique_text_tag(&mut failure_modes, "modality_contract_routing_blocked");
+    }
+    if !modality_contract_limecore_policy_missing_inputs(modality_runtime_contracts).is_empty() {
+        push_unique_text_tag(&mut failure_modes, "limecore_policy_missing_inputs");
+    }
+    if modality_contract_has_limecore_local_default_policy(modality_runtime_contracts) {
+        push_unique_text_tag(&mut failure_modes, "limecore_policy_local_defaults_only");
     }
     if modality_contract_has_browser_control(modality_runtime_contracts)
         && !modality_contract_has_browser_action_trace(modality_runtime_contracts)
@@ -1386,6 +1463,207 @@ fn modality_contract_executor_adapter_keys(modality_runtime_contracts: &Value) -
         &mut values,
     );
     values
+}
+
+fn modality_contract_limecore_policy_index(modality_runtime_contracts: &Value) -> Option<&Value> {
+    modality_runtime_contracts
+        .pointer("/snapshotIndex/limecorePolicyIndex")
+        .or_else(|| modality_runtime_contracts.pointer("/snapshot_index/limecore_policy_index"))
+}
+
+fn modality_contract_has_limecore_policy_index(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_limecore_policy_index(modality_runtime_contracts)
+        .and_then(|value| {
+            value
+                .get("snapshotCount")
+                .or_else(|| value.get("snapshot_count"))
+        })
+        .and_then(Value::as_u64)
+        .is_some_and(|count| count > 0)
+        || modality_contract_limecore_policy_index(modality_runtime_contracts)
+            .and_then(|value| value.get("items"))
+            .and_then(Value::as_array)
+            .is_some_and(|items| !items.is_empty())
+}
+
+fn modality_contract_limecore_policy_refs(modality_runtime_contracts: &Value) -> Vec<String> {
+    let mut values = Vec::new();
+    collect_unique_string_array_at_pointer(
+        modality_runtime_contracts,
+        "/snapshotIndex/limecorePolicyRefs",
+        &mut values,
+    );
+    collect_unique_string_array_at_pointer(
+        modality_runtime_contracts,
+        "/snapshot_index/limecore_policy_refs",
+        &mut values,
+    );
+    if let Some(index) = modality_contract_limecore_policy_index(modality_runtime_contracts) {
+        collect_unique_string_array_fields(index, &["refKeys", "ref_keys"], &mut values);
+        for item in index
+            .get("items")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            collect_unique_string_array_fields(item, &["refs"], &mut values);
+        }
+    }
+    for snapshot in modality_contract_snapshots(modality_runtime_contracts) {
+        collect_unique_string_array_fields(
+            snapshot,
+            &["limecorePolicyRefs", "limecore_policy_refs"],
+            &mut values,
+        );
+        if let Some(snapshot_policy) = snapshot
+            .get("limecorePolicySnapshot")
+            .or_else(|| snapshot.get("limecore_policy_snapshot"))
+        {
+            collect_unique_string_array_fields(snapshot_policy, &["refs"], &mut values);
+        }
+    }
+    values
+}
+
+fn modality_contract_limecore_policy_missing_inputs(
+    modality_runtime_contracts: &Value,
+) -> Vec<String> {
+    let mut values = Vec::new();
+    if let Some(index) = modality_contract_limecore_policy_index(modality_runtime_contracts) {
+        collect_unique_string_array_fields(
+            index,
+            &["missingInputs", "missing_inputs"],
+            &mut values,
+        );
+        for item in index
+            .get("items")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            collect_unique_string_array_fields(
+                item,
+                &[
+                    "missingInputs",
+                    "missing_inputs",
+                    "unresolvedRefs",
+                    "unresolved_refs",
+                ],
+                &mut values,
+            );
+        }
+    }
+    for snapshot in modality_contract_snapshots(modality_runtime_contracts) {
+        if let Some(snapshot_policy) = snapshot
+            .get("limecorePolicySnapshot")
+            .or_else(|| snapshot.get("limecore_policy_snapshot"))
+        {
+            collect_unique_string_array_fields(
+                snapshot_policy,
+                &[
+                    "missingInputs",
+                    "missing_inputs",
+                    "unresolvedRefs",
+                    "unresolved_refs",
+                ],
+                &mut values,
+            );
+        }
+    }
+    values
+}
+
+fn modality_contract_limecore_policy_decisions(modality_runtime_contracts: &Value) -> Vec<String> {
+    let mut values = Vec::new();
+    if let Some(index) = modality_contract_limecore_policy_index(modality_runtime_contracts) {
+        if let Some(counts) = index
+            .get("decisionCounts")
+            .or_else(|| index.get("decision_counts"))
+            .and_then(Value::as_array)
+        {
+            for count in counts {
+                collect_unique_string_fields(count, &["decision"], &mut values);
+            }
+        }
+        for item in index
+            .get("items")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            collect_unique_string_fields(item, &["decision"], &mut values);
+        }
+    }
+    for snapshot in modality_contract_snapshots(modality_runtime_contracts) {
+        if let Some(snapshot_policy) = snapshot
+            .get("limecorePolicySnapshot")
+            .or_else(|| snapshot.get("limecore_policy_snapshot"))
+        {
+            collect_unique_string_fields(snapshot_policy, &["decision"], &mut values);
+        }
+    }
+    values
+}
+
+fn modality_contract_limecore_policy_decision_sources(
+    modality_runtime_contracts: &Value,
+) -> Vec<String> {
+    let mut values = Vec::new();
+    if let Some(index) = modality_contract_limecore_policy_index(modality_runtime_contracts) {
+        for item in index
+            .get("items")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            collect_unique_string_fields(item, &["decisionSource", "decision_source"], &mut values);
+        }
+    }
+    for snapshot in modality_contract_snapshots(modality_runtime_contracts) {
+        if let Some(snapshot_policy) = snapshot
+            .get("limecorePolicySnapshot")
+            .or_else(|| snapshot.get("limecore_policy_snapshot"))
+        {
+            collect_unique_string_fields(
+                snapshot_policy,
+                &["decisionSource", "decision_source"],
+                &mut values,
+            );
+        }
+    }
+    values
+}
+
+fn modality_contract_has_limecore_local_default_policy(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_limecore_policy_decision_sources(modality_runtime_contracts)
+        .iter()
+        .any(|source| source == "local_default_policy")
+        || modality_contract_limecore_policy_items(modality_runtime_contracts)
+            .into_iter()
+            .any(|item| {
+                item.get("decisionScope")
+                    .or_else(|| item.get("decision_scope"))
+                    .and_then(Value::as_str)
+                    .is_some_and(|value| value == "local_defaults_only")
+            })
+}
+
+fn modality_contract_limecore_policy_items(modality_runtime_contracts: &Value) -> Vec<&Value> {
+    let mut items = Vec::new();
+    if let Some(index) = modality_contract_limecore_policy_index(modality_runtime_contracts) {
+        if let Some(index_items) = index.get("items").and_then(Value::as_array) {
+            items.extend(index_items.iter());
+        }
+    }
+    for snapshot in modality_contract_snapshots(modality_runtime_contracts) {
+        if let Some(snapshot_policy) = snapshot
+            .get("limecorePolicySnapshot")
+            .or_else(|| snapshot.get("limecore_policy_snapshot"))
+        {
+            items.push(snapshot_policy);
+        }
+    }
+    items
 }
 
 fn modality_contract_has_browser_control(modality_runtime_contracts: &Value) -> bool {
@@ -1832,6 +2110,37 @@ fn collect_unique_string_array_at_pointer(value: &Value, pointer: &str, values: 
             {
                 push_unique_owned_tag(values, value);
             }
+        }
+    }
+}
+
+fn collect_unique_string_array_fields(
+    value: &Value,
+    field_names: &[&str],
+    values: &mut Vec<String>,
+) {
+    for field_name in field_names {
+        if let Some(items) = value.get(*field_name).and_then(Value::as_array) {
+            for item in items {
+                if let Some(value) = item
+                    .as_str()
+                    .and_then(|value| normalize_optional_text(Some(value.to_string())))
+                {
+                    push_unique_owned_tag(values, value);
+                }
+            }
+        }
+    }
+}
+
+fn collect_unique_string_fields(value: &Value, field_names: &[&str], values: &mut Vec<String>) {
+    for field_name in field_names {
+        if let Some(value) = value
+            .get(*field_name)
+            .and_then(Value::as_str)
+            .and_then(|value| normalize_optional_text(Some(value.to_string())))
+        {
+            push_unique_owned_tag(values, value);
         }
     }
 }
@@ -2653,6 +2962,22 @@ mod tests {
                 .and_then(Value::as_str),
             Some("routing_not_possible")
         );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/missingInputs/0",
+                )
+                .and_then(Value::as_str),
+            Some("model_catalog")
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/items/0/decisionSource",
+                )
+                .and_then(Value::as_str),
+            Some("local_default_policy")
+        );
         let suite_tags = input
             .pointer("/classification/suiteTags")
             .and_then(Value::as_array)
@@ -2663,6 +2988,15 @@ mod tests {
         assert!(suite_tags
             .iter()
             .any(|item| item.as_str() == Some("modality-image_generation")));
+        assert!(suite_tags
+            .iter()
+            .any(|item| item.as_str() == Some("limecore-policy")));
+        assert!(suite_tags
+            .iter()
+            .any(|item| item.as_str() == Some("limecore-policy-gap")));
+        assert!(suite_tags
+            .iter()
+            .any(|item| item.as_str() == Some("limecore-local-default-policy")));
         let failure_modes = input
             .pointer("/classification/failureModes")
             .and_then(Value::as_array)
@@ -2673,16 +3007,28 @@ mod tests {
         assert!(failure_modes
             .iter()
             .any(|item| item.as_str() == Some("image_generation_model_capability_gap")));
+        assert!(failure_modes
+            .iter()
+            .any(|item| item.as_str() == Some("limecore_policy_missing_inputs")));
+        assert!(failure_modes
+            .iter()
+            .any(|item| item.as_str() == Some("limecore_policy_local_defaults_only")));
 
         let expected = fs::read_to_string(expected_path).expect("expected");
         assert!(expected.contains("\"modalityContractChecks\""));
         assert!(expected.contains("image_generation_model_capability_gap"));
         assert!(expected.contains("model_registry"));
+        assert!(expected.contains("limecorePolicyIndex"));
+        assert!(expected.contains("model_catalog"));
+        assert!(expected.contains("本地默认 allow"));
         assert!(expected.contains("\"requiresHumanReview\": true"));
 
         let grader = fs::read_to_string(grader_path).expect("grader");
         assert!(grader.contains("多模态运行合同检查"));
         assert!(grader.contains("routing_not_possible"));
+        assert!(grader.contains("limecorePolicyIndex"));
+        assert!(grader.contains("missing inputs"));
+        assert!(grader.contains("local_default_policy"));
 
         let links =
             serde_json::from_str::<Value>(fs::read_to_string(links_path).expect("links").as_str())
@@ -2692,6 +3038,12 @@ mod tests {
                 .pointer("/modalityRuntimeContracts/snapshots/0/failureCode")
                 .and_then(Value::as_str),
             Some("image_generation_model_capability_gap")
+        );
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshotIndex/limecorePolicyIndex/refKeys/0")
+                .and_then(Value::as_str),
+            Some("model_catalog")
         );
     }
 

@@ -207,6 +207,9 @@ const MESSAGE_LIST_LONG_HISTORICAL_MESSAGE_THRESHOLD = 24_000;
 const MESSAGE_LIST_LONG_HISTORICAL_MESSAGE_PREVIEW_CHARS = 2_000;
 const MESSAGE_LIST_STRUCTURED_HISTORY_CONTENT_RE =
   /<a2ui|```\s*a2ui|<write_file|<document/i;
+const MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_INITIAL_COUNT = 2;
+const MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_BATCH_SIZE = 2;
+const MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_DELAY_MS = 140;
 
 function buildHistoricalMessagePreview(
   content: string,
@@ -336,16 +339,21 @@ function summarizeHistoricalTimelineItems(items: AgentThreadItem[]): {
 const HistoricalTimelinePreview: React.FC<{
   items: AgentThreadItem[];
   placement: "leading" | "trailing" | "default";
+  detailsDeferred?: boolean;
   onExpand: () => void;
-}> = ({ items, placement, onExpand }) => {
+}> = ({ items, placement, detailsDeferred = false, onExpand }) => {
   const summary = useMemo(
     () => summarizeHistoricalTimelineItems(items),
     [items],
   );
 
-  if (summary.stepsCount <= 0) {
+  if (summary.stepsCount <= 0 && !detailsDeferred) {
     return null;
   }
+  const metaText =
+    summary.stepsCount > 0
+      ? `${summary.stepsCount} 步 · ${summary.metaText}`
+      : "点击展开后加载执行细节";
 
   return (
     <button
@@ -357,7 +365,7 @@ const HistoricalTimelinePreview: React.FC<{
       <span className="min-w-0 flex-1">
         <span className="block font-medium text-slate-800">执行过程已折叠</span>
         <span className="mt-0.5 block text-xs leading-5 text-slate-500">
-          {summary.stepsCount} 步 · {summary.metaText}
+          {metaText}
         </span>
       </span>
       <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700">
@@ -421,6 +429,31 @@ function truncateRuntimeStatusText(value: string, maxLength = 96): string {
   }
 
   return `${Array.from(normalized).slice(0, maxLength).join("")}...`;
+}
+
+interface MessageListMeasuredComputation<T> {
+  value: T;
+  durationMs: number;
+}
+
+function getMessageListPerformanceNow(): number {
+  if (typeof performance !== "undefined" && performance.now) {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function measureMessageListComputation<T>(
+  compute: () => T,
+): MessageListMeasuredComputation<T> {
+  const startedAt = getMessageListPerformanceNow();
+  const value = compute();
+  const durationMs = getMessageListPerformanceNow() - startedAt;
+
+  return {
+    value,
+    durationMs: Math.round(Math.max(0, durationMs) * 10) / 10,
+  };
 }
 
 const AssistantFirstTokenPlaceholder: React.FC<{
@@ -1021,49 +1054,63 @@ const MessageListInner: React.FC<MessageListProps> = ({
     pendingActions.length === 0 &&
     queuedTurns.length === 0 &&
     (threadRead?.pending_requests?.length ?? 0) === 0;
+  const shouldDeferRestoredThreadItemsUntilExpand =
+    isRestoredHistoryWindow &&
+    !focusedTimelineItemId &&
+    !isSending &&
+    !activeCurrentTurnId &&
+    expandedHistoricalTimelineKeys.size === 0 &&
+    threadItems.length >= MESSAGE_LIST_TIMELINE_DEFER_ITEM_THRESHOLD;
   const shouldDeferThreadItemsScan =
-    shouldDeferHistoricalTimeline &&
-    !isHistoricalTimelineReady &&
-    !activeCurrentTurnId;
-  const renderedThreadItems = useMemo(
-    () => {
-      if (shouldDeferThreadItemsScan) {
-        return [];
-      }
-
-      if (!renderedTurnIdSet) {
-        return threadItems;
-      }
-      if (renderedTurnIdSet.size === 0) {
-        return [];
-      }
-
-      const scopedItems: AgentThreadItem[] = [];
-      for (const item of threadItems) {
-        if (renderedTurnIdSet.has(item.turn_id)) {
-          scopedItems.push(item);
+    !activeCurrentTurnId &&
+    ((shouldDeferHistoricalTimeline && !isHistoricalTimelineReady) ||
+      shouldDeferRestoredThreadItemsUntilExpand);
+  const renderedThreadItemsMeasurement = useMemo(
+    () =>
+      measureMessageListComputation(() => {
+        if (shouldDeferThreadItemsScan) {
+          return [];
         }
-      }
-      return scopedItems;
-    },
+
+        if (!renderedTurnIdSet) {
+          return threadItems;
+        }
+        if (renderedTurnIdSet.size === 0) {
+          return [];
+        }
+
+        const scopedItems: AgentThreadItem[] = [];
+        for (const item of threadItems) {
+          if (renderedTurnIdSet.has(item.turn_id)) {
+            scopedItems.push(item);
+          }
+        }
+        return scopedItems;
+      }),
     [renderedTurnIdSet, shouldDeferThreadItemsScan, threadItems],
   );
-  const timelineByMessageId = useMemo(() => {
-    if (!canBuildHistoricalTimeline) {
-      return new Map<string, MessageTurnTimeline>();
-    }
+  const renderedThreadItems = renderedThreadItemsMeasurement.value;
+  const timelineByMessageIdMeasurement = useMemo(
+    () =>
+      measureMessageListComputation(() => {
+        if (!canBuildHistoricalTimeline) {
+          return new Map<string, MessageTurnTimeline>();
+        }
 
-    return buildMessageTurnTimeline(
+        return buildMessageTurnTimeline(
+          renderedMessages,
+          renderedTurns,
+          renderedThreadItems,
+        );
+      }),
+    [
+      canBuildHistoricalTimeline,
       renderedMessages,
-      renderedTurns,
       renderedThreadItems,
-    );
-  }, [
-    canBuildHistoricalTimeline,
-    renderedMessages,
-    renderedThreadItems,
-    renderedTurns,
-  ]);
+      renderedTurns,
+    ],
+  );
+  const timelineByMessageId = timelineByMessageIdMeasurement.value;
   const lastAssistantMessage = useMemo(() => {
     for (let index = renderedMessages.length - 1; index >= 0; index -= 1) {
       const message = renderedMessages[index];
@@ -1154,40 +1201,46 @@ const MessageListInner: React.FC<MessageListProps> = ({
     renderedThreadItems,
     timelineByMessageId,
   ]);
-  const messageGroups = useMemo(
-    () => buildMessageTurnGroups(renderedMessages),
+  const messageGroupsMeasurement = useMemo(
+    () =>
+      measureMessageListComputation(() =>
+        buildMessageTurnGroups(renderedMessages),
+      ),
     [renderedMessages],
   );
-  const renderGroups = useMemo(
+  const messageGroups = messageGroupsMeasurement.value;
+  const renderGroupsMeasurement = useMemo(
     () =>
-      messageGroups.map((group) => {
-        const lastAssistantId =
-          group.assistantMessages[group.assistantMessages.length - 1]?.id ??
-          null;
-        let mappedTimeline: MessageTurnTimeline | null = null;
-        for (const message of group.assistantMessages) {
-          mappedTimeline = timelineByMessageId.get(message.id) ?? null;
-          if (mappedTimeline) {
-            break;
+      measureMessageListComputation(() =>
+        messageGroups.map((group) => {
+          const lastAssistantId =
+            group.assistantMessages[group.assistantMessages.length - 1]?.id ??
+            null;
+          let mappedTimeline: MessageTurnTimeline | null = null;
+          for (const message of group.assistantMessages) {
+            mappedTimeline = timelineByMessageId.get(message.id) ?? null;
+            if (mappedTimeline) {
+              break;
+            }
           }
-        }
-        const isCurrentTurnGroup =
-          Boolean(lastAssistantId) &&
-          currentTurnTimeline?.messageId === lastAssistantId;
-        const isActiveGroup =
-          Boolean(lastAssistantId) &&
-          lastAssistantId === lastAssistantMessageId;
-        const timeline = isCurrentTurnGroup
-          ? currentTurnTimeline
-          : mappedTimeline;
+          const isCurrentTurnGroup =
+            Boolean(lastAssistantId) &&
+            currentTurnTimeline?.messageId === lastAssistantId;
+          const isActiveGroup =
+            Boolean(lastAssistantId) &&
+            lastAssistantId === lastAssistantMessageId;
+          const timeline = isCurrentTurnGroup
+            ? currentTurnTimeline
+            : mappedTimeline;
 
-        return {
-          ...group,
-          lastAssistantId,
-          timeline,
-          isActiveGroup,
-        };
-      }),
+          return {
+            ...group,
+            lastAssistantId,
+            timeline,
+            isActiveGroup,
+          };
+        }),
+      ),
     [
       currentTurnTimeline,
       lastAssistantMessageId,
@@ -1195,10 +1248,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
       timelineByMessageId,
     ],
   );
-  const shouldDeferHistoricalAssistantMessageDetails = useCallback(
+  const renderGroups = renderGroupsMeasurement.value;
+  const isHistoricalAssistantMessageHydrationCandidate = useCallback(
     (message: Message): boolean =>
       isRestoredHistoryWindow &&
-      !isHistoricalTimelineReady &&
       !focusedTimelineItemId &&
       !isSending &&
       !activeCurrentTurnId &&
@@ -1210,55 +1263,171 @@ const MessageListInner: React.FC<MessageListProps> = ({
     [
       activeCurrentTurnId,
       focusedTimelineItemId,
-      isHistoricalTimelineReady,
       isRestoredHistoryWindow,
       isSending,
     ],
   );
-  const historicalContentPartsDeferredCount = useMemo(() => {
-    if (!isRestoredHistoryWindow || isHistoricalTimelineReady) {
-      return 0;
+  const historicalMarkdownHydrationTargetsMeasurement = useMemo(
+    () =>
+      measureMessageListComputation(() => {
+        if (!isRestoredHistoryWindow) {
+          return [];
+        }
+
+        const targetIds: string[] = [];
+        for (const message of renderedMessages) {
+          const content = message.content.trim();
+          if (
+            content &&
+            !hasStructuredHistoricalContentHint(content) &&
+            isHistoricalAssistantMessageHydrationCandidate(message)
+          ) {
+            targetIds.push(message.id);
+          }
+        }
+        return targetIds;
+      }),
+    [
+      isHistoricalAssistantMessageHydrationCandidate,
+      isRestoredHistoryWindow,
+      renderedMessages,
+    ],
+  );
+  const historicalMarkdownHydrationTargets =
+    historicalMarkdownHydrationTargetsMeasurement.value;
+  const historicalMarkdownHydrationKey =
+    historicalMarkdownHydrationTargets.join("|");
+  const [hydratedHistoricalMarkdownCount, setHydratedHistoricalMarkdownCount] =
+    useState(0);
+  useEffect(() => {
+    const total = historicalMarkdownHydrationTargets.length;
+    if (!isRestoredHistoryWindow || !isHistoricalTimelineReady || total <= 0) {
+      setHydratedHistoricalMarkdownCount(0);
+      return;
     }
 
-    let count = 0;
-    for (const message of renderedMessages) {
-      if (
-        (message.contentParts?.length ?? 0) > 0 &&
-        shouldDeferHistoricalAssistantMessageDetails(message)
-      ) {
-        count += 1;
+    setHydratedHistoricalMarkdownCount((current) => {
+      const clampedCurrent = Math.min(current, total);
+      if (clampedCurrent > 0) {
+        return clampedCurrent;
       }
-    }
-    return count;
+      return Math.min(
+        total,
+        MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_INITIAL_COUNT,
+      );
+    });
   }, [
+    historicalMarkdownHydrationKey,
+    historicalMarkdownHydrationTargets.length,
     isHistoricalTimelineReady,
     isRestoredHistoryWindow,
-    renderedMessages,
-    shouldDeferHistoricalAssistantMessageDetails,
   ]);
-  const historicalMarkdownDeferredCount = useMemo(() => {
-    if (!isRestoredHistoryWindow || isHistoricalTimelineReady) {
-      return 0;
+  useEffect(() => {
+    const total = historicalMarkdownHydrationTargets.length;
+    if (
+      !isRestoredHistoryWindow ||
+      !isHistoricalTimelineReady ||
+      hydratedHistoricalMarkdownCount >= total
+    ) {
+      return;
     }
 
-    let count = 0;
-    for (const message of renderedMessages) {
-      const content = message.content.trim();
-      if (
-        content &&
-        !hasStructuredHistoricalContentHint(content) &&
-        shouldDeferHistoricalAssistantMessageDetails(message)
-      ) {
-        count += 1;
-      }
-    }
-    return count;
+    return scheduleMinimumDelayIdleTask(
+      () => {
+        setHydratedHistoricalMarkdownCount((current) =>
+          Math.min(
+            total,
+            Math.max(
+              current,
+              MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_INITIAL_COUNT,
+            ) + MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_BATCH_SIZE,
+          ),
+        );
+      },
+      {
+        minimumDelayMs: MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_DELAY_MS,
+        idleTimeoutMs: 700,
+      },
+    );
   }, [
+    hydratedHistoricalMarkdownCount,
+    historicalMarkdownHydrationKey,
+    historicalMarkdownHydrationTargets.length,
     isHistoricalTimelineReady,
     isRestoredHistoryWindow,
-    renderedMessages,
-    shouldDeferHistoricalAssistantMessageDetails,
   ]);
+  const historicalMarkdownHydrationIndexByMessageId = useMemo(() => {
+    const indexed = new Map<string, number>();
+    historicalMarkdownHydrationTargets.forEach((messageId, index) => {
+      indexed.set(messageId, index);
+    });
+    return indexed;
+  }, [historicalMarkdownHydrationTargets]);
+  const isHistoricalMarkdownHydrated = useCallback(
+    (message: Message): boolean => {
+      const hydrationIndex = historicalMarkdownHydrationIndexByMessageId.get(
+        message.id,
+      );
+      return (
+        hydrationIndex === undefined ||
+        hydrationIndex < hydratedHistoricalMarkdownCount
+      );
+    },
+    [
+      hydratedHistoricalMarkdownCount,
+      historicalMarkdownHydrationIndexByMessageId,
+    ],
+  );
+  const shouldDeferHistoricalAssistantMessageDetails = useCallback(
+    (message: Message): boolean =>
+      isHistoricalAssistantMessageHydrationCandidate(message) &&
+      (!isHistoricalTimelineReady || !isHistoricalMarkdownHydrated(message)),
+    [
+      isHistoricalAssistantMessageHydrationCandidate,
+      isHistoricalMarkdownHydrated,
+      isHistoricalTimelineReady,
+    ],
+  );
+  const historicalContentPartsDeferredMeasurement = useMemo(
+    () =>
+      measureMessageListComputation(() => {
+        if (!isRestoredHistoryWindow) {
+          return 0;
+        }
+
+        let count = 0;
+        for (const message of renderedMessages) {
+          if (
+            (message.contentParts?.length ?? 0) > 0 &&
+            shouldDeferHistoricalAssistantMessageDetails(message)
+          ) {
+            count += 1;
+          }
+        }
+        return count;
+      }),
+    [
+      isRestoredHistoryWindow,
+      renderedMessages,
+      shouldDeferHistoricalAssistantMessageDetails,
+    ],
+  );
+  const historicalContentPartsDeferredCount =
+    historicalContentPartsDeferredMeasurement.value;
+  const historicalMarkdownDeferredCount = isRestoredHistoryWindow
+    ? Math.max(
+        0,
+        historicalMarkdownHydrationTargets.length -
+          hydratedHistoricalMarkdownCount,
+      )
+    : 0;
+  const messageListMeasuredComputeMs =
+    renderedThreadItemsMeasurement.durationMs +
+    timelineByMessageIdMeasurement.durationMs +
+    messageGroupsMeasurement.durationMs +
+    renderGroupsMeasurement.durationMs +
+    historicalMarkdownHydrationTargetsMeasurement.durationMs +
+    historicalContentPartsDeferredMeasurement.durationMs;
   useEffect(() => {
     if (!sessionId) {
       restoredSessionMetricRef.current = null;
@@ -1300,7 +1469,17 @@ const MessageListInner: React.FC<MessageListProps> = ({
       isRestoredHistoryWindow,
       isRestoringSession,
       historicalContentPartsDeferredCount,
+      hydratedHistoricalMarkdownCount,
       historicalMarkdownDeferredCount,
+      messageListComputeMs: messageListMeasuredComputeMs,
+      messageListGroupBuildMs: messageGroupsMeasurement.durationMs,
+      messageListHistoricalContentPartsScanMs:
+        historicalContentPartsDeferredMeasurement.durationMs,
+      messageListHistoricalMarkdownTargetScanMs:
+        historicalMarkdownHydrationTargetsMeasurement.durationMs,
+      messageListRenderGroupsMs: renderGroupsMeasurement.durationMs,
+      messageListThreadItemsScanMs: renderedThreadItemsMeasurement.durationMs,
+      messageListTimelineBuildMs: timelineByMessageIdMeasurement.durationMs,
       messagesCount: messages.length,
       persistedHiddenHistoryCount,
       renderedMessagesCount: renderedMessages.length,
@@ -1342,13 +1521,20 @@ const MessageListInner: React.FC<MessageListProps> = ({
     canBuildHistoricalTimeline,
     hiddenHistoryCount,
     historicalContentPartsDeferredCount,
+    historicalContentPartsDeferredMeasurement.durationMs,
+    historicalMarkdownHydrationTargetsMeasurement.durationMs,
+    hydratedHistoricalMarkdownCount,
     historicalMarkdownDeferredCount,
     isHistoricalTimelineReady,
     isRestoredHistoryWindow,
     isRestoringSession,
+    messageGroupsMeasurement.durationMs,
+    messageListMeasuredComputeMs,
     messages.length,
     persistedHiddenHistoryCount,
+    renderedThreadItemsMeasurement.durationMs,
     renderGroups.length,
+    renderGroupsMeasurement.durationMs,
     renderedMessages.length,
     renderedThreadItems.length,
     renderedTurns.length,
@@ -1356,6 +1542,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     shouldDeferHistoricalTimeline,
     shouldDeferTailRuntimeStatusLine,
     shouldDeferThreadItemsScan,
+    timelineByMessageIdMeasurement.durationMs,
     turns.length,
     visibleMessages.length,
   ]);
@@ -1618,10 +1805,16 @@ const MessageListInner: React.FC<MessageListProps> = ({
             !isHiddenConversationArtifactPath(item.path),
         )
       : [];
+    const hasDeferredHistoricalTimelineDetails =
+      Boolean(timeline) &&
+      isRestoredHistoryWindow &&
+      shouldDeferThreadItemsScan &&
+      timeline?.turn.status === "completed" &&
+      timeline.turn.id !== activeCurrentTurnId;
     const primaryTimeline =
       !shouldSuppressImageProcessFlow &&
       timeline &&
-      primaryTimelineItems.length > 0
+      (primaryTimelineItems.length > 0 || hasDeferredHistoricalTimelineDetails)
         ? { ...timeline, items: primaryTimelineItems }
         : null;
     const trailingTimeline =
@@ -1877,14 +2070,20 @@ const MessageListInner: React.FC<MessageListProps> = ({
     const primaryTimelineKey = primaryTimeline
       ? `leading:${primaryTimeline.turn.id}`
       : null;
+    const arePrimaryTimelineDetailsDeferred =
+      Boolean(primaryTimeline) &&
+      shouldDeferThreadItemsScan &&
+      primaryTimeline?.turn.status === "completed" &&
+      primaryTimeline.turn.id !== activeCurrentTurnId;
     const shouldRenderCompactPrimaryTimeline =
       Boolean(primaryTimelineKey) &&
       isRestoredHistoryWindow &&
       !focusedTimelineItemId &&
       primaryTimeline?.turn.status === "completed" &&
       primaryTimeline.turn.id !== activeCurrentTurnId &&
-      primaryTimeline.items.length >=
-        MESSAGE_LIST_HISTORICAL_TIMELINE_COMPACT_ITEM_THRESHOLD &&
+      (arePrimaryTimelineDetailsDeferred ||
+        primaryTimeline.items.length >=
+          MESSAGE_LIST_HISTORICAL_TIMELINE_COMPACT_ITEM_THRESHOLD) &&
       !expandedHistoricalTimelineKeys.has(primaryTimelineKey!);
     const primaryTimelineNode =
       msg.role === "assistant" && primaryTimeline ? (
@@ -1892,6 +2091,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
           <HistoricalTimelinePreview
             items={primaryTimeline.items}
             placement="leading"
+            detailsDeferred={arePrimaryTimelineDetailsDeferred}
             onExpand={() => handleExpandHistoricalTimeline(primaryTimelineKey)}
           />
         ) : (

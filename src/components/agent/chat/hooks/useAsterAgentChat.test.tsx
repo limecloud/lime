@@ -3801,6 +3801,39 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
     }
   });
 
+  it("新建任务失败后应释放创建锁，允许恢复桥接后再次新建", async () => {
+    const workspaceId = "ws-create-fresh-retry-after-bridge-error";
+    const recoveredSessionId = "session-after-create-retry";
+    mockCreateAgentRuntimeSession
+      .mockRejectedValueOnce(new Error("bridge health check failed"))
+      .mockResolvedValueOnce(recoveredSessionId);
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        const failedSessionId = await harness
+          .getValue()
+          .createFreshSession("新对话");
+        expect(failedSessionId).toBeNull();
+      });
+
+      await act(async () => {
+        const recoveredSession = await harness
+          .getValue()
+          .createFreshSession("新对话");
+        expect(recoveredSession).toBe(recoveredSessionId);
+      });
+
+      expect(mockCreateAgentRuntimeSession).toHaveBeenCalledTimes(2);
+      expect(harness.getValue().sessionId).toBe(recoveredSessionId);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("手动切换话题时不应继续停留在自动恢复占位态", async () => {
     const workspaceId = "ws-manual-topic-switch-hide-auto-restore";
     const listSessionsDeferred = createDeferred<

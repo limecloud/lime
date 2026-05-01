@@ -44,13 +44,19 @@ import {
   deleteVoiceModel,
   downloadVoiceModel,
   getVoiceModelInstallState,
+  listenVoiceModelDownloadProgress,
   listVoiceModelCatalog,
   setDefaultVoiceModel,
   testTranscribeVoiceModelFile,
   type VoiceModelCatalogEntry,
+  type VoiceModelDownloadProgressEvent,
   type VoiceModelInstallState,
   type VoiceModelTestTranscribeResult,
 } from "@/lib/api/voiceModels";
+import {
+  consumeVoiceModelSettingsFocusRequest,
+  VOICE_MODEL_SETTINGS_SECTION_ID,
+} from "@/lib/voiceModelSettingsNavigation";
 import {
   buildPersistedMediaGenerationPreference,
   getTtsModelsForProvider,
@@ -73,8 +79,6 @@ const DEFAULT_MEDIA_PREFERENCE: MediaGenerationPreference = {
 
 type PillTone = "neutral" | "success" | "warning";
 type VoiceModelAction = "download" | "delete" | "default" | "test";
-
-const PRIMARY_MODEL_FILE_NAME = "model.int8.onnx";
 
 function normalizeOptionalText(value?: string | null): string | undefined {
   const normalized = value?.trim();
@@ -157,14 +161,23 @@ function SettingCard({
   description,
   icon: Icon,
   children,
+  sectionId,
 }: {
   title: string;
   description: string;
   icon: LucideIcon;
   children: ReactNode;
+  sectionId?: string;
 }) {
   return (
-    <section className="overflow-visible rounded-[24px] border border-slate-200/80 bg-white shadow-sm shadow-slate-950/5">
+    <section
+      id={sectionId}
+      tabIndex={sectionId ? -1 : undefined}
+      className={cn(
+        "overflow-visible rounded-[24px] border border-slate-200/80 bg-white shadow-sm shadow-slate-950/5",
+        sectionId && "scroll-mt-6 outline-none",
+      )}
+    >
       <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Icon className="h-4 w-4 text-sky-600" />
@@ -235,9 +248,10 @@ function getVoiceModelInstallStatusText(
   entry: VoiceModelCatalogEntry,
   state: VoiceModelInstallState | null,
   action: VoiceModelAction | null,
+  progress?: VoiceModelDownloadProgressEvent | null,
 ): string {
   if (action === "download") {
-    return `正在下载 ${PRIMARY_MODEL_FILE_NAME} (1/2)`;
+    return progress?.message || "准备下载模型";
   }
 
   const modelSize = entry.size_bytes
@@ -249,6 +263,16 @@ function getVoiceModelInstallStatusText(
   }
 
   return `未安装（ONNX int8 量化，${modelSize}）`;
+}
+
+function getVoiceModelDownloadPercent(
+  progress?: VoiceModelDownloadProgressEvent | null,
+): number {
+  if (!progress || !Number.isFinite(progress.overall_progress)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Math.round(progress.overall_progress * 100)));
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -350,6 +374,8 @@ export function VoiceSettings() {
     useState<VoiceModelInstallState | null>(null);
   const [voiceModelAction, setVoiceModelAction] =
     useState<VoiceModelAction | null>(null);
+  const [voiceModelDownloadProgress, setVoiceModelDownloadProgress] =
+    useState<VoiceModelDownloadProgressEvent | null>(null);
   const [voiceModelTestPath, setVoiceModelTestPath] = useState("");
   const [voiceModelTestResult, setVoiceModelTestResult] =
     useState<VoiceModelTestTranscribeResult | null>(null);
@@ -413,6 +439,23 @@ export function VoiceSettings() {
   useEffect(() => {
     void loadVoiceSettings();
   }, [loadVoiceSettings]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    const focusRequest = consumeVoiceModelSettingsFocusRequest();
+    if (!focusRequest) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById(VOICE_MODEL_SETTINGS_SECTION_ID);
+      target?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+      target?.focus?.({ preventScroll: true });
+    });
+  }, [loading]);
 
   const showMessage = useCallback((type: "success" | "error", text: string) => {
     setMessage({ type, text });
@@ -539,6 +582,13 @@ export function VoiceSettings() {
   const isVoiceModelDefault = Boolean(
     voiceModelState?.default_credential_id ||
     defaultAsrCredential?.provider === "sensevoice_local",
+  );
+  const voiceModelDownloadReady = Boolean(
+    primaryVoiceModel?.download_url?.trim() &&
+      primaryVoiceModel?.vad_download_url?.trim(),
+  );
+  const voiceModelDownloadPercent = getVoiceModelDownloadPercent(
+    voiceModelDownloadProgress,
   );
 
   const voiceInstructions = voiceConfig?.instructions ?? [];
@@ -731,7 +781,25 @@ export function VoiceSettings() {
     }
 
     setVoiceModelAction("download");
+    setVoiceModelDownloadProgress({
+      model_id: primaryVoiceModel.id,
+      phase: "preparing",
+      downloaded_bytes: 0,
+      total_bytes: primaryVoiceModel.size_bytes || null,
+      overall_progress: 0,
+      message: "准备下载模型",
+    });
+    let unlistenProgress: (() => void) | null = null;
     try {
+      unlistenProgress = await listenVoiceModelDownloadProgress((event) => {
+        if (event.model_id !== primaryVoiceModel.id) {
+          return;
+        }
+        setVoiceModelDownloadProgress(event);
+      }).catch((error) => {
+        console.warn("监听语音模型下载进度失败:", error);
+        return null;
+      });
       const result = await downloadVoiceModel(primaryVoiceModel.id);
       setVoiceModelState(result.state);
       setVoiceModelTestError(null);
@@ -741,7 +809,9 @@ export function VoiceSettings() {
       console.error("下载 SenseVoice Small 模型失败:", error);
       showMessage("error", "下载 SenseVoice Small 模型失败");
     } finally {
+      unlistenProgress?.();
       setVoiceModelAction(null);
+      setVoiceModelDownloadProgress(null);
     }
   };
 
@@ -1008,13 +1078,14 @@ export function VoiceSettings() {
         title="语音模型"
         description="管理本地 ASR 模型的按需下载、安装状态和默认识别服务；模型文件只写入用户数据目录，不进入应用安装包。"
         icon={HardDrive}
+        sectionId={VOICE_MODEL_SETTINGS_SECTION_ID}
       >
         <SettingRow
           label="SenseVoice Small"
-          description="基于 sherpa-onnx 的本地离线 ASR 模型。下载并设为默认后可离线转写；模型文件按需写入用户数据目录。"
+          description="本地离线 ASR，按需下载。"
         >
           {primaryVoiceModel ? (
-            <div className="space-y-4 rounded-[20px] bg-slate-50/80 px-4 py-4">
+            <div className="space-y-4 rounded-[22px] bg-[#f7fbf7] px-4 py-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex min-w-0 gap-3">
                   <div
@@ -1049,6 +1120,7 @@ export function VoiceSettings() {
                           primaryVoiceModel,
                           voiceModelState,
                           voiceModelAction,
+                          voiceModelDownloadProgress,
                         )}
                       </span>
                       <span className="text-slate-300">·</span>
@@ -1069,26 +1141,26 @@ export function VoiceSettings() {
                     {voiceModelAction === "download" ? (
                       <div className="space-y-2">
                         <div className="h-1.5 overflow-hidden rounded-full bg-emerald-100">
-                          <div className="h-full w-1/3 animate-pulse rounded-full bg-emerald-700" />
+                          <div
+                            aria-label="语音模型下载进度"
+                            aria-valuemax={100}
+                            aria-valuemin={0}
+                            aria-valuenow={voiceModelDownloadPercent}
+                            className="h-full rounded-full bg-emerald-700 transition-[width] duration-200"
+                            role="progressbar"
+                            style={{ width: `${voiceModelDownloadPercent}%` }}
+                          />
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] leading-4 text-slate-500">
-                          <span>正在下载模型包与 VAD 文件</span>
-                          <span>完成后自动校验并安装</span>
+                          <span>{voiceModelDownloadPercent}%</span>
                         </div>
                       </div>
                     ) : null}
                     <p className="break-all text-xs leading-5 text-slate-500">
                       {voiceModelState?.installed
                         ? voiceModelState.install_dir
-                        : "模型未内置，点击下载后写入 Lime 应用数据目录。"}
+                        : "按需下载，不内置。"}
                     </p>
-                    {!voiceModelState?.installed &&
-                    voiceModelState?.missing_files.length &&
-                    voiceModelAction !== "download" ? (
-                      <p className="text-xs leading-5 text-amber-700">
-                        缺失文件：{voiceModelState.missing_files.join("、")}
-                      </p>
-                    ) : null}
                     {voiceModelState?.installed ? (
                       <p className="text-xs leading-5 text-slate-500">
                         已安装大小：{formatBytes(voiceModelState.installed_bytes)}
@@ -1127,8 +1199,8 @@ export function VoiceSettings() {
                       type="button"
                       size="sm"
                       onClick={() => void handleDownloadVoiceModel()}
-                      disabled={voiceModelAction !== null}
-                      className="!border-emerald-800 !bg-emerald-800 text-white hover:!bg-emerald-900"
+                      disabled={voiceModelAction !== null || !voiceModelDownloadReady}
+                      className="!h-10 !rounded-[10px] !border-cyan-500 !bg-gradient-to-r !from-sky-500 !to-emerald-500 !px-4 text-base font-semibold text-white shadow-md shadow-emerald-900/15 hover:!opacity-95 disabled:!border-slate-200 disabled:!bg-none disabled:!bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
                     >
                       {voiceModelAction === "download" ? (
                         <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -1140,6 +1212,12 @@ export function VoiceSettings() {
                   )}
                 </div>
               </div>
+              {!voiceModelDownloadReady && !voiceModelState?.installed ? (
+                <p className="text-xs leading-5 text-amber-700">
+                  下载地址未配置。请在 limecore 配置
+                  server.voiceModelAssetBaseUrl 指向 CF R2 公开域名。
+                </p>
+              ) : null}
 
               <div className="space-y-3 border-t border-slate-200/80 pt-4">
                 <div className="space-y-1">

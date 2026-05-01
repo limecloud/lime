@@ -94,6 +94,20 @@
     "memory_runtime_get_extraction_status",
     "memory_runtime_prefetch_for_turn"
   ],
+  "fileBrowserCommands": [
+    "list_dir",
+    "read_file_preview_cmd",
+    "get_home_dir",
+    "get_file_manager_locations",
+    "get_file_icon_data_url",
+    "create_file",
+    "create_directory",
+    "delete_file",
+    "rename_file",
+    "get_file_name",
+    "reveal_in_finder",
+    "open_with_default_app"
+  ],
   "deprecatedCommandReplacements": {
     "get_agent_process_status": "agent_get_process_status",
     "list_agent_sessions": "agent_runtime_list_sessions",

@@ -1017,6 +1017,60 @@ describe("HarnessStatusPanel", () => {
                 },
               ],
             },
+            limecore_policy_index: {
+              snapshot_count: 1,
+              ref_keys: [
+                "model_catalog",
+                "provider_offer",
+                "tenant_feature_flags",
+              ],
+              missing_inputs: [
+                "model_catalog",
+                "provider_offer",
+                "tenant_feature_flags",
+              ],
+              status_counts: [{ status: "local_defaults_evaluated", count: 1 }],
+              decision_counts: [{ decision: "allow", count: 1 }],
+              items: [
+                {
+                  artifact_path:
+                    ".lime/tasks/image_generate/task-policy-gap.json",
+                  contract_key: "image_generation",
+                  execution_profile_key: "image_generation_default",
+                  executor_adapter_key: "skill_image_generate",
+                  refs: [
+                    "model_catalog",
+                    "provider_offer",
+                    "tenant_feature_flags",
+                  ],
+                  status: "local_defaults_evaluated",
+                  decision: "allow",
+                  decision_source: "local_default_policy",
+                  decision_scope: "local_defaults_only",
+                  decision_reason:
+                    "declared_policy_refs_with_no_local_deny_rule",
+                  unresolved_refs: [
+                    "model_catalog",
+                    "provider_offer",
+                    "tenant_feature_flags",
+                  ],
+                  missing_inputs: [
+                    "model_catalog",
+                    "provider_offer",
+                    "tenant_feature_flags",
+                  ],
+                  policy_inputs: [
+                    {
+                      ref_key: "model_catalog",
+                      status: "declared_only",
+                      source: "modality_runtime_contract",
+                      value_source: "limecore_pending",
+                    },
+                  ],
+                  source: "modality_runtime_contract",
+                },
+              ],
+            },
           },
         },
       },
@@ -1067,6 +1121,12 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("browser_snapshot");
     expect(document.body.textContent).toContain("get_page_info");
     expect(document.body.textContent).toContain("observation / screenshot");
+    expect(document.body.textContent).toContain("LimeCore 策略缺口");
+    expect(document.body.textContent).toContain("model_catalog");
+    expect(document.body.textContent).toContain("provider_offer");
+    expect(document.body.textContent).toContain("本地允许");
+    expect(document.body.textContent).toContain("等待 LimeCore");
+    expect(document.body.textContent).toContain("local_defaults_only");
     const replayButton = document.body.querySelector(
       'button[aria-label="打开 Browser Assist 复盘"]',
     ) as HTMLButtonElement | null;

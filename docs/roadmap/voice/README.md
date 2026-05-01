@@ -1,7 +1,7 @@
 # Lime 离线语音模型路线图
 
 > 状态：current planning source
-> 更新时间：2026-04-30
+> 更新时间：2026-05-01
 > 目标：把截图参考里的“语音模型”能力收敛为 Lime 可实现的离线语音主线：limecore 下发 SenseVoice Small 下载地址、本地 ASR 转写、Fn 按住说话、测试转写与转写历史。
 
 ## 1. 本路线图回答什么
@@ -71,14 +71,21 @@ P0 固定为：
 
 ## 5. 当前实现进度
 
-2026-04-30 已推进到可验证主链：
+2026-05-01 已推进到可验证主链：
 
 1. `SenseVoice Small` 模型目录、安装状态、下载、删除、设为默认已接到设置页“语音模型”卡片。
-2. 模型文件仍按需下载到用户数据目录，不进入 App 安装包；下载地址优先来自 limecore `GET /api/v1/public/tenants/:tenantId/client/voice-model-catalog`，对象存储/CDN 域名由 `server.voiceModelAssetBaseUrl` 管理。
-3. `voice_asr_service` 已把 `SenseVoiceLocal` 接到 `voice_core::SenseVoiceTranscriber`，通过 `sherpa-onnx` 执行 non-streaming 本地转写。
-4. macOS Fn 按住录音已落第一刀：原生监听 Fn press/release，失败时保留普通快捷键 fallback。
-5. 已补“已安装模型后的 WAV 测试转写”入口：设置页可原生选择或手动输入本机 16-bit PCM WAV 路径后，通过 `voice_models_test_transcribe_file` 复用 `voice_asr_service` 真实本地推理链路。
-6. 仍未做 P1 能力：视频抽音、实时录音测试、VAD 分段、转写历史、`trigger_mode` / `fn_shortcut_enabled` 配置分流。
+2. 模型文件仍按需下载到用户数据目录，不进入 App 安装包；下载地址优先来自 limecore `GET /api/v1/public/tenants/:tenantId/client/voice-model-catalog`，未配置时兜底使用当前 R2 公开基址。
+3. SenseVoice Small INT8 与 Silero VAD 已上传到 Cloudflare R2 `lime-releases`，当前公开基址为 `https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev`，清单记录 sha256 校验值。
+4. `voice_asr_service` 已把 `SenseVoiceLocal` 接到 `voice_core::SenseVoiceTranscriber`，通过 `sherpa-onnx` 执行 non-streaming 本地转写。
+5. macOS Fn 按住录音已落第一刀：原生监听 Fn press/release，失败时保留普通快捷键 fallback。
+6. 已补“已安装模型后的 WAV 测试转写”入口：设置页可原生选择或手动输入本机 16-bit PCM WAV 路径后，通过 `voice_models_test_transcribe_file` 复用 `voice_asr_service` 真实本地推理链路。
+7. 已用 limecore 本地服务验证 `voice-model-catalog` 下发：`tenant-0001` 返回 R2 archive / VAD URL，Lime 可通过后端目录项完成真实下载并安装到用户数据目录。
+8. 已用 DevBridge 验证录音使用链路：开启语音输入后 `fn_registered=true`、普通语音快捷键已注册；`start_recording -> stop_recording -> transcribe_audio` 可走 `SenseVoice Small 本地`。
+9. 输入栏与悬浮语音窗已接到同一条录音主链：录音中显示时长、音量反馈，并通过录音增量片段转写实时预览；点击停止后用完整音频转写结果覆盖为最终文本。
+10. 默认 ASR 为本地 SenseVoice 时，录音入口会先检查模型安装状态；未安装时提示下载模型并打开“语音模型”设置页，不自动启动录音或静默下载。
+11. 已补 `get_recording_segment` 增量片段命令，并缓存 SenseVoice 本地识别器，避免实时预览每次解码完整录音或反复加载模型。
+12. 录音实时预览已补性能护栏：前端限制单次预览片段 `1.2s`，后端默认片段 `1.25s` / 硬上限 `2s`，录音 callback 不再分配中间 `Vec`，单次录音最多保留 `300s` PCM，并在 ASR 前跳过静音片段。
+13. 仍未做 P1 能力：视频抽音、真正的 sherpa-onnx streaming decoder、VAD 分段、转写历史。
 
 ## 6. 当前必须避免的误区
 

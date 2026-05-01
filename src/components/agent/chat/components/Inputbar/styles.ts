@@ -109,6 +109,35 @@ export const InputColumn = styled.div`
   position: relative;
 `;
 
+export const DictationRecordingGlyph = styled.span`
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+
+  &::before {
+    content: "";
+    width: 3px;
+    height: 13px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow:
+      -5px 3px 0 currentColor,
+      5px 3px 0 currentColor;
+  }
+`;
+
+export const DictationRecordingDuration = styled.span`
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+`;
+
 export const InputSuggestionLayer = styled.div`
   position: absolute;
   top: 4px;
@@ -451,6 +480,45 @@ export const MetaToggleLabel = styled.span`
   white-space: nowrap;
 `;
 
+export const MetaIconButton = styled.button<{ $active?: boolean }>`
+  display: inline-flex;
+  width: 38px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  border: 1px solid
+    ${({ $active }) =>
+      $active ? "rgba(251, 191, 36, 0.58)" : "rgba(148, 163, 184, 0.24)"};
+  background: ${({ $active }) =>
+    $active ? "rgba(255, 251, 235, 0.94)" : "rgba(255, 255, 255, 0.9)"};
+  color: ${({ $active }) => ($active ? "#b45309" : "hsl(var(--muted-foreground))")};
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+
+  &:hover {
+    border-color: rgba(251, 191, 36, 0.66);
+    background: rgba(255, 251, 235, 0.98);
+    color: #b45309;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px -18px rgba(120, 53, 15, 0.38);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(251, 191, 36, 0.7);
+    box-shadow:
+      0 0 0 3px rgba(251, 191, 36, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  }
+`;
+
 export const ActionButtonGroup = styled.div`
   display: flex;
   align-items: center;
@@ -508,6 +576,7 @@ export const InputIconButton = styled.button<{
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0;
   width: 30px;
   height: 30px;
   padding: 0;
@@ -561,9 +630,20 @@ export const InputIconButton = styled.button<{
   }
 
   &.is-recording {
-    border-color: var(--lime-brand, #10b981);
-    background: var(--lime-brand-soft, #ecfdf5);
-    color: var(--lime-brand-strong, #166534);
+    gap: 6px;
+    width: auto;
+    min-width: 74px;
+    padding: 0 12px 0 11px;
+    border-color: rgba(239, 68, 68, 0.2);
+    background: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 12px 26px -18px rgba(185, 28, 28, 0.64);
+  }
+
+  &.is-recording:hover:not(:disabled) {
+    background: #dc2626;
+    color: #ffffff;
+    box-shadow: 0 14px 28px -18px rgba(153, 27, 27, 0.72);
   }
 
   &.is-processing {
@@ -667,5 +747,95 @@ export const ImageRemoveButton = styled.button`
 
   &:hover {
     background-color: rgba(220, 38, 38, 0.9);
+  }
+`;
+
+export const PathReferenceContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 0 10px;
+`;
+
+export const PathReferenceChip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: min(100%, 320px);
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  border-radius: 14px;
+  background: rgba(255, 251, 235, 0.92);
+  padding: 6px 7px 6px 8px;
+  color: #78350f;
+  box-shadow: 0 8px 18px -16px rgba(120, 53, 15, 0.36);
+`;
+
+export const PathReferenceIcon = styled.span<{ $isDir: boolean }>`
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid
+    ${({ $isDir }) =>
+      $isDir ? "rgba(245, 158, 11, 0.3)" : "rgba(56, 189, 248, 0.28)"};
+  background: ${({ $isDir }) =>
+    $isDir ? "rgba(254, 243, 199, 0.92)" : "rgba(240, 249, 255, 0.92)"};
+  color: ${({ $isDir }) => ($isDir ? "#92400e" : "#0369a1")};
+`;
+
+export const PathReferenceText = styled.span`
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+`;
+
+export const PathReferenceName = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+`;
+
+export const PathReferencePath = styled.span`
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.2;
+`;
+
+export const PathReferenceRemoveButton = styled.button`
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #92400e;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+
+  &:hover {
+    background: rgba(254, 226, 226, 0.92);
+    color: #be123c;
+    transform: translateY(-1px);
   }
 `;

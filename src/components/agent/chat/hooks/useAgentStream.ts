@@ -93,7 +93,9 @@ interface UseAgentStreamOptions {
     fileName: string,
     context?: import("../types").WriteArtifactContext,
   ) => void;
-  ensureSession: () => Promise<string | null>;
+  ensureSession: (options?: {
+    skipSessionRestore?: boolean;
+  }) => Promise<string | null>;
   attemptSilentTurnRecovery: (
     sessionId: string,
     requestStartedAt: number,

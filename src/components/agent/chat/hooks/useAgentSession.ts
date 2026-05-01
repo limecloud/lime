@@ -41,6 +41,10 @@ import {
   shouldCompactCompletedSessionHistory,
 } from "./agentChatHistory";
 import {
+  classifySessionDetailHydrationError,
+  getSessionDetailHydrationErrorMessage,
+} from "./agentSessionDetailHydrationError";
+import {
   getAgentSessionScopedKeys,
   loadAgentSessionCachedSnapshot,
   saveAgentSessionCachedSnapshot,
@@ -104,6 +108,8 @@ const SESSION_DETAIL_PREFETCH_RECENT_LIMIT = 1;
 const SESSION_DETAIL_PREFETCH_DELAY_MS = 5_000;
 const SESSION_DETAIL_PREFETCH_IDLE_TIMEOUT_MS = 8_000;
 const SESSION_DETAIL_DEFERRED_HYDRATION_DELAY_MS = 1_200;
+const SESSION_DETAIL_DEFERRED_HYDRATION_RETRY_DELAY_MS = 15_000;
+const SESSION_DETAIL_DEFERRED_HYDRATION_MAX_RETRY = 1;
 
 type AgentSessionRuntimeDetail = Awaited<
   ReturnType<AgentRuntimeAdapter["getSession"]>
@@ -1077,6 +1083,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       }
 
       const creationPromise = (async () => {
+        const startedAt = Date.now();
         try {
           invalidatePendingSessionSwitches();
           skipAutoRestoreRef.current = true;
@@ -1148,6 +1155,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           saveTransient(scopedKeys.currentTurnKey, null);
 
           logAgentDebug("useAgentSession", "createFreshSession.success", {
+            durationMs: Date.now() - startedAt,
             newSessionId,
             sessionName: sessionName?.trim() || null,
             workspaceId: resolvedWorkspaceId,
@@ -1160,6 +1168,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             "useAgentSession",
             "createFreshSession.error",
             {
+              durationMs: Date.now() - startedAt,
               error,
               sessionName: sessionName?.trim() || null,
               workspaceId: resolvedWorkspaceId,
@@ -1171,14 +1180,11 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         }
       })();
 
-      const trackCreationPromise = (promise: Promise<string | null>) =>
-        promise.finally(() => {
-          if (createFreshSessionPromiseRef.current === promise) {
-            createFreshSessionPromiseRef.current = null;
-          }
-        });
-
-      const trackedCreationPromise = trackCreationPromise(creationPromise);
+      const trackedCreationPromise = creationPromise.finally(() => {
+        if (createFreshSessionPromiseRef.current === trackedCreationPromise) {
+          createFreshSessionPromiseRef.current = null;
+        }
+      });
 
       createFreshSessionPromiseRef.current = trackedCreationPromise;
       return trackedCreationPromise;
@@ -2311,6 +2317,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             "switchTopic.deferHydration",
             deferHydrationMetricContext,
           );
+          let deferredHydrationRetryCount = 0;
           const hydrateCachedTopic = () => {
             deferredSessionHydrationCancelRef.current = null;
             void (async () => {
@@ -2348,6 +2355,64 @@ export function useAgentSession(options: UseAgentSessionOptions) {
                   sessionSwitchRequestVersionRef.current !==
                   switchRequestVersion
                 ) {
+                  return;
+                }
+                const hydrationError =
+                  classifySessionDetailHydrationError(error);
+                if (
+                  hydrationError.retryable &&
+                  deferredHydrationRetryCount <
+                    SESSION_DETAIL_DEFERRED_HYDRATION_MAX_RETRY
+                ) {
+                  deferredHydrationRetryCount += 1;
+                  const retryMetricContext = {
+                    error: getSessionDetailHydrationErrorMessage(error),
+                    errorCategory: hydrationError.category,
+                    retryCount: deferredHydrationRetryCount,
+                    retryDelayMs:
+                      SESSION_DETAIL_DEFERRED_HYDRATION_RETRY_DELAY_MS,
+                    sessionId: topicId,
+                    topicId,
+                    workspaceId,
+                  };
+                  recordAgentUiPerformanceMetric(
+                    "session.switch.fetchDetail.retryScheduled",
+                    retryMetricContext,
+                  );
+                  logAgentDebug(
+                    "useAgentSession",
+                    "switchTopic.fetchDetail.retryScheduled",
+                    retryMetricContext,
+                    { level: "warn", throttleMs: 1000 },
+                  );
+                  deferredSessionHydrationCancelRef.current =
+                    scheduleMinimumDelayIdleTask(hydrateCachedTopic, {
+                      minimumDelayMs:
+                        SESSION_DETAIL_DEFERRED_HYDRATION_RETRY_DELAY_MS,
+                      idleTimeoutMs:
+                        SESSION_DETAIL_DEFERRED_HYDRATION_RETRY_DELAY_MS,
+                    });
+                  return;
+                }
+                if (hydrationError.transient) {
+                  const skippedMetricContext = {
+                    error: getSessionDetailHydrationErrorMessage(error),
+                    errorCategory: hydrationError.category,
+                    retryCount: deferredHydrationRetryCount,
+                    sessionId: topicId,
+                    topicId,
+                    workspaceId,
+                  };
+                  recordAgentUiPerformanceMetric(
+                    "session.switch.fetchDetail.retrySkipped",
+                    skippedMetricContext,
+                  );
+                  logAgentDebug(
+                    "useAgentSession",
+                    "switchTopic.fetchDetail.retrySkipped",
+                    skippedMetricContext,
+                    { level: "warn", throttleMs: 1000 },
+                  );
                   return;
                 }
                 handleSwitchTopicError(error, topicId, {
@@ -2668,13 +2733,16 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     workspaceId,
   ]);
 
-  const ensureSession = useCallback(async (): Promise<string | null> => {
+  const ensureSession = useCallback(
+    async (options?: {
+      skipSessionRestore?: boolean;
+    }): Promise<string | null> => {
     if (sessionIdRef.current) {
       return sessionIdRef.current;
     }
 
     const restoreCandidate = restoreCandidateSessionIdRef.current?.trim();
-    if (!disableSessionRestore && restoreCandidate) {
+    if (!options?.skipSessionRestore && !disableSessionRestore && restoreCandidate) {
       const targetSessionId = resolveRestorableTopicSessionId(
         restoreCandidate,
         topics,
@@ -2697,13 +2765,15 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     }
 
     return createFreshSession(undefined, { preserveCurrentSnapshot: true });
-  }, [
-    createFreshSession,
-    disableSessionRestore,
-    sessionIdRef,
-    switchTopic,
-    topics,
-  ]);
+    },
+    [
+      createFreshSession,
+      disableSessionRestore,
+      sessionIdRef,
+      switchTopic,
+      topics,
+    ],
+  );
 
   const refreshSessionDetail = useCallback(
     async (targetSessionId?: string) => {

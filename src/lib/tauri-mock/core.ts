@@ -111,6 +111,40 @@ function normalizeMockMediaTaskId(
   return normalized || fallbackTaskId;
 }
 
+function buildMockLimeCorePolicySnapshot(refs: string[]) {
+  return {
+    status: "local_defaults_evaluated",
+    decision: "allow",
+    source: "modality_runtime_contract",
+    decision_source: "local_default_policy",
+    decision_scope: "local_defaults_only",
+    decision_reason: "declared_policy_refs_with_no_local_deny_rule",
+    refs,
+    evaluated_refs: [],
+    unresolved_refs: [...refs],
+    missing_inputs: [...refs],
+    policy_inputs: refs.map((refKey) => ({
+      ref_key: refKey,
+      status: "declared_only",
+      source: "modality_runtime_contract",
+      value_source: "limecore_pending",
+    })),
+    pending_hit_refs: [...refs],
+    policy_value_hits: [],
+    policy_value_hit_count: 0,
+    policy_evaluation: {
+      status: "input_gap",
+      decision: "ask",
+      decision_source: "policy_input_evaluator",
+      decision_scope: "pending_policy_inputs",
+      decision_reason: "declared_policy_refs_missing_inputs",
+      blocking_refs: [],
+      ask_refs: [...refs],
+      pending_refs: [...refs],
+    },
+  };
+}
+
 function resolveMockMediaTaskProtocol(
   request: Record<string, any>,
   overrides?: Partial<Record<string, unknown>>,
@@ -137,6 +171,11 @@ function resolveMockMediaTaskProtocol(
     requestedTaskRef.includes("audio_generate");
 
   if (isTranscription) {
+    const limecorePolicyRefs = [
+      "model_catalog",
+      "provider_offer",
+      "tenant_feature_flags",
+    ];
     return {
       taskType: "transcription_generate",
       taskFamily: "audio",
@@ -151,14 +190,28 @@ function resolveMockMediaTaskProtocol(
         required_capabilities: ["text_generation", "audio_transcription"],
         routing_slot: "audio_transcription_model",
         executor_binding: {
-          executor_kind: "agent_tool",
+          executor_kind: "skill",
           binding_key: "transcription_generate",
         },
+        execution_profile: {
+          profile_key: "audio_transcription_profile",
+        },
+        executor_adapter: {
+          adapter_key: "skill:transcription_generate",
+        },
+        limecore_policy_refs: limecorePolicyRefs,
+        limecore_policy_snapshot:
+          buildMockLimeCorePolicySnapshot(limecorePolicyRefs),
       },
     };
   }
 
   if (isAudio) {
+    const limecorePolicyRefs = [
+      "client_scenes",
+      "tenant_feature_flags",
+      "provider_offer",
+    ];
     return {
       taskType: "audio_generate",
       taskFamily: "audio",
@@ -176,10 +229,24 @@ function resolveMockMediaTaskProtocol(
           executor_kind: "service_skill",
           binding_key: "voice_runtime",
         },
+        execution_profile: {
+          profile_key: "voice_generation_profile",
+        },
+        executor_adapter: {
+          adapter_key: "service_skill:voice_runtime",
+        },
+        limecore_policy_refs: limecorePolicyRefs,
+        limecore_policy_snapshot:
+          buildMockLimeCorePolicySnapshot(limecorePolicyRefs),
       },
     };
   }
 
+  const limecorePolicyRefs = [
+    "model_catalog",
+    "provider_offer",
+    "tenant_feature_flags",
+  ];
   return {
     taskType: "image_generate",
     taskFamily: "image",
@@ -201,6 +268,19 @@ function resolveMockMediaTaskProtocol(
         "vision_input",
       ],
       routing_slot: "image_generation_model",
+      executor_binding: {
+        executor_kind: "skill",
+        binding_key: "image_generate",
+      },
+      execution_profile: {
+        profile_key: "image_generation_profile",
+      },
+      executor_adapter: {
+        adapter_key: "skill:image_generate",
+      },
+      limecore_policy_refs: limecorePolicyRefs,
+      limecore_policy_snapshot:
+        buildMockLimeCorePolicySnapshot(limecorePolicyRefs),
     },
   };
 }
@@ -5998,6 +6078,117 @@ const defaultMocks: Record<string, any> = {
         | Record<string, any>
         | null
         | undefined;
+      const runtimeContract = (payload?.runtime_contract ??
+        payload?.runtimeContract) as Record<string, any> | null | undefined;
+      const executionProfile = (runtimeContract?.execution_profile ??
+        runtimeContract?.executionProfile) as
+        | Record<string, any>
+        | null
+        | undefined;
+      const executorAdapter = (runtimeContract?.executor_adapter ??
+        runtimeContract?.executorAdapter) as
+        | Record<string, any>
+        | null
+        | undefined;
+      const executorBinding = (runtimeContract?.executor_binding ??
+        runtimeContract?.executorBinding) as
+        | Record<string, any>
+        | null
+        | undefined;
+      const limecorePolicySnapshot =
+        (runtimeContract?.limecore_policy_snapshot ??
+          runtimeContract?.limecorePolicySnapshot) as
+          | Record<string, any>
+          | null
+          | undefined;
+      const limecorePolicyRefs = [
+        ...new Set(
+          [
+            ...(Array.isArray(payload?.limecore_policy_refs)
+              ? payload.limecore_policy_refs
+              : []),
+            ...(Array.isArray(payload?.limecorePolicyRefs)
+              ? payload.limecorePolicyRefs
+              : []),
+            ...(Array.isArray(runtimeContract?.limecore_policy_refs)
+              ? runtimeContract.limecore_policy_refs
+              : []),
+            ...(Array.isArray(runtimeContract?.limecorePolicyRefs)
+              ? runtimeContract.limecorePolicyRefs
+              : []),
+            ...(Array.isArray(limecorePolicySnapshot?.refs)
+              ? limecorePolicySnapshot.refs
+              : []),
+          ].filter((item): item is string => typeof item === "string"),
+        ),
+      ];
+      const limecorePolicyValueHits = Array.isArray(
+        limecorePolicySnapshot?.policy_value_hits,
+      )
+        ? limecorePolicySnapshot.policy_value_hits
+        : Array.isArray(limecorePolicySnapshot?.policyValueHits)
+          ? limecorePolicySnapshot.policyValueHits
+          : [];
+      const resolvedPolicyHitRefs = new Set(
+        limecorePolicyValueHits
+          .filter((hit) => hit?.status === "resolved")
+          .map((hit) => hit.ref_key ?? hit.refKey ?? hit.ref)
+          .filter((refKey): refKey is string => typeof refKey === "string"),
+      );
+      const pendingPolicyRefs = limecorePolicyRefs.filter(
+        (refKey) => !resolvedPolicyHitRefs.has(refKey),
+      );
+      const limecorePolicyMissingInputs = Array.isArray(
+        limecorePolicySnapshot?.missing_inputs,
+      )
+        ? limecorePolicySnapshot.missing_inputs
+        : Array.isArray(limecorePolicySnapshot?.missingInputs)
+          ? limecorePolicySnapshot.missingInputs
+          : Array.isArray(limecorePolicySnapshot?.unresolved_refs)
+            ? limecorePolicySnapshot.unresolved_refs
+            : Array.isArray(limecorePolicySnapshot?.unresolvedRefs)
+              ? limecorePolicySnapshot.unresolvedRefs
+              : pendingPolicyRefs;
+      const limecorePolicyPendingHitRefs = Array.isArray(
+        limecorePolicySnapshot?.pending_hit_refs,
+      )
+        ? limecorePolicySnapshot.pending_hit_refs
+        : Array.isArray(limecorePolicySnapshot?.pendingHitRefs)
+          ? limecorePolicySnapshot.pendingHitRefs
+          : limecorePolicyMissingInputs;
+      const limecorePolicyValueHitCount =
+        typeof limecorePolicySnapshot?.policy_value_hit_count === "number"
+          ? limecorePolicySnapshot.policy_value_hit_count
+          : typeof limecorePolicySnapshot?.policyValueHitCount === "number"
+            ? limecorePolicySnapshot.policyValueHitCount
+            : limecorePolicyValueHits.length;
+      const limecorePolicyEvaluation =
+        (limecorePolicySnapshot?.policy_evaluation ??
+          limecorePolicySnapshot?.policyEvaluation) as
+          | Record<string, any>
+          | null
+          | undefined;
+      const limecorePolicyEvaluationBlockingRefs = Array.isArray(
+        limecorePolicyEvaluation?.blocking_refs,
+      )
+        ? limecorePolicyEvaluation.blocking_refs
+        : Array.isArray(limecorePolicyEvaluation?.blockingRefs)
+          ? limecorePolicyEvaluation.blockingRefs
+          : [];
+      const limecorePolicyEvaluationAskRefs = Array.isArray(
+        limecorePolicyEvaluation?.ask_refs,
+      )
+        ? limecorePolicyEvaluation.ask_refs
+        : Array.isArray(limecorePolicyEvaluation?.askRefs)
+          ? limecorePolicyEvaluation.askRefs
+          : limecorePolicyPendingHitRefs;
+      const limecorePolicyEvaluationPendingRefs = Array.isArray(
+        limecorePolicyEvaluation?.pending_refs,
+      )
+        ? limecorePolicyEvaluation.pending_refs
+        : Array.isArray(limecorePolicyEvaluation?.pendingRefs)
+          ? limecorePolicyEvaluation.pendingRefs
+          : limecorePolicyPendingHitRefs;
       return {
         task_id: item.task_id,
         task_type: item.task_type,
@@ -6006,6 +6197,91 @@ const defaultMocks: Record<string, any> = {
         routing_slot: payload?.routing_slot ?? null,
         provider_id: payload?.provider_id ?? null,
         model: payload?.model ?? null,
+        execution_profile_key:
+          payload?.execution_profile_key ??
+          payload?.executionProfileKey ??
+          executionProfile?.profile_key ??
+          executionProfile?.profileKey ??
+          null,
+        executor_adapter_key:
+          payload?.executor_adapter_key ??
+          payload?.executorAdapterKey ??
+          executorAdapter?.adapter_key ??
+          executorAdapter?.adapterKey ??
+          null,
+        executor_kind:
+          payload?.executor_kind ??
+          payload?.executorKind ??
+          executorBinding?.executor_kind ??
+          executorBinding?.executorKind ??
+          null,
+        executor_binding_key:
+          payload?.executor_binding_key ??
+          payload?.executorBindingKey ??
+          executorBinding?.binding_key ??
+          executorBinding?.bindingKey ??
+          null,
+        limecore_policy_refs: limecorePolicyRefs,
+        limecore_policy_snapshot_status:
+          limecorePolicySnapshot?.status ??
+          (limecorePolicyRefs.length > 0 ? "local_defaults_evaluated" : null),
+        limecore_policy_decision:
+          limecorePolicySnapshot?.decision ??
+          (limecorePolicyRefs.length > 0 ? "allow" : null),
+        limecore_policy_decision_source:
+          limecorePolicySnapshot?.decision_source ??
+          limecorePolicySnapshot?.decisionSource ??
+          (limecorePolicyRefs.length > 0 ? "local_default_policy" : null),
+        limecore_policy_decision_scope:
+          limecorePolicySnapshot?.decision_scope ??
+          limecorePolicySnapshot?.decisionScope ??
+          (limecorePolicyRefs.length > 0 ? "local_defaults_only" : null),
+        limecore_policy_decision_reason:
+          limecorePolicySnapshot?.decision_reason ??
+          limecorePolicySnapshot?.decisionReason ??
+          (limecorePolicyRefs.length > 0
+            ? "declared_policy_refs_with_no_local_deny_rule"
+            : null),
+        limecore_policy_unresolved_refs: Array.isArray(
+          limecorePolicySnapshot?.unresolved_refs,
+        )
+          ? limecorePolicySnapshot.unresolved_refs
+          : Array.isArray(limecorePolicySnapshot?.unresolvedRefs)
+            ? limecorePolicySnapshot.unresolvedRefs
+            : pendingPolicyRefs,
+        limecore_policy_missing_inputs: limecorePolicyMissingInputs,
+        limecore_policy_pending_hit_refs: limecorePolicyPendingHitRefs,
+        limecore_policy_value_hits: limecorePolicyValueHits,
+        limecore_policy_value_hit_count: limecorePolicyValueHitCount,
+        limecore_policy_evaluation_status:
+          limecorePolicyEvaluation?.status ??
+          (limecorePolicyPendingHitRefs.length > 0 ? "input_gap" : null),
+        limecore_policy_evaluation_decision:
+          limecorePolicyEvaluation?.decision ??
+          (limecorePolicyPendingHitRefs.length > 0 ? "ask" : null),
+        limecore_policy_evaluation_decision_source:
+          limecorePolicyEvaluation?.decision_source ??
+          limecorePolicyEvaluation?.decisionSource ??
+          (limecorePolicyPendingHitRefs.length > 0
+            ? "policy_input_evaluator"
+            : null),
+        limecore_policy_evaluation_decision_scope:
+          limecorePolicyEvaluation?.decision_scope ??
+          limecorePolicyEvaluation?.decisionScope ??
+          (limecorePolicyPendingHitRefs.length > 0
+            ? "pending_policy_inputs"
+            : null),
+        limecore_policy_evaluation_decision_reason:
+          limecorePolicyEvaluation?.decision_reason ??
+          limecorePolicyEvaluation?.decisionReason ??
+          (limecorePolicyPendingHitRefs.length > 0
+            ? "declared_policy_refs_missing_inputs"
+            : null),
+        limecore_policy_evaluation_blocking_refs:
+          limecorePolicyEvaluationBlockingRefs,
+        limecore_policy_evaluation_ask_refs: limecorePolicyEvaluationAskRefs,
+        limecore_policy_evaluation_pending_refs:
+          limecorePolicyEvaluationPendingRefs,
         routing_event:
           payload?.modality_contract_key === "voice_generation" ||
           payload?.modality_contract_key === "audio_transcription"
@@ -6069,6 +6345,46 @@ const defaultMocks: Record<string, any> = {
       },
       [] as Array<{ status: string; count: number }>,
     );
+    const limecorePolicySnapshotStatuses = snapshots.reduce(
+      (items, snapshot) => {
+        if (!snapshot.limecore_policy_snapshot_status) {
+          return items;
+        }
+        const existing = items.find(
+          (item) => item.status === snapshot.limecore_policy_snapshot_status,
+        );
+        if (existing) {
+          existing.count += 1;
+        } else {
+          items.push({
+            status: snapshot.limecore_policy_snapshot_status,
+            count: 1,
+          });
+        }
+        return items;
+      },
+      [] as Array<{ status: string; count: number }>,
+    );
+    const limecorePolicyEvaluationStatuses = snapshots.reduce(
+      (items, snapshot) => {
+        if (!snapshot.limecore_policy_evaluation_status) {
+          return items;
+        }
+        const existing = items.find(
+          (item) => item.status === snapshot.limecore_policy_evaluation_status,
+        );
+        if (existing) {
+          existing.count += 1;
+        } else {
+          items.push({
+            status: snapshot.limecore_policy_evaluation_status,
+            count: 1,
+          });
+        }
+        return items;
+      },
+      [] as Array<{ status: string; count: number }>,
+    );
     return {
       success: true,
       workspace_root: request.projectRootPath ?? "/mock/workspace",
@@ -6089,6 +6405,98 @@ const defaultMocks: Record<string, any> = {
             snapshots.map((item) => item.contract_key).filter(Boolean),
           ),
         ],
+        execution_profile_keys: [
+          ...new Set(
+            snapshots.map((item) => item.execution_profile_key).filter(Boolean),
+          ),
+        ],
+        executor_adapter_keys: [
+          ...new Set(
+            snapshots.map((item) => item.executor_adapter_key).filter(Boolean),
+          ),
+        ],
+        limecore_policy_refs: [
+          ...new Set(snapshots.flatMap((item) => item.limecore_policy_refs)),
+        ],
+        limecore_policy_snapshot_count: snapshots.filter(
+          (item) => item.limecore_policy_refs.length > 0,
+        ).length,
+        limecore_policy_snapshot_statuses: limecorePolicySnapshotStatuses,
+        limecore_policy_decisions: [
+          ...new Set(
+            snapshots
+              .map((item) => item.limecore_policy_decision)
+              .filter(Boolean),
+          ),
+        ],
+        limecore_policy_decision_sources: [
+          ...new Set(
+            snapshots
+              .map((item) => item.limecore_policy_decision_source)
+              .filter(Boolean),
+          ),
+        ],
+        limecore_policy_evaluation_statuses: limecorePolicyEvaluationStatuses,
+        limecore_policy_evaluation_decisions: [
+          ...new Set(
+            snapshots
+              .map((item) => item.limecore_policy_evaluation_decision)
+              .filter(Boolean),
+          ),
+        ],
+        limecore_policy_evaluation_decision_sources: [
+          ...new Set(
+            snapshots
+              .map((item) => item.limecore_policy_evaluation_decision_source)
+              .filter(Boolean),
+          ),
+        ],
+        limecore_policy_evaluation_blocking_refs: [
+          ...new Set(
+            snapshots.flatMap(
+              (item) => item.limecore_policy_evaluation_blocking_refs ?? [],
+            ),
+          ),
+        ],
+        limecore_policy_evaluation_ask_refs: [
+          ...new Set(
+            snapshots.flatMap(
+              (item) => item.limecore_policy_evaluation_ask_refs ?? [],
+            ),
+          ),
+        ],
+        limecore_policy_evaluation_pending_refs: [
+          ...new Set(
+            snapshots.flatMap(
+              (item) => item.limecore_policy_evaluation_pending_refs ?? [],
+            ),
+          ),
+        ],
+        limecore_policy_unresolved_refs: [
+          ...new Set(
+            snapshots.flatMap(
+              (item) => item.limecore_policy_unresolved_refs ?? [],
+            ),
+          ),
+        ],
+        limecore_policy_missing_inputs: [
+          ...new Set(
+            snapshots.flatMap(
+              (item) => item.limecore_policy_missing_inputs ?? [],
+            ),
+          ),
+        ],
+        limecore_policy_pending_hit_refs: [
+          ...new Set(
+            snapshots.flatMap(
+              (item) => item.limecore_policy_pending_hit_refs ?? [],
+            ),
+          ),
+        ],
+        limecore_policy_value_hit_count: snapshots.reduce(
+          (count, item) => count + (item.limecore_policy_value_hit_count ?? 0),
+          0,
+        ),
         blocked_count: snapshots.filter(
           (item) => item.routing_outcome === "blocked",
         ).length,
@@ -6574,12 +6982,106 @@ const defaultMocks: Record<string, any> = {
   create_file: () => ({ success: true }),
   create_directory: () => ({ success: true }),
   rename_file: () => ({ success: true }),
-  list_dir: (args: any) => ({
-    path: args?.path ?? "~",
-    parentPath: null,
-    entries: [],
-    error: null,
-  }),
+  list_dir: (args: any) => {
+    const path = args?.path ?? "~";
+    const now = Date.now();
+    const appIconDataUrl =
+      "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxNCIgZmlsbD0iI0Y1QjQyNSIvPjxwYXRoIGQ9Ik0xOCA0NkwzMiAxMkw0NiA0NkMzNyA0MiAyNyA0MiAxOCA0NloiIGZpbGw9IiNGRkZCRUIiLz48L3N2Zz4=";
+    const folderIconDataUrl =
+      "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSI4IiB5PSIxOCIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjM0IiByeD0iMTAiIGZpbGw9IiNGRkY3RUQiIHN0cm9rZT0iI0Y1OUUwQiIgc3Ryb2tlLXdpZHRoPSIzIi8+PHBhdGggZD0iTTEwIDE4aDE3bDUgN0g4IiBmaWxsPSIjRkVERTk1IiBzdHJva2U9IiNGNTlFMEIiIHN0cm9rZS13aWR0aD0iMyIvPjwvc3ZnPg==";
+    const documentIconDataUrl =
+      "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSIxOCIgeT0iOCIgd2lkdGg9IjMwIiBoZWlnaHQ9IjQ4IiByeD0iNiIgZmlsbD0iI0Y4RkJGNyIgc3Ryb2tlPSIjNDE3NTY1IiBzdHJva2Utd2lkdGg9IjMiLz48cGF0aCBkPSJNMzggOHYxMmgxMCIgZmlsbD0iI0U5RjVGMSIgc3Ryb2tlPSIjNDE3NTY1IiBzdHJva2Utd2lkdGg9IjMiLz48cGF0aCBkPSJNMjUgMzFoMTZNMjUgNDBoMTIiIHN0cm9rZT0iIzQxNzU2NSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=";
+    const entriesByPath: Record<string, any[]> = {
+      "/Users/mock": [
+        {
+          name: "Downloads",
+          path: "/Users/mock/Downloads",
+          isDir: true,
+          size: 0,
+          modifiedAt: now - 1000 * 60 * 22,
+          mimeType: null,
+          iconDataUrl: folderIconDataUrl,
+        },
+        {
+          name: "Desktop",
+          path: "/Users/mock/Desktop",
+          isDir: true,
+          size: 0,
+          modifiedAt: now - 1000 * 60 * 48,
+          mimeType: null,
+          iconDataUrl: folderIconDataUrl,
+        },
+        {
+          name: "brief.md",
+          path: "/Users/mock/brief.md",
+          isDir: false,
+          size: 2048,
+          modifiedAt: now - 1000 * 60 * 90,
+          mimeType: "text/markdown",
+          iconDataUrl: documentIconDataUrl,
+        },
+      ],
+      "/Users/mock/Downloads": [
+        {
+          name: "campaign-assets",
+          path: "/Users/mock/Downloads/campaign-assets",
+          isDir: true,
+          size: 0,
+          modifiedAt: now - 1000 * 60 * 12,
+          mimeType: null,
+          iconDataUrl: folderIconDataUrl,
+        },
+        {
+          name: "requirements.pdf",
+          path: "/Users/mock/Downloads/requirements.pdf",
+          isDir: false,
+          size: 348160,
+          modifiedAt: now - 1000 * 60 * 36,
+          mimeType: "application/pdf",
+          iconDataUrl: documentIconDataUrl,
+        },
+      ],
+      "/Applications": [
+        {
+          name: "Lime.app",
+          path: "/Applications/Lime.app",
+          isDir: true,
+          size: 0,
+          modifiedAt: now - 1000 * 60 * 120,
+          mimeType: null,
+          iconDataUrl: appIconDataUrl,
+        },
+      ],
+    };
+    return {
+      path,
+      parentPath: path === "/Users/mock" ? null : "/Users/mock",
+      entries: entriesByPath[path] ?? [],
+      error: null,
+    };
+  },
+  get_file_icon_data_url: () =>
+    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSIxOCIgeT0iOCIgd2lkdGg9IjMwIiBoZWlnaHQ9IjQ4IiByeD0iNiIgZmlsbD0iI0Y4RkJGNyIgc3Ryb2tlPSIjNDE3NTY1IiBzdHJva2Utd2lkdGg9IjMiLz48cGF0aCBkPSJNMzggOHYxMmgxMCIgZmlsbD0iI0U5RjVGMSIgc3Ryb2tlPSIjNDE3NTY1IiBzdHJva2Utd2lkdGg9IjMiLz48cGF0aCBkPSJNMjUgMzFoMTZNMjUgNDBoMTIiIHN0cm9rZT0iIzQxNzU2NSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=",
+  get_file_manager_locations: () => [
+    {
+      id: "home",
+      label: "个人",
+      path: "/Users/mock",
+      kind: "home",
+    },
+    {
+      id: "downloads",
+      label: "下载",
+      path: "/Users/mock/Downloads",
+      kind: "downloads",
+    },
+    {
+      id: "applications",
+      label: "应用程序",
+      path: "/Applications",
+      kind: "applications",
+    },
+  ],
 
   // Log 相关
   get_logs: () => [],
@@ -6812,6 +7314,19 @@ const defaultMocks: Record<string, any> = {
     },
   ],
   start_recording: () => ({}),
+  get_recording_snapshot: () => ({
+    audio_data: [1, 2, 3, 4],
+    sample_rate: 16000,
+    duration: 1.2,
+  }),
+  get_recording_segment: () => ({
+    audio_data: [1, 2, 3, 4],
+    sample_rate: 16000,
+    duration: 0.8,
+    start_sample: 0,
+    end_sample: 12800,
+    total_samples: 12800,
+  }),
   cancel_recording: () => ({}),
   get_recording_status: () => ({
     is_recording: false,
@@ -6825,7 +7340,7 @@ const defaultMocks: Record<string, any> = {
 
   // Update 相关
   check_update: () => ({
-    current_version: "1.25.0",
+    current_version: "1.26.0",
     latest_version: null,
     has_update: false,
     download_url: "https://github.com/limecloud/lime/releases",
@@ -6836,7 +7351,7 @@ const defaultMocks: Record<string, any> = {
     error: null,
   }),
   check_for_updates: () => ({
-    current: "1.25.0",
+    current: "1.26.0",
     latest: null,
     hasUpdate: false,
     downloadUrl: "https://github.com/limecloud/lime/releases",
@@ -7171,6 +7686,18 @@ const defaultMocks: Record<string, any> = {
       tags: [],
     },
   ],
+  get_or_create_default_project: () => ({
+    id: "workspace-default",
+    name: "默认工作区",
+    workspace_type: "general",
+    root_path: "/tmp/lime/workspaces/default",
+    is_default: true,
+    is_favorite: true,
+    is_archived: false,
+    created_at: Date.now(),
+    updated_at: Date.now(),
+    tags: [],
+  }),
   workspace_get: (args: any) => ({
     id: args?.id ?? "mock-workspace",
     name: args?.id ?? "Mock Workspace",

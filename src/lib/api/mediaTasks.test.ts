@@ -268,6 +268,53 @@ describe("mediaTasks API", () => {
         modality_runtime_contracts: {
           snapshot_count: 1,
           contract_keys: ["image_generation"],
+          execution_profile_keys: ["image_generation_profile"],
+          executor_adapter_keys: ["skill:image_generate"],
+          limecore_policy_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          limecore_policy_snapshot_count: 1,
+          limecore_policy_snapshot_statuses: [
+            { status: "local_defaults_evaluated", count: 1 },
+          ],
+          limecore_policy_decisions: ["allow"],
+          limecore_policy_decision_sources: ["local_default_policy"],
+          limecore_policy_evaluation_statuses: [
+            { status: "input_gap", count: 1 },
+          ],
+          limecore_policy_evaluation_decisions: ["ask"],
+          limecore_policy_evaluation_decision_sources: [
+            "policy_input_evaluator",
+          ],
+          limecore_policy_evaluation_blocking_refs: [],
+          limecore_policy_evaluation_ask_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          limecore_policy_evaluation_pending_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          limecore_policy_unresolved_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          limecore_policy_missing_inputs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          limecore_policy_pending_hit_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          limecore_policy_value_hit_count: 0,
           blocked_count: 0,
           routing_outcomes: [{ outcome: "accepted", count: 1 }],
           model_registry_assessment_count: 0,
@@ -280,6 +327,57 @@ describe("mediaTasks API", () => {
               routing_slot: "image_generation_model",
               provider_id: null,
               model: null,
+              execution_profile_key: "image_generation_profile",
+              executor_adapter_key: "skill:image_generate",
+              executor_kind: "skill",
+              executor_binding_key: "image_generate",
+              limecore_policy_refs: [
+                "model_catalog",
+                "provider_offer",
+                "tenant_feature_flags",
+              ],
+              limecore_policy_snapshot_status: "local_defaults_evaluated",
+              limecore_policy_decision: "allow",
+              limecore_policy_decision_source: "local_default_policy",
+              limecore_policy_decision_scope: "local_defaults_only",
+              limecore_policy_decision_reason:
+                "declared_policy_refs_with_no_local_deny_rule",
+              limecore_policy_evaluation_status: "input_gap",
+              limecore_policy_evaluation_decision: "ask",
+              limecore_policy_evaluation_decision_source:
+                "policy_input_evaluator",
+              limecore_policy_evaluation_decision_scope:
+                "pending_policy_inputs",
+              limecore_policy_evaluation_decision_reason:
+                "declared_policy_refs_missing_inputs",
+              limecore_policy_evaluation_blocking_refs: [],
+              limecore_policy_evaluation_ask_refs: [
+                "model_catalog",
+                "provider_offer",
+                "tenant_feature_flags",
+              ],
+              limecore_policy_evaluation_pending_refs: [
+                "model_catalog",
+                "provider_offer",
+                "tenant_feature_flags",
+              ],
+              limecore_policy_unresolved_refs: [
+                "model_catalog",
+                "provider_offer",
+                "tenant_feature_flags",
+              ],
+              limecore_policy_missing_inputs: [
+                "model_catalog",
+                "provider_offer",
+                "tenant_feature_flags",
+              ],
+              limecore_policy_pending_hit_refs: [
+                "model_catalog",
+                "provider_offer",
+                "tenant_feature_flags",
+              ],
+              limecore_policy_value_hits: [],
+              limecore_policy_value_hit_count: 0,
               routing_event: "model_routing_decision",
               routing_outcome: "accepted",
               failure_code: null,
@@ -366,6 +464,19 @@ describe("mediaTasks API", () => {
         total: 1,
         modality_runtime_contracts: expect.objectContaining({
           snapshot_count: 1,
+          limecore_policy_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
+          limecore_policy_evaluation_statuses: [
+            { status: "input_gap", count: 1 },
+          ],
+          limecore_policy_evaluation_pending_refs: [
+            "model_catalog",
+            "provider_offer",
+            "tenant_feature_flags",
+          ],
         }),
       }),
     );

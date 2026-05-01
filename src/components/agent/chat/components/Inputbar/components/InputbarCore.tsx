@@ -4,6 +4,8 @@ import {
   Container,
   InputBarContainer,
   InputColumn,
+  DictationRecordingDuration,
+  DictationRecordingGlyph,
   InputIconButton,
   InputSuggestionKeycap,
   InputSuggestionLayer,
@@ -20,12 +22,21 @@ import {
   ImagePreviewItem,
   ImagePreviewImg,
   ImageRemoveButton,
+  PathReferenceChip,
+  PathReferenceContainer,
+  PathReferenceIcon,
+  PathReferenceName,
+  PathReferencePath,
+  PathReferenceRemoveButton,
+  PathReferenceText,
 } from "../styles";
 import { InputbarTools } from "./InputbarTools";
 import {
   ArrowUp,
   ChevronDown,
   ChevronUp,
+  FileText,
+  Folder,
   ImagePlus,
   Loader2,
   Mic,
@@ -33,13 +44,37 @@ import {
   X,
 } from "lucide-react";
 import { BaseComposer } from "@/components/input-kit";
-import type { MessageImage } from "../../../types";
+import type { MessageImage, MessagePathReference } from "../../../types";
 import type { QueuedTurnSnapshot } from "@/lib/api/agentRuntime";
 import { QueuedTurnsPanel } from "./QueuedTurnsPanel";
 import { useInputbarDictation } from "../hooks/useInputbarDictation";
 
 const INTERACTIVE_TARGET_SELECTOR =
   "button, a, input, textarea, select, option, [role='button'], [contenteditable=''], [contenteditable='true'], [contenteditable='plaintext-only']";
+
+function formatDictationDuration(duration = 0): string {
+  const safeDuration = Number.isFinite(duration) ? Math.max(0, duration) : 0;
+  const minutes = Math.floor(safeDuration / 60);
+  const seconds = Math.floor(safeDuration % 60);
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function buildDictationStatusText(
+  state: "idle" | "listening" | "transcribing" | "polishing",
+  duration = 0,
+): string {
+  switch (state) {
+    case "listening":
+      return `录音中 ${formatDictationDuration(duration)}`;
+    case "transcribing":
+      return "识别中";
+    case "polishing":
+      return "润色中";
+    case "idle":
+    default:
+      return "";
+  }
+}
 
 function shouldFocusComposerTextarea(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) {
@@ -60,7 +95,11 @@ interface InputbarCoreProps {
   onToolClick: (tool: string) => void;
   pendingImages?: MessageImage[];
   onRemoveImage?: (index: number) => void;
+  pathReferences?: MessagePathReference[];
+  onRemovePathReference?: (id: string) => void;
   onPaste?: (e: React.ClipboardEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
   isFullscreen?: boolean;
   /** Textarea ref（用于 CharacterMention） */
   textareaRef?: React.RefObject<HTMLTextAreaElement>;
@@ -104,7 +143,11 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   onToolClick,
   pendingImages = [],
   onRemoveImage,
+  pathReferences = [],
+  onRemovePathReference,
   onPaste,
+  onDragOver,
+  onDrop,
   isFullscreen = false,
   textareaRef: externalTextareaRef,
   leftExtra,
@@ -130,6 +173,8 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
     dictationEnabled,
     voiceConfigLoaded,
     dictationState,
+    recordingStatus,
+    liveTranscript,
     isDictating,
     isDictationBusy,
     isDictationProcessing,
@@ -143,6 +188,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   const hasInlineComposerContent =
     text.trim().length > 0 ||
     pendingImages.length > 0 ||
+    pathReferences.length > 0 ||
     queuedTurns.length > 0;
   const shouldCollapseFloatingTools =
     isFloatingVariant &&
@@ -190,17 +236,25 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
     !shouldUseCompactFloatingComposer &&
     (Boolean(leftExtra) ||
       (toolMode === "default" && !shouldCollapseFloatingTools));
+  const shouldShowInputSuggestion =
+    Boolean(inputSuggestion) && text.trim().length === 0 && !disabled;
+  const dictationStatusText = buildDictationStatusText(
+    dictationState,
+    recordingStatus?.duration,
+  );
+  const dictationStatusLabel =
+    dictationState === "listening" && liveTranscript
+      ? `${dictationStatusText} · 实时识别`
+      : dictationStatusText;
   const dictationButtonTitle = isDictationProcessing
     ? dictationState === "polishing"
       ? "语音润色中"
       : "语音识别中"
     : isDictating
-      ? "停止语音输入"
+      ? `${dictationStatusLabel || "录音中"}，点击停止`
       : dictationEnabled || !voiceConfigLoaded
         ? "开始语音输入"
         : "语音输入未启用";
-  const shouldShowInputSuggestion =
-    Boolean(inputSuggestion) && text.trim().length === 0 && !disabled;
 
   const handleInputSuggestionKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -268,6 +322,23 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
     [onRemoveImage],
   );
 
+  const handleRemovePathReferenceMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [],
+  );
+
+  const handleRemovePathReferenceClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>, id: string) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onRemovePathReference?.(id);
+    },
+    [onRemovePathReference],
+  );
+
   const handleToggleTextareaExpanded = useCallback(() => {
     setIsTextareaExpanded((previous) => !previous);
   }, []);
@@ -284,7 +355,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       onKeyDown={handleInputSuggestionKeyDown}
       isFullscreen={isFullscreen}
       fillHeightWhenFullscreen
-      hasAdditionalContent={pendingImages.length > 0}
+      hasAdditionalContent={pendingImages.length > 0 || pathReferences.length > 0}
       maxAutoHeight={isTextareaExpanded ? 360 : isFloatingVariant ? 240 : 120}
       textareaRef={resolvedTextareaRef}
       onEscape={() => onToolClick("fullscreen")}
@@ -321,6 +392,9 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
               data-testid="inputbar-core-container"
               className={inputBarClassName}
               onMouseDownCapture={handleContainerMouseDownCapture}
+              onDragEnterCapture={onDragOver}
+              onDragOverCapture={onDragOver}
+              onDropCapture={onDrop}
             >
               {!isFullscreen && showDragHandle && <DragHandle />}
 
@@ -346,6 +420,39 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                   ))}
                 </ImagePreviewContainer>
               )}
+
+              {pathReferences.length > 0 ? (
+                <PathReferenceContainer aria-label="已添加的本地路径">
+                  {pathReferences.map((reference) => {
+                    const ReferenceIcon = reference.isDir ? Folder : FileText;
+                    return (
+                      <PathReferenceChip
+                        key={reference.id}
+                        title={reference.path}
+                        data-testid="inputbar-path-reference-chip"
+                      >
+                        <PathReferenceIcon $isDir={reference.isDir}>
+                          <ReferenceIcon size={14} aria-hidden />
+                        </PathReferenceIcon>
+                        <PathReferenceText>
+                          <PathReferenceName>{reference.name}</PathReferenceName>
+                          <PathReferencePath>{reference.path}</PathReferencePath>
+                        </PathReferenceText>
+                        <PathReferenceRemoveButton
+                          type="button"
+                          aria-label={`移除路径 ${reference.name}`}
+                          onMouseDown={handleRemovePathReferenceMouseDown}
+                          onClick={(event) =>
+                            handleRemovePathReferenceClick(event, reference.id)
+                          }
+                        >
+                          <X size={12} />
+                        </PathReferenceRemoveButton>
+                      </PathReferenceChip>
+                    );
+                  })}
+                </PathReferenceContainer>
+              ) : null}
 
               {topExtra}
               <QueuedTurnsPanel
@@ -416,7 +523,12 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                     {isDictationProcessing ? (
                       <Loader2 size={14} className="animate-spin" />
                     ) : isDictating ? (
-                      <Square size={14} fill="currentColor" />
+                      <>
+                        <DictationRecordingGlyph aria-hidden="true" />
+                        <DictationRecordingDuration>
+                          {formatDictationDuration(recordingStatus?.duration)}
+                        </DictationRecordingDuration>
+                      </>
                     ) : (
                       <Mic size={14} />
                     )}
@@ -442,11 +554,11 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                       <Square size={14} fill="currentColor" />
                     </InputIconButton>
                   ) : null}
-                  {!isLoading ? (
+                  {!isLoading && !isDictationBusy ? (
                     <SendButton
                       type="button"
                       onClick={onPrimaryAction}
-                      disabled={isPrimaryDisabled || isDictationBusy}
+                      disabled={isPrimaryDisabled}
                       aria-label="发送"
                       title="发送"
                     >

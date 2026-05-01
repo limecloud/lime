@@ -107,4 +107,30 @@ describe("generalAgentPrompt", () => {
     expect(prompt).toContain("严格 JSON 对象");
     expect(prompt).toContain("attached_session_required");
   });
+
+  it("紧凑 Prompt 应保留核心边界并减少首轮输入体积", () => {
+    const fullPrompt = buildGeneralAgentSystemPrompt("general", {
+      now: new Date("2026-03-12T12:00:00+08:00"),
+      harness: {
+        browserAssistEnabled: true,
+        browserAssistProfileKey: "general_browser_assist",
+      },
+    });
+    const compactPrompt = buildGeneralAgentSystemPrompt("general", {
+      now: new Date("2026-03-12T12:00:00+08:00"),
+      compact: true,
+      harness: {
+        browserAssistEnabled: true,
+        browserAssistProfileKey: "general_browser_assist",
+      },
+    });
+
+    expect(compactPrompt.length).toBeLessThan(fullPrompt.length);
+    expect(compactPrompt).toContain("当前日期：2026年3月12日");
+    expect(compactPrompt).toContain("能直接回答就直接回答");
+    expect(compactPrompt).toContain("WebSearch");
+    expect(compactPrompt).toContain("lime_site_run");
+    expect(compactPrompt).toContain("Playwright code");
+    expect(compactPrompt).toContain("general_browser_assist");
+  });
 });

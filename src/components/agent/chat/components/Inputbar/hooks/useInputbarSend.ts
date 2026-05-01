@@ -1,8 +1,9 @@
 import { useCallback } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
-import type { MessageImage } from "../../../types";
+import type { MessageImage, MessagePathReference } from "../../../types";
 import type { HandleSendOptions } from "../../../hooks/handleSendTypes";
 import { recordCuratedTaskTemplateUsage } from "../../../utils/curatedTaskTemplates";
+import { buildPathReferenceRequestMetadata } from "../../../utils/pathReferences";
 import {
   resolveInputCapabilityDispatch,
   type InputCapabilitySelection,
@@ -11,6 +12,7 @@ import {
 interface UseInputbarSendParams {
   input: string;
   pendingImages: MessageImage[];
+  pathReferences: MessagePathReference[];
   webSearchEnabled: boolean;
   thinkingEnabled: boolean;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
@@ -25,22 +27,29 @@ interface UseInputbarSendParams {
     sendOptions?: HandleSendOptions,
   ) => void | Promise<boolean> | boolean;
   clearPendingImages: () => void;
+  clearPathReferences?: () => void;
   clearActiveCapability: () => void;
 }
 
 export function useInputbarSend({
   input,
   pendingImages,
+  pathReferences,
   webSearchEnabled,
   thinkingEnabled,
   executionStrategy,
   activeCapability,
   onSend,
   clearPendingImages,
+  clearPathReferences,
   clearActiveCapability,
 }: UseInputbarSendParams) {
   return useCallback(async () => {
-    if (!input.trim() && pendingImages.length === 0) {
+    if (
+      !input.trim() &&
+      pendingImages.length === 0 &&
+      pathReferences.length === 0
+    ) {
       return;
     }
 
@@ -56,24 +65,44 @@ export function useInputbarSend({
       activeCapability,
       input,
     );
+    const requestMetadata = buildPathReferenceRequestMetadata(
+      capabilityDispatch.requestMetadata,
+      pathReferences,
+    );
+    const hasPathReferences = pathReferences.length > 0;
+    const textOverride = input.trim()
+      ? undefined
+      : hasPathReferences
+        ? "请查看这些文件或文件夹。"
+        : undefined;
+    const sendOptions =
+      capabilityDispatch.capabilityRoute ||
+      capabilityDispatch.displayContent ||
+      requestMetadata
+        ? {
+            ...(capabilityDispatch.capabilityRoute
+              ? { capabilityRoute: capabilityDispatch.capabilityRoute }
+              : {}),
+            ...(capabilityDispatch.displayContent || input.trim()
+              ? {
+                  displayContent:
+                    capabilityDispatch.displayContent ||
+                    (input.trim() ? input : undefined),
+                }
+              : {}),
+            ...(requestMetadata ? { requestMetadata } : {}),
+          }
+        : undefined;
 
     try {
       const result = await onSend(
         pendingImages.length > 0 ? pendingImages : undefined,
         webSearch,
         thinking,
-        undefined,
+        textOverride,
         strategy,
         undefined,
-        capabilityDispatch.capabilityRoute ||
-          capabilityDispatch.displayContent ||
-          capabilityDispatch.requestMetadata
-          ? {
-              capabilityRoute: capabilityDispatch.capabilityRoute,
-              displayContent: capabilityDispatch.displayContent,
-              requestMetadata: capabilityDispatch.requestMetadata,
-            }
-          : undefined,
+        sendOptions,
       );
       if (result === false) {
         return;
@@ -87,6 +116,7 @@ export function useInputbarSend({
         });
       }
       clearPendingImages();
+      clearPathReferences?.();
       clearActiveCapability();
     } catch {
       // 发送失败时保留图片与技能，交由上层 toast / 恢复逻辑处理。
@@ -95,10 +125,12 @@ export function useInputbarSend({
     activeCapability,
     clearActiveCapability,
     clearPendingImages,
+    clearPathReferences,
     executionStrategy,
     input,
     onSend,
     pendingImages,
+    pathReferences,
     thinkingEnabled,
     webSearchEnabled,
   ]);

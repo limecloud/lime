@@ -4,7 +4,9 @@
 //! 本模块仅保留 Tauri 命令封装。
 
 pub use lime_services::file_browser_service::{list_directory, read_file_preview};
-pub use lime_services::file_browser_service::{DirectoryListing, FileEntry, FilePreview};
+pub use lime_services::file_browser_service::{
+    DirectoryListing, FileEntry, FileManagerLocation, FilePreview,
+};
 
 /// Tauri 命令：列出目录
 #[tauri::command]
@@ -25,6 +27,18 @@ pub async fn read_file_preview_cmd(
 #[tauri::command]
 pub async fn get_home_dir() -> Result<String, String> {
     lime_services::file_browser_service::get_home_dir().await
+}
+
+/// Tauri 命令：获取文件管理器快捷入口
+#[tauri::command]
+pub async fn get_file_manager_locations() -> Result<Vec<FileManagerLocation>, String> {
+    lime_services::file_browser_service::get_file_manager_locations().await
+}
+
+/// Tauri 命令：获取文件图标
+#[tauri::command]
+pub async fn get_file_icon_data_url(path: String) -> Result<Option<String>, String> {
+    lime_services::file_browser_service::get_file_icon_data_url(path).await
 }
 
 /// Tauri 命令：创建新文件

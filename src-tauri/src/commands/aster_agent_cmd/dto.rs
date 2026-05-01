@@ -726,6 +726,198 @@ fn extract_runtime_summary(
     }))
 }
 
+fn read_policy_json_path<'a>(
+    value: &'a serde_json::Value,
+    path: &[&str],
+) -> Option<&'a serde_json::Value> {
+    let mut current = value;
+    for key in path {
+        current = current.get(*key)?;
+    }
+    Some(current)
+}
+
+fn read_policy_json_string(value: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .filter_map(|key| value.get(*key))
+        .find_map(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn read_policy_json_string_array(value: &serde_json::Value, keys: &[&str]) -> Vec<String> {
+    keys.iter()
+        .filter_map(|key| value.get(*key))
+        .find_map(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn read_policy_json_usize(value: &serde_json::Value, keys: &[&str]) -> Option<usize> {
+    keys.iter()
+        .filter_map(|key| value.get(*key))
+        .find_map(serde_json::Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+}
+
+fn extract_limecore_policy_summary_from_contract(
+    contract: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    let snapshot = contract
+        .get("limecore_policy_snapshot")
+        .or_else(|| contract.get("limecorePolicySnapshot"))?
+        .as_object()
+        .map(|object| serde_json::Value::Object(object.clone()))?;
+    let evaluation = snapshot
+        .get("policy_evaluation")
+        .or_else(|| snapshot.get("policyEvaluation"))
+        .cloned();
+    let empty = serde_json::Value::Object(serde_json::Map::new());
+    let evaluation_ref = evaluation.as_ref().unwrap_or(&empty);
+    let policy_value_hit_count = read_policy_json_usize(
+        &snapshot,
+        &["policy_value_hit_count", "policyValueHitCount"],
+    )
+    .or_else(|| {
+        snapshot
+            .get("policy_value_hits")
+            .or_else(|| snapshot.get("policyValueHits"))
+            .and_then(serde_json::Value::as_array)
+            .map(Vec::len)
+    })
+    .unwrap_or_default();
+
+    Some(serde_json::json!({
+        "contractKey": read_policy_json_string(contract, &["contract_key", "contractKey"]),
+        "snapshotStatus": read_policy_json_string(&snapshot, &["status"]),
+        "decision": read_policy_json_string(&snapshot, &["decision"]),
+        "decisionSource": read_policy_json_string(&snapshot, &["decision_source", "decisionSource"]),
+        "decisionScope": read_policy_json_string(&snapshot, &["decision_scope", "decisionScope"]),
+        "decisionReason": read_policy_json_string(&snapshot, &["decision_reason", "decisionReason"]),
+        "refs": read_policy_json_string_array(&snapshot, &["refs"]),
+        "evaluatedRefs": read_policy_json_string_array(&snapshot, &["evaluated_refs", "evaluatedRefs"]),
+        "missingInputs": read_policy_json_string_array(&snapshot, &["missing_inputs", "missingInputs"]),
+        "pendingHitRefs": read_policy_json_string_array(&snapshot, &["pending_hit_refs", "pendingHitRefs"]),
+        "policyValueHitCount": policy_value_hit_count,
+        "source": read_policy_json_string(&snapshot, &["source"]),
+        "evaluation": {
+            "status": read_policy_json_string(evaluation_ref, &["status"]),
+            "decision": read_policy_json_string(evaluation_ref, &["decision"]),
+            "decisionSource": read_policy_json_string(evaluation_ref, &["decision_source", "decisionSource"]),
+            "decisionScope": read_policy_json_string(evaluation_ref, &["decision_scope", "decisionScope"]),
+            "decisionReason": read_policy_json_string(evaluation_ref, &["decision_reason", "decisionReason"]),
+            "blockingRefs": read_policy_json_string_array(evaluation_ref, &["blocking_refs", "blockingRefs"]),
+            "askRefs": read_policy_json_string_array(evaluation_ref, &["ask_refs", "askRefs"]),
+            "pendingRefs": read_policy_json_string_array(evaluation_ref, &["pending_refs", "pendingRefs"]),
+        }
+    }))
+}
+
+fn extract_limecore_policy_summary_from_value(
+    value: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    const CONTRACT_PATHS: &[&[&str]] = &[
+        &[],
+        &["runtime_contract"],
+        &["runtimeContract"],
+        &["modality_runtime_contract", "runtime_contract"],
+        &["modalityRuntimeContract", "runtimeContract"],
+        &["payload", "runtime_contract"],
+        &["payload", "runtimeContract"],
+        &["payload", "modality_runtime_contract", "runtime_contract"],
+        &["payload", "modalityRuntimeContract", "runtimeContract"],
+        &["record", "payload", "runtime_contract"],
+        &["record", "payload", "runtimeContract"],
+    ];
+
+    CONTRACT_PATHS.iter().find_map(|path| {
+        let candidate = if path.is_empty() {
+            Some(value)
+        } else {
+            read_policy_json_path(value, path)
+        }?;
+        extract_limecore_policy_summary_from_contract(candidate)
+    })
+}
+
+fn parse_json_object(raw: &str) -> Option<serde_json::Value> {
+    serde_json::from_str::<serde_json::Value>(raw)
+        .ok()
+        .filter(serde_json::Value::is_object)
+}
+
+fn extract_limecore_policy_thread_summary(detail: &SessionDetail) -> Option<serde_json::Value> {
+    detail
+        .items
+        .iter()
+        .rev()
+        .find_map(|item| match &item.payload {
+            lime_core::database::dao::agent_timeline::AgentThreadItemPayload::ToolCall {
+                arguments,
+                output,
+                metadata,
+                ..
+            } => metadata
+                .as_ref()
+                .and_then(extract_limecore_policy_summary_from_value)
+                .or_else(|| {
+                    arguments
+                        .as_ref()
+                        .and_then(extract_limecore_policy_summary_from_value)
+                })
+                .or_else(|| {
+                    output
+                        .as_deref()
+                        .and_then(parse_json_object)
+                        .as_ref()
+                        .and_then(extract_limecore_policy_summary_from_value)
+                }),
+            lime_core::database::dao::agent_timeline::AgentThreadItemPayload::FileArtifact {
+                content,
+                metadata,
+                ..
+            } => metadata
+                .as_ref()
+                .and_then(extract_limecore_policy_summary_from_value)
+                .or_else(|| {
+                    content
+                        .as_deref()
+                        .and_then(parse_json_object)
+                        .as_ref()
+                        .and_then(extract_limecore_policy_summary_from_value)
+                }),
+            _ => None,
+        })
+}
+
+fn merge_limecore_policy_into_runtime_summary(
+    runtime_summary: Option<serde_json::Value>,
+    limecore_policy: Option<serde_json::Value>,
+) -> Option<serde_json::Value> {
+    let Some(limecore_policy) = limecore_policy else {
+        return runtime_summary;
+    };
+
+    let mut summary = runtime_summary.unwrap_or_else(|| serde_json::json!({}));
+    if let Some(object) = summary.as_object_mut() {
+        object.insert("limecorePolicy".to_string(), limecore_policy);
+        return Some(summary);
+    }
+
+    Some(serde_json::json!({
+        "limecorePolicy": limecore_policy
+    }))
+}
+
 fn extract_auxiliary_runtime_snapshots(detail: &SessionDetail) -> Option<Vec<serde_json::Value>> {
     let snapshots = detail
         .items
@@ -1062,7 +1254,10 @@ impl AgentRuntimeThreadReadModel {
             .as_ref()
             .and_then(|runtime| runtime.limit_event.clone());
         let oem_policy = extract_oem_policy_summary(detail.execution_runtime.as_ref());
-        let runtime_summary = extract_runtime_summary(detail.execution_runtime.as_ref());
+        let runtime_summary = merge_limecore_policy_into_runtime_summary(
+            extract_runtime_summary(detail.execution_runtime.as_ref()),
+            extract_limecore_policy_thread_summary(detail),
+        );
         let auxiliary_task_runtime = extract_auxiliary_runtime_snapshots(detail);
         let auxiliary_task_kind = read_auxiliary_runtime_string(
             auxiliary_task_runtime.as_ref(),
@@ -2774,6 +2969,100 @@ mod tests {
                 .and_then(|value| value.get("quotaLow"))
                 .and_then(serde_json::Value::as_bool),
             Some(true)
+        );
+    }
+
+    #[test]
+    fn thread_read_should_surface_limecore_policy_decision_summary() {
+        let detail = build_session_detail(
+            Vec::new(),
+            vec![AgentThreadItem {
+                id: "tool-1".to_string(),
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                sequence: 1,
+                status: AgentThreadItemStatus::Completed,
+                started_at: "2026-05-01T10:00:00Z".to_string(),
+                completed_at: Some("2026-05-01T10:00:01Z".to_string()),
+                updated_at: "2026-05-01T10:00:01Z".to_string(),
+                payload: AgentThreadItemPayload::ToolCall {
+                    tool_name: "mcp__lime-browser__navigate".to_string(),
+                    arguments: None,
+                    output: None,
+                    success: Some(true),
+                    error: None,
+                    metadata: Some(serde_json::json!({
+                        "runtime_contract": {
+                            "contract_key": "browser_control",
+                            "limecore_policy_snapshot": {
+                                "status": "policy_inputs_evaluated",
+                                "decision": "deny",
+                                "source": "modality_runtime_contract",
+                                "decision_source": "policy_input_evaluator",
+                                "decision_scope": "resolved_policy_inputs",
+                                "decision_reason": "resolved_policy_inputs_contain_deny_signal",
+                                "refs": ["gateway_policy", "tenant_feature_flags"],
+                                "evaluated_refs": ["gateway_policy", "tenant_feature_flags"],
+                                "missing_inputs": [],
+                                "pending_hit_refs": [],
+                                "policy_value_hit_count": 2,
+                                "policy_evaluation": {
+                                    "status": "evaluated",
+                                    "decision": "deny",
+                                    "decision_source": "policy_input_evaluator",
+                                    "decision_scope": "resolved_policy_inputs",
+                                    "decision_reason": "resolved_policy_inputs_contain_deny_signal",
+                                    "blocking_refs": ["gateway_policy"],
+                                    "ask_refs": [],
+                                    "pending_refs": []
+                                }
+                            }
+                        }
+                    })),
+                },
+            }],
+        );
+
+        let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
+        let policy = thread_read
+            .runtime_summary
+            .as_ref()
+            .and_then(|value| value.get("limecorePolicy"))
+            .expect("thread read should expose LimeCore policy summary");
+
+        assert_eq!(
+            policy
+                .get("contractKey")
+                .and_then(serde_json::Value::as_str),
+            Some("browser_control")
+        );
+        assert_eq!(
+            policy.get("decision").and_then(serde_json::Value::as_str),
+            Some("deny")
+        );
+        assert_eq!(
+            policy
+                .get("decisionSource")
+                .and_then(serde_json::Value::as_str),
+            Some("policy_input_evaluator")
+        );
+        assert_eq!(
+            policy
+                .pointer("/evaluation/status")
+                .and_then(serde_json::Value::as_str),
+            Some("evaluated")
+        );
+        assert_eq!(
+            policy
+                .pointer("/evaluation/blockingRefs/0")
+                .and_then(serde_json::Value::as_str),
+            Some("gateway_policy")
+        );
+        assert_eq!(
+            policy
+                .get("policyValueHitCount")
+                .and_then(serde_json::Value::as_u64),
+            Some(2)
         );
     }
 
