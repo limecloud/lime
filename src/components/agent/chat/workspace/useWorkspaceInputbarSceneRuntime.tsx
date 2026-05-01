@@ -1,6 +1,8 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
+  useState,
   type ComponentProps,
   type Dispatch,
   type ReactNode,
@@ -30,6 +32,10 @@ import { GeneralWorkbenchDialogSection } from "./WorkspaceHarnessDialogs";
 import type { TeamWorkbenchSurfaceProps } from "./chatSurfaceProps";
 import type { GeneralWorkbenchEntryPromptState } from "./workspaceSendHelpers";
 import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
+import {
+  listKnowledgePacks,
+  type KnowledgePackSummary,
+} from "@/lib/api/knowledge";
 
 interface GeneralWorkbenchEntryPromptAccessoryProps {
   prompt: GeneralWorkbenchEntryPromptState;
@@ -668,8 +674,103 @@ export function useWorkspaceInputbarSceneRuntime({
   inputCompletionEnabled = true,
 }: UseWorkspaceInputbarSceneRuntimeParams) {
   const resolvedQueuedTurns = useMemo(() => queuedTurns ?? [], [queuedTurns]);
+  const [knowledgePacks, setKnowledgePacks] = useState<KnowledgePackSummary[]>(
+    [],
+  );
+  const [selectedKnowledgePackName, setSelectedKnowledgePackName] = useState<
+    string | null
+  >(null);
+  const [knowledgePackEnabled, setKnowledgePackEnabled] = useState(false);
   const resolvedChatToolPreferences =
     chatToolPreferences ?? DEFAULT_CHAT_TOOL_PREFERENCES;
+  useEffect(() => {
+    const workingDir = projectRootPath?.trim();
+    if (!workingDir) {
+      setKnowledgePacks([]);
+      setSelectedKnowledgePackName(null);
+      setKnowledgePackEnabled(false);
+      return;
+    }
+
+    let cancelled = false;
+    listKnowledgePacks({ workingDir, includeArchived: false })
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        const nextDefaultPack =
+          response.packs.find((pack) => pack.defaultForWorkspace) ??
+          response.packs[0] ??
+          null;
+        setKnowledgePacks(response.packs);
+        setSelectedKnowledgePackName((current) => {
+          if (
+            current &&
+            response.packs.some((pack) => pack.metadata.name === current)
+          ) {
+            return current;
+          }
+
+          return nextDefaultPack?.metadata.name ?? null;
+        });
+        setKnowledgePackEnabled(false);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        console.warn("[AgentChatPage] 读取默认知识包失败:", error);
+        setKnowledgePacks([]);
+        setSelectedKnowledgePackName(null);
+        setKnowledgePackEnabled(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectRootPath]);
+  const selectedKnowledgePack = useMemo(() => {
+    if (knowledgePacks.length === 0) {
+      return null;
+    }
+
+    return (
+      knowledgePacks.find(
+        (pack) => pack.metadata.name === selectedKnowledgePackName,
+      ) ??
+      knowledgePacks.find((pack) => pack.defaultForWorkspace) ??
+      knowledgePacks[0] ??
+      null
+    );
+  }, [knowledgePacks, selectedKnowledgePackName]);
+  const inputbarKnowledgePackOptions = useMemo(
+    () =>
+      knowledgePacks.map((pack) => ({
+        packName: pack.metadata.name,
+        label: pack.metadata.description || pack.metadata.name,
+        status: pack.metadata.status,
+        defaultForWorkspace: pack.defaultForWorkspace,
+      })),
+    [knowledgePacks],
+  );
+  const inputbarKnowledgePackSelection = useMemo(
+    () =>
+      selectedKnowledgePack && projectRootPath
+        ? {
+            enabled: knowledgePackEnabled,
+            packName: selectedKnowledgePack.metadata.name,
+            workingDir: projectRootPath,
+            label:
+              selectedKnowledgePack.metadata.description ||
+              selectedKnowledgePack.metadata.name,
+            status: selectedKnowledgePack.metadata.status,
+          }
+        : null,
+    [selectedKnowledgePack, knowledgePackEnabled, projectRootPath],
+  );
+  const handleSelectKnowledgePack = useCallback((packName: string) => {
+    setSelectedKnowledgePackName(packName);
+  }, []);
   const runtimeToolAvailability = useMemo(
     () => deriveRuntimeToolAvailability(toolInventory),
     [toolInventory],
@@ -745,6 +846,10 @@ export function useWorkspaceInputbarSceneRuntime({
         onSend: handleSend,
         onStop: handleStopSending,
         isLoading: isSending || resolvedQueuedTurns.length > 0,
+        knowledgePackSelection: inputbarKnowledgePackSelection,
+        knowledgePackOptions: inputbarKnowledgePackOptions,
+        onToggleKnowledgePack: setKnowledgePackEnabled,
+        onSelectKnowledgePack: handleSelectKnowledgePack,
         providerType,
         setProviderType,
         model,

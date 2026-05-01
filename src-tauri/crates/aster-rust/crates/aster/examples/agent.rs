@@ -48,6 +48,7 @@ async fn main() -> anyhow::Result<()> {
         max_turns: None,
         retry_config: None,
         system_prompt: None,
+        system_prompt_override: None,
         include_context_trace: None,
         turn_context: None,
     };

@@ -18,6 +18,7 @@ use serde_json::Map;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::time::Instant;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -259,6 +260,16 @@ pub struct PreflightToolExecution {
     pub system_prompt_appendix: Option<String>,
     pub coverage_summary: Option<String>,
     pub expanded_news_search: bool,
+}
+
+pub struct WebSearchPreflightRequest<'a> {
+    pub agent: &'a Agent,
+    pub session_id: &'a str,
+    pub message_text: &'a str,
+    pub working_directory: Option<&'a Path>,
+    pub cancel_token: Option<CancellationToken>,
+    pub turn_context: Option<aster::session::TurnContextOverride>,
+    pub policy: &'a RequestToolPolicy,
 }
 
 impl PreflightToolExecution {
@@ -1298,6 +1309,7 @@ fn duplicate_session_config(config: &aster::agents::SessionConfig) -> aster::age
         max_turns: config.max_turns,
         retry_config: config.retry_config.clone(),
         system_prompt: config.system_prompt.clone(),
+        system_prompt_override: config.system_prompt_override,
         include_context_trace: config.include_context_trace,
         turn_context: config.turn_context.clone(),
     }
@@ -1498,8 +1510,14 @@ async fn stream_agent_reply_once<F>(
 where
     F: FnMut(&RuntimeAgentEvent),
 {
+    let started_at = Instant::now();
     let mut auto_compaction_projection = AutoCompactionProjectionState;
     let mut inline_provider_error = None;
+    tracing::info!(
+        "[AsterAgent][TTFT] agent.reply start: session_id={}, message_chars={}",
+        session_config.id,
+        user_message.as_concat_text().chars().count()
+    );
     let mut stream = agent
         .reply(user_message, session_config, cancel_token)
         .await
@@ -1507,6 +1525,10 @@ where
             message: format!("Agent error: {e}"),
             emitted_any: *emitted_any,
         })?;
+    tracing::info!(
+        "[AsterAgent][TTFT] agent.reply stream created: elapsed_ms={}",
+        started_at.elapsed().as_millis()
+    );
 
     while let Some(event_result) = stream.next().await {
         match event_result {
@@ -1533,6 +1555,13 @@ where
                     match &runtime_event {
                         RuntimeAgentEvent::TextDelta { text } => {
                             if !text.is_empty() {
+                                if diagnostics.text_delta_count == 0 {
+                                    tracing::info!(
+                                        "[AsterAgent][TTFT] first runtime text delta observed in policy stream: elapsed_ms={}, chars={}",
+                                        started_at.elapsed().as_millis(),
+                                        text.chars().count()
+                                    );
+                                }
                                 text_chunks.push(text.clone());
                             }
                         }
@@ -1616,15 +1645,19 @@ fn extract_inline_agent_provider_error(message: &Message) -> Option<String> {
 /// - 将预检索结果压缩注入 system prompt，帮助模型做更深的事实整合。
 /// - 若本回合被明确要求必须先搜索，且预检索全部失败，则由上层中断本次回答。
 pub async fn execute_web_search_preflight_if_needed(
-    agent: &Agent,
-    session_id: &str,
-    message_text: &str,
-    working_directory: Option<&Path>,
-    cancel_token: Option<CancellationToken>,
-    turn_context: Option<aster::session::TurnContextOverride>,
-    policy: &RequestToolPolicy,
+    request: WebSearchPreflightRequest<'_>,
     tracker: &mut WebSearchExecutionTracker,
 ) -> Result<PreflightToolExecution, String> {
+    let WebSearchPreflightRequest {
+        agent,
+        session_id,
+        message_text,
+        working_directory,
+        cancel_token,
+        turn_context,
+        policy,
+    } = request;
+
     if !should_run_web_search_preflight(policy, message_text) {
         return Ok(PreflightToolExecution::none());
     }
@@ -1816,20 +1849,29 @@ pub async fn stream_message_reply_with_policy<F>(
 where
     F: FnMut(&RuntimeAgentEvent),
 {
+    let started_at = Instant::now();
     let message_text = user_message.as_concat_text();
     let mut web_search_tracker = WebSearchExecutionTracker::default();
+    tracing::info!(
+        "[AsterAgent][TTFT] stream policy start: session_id={}, message_chars={}, search_mode={}",
+        session_config.id,
+        message_text.chars().count(),
+        request_tool_policy.search_mode.as_str()
+    );
 
     // 对于 Required 模式，preflight 是必须的，必须等待完成
     // 对于 Allowed 模式，preflight 是可选优化，设置超时避免阻塞首字
     let preflight = if request_tool_policy.requires_web_search() {
         execute_web_search_preflight_if_needed(
-            agent,
-            &session_config.id,
-            &message_text,
-            working_directory,
-            cancel_token.clone(),
-            session_config.turn_context.clone(),
-            request_tool_policy,
+            WebSearchPreflightRequest {
+                agent,
+                session_id: &session_config.id,
+                message_text: &message_text,
+                working_directory,
+                cancel_token: cancel_token.clone(),
+                turn_context: session_config.turn_context.clone(),
+                policy: request_tool_policy,
+            },
             &mut web_search_tracker,
         )
         .await
@@ -1838,13 +1880,15 @@ where
         match tokio::time::timeout(
             std::time::Duration::from_millis(OPTIONAL_WEB_SEARCH_PREFLIGHT_TIMEOUT_MS),
             execute_web_search_preflight_if_needed(
-                agent,
-                &session_config.id,
-                &message_text,
-                working_directory,
-                cancel_token.clone(),
-                session_config.turn_context.clone(),
-                request_tool_policy,
+                WebSearchPreflightRequest {
+                    agent,
+                    session_id: &session_config.id,
+                    message_text: &message_text,
+                    working_directory,
+                    cancel_token: cancel_token.clone(),
+                    turn_context: session_config.turn_context.clone(),
+                    policy: request_tool_policy,
+                },
                 &mut optional_preflight_tracker,
             ),
         )
@@ -1872,6 +1916,12 @@ where
             for event in &preflight_execution.events {
                 on_event(event);
             }
+            tracing::info!(
+                "[AsterAgent][TTFT] stream policy preflight complete: session_id={}, events={}, elapsed_ms={}",
+                session_config.id,
+                preflight_execution.events.len(),
+                started_at.elapsed().as_millis()
+            );
             preflight_execution
         }
         Err(error) => {
@@ -1905,6 +1955,13 @@ where
         &mut on_event,
     )
     .await;
+    tracing::info!(
+        "[AsterAgent][TTFT] stream policy first attempt complete: session_id={}, elapsed_ms={}, emitted_any={}, text_deltas={}",
+        session_config.id,
+        started_at.elapsed().as_millis(),
+        emitted_any,
+        diagnostics.text_delta_count
+    );
     if let Err(error) = first_attempt {
         if should_downgrade_provider_tail_failure(&error.message, &diagnostics, emitted_any) {
             tracing::warn!(
@@ -2116,7 +2173,8 @@ where
     }
 
     tracing::info!(
-        "[AsterAgent][Diag] stream summary: text_deltas={}, tool_starts={}, tool_ends={}, context_traces={}, errors={}, max_text_delta_chars={}, max_tool_output_chars={}, max_context_trace_steps={}",
+        "[AsterAgent][Diag] stream summary: elapsed_ms={}, text_deltas={}, tool_starts={}, tool_ends={}, context_traces={}, errors={}, max_text_delta_chars={}, max_tool_output_chars={}, max_context_trace_steps={}",
+        started_at.elapsed().as_millis(),
         diagnostics.text_delta_count,
         diagnostics.tool_start_count,
         diagnostics.tool_end_count,
@@ -2625,13 +2683,15 @@ mod tests {
         let mut tracker = WebSearchExecutionTracker::default();
 
         let execution = execute_web_search_preflight_if_needed(
-            &agent,
-            "session-web-preflight-permission",
-            "继续",
-            None,
-            None,
-            Some(turn_context),
-            &policy,
+            WebSearchPreflightRequest {
+                agent: &agent,
+                session_id: "session-web-preflight-permission",
+                message_text: "继续",
+                working_directory: None,
+                cancel_token: None,
+                turn_context: Some(turn_context),
+                policy: &policy,
+            },
             &mut tracker,
         )
         .await
@@ -2944,6 +3004,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: Some(build_auto_compaction_disabled_turn_context()),
         };
@@ -3018,6 +3079,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: None,
         };
@@ -3072,6 +3134,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: None,
         };

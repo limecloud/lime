@@ -132,6 +132,7 @@ pub(crate) async fn submit_runtime_turn(
     automation_state: &AutomationServiceState,
     queued_task: QueuedTurnTask<Value>,
     queue_if_busy: bool,
+    skip_pre_submit_resume: bool,
     executor: RuntimeQueueExecutor,
 ) -> Result<(), String> {
     let context = build_runtime_queue_context(
@@ -147,6 +148,7 @@ pub(crate) async fn submit_runtime_turn(
     submit_runtime_turn_impl(
         queued_task,
         queue_if_busy,
+        skip_pre_submit_resume,
         context.clone(),
         executor,
         build_runtime_queue_event_emitter(&context.app),

@@ -467,11 +467,7 @@ describe("useOemLimeHubProviderSync", () => {
       {
         name: "Lime Desktop Cloud Model Key",
         scopes: ["llm:invoke"],
-        allowedModels: [
-          "gpt-5.2-pro",
-          "gpt-5.2-fast",
-          "claude-opus-4-7",
-        ],
+        allowedModels: ["gpt-5.2-pro", "gpt-5.2-fast", "claude-opus-4-7"],
       },
     );
     expect(apiKeyProviderMocks.addApiKey).toHaveBeenCalledWith({

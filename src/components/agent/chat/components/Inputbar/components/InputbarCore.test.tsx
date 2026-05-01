@@ -377,9 +377,7 @@ describe("InputbarCore", () => {
     expect(setText).toHaveBeenCalledWith("实时识别文本");
     const recordingButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((button) =>
-      button.getAttribute("aria-label")?.includes("实时识别"),
-    );
+    ).find((button) => button.getAttribute("aria-label")?.includes("实时识别"));
     expect(recordingButton).toBeTruthy();
   });
 

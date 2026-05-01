@@ -639,6 +639,7 @@ export interface AgentUserInputOp {
   metadata?: Record<string, unknown>;
   queueIfBusy?: boolean;
   queuedTurnId?: string;
+  skipPreSubmitResume?: boolean;
 }
 
 export interface AgentInterruptOp {
@@ -1142,5 +1143,6 @@ export function createSubmitTurnRequestFromAgentOp(
     },
     queue_if_busy: op.queueIfBusy,
     queued_turn_id: op.queuedTurnId,
+    skip_pre_submit_resume: op.skipPreSubmitResume,
   };
 }

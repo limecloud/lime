@@ -4,6 +4,7 @@ import { emitImageWorkbenchFocus } from "@/lib/imageWorkbenchEvents";
 import { cn } from "@/lib/utils";
 import type { MessageImageWorkbenchPreview } from "../types";
 import { RenderableTaskImage } from "./RenderableTaskImage";
+import { buildLimeCorePolicyEvaluationMetaItem } from "../workspace/mediaTaskPolicyEvaluation";
 
 interface ImageWorkbenchMessagePreviewProps {
   preview: MessageImageWorkbenchPreview;
@@ -295,6 +296,20 @@ function resolvePreviewMetaLabels(
   expectedImageCount: number,
 ): string[] {
   const labels: string[] = [];
+  const policyLabel = buildLimeCorePolicyEvaluationMetaItem({
+    evaluationStatus: preview.runtimeContract?.limecorePolicyEvaluationStatus,
+    evaluationDecision:
+      preview.runtimeContract?.limecorePolicyEvaluationDecision,
+    blockingRefs: preview.runtimeContract?.limecorePolicyEvaluationBlockingRefs,
+    askRefs: preview.runtimeContract?.limecorePolicyEvaluationAskRefs,
+    pendingRefs: preview.runtimeContract?.limecorePolicyEvaluationPendingRefs,
+    missingInputs: preview.runtimeContract?.limecorePolicyMissingInputs,
+    pendingHitRefs: preview.runtimeContract?.limecorePolicyPendingHitRefs,
+  });
+
+  if (policyLabel) {
+    labels.push(policyLabel);
+  }
 
   if (preview.layoutHint === "storyboard_3x3" && expectedImageCount >= 4) {
     labels.push("3x3 分镜");

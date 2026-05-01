@@ -533,9 +533,7 @@ export function EmptyStateComposerPanel({
           aria-label={
             fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"
           }
-          title={
-            fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"
-          }
+          title={fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"}
           data-testid="inputbar-file-manager-toggle"
           onClick={onToggleFileManager}
         >

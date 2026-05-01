@@ -23,6 +23,7 @@ export type Page =
   | "openclaw"
   | "agent"
   | "skills"
+  | "knowledge"
   | "sceneapps"
   | "automation"
   | "channels"
@@ -164,6 +165,11 @@ export interface SkillsPageParams {
   creationProjectId?: string;
 }
 
+export interface KnowledgePageParams {
+  workingDir?: string;
+  selectedPackName?: string;
+}
+
 export type AutomationWorkspaceTab = "tasks" | "overview";
 
 export interface AutomationPageParams {
@@ -222,6 +228,7 @@ export type PageParams =
   | SettingsPageParams
   | OpenClawPageParams
   | SkillsPageParams
+  | KnowledgePageParams
   | SceneAppsPageParams
   | MemoryPageParams
   | Record<string, unknown>;

@@ -3,6 +3,7 @@ export type {
   AgentRuntimeClient,
   AgentRuntimeClientDeps,
 } from "./clientFactory";
+export type { AgentRuntimeCreateSessionOptions } from "./types";
 export {
   configureAsterProvider,
   createAgentClient,

@@ -279,6 +279,13 @@ describe("ImageTaskViewer", () => {
             routingSlot: "image_task",
             routingEvent: "model_routing_decision",
             routingOutcome: "accepted",
+            limecorePolicyEvaluationStatus: "input_gap",
+            limecorePolicyEvaluationDecision: "ask",
+            limecorePolicyEvaluationPendingRefs: [
+              "model_catalog",
+              "provider_offer",
+              "tenant_feature_flags",
+            ],
           },
         },
       ],
@@ -302,6 +309,7 @@ describe("ImageTaskViewer", () => {
     expect(badge?.textContent).toContain(
       "运行合同 · 已按 image_generation 路由",
     );
+    expect(container.textContent).toContain("LimeCore 策略输入待命中: 3");
   });
 
   it("任务 viewer 应展示合同阻止与 registry 能力缺口", () => {

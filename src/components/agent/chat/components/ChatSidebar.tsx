@@ -9,6 +9,7 @@ import {
   ArrowUpLeft,
   BrainCircuit,
   Bot,
+  BookOpen,
   ChevronDown,
   Clock3,
   GitBranch,
@@ -130,6 +131,7 @@ interface ChatSidebarProps {
   onNewChat: () => void;
   onOpenTaskCenterHome?: () => void;
   onOpenSkillsPage?: () => void;
+  onOpenKnowledgePage?: () => void;
   onOpenMemoryPage?: () => void;
   topics: Topic[];
   currentTopicId: string | null;
@@ -520,6 +522,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onNewChat,
   onOpenTaskCenterHome,
   onOpenSkillsPage,
+  onOpenKnowledgePage,
   onOpenMemoryPage,
   topics,
   currentTopicId,
@@ -794,6 +797,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         title: "资料",
         items: [
           {
+            id: "knowledge",
+            label: "知识库",
+            icon: BookOpen,
+            onClick: onOpenKnowledgePage,
+          },
+          {
             id: "memory",
             label: "灵感库",
             icon: BrainCircuit,
@@ -802,7 +811,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         ],
       },
     ],
-    [onNewChat, onOpenMemoryPage, onOpenSkillsPage, onOpenTaskCenterHome],
+    [
+      onNewChat,
+      onOpenKnowledgePage,
+      onOpenMemoryPage,
+      onOpenSkillsPage,
+      onOpenTaskCenterHome,
+    ],
   );
 
   useEffect(() => {

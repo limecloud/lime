@@ -3,6 +3,12 @@ use crate::agent_tools::catalog::LIME_RUN_SERVICE_SKILL_TOOL_NAME;
 use crate::commands::aster_agent_cmd::service_skill_launch::{
     extract_service_scene_launch_context, ServiceSceneLaunchContext,
 };
+use crate::commands::modality_runtime_contracts::{
+    voice_generation_runtime_contract, VOICE_GENERATION_CONTRACT_KEY,
+    VOICE_GENERATION_EXECUTION_PROFILE_KEY, VOICE_GENERATION_EXECUTOR_ADAPTER_KEY,
+    VOICE_GENERATION_EXECUTOR_BINDING_KEY, VOICE_GENERATION_MODALITY,
+    VOICE_GENERATION_REQUIRED_CAPABILITIES, VOICE_GENERATION_ROUTING_SLOT,
+};
 use aster::session::{load_shared_session_runtime_snapshot, SessionRuntimeSnapshot};
 
 const SERVICE_SCENE_LAUNCH_CONTEXT_ENV_KEYS: &[&str] = &[
@@ -23,6 +29,29 @@ struct ServiceSkillRunToolInput {
     _poll_interval_ms: Option<u64>,
 }
 
+#[derive(Debug, Clone)]
+struct ServiceSceneRuntimeContractMetadata {
+    contract_key: String,
+    modality: String,
+    required_capabilities: Vec<String>,
+    routing_slot: String,
+    runtime_contract: serde_json::Value,
+    entry_source: Option<String>,
+}
+
+impl ServiceSceneRuntimeContractMetadata {
+    fn metadata_value(&self) -> serde_json::Value {
+        serde_json::json!({
+            "contractKey": self.contract_key,
+            "modality": self.modality,
+            "requiredCapabilities": self.required_capabilities,
+            "routingSlot": self.routing_slot,
+            "runtimeContract": self.runtime_contract,
+            "entrySource": self.entry_source,
+        })
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct LimeRunServiceSkillTool;
 
@@ -36,6 +65,314 @@ impl LimeRunServiceSkillTool {
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(ToString::to_string)
+    }
+
+    fn read_runtime_contract_string(
+        runtime_contract: &serde_json::Value,
+        snake_path: &[&str],
+        camel_path: &[&str],
+    ) -> Option<String> {
+        runtime_contract
+            .pointer(&format!("/{}", snake_path.join("/")))
+            .or_else(|| runtime_contract.pointer(&format!("/{}", camel_path.join("/"))))
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    }
+
+    fn read_string_array(value: Option<&serde_json::Value>) -> Vec<String> {
+        value
+            .and_then(serde_json::Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|item| !item.is_empty())
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    }
+
+    fn is_voice_generation_launch_context(launch_context: &ServiceSceneLaunchContext) -> bool {
+        launch_context.modality_contract_key.as_deref() == Some(VOICE_GENERATION_CONTRACT_KEY)
+            || launch_context.scene_key.as_deref() == Some("voice_runtime")
+            || launch_context.entry_source.as_deref() == Some("at_voice_command")
+            || launch_context.routing_slot.as_deref() == Some(VOICE_GENERATION_ROUTING_SLOT)
+    }
+
+    fn build_voice_generation_contract_metadata(
+        launch_context: &ServiceSceneLaunchContext,
+    ) -> Option<ServiceSceneRuntimeContractMetadata> {
+        if !Self::is_voice_generation_launch_context(launch_context) {
+            return None;
+        }
+
+        let default_runtime_contract = voice_generation_runtime_contract();
+        let runtime_contract = launch_context
+            .runtime_contract
+            .clone()
+            .unwrap_or(default_runtime_contract);
+        let modality = launch_context
+            .modality
+            .clone()
+            .or_else(|| {
+                Self::read_runtime_contract_string(&runtime_contract, &["modality"], &["modality"])
+            })
+            .unwrap_or_else(|| VOICE_GENERATION_MODALITY.to_string());
+        let required_capabilities = if launch_context.required_capabilities.is_empty() {
+            let from_contract = Self::read_string_array(
+                runtime_contract
+                    .get("required_capabilities")
+                    .or_else(|| runtime_contract.get("requiredCapabilities")),
+            );
+            if from_contract.is_empty() {
+                VOICE_GENERATION_REQUIRED_CAPABILITIES
+                    .iter()
+                    .map(|value| (*value).to_string())
+                    .collect()
+            } else {
+                from_contract
+            }
+        } else {
+            launch_context.required_capabilities.clone()
+        };
+        let routing_slot = launch_context
+            .routing_slot
+            .clone()
+            .or_else(|| {
+                Self::read_runtime_contract_string(
+                    &runtime_contract,
+                    &["routing_slot"],
+                    &["routingSlot"],
+                )
+            })
+            .unwrap_or_else(|| VOICE_GENERATION_ROUTING_SLOT.to_string());
+
+        Some(ServiceSceneRuntimeContractMetadata {
+            contract_key: VOICE_GENERATION_CONTRACT_KEY.to_string(),
+            modality,
+            required_capabilities,
+            routing_slot,
+            runtime_contract,
+            entry_source: launch_context.entry_source.clone(),
+        })
+    }
+
+    fn attach_modality_runtime_contract_metadata(
+        mut tool_result: ToolResult,
+        metadata: Option<&ServiceSceneRuntimeContractMetadata>,
+    ) -> ToolResult {
+        let Some(metadata) = metadata else {
+            return tool_result;
+        };
+
+        tool_result = tool_result
+            .with_metadata(
+                "modality_contract_key",
+                serde_json::json!(metadata.contract_key),
+            )
+            .with_metadata("modality", serde_json::json!(metadata.modality))
+            .with_metadata(
+                "required_capabilities",
+                serde_json::json!(metadata.required_capabilities),
+            )
+            .with_metadata("routing_slot", serde_json::json!(metadata.routing_slot))
+            .with_metadata("runtime_contract", metadata.runtime_contract.clone())
+            .with_metadata("modality_runtime_contract", metadata.metadata_value());
+        if let Some(entry_source) = metadata.entry_source.as_ref() {
+            tool_result =
+                tool_result.with_metadata("entry_source", serde_json::json!(entry_source));
+        }
+        tool_result
+    }
+
+    fn build_runtime_preflight_error_result(
+        launch_context: &ServiceSceneLaunchContext,
+        metadata: &ServiceSceneRuntimeContractMetadata,
+        suffix: &str,
+        message: String,
+    ) -> ToolResult {
+        let result_payload = serde_json::json!({
+            "success": false,
+            "compatOnly": true,
+            "serviceSkill": {
+                "id": launch_context.service_skill_id,
+                "key": launch_context.service_skill_key,
+                "title": launch_context.skill_title,
+                "summary": launch_context.skill_summary,
+            },
+            "scene": {
+                "sceneKey": launch_context.scene_key,
+                "commandPrefix": launch_context.command_prefix,
+            },
+            "error": {
+                "code": format!("{}_{}", metadata.contract_key, suffix),
+                "message": message,
+                "stage": "runtime_preflight",
+                "retryable": false,
+            }
+        });
+
+        let mut tool_result = ToolResult::error(message)
+            .with_metadata("tool_family", serde_json::json!("service_skill"))
+            .with_metadata("compat_only", serde_json::json!(true))
+            .with_metadata("runtime_preflight", serde_json::json!(true))
+            .with_metadata(
+                "preflight_check",
+                serde_json::json!(format!("{}_{}", metadata.contract_key, suffix)),
+            )
+            .with_metadata(
+                "last_error",
+                serde_json::json!({
+                    "code": format!("{}_{}", metadata.contract_key, suffix),
+                    "message": result_payload
+                        .pointer("/error/message")
+                        .and_then(serde_json::Value::as_str),
+                    "stage": "runtime_preflight",
+                    "retryable": false,
+                }),
+            )
+            .with_metadata("normalized_status", serde_json::json!("failed"))
+            .with_metadata("result", result_payload)
+            .with_metadata(
+                "service_skill_id",
+                serde_json::json!(launch_context.service_skill_id),
+            );
+        if let Some(scene_key) = launch_context.scene_key.as_ref() {
+            tool_result = tool_result.with_metadata("scene_key", serde_json::json!(scene_key));
+        }
+        Self::attach_modality_runtime_contract_metadata(tool_result, Some(metadata))
+    }
+
+    fn validate_voice_generation_runtime_preflight(
+        launch_context: &ServiceSceneLaunchContext,
+        metadata: &ServiceSceneRuntimeContractMetadata,
+    ) -> Result<(), ToolResult> {
+        let contract_key = Self::read_runtime_contract_string(
+            &metadata.runtime_contract,
+            &["contract_key"],
+            &["contractKey"],
+        )
+        .ok_or_else(|| {
+            Self::build_runtime_preflight_error_result(
+                launch_context,
+                metadata,
+                "contract_key_missing",
+                format!(
+                    "{VOICE_GENERATION_CONTRACT_KEY} runtime_contract 缺少 contract_key，已阻止进入服务型兼容执行器。"
+                ),
+            )
+        })?;
+        if contract_key != VOICE_GENERATION_CONTRACT_KEY {
+            return Err(Self::build_runtime_preflight_error_result(
+                launch_context,
+                metadata,
+                "contract_key_mismatch",
+                format!(
+                    "{VOICE_GENERATION_CONTRACT_KEY} runtime_contract contract_key 必须是 {VOICE_GENERATION_CONTRACT_KEY}，收到 {contract_key}。"
+                ),
+            ));
+        }
+
+        let execution_profile_key = Self::read_runtime_contract_string(
+            &metadata.runtime_contract,
+            &["execution_profile", "profile_key"],
+            &["executionProfile", "profileKey"],
+        )
+        .ok_or_else(|| {
+            Self::build_runtime_preflight_error_result(
+                launch_context,
+                metadata,
+                "execution_profile_missing",
+                format!(
+                    "{VOICE_GENERATION_CONTRACT_KEY} runtime_contract 缺少 execution_profile.profile_key，已阻止进入服务型兼容执行器。"
+                ),
+            )
+        })?;
+        if execution_profile_key != VOICE_GENERATION_EXECUTION_PROFILE_KEY {
+            return Err(Self::build_runtime_preflight_error_result(
+                launch_context,
+                metadata,
+                "execution_profile_mismatch",
+                format!(
+                    "{VOICE_GENERATION_CONTRACT_KEY} execution_profile 必须是 {VOICE_GENERATION_EXECUTION_PROFILE_KEY}，收到 {execution_profile_key}。"
+                ),
+            ));
+        }
+
+        let executor_adapter_key = Self::read_runtime_contract_string(
+            &metadata.runtime_contract,
+            &["executor_adapter", "adapter_key"],
+            &["executorAdapter", "adapterKey"],
+        )
+        .ok_or_else(|| {
+            Self::build_runtime_preflight_error_result(
+                launch_context,
+                metadata,
+                "executor_adapter_missing",
+                format!(
+                    "{VOICE_GENERATION_CONTRACT_KEY} runtime_contract 缺少 executor_adapter.adapter_key，已阻止进入服务型兼容执行器。"
+                ),
+            )
+        })?;
+        if executor_adapter_key != VOICE_GENERATION_EXECUTOR_ADAPTER_KEY {
+            return Err(Self::build_runtime_preflight_error_result(
+                launch_context,
+                metadata,
+                "executor_adapter_mismatch",
+                format!(
+                    "{VOICE_GENERATION_CONTRACT_KEY} executor_adapter 必须是 {VOICE_GENERATION_EXECUTOR_ADAPTER_KEY}，收到 {executor_adapter_key}。"
+                ),
+            ));
+        }
+
+        let executor_kind = Self::read_runtime_contract_string(
+            &metadata.runtime_contract,
+            &["executor_binding", "executor_kind"],
+            &["executorBinding", "executorKind"],
+        )
+        .ok_or_else(|| {
+            Self::build_runtime_preflight_error_result(
+                launch_context,
+                metadata,
+                "executor_binding_missing",
+                format!(
+                    "{VOICE_GENERATION_CONTRACT_KEY} runtime_contract 缺少 executor_binding.executor_kind，已阻止进入服务型兼容执行器。"
+                ),
+            )
+        })?;
+        let executor_binding_key = Self::read_runtime_contract_string(
+            &metadata.runtime_contract,
+            &["executor_binding", "binding_key"],
+            &["executorBinding", "bindingKey"],
+        )
+        .ok_or_else(|| {
+            Self::build_runtime_preflight_error_result(
+                launch_context,
+                metadata,
+                "executor_binding_missing",
+                format!(
+                    "{VOICE_GENERATION_CONTRACT_KEY} runtime_contract 缺少 executor_binding.binding_key，已阻止进入服务型兼容执行器。"
+                ),
+            )
+        })?;
+        if executor_kind != "service_skill"
+            || executor_binding_key != VOICE_GENERATION_EXECUTOR_BINDING_KEY
+        {
+            return Err(Self::build_runtime_preflight_error_result(
+                launch_context,
+                metadata,
+                "executor_binding_mismatch",
+                format!(
+                    "{VOICE_GENERATION_CONTRACT_KEY} executor_binding 必须是 service_skill:{VOICE_GENERATION_EXECUTOR_BINDING_KEY}，收到 {executor_kind}:{executor_binding_key}。"
+                ),
+            ));
+        }
+
+        Ok(())
     }
 
     fn build_request_metadata_value(
@@ -244,6 +581,15 @@ impl Tool for LimeRunServiceSkillTool {
         let input: ServiceSkillRunToolInput = serde_json::from_value(params)
             .map_err(|error| ToolError::invalid_params(format!("参数解析失败: {error}")))?;
         let launch_context = Self::resolve_launch_context(context).await?;
+        let runtime_contract_metadata =
+            Self::build_voice_generation_contract_metadata(&launch_context);
+        if let Some(metadata) = runtime_contract_metadata.as_ref() {
+            if let Err(tool_result) =
+                Self::validate_voice_generation_runtime_preflight(&launch_context, metadata)
+            {
+                return Ok(tool_result);
+            }
+        }
         let effective_input = Self::resolve_effective_input(&launch_context, &input)?;
         let payload = Self::build_compat_payload(&launch_context, &effective_input);
         let summary = Self::build_compat_summary(&launch_context);
@@ -263,7 +609,10 @@ impl Tool for LimeRunServiceSkillTool {
             result = result.with_metadata("scene_key", serde_json::json!(scene_key));
         }
 
-        Ok(result)
+        Ok(Self::attach_modality_runtime_contract_metadata(
+            result,
+            runtime_contract_metadata.as_ref(),
+        ))
     }
 }
 
@@ -448,6 +797,151 @@ mod tests {
         assert_eq!(
             result.metadata.get("service_skill_id"),
             Some(&serde_json::json!("skill-local"))
+        );
+    }
+
+    #[tokio::test]
+    async fn should_attach_voice_generation_contract_to_compat_guard_result() {
+        let tool = LimeRunServiceSkillTool::new();
+        let context = ToolContext::new(PathBuf::from("/tmp/service-scene")).with_environment(
+            HashMap::from([(
+                SERVICE_SCENE_LAUNCH_CONTEXT_ENV_KEYS[0].to_string(),
+                serde_json::json!({
+                    "kind": "local_service_skill",
+                    "service_scene_run": {
+                        "skill_id": "voice-skill-1",
+                        "skill_title": "视频配音",
+                        "scene_key": "voice_runtime",
+                        "entry_source": "at_voice_command",
+                        "execution_kind": "agent_turn",
+                        "user_input": "给这段新品文案做一版温暖配音",
+                        "modality_contract_key": "voice_generation",
+                        "modality": "audio",
+                        "required_capabilities": ["text_generation", "voice_generation"],
+                        "routing_slot": "voice_generation_model",
+                        "runtime_contract": {
+                            "contract_key": "voice_generation",
+                            "modality": "audio",
+                            "routing_slot": "voice_generation_model",
+                            "executor_binding": {
+                                "executor_kind": "service_skill",
+                                "binding_key": "voice_runtime"
+                            },
+                            "execution_profile": {
+                                "profile_key": "voice_generation_profile"
+                            },
+                            "executor_adapter": {
+                                "adapter_key": "service_skill:voice_runtime"
+                            }
+                        }
+                    }
+                })
+                .to_string(),
+            )]),
+        );
+
+        let result = tool
+            .execute(serde_json::json!({}), &context)
+            .await
+            .expect("tool should return compat guard result");
+
+        assert!(!result.success);
+        assert_eq!(
+            result.metadata.get("compat_only"),
+            Some(&serde_json::json!(true))
+        );
+        assert_eq!(result.metadata.get("runtime_preflight"), None);
+        assert_eq!(
+            result.metadata.get("modality_contract_key"),
+            Some(&serde_json::json!("voice_generation"))
+        );
+        assert_eq!(
+            result
+                .metadata
+                .get("runtime_contract")
+                .and_then(|value| value.pointer("/executor_adapter/adapter_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("service_skill:voice_runtime")
+        );
+        assert_eq!(
+            result
+                .metadata
+                .get("modality_runtime_contract")
+                .and_then(|value| value.pointer("/runtimeContract/executor_binding/binding_key"))
+                .and_then(serde_json::Value::as_str),
+            Some("voice_runtime")
+        );
+    }
+
+    #[tokio::test]
+    async fn should_reject_voice_generation_wrong_executor_adapter() {
+        let tool = LimeRunServiceSkillTool::new();
+        let context = ToolContext::new(PathBuf::from("/tmp/service-scene")).with_environment(
+            HashMap::from([(
+                SERVICE_SCENE_LAUNCH_CONTEXT_ENV_KEYS[0].to_string(),
+                serde_json::json!({
+                    "kind": "local_service_skill",
+                    "service_scene_run": {
+                        "skill_id": "voice-skill-1",
+                        "skill_title": "视频配音",
+                        "scene_key": "voice_runtime",
+                        "entry_source": "at_voice_command",
+                        "execution_kind": "agent_turn",
+                        "user_input": "给这段新品文案做一版温暖配音",
+                        "modality_contract_key": "voice_generation",
+                        "routing_slot": "voice_generation_model",
+                        "runtime_contract": {
+                            "contract_key": "voice_generation",
+                            "modality": "audio",
+                            "routing_slot": "voice_generation_model",
+                            "executor_binding": {
+                                "executor_kind": "service_skill",
+                                "binding_key": "voice_runtime"
+                            },
+                            "execution_profile": {
+                                "profile_key": "voice_generation_profile"
+                            },
+                            "executor_adapter": {
+                                "adapter_key": "scene_cloud:voice_runtime"
+                            }
+                        }
+                    }
+                })
+                .to_string(),
+            )]),
+        );
+
+        let result = tool
+            .execute(serde_json::json!({}), &context)
+            .await
+            .expect("tool should return preflight guard result");
+
+        assert!(!result.success);
+        assert_eq!(
+            result.metadata.get("runtime_preflight"),
+            Some(&serde_json::json!(true))
+        );
+        assert_eq!(
+            result.metadata.get("preflight_check"),
+            Some(&serde_json::json!(
+                "voice_generation_executor_adapter_mismatch"
+            ))
+        );
+        assert_eq!(
+            result
+                .metadata
+                .get("last_error")
+                .and_then(|value| value.get("stage"))
+                .and_then(serde_json::Value::as_str),
+            Some("runtime_preflight")
+        );
+        assert_eq!(
+            result.metadata.get("normalized_status"),
+            Some(&serde_json::json!("failed"))
+        );
+        assert_eq!(
+            result.metadata.get("modality_contract_key"),
+            Some(&serde_json::json!("voice_generation"))
         );
     }
 }

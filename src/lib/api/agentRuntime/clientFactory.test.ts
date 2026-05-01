@@ -9,9 +9,11 @@ describe("agentRuntime clientFactory", () => {
       .mockResolvedValueOnce([{ id: "adapter-1" }]);
     const client = createAgentRuntimeClient({ invoke });
 
-    await expect(client.createAgentRuntimeSession("workspace-1")).resolves.toBe(
-      "session-runtime-1",
-    );
+    await expect(
+      client.createAgentRuntimeSession("workspace-1", undefined, undefined, {
+        runStartHooks: false,
+      }),
+    ).resolves.toBe("session-runtime-1");
     await expect(client.siteListAdapters()).resolves.toEqual([
       { id: "adapter-1" },
     ]);
@@ -20,6 +22,7 @@ describe("agentRuntime clientFactory", () => {
       workspaceId: "workspace-1",
       name: undefined,
       executionStrategy: undefined,
+      runStartHooks: false,
     });
     expect(invoke).toHaveBeenNthCalledWith(2, "site_list_adapters");
   });

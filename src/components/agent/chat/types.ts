@@ -51,6 +51,21 @@ export interface ImageRuntimeContractSnapshot {
   failureCode?: string | null;
   modelCapabilityAssessmentSource?: string | null;
   modelSupportsImageGeneration?: boolean | null;
+  limecorePolicySnapshotStatus?: string | null;
+  limecorePolicyDecision?: string | null;
+  limecorePolicyDecisionSource?: string | null;
+  limecorePolicyDecisionScope?: string | null;
+  limecorePolicyDecisionReason?: string | null;
+  limecorePolicyMissingInputs?: string[];
+  limecorePolicyPendingHitRefs?: string[];
+  limecorePolicyEvaluationStatus?: string | null;
+  limecorePolicyEvaluationDecision?: string | null;
+  limecorePolicyEvaluationDecisionSource?: string | null;
+  limecorePolicyEvaluationDecisionScope?: string | null;
+  limecorePolicyEvaluationDecisionReason?: string | null;
+  limecorePolicyEvaluationBlockingRefs?: string[];
+  limecorePolicyEvaluationAskRefs?: string[];
+  limecorePolicyEvaluationPendingRefs?: string[];
 }
 
 export interface MessageImageWorkbenchPreview {

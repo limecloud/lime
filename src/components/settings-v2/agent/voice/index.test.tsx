@@ -535,8 +535,9 @@ describe("VoiceSettings", () => {
       block: "start",
       behavior: "smooth",
     });
-    expect(window.sessionStorage.getItem(VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY))
-      .toBeNull();
+    expect(
+      window.sessionStorage.getItem(VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY),
+    ).toBeNull();
   });
 
   it("模型下载中应从 0 开始并跟随真实进度事件", async () => {

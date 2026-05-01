@@ -351,9 +351,7 @@ describe("EmptyStateComposerPanel", () => {
     ) as HTMLButtonElement | null;
 
     expect(toggleButton).toBeTruthy();
-    expect(toggleButton?.getAttribute("aria-label")).toBe(
-      "打开左侧文件管理器",
-    );
+    expect(toggleButton?.getAttribute("aria-label")).toBe("打开左侧文件管理器");
 
     act(() => {
       toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

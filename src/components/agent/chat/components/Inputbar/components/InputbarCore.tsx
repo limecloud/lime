@@ -355,7 +355,9 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       onKeyDown={handleInputSuggestionKeyDown}
       isFullscreen={isFullscreen}
       fillHeightWhenFullscreen
-      hasAdditionalContent={pendingImages.length > 0 || pathReferences.length > 0}
+      hasAdditionalContent={
+        pendingImages.length > 0 || pathReferences.length > 0
+      }
       maxAutoHeight={isTextareaExpanded ? 360 : isFloatingVariant ? 240 : 120}
       textareaRef={resolvedTextareaRef}
       onEscape={() => onToolClick("fullscreen")}
@@ -435,8 +437,12 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                           <ReferenceIcon size={14} aria-hidden />
                         </PathReferenceIcon>
                         <PathReferenceText>
-                          <PathReferenceName>{reference.name}</PathReferenceName>
-                          <PathReferencePath>{reference.path}</PathReferencePath>
+                          <PathReferenceName>
+                            {reference.name}
+                          </PathReferenceName>
+                          <PathReferencePath>
+                            {reference.path}
+                          </PathReferencePath>
                         </PathReferenceText>
                         <PathReferenceRemoveButton
                           type="button"

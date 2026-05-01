@@ -151,6 +151,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("我的方法");
     expect(container.textContent).toContain("资料");
     expect(container.textContent).toContain("灵感库");
+    expect(container.textContent).toContain("知识库");
     expect(searchInput).toBeTruthy();
     expect(
       container.querySelector('button[aria-label="新建对话"]'),
@@ -166,11 +167,13 @@ describe("ChatSidebar", () => {
   it("任务中心导航块应支持入口跳转", () => {
     const onOpenTaskCenterHome = vi.fn();
     const onOpenSkillsPage = vi.fn();
+    const onOpenKnowledgePage = vi.fn();
     const onOpenMemoryPage = vi.fn();
     const container = renderSidebar({
       contextVariant: "task-center",
       onOpenTaskCenterHome,
       onOpenSkillsPage,
+      onOpenKnowledgePage,
       onOpenMemoryPage,
     });
 
@@ -191,6 +194,13 @@ describe("ChatSidebar", () => {
     act(() => {
       (
         Array.from(container.querySelectorAll("button")).find((button) =>
+          button.textContent?.includes("知识库"),
+        ) as HTMLButtonElement | undefined
+      )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    act(() => {
+      (
+        Array.from(container.querySelectorAll("button")).find((button) =>
           button.textContent?.includes("灵感库"),
         ) as HTMLButtonElement | undefined
       )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -198,6 +208,7 @@ describe("ChatSidebar", () => {
 
     expect(onOpenTaskCenterHome).toHaveBeenCalledTimes(1);
     expect(onOpenSkillsPage).toHaveBeenCalledTimes(1);
+    expect(onOpenKnowledgePage).toHaveBeenCalledTimes(1);
     expect(onOpenMemoryPage).toHaveBeenCalledTimes(1);
   });
 

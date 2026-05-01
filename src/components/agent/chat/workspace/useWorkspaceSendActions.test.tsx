@@ -628,6 +628,42 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("首轮轻量对话不等待 Provider 列表也应命中内置快速响应路由", async () => {
+    const harness = mountHook({
+      currentProviderType: "lime-hub",
+      currentModel: "gpt-5.5",
+      configuredProviders: [],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend([], false, false, "只回答一个字：好", "react");
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        providerOverride: "deepseek",
+        modelOverride: "deepseek-chat",
+        systemPromptOverride: expect.stringContaining("快速响应助手"),
+        requestMetadata: {
+          harness: {
+            fast_response_routing: {
+              reason: "first-turn-low-latency",
+              provider: "deepseek",
+              model: "deepseek-chat",
+              routing_changed: true,
+            },
+          },
+        },
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("当前为 DeepSeek 推理模型时首轮轻量对话应降级到非推理 chat", async () => {
     const harness = mountHook({
       currentProviderType: "deepseek",
@@ -686,6 +722,47 @@ describe("useWorkspaceSendActions", () => {
         providerOverride: "deepseek",
         modelOverride: "deepseek-chat",
         systemPromptOverride: expect.stringContaining("快速响应助手"),
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("首页快路径首轮普通发送不应预热旧会话恢复", async () => {
+    const harness = mountHook({
+      currentProviderType: "lime-hub",
+      currentModel: "gpt-5.5",
+      configuredProviders: [],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend(
+            [],
+            false,
+            false,
+            "只回答一个字：好",
+            "react",
+            undefined,
+            {
+              skipSessionRestore: true,
+              skipSessionStartHooks: true,
+              skipPreSubmitResume: true,
+            },
+          );
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockEnsureSessionForCommandMetadata).not.toHaveBeenCalled();
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        skipSessionRestore: true,
+        skipSessionStartHooks: true,
+        skipPreSubmitResume: true,
+        providerOverride: "deepseek",
+        modelOverride: "deepseek-chat",
       });
     } finally {
       harness.unmount();

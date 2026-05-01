@@ -9,7 +9,8 @@ use lime_core::models::parse_skill_manifest_from_content;
 use lime_core::models::{
     ANALYSIS_SKILL_DIRECTORY, BROADCAST_GENERATE_SKILL_DIRECTORY,
     CONTENT_POST_WITH_COVER_SKILL_DIRECTORY, COVER_GENERATE_SKILL_DIRECTORY,
-    FORM_GENERATE_SKILL_DIRECTORY, IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY,
+    FORM_GENERATE_SKILL_DIRECTORY, IMAGE_GENERATE_SKILL_DIRECTORY,
+    KNOWLEDGE_BUILDER_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY,
     MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY, PDF_READ_SKILL_DIRECTORY,
     PRESENTATION_GENERATE_SKILL_DIRECTORY, REPORT_GENERATE_SKILL_DIRECTORY,
     RESEARCH_SKILL_DIRECTORY, SITE_SEARCH_SKILL_DIRECTORY, SUMMARY_SKILL_DIRECTORY,
@@ -86,6 +87,9 @@ const CONTENT_POST_WITH_COVER_SKILL_CONTENT: &str =
 const CONTENT_POST_WITH_COVER_WORKFLOW_CONTENT: &str =
     include_str!("../../resources/default-skills/content_post_with_cover/references/workflow.json");
 
+const KNOWLEDGE_BUILDER_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/knowledge_builder/SKILL.md");
+
 #[derive(Clone, Copy)]
 struct BundledSkillFile {
     relative_path: &'static str,
@@ -109,7 +113,7 @@ const SITE_SEARCH_EXTRA_FILES: &[BundledSkillFile] = &[BundledSkillFile {
     content: SITE_SEARCH_ADAPTER_CATALOG_CONTENT,
 }];
 
-fn default_skills() -> [BundledSkillDefinition; 20] {
+fn default_skills() -> [BundledSkillDefinition; 21] {
     [
         BundledSkillDefinition {
             directory: VIDEO_GENERATE_SKILL_DIRECTORY,
@@ -210,6 +214,11 @@ fn default_skills() -> [BundledSkillDefinition; 20] {
             directory: CONTENT_POST_WITH_COVER_SKILL_DIRECTORY,
             skill_content: CONTENT_POST_WITH_COVER_SKILL_CONTENT,
             extra_files: CONTENT_POST_WITH_COVER_EXTRA_FILES,
+        },
+        BundledSkillDefinition {
+            directory: KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
+            skill_content: KNOWLEDGE_BUILDER_SKILL_CONTENT,
+            extra_files: &[],
         },
     ]
 }
@@ -386,6 +395,11 @@ mod tests {
         assert!(CONTENT_POST_WITH_COVER_SKILL_CONTENT.contains("状态：{成功/失败}"));
         assert!(CONTENT_POST_WITH_COVER_SKILL_CONTENT.contains("lime_workflow_ref"));
         assert!(CONTENT_POST_WITH_COVER_WORKFLOW_CONTENT.contains("\"id\": \"research\""));
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("name: knowledge_builder"));
+        assert!(
+            KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("allowed-tools: list_directory, read_file")
+        );
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("compiled/brief.md"));
     }
 
     #[test]
@@ -430,6 +444,7 @@ mod tests {
         assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`zhihu/hot`"));
         assert!(TYPESETTING_SKILL_CONTENT.contains("name: typesetting"));
         assert!(WEBPAGE_GENERATE_SKILL_CONTENT.contains("name: webpage_generate"));
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("name: knowledge_builder"));
         assert!(VIDEO_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(TRANSCRIPTION_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(BROADCAST_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
@@ -438,6 +453,7 @@ mod tests {
         assert!(IMAGE_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(TYPESETTING_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(WEBPAGE_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(LIBRARY_SKILL_CONTENT.contains("lime_surface: chat"));
         assert!(URL_PARSE_SKILL_CONTENT.contains("lime_surface: chat"));
         assert!(RESEARCH_SKILL_CONTENT.contains("lime_surface: chat"));

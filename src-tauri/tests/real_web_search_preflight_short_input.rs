@@ -1,6 +1,6 @@
 use lime_agent::{
     execute_web_search_preflight_if_needed, resolve_request_tool_policy_with_mode, AsterAgentState,
-    RequestToolPolicyMode, WebSearchExecutionTracker,
+    RequestToolPolicyMode, WebSearchExecutionTracker, WebSearchPreflightRequest,
 };
 use lime_core::database::dao::api_key_provider::ApiProviderType;
 use lime_core::database::init_database;
@@ -99,13 +99,15 @@ async fn test_real_web_search_preflight_short_input_continue() {
         ..aster::session::TurnContextOverride::default()
     };
     let execution = execute_web_search_preflight_if_needed(
-        agent,
-        &session_id,
-        "继续",
-        None,
-        None,
-        Some(turn_context),
-        &policy,
+        WebSearchPreflightRequest {
+            agent,
+            session_id: &session_id,
+            message_text: "继续",
+            working_directory: None,
+            cancel_token: None,
+            turn_context: Some(turn_context),
+            policy: &policy,
+        },
         &mut tracker,
     )
     .await

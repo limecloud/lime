@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/agentRuntimeEvents";
 import {
   createAgentRuntimeClient,
+  type AgentRuntimeCreateSessionOptions,
   type AgentRuntimeGetSessionOptions,
   type AgentRuntimeListSessionsOptions,
   type AgentRuntimeReplayedActionRequiredView,
@@ -47,6 +48,7 @@ export interface AgentRuntimeAdapter {
     workspaceId: string,
     name?: string,
     executionStrategy?: AsterExecutionStrategy,
+    options?: AgentRuntimeCreateSessionOptions,
   ): Promise<string>;
   listSessions(
     options?: AgentRuntimeListSessionsOptions,
@@ -133,11 +135,12 @@ export function createAgentRuntimeAdapter({
     async init() {
       return client.initAsterAgent();
     },
-    async createSession(workspaceId, name, executionStrategy) {
+    async createSession(workspaceId, name, executionStrategy, options) {
       return client.createAgentRuntimeSession(
         workspaceId,
         name,
         executionStrategy,
+        options,
       );
     },
     async listSessions(options) {

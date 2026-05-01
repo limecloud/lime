@@ -759,9 +759,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
     const files = event.dataTransfer.files;
     const systemReferences =
-      files && files.length > 0
-        ? readSystemPathReferencesFromFiles(files)
-        : [];
+      files && files.length > 0 ? readSystemPathReferencesFromFiles(files) : [];
     if (systemReferences.length > 0) {
       event.preventDefault();
       event.stopPropagation();
@@ -805,7 +803,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     const hasPathReferences = pathReferences.length > 0;
     if (
       isComposerBusy ||
-      (!inputOverride.trim() && pendingImages.length === 0 && !hasPathReferences)
+      (!inputOverride.trim() &&
+        pendingImages.length === 0 &&
+        !hasPathReferences)
     ) {
       return;
     }

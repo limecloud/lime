@@ -35,6 +35,26 @@ pub struct LimeLlmProvider {
     preferred_provider: Option<String>,
 }
 
+struct GeminiApiCall<'a> {
+    credential_id: &'a str,
+    api_key: &'a str,
+    base_url: Option<&'a str>,
+    excluded_models: &'a [String],
+    system_prompt: &'a str,
+    user_message: &'a str,
+    model: &'a str,
+}
+
+struct ClaudeApiCall<'a> {
+    api_key: &'a str,
+    base_url: Option<&'a str>,
+    provider_type: ApiProviderType,
+    prompt_cache_mode: PromptCacheMode,
+    system_prompt: &'a str,
+    user_message: &'a str,
+    model: &'a str,
+}
+
 impl LimeLlmProvider {
     /// 创建新的 LimeLlmProvider 实例
     ///
@@ -114,11 +134,11 @@ impl LimeLlmProvider {
     ) -> Result<String, SkillError> {
         match &credential.credential {
             RuntimeCredentialData::ClaudeKey { api_key, base_url } => {
-                self.call_claude_api(
+                self.call_claude_api(ClaudeApiCall {
                     api_key,
-                    base_url.as_deref(),
-                    ApiProviderType::AnthropicCompatible,
-                    if matches!(
+                    base_url: base_url.as_deref(),
+                    provider_type: ApiProviderType::AnthropicCompatible,
+                    prompt_cache_mode: if matches!(
                         credential.effective_prompt_cache_mode(),
                         Some(lime_core::models::ProviderPromptCacheMode::Automatic)
                     ) {
@@ -129,7 +149,7 @@ impl LimeLlmProvider {
                     system_prompt,
                     user_message,
                     model,
-                )
+                })
                 .await
             }
             RuntimeCredentialData::OpenAIKey { api_key, base_url } => {
@@ -144,11 +164,11 @@ impl LimeLlmProvider {
             }
             RuntimeCredentialData::AnthropicKey { api_key, base_url } => {
                 // Anthropic API Key 使用 Claude API
-                self.call_claude_api(
+                self.call_claude_api(ClaudeApiCall {
                     api_key,
-                    base_url.as_deref(),
-                    ApiProviderType::Anthropic,
-                    if matches!(
+                    base_url: base_url.as_deref(),
+                    provider_type: ApiProviderType::Anthropic,
+                    prompt_cache_mode: if matches!(
                         credential.effective_prompt_cache_mode(),
                         Some(lime_core::models::ProviderPromptCacheMode::Automatic)
                     ) {
@@ -159,7 +179,7 @@ impl LimeLlmProvider {
                     system_prompt,
                     user_message,
                     model,
-                )
+                })
                 .await
             }
             RuntimeCredentialData::GeminiApiKey {
@@ -167,15 +187,15 @@ impl LimeLlmProvider {
                 base_url,
                 excluded_models,
             } => {
-                self.call_gemini_api(
-                    &credential.uuid,
+                self.call_gemini_api(GeminiApiCall {
+                    credential_id: &credential.uuid,
                     api_key,
-                    base_url.as_deref(),
+                    base_url: base_url.as_deref(),
                     excluded_models,
                     system_prompt,
                     user_message,
                     model,
-                )
+                })
                 .await
             }
             RuntimeCredentialData::VertexKey { .. } => Err(SkillError::ProviderError(format!(
@@ -186,33 +206,24 @@ impl LimeLlmProvider {
     }
 
     /// 调用 Gemini API Key Provider
-    async fn call_gemini_api(
-        &self,
-        credential_id: &str,
-        api_key: &str,
-        base_url: Option<&str>,
-        excluded_models: &[String],
-        system_prompt: &str,
-        user_message: &str,
-        model: &str,
-    ) -> Result<String, SkillError> {
+    async fn call_gemini_api(&self, call: GeminiApiCall<'_>) -> Result<String, SkillError> {
         let credential =
-            GeminiApiKeyCredential::new(credential_id.to_string(), api_key.to_string())
-                .with_base_url(base_url.map(ToString::to_string))
-                .with_excluded_models(excluded_models.to_vec());
+            GeminiApiKeyCredential::new(call.credential_id.to_string(), call.api_key.to_string())
+                .with_base_url(call.base_url.map(ToString::to_string))
+                .with_excluded_models(call.excluded_models.to_vec());
 
-        if !credential.supports_model(model) {
+        if !credential.supports_model(call.model) {
             return Err(SkillError::ProviderError(format!(
                 "Gemini API Key 凭证不支持模型: {}",
-                model
+                call.model
             )));
         }
 
         let provider = GeminiApiKeyProvider::new();
-        let prompt = if system_prompt.trim().is_empty() {
-            user_message.to_string()
+        let prompt = if call.system_prompt.trim().is_empty() {
+            call.user_message.to_string()
         } else {
-            format!("{}\n\n{}", system_prompt, user_message)
+            format!("{}\n\n{}", call.system_prompt, call.user_message)
         };
         let body = serde_json::json!({
             "contents": [
@@ -227,7 +238,7 @@ impl LimeLlmProvider {
         });
 
         let json = provider
-            .generate_content(&credential, model, &body)
+            .generate_content(&credential, call.model, &body)
             .await
             .map_err(|e| SkillError::ProviderError(format!("Gemini API 调用失败: {}", e)))?;
 
@@ -243,33 +254,24 @@ impl LimeLlmProvider {
     }
 
     /// 调用 Claude API
-    async fn call_claude_api(
-        &self,
-        api_key: &str,
-        base_url: Option<&str>,
-        provider_type: ApiProviderType,
-        prompt_cache_mode: PromptCacheMode,
-        system_prompt: &str,
-        user_message: &str,
-        model: &str,
-    ) -> Result<String, SkillError> {
+    async fn call_claude_api(&self, call: ClaudeApiCall<'_>) -> Result<String, SkillError> {
         use lime_core::models::anthropic::AnthropicMessage;
 
         let claude = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
-            api_key.to_string(),
-            base_url.map(|s| s.to_string()),
-            provider_type,
-            prompt_cache_mode,
+            call.api_key.to_string(),
+            call.base_url.map(|s| s.to_string()),
+            call.provider_type,
+            call.prompt_cache_mode,
         );
 
         // 构建 Anthropic 请求
         let request = AnthropicMessagesRequest {
-            model: model.to_string(),
+            model: call.model.to_string(),
             max_tokens: Some(4096),
-            system: Some(serde_json::Value::String(system_prompt.to_string())),
+            system: Some(serde_json::Value::String(call.system_prompt.to_string())),
             messages: vec![AnthropicMessage {
                 role: "user".to_string(),
-                content: serde_json::Value::String(user_message.to_string()),
+                content: serde_json::Value::String(call.user_message.to_string()),
             }],
             stream: false,
             temperature: None,

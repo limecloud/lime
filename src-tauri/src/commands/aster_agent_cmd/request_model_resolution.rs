@@ -12,6 +12,8 @@ use std::collections::HashSet;
 use tauri::Manager;
 
 const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
+const MODALITY_EXECUTION_PROFILES_JSON: &str =
+    include_str!("../../../../src/lib/governance/modalityExecutionProfiles.json");
 
 #[derive(Debug, Clone)]
 struct ProviderResolutionContext {
@@ -57,6 +59,33 @@ struct ResolvedRuntimeProviderSelection {
     pricing: Option<ModelPricing>,
     capability_gap: Option<String>,
     fallback_chain: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RuntimeModelCapabilityRequirement {
+    TextGeneration,
+    VisionInput,
+    ImageGeneration,
+    AudioTranscription,
+    VoiceGeneration,
+    BrowserReasoning,
+    StructuredDocumentGeneration,
+    CheapSummary,
+}
+
+impl RuntimeModelCapabilityRequirement {
+    fn gap_code(self) -> &'static str {
+        match self {
+            Self::TextGeneration => "text_generation_candidate_missing",
+            Self::VisionInput => "vision_candidate_missing",
+            Self::ImageGeneration => "image_generation_candidate_missing",
+            Self::AudioTranscription => "audio_transcription_candidate_missing",
+            Self::VoiceGeneration => "voice_generation_candidate_missing",
+            Self::BrowserReasoning => "browser_reasoning_candidate_missing",
+            Self::StructuredDocumentGeneration => "structured_document_candidate_missing",
+            Self::CheapSummary => "cheap_summary_candidate_missing",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1009,16 +1038,31 @@ fn resolve_catalog_fallback_model_id(
     models: &[EnhancedModelMetadata],
     prefer_reasoning: bool,
     prefer_vision: bool,
+    runtime_requirements: &[RuntimeModelCapabilityRequirement],
 ) -> String {
     if let Some(current_model) = find_model_meta(current_model_id, models) {
-        return current_model.id.clone();
+        if is_runtime_candidate_model(
+            current_model,
+            prefer_reasoning,
+            prefer_vision,
+            runtime_requirements,
+        ) {
+            return current_model.id.clone();
+        }
     }
 
     let current_base_key = normalize_base_model_key(current_model_id);
     let current_lineage_key = normalize_model_lineage_key(current_model_id);
     let mut candidates = models
         .iter()
-        .filter(|candidate| !is_likely_non_chat_model(candidate))
+        .filter(|candidate| {
+            is_runtime_candidate_model(
+                candidate,
+                prefer_reasoning,
+                prefer_vision,
+                runtime_requirements,
+            )
+        })
         .collect::<Vec<_>>();
 
     candidates.sort_by(|left, right| {
@@ -1153,6 +1197,7 @@ fn choose_best_multi_candidate_model(
     models: &[EnhancedModelMetadata],
     thinking_enabled: bool,
     has_images: bool,
+    runtime_requirements: &[RuntimeModelCapabilityRequirement],
 ) -> Option<String> {
     let current_model = find_model_meta(current_model_id, models);
     let current_family = current_model
@@ -1163,8 +1208,14 @@ fn choose_best_multi_candidate_model(
 
     let mut candidates = models
         .iter()
-        .filter(|candidate| is_compatible_candidate_model(candidate, thinking_enabled, has_images))
-        .filter(|candidate| !is_likely_non_chat_model(candidate))
+        .filter(|candidate| {
+            is_runtime_candidate_model(
+                candidate,
+                thinking_enabled,
+                has_images,
+                runtime_requirements,
+            )
+        })
         .collect::<Vec<_>>();
 
     if candidates.is_empty() {
@@ -1438,6 +1489,207 @@ fn extract_turn_context_runtime(
         .and_then(serde_json::Value::as_object)
 }
 
+#[derive(Debug, Clone, Default)]
+struct RuntimeTaskProfileBinding {
+    modality_contract_key: Option<String>,
+    routing_slot: Option<String>,
+    execution_profile_key: Option<String>,
+    executor_adapter_key: Option<String>,
+    executor_kind: Option<String>,
+    executor_binding_key: Option<String>,
+    permission_profile_keys: Vec<String>,
+    user_lock_policy: Option<String>,
+}
+
+fn extract_metadata_string_array(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Vec<String> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .filter_map(|value| normalize_optional_text(Some(value.to_string())))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_nested_metadata_object<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<&'a serde_json::Map<String, serde_json::Value>> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(serde_json::Value::as_object)
+}
+
+fn extract_runtime_contract_from_metadata(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<&serde_json::Map<String, serde_json::Value>> {
+    fn looks_like_runtime_contract(object: &serde_json::Map<String, serde_json::Value>) -> bool {
+        [
+            "contract_key",
+            "contractKey",
+            "execution_profile",
+            "executionProfile",
+            "executor_adapter",
+            "executorAdapter",
+            "executor_binding",
+            "executorBinding",
+        ]
+        .iter()
+        .any(|key| object.contains_key(*key))
+    }
+
+    fn find_runtime_contract(
+        value: &serde_json::Value,
+        depth: usize,
+    ) -> Option<&serde_json::Map<String, serde_json::Value>> {
+        if depth > 8 {
+            return None;
+        }
+        let object = value.as_object()?;
+        if looks_like_runtime_contract(object) {
+            return Some(object);
+        }
+        for key in [
+            "runtime_contract",
+            "runtimeContract",
+            "modality_runtime_contract",
+            "modalityRuntimeContract",
+        ] {
+            if let Some(contract) = object
+                .get(key)
+                .and_then(|value| find_runtime_contract(value, depth + 1))
+            {
+                return Some(contract);
+            }
+        }
+        object
+            .values()
+            .find_map(|value| find_runtime_contract(value, depth + 1))
+    }
+
+    find_runtime_contract(request_metadata?, 0)
+}
+
+fn lookup_execution_profile_record(
+    profile_key: Option<&str>,
+    contract_key: Option<&str>,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    let registry: serde_json::Value =
+        serde_json::from_str(MODALITY_EXECUTION_PROFILES_JSON).ok()?;
+    let profiles = registry.get("profiles")?.as_array()?;
+    profiles.iter().find_map(|profile| {
+        let object = profile.as_object()?;
+        let matches_profile_key = profile_key.is_some_and(|key| {
+            extract_metadata_text(object, &["profile_key", "profileKey"]).as_deref() == Some(key)
+        });
+        let matches_contract_key = contract_key.is_some_and(|key| {
+            extract_metadata_string_array(object, &["supported_contracts", "supportedContracts"])
+                .iter()
+                .any(|value| value == key)
+        });
+        (matches_profile_key || matches_contract_key).then(|| object.clone())
+    })
+}
+
+fn runtime_task_profile_binding_from_metadata(
+    request_metadata: Option<&serde_json::Value>,
+) -> RuntimeTaskProfileBinding {
+    let Some(contract) = extract_runtime_contract_from_metadata(request_metadata) else {
+        return RuntimeTaskProfileBinding::default();
+    };
+
+    let execution_profile =
+        extract_nested_metadata_object(contract, &["execution_profile", "executionProfile"]);
+    let executor_adapter =
+        extract_nested_metadata_object(contract, &["executor_adapter", "executorAdapter"]);
+    let executor_binding =
+        extract_nested_metadata_object(contract, &["executor_binding", "executorBinding"]);
+    let modality_contract_key = extract_metadata_text(contract, &["contract_key", "contractKey"]);
+    let execution_profile_key = execution_profile
+        .and_then(|value| extract_metadata_text(value, &["profile_key", "profileKey"]));
+    let profile_record = lookup_execution_profile_record(
+        execution_profile_key.as_deref(),
+        modality_contract_key.as_deref(),
+    );
+    let execution_profile_key = execution_profile_key.or_else(|| {
+        profile_record
+            .as_ref()
+            .and_then(|value| extract_metadata_text(value, &["profile_key", "profileKey"]))
+    });
+
+    RuntimeTaskProfileBinding {
+        modality_contract_key,
+        routing_slot: extract_metadata_text(contract, &["routing_slot", "routingSlot"]),
+        execution_profile_key,
+        executor_adapter_key: executor_adapter
+            .and_then(|value| extract_metadata_text(value, &["adapter_key", "adapterKey"])),
+        executor_kind: executor_binding
+            .and_then(|value| extract_metadata_text(value, &["executor_kind", "executorKind"])),
+        executor_binding_key: executor_binding
+            .and_then(|value| extract_metadata_text(value, &["binding_key", "bindingKey"])),
+        permission_profile_keys: execution_profile
+            .map(|value| {
+                extract_metadata_string_array(
+                    value,
+                    &["permission_profile_keys", "permissionProfileKeys"],
+                )
+            })
+            .filter(|values| !values.is_empty())
+            .or_else(|| {
+                profile_record.as_ref().map(|value| {
+                    extract_metadata_string_array(
+                        value,
+                        &["permission_profile_keys", "permissionProfileKeys"],
+                    )
+                })
+            })
+            .unwrap_or_default(),
+        user_lock_policy: execution_profile
+            .and_then(|value| extract_metadata_text(value, &["user_lock_policy", "userLockPolicy"]))
+            .or_else(|| {
+                profile_record.as_ref().and_then(|value| {
+                    extract_metadata_text(value, &["user_lock_policy", "userLockPolicy"])
+                })
+            }),
+    }
+}
+
+fn build_runtime_task_profile_with_binding(
+    kind: &str,
+    source: &str,
+    traits: Vec<String>,
+    service_model_slot: Option<String>,
+    scene_kind: Option<String>,
+    scene_skill_id: Option<String>,
+    entry_source: Option<String>,
+    binding: &RuntimeTaskProfileBinding,
+) -> lime_agent::SessionExecutionRuntimeTaskProfile {
+    lime_agent::SessionExecutionRuntimeTaskProfile {
+        kind: kind.to_string(),
+        source: source.to_string(),
+        traits,
+        modality_contract_key: binding.modality_contract_key.clone(),
+        routing_slot: binding.routing_slot.clone(),
+        execution_profile_key: binding.execution_profile_key.clone(),
+        executor_adapter_key: binding.executor_adapter_key.clone(),
+        executor_kind: binding.executor_kind.clone(),
+        executor_binding_key: binding.executor_binding_key.clone(),
+        permission_profile_keys: binding.permission_profile_keys.clone(),
+        user_lock_policy: binding.user_lock_policy.clone(),
+        service_model_slot,
+        scene_kind,
+        scene_skill_id,
+        entry_source,
+    }
+}
+
 pub(crate) fn resolve_request_oem_routing_context(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<RequestOemRoutingContext> {
@@ -1618,6 +1870,7 @@ fn build_runtime_task_profile(
     let service_model_slot = resolve_request_service_model_slot(request_metadata);
     let service_scene_context = extract_service_scene_launch_context(request_metadata);
     let request_oem_routing = resolve_request_oem_routing_context(request_metadata);
+    let profile_binding = runtime_task_profile_binding_from_metadata(request_metadata);
     let mut traits = Vec::new();
 
     if request
@@ -1652,6 +1905,15 @@ fn build_runtime_task_profile(
     if request_oem_routing.is_some() {
         push_unique_profile_trait(&mut traits, "oem_runtime");
     }
+    if profile_binding.modality_contract_key.is_some() {
+        push_unique_profile_trait(&mut traits, "modality_runtime_contract");
+    }
+    if profile_binding.execution_profile_key.is_some() {
+        push_unique_profile_trait(&mut traits, "execution_profile");
+    }
+    if profile_binding.executor_adapter_key.is_some() {
+        push_unique_profile_trait(&mut traits, "executor_adapter");
+    }
 
     if let Some(context) = service_scene_context {
         push_unique_profile_trait(&mut traits, "service_scene_launch");
@@ -1663,15 +1925,16 @@ fn build_runtime_task_profile(
             push_unique_profile_trait(&mut traits, "oem_runtime");
         }
 
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "service_scene".to_string(),
-            source: "service_scene_launch".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "service_scene",
+            "service_scene_launch",
             traits,
             service_model_slot,
-            scene_kind: normalize_optional_text(Some(context.launch_kind)),
-            scene_skill_id: normalize_optional_text(Some(context.service_skill_id)),
-            entry_source: context.entry_source,
-        };
+            normalize_optional_text(Some(context.launch_kind)),
+            normalize_optional_text(Some(context.service_skill_id)),
+            context.entry_source,
+            &profile_binding,
+        );
     }
 
     if extract_harness_nested_object(
@@ -1680,18 +1943,16 @@ fn build_runtime_task_profile(
     )
     .is_some()
     {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "translation".to_string(),
-            source: "translation_skill_launch".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "translation",
+            "translation_skill_launch",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: extract_harness_string(
-                request_metadata,
-                &["entry_source", "entrySource"],
-            ),
-        };
+            None,
+            None,
+            extract_harness_string(request_metadata, &["entry_source", "entrySource"]),
+            &profile_binding,
+        );
     }
 
     if extract_harness_nested_object(
@@ -1700,18 +1961,16 @@ fn build_runtime_task_profile(
     )
     .is_some()
     {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "summary".to_string(),
-            source: "summary_skill_launch".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "summary",
+            "summary_skill_launch",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: extract_harness_string(
-                request_metadata,
-                &["entry_source", "entrySource"],
-            ),
-        };
+            None,
+            None,
+            extract_harness_string(request_metadata, &["entry_source", "entrySource"]),
+            &profile_binding,
+        );
     }
 
     if extract_harness_nested_object(
@@ -1720,18 +1979,16 @@ fn build_runtime_task_profile(
     )
     .is_some()
     {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "resource_search".to_string(),
-            source: "resource_search_skill_launch".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "resource_search",
+            "resource_search_skill_launch",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: extract_harness_string(
-                request_metadata,
-                &["entry_source", "entrySource"],
-            ),
-        };
+            None,
+            None,
+            extract_harness_string(request_metadata, &["entry_source", "entrySource"]),
+            &profile_binding,
+        );
     }
 
     if extract_harness_nested_object(
@@ -1740,18 +1997,16 @@ fn build_runtime_task_profile(
     )
     .is_some()
     {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "topic".to_string(),
-            source: "auxiliary_topic".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "topic",
+            "auxiliary_topic",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: extract_harness_string(
-                request_metadata,
-                &["entry_source", "entrySource"],
-            ),
-        };
+            None,
+            None,
+            extract_harness_string(request_metadata, &["entry_source", "entrySource"]),
+            &profile_binding,
+        );
     }
 
     if extract_harness_nested_object(
@@ -1763,18 +2018,16 @@ fn build_runtime_task_profile(
     )
     .is_some()
     {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "generation_topic".to_string(),
-            source: "auxiliary_generation_topic".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "generation_topic",
+            "auxiliary_generation_topic",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: extract_harness_string(
-                request_metadata,
-                &["entry_source", "entrySource"],
-            ),
-        };
+            None,
+            None,
+            extract_harness_string(request_metadata, &["entry_source", "entrySource"]),
+            &profile_binding,
+        );
     }
 
     if extract_harness_nested_object(
@@ -1783,45 +2036,45 @@ fn build_runtime_task_profile(
     )
     .is_some()
     {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "agent_meta".to_string(),
-            source: "auxiliary_agent_meta".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "agent_meta",
+            "auxiliary_agent_meta",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: extract_harness_string(
-                request_metadata,
-                &["entry_source", "entrySource"],
-            ),
-        };
+            None,
+            None,
+            extract_harness_string(request_metadata, &["entry_source", "entrySource"]),
+            &profile_binding,
+        );
     }
 
     if extract_harness_string(request_metadata, &["turn_purpose", "turnPurpose"])
         .as_deref()
         .is_some_and(is_prompt_rewrite_turn_purpose)
     {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "prompt_rewrite".to_string(),
-            source: "turn_purpose".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "prompt_rewrite",
+            "turn_purpose",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: None,
-        };
+            None,
+            None,
+            None,
+            &profile_binding,
+        );
     }
 
     if extract_harness_nested_object(request_metadata, &["artifact"]).is_some() {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "artifact".to_string(),
-            source: "artifact_metadata".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "artifact",
+            "artifact_metadata",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: None,
-        };
+            None,
+            None,
+            None,
+            &profile_binding,
+        );
     }
 
     if request
@@ -1829,52 +2082,56 @@ fn build_runtime_task_profile(
         .as_ref()
         .is_some_and(|images| !images.is_empty())
     {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "vision_chat".to_string(),
-            source: "request_images".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "vision_chat",
+            "request_images",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: None,
-        };
+            None,
+            None,
+            None,
+            &profile_binding,
+        );
     }
 
     if request.web_search.unwrap_or(false) || request.search_mode.is_some() {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "search".to_string(),
-            source: "request_search".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "search",
+            "request_search",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: None,
-        };
+            None,
+            None,
+            None,
+            &profile_binding,
+        );
     }
 
     if extract_harness_bool(request_metadata, &["task_mode_enabled", "taskModeEnabled"])
         .unwrap_or(false)
     {
-        return lime_agent::SessionExecutionRuntimeTaskProfile {
-            kind: "task".to_string(),
-            source: "task_mode".to_string(),
+        return build_runtime_task_profile_with_binding(
+            "task",
+            "task_mode",
             traits,
             service_model_slot,
-            scene_kind: None,
-            scene_skill_id: None,
-            entry_source: None,
-        };
+            None,
+            None,
+            None,
+            &profile_binding,
+        );
     }
 
-    lime_agent::SessionExecutionRuntimeTaskProfile {
-        kind: "chat".to_string(),
-        source: "default_chat".to_string(),
+    build_runtime_task_profile_with_binding(
+        "chat",
+        "default_chat",
         traits,
         service_model_slot,
-        scene_kind: None,
-        scene_skill_id: None,
-        entry_source: None,
-    }
+        None,
+        None,
+        None,
+        &profile_binding,
+    )
 }
 
 fn estimate_cost_class(
@@ -1936,14 +2193,175 @@ fn is_compatible_candidate_model(
     supports_chat || (has_images && supports_vision)
 }
 
+fn routing_slot_model_capability_requirements(
+    routing_slot: Option<&str>,
+) -> Vec<RuntimeModelCapabilityRequirement> {
+    match routing_slot.map(normalize_identifier).as_deref() {
+        Some("vision_input_model") => vec![RuntimeModelCapabilityRequirement::VisionInput],
+        Some("image_generation_model") => vec![
+            RuntimeModelCapabilityRequirement::ImageGeneration,
+            RuntimeModelCapabilityRequirement::VisionInput,
+        ],
+        Some("image_edit_model") => vec![
+            RuntimeModelCapabilityRequirement::ImageGeneration,
+            RuntimeModelCapabilityRequirement::VisionInput,
+        ],
+        Some("audio_transcription_model") => {
+            vec![RuntimeModelCapabilityRequirement::AudioTranscription]
+        }
+        Some("voice_generation_model") => vec![RuntimeModelCapabilityRequirement::VoiceGeneration],
+        Some("browser_reasoning_model") => {
+            vec![RuntimeModelCapabilityRequirement::BrowserReasoning]
+        }
+        Some("report_generation_model") => {
+            vec![RuntimeModelCapabilityRequirement::StructuredDocumentGeneration]
+        }
+        Some("cheap_summary_model") => vec![RuntimeModelCapabilityRequirement::CheapSummary],
+        Some("base_model") | None => vec![RuntimeModelCapabilityRequirement::TextGeneration],
+        Some(_) => Vec::new(),
+    }
+}
+
+fn model_satisfies_runtime_capability_requirement(
+    model: &EnhancedModelMetadata,
+    requirement: RuntimeModelCapabilityRequirement,
+) -> bool {
+    match requirement {
+        RuntimeModelCapabilityRequirement::TextGeneration => {
+            model.task_families.is_empty() || model.task_families.contains(&ModelTaskFamily::Chat)
+        }
+        RuntimeModelCapabilityRequirement::VisionInput => {
+            model.capabilities.vision
+                || model
+                    .task_families
+                    .contains(&ModelTaskFamily::VisionUnderstanding)
+        }
+        RuntimeModelCapabilityRequirement::ImageGeneration => model
+            .task_families
+            .contains(&ModelTaskFamily::ImageGeneration),
+        RuntimeModelCapabilityRequirement::AudioTranscription => {
+            model.task_families.contains(&ModelTaskFamily::SpeechToText)
+        }
+        RuntimeModelCapabilityRequirement::VoiceGeneration => {
+            model.task_families.contains(&ModelTaskFamily::TextToSpeech)
+        }
+        RuntimeModelCapabilityRequirement::BrowserReasoning => {
+            model.capabilities.reasoning
+                || model.task_families.contains(&ModelTaskFamily::Reasoning)
+        }
+        RuntimeModelCapabilityRequirement::StructuredDocumentGeneration => {
+            model.capabilities.json_mode
+                && (model.task_families.is_empty()
+                    || model.task_families.contains(&ModelTaskFamily::Chat))
+        }
+        RuntimeModelCapabilityRequirement::CheapSummary => {
+            model.task_families.is_empty()
+                || model.task_families.contains(&ModelTaskFamily::Chat)
+                || model.task_families.contains(&ModelTaskFamily::Reasoning)
+        }
+    }
+}
+
+fn missing_runtime_model_capability_requirements(
+    model: &EnhancedModelMetadata,
+    requirements: &[RuntimeModelCapabilityRequirement],
+) -> Vec<RuntimeModelCapabilityRequirement> {
+    requirements
+        .iter()
+        .copied()
+        .filter(|requirement| !model_satisfies_runtime_capability_requirement(model, *requirement))
+        .collect()
+}
+
+fn runtime_requirements_target_specialized_model(
+    requirements: &[RuntimeModelCapabilityRequirement],
+) -> bool {
+    requirements.iter().any(|requirement| {
+        matches!(
+            requirement,
+            RuntimeModelCapabilityRequirement::ImageGeneration
+                | RuntimeModelCapabilityRequirement::AudioTranscription
+                | RuntimeModelCapabilityRequirement::VoiceGeneration
+        )
+    })
+}
+
+fn is_runtime_candidate_model(
+    model: &EnhancedModelMetadata,
+    thinking_enabled: bool,
+    has_images: bool,
+    runtime_requirements: &[RuntimeModelCapabilityRequirement],
+) -> bool {
+    if !missing_runtime_model_capability_requirements(model, runtime_requirements).is_empty() {
+        return false;
+    }
+
+    if runtime_requirements_target_specialized_model(runtime_requirements) {
+        return true;
+    }
+
+    is_compatible_candidate_model(model, thinking_enabled, has_images)
+        && !is_likely_non_chat_model(model)
+}
+
+fn runtime_model_capability_gap_for_model(
+    model: Option<&EnhancedModelMetadata>,
+    requirements: &[RuntimeModelCapabilityRequirement],
+) -> Option<String> {
+    model.and_then(|model| {
+        missing_runtime_model_capability_requirements(model, requirements)
+            .first()
+            .map(|requirement| requirement.gap_code().to_string())
+    })
+}
+
+fn honors_explicit_model_lock_with_capability_check(
+    task_profile: &lime_agent::SessionExecutionRuntimeTaskProfile,
+    model_preference_source: RequestPreferenceSource,
+) -> bool {
+    matches!(
+        task_profile.user_lock_policy.as_deref(),
+        Some("honor_explicit_model_lock_with_capability_check")
+    ) && matches!(model_preference_source, RequestPreferenceSource::Request)
+}
+
+fn should_reselect_for_runtime_capability_gap(
+    resolved_model: Option<&EnhancedModelMetadata>,
+    compatible_candidate_count: u32,
+    runtime_requirements: &[RuntimeModelCapabilityRequirement],
+    honor_explicit_model_lock: bool,
+) -> bool {
+    !honor_explicit_model_lock
+        && compatible_candidate_count > 0
+        && runtime_model_capability_gap_for_model(resolved_model, runtime_requirements).is_some()
+}
+
+fn runtime_model_capability_gap_for_catalog(
+    catalog: &[EnhancedModelMetadata],
+    requirements: &[RuntimeModelCapabilityRequirement],
+) -> Option<String> {
+    requirements
+        .iter()
+        .copied()
+        .find(|requirement| {
+            !catalog
+                .iter()
+                .any(|model| model_satisfies_runtime_capability_requirement(model, *requirement))
+        })
+        .map(|requirement| requirement.gap_code().to_string())
+}
+
 fn count_compatible_candidate_models(
     catalog: &[EnhancedModelMetadata],
     thinking_enabled: bool,
     has_images: bool,
+    runtime_requirements: &[RuntimeModelCapabilityRequirement],
 ) -> u32 {
     catalog
         .iter()
-        .filter(|model| is_compatible_candidate_model(model, thinking_enabled, has_images))
+        .filter(|model| {
+            is_runtime_candidate_model(model, thinking_enabled, has_images, runtime_requirements)
+        })
         .count() as u32
 }
 
@@ -2286,6 +2704,7 @@ async fn build_runtime_request_provider_config_from_preference(
     db: &DbConnection,
     api_key_provider_service: &ApiKeyProviderServiceState,
     request: &AsterChatRequest,
+    task_profile: &lime_agent::SessionExecutionRuntimeTaskProfile,
     provider_selector: &str,
     model_preference: &str,
     model_preference_source: RequestPreferenceSource,
@@ -2302,8 +2721,16 @@ async fn build_runtime_request_provider_config_from_preference(
         .as_ref()
         .map(|images| !images.is_empty())
         .unwrap_or(false);
-    let compatible_candidate_count =
-        count_compatible_candidate_models(&catalog, thinking_enabled, has_images);
+    let runtime_requirements =
+        routing_slot_model_capability_requirements(task_profile.routing_slot.as_deref());
+    let compatible_candidate_count = count_compatible_candidate_models(
+        &catalog,
+        thinking_enabled,
+        has_images,
+        &runtime_requirements,
+    );
+    let honor_explicit_model_lock =
+        honors_explicit_model_lock_with_capability_check(task_profile, model_preference_source);
     let reasoning_gap = thinking_enabled
         && !catalog.iter().any(|model| {
             model.capabilities.reasoning
@@ -2323,12 +2750,22 @@ async fn build_runtime_request_provider_config_from_preference(
         resolve_base_model_on_thinking_off(&normalized_model_preference, &catalog)
     };
     let mut fallback_chain = Vec::new();
-    if compatible_candidate_count > 1 && should_auto_reselect_multi_candidate_model(&context) {
+    let should_reselect_runtime_gap = should_reselect_for_runtime_capability_gap(
+        find_model_meta(&resolved_model, &catalog),
+        compatible_candidate_count,
+        &runtime_requirements,
+        honor_explicit_model_lock,
+    );
+    if !honor_explicit_model_lock
+        && should_auto_reselect_multi_candidate_model(&context)
+        && (compatible_candidate_count > 1 || should_reselect_runtime_gap)
+    {
         if let Some(best_candidate) = choose_best_multi_candidate_model(
             &resolved_model,
             &catalog,
             thinking_enabled,
             has_images,
+            &runtime_requirements,
         ) {
             if best_candidate != resolved_model {
                 fallback_chain.push(format!("{}:{}", context.provider_selector, resolved_model));
@@ -2347,6 +2784,7 @@ async fn build_runtime_request_provider_config_from_preference(
             &catalog,
             thinking_enabled,
             has_images,
+            &runtime_requirements,
         );
         if fallback_model != resolved_model {
             tracing::info!(
@@ -2404,10 +2842,23 @@ async fn build_runtime_request_provider_config_from_preference(
         });
 
     let estimated_cost_class = estimate_cost_class(&resolved_model, model_meta);
+    let runtime_capability_gap =
+        runtime_model_capability_gap_for_catalog(&catalog, &runtime_requirements);
+    let resolved_model_capability_gap =
+        runtime_model_capability_gap_for_model(model_meta, &runtime_requirements);
+    let locked_model_capability_gap = resolved_model_capability_gap
+        .clone()
+        .filter(|_| honor_explicit_model_lock);
     let capability_gap = if vision_gap {
         Some("vision_candidate_missing".to_string())
     } else if reasoning_gap {
         Some("reasoning_candidate_missing".to_string())
+    } else if locked_model_capability_gap.is_some() {
+        locked_model_capability_gap
+    } else if resolved_model_capability_gap.is_some() {
+        resolved_model_capability_gap
+    } else if runtime_capability_gap.is_some() {
+        runtime_capability_gap
     } else {
         None
     };
@@ -2647,6 +3098,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             db,
             api_key_provider_service,
             request,
+            &task_profile,
             &provider_selector,
             &model_preference,
             model_preference_source,
@@ -2708,6 +3160,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             db,
             api_key_provider_service,
             request,
+            &task_profile,
             &scene_preference.provider_selector,
             &scene_preference.model_name,
             RequestPreferenceSource::ServiceSceneLaunch,
@@ -2792,6 +3245,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             db,
             api_key_provider_service,
             request,
+            &task_profile,
             &setting_preference.provider_selector,
             &setting_preference.model_name,
             RequestPreferenceSource::ServiceModelSetting,
@@ -2917,6 +3371,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
         db,
         api_key_provider_service,
         request,
+        &task_profile,
         &provider_selector,
         &model_preference,
         model_preference_source,
@@ -3263,7 +3718,7 @@ mod tests {
         ];
 
         assert_eq!(
-            resolve_catalog_fallback_model_id("glm-5.1", &models, false, false),
+            resolve_catalog_fallback_model_id("glm-5.1", &models, false, false, &[]),
             "glm-4.7"
         );
     }
@@ -3301,7 +3756,7 @@ mod tests {
         ];
 
         assert_eq!(
-            choose_best_multi_candidate_model("gpt-5.4", &models, false, false).as_deref(),
+            choose_best_multi_candidate_model("gpt-5.4", &models, false, false, &[]).as_deref(),
             Some("gpt-5.4-mini")
         );
     }
@@ -3332,7 +3787,7 @@ mod tests {
         models[1].task_families.push(ModelTaskFamily::Reasoning);
 
         assert_eq!(
-            choose_best_multi_candidate_model("gpt-5.4-mini", &models, true, false).as_deref(),
+            choose_best_multi_candidate_model("gpt-5.4-mini", &models, true, false, &[]).as_deref(),
             Some("gpt-5.4-mini-thinking")
         );
     }
@@ -3361,8 +3816,144 @@ mod tests {
         ];
 
         assert_eq!(
-            choose_best_multi_candidate_model("gpt-5.4-mini", &models, false, true).as_deref(),
+            choose_best_multi_candidate_model("gpt-5.4-mini", &models, false, true, &[]).as_deref(),
             Some("gpt-5.4")
+        );
+    }
+
+    #[test]
+    fn runtime_routing_slot_filters_candidate_count_by_model_role() {
+        let mut models = vec![
+            build_model(
+                "gpt-5.4-mini",
+                Some("gpt-5.4"),
+                false,
+                false,
+                true,
+                ModelTier::Mini,
+                Some("2026-01-03"),
+            ),
+            build_model(
+                "gpt-5.4-mini-thinking",
+                Some("gpt-5.4"),
+                true,
+                false,
+                true,
+                ModelTier::Mini,
+                Some("2026-01-04"),
+            ),
+        ];
+        models[1].capabilities.reasoning = true;
+        models[1].task_families.push(ModelTaskFamily::Reasoning);
+        let requirements =
+            routing_slot_model_capability_requirements(Some("browser_reasoning_model"));
+
+        assert_eq!(
+            count_compatible_candidate_models(&models, false, false, &requirements),
+            1
+        );
+        assert_eq!(
+            choose_best_multi_candidate_model("gpt-5.4-mini", &models, false, false, &requirements)
+                .as_deref(),
+            Some("gpt-5.4-mini-thinking")
+        );
+    }
+
+    #[test]
+    fn runtime_routing_slot_keeps_specialized_image_candidate_in_pool() {
+        let mut image_model = build_model(
+            "gpt-image-1",
+            Some("gpt-image"),
+            false,
+            true,
+            true,
+            ModelTier::Pro,
+            Some("2026-01-04"),
+        );
+        image_model.task_families = vec![ModelTaskFamily::ImageGeneration];
+        image_model.output_modalities = vec![ModelModality::Image];
+        image_model.input_modalities = vec![ModelModality::Text, ModelModality::Image];
+        let models = vec![
+            build_model(
+                "gpt-5.4-mini",
+                Some("gpt-5.4"),
+                false,
+                false,
+                true,
+                ModelTier::Mini,
+                Some("2026-01-03"),
+            ),
+            image_model,
+        ];
+        let requirements =
+            routing_slot_model_capability_requirements(Some("image_generation_model"));
+
+        assert_eq!(
+            count_compatible_candidate_models(&models, false, false, &requirements),
+            1
+        );
+        assert_eq!(
+            choose_best_multi_candidate_model("gpt-5.4-mini", &models, false, false, &requirements)
+                .as_deref(),
+            Some("gpt-image-1")
+        );
+    }
+
+    #[test]
+    fn runtime_routing_slot_reselects_only_when_user_lock_allows_it() {
+        let models = vec![build_model(
+            "gpt-5.4-mini",
+            Some("gpt-5.4"),
+            false,
+            false,
+            true,
+            ModelTier::Mini,
+            Some("2026-01-03"),
+        )];
+        let requirements =
+            routing_slot_model_capability_requirements(Some("browser_reasoning_model"));
+        let model = find_model_meta("gpt-5.4-mini", &models);
+
+        assert!(should_reselect_for_runtime_capability_gap(
+            model,
+            1,
+            &requirements,
+            false
+        ));
+        assert!(!should_reselect_for_runtime_capability_gap(
+            model,
+            1,
+            &requirements,
+            true
+        ));
+    }
+
+    #[test]
+    fn user_locked_model_reports_execution_profile_capability_gap() {
+        let models = vec![build_model(
+            "gpt-5.4-mini",
+            Some("gpt-5.4"),
+            false,
+            false,
+            true,
+            ModelTier::Mini,
+            Some("2026-01-03"),
+        )];
+        let requirements =
+            routing_slot_model_capability_requirements(Some("browser_reasoning_model"));
+        let model = find_model_meta("gpt-5.4-mini", &models).expect("model");
+        let locked_model_capability_gap =
+            missing_runtime_model_capability_requirements(model, &requirements)
+                .first()
+                .map(|requirement| requirement.gap_code().to_string());
+
+        assert_eq!(
+            locked_model_capability_gap.as_deref(),
+            Some("browser_reasoning_candidate_missing")
+        );
+        assert_eq!(
+            runtime_model_capability_gap_for_catalog(&models, &requirements).as_deref(),
+            Some("browser_reasoning_candidate_missing")
         );
     }
 
@@ -3794,11 +4385,114 @@ mod tests {
     }
 
     #[test]
+    fn runtime_task_profile_merges_modality_execution_profile_from_runtime_contract() {
+        let request = AsterChatRequest {
+            message: "打开这个页面并检查登录态".to_string(),
+            session_id: "session-1".to_string(),
+            event_name: "agent-event".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            approval_policy: None,
+            sandbox_policy: None,
+            project_id: None,
+            workspace_id: "workspace-1".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata: Some(serde_json::json!({
+                "harness": {
+                    "browser_assist": {
+                        "runtime_contract": {
+                            "contract_key": "browser_control",
+                            "routing_slot": "browser_reasoning_model",
+                            "execution_profile": {
+                                "profile_key": "browser_control_profile"
+                            },
+                            "executor_adapter": {
+                                "adapter_key": "browser:browser_assist"
+                            },
+                            "executor_binding": {
+                                "executor_kind": "browser",
+                                "binding_key": "browser_assist"
+                            }
+                        }
+                    }
+                }
+            })),
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        };
+
+        let profile = build_runtime_task_profile(&request);
+
+        assert_eq!(profile.kind, "chat");
+        assert_eq!(
+            profile.modality_contract_key.as_deref(),
+            Some("browser_control")
+        );
+        assert_eq!(
+            profile.routing_slot.as_deref(),
+            Some("browser_reasoning_model")
+        );
+        assert_eq!(
+            profile.execution_profile_key.as_deref(),
+            Some("browser_control_profile")
+        );
+        assert_eq!(
+            profile.executor_adapter_key.as_deref(),
+            Some("browser:browser_assist")
+        );
+        assert_eq!(profile.executor_kind.as_deref(), Some("browser"));
+        assert_eq!(
+            profile.executor_binding_key.as_deref(),
+            Some("browser_assist")
+        );
+        assert_eq!(
+            profile.permission_profile_keys,
+            vec![
+                "browser_control".to_string(),
+                "web_search".to_string(),
+                "ask_user_question".to_string()
+            ]
+        );
+        assert_eq!(
+            profile.user_lock_policy.as_deref(),
+            Some("honor_explicit_model_lock_with_capability_check")
+        );
+        assert!(profile
+            .traits
+            .iter()
+            .any(|value| value == "modality_runtime_contract"));
+        assert!(profile
+            .traits
+            .iter()
+            .any(|value| value == "execution_profile"));
+        assert!(profile
+            .traits
+            .iter()
+            .any(|value| value == "executor_adapter"));
+    }
+
+    #[test]
     fn explicit_provider_config_resolution_reports_single_candidate_routing() {
         let task_profile = lime_agent::SessionExecutionRuntimeTaskProfile {
             kind: "chat".to_string(),
             source: "default_chat".to_string(),
             traits: Vec::new(),
+            modality_contract_key: None,
+            routing_slot: None,
+            execution_profile_key: None,
+            executor_adapter_key: None,
+            executor_kind: None,
+            executor_binding_key: None,
+            permission_profile_keys: Vec::new(),
+            user_lock_policy: None,
             service_model_slot: None,
             scene_kind: None,
             scene_skill_id: None,

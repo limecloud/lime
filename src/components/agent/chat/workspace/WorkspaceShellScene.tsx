@@ -26,6 +26,9 @@ interface WorkspaceShellSceneProps {
     typeof ChatSidebar
   >["onOpenTaskCenterHome"];
   onOpenSkillsPage?: ComponentProps<typeof ChatSidebar>["onOpenSkillsPage"];
+  onOpenKnowledgePage?: ComponentProps<
+    typeof ChatSidebar
+  >["onOpenKnowledgePage"];
   onOpenMemoryPage?: ComponentProps<typeof ChatSidebar>["onOpenMemoryPage"];
   onSwitchTopic: ComponentProps<typeof ChatSidebar>["onSwitchTopic"];
   onOpenArchivedTopic?: ComponentProps<
@@ -71,6 +74,7 @@ export function WorkspaceShellScene({
   onNewChat,
   onOpenTaskCenterHome,
   onOpenSkillsPage,
+  onOpenKnowledgePage,
   onOpenMemoryPage,
   onSwitchTopic,
   onOpenArchivedTopic,
@@ -96,6 +100,7 @@ export function WorkspaceShellScene({
         onNewChat,
         onOpenTaskCenterHome,
         onOpenSkillsPage,
+        onOpenKnowledgePage,
         onOpenMemoryPage,
         topics,
         currentTopicId,

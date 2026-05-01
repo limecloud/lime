@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
@@ -340,8 +341,10 @@ impl Agent {
         &self,
         working_dir: &std::path::Path,
         session_prompt: Option<&str>,
+        session_prompt_override: bool,
         model_config: &ModelConfig,
     ) -> Result<(Vec<Tool>, Vec<Tool>, String)> {
+        let started_at = Instant::now();
         // Get tools from extension manager
         let mut tools = self.list_tools(None).await;
 
@@ -397,6 +400,7 @@ impl Agent {
             .with_hints(working_dir)
             .with_enable_subagents(subagents_enabled)
             .with_session_prompt(session_prompt.map(|s| s.to_string()))
+            .with_session_prompt_override(session_prompt_override)
             .build();
         if let Some(guidance) = turn_surface_prompt_guidance(turn_tool_surface_mode.as_deref()) {
             system_prompt.push_str("\n\n");
@@ -414,6 +418,16 @@ impl Agent {
             tools = vec![];
         }
 
+        tracing::info!(
+            "[AsterAgent][TTFT] tools/prompt prepared: model={}, tool_surface={:?}, tools={}, toolshim_tools={}, system_chars={}, elapsed_ms={}",
+            model_config.model_name,
+            turn_tool_surface_mode,
+            tools.len(),
+            toolshim_tools.len(),
+            system_prompt.chars().count(),
+            started_at.elapsed().as_millis()
+        );
+
         Ok((tools, toolshim_tools, system_prompt))
     }
 
@@ -427,6 +441,7 @@ impl Agent {
         tools: &[Tool],
         toolshim_tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let started_at = Instant::now();
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if model_config.toolshim {
             convert_tool_messages_to_text(messages)
@@ -449,6 +464,14 @@ impl Agent {
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
         let stream_result = if provider.supports_streaming() {
+            tracing::info!(
+                "[AsterAgent][TTFT] provider stream request start: provider={}, model={}, messages={}, tools={}, system_chars={}",
+                provider.get_name(),
+                model_config.model_name,
+                messages_for_provider.messages().len(),
+                tools.len(),
+                system_prompt.chars().count()
+            );
             debug!("WAITING_LLM_STREAM_START");
             let result = provider
                 .stream_with_model(
@@ -458,9 +481,33 @@ impl Agent {
                     &tools,
                 )
                 .await;
+            let elapsed_ms = started_at.elapsed().as_millis();
+            match &result {
+                Ok(_) => tracing::info!(
+                    "[AsterAgent][TTFT] provider stream response headers received: provider={}, model={}, elapsed_ms={}",
+                    provider.get_name(),
+                    model_config.model_name,
+                    elapsed_ms
+                ),
+                Err(error) => tracing::warn!(
+                    "[AsterAgent][TTFT] provider stream request failed before body: provider={}, model={}, elapsed_ms={}, error={}",
+                    provider.get_name(),
+                    model_config.model_name,
+                    elapsed_ms,
+                    error
+                ),
+            }
             debug!("WAITING_LLM_STREAM_END");
             result
         } else {
+            tracing::info!(
+                "[AsterAgent][TTFT] provider non-stream request start: provider={}, model={}, messages={}, tools={}, system_chars={}",
+                provider.get_name(),
+                model_config.model_name,
+                messages_for_provider.messages().len(),
+                tools.len(),
+                system_prompt.chars().count()
+            );
             debug!("WAITING_LLM_START");
             let complete_result = provider
                 .complete_with_model(
@@ -470,6 +517,12 @@ impl Agent {
                     &tools,
                 )
                 .await;
+            tracing::info!(
+                "[AsterAgent][TTFT] provider non-stream response complete: provider={}, model={}, elapsed_ms={}",
+                provider.get_name(),
+                model_config.model_name,
+                started_at.elapsed().as_millis()
+            );
             debug!("WAITING_LLM_END");
 
             match complete_result {
@@ -491,8 +544,18 @@ impl Agent {
         };
 
         Ok(Box::pin(try_stream! {
+            let mut first_provider_message_seen = false;
             while let Some(next) = stream.next().await {
                 let (mut message, usage) = next?;
+                if !first_provider_message_seen {
+                    first_provider_message_seen = true;
+                    tracing::info!(
+                        "[AsterAgent][TTFT] first provider stream message decoded: provider={}, model={}, elapsed_ms={}",
+                        provider.get_name(),
+                        model_config.model_name,
+                        started_at.elapsed().as_millis()
+                    );
+                }
                 // Store the model information in the global store
                 if let Some(usage) = usage.as_ref() {
                     crate::providers::base::set_current_model(&usage.model);
@@ -912,7 +975,12 @@ mod tests {
 
         let working_dir = std::env::current_dir()?;
         let (tools, _toolshim_tools, _system_prompt) = agent
-            .prepare_tools_and_prompt(&working_dir, None, &ModelConfig::new("test-model").unwrap())
+            .prepare_tools_and_prompt(
+                &working_dir,
+                None,
+                false,
+                &ModelConfig::new("test-model").unwrap(),
+            )
             .await?;
 
         // Ensure both current cron tools and frontend tools are present
@@ -963,7 +1031,12 @@ mod tests {
 
         let working_dir = std::env::current_dir()?;
         let (_tools, _toolshim_tools, system_prompt) = agent
-            .prepare_tools_and_prompt(&working_dir, None, &ModelConfig::new("test-model").unwrap())
+            .prepare_tools_and_prompt(
+                &working_dir,
+                None,
+                false,
+                &ModelConfig::new("test-model").unwrap(),
+            )
             .await?;
 
         assert!(system_prompt.contains("# Structured Output Instructions"));
@@ -1061,6 +1134,7 @@ mod tests {
                     .prepare_tools_and_prompt(
                         &working_dir,
                         None,
+                        false,
                         &ModelConfig::new("test-model").unwrap(),
                     )
                     .await
@@ -1104,6 +1178,7 @@ mod tests {
                     .prepare_tools_and_prompt(
                         &working_dir,
                         None,
+                        false,
                         &ModelConfig::new("test-model").unwrap(),
                     )
                     .await
@@ -1145,6 +1220,7 @@ mod tests {
                     .prepare_tools_and_prompt(
                         &working_dir,
                         None,
+                        false,
                         &ModelConfig::new("test-model").unwrap(),
                     )
                     .await
@@ -1187,6 +1263,7 @@ mod tests {
                     .prepare_tools_and_prompt(
                         &working_dir,
                         None,
+                        false,
                         &ModelConfig::new("test-model").unwrap(),
                     )
                     .await

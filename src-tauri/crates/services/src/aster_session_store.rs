@@ -728,8 +728,7 @@ impl SessionStore for LimeSessionStore {
 
         let conn = self.db.lock().map_err(|e| anyhow!("数据库锁定失败: {e}"))?;
         let type_names = types.iter().map(ToString::to_string).collect::<Vec<_>>();
-        let placeholders = std::iter::repeat("?")
-            .take(type_names.len())
+        let placeholders = std::iter::repeat_n("?", type_names.len())
             .collect::<Vec<_>>()
             .join(", ");
         let sql = format!(

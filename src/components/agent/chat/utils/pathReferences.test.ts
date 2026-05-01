@@ -30,7 +30,9 @@ describe("pathReferences", () => {
       name: "Downloads",
       isDir: true,
     });
-    expect(mergePathReferences(first ? [first] : [], duplicate ? [duplicate] : [])).toHaveLength(1);
+    expect(
+      mergePathReferences(first ? [first] : [], duplicate ? [duplicate] : []),
+    ).toHaveLength(1);
   });
 
   it("应把路径引用写入 request metadata 与 harness", () => {

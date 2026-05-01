@@ -92,7 +92,7 @@ pub use request_tool_policy::{
     merge_system_prompt_with_web_search_preflight_context, message_suggests_news_expansion,
     resolve_request_tool_policy, resolve_request_tool_policy_with_mode, stream_reply_with_policy,
     ReplyAttemptError, RequestToolPolicy, RequestToolPolicyMode, StreamReplyExecution,
-    WebSearchExecutionTracker, REQUEST_TOOL_POLICY_MARKER,
+    WebSearchExecutionTracker, WebSearchPreflightRequest, REQUEST_TOOL_POLICY_MARKER,
 };
 pub use runtime_projection_snapshot::RuntimeProjectionSnapshot;
 pub use runtime_queue::{

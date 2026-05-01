@@ -23,6 +23,7 @@ describe("agentStreamSubmitExecution", () => {
   it("应串起 submit context、listener 绑定与 submitOp", async () => {
     const unlisten = vi.fn();
     const submitOp = vi.fn(async () => {});
+    const ensureSession = vi.fn(async () => "session-1");
     const registerListener = vi.fn();
     const activateStream = vi.fn();
     const runtime = {
@@ -39,7 +40,7 @@ describe("agentStreamSubmitExecution", () => {
 
     await executeAgentStreamSubmit({
       runtime,
-      ensureSession: async () => "session-1",
+      ensureSession,
       attemptSilentTurnRecovery: async () => false,
       sessionIdRef: { current: null } as MutableRefObject<string | null>,
       getRequiredWorkspaceId: () => "workspace-1",
@@ -60,6 +61,9 @@ describe("agentStreamSubmitExecution", () => {
       effectiveExecutionStrategy: "react",
       webSearch: true,
       thinking: true,
+      skipSessionRestore: true,
+      skipSessionStartHooks: true,
+      skipPreSubmitResume: true,
       eventName: "event-1",
       requestTurnId: "turn-1",
       requestState,
@@ -111,12 +115,17 @@ describe("agentStreamSubmitExecution", () => {
         workspaceId: "workspace-1",
         turnId: "turn-1",
         text: "继续生成提纲",
+        skipPreSubmitResume: true,
         preferences: expect.objectContaining({
           approvalPolicy: "on-request",
           sandboxPolicy: "read-only",
         }),
       }),
     );
+    expect(ensureSession).toHaveBeenCalledWith({
+      skipSessionRestore: true,
+      skipSessionStartHooks: true,
+    });
     expect(activateStream).toHaveBeenCalled();
     expect(requestState.requestLogId).toBeTruthy();
   });

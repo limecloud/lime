@@ -13,6 +13,7 @@ pub async fn agent_runtime_create_session(
     workspace_id: String,
     name: Option<String>,
     execution_strategy: Option<AsterExecutionStrategy>,
+    run_start_hooks: Option<bool>,
 ) -> Result<String, String> {
     create_runtime_session_internal_with_runtime(
         db.inner(),
@@ -22,6 +23,7 @@ pub async fn agent_runtime_create_session(
         workspace_id,
         name,
         execution_strategy,
+        run_start_hooks.unwrap_or(true),
     )
     .await
 }

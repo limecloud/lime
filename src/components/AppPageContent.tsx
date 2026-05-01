@@ -14,6 +14,7 @@ import type {
   AgentPageParams,
   AutomationPageParams,
   BrowserRuntimePageParams,
+  KnowledgePageParams,
   MemoryPageParams,
   OpenClawPageParams,
   Page,
@@ -68,6 +69,10 @@ const loadSkillsWorkspacePage = () =>
   import("./skills").then((module) => ({
     default: module.SkillsWorkspacePage,
   }));
+const loadKnowledgePage = () =>
+  import("@/features/knowledge").then((module) => ({
+    default: module.KnowledgePage,
+  }));
 const loadBrowserRuntimeWorkspace = () =>
   import("@/features/browser-runtime").then((module) => ({
     default: module.BrowserRuntimeWorkspace,
@@ -82,6 +87,7 @@ const MemoryPage = lazy(loadMemoryPage);
 const PluginsPage = lazy(loadPluginsPage);
 const OpenClawPage = lazy(loadOpenClawPage);
 const SkillsWorkspacePage = lazy(loadSkillsWorkspacePage);
+const KnowledgePage = lazy(loadKnowledgePage);
 const BrowserRuntimeWorkspace = lazy(loadBrowserRuntimeWorkspace);
 const AgentChatPage = lazy(loadAgentChatPage);
 
@@ -344,6 +350,19 @@ export function AppPageContent({
         <SkillsWorkspacePage
           onNavigate={onNavigate}
           pageParams={activePageParams as SkillsPageParams}
+        />
+      </div>
+    );
+
+    return wrapWithSceneApps(content);
+  }
+
+  if (activePage === "knowledge") {
+    const content = (
+      <div style={{ ...columnPageStyle, overflow: "hidden" }}>
+        <KnowledgePage
+          onNavigate={onNavigate}
+          pageParams={activePageParams as KnowledgePageParams}
         />
       </div>
     );

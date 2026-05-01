@@ -352,10 +352,13 @@ export function ProjectSelector({
     };
 
     if (projectSummaryLoadDelayMs > 0) {
-      const cancelSummaryLoad = scheduleMinimumDelayIdleTask(loadProjectSummary, {
-        minimumDelayMs: projectSummaryLoadDelayMs,
-        idleTimeoutMs: 1_500,
-      });
+      const cancelSummaryLoad = scheduleMinimumDelayIdleTask(
+        loadProjectSummary,
+        {
+          minimumDelayMs: projectSummaryLoadDelayMs,
+          idleTimeoutMs: 1_500,
+        },
+      );
       return () => {
         cancelled = true;
         cancelSummaryLoad();

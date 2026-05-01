@@ -57,6 +57,8 @@ docs/roadmap/*
 !docs/roadmap/voice/*.md
 !docs/roadmap/memory/
 !docs/roadmap/memory/*.md
+!docs/roadmap/knowledge/
+!docs/roadmap/knowledge/prd.md
 docs/gongzonghao/
 docs/bussniss/
 docs/oem/

@@ -137,15 +137,12 @@ describe("http-client", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ result: { id: "workspace-default" } }),
-          {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-            },
+        new Response(JSON.stringify({ result: { id: "workspace-default" } }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
           },
-        ),
+        }),
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -681,10 +678,7 @@ describe("http-client", () => {
     source.emitError();
     source.emitError();
 
-    const secondUnlistenPromise = listenViaHttpEvent(
-      "config-changed",
-      vi.fn(),
-    );
+    const secondUnlistenPromise = listenViaHttpEvent("config-changed", vi.fn());
     await vi.advanceTimersByTimeAsync(0);
     expect(MockEventSource.instances).toHaveLength(2);
     const nextSource = MockEventSource.instances[1]!;

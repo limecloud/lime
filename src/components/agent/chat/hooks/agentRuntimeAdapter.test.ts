@@ -93,13 +93,16 @@ describe("defaultAgentRuntimeAdapter", () => {
     });
 
     await expect(
-      adapter.createSession("workspace-9", "新会话", "auto"),
+      adapter.createSession("workspace-9", "新会话", "auto", {
+        runStartHooks: false,
+      }),
     ).resolves.toBe("session-9");
 
     expect(client.createAgentRuntimeSession).toHaveBeenCalledWith(
       "workspace-9",
       "新会话",
       "auto",
+      { runStartHooks: false },
     );
   });
 

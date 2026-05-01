@@ -1,6 +1,7 @@
 import {
   BrainCircuit,
   Bot,
+  BookOpen,
   MessageCircleMore,
   Plus,
   Puzzle,
@@ -74,6 +75,14 @@ export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     icon: BrainCircuit,
     page: "memory",
     isActive: (currentPage) => currentPage === "memory",
+    configurable: false,
+  },
+  {
+    id: "knowledge",
+    label: "知识库",
+    icon: BookOpen,
+    page: "knowledge",
+    isActive: (currentPage) => currentPage === "knowledge",
     configurable: false,
   },
 ];

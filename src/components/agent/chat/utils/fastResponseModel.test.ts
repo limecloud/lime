@@ -7,7 +7,9 @@ import {
   shouldUseAgentFastResponseSelection,
 } from "./fastResponseModel";
 
-function provider(overrides: Partial<ConfiguredProvider> = {}): ConfiguredProvider {
+function provider(
+  overrides: Partial<ConfiguredProvider> = {},
+): ConfiguredProvider {
   return {
     key: "deepseek",
     label: "DeepSeek",
@@ -68,6 +70,7 @@ describe("resolveAgentFastResponseModel", () => {
       modelOverride: "deepseek-chat",
       reason: "first-turn-low-latency",
       label: "快速响应",
+      routingChanged: true,
     });
     expect(buildAgentFastResponseMetadata(decision)).toEqual({
       mode: "auto",
@@ -75,6 +78,7 @@ describe("resolveAgentFastResponseModel", () => {
       reason: "first-turn-low-latency",
       provider: "deepseek",
       model: "deepseek-chat",
+      routing_changed: true,
     });
   });
 
@@ -126,13 +130,36 @@ describe("resolveAgentFastResponseModel", () => {
     ).toBe("not-first-turn");
   });
 
-  it("没有可用 DeepSeek provider 时不应覆盖", () => {
-    expect(
-      resolveAgentFastResponseModel({
-        ...baseOptions,
-        configuredProviders: [],
-      }).reason,
-    ).toBe("fast-provider-unavailable");
+  it("Provider 列表未返回 DeepSeek 时仍应使用内置快速路由", () => {
+    const decision = resolveAgentFastResponseModel({
+      ...baseOptions,
+      configuredProviders: [],
+    });
+
+    expect(decision).toMatchObject({
+      enabled: true,
+      providerOverride: "deepseek",
+      modelOverride: "deepseek-chat",
+      reason: "first-turn-low-latency",
+      routingChanged: true,
+    });
+  });
+
+  it("LimeHub 慢首字模型首轮短文本不等待 Provider 列表即可使用内置快速路由", () => {
+    const decision = resolveAgentFastResponseModel({
+      ...baseOptions,
+      currentProviderType: "lime-hub",
+      currentModel: "gpt-5.5",
+      configuredProviders: undefined,
+    });
+
+    expect(decision).toMatchObject({
+      enabled: true,
+      providerOverride: "deepseek",
+      modelOverride: "deepseek-chat",
+      reason: "first-turn-low-latency",
+      routingChanged: true,
+    });
   });
 
   it("DeepSeek 自定义模型没有 chat 时仍应选择非推理 chat 模型", () => {
@@ -188,15 +215,31 @@ describe("resolveAgentFastResponseModel", () => {
     });
   });
 
-  it("当前模型不是已知慢首字模型时不应覆盖", () => {
-    expect(
-      resolveAgentFastResponseModel({
-        ...baseOptions,
-        currentProviderType: "deepseek",
-        currentModel: "deepseek-chat",
-      }).reason,
-    ).toBe("current-model-not-slow");
+  it("当前已经是 DeepSeek chat 时也应启用短提示词快速响应但不切模型", () => {
+    const decision = resolveAgentFastResponseModel({
+      ...baseOptions,
+      currentProviderType: "deepseek",
+      currentModel: "deepseek-chat",
+    });
 
+    expect(decision).toMatchObject({
+      enabled: true,
+      providerOverride: "deepseek",
+      modelOverride: "deepseek-chat",
+      reason: "first-turn-short-prompt",
+      routingChanged: false,
+    });
+    expect(buildAgentFastResponseMetadata(decision)).toEqual({
+      mode: "auto",
+      label: "快速响应",
+      reason: "first-turn-short-prompt",
+      provider: "deepseek",
+      model: "deepseek-chat",
+      routing_changed: false,
+    });
+  });
+
+  it("当前模型不是已知慢首字模型或快速响应模型时不应覆盖", () => {
     expect(
       resolveAgentFastResponseModel({
         ...baseOptions,

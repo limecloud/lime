@@ -39,6 +39,7 @@ fn build_subagent_session_config(
         max_turns: task_config.max_turns.map(|v| v as u32),
         retry_config: recipe_retry,
         system_prompt: None,
+        system_prompt_override: None,
         include_context_trace: None,
         turn_context: task_config.turn_context.clone(),
     }

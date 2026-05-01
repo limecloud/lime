@@ -120,6 +120,7 @@ pub async fn agent_runtime_submit_turn(
     automation_state: State<'_, AutomationServiceState>,
     request: AgentRuntimeSubmitTurnRequest,
 ) -> Result<(), String> {
+    let submit_started_at = Instant::now();
     let runtime = build_runtime_command_context(
         app,
         state,
@@ -130,11 +131,34 @@ pub async fn agent_runtime_submit_turn(
         mcp_manager,
         automation_state,
     );
+    let skip_pre_submit_resume = request.skip_pre_submit_resume.unwrap_or(false);
     let runtime_request: AsterChatRequest = request.into();
     let queue_if_busy = runtime_request.queue_if_busy.unwrap_or(false);
+    let session_id = runtime_request.session_id.clone();
+    let event_name = runtime_request.event_name.clone();
+    let message_chars = runtime_request.message.chars().count();
+    let fast_response_routing =
+        crate::commands::aster_agent_cmd::runtime_turn::request_metadata_has_fast_response_routing(
+            runtime_request.metadata.as_ref(),
+        );
+    tracing::info!(
+        "[AsterAgent][TTFT] submit_turn ingress: session_id={}, event_name={}, message_chars={}, queue_if_busy={}, skip_pre_submit_resume={}, fast_response_routing={}",
+        session_id,
+        event_name,
+        message_chars,
+        queue_if_busy,
+        skip_pre_submit_resume,
+        fast_response_routing
+    );
     let queued_task = build_queued_turn_task(runtime_request)?;
+    tracing::info!(
+        "[AsterAgent][TTFT] submit_turn queued_task built: session_id={}, event_name={}, elapsed_ms={}",
+        session_id,
+        event_name,
+        submit_started_at.elapsed().as_millis()
+    );
     runtime
-        .submit_runtime_turn(queued_task, queue_if_busy)
+        .submit_runtime_turn(queued_task, queue_if_busy, skip_pre_submit_resume)
         .await
 }
 

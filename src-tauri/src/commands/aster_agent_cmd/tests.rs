@@ -548,6 +548,119 @@ mod tests {
     }
 
     #[test]
+    fn test_lime_browser_tool_runtime_preflight_accepts_browser_control_contract() {
+        let session_hint = BrowserAssistRuntimeHint {
+            profile_key: "general_browser_assist".to_string(),
+            preferred_backend: Some(BrowserBackendType::CdpDirect),
+            auto_launch: true,
+            launch_url: Some("https://www.google.com".to_string()),
+            modality_runtime_contract: Some(BrowserAssistModalityRuntimeContract {
+                contract_key: "browser_control".to_string(),
+                modality: "browser".to_string(),
+                required_capabilities: vec![
+                    "text_generation".to_string(),
+                    "browser_reasoning".to_string(),
+                    "browser_control_planning".to_string(),
+                ],
+                routing_slot: "browser_reasoning_model".to_string(),
+                runtime_contract: serde_json::json!({
+                    "contract_key": "browser_control",
+                    "execution_profile": {
+                        "profile_key": "browser_control_profile"
+                    },
+                    "executor_adapter": {
+                        "adapter_key": "browser:browser_assist"
+                    },
+                    "executor_binding": {
+                        "executor_kind": "browser",
+                        "binding_key": "browser_assist"
+                    }
+                }),
+                entry_source: Some("at_browser_command".to_string()),
+            }),
+        };
+
+        assert!(LimeBrowserMcpTool::validate_browser_control_runtime_preflight(
+            Some(&session_hint),
+            "navigate",
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn test_lime_browser_tool_runtime_preflight_blocks_wrong_adapter() {
+        let session_hint = BrowserAssistRuntimeHint {
+            profile_key: "general_browser_assist".to_string(),
+            preferred_backend: Some(BrowserBackendType::CdpDirect),
+            auto_launch: true,
+            launch_url: Some("https://www.google.com".to_string()),
+            modality_runtime_contract: Some(BrowserAssistModalityRuntimeContract {
+                contract_key: "browser_control".to_string(),
+                modality: "browser".to_string(),
+                required_capabilities: vec![
+                    "text_generation".to_string(),
+                    "browser_reasoning".to_string(),
+                    "browser_control_planning".to_string(),
+                ],
+                routing_slot: "browser_reasoning_model".to_string(),
+                runtime_contract: serde_json::json!({
+                    "contract_key": "browser_control",
+                    "execution_profile": {
+                        "profile_key": "browser_control_profile"
+                    },
+                    "executor_adapter": {
+                        "adapter_key": "skill:research"
+                    },
+                    "executor_binding": {
+                        "executor_kind": "browser",
+                        "binding_key": "browser_assist"
+                    }
+                }),
+                entry_source: Some("at_browser_command".to_string()),
+            }),
+        };
+
+        let result = LimeBrowserMcpTool::validate_browser_control_runtime_preflight(
+            Some(&session_hint),
+            "navigate",
+        )
+        .expect_err("wrong browser adapter should be rejected");
+
+        assert!(!result.success);
+        assert_eq!(
+            result.metadata.get("runtime_preflight"),
+            Some(&serde_json::json!(true))
+        );
+        assert_eq!(
+            result.metadata.get("normalized_status"),
+            Some(&serde_json::json!("failed"))
+        );
+        assert_eq!(
+            result
+                .metadata
+                .get("last_error")
+                .and_then(|value| value.get("code")),
+            Some(&serde_json::json!(
+                "browser_control_executor_adapter_mismatch"
+            ))
+        );
+        assert_eq!(
+            result
+                .metadata
+                .get("last_error")
+                .and_then(|value| value.get("stage")),
+            Some(&serde_json::json!("runtime_preflight"))
+        );
+        assert_eq!(
+            result
+                .metadata
+                .get("modality_runtime_contract")
+                .and_then(|value| value.pointer("/contractKey")),
+            Some(&serde_json::json!("browser_control"))
+        );
+    }
+
+    #[test]
     fn test_resolve_browser_backend_keeps_explicit_backend() {
         let params = serde_json::json!({
             "backend": "cdp_direct"
@@ -6569,11 +6682,28 @@ mod tests {
         let strategy_slice = source_slice(
             &source,
             "turn_input_builder.set_base_system_prompt(system_prompt_source, resolved_prompt.clone());",
-            "let requested_strategy = request.execution_strategy.unwrap_or(persisted_strategy);",
+            "let prompt_with_runtime_agents = merge_system_prompt_with_runtime_plugin_agents(",
         );
 
         assert_markers_in_order(
             strategy_slice,
+            &[
+                "let requested_strategy = request.execution_strategy.unwrap_or(persisted_strategy);",
+                "turn_input_builder",
+                ".set_requested_execution_strategy(",
+                "if should_override_system_prompt_for_fast_response(",
+                "return RuntimeTurnPromptStrategy",
+            ],
+        );
+
+        let normal_prompt_slice = source_slice(
+            &source,
+            "let prompt_with_runtime_agents = merge_system_prompt_with_runtime_plugin_agents(",
+            "tracing::info!(\n        \"[AsterAgent] 执行策略: requested={:?}, effective={:?}\",",
+        );
+
+        assert_markers_in_order(
+            normal_prompt_slice,
             &[
                 "merge_system_prompt_with_runtime_plugin_agents(",
                 "TurnPromptAugmentationStageKind::RuntimeAgents",
@@ -6597,6 +6727,7 @@ mod tests {
             full_runtime_slice,
             &[
                 "TurnPromptAugmentationStageKind::Memory",
+                "TurnPromptAugmentationStageKind::KnowledgePack",
                 "TurnPromptAugmentationStageKind::WebSearch",
                 "TurnPromptAugmentationStageKind::RequestToolPolicy",
                 "TurnPromptAugmentationStageKind::Artifact",

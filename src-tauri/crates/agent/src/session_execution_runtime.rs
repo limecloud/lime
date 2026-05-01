@@ -308,6 +308,22 @@ pub struct SessionExecutionRuntimeTaskProfile {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub traits: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub modality_contract_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_slot: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_profile_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executor_adapter_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executor_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executor_binding_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub permission_profile_keys: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_lock_policy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub service_model_slot: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scene_kind: Option<String>,
@@ -705,9 +721,9 @@ fn extract_text_from_metadata(
         .find_map(|key| extract_text_from_value(metadata.get(*key)))
 }
 
-fn extract_lime_runtime_object<'a>(
-    metadata: &'a std::collections::HashMap<String, Value>,
-) -> Option<&'a serde_json::Map<String, Value>> {
+fn extract_lime_runtime_object(
+    metadata: &std::collections::HashMap<String, Value>,
+) -> Option<&serde_json::Map<String, Value>> {
     metadata
         .get(LIME_RUNTIME_METADATA_KEY)
         .and_then(Value::as_object)
@@ -893,6 +909,18 @@ fn extract_task_profile_from_metadata(
         .into_iter()
         .filter_map(|value| normalize_optional_text(Some(value)))
         .collect();
+    profile.modality_contract_key = normalize_optional_text(profile.modality_contract_key);
+    profile.routing_slot = normalize_optional_text(profile.routing_slot);
+    profile.execution_profile_key = normalize_optional_text(profile.execution_profile_key);
+    profile.executor_adapter_key = normalize_optional_text(profile.executor_adapter_key);
+    profile.executor_kind = normalize_optional_text(profile.executor_kind);
+    profile.executor_binding_key = normalize_optional_text(profile.executor_binding_key);
+    profile.permission_profile_keys = profile
+        .permission_profile_keys
+        .into_iter()
+        .filter_map(|value| normalize_optional_text(Some(value)))
+        .collect();
+    profile.user_lock_policy = normalize_optional_text(profile.user_lock_policy);
     profile.service_model_slot = normalize_optional_text(profile.service_model_slot);
     profile.scene_kind = normalize_optional_text(profile.scene_kind);
     profile.scene_skill_id = normalize_optional_text(profile.scene_skill_id);

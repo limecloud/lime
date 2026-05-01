@@ -223,6 +223,10 @@ pub(super) async fn try_handle(
                     >,
                 )
                 .transpose()?;
+            let run_start_hooks = args
+                .get("runStartHooks")
+                .or_else(|| args.get("run_start_hooks"))
+                .and_then(|value| value.as_bool());
             let db = app_handle.state::<crate::database::DbConnection>();
             let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
             let mcp_manager = app_handle.state::<crate::mcp::McpManagerState>();
@@ -235,6 +239,7 @@ pub(super) async fn try_handle(
                     workspace_id,
                     name,
                     execution_strategy,
+                    run_start_hooks,
                 )
                 .await?,
             )?

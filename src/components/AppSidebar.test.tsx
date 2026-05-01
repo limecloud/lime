@@ -393,6 +393,51 @@ describe("AppSidebar", () => {
     );
   });
 
+  it("新建任务首页应延后加载最近对话，避免首发抢占 bridge", async () => {
+    const scheduledTasks: Array<{
+      task: () => void;
+      options?: { minimumDelayMs?: number; idleTimeoutMs?: number };
+    }> = [];
+    mockScheduleMinimumDelayIdleTask.mockImplementation(
+      (
+        task: () => void,
+        options?: { minimumDelayMs?: number; idleTimeoutMs?: number },
+      ) => {
+        scheduledTasks.push({ task, options });
+        return () => undefined;
+      },
+    );
+
+    mountSidebarContainer({
+      currentPage: "agent",
+      currentPageParams: {
+        agentEntry: "new-task",
+        projectId: "project-1",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    expect(mockListAgentRuntimeSessions).not.toHaveBeenCalled();
+
+    const deferredSessionLoad = scheduledTasks.find(
+      (entry) =>
+        entry.options?.minimumDelayMs === 18_000 &&
+        entry.options?.idleTimeoutMs === 18_000,
+    );
+    expect(deferredSessionLoad).toBeDefined();
+
+    await act(async () => {
+      deferredSessionLoad?.task();
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
+      limit: 11,
+      workspaceId: "project-1",
+    });
+  });
+
   it("文件管理器临时折叠导航栏后应恢复用户原始状态", async () => {
     localStorage.setItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY, "false");
 
@@ -447,6 +492,7 @@ describe("AppSidebar", () => {
     expect(container.textContent).not.toContain("生成");
     expect(container.textContent).toContain("我的方法");
     expect(container.textContent).toContain("灵感库");
+    expect(container.textContent).toContain("知识库");
     expect(container.textContent).not.toContain("设置");
     expect(container.textContent).not.toContain("持续流程");
     expect(container.textContent).not.toContain("消息渠道");
@@ -466,7 +512,12 @@ describe("AppSidebar", () => {
       '[data-testid="app-sidebar-footer-area"]',
     );
 
-    expect(mainNavButtons).toEqual(["新建任务", "我的方法", "灵感库"]);
+    expect(mainNavButtons).toEqual([
+      "新建任务",
+      "我的方法",
+      "灵感库",
+      "知识库",
+    ]);
     expect(
       container.querySelector('[data-testid="app-sidebar-footer-nav"]'),
     ).toBeNull();

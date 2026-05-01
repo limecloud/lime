@@ -400,6 +400,7 @@ mod tests {
                 max_turns: Some(1),
                 retry_config: None,
                 system_prompt: None,
+                system_prompt_override: None,
                 include_context_trace: None,
                 turn_context: None,
             };

@@ -105,11 +105,7 @@ export function recordAgentStreamPerformanceMetric(
     requestId: normalizeString(trace?.requestId) ?? context.requestId ?? null,
   };
 
-  if (
-    actualSessionId &&
-    traceSessionId &&
-    actualSessionId !== traceSessionId
-  ) {
+  if (actualSessionId && traceSessionId && actualSessionId !== traceSessionId) {
     normalizedContext.actualSessionId = actualSessionId;
   }
   if (submittedAt !== null) {

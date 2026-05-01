@@ -176,6 +176,7 @@ const SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE = 8;
 const SIDEBAR_SEARCH_RESULT_LIMIT = 8;
 const SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS = 30_000;
 const SIDEBAR_SESSION_LOAD_RESTART_DEFER_MS = 160;
+const SIDEBAR_NEW_TASK_HOME_SESSION_LOAD_DEFER_MS = 18_000;
 const SIDEBAR_CONVERSATION_NAVIGATION_DEFER_MS =
   SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS;
 const SIDEBAR_SEARCH_HOVER_PREFETCH_DELAY_MS = 900;
@@ -3215,10 +3216,31 @@ export function AppSidebar({
     loadRecentSidebarSessions,
   ]);
   const sidebarFocusRefreshCancelRef = useRef<(() => void) | null>(null);
+  const newTaskHomeSessionLoadCancelRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!shouldLoadWorkspaceScopedConversations) {
+      newTaskHomeSessionLoadCancelRef.current?.();
+      newTaskHomeSessionLoadCancelRef.current = null;
       return;
+    }
+
+    if (isNewTaskHome && sidebarSessionsRef.current.length === 0) {
+      newTaskHomeSessionLoadCancelRef.current?.();
+      newTaskHomeSessionLoadCancelRef.current = scheduleMinimumDelayIdleTask(
+        () => {
+          newTaskHomeSessionLoadCancelRef.current = null;
+          void loadRecentSidebarSessionsRef.current();
+        },
+        {
+          minimumDelayMs: SIDEBAR_NEW_TASK_HOME_SESSION_LOAD_DEFER_MS,
+          idleTimeoutMs: SIDEBAR_NEW_TASK_HOME_SESSION_LOAD_DEFER_MS,
+        },
+      );
+      return () => {
+        newTaskHomeSessionLoadCancelRef.current?.();
+        newTaskHomeSessionLoadCancelRef.current = null;
+      };
     }
 
     if (isClawTaskCenter && hasCachedCurrentSessionSidebarEntry) {
@@ -3238,6 +3260,7 @@ export function AppSidebar({
     currentProjectId,
     hasCachedCurrentSessionSidebarEntry,
     isClawTaskCenter,
+    isNewTaskHome,
     shouldLoadWorkspaceScopedConversations,
   ]);
 

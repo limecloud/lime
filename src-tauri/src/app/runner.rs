@@ -1145,6 +1145,14 @@ pub fn run() {
             commands::sceneapp_cmd::sceneapp_get_run_summary,
             commands::sceneapp_cmd::sceneapp_prepare_run_governance_artifact,
             commands::sceneapp_cmd::sceneapp_get_scorecard,
+            // Agent Knowledge commands
+            commands::knowledge_cmd::knowledge_import_source,
+            commands::knowledge_cmd::knowledge_compile_pack,
+            commands::knowledge_cmd::knowledge_list_packs,
+            commands::knowledge_cmd::knowledge_get_pack,
+            commands::knowledge_cmd::knowledge_set_default_pack,
+            commands::knowledge_cmd::knowledge_update_pack_status,
+            commands::knowledge_cmd::knowledge_resolve_context,
             // Ecommerce Review Reply commands
             commands::ecommerce_review_reply_cmd::execute_ecommerce_review_reply,
             commands::browser_runtime_cmd::open_browser_runtime_debugger_window,

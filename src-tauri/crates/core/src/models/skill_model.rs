@@ -41,8 +41,9 @@ pub const ANALYSIS_SKILL_DIRECTORY: &str = "analysis";
 pub const TYPESETTING_SKILL_DIRECTORY: &str = "typesetting";
 pub const WEBPAGE_GENERATE_SKILL_DIRECTORY: &str = "webpage_generate";
 pub const CONTENT_POST_WITH_COVER_SKILL_DIRECTORY: &str = "content_post_with_cover";
+pub const KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str = "knowledge_builder";
 
-pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 20] = [
+pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 21] = [
     VIDEO_GENERATE_SKILL_DIRECTORY,
     TRANSCRIPTION_GENERATE_SKILL_DIRECTORY,
     BROADCAST_GENERATE_SKILL_DIRECTORY,
@@ -63,6 +64,7 @@ pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 20] = [
     TYPESETTING_SKILL_DIRECTORY,
     WEBPAGE_GENERATE_SKILL_DIRECTORY,
     CONTENT_POST_WITH_COVER_SKILL_DIRECTORY,
+    KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
 ];
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -588,6 +590,7 @@ mod tests {
         assert!(is_default_lime_skill(
             CONTENT_POST_WITH_COVER_SKILL_DIRECTORY
         ));
+        assert!(is_default_lime_skill(KNOWLEDGE_BUILDER_SKILL_DIRECTORY));
         assert!(!is_default_lime_skill("custom-skill"));
     }
 

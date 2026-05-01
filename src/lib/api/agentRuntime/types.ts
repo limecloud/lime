@@ -938,6 +938,11 @@ export interface AgentRuntimeSubmitTurnRequest {
   turn_config?: AgentTurnConfigSnapshot;
   queue_if_busy?: boolean;
   queued_turn_id?: string;
+  skip_pre_submit_resume?: boolean;
+}
+
+export interface AgentRuntimeCreateSessionOptions {
+  runStartHooks?: boolean;
 }
 
 export interface AgentRuntimeInterruptTurnRequest {

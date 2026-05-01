@@ -492,7 +492,8 @@ export const MetaIconButton = styled.button<{ $active?: boolean }>`
       $active ? "rgba(251, 191, 36, 0.58)" : "rgba(148, 163, 184, 0.24)"};
   background: ${({ $active }) =>
     $active ? "rgba(255, 251, 235, 0.94)" : "rgba(255, 255, 255, 0.9)"};
-  color: ${({ $active }) => ($active ? "#b45309" : "hsl(var(--muted-foreground))")};
+  color: ${({ $active }) =>
+    $active ? "#b45309" : "hsl(var(--muted-foreground))"};
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   cursor: pointer;
   transition:

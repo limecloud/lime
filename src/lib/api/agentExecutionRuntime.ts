@@ -56,6 +56,14 @@ export interface AsterSessionExecutionRuntimeTaskProfile {
   kind: string;
   source: string;
   traits?: string[];
+  modalityContractKey?: string | null;
+  routingSlot?: string | null;
+  executionProfileKey?: string | null;
+  executorAdapterKey?: string | null;
+  executorKind?: string | null;
+  executorBindingKey?: string | null;
+  permissionProfileKeys?: string[];
+  userLockPolicy?: string | null;
   serviceModelSlot?: string | null;
   sceneKind?: string | null;
   sceneSkillId?: string | null;

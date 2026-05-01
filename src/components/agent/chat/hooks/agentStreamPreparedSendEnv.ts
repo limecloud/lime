@@ -24,6 +24,7 @@ export interface AgentStreamPreparedSendEnv {
   runtime: AgentRuntimeAdapter;
   ensureSession: (options?: {
     skipSessionRestore?: boolean;
+    skipSessionStartHooks?: boolean;
   }) => Promise<string | null>;
   attemptSilentTurnRecovery: (
     sessionId: string,

@@ -3,10 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { mockSafeEmit, mockSafeListen } = vi.hoisted(() => ({
   mockSafeEmit: vi.fn(async () => undefined),
   mockSafeListen: vi.fn(
-    async (
-      _event: string,
-      _handler: (event: { payload: unknown }) => void,
-    ) => vi.fn(),
+    async (_event: string, _handler: (event: { payload: unknown }) => void) =>
+      vi.fn(),
   ),
 }));
 
@@ -69,8 +67,9 @@ describe("voiceModelSettingsNavigation", () => {
       modelId: "sensevoice-small-int8-2024-07-17",
     });
 
-    expect(window.sessionStorage.getItem(VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY))
-      .toContain("sensevoice-small-int8-2024-07-17");
+    expect(
+      window.sessionStorage.getItem(VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY),
+    ).toContain("sensevoice-small-int8-2024-07-17");
     expect(consumeVoiceModelSettingsFocusRequest()).toEqual({
       source: "smart-input",
       reason: "missing-model",
@@ -88,14 +87,11 @@ describe("voiceModelSettingsNavigation", () => {
       modelId: "sensevoice-small-int8-2024-07-17",
     });
 
-    expect(mockSafeEmit).toHaveBeenCalledWith(
-      OPEN_VOICE_MODEL_SETTINGS_EVENT,
-      {
-        source: "smart-input",
-        reason: "missing-model",
-        modelId: "sensevoice-small-int8-2024-07-17",
-      },
-    );
+    expect(mockSafeEmit).toHaveBeenCalledWith(OPEN_VOICE_MODEL_SETTINGS_EVENT, {
+      source: "smart-input",
+      reason: "missing-model",
+      modelId: "sensevoice-small-int8-2024-07-17",
+    });
   });
 
   it("监听器应接收 Tauri 事件桥请求", async () => {

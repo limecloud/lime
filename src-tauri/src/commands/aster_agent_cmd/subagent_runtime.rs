@@ -1092,7 +1092,7 @@ async fn submit_runtime_message_to_managed_session(
     })?;
     let submission_id = queued_task.queued_turn_id.clone();
     runtime_command_context
-        .submit_runtime_turn(queued_task, true)
+        .submit_runtime_turn(queued_task, true, false)
         .await?;
 
     Ok(AgentRuntimeSendSubagentInputResponse { submission_id })
@@ -1920,7 +1920,7 @@ fn spawn_subagent_turn_in_background(
     let runtime_command_context = runtime.runtime_command_context();
     tokio::spawn(async move {
         if let Err(error) = runtime_command_context
-            .submit_runtime_turn(queued_task, false)
+            .submit_runtime_turn(queued_task, false, false)
             .await
         {
             tracing::warn!("[AsterAgent][Subagent] 后台启动子代理失败: {}", error);
@@ -2124,7 +2124,7 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
     })?;
     let submission_id = queued_task.queued_turn_id.clone();
     runtime_command_context
-        .submit_runtime_turn(queued_task, true)
+        .submit_runtime_turn(queued_task, true, false)
         .await?;
     emit_subagent_status_changed_events(&runtime.app_handle, &session_id).await;
 

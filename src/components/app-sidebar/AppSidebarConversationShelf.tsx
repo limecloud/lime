@@ -48,7 +48,8 @@ interface AppSidebarConversationShelfProps {
 }
 
 const CONVERSATION_HOVER_PREFETCH_DELAY_MS = 900;
-const FAVORITE_SESSION_IDS_STORAGE_KEY = "lime.app-sidebar.favorite-session-ids";
+const FAVORITE_SESSION_IDS_STORAGE_KEY =
+  "lime.app-sidebar.favorite-session-ids";
 const CONVERSATION_MENU_WIDTH = 188;
 const CONVERSATION_MENU_APPROX_HEIGHT = 252;
 const CONVERSATION_MENU_VIEWPORT_MARGIN = 12;
@@ -423,7 +424,9 @@ const ConversationMenuItem = styled.button<{ $danger?: boolean }>`
   border-radius: 14px;
   background: transparent;
   color: ${({ $danger }) =>
-    $danger ? "var(--lime-danger, #b91c1c)" : "var(--lime-text-strong, #0f172a)"};
+    $danger
+      ? "var(--lime-danger, #b91c1c)"
+      : "var(--lime-text-strong, #0f172a)"};
   display: flex;
   align-items: center;
   gap: 16px;
@@ -647,13 +650,10 @@ export function AppSidebarConversationShelf({
     });
   }, []);
 
-  const runMenuAction = useCallback(
-    (action: () => void) => {
-      setMenuState(null);
-      action();
-    },
-    [],
-  );
+  const runMenuAction = useCallback((action: () => void) => {
+    setMenuState(null);
+    action();
+  }, []);
 
   useEffect(() => {
     if (!multiSelectMode || typeof window === "undefined") {
@@ -826,9 +826,7 @@ export function AppSidebarConversationShelf({
                             $active={isCurrentConversation}
                           />
                         )}
-                        <ConversationItemLabel>
-                          {title}
-                        </ConversationItemLabel>
+                        <ConversationItemLabel>{title}</ConversationItemLabel>
                         {favorite ? (
                           <ConversationFavoriteBadge
                             title="已收藏"
@@ -933,9 +931,7 @@ export function AppSidebarConversationShelf({
                               $active={isCurrentConversation}
                             />
                           )}
-                          <ConversationItemLabel>
-                            {title}
-                          </ConversationItemLabel>
+                          <ConversationItemLabel>{title}</ConversationItemLabel>
                           {favorite ? (
                             <ConversationFavoriteBadge
                               title="已收藏"

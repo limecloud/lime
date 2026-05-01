@@ -3,6 +3,16 @@ import type { MediaTaskModalityRuntimeContractIndexEntry } from "@/lib/api/media
 const LIMECORE_POLICY_META_PREFIX = "LimeCore 策略输入";
 const MAX_VISIBLE_REFS = 3;
 
+export interface LimeCorePolicyEvaluationMetaInput {
+  evaluationStatus?: string | null;
+  evaluationDecision?: string | null;
+  blockingRefs?: string[] | null;
+  askRefs?: string[] | null;
+  pendingRefs?: string[] | null;
+  missingInputs?: string[] | null;
+  pendingHitRefs?: string[] | null;
+}
+
 function normalizeRefs(refs?: string[] | null): string[] {
   const normalized = new Set<string>();
   (refs || []).forEach((ref) => {
@@ -22,24 +32,22 @@ function formatRefs(refs: string[]): string {
     : visibleRefs.join(" / ");
 }
 
-function buildPolicyEvaluationMetaItem(
-  entry: MediaTaskModalityRuntimeContractIndexEntry,
+export function buildLimeCorePolicyEvaluationMetaItem(
+  input: LimeCorePolicyEvaluationMetaInput,
 ): string | null {
-  const status = entry.limecore_policy_evaluation_status?.trim().toLowerCase();
-  const decision = entry.limecore_policy_evaluation_decision
-    ?.trim()
-    .toLowerCase();
+  const status = input.evaluationStatus?.trim().toLowerCase();
+  const decision = input.evaluationDecision?.trim().toLowerCase();
 
   if (!status && !decision) {
     return null;
   }
 
   const pendingRefs = normalizeRefs(
-    entry.limecore_policy_evaluation_pending_refs?.length
-      ? entry.limecore_policy_evaluation_pending_refs
-      : entry.limecore_policy_pending_hit_refs?.length
-        ? entry.limecore_policy_pending_hit_refs
-        : entry.limecore_policy_missing_inputs,
+    input.pendingRefs?.length
+      ? input.pendingRefs
+      : input.pendingHitRefs?.length
+        ? input.pendingHitRefs
+        : input.missingInputs,
   );
   if (status === "input_gap") {
     return pendingRefs.length > 0
@@ -47,16 +55,14 @@ function buildPolicyEvaluationMetaItem(
       : `${LIMECORE_POLICY_META_PREFIX}待命中`;
   }
 
-  const blockingRefs = normalizeRefs(
-    entry.limecore_policy_evaluation_blocking_refs,
-  );
+  const blockingRefs = normalizeRefs(input.blockingRefs);
   if (decision === "deny" || blockingRefs.length > 0) {
     return blockingRefs.length > 0
       ? `${LIMECORE_POLICY_META_PREFIX}阻断: ${formatRefs(blockingRefs)}`
       : `${LIMECORE_POLICY_META_PREFIX}阻断`;
   }
 
-  const askRefs = normalizeRefs(entry.limecore_policy_evaluation_ask_refs);
+  const askRefs = normalizeRefs(input.askRefs);
   if (decision === "ask" || askRefs.length > 0) {
     return askRefs.length > 0
       ? `${LIMECORE_POLICY_META_PREFIX}需确认: ${formatRefs(askRefs)}`
@@ -68,6 +74,20 @@ function buildPolicyEvaluationMetaItem(
   }
 
   return null;
+}
+
+function buildPolicyEvaluationMetaItem(
+  entry: MediaTaskModalityRuntimeContractIndexEntry,
+): string | null {
+  return buildLimeCorePolicyEvaluationMetaItem({
+    evaluationStatus: entry.limecore_policy_evaluation_status,
+    evaluationDecision: entry.limecore_policy_evaluation_decision,
+    blockingRefs: entry.limecore_policy_evaluation_blocking_refs,
+    askRefs: entry.limecore_policy_evaluation_ask_refs,
+    pendingRefs: entry.limecore_policy_evaluation_pending_refs,
+    missingInputs: entry.limecore_policy_missing_inputs,
+    pendingHitRefs: entry.limecore_policy_pending_hit_refs,
+  });
 }
 
 export function mergeMediaTaskPolicyEvaluationMetaItems(

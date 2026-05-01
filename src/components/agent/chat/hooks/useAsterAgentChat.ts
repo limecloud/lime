@@ -40,7 +40,7 @@ type UseAsterAgentChatRuntimeOptions = UseAsterAgentChatOptions & {
   preserveRestoredMessages?: boolean;
 };
 
-const AUTO_TITLE_DEFERRED_LOAD_MS = 10_000;
+const AUTO_TITLE_DEFERRED_LOAD_MS = 30_000;
 const AUTO_TITLE_IDLE_TIMEOUT_MS = 2_000;
 const AUTO_TITLE_PLACEHOLDER_TITLES = new Set([
   "",

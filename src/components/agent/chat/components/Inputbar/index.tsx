@@ -25,6 +25,10 @@ import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import type { HandleSendOptions } from "../../hooks/handleSendTypes";
 import type { AgentInitialInputCapabilityParams } from "@/types/page";
 import type { CuratedTaskReferenceEntry } from "../../utils/curatedTaskReferenceSelection";
+import type {
+  InputbarKnowledgePackOption,
+  InputbarKnowledgePackSelection,
+} from "./types";
 
 const SecondaryControlsRow = styled.div`
   position: absolute;
@@ -97,6 +101,10 @@ interface InputbarProps extends SkillSelectionSourceProps {
   workflowGate?: WorkflowGateState | null;
   workflowSteps?: WorkflowStep[];
   workflowRunState?: "idle" | "auto_running" | "await_user_decision";
+  knowledgePackSelection?: InputbarKnowledgePackSelection | null;
+  knowledgePackOptions?: InputbarKnowledgePackOption[];
+  onToggleKnowledgePack?: (enabled: boolean) => void;
+  onSelectKnowledgePack?: (packName: string) => void;
   queuedTurns?: QueuedTurnSnapshot[];
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   onRemoveQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
@@ -160,6 +168,10 @@ export const Inputbar: React.FC<InputbarProps> = ({
   workflowGate,
   workflowSteps = [],
   workflowRunState,
+  knowledgePackSelection = null,
+  knowledgePackOptions = [],
+  onToggleKnowledgePack,
+  onSelectKnowledgePack,
   queuedTurns = [],
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
@@ -235,6 +247,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
     workflowGate,
     workflowSteps,
     workflowRunState,
+    knowledgePackSelection,
     onEnableSuggestedTeam,
     projectId,
     sessionId,
@@ -311,6 +324,10 @@ export const Inputbar: React.FC<InputbarProps> = ({
         }
         defaultCuratedTaskReferenceEntries={defaultCuratedTaskReferenceEntries}
         selectedTeam={selectedTeam}
+        knowledgePackSelection={knowledgePackSelection}
+        knowledgePackOptions={knowledgePackOptions}
+        onToggleKnowledgePack={onToggleKnowledgePack}
+        onSelectKnowledgePack={onSelectKnowledgePack}
         onSelectTeam={onSelectTeam}
         teamWorkspaceSettings={teamWorkspaceSettings}
         onPersistCustomTeams={onPersistCustomTeams}

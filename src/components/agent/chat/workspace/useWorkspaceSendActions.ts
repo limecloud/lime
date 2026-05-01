@@ -8,6 +8,7 @@ import type {
 } from "@/lib/api/appConfigTypes";
 import type { ConfiguredProvider } from "@/hooks/useConfiguredProviders";
 import { logAgentDebug } from "@/lib/agentDebug";
+import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
 import { useGlobalMediaGenerationDefaults } from "@/hooks/useGlobalMediaGenerationDefaults";
 import { getOrCreateDefaultProject } from "@/lib/api/project";
 import { normalizeMediaGenerationPreference } from "@/lib/mediaGeneration";
@@ -81,6 +82,7 @@ import {
   type ChatToolPreferences,
 } from "../utils/chatToolPreferences";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";
+import { extractAgentUiPerformanceTraceMetadata } from "../hooks/agentStreamPerformanceMetrics";
 import type { UseRuntimeTeamFormationResult } from "../hooks/useRuntimeTeamFormation";
 import type { SendMessageFn } from "../hooks/agentChatShared";
 import type { Message, MessageImage } from "../types";
@@ -398,29 +400,39 @@ function withFastResponseMetadata(
 function buildFastResponseAssistantDraft(
   decision: AgentFastResponseDecision,
 ): HandleSendOptions["assistantDraft"] {
-  if (!decision.enabled || !decision.modelOverride) {
+  if (!decision.enabled) {
     return undefined;
   }
 
-  const providerLabel = decision.providerOverride || "低延迟 Provider";
-  const modelLabel = decision.modelOverride;
-  const checkpoints = [
-    `已切到 ${providerLabel} / ${modelLabel}`,
-    "仅当前轻量首轮请求生效",
-    "复杂任务仍保留原模型与工具策略",
-  ];
+  const providerLabel = decision.providerOverride || "当前 Provider";
+  const modelLabel = decision.modelOverride || "当前模型";
+  const checkpoints = decision.routingChanged
+    ? [
+        `已切到 ${providerLabel} / ${modelLabel}`,
+        "仅当前轻量首轮请求生效",
+        "复杂任务仍保留原模型与工具策略",
+      ]
+    : [
+        "已启用短提示词快速响应",
+        "仅当前轻量首轮请求生效",
+        "复杂任务仍保留原模型与工具策略",
+      ];
 
   return {
     initialRuntimeStatus: {
       phase: "routing",
       title: "快速响应已启用",
-      detail: `这轮先用 ${modelLabel} 降低首字等待。`,
+      detail: decision.routingChanged
+        ? `这轮先用 ${modelLabel} 降低首字等待。`
+        : "这轮使用更短的系统提示降低首字等待。",
       checkpoints,
     },
     waitingRuntimeStatus: {
       phase: "routing",
       title: "快速响应处理中",
-      detail: `已提交给 ${modelLabel}，正在等待首个模型事件。`,
+      detail: decision.routingChanged
+        ? `已提交给 ${modelLabel}，正在等待首个模型事件。`
+        : "已提交请求，正在等待首个模型事件。",
       checkpoints,
     },
   };
@@ -2974,7 +2986,10 @@ interface UseWorkspaceSendActionsParams {
   openRuntimeSceneGate?: (
     request: RuntimeSceneGateRequest,
   ) => Promise<void> | void;
-  ensureSessionForCommandMetadata?: () => Promise<string | null>;
+  ensureSessionForCommandMetadata?: (options?: {
+    skipSessionRestore?: boolean;
+    skipSessionStartHooks?: boolean;
+  }) => Promise<string | null>;
   resolveImageWorkbenchSkillRequest: (input: {
     rawText: string;
     parsedCommand: ParsedImageWorkbenchCommand;
@@ -3336,11 +3351,20 @@ export function useWorkspaceSendActions({
           current?.key === previewKey ? null : current,
         );
       };
-      const primeCommandSessionId = (reason = "unspecified") => {
+      const resolveCommandSessionEnsureOptions = () => ({
+        skipSessionRestore: sendOptions?.skipSessionRestore === true,
+        skipSessionStartHooks: sendOptions?.skipSessionStartHooks === true,
+      });
+      const primeCommandSessionId = (
+        reason = "unspecified",
+        ensureOptions = resolveCommandSessionEnsureOptions(),
+      ) => {
         if (commandSessionId !== undefined) {
           logAgentDebug("WorkspaceSend", "primeSession.reuseResolved", {
             reason,
             sessionId: commandSessionId,
+            skipSessionRestore: ensureOptions.skipSessionRestore,
+            skipSessionStartHooks: ensureOptions.skipSessionStartHooks,
           });
           return Promise.resolve(commandSessionId);
         }
@@ -3348,16 +3372,20 @@ export function useWorkspaceSendActions({
           const primeStartedAt = Date.now();
           logAgentDebug("WorkspaceSend", "primeSession.start", {
             reason,
+            skipSessionRestore: ensureOptions.skipSessionRestore,
+            skipSessionStartHooks: ensureOptions.skipSessionStartHooks,
           });
           commandSessionPromise = (async () => {
             try {
               const resolvedSessionId =
-                await ensureSessionForCommandMetadata?.();
+                await ensureSessionForCommandMetadata?.(ensureOptions);
               commandSessionId = resolvedSessionId?.trim() || null;
               logAgentDebug("WorkspaceSend", "primeSession.done", {
                 durationMs: Date.now() - primeStartedAt,
                 reason,
                 sessionId: commandSessionId,
+                skipSessionRestore: ensureOptions.skipSessionRestore,
+                skipSessionStartHooks: ensureOptions.skipSessionStartHooks,
               });
               return commandSessionId;
             } catch (error) {
@@ -3368,6 +3396,8 @@ export function useWorkspaceSendActions({
                   durationMs: Date.now() - primeStartedAt,
                   error,
                   reason,
+                  skipSessionRestore: ensureOptions.skipSessionRestore,
+                  skipSessionStartHooks: ensureOptions.skipSessionStartHooks,
                 },
                 { level: "error" },
               );
@@ -3382,7 +3412,10 @@ export function useWorkspaceSendActions({
         return commandSessionPromise;
       };
       const ensureCommandSessionId = async () => {
-        return primeCommandSessionId("await_binding");
+        return primeCommandSessionId(
+          "await_binding",
+          resolveCommandSessionEnsureOptions(),
+        );
       };
       const markCompletedMentionCommand = (
         commandKey: string,
@@ -3438,7 +3471,10 @@ export function useWorkspaceSendActions({
           requestContextKey: "image_task",
         };
         ensureSubmissionPreview(effectiveImages);
-        void primeCommandSessionId().catch(() => undefined);
+        void primeCommandSessionId(
+          "image_skill_launch",
+          resolveCommandSessionEnsureOptions(),
+        ).catch(() => undefined);
         sendOptions = {
           ...(sendOptions || {}),
           requestMetadata: buildImageSkillLaunchRequestMetadata(
@@ -3499,7 +3535,10 @@ export function useWorkspaceSendActions({
           requestContextKey: "image_task",
         };
         ensureSubmissionPreview(effectiveImages);
-        void primeCommandSessionId().catch(() => undefined);
+        void primeCommandSessionId(
+          "poster_skill_launch",
+          resolveCommandSessionEnsureOptions(),
+        ).catch(() => undefined);
         sendOptions = {
           ...(sendOptions || {}),
           requestMetadata: buildImageSkillLaunchRequestMetadata(
@@ -3541,7 +3580,10 @@ export function useWorkspaceSendActions({
           requestContextKey: "cover_task",
         };
         ensureSubmissionPreview();
-        void primeCommandSessionId().catch(() => undefined);
+        void primeCommandSessionId(
+          "cover_skill_launch",
+          resolveCommandSessionEnsureOptions(),
+        ).catch(() => undefined);
         sendOptions = {
           ...(sendOptions || {}),
           requestMetadata: buildCoverSkillLaunchRequestMetadata(
@@ -3583,7 +3625,10 @@ export function useWorkspaceSendActions({
           requestContextKey: "video_task",
         };
         ensureSubmissionPreview();
-        void primeCommandSessionId().catch(() => undefined);
+        void primeCommandSessionId(
+          "video_skill_launch",
+          resolveCommandSessionEnsureOptions(),
+        ).catch(() => undefined);
         sendOptions = {
           ...(sendOptions || {}),
           requestMetadata: buildVideoSkillLaunchRequestMetadata(
@@ -3622,7 +3667,10 @@ export function useWorkspaceSendActions({
           requestContextKey: "broadcast_task",
         };
         ensureSubmissionPreview();
-        void primeCommandSessionId().catch(() => undefined);
+        void primeCommandSessionId(
+          "broadcast_skill_launch",
+          resolveCommandSessionEnsureOptions(),
+        ).catch(() => undefined);
         sendOptions = {
           ...(sendOptions || {}),
           requestMetadata: buildBroadcastSkillLaunchRequestMetadata(
@@ -3670,7 +3718,10 @@ export function useWorkspaceSendActions({
           requestContextKey: "resource_search_task",
         };
         ensureSubmissionPreview();
-        void primeCommandSessionId().catch(() => undefined);
+        void primeCommandSessionId(
+          "resource_search_skill_launch",
+          resolveCommandSessionEnsureOptions(),
+        ).catch(() => undefined);
         sendOptions = {
           ...(sendOptions || {}),
           requestMetadata: buildResourceSearchSkillLaunchRequestMetadata(
@@ -3711,7 +3762,10 @@ export function useWorkspaceSendActions({
           requestContextKey: "transcription_task",
         };
         ensureSubmissionPreview();
-        void primeCommandSessionId().catch(() => undefined);
+        void primeCommandSessionId(
+          "transcription_skill_launch",
+          resolveCommandSessionEnsureOptions(),
+        ).catch(() => undefined);
         sendOptions = {
           ...(sendOptions || {}),
           requestMetadata: buildTranscriptionSkillLaunchRequestMetadata(
@@ -5158,6 +5212,8 @@ export function useWorkspaceSendActions({
         !sendOptions?.purpose &&
         !hasBoundSkillLaunch &&
         messagesCount === 0 &&
+        sendOptions?.skipSessionRestore !== true &&
+        sendOptions?.skipSessionStartHooks !== true &&
         Boolean(ensureSessionForCommandMetadata);
 
       if (!hasBoundSkillLaunch) {
@@ -5173,9 +5229,21 @@ export function useWorkspaceSendActions({
       try {
         const resolvedSubmissionPreviewKey = ensureSubmissionPreview();
         if (shouldPrimeSessionForInitialConversationSend) {
-          void primeCommandSessionId("initial_conversation_send").catch(
-            () => undefined,
-          );
+          void primeCommandSessionId(
+            "initial_conversation_send",
+            resolveCommandSessionEnsureOptions(),
+          ).catch(() => undefined);
+        } else if (
+          !sendOptions?.purpose &&
+          !hasBoundSkillLaunch &&
+          messagesCount === 0 &&
+          Boolean(ensureSessionForCommandMetadata)
+        ) {
+          logAgentDebug("WorkspaceSend", "primeSession.skipInitial", {
+            reason: "initial_conversation_send",
+            skipSessionRestore: sendOptions?.skipSessionRestore === true,
+            skipSessionStartHooks: sendOptions?.skipSessionStartHooks === true,
+          });
         }
         text = await buildWorkspaceSendText({
           sourceText: dispatchText,
@@ -5200,6 +5268,20 @@ export function useWorkspaceSendActions({
           }
         }
         submissionPreviewKey = resolvedSubmissionPreviewKey;
+        const performanceTrace = extractAgentUiPerformanceTraceMetadata(
+          sendOptions?.requestMetadata,
+        );
+        if (performanceTrace?.sessionId || performanceTrace?.requestId) {
+          recordAgentUiPerformanceMetric("workspaceSend.plan.ready", {
+            durationMs: Date.now() - planStartedAt,
+            hasPendingSessionBinding: Boolean(pendingCommandSessionBinding),
+            primedSessionId: commandSessionId ?? null,
+            requestId: performanceTrace.requestId ?? null,
+            sessionId: performanceTrace.sessionId ?? null,
+            source: performanceTrace.source ?? "workspace-send",
+            workspaceId: performanceTrace.workspaceId ?? null,
+          });
+        }
         logAgentDebug("WorkspaceSend", "plan.ready", {
           durationMs: Date.now() - planStartedAt,
           hasPendingSessionBinding: Boolean(pendingCommandSessionBinding),
@@ -5355,17 +5437,18 @@ export function useWorkspaceSendActions({
           hasExplicitModelOverride: Boolean(sendOptions?.modelOverride?.trim()),
           hasServiceModelOverride: Boolean(
             serviceModelSendOverrides.providerOverride ||
-              serviceModelSendOverrides.modelOverride,
+            serviceModelSendOverrides.modelOverride,
           ),
           hasCapabilityRoute: Boolean(
-            sendOptions?.capabilityRoute || sendBoundary.browserRequirementMatch,
+            sendOptions?.capabilityRoute ||
+            sendBoundary.browserRequirementMatch,
           ),
           hasSkillRequest: Boolean(sendOptions?.skillRequest),
           hasSelectedTeam: Boolean(selectedTeam),
           hasMentionedCharacters: mentionedCharacters.length > 0,
           hasContextWorkspace: Boolean(
             contextWorkspace.enabled ||
-              contextWorkspace.activeContextPrompt?.trim(),
+            contextWorkspace.activeContextPrompt?.trim(),
           ),
           hasPurpose: Boolean(sendOptions?.purpose),
           hasAutoContinue: Boolean(autoContinuePayload?.enabled),
@@ -5386,11 +5469,15 @@ export function useWorkspaceSendActions({
           providerOverride:
             sendOptions?.providerOverride ??
             serviceModelSendOverrides.providerOverride ??
-            fastResponseDecision.providerOverride,
+            (fastResponseDecision.routingChanged
+              ? fastResponseDecision.providerOverride
+              : undefined),
           modelOverride:
             sendOptions?.modelOverride ??
             serviceModelSendOverrides.modelOverride ??
-            fastResponseDecision.modelOverride,
+            (fastResponseDecision.routingChanged
+              ? fastResponseDecision.modelOverride
+              : undefined),
           systemPromptOverride:
             sendOptions?.systemPromptOverride ??
             (fastResponseDecision.enabled

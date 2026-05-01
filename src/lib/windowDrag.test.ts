@@ -79,7 +79,10 @@ describe("windowDrag", () => {
     expect(isWindowDragInteractiveTarget(label)).toBe(true);
     expect(
       shouldStartWindowDragFromMouseEvent(
-        buildMouseEventLike({ currentTarget: document.createElement("div"), target: label }),
+        buildMouseEventLike({
+          currentTarget: document.createElement("div"),
+          target: label,
+        }),
       ),
     ).toBe(false);
   });

@@ -943,42 +943,35 @@ const MessageListInner: React.FC<MessageListProps> = ({
     [renderedMessages],
   );
   const restoredTurnWindowSize = Math.max(1, renderedAssistantMessageCount + 1);
-  const renderedTurns = useMemo(
-    () => {
-      const shouldWindowTurns =
-        hiddenHistoryCount > 0 || isRestoredHistoryWindow;
-      if (!shouldWindowTurns) {
-        return turns;
-      }
+  const renderedTurns = useMemo(() => {
+    const shouldWindowTurns = hiddenHistoryCount > 0 || isRestoredHistoryWindow;
+    if (!shouldWindowTurns) {
+      return turns;
+    }
 
-      const turnWindowSize = isRestoredHistoryWindow
-        ? restoredTurnWindowSize
-        : Math.max(renderedMessageCount, progressiveInitialRenderCount);
-      const tailTurns =
-        turnWindowSize > 0
-          ? turns.slice(-Math.min(turns.length, turnWindowSize))
-          : [];
-      if (
-        !currentTurnId ||
-        tailTurns.some((turn) => turn.id === currentTurnId)
-      ) {
-        return tailTurns;
-      }
+    const turnWindowSize = isRestoredHistoryWindow
+      ? restoredTurnWindowSize
+      : Math.max(renderedMessageCount, progressiveInitialRenderCount);
+    const tailTurns =
+      turnWindowSize > 0
+        ? turns.slice(-Math.min(turns.length, turnWindowSize))
+        : [];
+    if (!currentTurnId || tailTurns.some((turn) => turn.id === currentTurnId)) {
+      return tailTurns;
+    }
 
-      const selectedTurnIds = new Set(tailTurns.map((turn) => turn.id));
-      selectedTurnIds.add(currentTurnId);
-      return turns.filter((turn) => selectedTurnIds.has(turn.id));
-    },
-    [
-      currentTurnId,
-      hiddenHistoryCount,
-      isRestoredHistoryWindow,
-      progressiveInitialRenderCount,
-      renderedMessageCount,
-      restoredTurnWindowSize,
-      turns,
-    ],
-  );
+    const selectedTurnIds = new Set(tailTurns.map((turn) => turn.id));
+    selectedTurnIds.add(currentTurnId);
+    return turns.filter((turn) => selectedTurnIds.has(turn.id));
+  }, [
+    currentTurnId,
+    hiddenHistoryCount,
+    isRestoredHistoryWindow,
+    progressiveInitialRenderCount,
+    renderedMessageCount,
+    restoredTurnWindowSize,
+    turns,
+  ]);
   const renderedTurnIdSet = useMemo(() => {
     if (hiddenHistoryCount <= 0 && !isRestoredHistoryWindow) {
       return null;

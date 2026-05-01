@@ -629,6 +629,7 @@ impl RuntimeCommandContext {
         &self,
         queued_task: QueuedTurnTask<serde_json::Value>,
         queue_if_busy: bool,
+        skip_pre_submit_resume: bool,
     ) -> Result<(), String> {
         submit_runtime_turn_service(
             self.app_handle.clone(),
@@ -641,6 +642,7 @@ impl RuntimeCommandContext {
             &self.automation_state,
             queued_task,
             queue_if_busy,
+            skip_pre_submit_resume,
             self.runtime_queue_executor.clone(),
         )
         .await

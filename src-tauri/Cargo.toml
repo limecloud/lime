@@ -9,7 +9,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.26.0"
+version = "1.27.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -35,6 +35,7 @@ lime-embedding = { path = "crates/embedding" }
 lime-gateway = { path = "crates/gateway" }
 lime-browser-runtime = { path = "crates/browser-runtime" }
 lime-media-runtime = { path = "crates/media-runtime" }
+lime-knowledge = { path = "crates/knowledge" }
 voice-core = { path = "crates/voice-core" }
 aster = { package = "aster-core", path = "crates/aster-rust/crates/aster" }
 aster-models = { path = "crates/aster-rust/crates/aster-models" }
@@ -197,7 +198,7 @@ version = "2.4"
 
 [package]
 name = "lime"
-version = "1.26.0"
+version = "1.27.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"
@@ -232,6 +233,7 @@ lime-memory.workspace = true
 lime-embedding.workspace = true
 lime-browser-runtime.workspace = true
 lime-media-runtime.workspace = true
+lime-knowledge.workspace = true
 voice-core.workspace = true
 
 # Tauri

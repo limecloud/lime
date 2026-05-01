@@ -92,7 +92,10 @@ export async function startWindowDragFromMouseEvent(
     await getCurrentWindow().startDragging();
     return true;
   } catch (error) {
-    console.warn(`[窗口] 启动主窗口拖拽失败: ${options.source ?? "unknown"}`, error);
+    console.warn(
+      `[窗口] 启动主窗口拖拽失败: ${options.source ?? "unknown"}`,
+      error,
+    );
     return false;
   }
 }

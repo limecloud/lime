@@ -133,9 +133,7 @@ describe("mockPriorityCommands", () => {
 
   it("运行时真相事件在浏览器模式下禁止静默退回 mock", () => {
     expect(
-      shouldDisallowMockEventFallbackInBrowser(
-        "voice-model-download-progress",
-      ),
+      shouldDisallowMockEventFallbackInBrowser("voice-model-download-progress"),
     ).toBe(true);
     expect(
       shouldDisallowMockEventFallbackInBrowser("aster_stream_session-1"),

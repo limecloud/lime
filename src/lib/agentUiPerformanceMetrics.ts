@@ -15,6 +15,9 @@ export interface AgentUiPerformanceSessionSummary {
   homeInputToPendingShellMs?: number;
   homeInputToPendingPreviewPaintMs?: number;
   homeInputToSendDispatchMs?: number;
+  homeInputToSendPlanReadyMs?: number;
+  homeInputToAssistantDraftMs?: number;
+  homeInputToAssistantDraftPaintMs?: number;
   homeInputToStreamRequestStartMs?: number;
   homeInputToSubmitAcceptedMs?: number;
   homeInputToFirstEventMs?: number;
@@ -363,9 +366,21 @@ export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot
       sessionEntries,
       "homeInput.sendDispatch.start",
     );
+    const homeInputSendPlanReady = firstEntry(
+      sessionEntries,
+      "workspaceSend.plan.ready",
+    );
     const streamRequestStart = firstEntry(
       sessionEntries,
       "agentStream.request.start",
+    );
+    const streamAssistantDraft = firstEntry(
+      sessionEntries,
+      "agentStream.assistantDraft",
+    );
+    const streamAssistantDraftPaint = firstEntry(
+      sessionEntries,
+      "agentStream.assistantDraftPaint",
     );
     const streamEnsureSessionDone = lastEntry(
       sessionEntries,
@@ -403,7 +418,10 @@ export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot
       sessionEntries,
       "taskCenter.draftMaterialize.success",
     );
-    const firstMessageListPaint = firstEntry(sessionEntries, "messageList.paint");
+    const firstMessageListPaint = firstEntry(
+      sessionEntries,
+      "messageList.paint",
+    );
     const messageListPaint = lastEntry(sessionEntries, "messageList.paint");
     const finalMessageList =
       messageListPaint ?? lastEntry(sessionEntries, "messageList.commit");
@@ -420,12 +438,30 @@ export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot
         homeInputSubmit,
         homeInputPendingPreviewPaint,
       ),
-      homeInputToSendDispatchMs: deltaMs(homeInputSubmit, homeInputSendDispatch),
+      homeInputToSendDispatchMs: deltaMs(
+        homeInputSubmit,
+        homeInputSendDispatch,
+      ),
+      homeInputToSendPlanReadyMs: deltaMs(
+        homeInputSubmit,
+        homeInputSendPlanReady,
+      ),
+      homeInputToAssistantDraftMs: deltaMs(
+        homeInputSubmit,
+        streamAssistantDraft,
+      ),
+      homeInputToAssistantDraftPaintMs: deltaMs(
+        homeInputSubmit,
+        streamAssistantDraftPaint,
+      ),
       homeInputToStreamRequestStartMs: deltaMs(
         homeInputSubmit,
         streamRequestStart,
       ),
-      homeInputToSubmitAcceptedMs: deltaMs(homeInputSubmit, streamSubmitAccepted),
+      homeInputToSubmitAcceptedMs: deltaMs(
+        homeInputSubmit,
+        streamSubmitAccepted,
+      ),
       homeInputToFirstEventMs: deltaMs(homeInputSubmit, streamFirstEvent),
       homeInputToFirstRuntimeStatusMs: deltaMs(
         homeInputSubmit,
@@ -530,7 +566,10 @@ export function summarizeAgentUiPerformanceMetrics(): AgentUiPerformanceSnapshot
         "agentUi.longTask",
         "durationMs",
       ),
-      messageListComputeMaxMs: maxMetric(sessionEntries, "messageListComputeMs"),
+      messageListComputeMaxMs: maxMetric(
+        sessionEntries,
+        "messageListComputeMs",
+      ),
       messageListGroupBuildMaxMs: maxMetric(
         sessionEntries,
         "messageListGroupBuildMs",

@@ -175,6 +175,7 @@ async fn execute_agent_turn(
         automation_state.inner(),
         queued_task,
         false,
+        false,
         build_runtime_queue_executor(),
     )
     .await?;

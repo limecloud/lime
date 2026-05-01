@@ -1070,7 +1070,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const createFreshSession = useCallback(
     async (
       sessionName?: string,
-      createOptions?: { preserveCurrentSnapshot?: boolean },
+      createOptions?: {
+        preserveCurrentSnapshot?: boolean;
+        skipSessionStartHooks?: boolean;
+      },
     ): Promise<string | null> => {
       if (createFreshSessionPromiseRef.current) {
         return createFreshSessionPromiseRef.current;
@@ -1096,6 +1099,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
             resolvedWorkspaceId,
             sessionName,
             executionStrategy,
+            {
+              runStartHooks: createOptions?.skipSessionStartHooks !== true,
+            },
           );
 
           const now = new Date();
@@ -2736,35 +2742,43 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const ensureSession = useCallback(
     async (options?: {
       skipSessionRestore?: boolean;
+      skipSessionStartHooks?: boolean;
     }): Promise<string | null> => {
-    if (sessionIdRef.current) {
-      return sessionIdRef.current;
-    }
+      if (sessionIdRef.current) {
+        return sessionIdRef.current;
+      }
 
-    const restoreCandidate = restoreCandidateSessionIdRef.current?.trim();
-    if (!options?.skipSessionRestore && !disableSessionRestore && restoreCandidate) {
-      const targetSessionId = resolveRestorableTopicSessionId(
-        restoreCandidate,
-        topics,
-        {
-          allowDetachedCandidate: topicsListMayBeTruncatedRef.current,
-        },
-      );
-
-      if (targetSessionId) {
-        const targetTopic = topics.find(
-          (topic) => topic.id === targetSessionId,
+      const restoreCandidate = restoreCandidateSessionIdRef.current?.trim();
+      if (
+        !options?.skipSessionRestore &&
+        !disableSessionRestore &&
+        restoreCandidate
+      ) {
+        const targetSessionId = resolveRestorableTopicSessionId(
+          restoreCandidate,
+          topics,
+          {
+            allowDetachedCandidate: topicsListMayBeTruncatedRef.current,
+          },
         );
-        await switchTopic(targetSessionId, {
-          resumeSessionStartHooks: shouldResumeTaskSession(targetTopic),
-        });
-        if (sessionIdRef.current) {
-          return sessionIdRef.current;
+
+        if (targetSessionId) {
+          const targetTopic = topics.find(
+            (topic) => topic.id === targetSessionId,
+          );
+          await switchTopic(targetSessionId, {
+            resumeSessionStartHooks: shouldResumeTaskSession(targetTopic),
+          });
+          if (sessionIdRef.current) {
+            return sessionIdRef.current;
+          }
         }
       }
-    }
 
-    return createFreshSession(undefined, { preserveCurrentSnapshot: true });
+      return createFreshSession(undefined, {
+        preserveCurrentSnapshot: true,
+        skipSessionStartHooks: options?.skipSessionStartHooks === true,
+      });
     },
     [
       createFreshSession,

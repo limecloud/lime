@@ -37,6 +37,7 @@ import {
 } from "../../../skill-selection/inputCapabilitySelection";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import type { HandleSendOptions } from "../../../hooks/handleSendTypes";
+import type { InputbarKnowledgePackSelection } from "../types";
 import type { AgentInitialInputCapabilityParams } from "@/types/page";
 import {
   buildCuratedTaskLaunchPrompt,
@@ -85,6 +86,7 @@ interface UseInputbarControllerParams {
   workflowSteps?: WorkflowStep[];
   workflowRunState?: "idle" | "auto_running" | "await_user_decision";
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
+  knowledgePackSelection?: InputbarKnowledgePackSelection | null;
   projectId?: string | null;
   sessionId?: string | null;
   pathReferences?: MessagePathReference[];
@@ -113,6 +115,7 @@ export function useInputbarController({
   workflowSteps = [],
   workflowRunState,
   onEnableSuggestedTeam,
+  knowledgePackSelection,
   projectId = null,
   sessionId = null,
   pathReferences = [],
@@ -311,6 +314,7 @@ export function useInputbarController({
     thinkingEnabled,
     executionStrategy,
     activeCapability,
+    knowledgePackSelection,
     onSend,
     clearPendingImages,
     clearPathReferences: onClearPathReferences,

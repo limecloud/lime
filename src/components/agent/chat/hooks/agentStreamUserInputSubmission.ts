@@ -32,6 +32,8 @@ export async function submitAgentStreamUserInput(
     requestMetadata,
     assistantDraft,
     skipSessionRestore,
+    skipSessionStartHooks,
+    skipPreSubmitResume,
     observer,
     syncedSessionModelPreference,
   } = preparedSend;
@@ -100,6 +102,8 @@ export async function submitAgentStreamUserInput(
       requestMetadata,
       assistantDraft,
       skipSessionRestore,
+      skipSessionStartHooks,
+      skipPreSubmitResume,
       executionRuntime: env.executionRuntime,
       syncedSessionModelPreference,
       eventName,

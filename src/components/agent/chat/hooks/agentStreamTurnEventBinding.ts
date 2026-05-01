@@ -47,6 +47,7 @@ interface RegisterAgentStreamTurnEventBindingOptions {
   effectiveProviderType: string;
   effectiveModel: string;
   effectiveExecutionStrategy: AsterExecutionStrategy;
+  systemPrompt?: string;
   thinking?: boolean;
   content: string;
   webSearch?: boolean;
@@ -123,6 +124,7 @@ export async function registerAgentStreamTurnEventBinding(
     effectiveProviderType,
     effectiveModel,
     effectiveExecutionStrategy,
+    systemPrompt,
     thinking,
     content,
     webSearch,
@@ -165,6 +167,8 @@ export async function registerAgentStreamTurnEventBinding(
       provider: effectiveProviderType,
       sessionId: activeSessionId,
       skipUserMessage,
+      systemPromptLength: systemPrompt?.length ?? 0,
+      systemPromptPreview: systemPrompt?.slice(0, 48) ?? null,
     },
   );
   requestState.requestLogId = activityLogger.log({
@@ -181,6 +185,7 @@ export async function registerAgentStreamTurnEventBinding(
       executionStrategy: effectiveExecutionStrategy,
       contentLength: content.trim().length,
       skipUserMessage,
+      systemPromptLength: systemPrompt?.length ?? 0,
       autoContinueEnabled: autoContinue?.enabled ?? false,
       autoContinue: autoContinue?.enabled ? autoContinue : undefined,
       queuedSubmission: expectingQueue,

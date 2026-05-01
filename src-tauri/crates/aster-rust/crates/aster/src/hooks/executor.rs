@@ -955,6 +955,7 @@ async fn execute_agent_hook_with_provider(
         max_turns: Some(resolve_agent_hook_max_turns(hook)),
         retry_config: None,
         system_prompt: Some(build_agent_hook_system_prompt(hook, input, &working_dir)),
+        system_prompt_override: None,
         include_context_trace: None,
         turn_context: Some(TurnContextOverride {
             cwd: Some(working_dir),

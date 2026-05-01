@@ -3,6 +3,10 @@ import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
 import type { Message, MessageImage } from "../types";
 import type { AssistantDraftState } from "./agentChatShared";
 import { buildInitialAgentRuntimeStatus } from "../utils/agentRuntimeStatus";
+import {
+  extractAgentUiPerformanceTraceMetadata,
+  recordAgentStreamPerformanceMetric,
+} from "./agentStreamPerformanceMetrics";
 
 export function buildQueuedMessagePreview(content: string): string {
   const compact = content.split(/\s+/).filter(Boolean).join(" ");
@@ -44,6 +48,7 @@ interface PrepareAgentStreamSubmitDraftOptions {
   assistantMsgId: string;
   userMsgId: string | null;
   assistantDraft?: AssistantDraftState;
+  requestMetadata?: Record<string, unknown>;
   messagePurpose?: Message["purpose"];
   effectiveExecutionStrategy: AsterExecutionStrategy;
   webSearch?: boolean;
@@ -64,6 +69,7 @@ export function prepareAgentStreamSubmitDraft(
     assistantMsgId,
     userMsgId,
     assistantDraft,
+    requestMetadata,
     messagePurpose,
     effectiveExecutionStrategy,
     webSearch,
@@ -107,6 +113,46 @@ export function prepareAgentStreamSubmitDraft(
       purpose: messagePurpose,
     };
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
+  }
+
+  const performanceTrace =
+    extractAgentUiPerformanceTraceMetadata(requestMetadata);
+  if (performanceTrace?.sessionId || performanceTrace?.requestId) {
+    recordAgentStreamPerformanceMetric(
+      "agentStream.assistantDraft",
+      performanceTrace,
+      {
+        assistantContentLength: assistantMsg.content.trim().length,
+        expectingQueue,
+        hasAssistantDraftContent: Boolean(assistantMsg.content.trim()),
+        phase: assistantMsg.runtimeStatus?.phase ?? null,
+        statusTitle: assistantMsg.runtimeStatus?.title ?? null,
+      },
+    );
+    const recordDraftPaint = () => {
+      recordAgentStreamPerformanceMetric(
+        "agentStream.assistantDraftPaint",
+        performanceTrace,
+        {
+          assistantContentLength: assistantMsg.content.trim().length,
+          expectingQueue,
+          hasAssistantDraftContent: Boolean(assistantMsg.content.trim()),
+          phase: assistantMsg.runtimeStatus?.phase ?? null,
+          statusTitle: assistantMsg.runtimeStatus?.title ?? null,
+        },
+      );
+    };
+
+    if (
+      typeof window !== "undefined" &&
+      typeof window.requestAnimationFrame === "function"
+    ) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(recordDraftPaint);
+      });
+    } else {
+      setTimeout(recordDraftPaint, 0);
+    }
   }
 
   if (!expectingQueue) {

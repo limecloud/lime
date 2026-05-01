@@ -197,7 +197,7 @@ fn should_resolve_file_icon(path: &Path, metadata: &Metadata, name: &str) -> boo
     #[cfg(target_os = "macos")]
     {
         let _ = (path, metadata, name);
-        return true;
+        true
     }
 
     #[cfg(target_os = "windows")]
@@ -207,10 +207,10 @@ fn should_resolve_file_icon(path: &Path, metadata: &Metadata, name: &str) -> boo
             .extension()
             .and_then(|extension| extension.to_str())
             .unwrap_or("");
-        return matches!(
+        matches!(
             extension.to_ascii_lowercase().as_str(),
             "exe" | "lnk" | "appref-ms"
-        ) || name.ends_with(".lnk");
+        ) || name.ends_with(".lnk")
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]

@@ -22,8 +22,7 @@ export function getSessionDetailHydrationErrorMessage(error: unknown): string {
 export function classifySessionDetailHydrationError(
   error: unknown,
 ): SessionDetailHydrationErrorClassification {
-  const message =
-    getSessionDetailHydrationErrorMessage(error).toLowerCase();
+  const message = getSessionDetailHydrationErrorMessage(error).toLowerCase();
 
   if (message.includes("timeout")) {
     return {
@@ -33,10 +32,7 @@ export function classifySessionDetailHydrationError(
     };
   }
 
-  if (
-    message.includes("aborterror") ||
-    message.includes("err_aborted")
-  ) {
+  if (message.includes("aborterror") || message.includes("err_aborted")) {
     return {
       category: "abort",
       retryable: false,

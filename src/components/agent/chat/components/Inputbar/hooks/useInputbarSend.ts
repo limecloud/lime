@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import type { MessageImage, MessagePathReference } from "../../../types";
 import type { HandleSendOptions } from "../../../hooks/handleSendTypes";
+import type { InputbarKnowledgePackSelection } from "../types";
 import { recordCuratedTaskTemplateUsage } from "../../../utils/curatedTaskTemplates";
 import { buildPathReferenceRequestMetadata } from "../../../utils/pathReferences";
 import {
@@ -17,6 +18,7 @@ interface UseInputbarSendParams {
   thinkingEnabled: boolean;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
   activeCapability: InputCapabilitySelection | null;
+  knowledgePackSelection?: InputbarKnowledgePackSelection | null;
   onSend: (
     images?: MessageImage[],
     webSearch?: boolean,
@@ -39,6 +41,7 @@ export function useInputbarSend({
   thinkingEnabled,
   executionStrategy,
   activeCapability,
+  knowledgePackSelection,
   onSend,
   clearPendingImages,
   clearPathReferences,
@@ -65,10 +68,23 @@ export function useInputbarSend({
       activeCapability,
       input,
     );
-    const requestMetadata = buildPathReferenceRequestMetadata(
+    const baseRequestMetadata = buildPathReferenceRequestMetadata(
       capabilityDispatch.requestMetadata,
       pathReferences,
     );
+    const requestMetadata =
+      knowledgePackSelection?.enabled &&
+      knowledgePackSelection.packName.trim() &&
+      knowledgePackSelection.workingDir.trim()
+        ? {
+            ...(baseRequestMetadata || {}),
+            knowledge_pack: {
+              pack_name: knowledgePackSelection.packName.trim(),
+              working_dir: knowledgePackSelection.workingDir.trim(),
+              source: "inputbar",
+            },
+          }
+        : baseRequestMetadata;
     const hasPathReferences = pathReferences.length > 0;
     const textOverride = input.trim()
       ? undefined
@@ -128,6 +144,7 @@ export function useInputbarSend({
     clearPathReferences,
     executionStrategy,
     input,
+    knowledgePackSelection,
     onSend,
     pendingImages,
     pathReferences,

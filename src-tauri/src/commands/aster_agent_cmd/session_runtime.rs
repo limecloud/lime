@@ -184,6 +184,7 @@ pub(crate) async fn create_runtime_session_internal(
         workspace_id,
         name,
         execution_strategy,
+        true,
         None,
     )
     .await
@@ -197,6 +198,7 @@ pub(crate) async fn create_runtime_session_internal_with_runtime(
     workspace_id: String,
     name: Option<String>,
     execution_strategy: Option<AsterExecutionStrategy>,
+    run_start_hooks: bool,
 ) -> Result<String, String> {
     create_runtime_session_internal_impl(
         db,
@@ -204,6 +206,7 @@ pub(crate) async fn create_runtime_session_internal_with_runtime(
         workspace_id,
         name,
         execution_strategy,
+        run_start_hooks,
         Some((state, mcp_manager)),
     )
     .await
@@ -215,6 +218,7 @@ async fn create_runtime_session_internal_impl(
     workspace_id: String,
     name: Option<String>,
     execution_strategy: Option<AsterExecutionStrategy>,
+    run_start_hooks: bool,
     runtime: Option<(&AsterAgentState, &McpManagerState)>,
 ) -> Result<String, String> {
     tracing::info!("[AsterAgent] 创建会话: name={:?}", name);
@@ -270,7 +274,12 @@ async fn create_runtime_session_internal_impl(
     )
     .await?;
 
-    if let Some((state, mcp_manager)) = runtime {
+    if !run_start_hooks {
+        tracing::info!(
+            "[AsterAgent] 创建会话跳过启动 hooks: session_id={}",
+            session_id
+        );
+    } else if let Some((state, mcp_manager)) = runtime {
         run_runtime_session_start_project_hooks_with_runtime(
             &session_id,
             &workspace_root,

@@ -192,9 +192,8 @@ export function SmartInputPage() {
 
       transcribing = true;
       try {
-        const { getRecordingSegment, transcribeAudio } = await import(
-          "@/lib/api/asrProvider"
-        );
+        const { getRecordingSegment, transcribeAudio } =
+          await import("@/lib/api/asrProvider");
         const segment = await getRecordingSegment(
           lastLiveTranscribedSampleRef.current,
           LIVE_TRANSCRIBE_MAX_DURATION_SECONDS,
@@ -213,10 +212,7 @@ export function SmartInputPage() {
         }
 
         const audioBytes = new Uint8Array(segment.audio_data);
-        const result = await transcribeAudio(
-          audioBytes,
-          segment.sample_rate,
-        );
+        const result = await transcribeAudio(audioBytes, segment.sample_rate);
         lastLiveTranscribedSampleRef.current = segment.end_sample;
         const nextText = result.text.trim();
         if (!disposed && nextText) {

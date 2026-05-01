@@ -3832,9 +3832,7 @@ export function AgentChatWorkspace({
   const taskCenterDraftMaterializePromisesRef = useRef<
     Map<string, Promise<string | null>>
   >(new Map());
-  const homePendingPreviewPaintedRequestIdsRef = useRef<Set<string>>(
-    new Set(),
-  );
+  const homePendingPreviewPaintedRequestIdsRef = useRef<Set<string>>(new Set());
   const [taskCenterLocalSessionOverride, setTaskCenterLocalSessionOverride] =
     useState<{
       sessionId: string;
@@ -5480,6 +5478,16 @@ export function AgentChatWorkspace({
         : undefined,
     );
   }, [_onNavigate, projectId]);
+  const handleOpenTaskCenterKnowledgePage = useCallback(() => {
+    _onNavigate?.(
+      "knowledge",
+      project?.rootPath
+        ? {
+            workingDir: project.rootPath,
+          }
+        : undefined,
+    );
+  }, [_onNavigate, project?.rootPath]);
   const handleOpenTaskCenterMemoryPage = useCallback(() => {
     _onNavigate?.("memory");
   }, [_onNavigate]);
@@ -7740,6 +7748,9 @@ export function AgentChatWorkspace({
         ...(request.sendOptions || {}),
         // 首页首发代表“创建新对话”，不要先恢复上次会话，否则会把首字链路拖进旧会话 hydration。
         skipSessionRestore: true,
+        // 同一条快路径也不应同步跑项目启动 hooks 或 submit 前队列恢复扫描。
+        skipSessionStartHooks: true,
+        skipPreSubmitResume: true,
         requestMetadata: mergeAgentUiPerformanceTraceMetadata(
           request.sendOptions?.requestMetadata,
           {
@@ -8059,6 +8070,7 @@ export function AgentChatWorkspace({
         onNewChat={shellHandleBackHome}
         onOpenTaskCenterHome={handleOpenTaskCenterNewTaskPage}
         onOpenSkillsPage={handleOpenTaskCenterSkillsPage}
+        onOpenKnowledgePage={handleOpenTaskCenterKnowledgePage}
         onOpenMemoryPage={handleOpenTaskCenterMemoryPage}
         onSwitchTopic={handleOpenSidebarTaskTopic}
         onOpenArchivedTopic={handleOpenArchivedTaskTopic}

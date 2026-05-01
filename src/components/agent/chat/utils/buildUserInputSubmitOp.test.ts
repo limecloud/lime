@@ -93,6 +93,7 @@ describe("buildUserInputSubmitOp", () => {
       systemPrompt: "system",
       metadata: undefined,
       queueIfBusy: true,
+      skipPreSubmitResume: undefined,
     });
   });
 
@@ -224,5 +225,22 @@ describe("buildUserInputSubmitOp", () => {
 
     expect(op.preferences?.providerPreference).toBe("translation-provider");
     expect(op.preferences?.modelPreference).toBe("translation-model");
+  });
+
+  it("应透传首页首发的 submit 快路径标记", () => {
+    const op = buildUserInputSubmitOp({
+      content: "只回答一个字：好",
+      images: [],
+      sessionId: "session-fast-1",
+      eventName: "aster_stream_fast",
+      queueIfBusy: true,
+      skipPreSubmitResume: true,
+      effectiveExecutionStrategy: "react",
+      effectiveAccessMode: "current",
+      effectiveProviderType: "deepseek",
+      effectiveModel: "deepseek-chat",
+    });
+
+    expect(op.skipPreSubmitResume).toBe(true);
   });
 });

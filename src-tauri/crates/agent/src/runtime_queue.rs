@@ -12,6 +12,7 @@ use aster::session::{
 use futures::future::BoxFuture;
 use serde_json::Value;
 use std::sync::Arc;
+use std::time::Instant;
 
 const RUNTIME_TURN_THREAD_STACK_SIZE: usize = 8 * 1024 * 1024;
 
@@ -179,6 +180,7 @@ where
 pub async fn submit_runtime_turn<C>(
     queued_task: QueuedTurnTask<Value>,
     queue_if_busy: bool,
+    skip_pre_submit_resume: bool,
     context: C,
     executor: RuntimeQueueExecutor<C>,
     emitter: RuntimeQueueEventEmitter,
@@ -186,17 +188,26 @@ pub async fn submit_runtime_turn<C>(
 where
     C: Clone + Send + Sync + 'static,
 {
+    let submit_started_at = Instant::now();
     let runtime_queue_service = require_shared_session_runtime_queue_service()
         .map_err(|error| format!("读取 runtime queue service 失败: {error}"))?;
     let session_id = queued_task.session_id.clone();
-    let _ = resume_runtime_queue_if_needed(
-        session_id.clone(),
-        context.clone(),
-        executor.clone(),
-        emitter.clone(),
-    )
-    .await?;
+    let resume_started_at = Instant::now();
+    let resumed_queue =
+        if skip_pre_submit_resume || runtime_queue_service.has_active_turn(&session_id) {
+            false
+        } else {
+            resume_runtime_queue_if_needed(
+                session_id.clone(),
+                context.clone(),
+                executor.clone(),
+                emitter.clone(),
+            )
+            .await?
+        };
+    let resume_ms = resume_started_at.elapsed().as_millis();
 
+    let queue_submit_started_at = Instant::now();
     match runtime_queue_service
         .submit_turn(queued_turn_runtime_from_task(&queued_task), queue_if_busy)
         .await
@@ -204,12 +215,22 @@ where
     {
         RuntimeQueueSubmitResult::StartNow => {
             spawn_runtime_turn_task(
-                session_id,
+                session_id.clone(),
                 queued_task.event_name,
                 context,
                 executor,
                 emitter,
                 queued_task.payload,
+            );
+            tracing::info!(
+                "[AsterAgent][Queue] submit_runtime_turn accepted: session_id={}, queued_turn_id={}, result=start_now, resumed_queue={}, skip_pre_submit_resume={}, resume_ms={}, queue_submit_ms={}, total_ms={}",
+                session_id,
+                queued_task.queued_turn_id,
+                resumed_queue,
+                skip_pre_submit_resume,
+                resume_ms,
+                queue_submit_started_at.elapsed().as_millis(),
+                submit_started_at.elapsed().as_millis()
             );
             Ok(())
         }
@@ -222,9 +243,20 @@ where
                 &emitter,
                 &queued_turn_event_name_from_runtime(&queued_turn),
                 RuntimeAgentEvent::QueueAdded {
-                    session_id,
+                    session_id: session_id.clone(),
                     queued_turn: queued_turn_snapshot_from_runtime(&queued_turn, position),
                 },
+            );
+            tracing::info!(
+                "[AsterAgent][Queue] submit_runtime_turn accepted: session_id={}, queued_turn_id={}, result=enqueued, position={}, resumed_queue={}, skip_pre_submit_resume={}, resume_ms={}, queue_submit_ms={}, total_ms={}",
+                session_id,
+                queued_turn.queued_turn_id,
+                position,
+                resumed_queue,
+                skip_pre_submit_resume,
+                resume_ms,
+                queue_submit_started_at.elapsed().as_millis(),
+                submit_started_at.elapsed().as_millis()
             );
             Ok(())
         }

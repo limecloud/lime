@@ -60,16 +60,14 @@ export interface GeneralAgentPromptOptions {
   };
 }
 
-function buildCompactGeneralAgentSystemPrompt(
-  params: {
-    absoluteDate: string;
-    themeLabel: string;
-    themeGuidanceBlock: string;
-    toolPreferenceLines: string;
-    harnessLines: string;
-    browserAssistLines: string;
-  },
-): string {
+function buildCompactGeneralAgentSystemPrompt(params: {
+  absoluteDate: string;
+  themeLabel: string;
+  themeGuidanceBlock: string;
+  toolPreferenceLines: string;
+  harnessLines: string;
+  browserAssistLines: string;
+}): string {
   return `你是 Lime 的通用 AI Agent，默认服务通用对话、知识处理、现实任务推进和多模态协作，不默认进入编程、落盘或重型执行模式。
 
 当前日期：${params.absoluteDate}
@@ -104,7 +102,12 @@ export function buildGeneralAgentSystemPrompt(
   theme: ThemeType | string = "general",
   options: GeneralAgentPromptOptions = {},
 ): string {
-  const { now = new Date(), toolPreferences, compact = false, harness } = options;
+  const {
+    now = new Date(),
+    toolPreferences,
+    compact = false,
+    harness,
+  } = options;
   const normalizedTheme = theme.trim().toLowerCase();
   const themeLabel =
     GENERAL_THEME_LABELS[normalizedTheme] || GENERAL_THEME_LABELS.general;
@@ -158,7 +161,8 @@ export function buildGeneralAgentSystemPrompt(
             "- 调用 lime_site_run 时，参数必须是一个严格 JSON 对象；不要漏引号、不要写半截对象、不要混入注释，也不要把整个 JSON 包成字符串。",
             "- 站点技能若缺少附着会话，或 lime_site_run 返回 attached_session_required / no_matching_context，不要伪造采集结果；直接说明当前缺少浏览器上下文，需要用户先完成连接、登录或授权后再重试，不要在对话里制造额外的“继续执行”确认步骤。",
             "- 浏览器工具输出必须保留 browser session 信息，确保浏览器工作台可以继续接管和调试浏览器。",
-          ])
+          ]
+      )
         .filter(Boolean)
         .join("\n")
     : "- 当前任务未显式绑定 Browser Assist；只有在确实需要网页交互时，才升级到浏览器会话。";

@@ -52,8 +52,8 @@ describe("agentSessionDetailHydrationError", () => {
   });
 
   it("可读取非 Error 错误消息", () => {
-    expect(getSessionDetailHydrationErrorMessage("bridge cooldown active")).toBe(
-      "bridge cooldown active",
-    );
+    expect(
+      getSessionDetailHydrationErrorMessage("bridge cooldown active"),
+    ).toBe("bridge cooldown active");
   });
 });

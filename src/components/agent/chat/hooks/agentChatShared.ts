@@ -88,6 +88,8 @@ export interface SendMessageOptions {
   modelOverride?: string;
   systemPromptOverride?: string;
   skipSessionRestore?: boolean;
+  skipSessionStartHooks?: boolean;
+  skipPreSubmitResume?: boolean;
 }
 
 export interface WorkspacePathMissingState {

@@ -371,6 +371,14 @@ function resolveImageRuntimeContractSnapshot(params: {
 }): ImageRuntimeContractSnapshot | null {
   const payload = asRecord(params.taskRecord.payload);
   const runtimeContract = asRecord(payload?.runtime_contract);
+  const limecorePolicySnapshot =
+    asRecord(runtimeContract?.limecore_policy_snapshot) ||
+    asRecord(runtimeContract?.limecorePolicySnapshot) ||
+    asRecord(payload?.limecore_policy_snapshot) ||
+    asRecord(payload?.limecorePolicySnapshot);
+  const limecorePolicyEvaluation =
+    asRecord(limecorePolicySnapshot?.policy_evaluation) ||
+    asRecord(limecorePolicySnapshot?.policyEvaluation);
   const modelCapabilityAssessment = asRecord(
     payload?.model_capability_assessment,
   );
@@ -433,6 +441,64 @@ function resolveImageRuntimeContractSnapshot(params: {
         [modelCapabilityAssessment],
         ["supports_image_generation", "supportsImageGeneration"],
       ) ?? null,
+    limecorePolicySnapshotStatus:
+      readString([limecorePolicySnapshot], ["status"]) || null,
+    limecorePolicyDecision:
+      readString([limecorePolicySnapshot], ["decision"]) || null,
+    limecorePolicyDecisionSource:
+      readString(
+        [limecorePolicySnapshot],
+        ["decision_source", "decisionSource"],
+      ) || null,
+    limecorePolicyDecisionScope:
+      readString(
+        [limecorePolicySnapshot],
+        ["decision_scope", "decisionScope"],
+      ) || null,
+    limecorePolicyDecisionReason:
+      readString(
+        [limecorePolicySnapshot],
+        ["decision_reason", "decisionReason"],
+      ) || null,
+    limecorePolicyMissingInputs: readStringArray(
+      [limecorePolicySnapshot],
+      ["missing_inputs", "missingInputs"],
+    ),
+    limecorePolicyPendingHitRefs: readStringArray(
+      [limecorePolicySnapshot],
+      ["pending_hit_refs", "pendingHitRefs"],
+    ),
+    limecorePolicyEvaluationStatus:
+      readString([limecorePolicyEvaluation], ["status"]) || null,
+    limecorePolicyEvaluationDecision:
+      readString([limecorePolicyEvaluation], ["decision"]) || null,
+    limecorePolicyEvaluationDecisionSource:
+      readString(
+        [limecorePolicyEvaluation],
+        ["decision_source", "decisionSource"],
+      ) || null,
+    limecorePolicyEvaluationDecisionScope:
+      readString(
+        [limecorePolicyEvaluation],
+        ["decision_scope", "decisionScope"],
+      ) || null,
+    limecorePolicyEvaluationDecisionReason:
+      readString(
+        [limecorePolicyEvaluation],
+        ["decision_reason", "decisionReason"],
+      ) || null,
+    limecorePolicyEvaluationBlockingRefs: readStringArray(
+      [limecorePolicyEvaluation],
+      ["blocking_refs", "blockingRefs"],
+    ),
+    limecorePolicyEvaluationAskRefs: readStringArray(
+      [limecorePolicyEvaluation],
+      ["ask_refs", "askRefs"],
+    ),
+    limecorePolicyEvaluationPendingRefs: readStringArray(
+      [limecorePolicyEvaluation],
+      ["pending_refs", "pendingRefs"],
+    ),
   };
 }
 

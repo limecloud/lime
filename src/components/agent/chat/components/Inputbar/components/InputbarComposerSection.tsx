@@ -1,5 +1,12 @@
-import React, { useState } from "react";
-import { ChevronDown, ChevronUp, FolderOpen, Settings2 } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import styled from "styled-components";
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  FolderOpen,
+  Settings2,
+} from "lucide-react";
 import type { ChatInputAdapter } from "@/components/input-kit/adapters/types";
 import type { Character } from "@/lib/api/memory";
 import type {
@@ -30,6 +37,10 @@ import type {
 import type { AgentAccessMode } from "../../../hooks/agentChatStorage";
 import type { CuratedTaskReferenceEntry } from "../../../utils/curatedTaskReferenceSelection";
 import type {
+  InputbarKnowledgePackOption,
+  InputbarKnowledgePackSelection,
+} from "../types";
+import type {
   WorkflowGateState,
   WorkflowQuickAction,
   WorkflowStep,
@@ -43,6 +54,128 @@ import {
   MetaToggleLabel,
 } from "../styles";
 import { getProviderLabel } from "@/lib/constants/providerMappings";
+
+const KnowledgePackControlWrap = styled.div`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  ${MetaToggleLabel} {
+    max-width: 154px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+`;
+
+const KnowledgePackMenuButton = styled.button`
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: #ffffff;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba(16, 185, 129, 0.38);
+    background: var(--lime-surface-hover, #f4fdf4);
+    color: hsl(var(--foreground));
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24));
+  }
+`;
+
+const KnowledgePackMenu = styled.div`
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 120;
+  width: min(300px, calc(100vw - 48px));
+  max-height: 260px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  background: #ffffff;
+  box-shadow: 0 18px 40px -28px rgba(15, 23, 42, 0.34);
+`;
+
+const KnowledgePackMenuItem = styled.button<{ $active?: boolean }>`
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid
+    ${({ $active }) => ($active ? "rgba(16, 185, 129, 0.42)" : "transparent")};
+  border-radius: 10px;
+  background: ${({ $active }) => ($active ? "#ecfdf5" : "transparent")};
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: #f8fafc;
+    border-color: rgba(203, 213, 225, 0.9);
+  }
+
+  &:focus-visible {
+    outline: none;
+  }
+`;
+
+const KnowledgePackMenuItemTitle = styled.span`
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+
+  > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`;
+
+const KnowledgePackMenuItemMeta = styled.span`
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.3;
+`;
+
+const KnowledgePackMenuBadge = styled.span`
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  border-radius: 999px;
+  background: #d1fae5;
+  padding: 0 7px;
+  color: #047857;
+  font-size: 10px;
+  font-weight: 700;
+`;
 
 interface InputbarComposerSectionProps {
   renderWorkflowGeneratingPanel: boolean;
@@ -66,6 +199,10 @@ interface InputbarComposerSectionProps {
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
   selectedTeam?: TeamDefinition | null;
+  knowledgePackSelection?: InputbarKnowledgePackSelection | null;
+  knowledgePackOptions?: InputbarKnowledgePackOption[];
+  onToggleKnowledgePack?: (enabled: boolean) => void;
+  onSelectKnowledgePack?: (packName: string) => void;
   onSelectTeam?: (team: TeamDefinition | null) => void;
   teamWorkspaceSettings?: WorkspaceSettings | null;
   onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
@@ -124,6 +261,10 @@ export const InputbarComposerSection: React.FC<
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
   selectedTeam,
+  knowledgePackSelection,
+  knowledgePackOptions = [],
+  onToggleKnowledgePack,
+  onSelectKnowledgePack,
   onSelectTeam,
   teamWorkspaceSettings,
   onPersistCustomTeams,
@@ -159,6 +300,7 @@ export const InputbarComposerSection: React.FC<
     number | null
   >(null);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
+  const [showKnowledgePackMenu, setShowKnowledgePackMenu] = useState(false);
   const showSkillSelector =
     !isWorkspaceVariant && isGeneralResearchTheme(activeTheme);
   const currentPendingImages =
@@ -208,10 +350,57 @@ export const InputbarComposerSection: React.FC<
   };
   const shouldShowTeamSelector =
     isGeneralResearchTheme(activeTheme) && activeTools["subagent_mode"];
+  const shouldShowKnowledgePackToggle = Boolean(
+    knowledgePackSelection?.packName && knowledgePackSelection?.workingDir,
+  );
+  const normalizedKnowledgePackOptions = useMemo(() => {
+    const optionMap = new Map<string, InputbarKnowledgePackOption>();
+
+    for (const option of knowledgePackOptions) {
+      const packName = option.packName.trim();
+      if (!packName || optionMap.has(packName)) {
+        continue;
+      }
+
+      optionMap.set(packName, {
+        ...option,
+        packName,
+      });
+    }
+
+    const selectedPackName = knowledgePackSelection?.packName.trim();
+    if (selectedPackName && !optionMap.has(selectedPackName)) {
+      optionMap.set(selectedPackName, {
+        packName: selectedPackName,
+        label: knowledgePackSelection?.label,
+        status: knowledgePackSelection?.status,
+      });
+    }
+
+    return Array.from(optionMap.values());
+  }, [knowledgePackOptions, knowledgePackSelection]);
+  const hasKnowledgePackChoices = normalizedKnowledgePackOptions.length > 1;
+  const currentKnowledgePackLabel =
+    knowledgePackSelection?.label ||
+    knowledgePackSelection?.packName ||
+    "知识包";
+  const handleKnowledgePackToggle = () => {
+    if (!knowledgePackSelection) {
+      return;
+    }
+
+    onToggleKnowledgePack?.(!knowledgePackSelection.enabled);
+  };
+  const handleSelectKnowledgePack = (packName: string) => {
+    onSelectKnowledgePack?.(packName);
+    onToggleKnowledgePack?.(true);
+    setShowKnowledgePackMenu(false);
+  };
   const hasHighlightedAdvancedPreference =
     activeTools["thinking"] ||
     activeTools["web_search"] ||
     activeTools["subagent_mode"] ||
+    knowledgePackSelection?.enabled ||
     executionStrategy === "code_orchestrated" ||
     accessMode === "read-only" ||
     accessMode === "full-access";
@@ -221,6 +410,7 @@ export const InputbarComposerSection: React.FC<
     Boolean(setExecutionStrategy) ||
     shouldShowModelControls ||
     Boolean(setAccessMode) ||
+    shouldShowKnowledgePackToggle ||
     Boolean(onToggleFileManager);
   const leftExtra = shouldShowAdvancedToggle ? (
     <>
@@ -281,14 +471,92 @@ export const InputbarComposerSection: React.FC<
           aria-label={
             fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"
           }
-          title={
-            fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"
-          }
+          title={fileManagerOpen ? "关闭左侧文件管理器" : "打开左侧文件管理器"}
           data-testid="inputbar-file-manager-toggle"
           onClick={onToggleFileManager}
         >
           <FolderOpen className="h-4 w-4" aria-hidden />
         </MetaIconButton>
+      ) : null}
+
+      {shouldShowKnowledgePackToggle && knowledgePackSelection ? (
+        <KnowledgePackControlWrap>
+          <MetaToggleButton
+            type="button"
+            $checked={knowledgePackSelection.enabled}
+            aria-label={
+              knowledgePackSelection.enabled
+                ? "关闭知识包上下文"
+                : "启用知识包上下文"
+            }
+            title={
+              knowledgePackSelection.enabled
+                ? `已使用知识包：${currentKnowledgePackLabel}`
+                : `使用知识包：${currentKnowledgePackLabel}`
+            }
+            data-testid="inputbar-knowledge-pack-toggle"
+            onClick={handleKnowledgePackToggle}
+          >
+            <MetaToggleCheck
+              $checked={knowledgePackSelection.enabled}
+              aria-hidden
+            />
+            <MetaToggleGlyph aria-hidden>
+              <BookOpen strokeWidth={1.8} />
+            </MetaToggleGlyph>
+            <MetaToggleLabel>
+              {knowledgePackSelection.enabled
+                ? currentKnowledgePackLabel
+                : "知识包"}
+            </MetaToggleLabel>
+          </MetaToggleButton>
+          {hasKnowledgePackChoices ? (
+            <KnowledgePackMenuButton
+              type="button"
+              aria-label="选择知识包"
+              aria-expanded={showKnowledgePackMenu}
+              title="选择知识包"
+              data-testid="inputbar-knowledge-pack-menu-toggle"
+              onClick={() => setShowKnowledgePackMenu((previous) => !previous)}
+            >
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+            </KnowledgePackMenuButton>
+          ) : null}
+          {showKnowledgePackMenu ? (
+            <KnowledgePackMenu
+              role="menu"
+              data-testid="inputbar-knowledge-pack-menu"
+            >
+              {normalizedKnowledgePackOptions.map((option) => {
+                const isSelected =
+                  option.packName === knowledgePackSelection.packName;
+                const label = option.label || option.packName;
+
+                return (
+                  <KnowledgePackMenuItem
+                    key={option.packName}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={isSelected}
+                    data-testid={`inputbar-knowledge-pack-option-${option.packName}`}
+                    $active={isSelected}
+                    onClick={() => handleSelectKnowledgePack(option.packName)}
+                  >
+                    <KnowledgePackMenuItemTitle>
+                      <span>{label}</span>
+                      {option.defaultForWorkspace ? (
+                        <KnowledgePackMenuBadge>默认</KnowledgePackMenuBadge>
+                      ) : null}
+                    </KnowledgePackMenuItemTitle>
+                    <KnowledgePackMenuItemMeta>
+                      {option.status || "未标记状态"}
+                    </KnowledgePackMenuItemMeta>
+                  </KnowledgePackMenuItem>
+                );
+              })}
+            </KnowledgePackMenu>
+          ) : null}
+        </KnowledgePackControlWrap>
       ) : null}
 
       {showAdvancedControls ? (

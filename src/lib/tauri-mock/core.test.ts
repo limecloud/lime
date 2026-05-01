@@ -79,6 +79,122 @@ describe("tauri-mock/core invoke", () => {
     expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
   });
 
+  it("知识库 mock 应保持导入后的列表与详情一致", async () => {
+    vi.mocked(shouldPreferMockInBrowser).mockReturnValue(true);
+
+    await expect(
+      invoke("knowledge_list_packs", {
+        request: {
+          workingDir: "/tmp/lime-knowledge-e2e",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        packs: [],
+      }),
+    );
+
+    await expect(
+      invoke("knowledge_import_source", {
+        request: {
+          workingDir: "/tmp/lime-knowledge-e2e",
+          packName: "brand-product-demo",
+          description: "品牌产品知识包",
+          packType: "brand-product",
+          sourceFileName: "source.md",
+          sourceText: "产品面向内容团队，禁止编造价格。",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        pack: expect.objectContaining({
+          metadata: expect.objectContaining({
+            name: "brand-product-demo",
+            description: "品牌产品知识包",
+            status: "needs-review",
+          }),
+        }),
+      }),
+    );
+
+    await expect(
+      invoke("knowledge_list_packs", {
+        request: {
+          workingDir: "/tmp/lime-knowledge-e2e",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        packs: expect.arrayContaining([
+          expect.objectContaining({
+            metadata: expect.objectContaining({
+              name: "brand-product-demo",
+              description: "品牌产品知识包",
+            }),
+          }),
+        ]),
+      }),
+    );
+
+    await expect(
+      invoke("knowledge_get_pack", {
+        request: {
+          workingDir: "/tmp/lime-knowledge-e2e",
+          name: "brand-product-demo",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          name: "brand-product-demo",
+          description: "品牌产品知识包",
+        }),
+        sources: expect.arrayContaining([
+          expect.objectContaining({
+            relativePath: "sources/source.md",
+            preview: "产品面向内容团队，禁止编造价格。",
+          }),
+        ]),
+      }),
+    );
+
+    await expect(
+      invoke("knowledge_update_pack_status", {
+        request: {
+          workingDir: "/tmp/lime-knowledge-e2e",
+          name: "brand-product-demo",
+          status: "ready",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        previousStatus: "needs-review",
+        clearedDefault: false,
+        pack: expect.objectContaining({
+          metadata: expect.objectContaining({
+            status: "ready",
+            trust: "user-confirmed",
+          }),
+        }),
+      }),
+    );
+
+    await expect(
+      invoke("knowledge_set_default_pack", {
+        request: {
+          workingDir: "/tmp/lime-knowledge-e2e",
+          name: "brand-product-demo",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        defaultPackName: "brand-product-demo",
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
   it("SceneApp 自动化命令在浏览器模式下应返回结构化结果", async () => {
     vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
 

@@ -882,9 +882,7 @@ describe("Inputbar", () => {
       '[data-testid="inputbar-file-manager-toggle"]',
     ) as HTMLButtonElement | null;
     expect(toggleButton).toBeTruthy();
-    expect(toggleButton?.getAttribute("aria-label")).toBe(
-      "打开左侧文件管理器",
-    );
+    expect(toggleButton?.getAttribute("aria-label")).toBe("打开左侧文件管理器");
 
     await act(async () => {
       toggleButton?.click();
@@ -2488,6 +2486,153 @@ describe("Inputbar", () => {
       thinking: false,
       subagent: true,
     });
+  });
+
+  it("启用知识包后发送应携带 knowledge_pack metadata", async () => {
+    const onSend = vi.fn().mockResolvedValue(true);
+    const { container } = renderInputbar({
+      input: "基于知识包写一段介绍",
+      onSend,
+      knowledgePackSelection: {
+        enabled: true,
+        packName: "brand-product-demo",
+        workingDir: "/tmp/lime-project",
+        label: "品牌产品知识包",
+        status: "ready",
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sendButton = container.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      expect.objectContaining({
+        requestMetadata: {
+          knowledge_pack: {
+            pack_name: "brand-product-demo",
+            working_dir: "/tmp/lime-project",
+            source: "inputbar",
+          },
+        },
+      }),
+    );
+  });
+
+  it("可从输入区菜单切换具体知识包并用选中包发送", async () => {
+    const onSend = vi.fn().mockResolvedValue(true);
+    const onSelectKnowledgePack = vi.fn();
+    const onToggleKnowledgePack = vi.fn();
+    const { container, rerender } = renderInputbar({
+      input: "基于选中的知识包写介绍",
+      onSend,
+      knowledgePackSelection: {
+        enabled: false,
+        packName: "brand-product-demo",
+        workingDir: "/tmp/lime-project",
+        label: "品牌产品知识包",
+        status: "ready",
+      },
+      knowledgePackOptions: [
+        {
+          packName: "brand-product-demo",
+          label: "品牌产品知识包",
+          status: "ready",
+          defaultForWorkspace: true,
+        },
+        {
+          packName: "org-knowhow-demo",
+          label: "组织经验知识包",
+          status: "needs-review",
+        },
+      ],
+      onSelectKnowledgePack,
+      onToggleKnowledgePack,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const menuButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-menu-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(menuButton).toBeTruthy();
+
+    act(() => {
+      menuButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const secondPackOption = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-option-org-knowhow-demo"]',
+    ) as HTMLButtonElement | null;
+    expect(secondPackOption).toBeTruthy();
+    expect(secondPackOption?.textContent).toContain("组织经验知识包");
+
+    act(() => {
+      secondPackOption?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(onSelectKnowledgePack).toHaveBeenCalledWith("org-knowhow-demo");
+    expect(onToggleKnowledgePack).toHaveBeenCalledWith(true);
+
+    rerender({
+      knowledgePackSelection: {
+        enabled: true,
+        packName: "org-knowhow-demo",
+        workingDir: "/tmp/lime-project",
+        label: "组织经验知识包",
+        status: "needs-review",
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sendButton = container.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    await act(async () => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      expect.objectContaining({
+        requestMetadata: {
+          knowledge_pack: {
+            pack_name: "org-knowhow-demo",
+            working_dir: "/tmp/lime-project",
+            source: "inputbar",
+          },
+        },
+      }),
+    );
   });
 
   it("仅在 Team mode 开启时显示 TeamSelector", async () => {

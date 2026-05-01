@@ -31,6 +31,7 @@ interface ExecuteAgentStreamSubmitOptions {
   runtime: AgentRuntimeAdapter;
   ensureSession: (options?: {
     skipSessionRestore?: boolean;
+    skipSessionStartHooks?: boolean;
   }) => Promise<string | null>;
   attemptSilentTurnRecovery: (
     sessionId: string,
@@ -61,6 +62,8 @@ interface ExecuteAgentStreamSubmitOptions {
   requestMetadata?: Record<string, unknown>;
   assistantDraft?: AssistantDraftState;
   skipSessionRestore?: boolean;
+  skipSessionStartHooks?: boolean;
+  skipPreSubmitResume?: boolean;
   executionRuntime?: AsterSessionExecutionRuntime | null;
   syncedSessionModelPreference?: SessionModelPreference | null;
   eventName: string;
@@ -141,6 +144,8 @@ export async function executeAgentStreamSubmit(
     requestMetadata,
     assistantDraft,
     skipSessionRestore,
+    skipSessionStartHooks,
+    skipPreSubmitResume,
     executionRuntime,
     syncedSessionModelPreference,
     eventName,
@@ -168,7 +173,8 @@ export async function executeAgentStreamSubmit(
     setExecutionRuntime,
   } = options;
 
-  const performanceTrace = extractAgentUiPerformanceTraceMetadata(requestMetadata);
+  const performanceTrace =
+    extractAgentUiPerformanceTraceMetadata(requestMetadata);
   requestState.performanceTrace = performanceTrace;
 
   const {
@@ -190,6 +196,7 @@ export async function executeAgentStreamSubmit(
     assistantDraft,
     expectingQueue,
     skipSessionRestore,
+    skipSessionStartHooks,
     performanceTrace,
     activateStream: callbacks.activateStream,
   });
@@ -203,6 +210,7 @@ export async function executeAgentStreamSubmit(
     effectiveProviderType,
     effectiveModel,
     effectiveExecutionStrategy,
+    systemPrompt,
     thinking,
     content,
     webSearch,
@@ -284,6 +292,7 @@ export async function executeAgentStreamSubmit(
         turnId: requestTurnId,
         systemPrompt,
         queueIfBusy: true,
+        skipPreSubmitResume,
         requestMetadata,
         executionRuntime,
         syncedRecentPreferences,

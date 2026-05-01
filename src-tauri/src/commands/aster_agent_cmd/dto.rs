@@ -161,6 +161,8 @@ pub struct AgentRuntimeSubmitTurnRequest {
     pub queue_if_busy: Option<bool>,
     #[serde(default, alias = "queuedTurnId")]
     pub queued_turn_id: Option<String>,
+    #[serde(default, alias = "skipPreSubmitResume")]
+    pub skip_pre_submit_resume: Option<bool>,
 }
 
 impl From<AgentRuntimeSubmitTurnRequest> for AsterChatRequest {
@@ -737,6 +739,24 @@ fn read_policy_json_path<'a>(
     Some(current)
 }
 
+const RUNTIME_CONTRACT_PATHS: &[&[&str]] = &[
+    &[],
+    &["runtime_contract"],
+    &["runtimeContract"],
+    &["modality_runtime_contract", "runtime_contract"],
+    &["modality_runtime_contract", "runtimeContract"],
+    &["modalityRuntimeContract", "runtime_contract"],
+    &["modalityRuntimeContract", "runtimeContract"],
+    &["payload", "runtime_contract"],
+    &["payload", "runtimeContract"],
+    &["payload", "modality_runtime_contract", "runtime_contract"],
+    &["payload", "modality_runtime_contract", "runtimeContract"],
+    &["payload", "modalityRuntimeContract", "runtime_contract"],
+    &["payload", "modalityRuntimeContract", "runtimeContract"],
+    &["record", "payload", "runtime_contract"],
+    &["record", "payload", "runtimeContract"],
+];
+
 fn read_policy_json_string(value: &serde_json::Value, keys: &[&str]) -> Option<String> {
     keys.iter()
         .filter_map(|key| value.get(*key))
@@ -825,27 +845,82 @@ fn extract_limecore_policy_summary_from_contract(
 fn extract_limecore_policy_summary_from_value(
     value: &serde_json::Value,
 ) -> Option<serde_json::Value> {
-    const CONTRACT_PATHS: &[&[&str]] = &[
-        &[],
-        &["runtime_contract"],
-        &["runtimeContract"],
-        &["modality_runtime_contract", "runtime_contract"],
-        &["modalityRuntimeContract", "runtimeContract"],
-        &["payload", "runtime_contract"],
-        &["payload", "runtimeContract"],
-        &["payload", "modality_runtime_contract", "runtime_contract"],
-        &["payload", "modalityRuntimeContract", "runtimeContract"],
-        &["record", "payload", "runtime_contract"],
-        &["record", "payload", "runtimeContract"],
-    ];
-
-    CONTRACT_PATHS.iter().find_map(|path| {
+    RUNTIME_CONTRACT_PATHS.iter().find_map(|path| {
         let candidate = if path.is_empty() {
             Some(value)
         } else {
             read_policy_json_path(value, path)
         }?;
         extract_limecore_policy_summary_from_contract(candidate)
+    })
+}
+
+fn read_runtime_contract_object<'a>(
+    value: &'a serde_json::Value,
+    keys: &[&str],
+) -> Option<&'a serde_json::Value> {
+    keys.iter()
+        .filter_map(|key| value.get(*key))
+        .find(|candidate| candidate.is_object())
+}
+
+fn extract_modality_runtime_summary_from_contract(
+    contract: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    let execution_profile =
+        read_runtime_contract_object(contract, &["execution_profile", "executionProfile"]);
+    let executor_adapter =
+        read_runtime_contract_object(contract, &["executor_adapter", "executorAdapter"]);
+    let executor_binding =
+        read_runtime_contract_object(contract, &["executor_binding", "executorBinding"]);
+    let contract_key = read_policy_json_string(contract, &["contract_key", "contractKey"]);
+    let modality = read_policy_json_string(contract, &["modality"]);
+    let routing_slot = read_policy_json_string(contract, &["routing_slot", "routingSlot"]);
+    let required_capabilities =
+        read_policy_json_string_array(contract, &["required_capabilities", "requiredCapabilities"]);
+    let profile_key = execution_profile
+        .and_then(|value| read_policy_json_string(value, &["profile_key", "profileKey"]));
+    let executor_adapter_key = executor_adapter
+        .and_then(|value| read_policy_json_string(value, &["adapter_key", "adapterKey"]));
+    let executor_kind = executor_binding
+        .and_then(|value| read_policy_json_string(value, &["executor_kind", "executorKind"]));
+    let executor_binding_key = executor_binding
+        .and_then(|value| read_policy_json_string(value, &["binding_key", "bindingKey"]));
+
+    if contract_key.is_none()
+        && modality.is_none()
+        && routing_slot.is_none()
+        && required_capabilities.is_empty()
+        && profile_key.is_none()
+        && executor_adapter_key.is_none()
+        && executor_kind.is_none()
+        && executor_binding_key.is_none()
+    {
+        return None;
+    }
+
+    Some(serde_json::json!({
+        "contractKey": contract_key,
+        "modality": modality,
+        "routingSlot": routing_slot,
+        "requiredCapabilities": required_capabilities,
+        "profileKey": profile_key,
+        "executorAdapterKey": executor_adapter_key,
+        "executorKind": executor_kind,
+        "executorBindingKey": executor_binding_key,
+    }))
+}
+
+fn extract_modality_runtime_summary_from_value(
+    value: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    RUNTIME_CONTRACT_PATHS.iter().find_map(|path| {
+        let candidate = if path.is_empty() {
+            Some(value)
+        } else {
+            read_policy_json_path(value, path)
+        }?;
+        extract_modality_runtime_summary_from_contract(candidate)
     })
 }
 
@@ -899,23 +974,68 @@ fn extract_limecore_policy_thread_summary(detail: &SessionDetail) -> Option<serd
         })
 }
 
-fn merge_limecore_policy_into_runtime_summary(
+fn extract_modality_runtime_thread_summary(detail: &SessionDetail) -> Option<serde_json::Value> {
+    detail
+        .items
+        .iter()
+        .rev()
+        .find_map(|item| match &item.payload {
+            lime_core::database::dao::agent_timeline::AgentThreadItemPayload::ToolCall {
+                arguments,
+                output,
+                metadata,
+                ..
+            } => metadata
+                .as_ref()
+                .and_then(extract_modality_runtime_summary_from_value)
+                .or_else(|| {
+                    arguments
+                        .as_ref()
+                        .and_then(extract_modality_runtime_summary_from_value)
+                })
+                .or_else(|| {
+                    output
+                        .as_deref()
+                        .and_then(parse_json_object)
+                        .as_ref()
+                        .and_then(extract_modality_runtime_summary_from_value)
+                }),
+            lime_core::database::dao::agent_timeline::AgentThreadItemPayload::FileArtifact {
+                content,
+                metadata,
+                ..
+            } => metadata
+                .as_ref()
+                .and_then(extract_modality_runtime_summary_from_value)
+                .or_else(|| {
+                    content
+                        .as_deref()
+                        .and_then(parse_json_object)
+                        .as_ref()
+                        .and_then(extract_modality_runtime_summary_from_value)
+                }),
+            _ => None,
+        })
+}
+
+fn merge_value_into_runtime_summary(
     runtime_summary: Option<serde_json::Value>,
-    limecore_policy: Option<serde_json::Value>,
+    key: &str,
+    value: Option<serde_json::Value>,
 ) -> Option<serde_json::Value> {
-    let Some(limecore_policy) = limecore_policy else {
+    let Some(value) = value else {
         return runtime_summary;
     };
 
     let mut summary = runtime_summary.unwrap_or_else(|| serde_json::json!({}));
     if let Some(object) = summary.as_object_mut() {
-        object.insert("limecorePolicy".to_string(), limecore_policy);
+        object.insert(key.to_string(), value);
         return Some(summary);
     }
 
-    Some(serde_json::json!({
-        "limecorePolicy": limecore_policy
-    }))
+    let mut object = serde_json::Map::new();
+    object.insert(key.to_string(), value);
+    Some(serde_json::Value::Object(object))
 }
 
 fn extract_auxiliary_runtime_snapshots(detail: &SessionDetail) -> Option<Vec<serde_json::Value>> {
@@ -1254,9 +1374,15 @@ impl AgentRuntimeThreadReadModel {
             .as_ref()
             .and_then(|runtime| runtime.limit_event.clone());
         let oem_policy = extract_oem_policy_summary(detail.execution_runtime.as_ref());
-        let runtime_summary = merge_limecore_policy_into_runtime_summary(
+        let runtime_summary = merge_value_into_runtime_summary(
             extract_runtime_summary(detail.execution_runtime.as_ref()),
+            "limecorePolicy",
             extract_limecore_policy_thread_summary(detail),
+        );
+        let runtime_summary = merge_value_into_runtime_summary(
+            runtime_summary,
+            "modalityRuntime",
+            extract_modality_runtime_thread_summary(detail),
         );
         let auxiliary_task_runtime = extract_auxiliary_runtime_snapshots(detail);
         let auxiliary_task_kind = read_auxiliary_runtime_string(
@@ -2724,6 +2850,14 @@ mod tests {
                 source: "translation_skill_launch".to_string(),
                 traits: vec!["service_model_slot".to_string()],
                 service_model_slot: Some("translation".to_string()),
+                modality_contract_key: None,
+                routing_slot: None,
+                execution_profile_key: None,
+                executor_adapter_key: None,
+                executor_kind: None,
+                executor_binding_key: None,
+                permission_profile_keys: Vec::new(),
+                user_lock_policy: None,
                 scene_kind: None,
                 scene_skill_id: None,
                 entry_source: None,
@@ -3063,6 +3197,98 @@ mod tests {
                 .get("policyValueHitCount")
                 .and_then(serde_json::Value::as_u64),
             Some(2)
+        );
+    }
+
+    #[test]
+    fn thread_read_should_surface_modality_runtime_profile_summary() {
+        let detail = build_session_detail(
+            Vec::new(),
+            vec![AgentThreadItem {
+                id: "tool-1".to_string(),
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                sequence: 1,
+                status: AgentThreadItemStatus::Completed,
+                started_at: "2026-05-02T10:00:00Z".to_string(),
+                completed_at: Some("2026-05-02T10:00:01Z".to_string()),
+                updated_at: "2026-05-02T10:00:01Z".to_string(),
+                payload: AgentThreadItemPayload::ToolCall {
+                    tool_name: "mcp__lime-browser__navigate".to_string(),
+                    arguments: None,
+                    output: None,
+                    success: Some(true),
+                    error: None,
+                    metadata: Some(serde_json::json!({
+                        "runtime_contract": {
+                            "contract_key": "browser_control",
+                            "modality": "browser",
+                            "routing_slot": "browser_reasoning_model",
+                            "required_capabilities": ["text_generation", "browser_reasoning"],
+                            "execution_profile": {
+                                "profile_key": "browser_control_profile"
+                            },
+                            "executor_adapter": {
+                                "adapter_key": "browser:browser_assist"
+                            },
+                            "executor_binding": {
+                                "executor_kind": "browser",
+                                "binding_key": "browser_assist"
+                            }
+                        }
+                    })),
+                },
+            }],
+        );
+
+        let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
+        let modality_runtime = thread_read
+            .runtime_summary
+            .as_ref()
+            .and_then(|value| value.get("modalityRuntime"))
+            .expect("thread read should expose modality runtime summary");
+
+        assert_eq!(
+            modality_runtime
+                .get("contractKey")
+                .and_then(serde_json::Value::as_str),
+            Some("browser_control")
+        );
+        assert_eq!(
+            modality_runtime
+                .get("routingSlot")
+                .and_then(serde_json::Value::as_str),
+            Some("browser_reasoning_model")
+        );
+        assert_eq!(
+            modality_runtime
+                .pointer("/requiredCapabilities/1")
+                .and_then(serde_json::Value::as_str),
+            Some("browser_reasoning")
+        );
+        assert_eq!(
+            modality_runtime
+                .get("profileKey")
+                .and_then(serde_json::Value::as_str),
+            Some("browser_control_profile")
+        );
+        assert_eq!(
+            modality_runtime
+                .get("executorAdapterKey")
+                .and_then(serde_json::Value::as_str),
+            Some("browser:browser_assist")
+        );
+        assert_eq!(
+            modality_runtime
+                .get("executorKind")
+                .and_then(serde_json::Value::as_str),
+            Some("browser")
+        );
+        assert_eq!(
+            modality_runtime
+                .get("executorBindingKey")
+                .and_then(serde_json::Value::as_str),
+            Some("browser_assist")
         );
     }
 

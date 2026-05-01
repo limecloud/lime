@@ -17,6 +17,7 @@ const EXCLUDED_RUST_FILES = new Set([
   "src-tauri/crates/agent/src/tool_permissions.rs",
   "src-tauri/crates/agent/src/shell_security.rs",
 ]);
+const EXCLUDED_RUST_DIRS = new Set(["target", "aster-rust"]);
 
 function collectRustFiles(dir: string): string[] {
   const entries = readdirSync(dir);
@@ -27,7 +28,7 @@ function collectRustFiles(dir: string): string[] {
     const stats = statSync(fullPath);
 
     if (stats.isDirectory()) {
-      if (entry === "target") {
+      if (EXCLUDED_RUST_DIRS.has(entry)) {
         continue;
       }
       files.push(...collectRustFiles(fullPath));

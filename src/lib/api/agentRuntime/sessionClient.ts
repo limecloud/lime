@@ -17,6 +17,7 @@ import type {
   AsterExecutionStrategy,
   AsterSessionDetail,
   AsterSessionInfo,
+  AgentRuntimeCreateSessionOptions,
   AgentRuntimeListSessionsOptions,
   AgentRuntimeGetSessionOptions,
   AgentRuntimeUpdateSessionRequest,
@@ -44,11 +45,13 @@ export function createSessionClient({
     workspaceId: string,
     name?: string,
     executionStrategy?: AsterExecutionStrategy,
+    options?: AgentRuntimeCreateSessionOptions,
   ): Promise<string> {
     return await invokeCommand<string>(AGENT_RUNTIME_COMMANDS.createSession, {
       workspaceId: requireWorkspaceId(workspaceId),
       name,
       executionStrategy,
+      ...(options?.runStartHooks === false ? { runStartHooks: false } : {}),
     });
   }
 

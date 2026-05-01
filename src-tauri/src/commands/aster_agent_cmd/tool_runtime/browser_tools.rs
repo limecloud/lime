@@ -1,9 +1,14 @@
 use super::*;
+use crate::commands::modality_runtime_contracts::{
+    BROWSER_CONTROL_CONTRACT_KEY, BROWSER_CONTROL_EXECUTION_PROFILE_KEY,
+    BROWSER_CONTROL_EXECUTOR_ADAPTER_KEY, BROWSER_CONTROL_EXECUTOR_BINDING_KEY,
+};
 use lime_core::database::dao::browser_profile::BrowserProfileTransportKind;
 use std::collections::HashSet;
 use url::Url;
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY: &str = "general_browser_assist";
+const BROWSER_CONTROL_EXECUTOR_KIND: &str = "browser";
 
 #[derive(Debug, Clone)]
 pub(crate) struct LimeBrowserMcpTool {
@@ -386,6 +391,172 @@ impl LimeBrowserMcpTool {
         }
         tool_result
     }
+
+    fn read_runtime_contract_string(
+        runtime_contract: &serde_json::Value,
+        snake_path: &[&str],
+        camel_path: &[&str],
+    ) -> Option<String> {
+        runtime_contract
+            .pointer(&format!("/{}", snake_path.join("/")))
+            .or_else(|| runtime_contract.pointer(&format!("/{}", camel_path.join("/"))))
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    }
+
+    fn build_runtime_preflight_error_result(
+        session_hint: &BrowserAssistRuntimeHint,
+        action_name: &str,
+        suffix: &str,
+        message: String,
+    ) -> ToolResult {
+        let result_payload = serde_json::json!({
+            "success": false,
+            "action": action_name,
+            "error": {
+                "code": format!("{BROWSER_CONTROL_CONTRACT_KEY}_{suffix}"),
+                "message": message,
+                "stage": "runtime_preflight",
+                "retryable": false,
+            }
+        });
+
+        let mut tool_result = ToolResult::error(message)
+            .with_metadata("tool_family", serde_json::json!("browser"))
+            .with_metadata("action", serde_json::json!(action_name))
+            .with_metadata("runtime_preflight", serde_json::json!(true))
+            .with_metadata(
+                "last_error",
+                serde_json::json!({
+                    "code": format!("{BROWSER_CONTROL_CONTRACT_KEY}_{suffix}"),
+                    "message": result_payload
+                        .pointer("/error/message")
+                        .and_then(serde_json::Value::as_str),
+                    "stage": "runtime_preflight",
+                    "retryable": false,
+                }),
+            )
+            .with_metadata("normalized_status", serde_json::json!("failed"))
+            .with_metadata("result", result_payload);
+        tool_result =
+            Self::attach_modality_runtime_contract_metadata(tool_result, Some(session_hint));
+        tool_result
+    }
+
+    pub(crate) fn validate_browser_control_runtime_preflight(
+        session_hint: Option<&BrowserAssistRuntimeHint>,
+        action_name: &str,
+    ) -> Result<(), ToolResult> {
+        let Some(session_hint) = session_hint else {
+            return Ok(());
+        };
+        let Some(contract) = session_hint.modality_runtime_contract.as_ref() else {
+            return Ok(());
+        };
+        if contract.contract_key != BROWSER_CONTROL_CONTRACT_KEY {
+            return Ok(());
+        }
+
+        let runtime_contract = &contract.runtime_contract;
+        let execution_profile_key = Self::read_runtime_contract_string(
+            runtime_contract,
+            &["execution_profile", "profile_key"],
+            &["executionProfile", "profileKey"],
+        )
+        .ok_or_else(|| {
+            Self::build_runtime_preflight_error_result(
+                session_hint,
+                action_name,
+                "execution_profile_missing",
+                format!(
+                    "{BROWSER_CONTROL_CONTRACT_KEY} runtime_contract 缺少 execution_profile.profile_key，已阻止进入浏览器执行器。"
+                ),
+            )
+        })?;
+        if execution_profile_key != BROWSER_CONTROL_EXECUTION_PROFILE_KEY {
+            return Err(Self::build_runtime_preflight_error_result(
+                session_hint,
+                action_name,
+                "execution_profile_mismatch",
+                format!(
+                    "{BROWSER_CONTROL_CONTRACT_KEY} execution_profile 必须是 {BROWSER_CONTROL_EXECUTION_PROFILE_KEY}，收到 {execution_profile_key}。"
+                ),
+            ));
+        }
+
+        let executor_adapter_key = Self::read_runtime_contract_string(
+            runtime_contract,
+            &["executor_adapter", "adapter_key"],
+            &["executorAdapter", "adapterKey"],
+        )
+        .ok_or_else(|| {
+            Self::build_runtime_preflight_error_result(
+                session_hint,
+                action_name,
+                "executor_adapter_missing",
+                format!(
+                    "{BROWSER_CONTROL_CONTRACT_KEY} runtime_contract 缺少 executor_adapter.adapter_key，已阻止进入浏览器执行器。"
+                ),
+            )
+        })?;
+        if executor_adapter_key != BROWSER_CONTROL_EXECUTOR_ADAPTER_KEY {
+            return Err(Self::build_runtime_preflight_error_result(
+                session_hint,
+                action_name,
+                "executor_adapter_mismatch",
+                format!(
+                    "{BROWSER_CONTROL_CONTRACT_KEY} executor_adapter 必须是 {BROWSER_CONTROL_EXECUTOR_ADAPTER_KEY}，收到 {executor_adapter_key}。"
+                ),
+            ));
+        }
+
+        let executor_kind = Self::read_runtime_contract_string(
+            runtime_contract,
+            &["executor_binding", "executor_kind"],
+            &["executorBinding", "executorKind"],
+        )
+        .ok_or_else(|| {
+            Self::build_runtime_preflight_error_result(
+                session_hint,
+                action_name,
+                "executor_binding_missing",
+                format!(
+                    "{BROWSER_CONTROL_CONTRACT_KEY} runtime_contract 缺少 executor_binding.executor_kind，已阻止进入浏览器执行器。"
+                ),
+            )
+        })?;
+        let executor_binding_key = Self::read_runtime_contract_string(
+            runtime_contract,
+            &["executor_binding", "binding_key"],
+            &["executorBinding", "bindingKey"],
+        )
+        .ok_or_else(|| {
+            Self::build_runtime_preflight_error_result(
+                session_hint,
+                action_name,
+                "executor_binding_missing",
+                format!(
+                    "{BROWSER_CONTROL_CONTRACT_KEY} runtime_contract 缺少 executor_binding.binding_key，已阻止进入浏览器执行器。"
+                ),
+            )
+        })?;
+        if executor_kind != BROWSER_CONTROL_EXECUTOR_KIND
+            || executor_binding_key != BROWSER_CONTROL_EXECUTOR_BINDING_KEY
+        {
+            return Err(Self::build_runtime_preflight_error_result(
+                session_hint,
+                action_name,
+                "executor_binding_mismatch",
+                format!(
+                    "{BROWSER_CONTROL_CONTRACT_KEY} executor_binding 必须是 {BROWSER_CONTROL_EXECUTOR_KIND}:{BROWSER_CONTROL_EXECUTOR_BINDING_KEY}，收到 {executor_kind}:{executor_binding_key}。"
+                ),
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -415,6 +586,12 @@ impl Tool for LimeBrowserMcpTool {
         _context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
         let session_hint = get_browser_assist_runtime_hint(&_context.session_id).await;
+        if let Err(tool_result) = Self::validate_browser_control_runtime_preflight(
+            session_hint.as_ref(),
+            &self.action_name,
+        ) {
+            return Ok(tool_result);
+        }
         let explicit_backend = Self::parse_backend(&params);
         let launch_url = Self::extract_launch_url(&self.action_name, &params).or_else(|| {
             session_hint

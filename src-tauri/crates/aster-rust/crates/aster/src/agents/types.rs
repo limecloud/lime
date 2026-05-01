@@ -133,6 +133,10 @@ pub struct SessionConfig {
     /// 会话级别的系统提示词，用于定义特定会话的行为上下文
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub system_prompt: Option<String>,
+    /// Whether `system_prompt` should replace the layered identity prompt for this turn.
+    /// 是否将 system_prompt 作为本回合完整系统提示词，而不是作为 Session Context 追加。
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub system_prompt_override: Option<bool>,
     /// Whether to emit context preparation trace events in reply stream
     /// 是否在回复流中输出上下文准备轨迹事件
     #[serde(skip_serializing_if = "Option::is_none", default)]

@@ -37,6 +37,7 @@ describe("agentProtocol", () => {
         },
         queueIfBusy: true,
         queuedTurnId: "queued-1",
+        skipPreSubmitResume: true,
       }),
     ).toEqual({
       message: "继续处理这段对话",
@@ -67,6 +68,7 @@ describe("agentProtocol", () => {
       },
       queue_if_busy: true,
       queued_turn_id: "queued-1",
+      skip_pre_submit_resume: true,
     });
   });
 
@@ -99,6 +101,7 @@ describe("agentProtocol", () => {
       },
       queue_if_busy: undefined,
       queued_turn_id: undefined,
+      skip_pre_submit_resume: undefined,
       turn_id: undefined,
       images: undefined,
     });
@@ -293,19 +296,49 @@ describe("agentProtocol", () => {
       parseAgentEvent({
         type: "task_profile_resolved",
         task_profile: {
-          kind: "translation",
-          source: "translation_skill_launch",
-          traits: ["service_model_slot"],
-          serviceModelSlot: "translation",
+          kind: "browser_control",
+          source: "runtime_contract",
+          traits: [
+            "modality_runtime_contract",
+            "execution_profile",
+            "executor_adapter",
+          ],
+          modalityContractKey: "browser_control",
+          routingSlot: "browser_reasoning_model",
+          executionProfileKey: "browser_control_profile",
+          executorAdapterKey: "browser:browser_assist",
+          executorKind: "browser",
+          executorBindingKey: "browser_assist",
+          permissionProfileKeys: [
+            "browser_control",
+            "web_search",
+            "ask_user_question",
+          ],
+          userLockPolicy: "honor_explicit_model_lock_with_capability_check",
         },
       }),
     ).toEqual({
       type: "task_profile_resolved",
       task_profile: {
-        kind: "translation",
-        source: "translation_skill_launch",
-        traits: ["service_model_slot"],
-        serviceModelSlot: "translation",
+        kind: "browser_control",
+        source: "runtime_contract",
+        traits: [
+          "modality_runtime_contract",
+          "execution_profile",
+          "executor_adapter",
+        ],
+        modalityContractKey: "browser_control",
+        routingSlot: "browser_reasoning_model",
+        executionProfileKey: "browser_control_profile",
+        executorAdapterKey: "browser:browser_assist",
+        executorKind: "browser",
+        executorBindingKey: "browser_assist",
+        permissionProfileKeys: [
+          "browser_control",
+          "web_search",
+          "ask_user_question",
+        ],
+        userLockPolicy: "honor_explicit_model_lock_with_capability_check",
       },
     });
 

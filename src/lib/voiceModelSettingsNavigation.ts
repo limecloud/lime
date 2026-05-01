@@ -1,7 +1,6 @@
 import { safeEmit, safeListen } from "@/lib/dev-bridge";
 
-export const OPEN_VOICE_MODEL_SETTINGS_EVENT =
-  "lime-open-voice-model-settings";
+export const OPEN_VOICE_MODEL_SETTINGS_EVENT = "lime-open-voice-model-settings";
 export const VOICE_MODEL_SETTINGS_SECTION_ID = "lime-voice-model-settings";
 export const VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY =
   "lime:voice-model-settings-focus";
@@ -56,7 +55,9 @@ export function consumeVoiceModelSettingsFocusRequest(): VoiceModelSettingsNavig
       return null;
     }
 
-    return normalizeDetail(JSON.parse(raw) as VoiceModelSettingsNavigationDetail);
+    return normalizeDetail(
+      JSON.parse(raw) as VoiceModelSettingsNavigationDetail,
+    );
   } catch {
     return null;
   }

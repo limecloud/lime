@@ -384,7 +384,8 @@ export function useInputbarDictation({
         }
       }
 
-      let finalText = transcription.text.trim() || lastLiveTranscriptRef.current;
+      let finalText =
+        transcription.text.trim() || lastLiveTranscriptRef.current;
       const config = voiceConfigRef.current ?? (await refreshVoiceConfig());
 
       if (config.processor.polish_enabled) {

@@ -424,6 +424,7 @@ Important:
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: Some(TurnContextOverride {
                 cwd: Some(context.working_directory.clone()),

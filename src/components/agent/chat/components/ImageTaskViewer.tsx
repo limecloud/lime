@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { RenderableTaskImage } from "./RenderableTaskImage";
 import type { ImageTaskViewerProps } from "./imageWorkbenchTypes";
 import type { ImageRuntimeContractSnapshot } from "../types";
+import { buildLimeCorePolicyEvaluationMetaItem } from "../workspace/mediaTaskPolicyEvaluation";
 
 const IMAGE_TASK_PRIMARY_BUTTON_CLASSNAME =
   "inline-flex items-center justify-center rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95";
@@ -237,6 +238,24 @@ function resolveRuntimeContractRegistryLabel(
   return "模型能力来自 model_registry";
 }
 
+function resolveRuntimeContractPolicyLabel(
+  runtimeContract?: ImageRuntimeContractSnapshot | null,
+): string | null {
+  if (!runtimeContract) {
+    return null;
+  }
+
+  return buildLimeCorePolicyEvaluationMetaItem({
+    evaluationStatus: runtimeContract.limecorePolicyEvaluationStatus,
+    evaluationDecision: runtimeContract.limecorePolicyEvaluationDecision,
+    blockingRefs: runtimeContract.limecorePolicyEvaluationBlockingRefs,
+    askRefs: runtimeContract.limecorePolicyEvaluationAskRefs,
+    pendingRefs: runtimeContract.limecorePolicyEvaluationPendingRefs,
+    missingInputs: runtimeContract.limecorePolicyMissingInputs,
+    pendingHitRefs: runtimeContract.limecorePolicyPendingHitRefs,
+  });
+}
+
 function resolveEmptyStateDescription(
   status?: string,
   failureMessage?: string,
@@ -403,6 +422,9 @@ export function ImageTaskViewer({
     selectedTask?.runtimeContract,
   );
   const runtimeContractRegistryLabel = resolveRuntimeContractRegistryLabel(
+    selectedTask?.runtimeContract,
+  );
+  const runtimeContractPolicyLabel = resolveRuntimeContractPolicyLabel(
     selectedTask?.runtimeContract,
   );
   const layoutLabel = resolveLayoutLabel(selectedTask?.layoutHint);
@@ -708,6 +730,14 @@ export function ImageTaskViewer({
               className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600"
             >
               {runtimeContractRegistryLabel}
+            </span>
+          ) : null}
+          {runtimeContractPolicyLabel ? (
+            <span
+              data-testid="image-task-viewer-runtime-contract-policy"
+              className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-medium text-amber-800"
+            >
+              {runtimeContractPolicyLabel}
             </span>
           ) : null}
           {layoutLabel ? (

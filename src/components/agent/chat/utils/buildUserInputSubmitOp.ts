@@ -32,6 +32,7 @@ export interface BuildUserInputSubmitOpOptions {
   turnId?: string;
   systemPrompt?: string;
   queueIfBusy?: boolean;
+  skipPreSubmitResume?: boolean;
   requestMetadata?: Record<string, unknown>;
   executionRuntime?: AsterSessionExecutionRuntime | null;
   syncedRecentPreferences?: ChatToolPreferences | null;
@@ -59,6 +60,7 @@ export function buildUserInputSubmitOp(
     turnId,
     systemPrompt,
     queueIfBusy,
+    skipPreSubmitResume,
     requestMetadata,
     executionRuntime,
     syncedRecentPreferences,
@@ -117,5 +119,6 @@ export function buildUserInputSubmitOp(
     systemPrompt,
     metadata: compaction.metadata,
     queueIfBusy,
+    skipPreSubmitResume,
   };
 }

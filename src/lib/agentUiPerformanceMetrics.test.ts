@@ -164,6 +164,22 @@ describe("agentUiPerformanceMetrics", () => {
       sessionId: "draft-a",
       workspaceId: "workspace-a",
     });
+    recordAgentUiPerformanceMetric("workspaceSend.plan.ready", {
+      durationMs: 24.2,
+      requestId: "request-a",
+      sessionId: "draft-a",
+      workspaceId: "workspace-a",
+    });
+    recordAgentUiPerformanceMetric("agentStream.assistantDraft", {
+      requestId: "request-a",
+      sessionId: "draft-a",
+      workspaceId: "workspace-a",
+    });
+    recordAgentUiPerformanceMetric("agentStream.assistantDraftPaint", {
+      requestId: "request-a",
+      sessionId: "draft-a",
+      workspaceId: "workspace-a",
+    });
     recordAgentUiPerformanceMetric("agentStream.request.start", {
       requestId: "request-a",
       sessionId: "draft-a",
@@ -228,21 +244,30 @@ describe("agentUiPerformanceMetrics", () => {
         workspaceId: "workspace-a",
       }),
     ]);
-    expect(summary.sessions[0]?.homeInputToPendingShellMs).toBeGreaterThanOrEqual(
-      0,
-    );
+    expect(
+      summary.sessions[0]?.homeInputToPendingShellMs,
+    ).toBeGreaterThanOrEqual(0);
     expect(
       summary.sessions[0]?.homeInputToPendingPreviewPaintMs,
     ).toBeGreaterThanOrEqual(0);
-    expect(summary.sessions[0]?.homeInputToSendDispatchMs).toBeGreaterThanOrEqual(
-      0,
-    );
+    expect(
+      summary.sessions[0]?.homeInputToSendDispatchMs,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      summary.sessions[0]?.homeInputToSendPlanReadyMs,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      summary.sessions[0]?.homeInputToAssistantDraftMs,
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      summary.sessions[0]?.homeInputToAssistantDraftPaintMs,
+    ).toBeGreaterThanOrEqual(0);
     expect(
       summary.sessions[0]?.homeInputToStreamRequestStartMs,
     ).toBeGreaterThanOrEqual(0);
-    expect(summary.sessions[0]?.homeInputToSubmitAcceptedMs).toBeGreaterThanOrEqual(
-      0,
-    );
+    expect(
+      summary.sessions[0]?.homeInputToSubmitAcceptedMs,
+    ).toBeGreaterThanOrEqual(0);
     expect(summary.sessions[0]?.homeInputToFirstEventMs).toBeGreaterThanOrEqual(
       0,
     );

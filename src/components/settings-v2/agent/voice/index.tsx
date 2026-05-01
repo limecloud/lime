@@ -272,7 +272,10 @@ function getVoiceModelDownloadPercent(
     return 0;
   }
 
-  return Math.min(100, Math.max(0, Math.round(progress.overall_progress * 100)));
+  return Math.min(
+    100,
+    Math.max(0, Math.round(progress.overall_progress * 100)),
+  );
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -585,7 +588,7 @@ export function VoiceSettings() {
   );
   const voiceModelDownloadReady = Boolean(
     primaryVoiceModel?.download_url?.trim() &&
-      primaryVoiceModel?.vad_download_url?.trim(),
+    primaryVoiceModel?.vad_download_url?.trim(),
   );
   const voiceModelDownloadPercent = getVoiceModelDownloadPercent(
     voiceModelDownloadProgress,
@@ -964,9 +967,7 @@ export function VoiceSettings() {
                   disabled={!voiceConfig}
                   aria-label="切换语音输入"
                   className={
-                    voiceConfig?.enabled
-                      ? "!bg-emerald-800"
-                      : "!bg-slate-300"
+                    voiceConfig?.enabled ? "!bg-emerald-800" : "!bg-slate-300"
                   }
                 />
               </div>
@@ -1163,7 +1164,8 @@ export function VoiceSettings() {
                     </p>
                     {voiceModelState?.installed ? (
                       <p className="text-xs leading-5 text-slate-500">
-                        已安装大小：{formatBytes(voiceModelState.installed_bytes)}
+                        已安装大小：
+                        {formatBytes(voiceModelState.installed_bytes)}
                       </p>
                     ) : null}
                   </div>
@@ -1199,7 +1201,9 @@ export function VoiceSettings() {
                       type="button"
                       size="sm"
                       onClick={() => void handleDownloadVoiceModel()}
-                      disabled={voiceModelAction !== null || !voiceModelDownloadReady}
+                      disabled={
+                        voiceModelAction !== null || !voiceModelDownloadReady
+                      }
                       className="!h-10 !rounded-[10px] !border-cyan-500 !bg-gradient-to-r !from-sky-500 !to-emerald-500 !px-4 text-base font-semibold text-white shadow-md shadow-emerald-900/15 hover:!opacity-95 disabled:!border-slate-200 disabled:!bg-none disabled:!bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
                     >
                       {voiceModelAction === "download" ? (

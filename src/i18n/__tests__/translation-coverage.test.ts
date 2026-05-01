@@ -79,6 +79,7 @@ describe("Translation Coverage", () => {
         "持续流程",
         "消息渠道",
         "灵感库",
+        "知识库",
         "插件中心",
         "OpenClaw",
         "桌宠",

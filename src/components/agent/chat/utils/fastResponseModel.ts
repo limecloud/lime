@@ -12,6 +12,7 @@ export interface AgentFastResponseDecision {
   providerOverride?: string;
   modelOverride?: string;
   label?: string;
+  routingChanged?: boolean;
 }
 
 interface ResolveAgentFastResponseModelOptions {
@@ -41,6 +42,7 @@ interface ResolveAgentFastResponseModelOptions {
 }
 
 const FAST_RESPONSE_PROVIDER_ALIASES = ["deepseek"] as const;
+const FAST_RESPONSE_PROVIDER_FALLBACK = "deepseek";
 const FAST_RESPONSE_MODEL_FALLBACK = "deepseek-chat";
 const LIGHTWEIGHT_FIRST_TURN_MAX_CHARS = 800;
 
@@ -119,6 +121,31 @@ function resolveCurrentFastResponseProviderSelectionId(
     : null;
 }
 
+function resolveBuiltinFastResponseProviderSelectionId(params: {
+  providerType?: string | null;
+  model?: string | null;
+}): string | null {
+  return shouldUseAgentFastResponseSelection(params)
+    ? FAST_RESPONSE_PROVIDER_FALLBACK
+    : null;
+}
+
+function isCurrentFastResponseSelection(params: {
+  providerType?: string | null;
+  model?: string | null;
+}): boolean {
+  const provider = normalizeIdentifier(params.providerType);
+  const model = normalizeIdentifier(params.model);
+  if (!provider || !model) {
+    return false;
+  }
+
+  return (
+    FAST_RESPONSE_PROVIDER_ALIASES.some((alias) => provider.includes(alias)) &&
+    model === normalizeIdentifier(FAST_RESPONSE_MODEL_FALLBACK)
+  );
+}
+
 export function shouldUseAgentFastResponseSelection(params: {
   providerType?: string | null;
   model?: string | null;
@@ -172,11 +199,11 @@ function hasHeavyToolPreference(params: {
 }): boolean {
   return Boolean(
     params.effectiveWebSearch ||
-      params.effectiveThinking ||
-      params.toolPreferences.webSearch ||
-      params.toolPreferences.thinking ||
-      params.toolPreferences.task ||
-      params.toolPreferences.subagent,
+    params.effectiveThinking ||
+    params.toolPreferences.webSearch ||
+    params.toolPreferences.thinking ||
+    params.toolPreferences.task ||
+    params.toolPreferences.subagent,
   );
 }
 
@@ -236,6 +263,10 @@ export function resolveAgentFastResponseModel(
     !shouldUseAgentFastResponseSelection({
       providerType: options.currentProviderType,
       model: options.currentModel,
+    }) &&
+    !isCurrentFastResponseSelection({
+      providerType: options.currentProviderType,
+      model: options.currentModel,
     })
   ) {
     return disabled("current-model-not-slow");
@@ -248,7 +279,13 @@ export function resolveAgentFastResponseModel(
     (configuredProvider
       ? resolveProviderSelectionId(configuredProvider)
       : null) ??
-    resolveCurrentFastResponseProviderSelectionId(options.currentProviderType);
+    resolveCurrentFastResponseProviderSelectionId(
+      options.currentProviderType,
+    ) ??
+    resolveBuiltinFastResponseProviderSelectionId({
+      providerType: options.currentProviderType,
+      model: options.currentModel,
+    });
   if (!providerOverride) {
     return disabled("fast-provider-unavailable");
   }
@@ -260,27 +297,33 @@ export function resolveAgentFastResponseModel(
     return disabled("fast-model-unavailable");
   }
 
-  if (
+  const routingChanged = !(
     normalizeIdentifier(providerOverride) ===
       normalizeIdentifier(options.currentProviderType) &&
-    normalizeIdentifier(modelOverride) === normalizeIdentifier(options.currentModel)
-  ) {
-    return disabled("already-fast-model");
-  }
+    normalizeIdentifier(modelOverride) ===
+      normalizeIdentifier(options.currentModel)
+  );
 
   return {
     enabled: true,
-    reason: "first-turn-low-latency",
+    reason: routingChanged
+      ? "first-turn-low-latency"
+      : "first-turn-short-prompt",
     providerOverride: providerOverride || undefined,
     modelOverride,
     label: "快速响应",
+    routingChanged,
   };
 }
 
 export function buildAgentFastResponseMetadata(
   decision: AgentFastResponseDecision,
 ): Record<string, unknown> | undefined {
-  if (!decision.enabled || !decision.providerOverride || !decision.modelOverride) {
+  if (
+    !decision.enabled ||
+    !decision.providerOverride ||
+    !decision.modelOverride
+  ) {
     return undefined;
   }
 
@@ -290,6 +333,7 @@ export function buildAgentFastResponseMetadata(
     reason: decision.reason,
     provider: decision.providerOverride,
     model: decision.modelOverride,
+    routing_changed: decision.routingChanged ?? true,
   };
 }
 

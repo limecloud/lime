@@ -2,12 +2,18 @@
 
 import process from "node:process";
 
+const DEFAULT_LAUNCH_HTML =
+  "<html><title>Lime Browser Runtime Smoke</title><body><h1>Lime Browser Runtime Smoke</h1><p>read_page smoke fixture</p></body></html>";
+const DEFAULT_LAUNCH_URL = `data:text/html,${encodeURIComponent(
+  DEFAULT_LAUNCH_HTML,
+)}`;
+
 const DEFAULTS = {
   healthUrl: "http://127.0.0.1:3030/health",
   invokeUrl: "http://127.0.0.1:3030/invoke",
   timeoutMs: 90_000,
   intervalMs: 1_000,
-  launchUrl: "about:blank",
+  launchUrl: DEFAULT_LAUNCH_URL,
   openWindow: false,
   headless: false,
   streamMode: "both",
@@ -36,7 +42,7 @@ Lime Browser Runtime Smoke
   --invoke-url <url>       DevBridge invoke 地址，默认 http://127.0.0.1:3030/invoke
   --timeout-ms <ms>        等待健康检查超时，默认 90000
   --interval-ms <ms>       健康检查轮询间隔，默认 1000
-  --launch-url <url>       启动浏览器会话的 URL，默认 about:blank
+  --launch-url <url>       启动浏览器会话的 URL，默认使用内置 data: 测试页
   --open-window            显式打开浏览器窗口
   --headless               以无界面浏览器会话执行 smoke，避免弹出空白 Chrome
   --stream-mode <mode>     events | frames | both，默认 both
@@ -127,7 +133,10 @@ function isTransientInvokeError(error) {
 }
 
 async function invoke(options, cmd, args) {
-  const invokeTimeoutMs = Math.min(options.timeoutMs, INVOKE_TIMEOUT_CEILING_MS);
+  const invokeTimeoutMs = Math.min(
+    options.timeoutMs,
+    INVOKE_TIMEOUT_CEILING_MS,
+  );
   const requestInit = {
     method: "POST",
     headers: {
@@ -260,15 +269,11 @@ async function main() {
       "launch_browser_session 返回的 profile_key 与请求不一致",
     );
 
-    const sessionState = await invoke(
-      options,
-      "get_browser_session_state",
-      {
-        request: {
-          session_id: sessionId,
-        },
+    const sessionState = await invoke(options, "get_browser_session_state", {
+      request: {
+        session_id: sessionId,
       },
-    );
+    });
     assert(
       sessionState?.session_id === sessionId,
       "get_browser_session_state 返回的 session_id 不一致",
@@ -278,7 +283,8 @@ async function main() {
       "get_browser_session_state 返回的 profile_key 不一致",
     );
     assert(
-      typeof sessionState?.target_id === "string" && sessionState.target_id.trim(),
+      typeof sessionState?.target_id === "string" &&
+        sessionState.target_id.trim(),
       "get_browser_session_state 未返回 target_id",
     );
 
@@ -291,7 +297,10 @@ async function main() {
         timeout_ms: Math.min(options.timeoutMs, READ_PAGE_TIMEOUT_MS),
       },
     });
-    assert(actionResult?.success === true, "browser_execute_action(read_page) 未成功");
+    assert(
+      actionResult?.success === true,
+      "browser_execute_action(read_page) 未成功",
+    );
     assert(
       actionResult?.session_id === sessionId,
       "browser_execute_action 未返回对应的 session_id",

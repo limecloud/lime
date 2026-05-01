@@ -2279,14 +2279,20 @@ impl Agent {
         let config = Config::global();
 
         let session_prompt = session_config.system_prompt.as_deref();
+        let session_prompt_override = session_config.system_prompt_override.unwrap_or(false);
         let model_config = self
             .resolve_effective_model_config(session_config.turn_context.as_ref())
             .await
             .ok_or_else(|| anyhow!("Provider not set"))?;
         let (tools, toolshim_tools, system_prompt) =
             crate::session_context::with_turn_context(session_config.turn_context.clone(), async {
-                self.prepare_tools_and_prompt(working_dir, session_prompt, &model_config)
-                    .await
+                self.prepare_tools_and_prompt(
+                    working_dir,
+                    session_prompt,
+                    session_prompt_override,
+                    &model_config,
+                )
+                .await
             })
             .await?;
         let mut system_prompt = system_prompt;
@@ -3971,8 +3977,15 @@ impl Agent {
                 }
                 if tools_updated {
                     let session_prompt = session_config.system_prompt.as_deref();
+                    let session_prompt_override =
+                        session_config.system_prompt_override.unwrap_or(false);
                     (tools, toolshim_tools, system_prompt) =
-                        self.prepare_tools_and_prompt(&working_dir, session_prompt, &model_config).await?;
+                        self.prepare_tools_and_prompt(
+                            &working_dir,
+                            session_prompt,
+                            session_prompt_override,
+                            &model_config,
+                        ).await?;
                 }
                 let mut exit_chat = false;
                 if no_tools_called {
@@ -4938,6 +4951,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: None,
         };
@@ -5000,6 +5014,7 @@ mod tests {
             .prepare_tools_and_prompt(
                 &working_dir,
                 None,
+                false,
                 &crate::model::ModelConfig::new("test-model").expect("model config"),
             )
             .await
@@ -5049,6 +5064,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: None,
         };
@@ -5063,6 +5079,7 @@ mod tests {
             .prepare_tools_and_prompt(
                 &working_dir,
                 None,
+                false,
                 &crate::model::ModelConfig::new("test-model").expect("model config"),
             )
             .await
@@ -5123,6 +5140,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: None,
         };
@@ -5259,6 +5277,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: None,
         };
@@ -5314,6 +5333,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: None,
         };
@@ -5369,6 +5389,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: Some(TurnContextOverride {
                 model: Some("native-model".to_string()),
@@ -5426,6 +5447,7 @@ mod tests {
                 max_turns: None,
                 retry_config: None,
                 system_prompt: None,
+                system_prompt_override: None,
                 include_context_trace: None,
                 turn_context: Some(TurnContextOverride {
                     model: Some("native-model".to_string()),
@@ -5473,6 +5495,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: Some(build_auto_compaction_disabled_turn_context()),
         };
@@ -6000,6 +6023,7 @@ mod tests {
             max_turns: None,
             retry_config: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: Some(TurnContextOverride {
                 metadata,

@@ -13,6 +13,7 @@ import {
 interface ResolveAgentStreamSubmitContextOptions {
   ensureSession: (options?: {
     skipSessionRestore?: boolean;
+    skipSessionStartHooks?: boolean;
   }) => Promise<string | null>;
   sessionIdRef: MutableRefObject<string | null>;
   getRequiredWorkspaceId: () => string;
@@ -28,6 +29,7 @@ interface ResolveAgentStreamSubmitContextOptions {
   assistantDraft?: AssistantDraftState;
   expectingQueue: boolean;
   skipSessionRestore?: boolean;
+  skipSessionStartHooks?: boolean;
   performanceTrace?: AgentUiPerformanceTraceMetadata | null;
   activateStream: (
     activeSessionId: string,
@@ -50,6 +52,7 @@ export async function resolveAgentStreamSubmitContext(
     assistantDraft,
     expectingQueue,
     skipSessionRestore,
+    skipSessionStartHooks,
     performanceTrace,
     activateStream,
   } = options;
@@ -63,13 +66,18 @@ export async function resolveAgentStreamSubmitContext(
       hadActiveSessionBeforeEnsure,
       sessionId: sessionIdRef.current,
       skipSessionRestore: skipSessionRestore === true,
+      skipSessionStartHooks: skipSessionStartHooks === true,
     },
   );
   logAgentDebug("AgentStream", "ensureSession.start", {
     hadActiveSessionBeforeEnsure,
     skipSessionRestore: skipSessionRestore === true,
+    skipSessionStartHooks: skipSessionStartHooks === true,
   });
-  const activeSessionId = await ensureSession({ skipSessionRestore });
+  const activeSessionId = await ensureSession({
+    skipSessionRestore,
+    skipSessionStartHooks,
+  });
   if (!activeSessionId) {
     throw new Error("无法创建会话");
   }
@@ -82,6 +90,7 @@ export async function resolveAgentStreamSubmitContext(
       hadActiveSessionBeforeEnsure,
       sessionId: activeSessionId,
       skipSessionRestore: skipSessionRestore === true,
+      skipSessionStartHooks: skipSessionStartHooks === true,
     },
   );
   logAgentDebug("AgentStream", "ensureSession.done", {

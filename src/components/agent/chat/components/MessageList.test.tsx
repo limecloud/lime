@@ -638,19 +638,22 @@ describe("MessageList", () => {
       };
     });
     const threadItems: AgentThreadItem[] = turns.flatMap((turn, turnIndex) =>
-      Array.from({ length: 5 }, (_, itemIndex): AgentThreadItem => ({
-        id: `turn-window-${turnIndex + 1}-item-${itemIndex + 1}`,
-        thread_id: turn.thread_id,
-        turn_id: turn.id,
-        sequence: itemIndex + 1,
-        status: "completed",
-        started_at: turn.started_at,
-        completed_at: turn.completed_at,
-        updated_at: turn.updated_at,
-        type: "tool_call",
-        tool_name: "Read",
-        arguments: { file_path: `/repo/file-${itemIndex + 1}.ts` },
-      })),
+      Array.from(
+        { length: 5 },
+        (_, itemIndex): AgentThreadItem => ({
+          id: `turn-window-${turnIndex + 1}-item-${itemIndex + 1}`,
+          thread_id: turn.thread_id,
+          turn_id: turn.id,
+          sequence: itemIndex + 1,
+          status: "completed",
+          started_at: turn.started_at,
+          completed_at: turn.completed_at,
+          updated_at: turn.updated_at,
+          type: "tool_call",
+          tool_name: "Read",
+          arguments: { file_path: `/repo/file-${itemIndex + 1}.ts` },
+        }),
+      ),
     );
 
     const container = render(
@@ -837,9 +840,7 @@ describe("MessageList", () => {
     const markdownPreview = container.querySelector(
       '[data-testid="message-list-historical-markdown-preview"]',
     );
-    expect(markdownPreview?.textContent).toContain(
-      "历史 content parts 正文",
-    );
+    expect(markdownPreview?.textContent).toContain("历史 content parts 正文");
     const commit = getAgentUiPerformanceMetrics().find(
       (entry) => entry.phase === "messageList.commit",
     );
@@ -864,9 +865,7 @@ describe("MessageList", () => {
 
     const hydratedCommit = getAgentUiPerformanceMetrics()
       .filter((entry) => entry.phase === "messageList.commit")
-      .find(
-        (entry) => entry.metrics.historicalContentPartsDeferredCount === 0,
-      );
+      .find((entry) => entry.metrics.historicalContentPartsDeferredCount === 0);
     expect(
       container.querySelector(
         '[data-testid="message-list-historical-markdown-preview"]',
@@ -2055,6 +2054,46 @@ describe("MessageList", () => {
       contentId: "content-1",
     });
     window.removeEventListener(IMAGE_WORKBENCH_FOCUS_EVENT, handleFocus);
+  });
+
+  it("图片任务消息卡应展示 LimeCore 策略输入标签", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-policy",
+        role: "assistant",
+        content: "图片生成已完成，共生成 1 张。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-policy-1",
+          prompt: "一颗戴耳机的青柠，科技感插画风格",
+          status: "complete",
+          imageUrl: "https://example.com/generated.png",
+          imageCount: 1,
+          size: "1024x1024",
+          projectId: "project-1",
+          contentId: "content-1",
+          runtimeContract: {
+            contractKey: "image_generation",
+            routingSlot: "image_task",
+            limecorePolicyEvaluationStatus: "input_gap",
+            limecorePolicyEvaluationDecision: "ask",
+            limecorePolicyEvaluationPendingRefs: [
+              "model_catalog",
+              "provider_offer",
+              "tenant_feature_flags",
+            ],
+          },
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="image-workbench-message-preview-task-policy-1"]',
+    );
+
+    expect(previewCard?.textContent).toContain("LimeCore 策略输入待命中: 3");
   });
 
   it("图片任务消息应收起内部 process flow，只保留任务卡与正文", () => {

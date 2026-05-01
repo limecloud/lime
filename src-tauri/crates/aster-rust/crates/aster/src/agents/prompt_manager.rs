@@ -82,6 +82,7 @@ pub struct SystemPromptBuilder<'a, M> {
     hints: Option<String>,
     code_execution_mode: bool,
     session_prompt: Option<String>,
+    session_prompt_override: bool,
 }
 
 impl<'a> SystemPromptBuilder<'a, PromptManager> {
@@ -161,6 +162,12 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         self
     }
 
+    /// 将 session prompt 作为本回合完整系统提示词使用。
+    pub fn with_session_prompt_override(mut self, enabled: bool) -> Self {
+        self.session_prompt_override = enabled;
+        self
+    }
+
     pub fn build(self) -> String {
         let mut extensions_info = self.extensions_info;
 
@@ -202,7 +209,17 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             code_execution_mode: self.code_execution_mode,
         };
 
-        // 构建提示词：优先使用 override，否则使用分层结构
+        if self.session_prompt_override {
+            let override_prompt = self.session_prompt.as_deref().unwrap_or("");
+            let sanitized_override_prompt = sanitize_unicode_tags(override_prompt);
+            return prompt_template::render_inline_once(
+                &sanitized_override_prompt,
+                &capabilities_context,
+            )
+            .unwrap_or_else(|_| override_prompt.to_string());
+        }
+
+        // 构建提示词：全局 override 优先，否则使用分层结构。
         let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
             // 向后兼容：完全覆盖模式
             let sanitized_override_prompt = sanitize_unicode_tags(override_prompt);
@@ -407,6 +424,7 @@ impl PromptManager {
             hints: None,
             code_execution_mode: false,
             session_prompt: None,
+            session_prompt_override: false,
         }
     }
 

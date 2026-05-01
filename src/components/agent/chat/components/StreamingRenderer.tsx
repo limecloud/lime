@@ -79,7 +79,10 @@ function resolveStreamingTextStepSize(
   return timedStep;
 }
 
-function resolveInitialStreamingDisplayText(text: string, isStreaming: boolean) {
+function resolveInitialStreamingDisplayText(
+  text: string,
+  isStreaming: boolean,
+) {
   if (!isStreaming || !text || hasStructuredContentHint(text)) {
     return isStreaming ? "" : text;
   }

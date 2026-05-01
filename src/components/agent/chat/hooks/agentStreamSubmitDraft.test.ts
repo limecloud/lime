@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FrameRequestCallback } from "react";
 import type { Message } from "../types";
+import {
+  clearAgentUiPerformanceMetrics,
+  getAgentUiPerformanceMetrics,
+} from "@/lib/agentUiPerformanceMetrics";
 import { buildWaitingAgentRuntimeStatus } from "../utils/agentRuntimeStatus";
+import { mergeAgentUiPerformanceTraceMetadata } from "./agentStreamPerformanceMetrics";
 import { prepareAgentStreamSubmitDraft } from "./agentStreamSubmitDraft";
 
 function createStateSetter<T>(getValue: () => T, setValue: (value: T) => void) {
@@ -12,6 +18,11 @@ function createStateSetter<T>(getValue: () => T, setValue: (value: T) => void) {
 }
 
 describe("agentStreamSubmitDraft", () => {
+  afterEach(() => {
+    clearAgentUiPerformanceMetrics();
+    vi.restoreAllMocks();
+  });
+
   it("应注入 user/assistant 草稿，并开启发送态", () => {
     let messages: Message[] = [];
     let isSending = false;
@@ -139,5 +150,65 @@ describe("agentStreamSubmitDraft", () => {
       content: "@配图 生成 春日咖啡馆插画",
     });
     expect(isSending).toBe(true);
+  });
+
+  it("带性能 trace 时应记录 assistant 草稿插入与绘制指标", () => {
+    let messages: Message[] = [];
+    let isSending = false;
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback: FrameRequestCallback) => {
+        callback(0);
+        return 1;
+      });
+
+    prepareAgentStreamSubmitDraft({
+      content: "只回答一个字：好",
+      images: [],
+      skipUserMessage: false,
+      expectingQueue: false,
+      assistantMsgId: "assistant-4",
+      userMsgId: "user-4",
+      assistantDraft: {
+        initialRuntimeStatus: {
+          phase: "routing",
+          title: "快速响应已启用",
+          detail: "这轮先用低延迟模型降低首字等待。",
+        },
+      },
+      requestMetadata: mergeAgentUiPerformanceTraceMetadata(undefined, {
+        requestId: "request-fast",
+        sessionId: "draft-fast",
+        workspaceId: "workspace-fast",
+        source: "test",
+        submittedAt: Date.now(),
+      }),
+      effectiveExecutionStrategy: "react",
+      webSearch: false,
+      thinking: false,
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
+    });
+
+    expect(requestAnimationFrameSpy).toHaveBeenCalled();
+    expect(messages[1]).toMatchObject({
+      id: "assistant-4",
+      role: "assistant",
+      content: "",
+    });
+    expect(getAgentUiPerformanceMetrics().map((entry) => entry.phase)).toEqual([
+      "agentStream.assistantDraft",
+      "agentStream.assistantDraftPaint",
+    ]);
   });
 });

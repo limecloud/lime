@@ -48,7 +48,9 @@ describe("Agent API 治理护栏", () => {
     mockSafeInvoke.mockResolvedValueOnce("session-created");
 
     await expect(
-      createAgentRuntimeSession("workspace-2", "新会话", "auto"),
+      createAgentRuntimeSession("workspace-2", "新会话", "auto", {
+        runStartHooks: false,
+      }),
     ).resolves.toBe("session-created");
 
     expect(mockSafeInvoke).toHaveBeenCalledWith(
@@ -57,6 +59,7 @@ describe("Agent API 治理护栏", () => {
         workspaceId: "workspace-2",
         name: "新会话",
         executionStrategy: "auto",
+        runStartHooks: false,
       },
     );
   });
@@ -129,6 +132,7 @@ describe("Agent API 治理护栏", () => {
       workspace_id: "workspace-runtime-search",
       queue_if_busy: true,
       queued_turn_id: "queued-turn-1",
+      skip_pre_submit_resume: true,
       turn_config: {
         execution_strategy: "auto",
         web_search: true,
@@ -143,6 +147,7 @@ describe("Agent API 治理护栏", () => {
         workspace_id: "workspace-runtime-search",
         queue_if_busy: true,
         queued_turn_id: "queued-turn-1",
+        skip_pre_submit_resume: true,
         turn_config: {
           execution_strategy: "auto",
           web_search: true,

@@ -30,6 +30,12 @@ const latestMemoryPageProps = vi.hoisted(
       value: null as Record<string, unknown> | null,
     }) as { value: Record<string, unknown> | null },
 );
+const latestKnowledgePageProps = vi.hoisted(
+  () =>
+    ({
+      value: null as Record<string, unknown> | null,
+    }) as { value: Record<string, unknown> | null },
+);
 const latestSceneAppsPageProps = vi.hoisted(
   () =>
     ({
@@ -79,6 +85,13 @@ vi.mock("./memory", () => ({
   MemoryPage: (props: Record<string, unknown>) => {
     latestMemoryPageProps.value = props;
     return <div data-testid="memory-page" />;
+  },
+}));
+
+vi.mock("@/features/knowledge", () => ({
+  KnowledgePage: (props: Record<string, unknown>) => {
+    latestKnowledgePageProps.value = props;
+    return <div data-testid="knowledge-page" />;
   },
 }));
 
@@ -180,6 +193,7 @@ describe("AppPageContent", () => {
     agentChatLifecycle.unmounts = 0;
     latestSkillsWorkspaceProps.value = null;
     latestMemoryPageProps.value = null;
+    latestKnowledgePageProps.value = null;
     latestSceneAppsPageProps.value = null;
     sceneAppsLifecycle.mounts = 0;
     sceneAppsLifecycle.unmounts = 0;
@@ -586,6 +600,24 @@ describe("AppPageContent", () => {
     expect(memoryPage?.parentElement?.className).toContain("overflow-auto");
     expect(memoryPage?.parentElement?.className).toContain("min-h-0");
     expect(memoryPage?.parentElement?.className).toContain("flex-1");
+  });
+
+  it("knowledge 页面应把工作区参数透传给 KnowledgePage", async () => {
+    const { container } = renderContent("knowledge", {
+      workingDir: "/tmp/project-knowledge",
+      selectedPackName: "brand-product-demo",
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="knowledge-page"]'),
+    ).not.toBeNull();
+    expect(latestKnowledgePageProps.value).toMatchObject({
+      pageParams: {
+        workingDir: "/tmp/project-knowledge",
+        selectedPackName: "brand-product-demo",
+      },
+    });
   });
 
   it("sceneapps 页面应把目录页参数透传给 SceneAppsPage", async () => {

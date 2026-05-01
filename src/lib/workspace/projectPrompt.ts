@@ -108,7 +108,9 @@ function normalizeOutlineNode(node: OutlineNode): OutlineNode {
   return {
     ...node,
     title: isUsefulText(node.title) ? normalizeText(node.title) : "未命名章节",
-    content: isUsefulText(node.content) ? normalizeText(node.content) : undefined,
+    content: isUsefulText(node.content)
+      ? normalizeText(node.content)
+      : undefined,
   };
 }
 
@@ -239,11 +241,7 @@ export function generateProjectMemoryPrompt(memory: ProjectMemory): string {
     .filter(hasUsefulOutlineNode)
     .map(normalizeOutlineNode);
 
-  if (
-    characters.length === 0 &&
-    !worldBuilding &&
-    outline.length === 0
-  ) {
+  if (characters.length === 0 && !worldBuilding && outline.length === 0) {
     return "";
   }
 

@@ -84,6 +84,7 @@ pub struct SessionConfigBuilder {
     turn_id: Option<String>,
     max_turns: Option<u32>,
     system_prompt: Option<String>,
+    system_prompt_override: Option<bool>,
     include_context_trace: Option<bool>,
     turn_context: Option<TurnContextOverride>,
 }
@@ -96,6 +97,7 @@ impl SessionConfigBuilder {
             turn_id: None,
             max_turns: None,
             system_prompt: None,
+            system_prompt_override: None,
             include_context_trace: None,
             turn_context: None,
         }
@@ -121,6 +123,11 @@ impl SessionConfigBuilder {
         self
     }
 
+    pub fn system_prompt_override(mut self, enabled: bool) -> Self {
+        self.system_prompt_override = Some(enabled);
+        self
+    }
+
     pub fn include_context_trace(mut self, include: bool) -> Self {
         self.include_context_trace = Some(include);
         self
@@ -140,6 +147,7 @@ impl SessionConfigBuilder {
             max_turns: self.max_turns,
             retry_config: None,
             system_prompt: self.system_prompt,
+            system_prompt_override: self.system_prompt_override,
             include_context_trace: self.include_context_trace,
             turn_context: self.turn_context,
         }

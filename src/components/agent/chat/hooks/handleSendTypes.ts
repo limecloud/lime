@@ -22,4 +22,6 @@ export interface HandleSendOptions {
   systemPromptOverride?: string;
   assistantDraft?: AssistantDraftState;
   skipSessionRestore?: boolean;
+  skipSessionStartHooks?: boolean;
+  skipPreSubmitResume?: boolean;
 }
