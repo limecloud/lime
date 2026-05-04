@@ -24,6 +24,7 @@ export interface BaseComposerProps {
   isFullscreen?: boolean;
   fillHeightWhenFullscreen?: boolean;
   sendOnEnter?: boolean;
+  deferSendOnEnter?: boolean;
   maxAutoHeight?: number;
   hasAdditionalContent?: boolean;
   rows?: number;
@@ -48,6 +49,7 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
   isFullscreen = false,
   fillHeightWhenFullscreen = false,
   sendOnEnter = true,
+  deferSendOnEnter = false,
   maxAutoHeight = 300,
   hasAdditionalContent = false,
   rows = 1,
@@ -149,7 +151,15 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
       if (event.key === "Enter" && sendOnEnter && !event.shiftKey) {
         event.preventDefault();
         if (canSend) {
-          onSend();
+          if (deferSendOnEnter && typeof window !== "undefined") {
+            window.requestAnimationFrame(() => {
+              if (canSendRef.current) {
+                onSendRef.current();
+              }
+            });
+          } else {
+            onSend();
+          }
         }
         return;
       }
@@ -160,6 +170,7 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
     },
     [
       canSend,
+      deferSendOnEnter,
       isFullscreen,
       isImeComposing,
       onEscape,

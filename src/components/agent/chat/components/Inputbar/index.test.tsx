@@ -2488,16 +2488,16 @@ describe("Inputbar", () => {
     });
   });
 
-  it("启用知识包后发送应携带 knowledge_pack metadata", async () => {
+  it("启用项目资料后发送应携带 knowledge_pack metadata", async () => {
     const onSend = vi.fn().mockResolvedValue(true);
     const { container } = renderInputbar({
-      input: "基于知识包写一段介绍",
+      input: "基于项目资料写一段介绍",
       onSend,
       knowledgePackSelection: {
         enabled: true,
         packName: "brand-product-demo",
         workingDir: "/tmp/lime-project",
-        label: "品牌产品知识包",
+        label: "品牌产品资料",
         status: "ready",
       },
     });
@@ -2535,30 +2535,77 @@ describe("Inputbar", () => {
     );
   });
 
-  it("可从输入区菜单切换具体知识包并用选中包发送", async () => {
+  it("项目资料控件应在输入框主路径常显并使用用户语言", async () => {
+    const { container } = renderInputbar({
+      knowledgePackSelection: {
+        enabled: false,
+        packName: "brand-product-demo",
+        workingDir: "/tmp/lime-project",
+        label: "品牌产品资料",
+        status: "ready",
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const toggle = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(toggle).toBeTruthy();
+    expect(toggle?.textContent).toContain("项目资料");
+    expect(toggle?.getAttribute("title")).toContain("使用项目资料");
+    expect(container.textContent).not.toContain("知识包");
+  });
+
+  it("没有项目资料时应能从输入框触发资料整理入口", async () => {
+    const onStartKnowledgeOrganize = vi.fn();
+    const { container } = renderInputbar({
+      onStartKnowledgeOrganize,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const organizeButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-organize"]',
+    ) as HTMLButtonElement | null;
+    expect(organizeButton).toBeTruthy();
+    expect(organizeButton?.textContent).toContain("整理成项目资料");
+
+    act(() => {
+      organizeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onStartKnowledgeOrganize).toHaveBeenCalledTimes(1);
+  });
+
+  it("可从输入区菜单切换具体项目资料并用选中资料发送", async () => {
     const onSend = vi.fn().mockResolvedValue(true);
     const onSelectKnowledgePack = vi.fn();
     const onToggleKnowledgePack = vi.fn();
     const { container, rerender } = renderInputbar({
-      input: "基于选中的知识包写介绍",
+      input: "基于选中的项目资料写介绍",
       onSend,
       knowledgePackSelection: {
         enabled: false,
         packName: "brand-product-demo",
         workingDir: "/tmp/lime-project",
-        label: "品牌产品知识包",
+        label: "品牌产品资料",
         status: "ready",
       },
       knowledgePackOptions: [
         {
           packName: "brand-product-demo",
-          label: "品牌产品知识包",
+          label: "品牌产品资料",
           status: "ready",
           defaultForWorkspace: true,
         },
         {
           packName: "org-knowhow-demo",
-          label: "组织经验知识包",
+          label: "组织经验资料",
           status: "needs-review",
         },
       ],
@@ -2583,7 +2630,7 @@ describe("Inputbar", () => {
       '[data-testid="inputbar-knowledge-pack-option-org-knowhow-demo"]',
     ) as HTMLButtonElement | null;
     expect(secondPackOption).toBeTruthy();
-    expect(secondPackOption?.textContent).toContain("组织经验知识包");
+    expect(secondPackOption?.textContent).toContain("组织经验资料");
 
     act(() => {
       secondPackOption?.dispatchEvent(
@@ -2599,7 +2646,7 @@ describe("Inputbar", () => {
         enabled: true,
         packName: "org-knowhow-demo",
         workingDir: "/tmp/lime-project",
-        label: "组织经验知识包",
+        label: "组织经验资料",
         status: "needs-review",
       },
     });

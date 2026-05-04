@@ -1219,6 +1219,7 @@ mod tests {
             limit_state: None,
             estimated_cost_class: None,
             cost_state: None,
+            permission_state: None,
             limit_event: None,
         }
     }

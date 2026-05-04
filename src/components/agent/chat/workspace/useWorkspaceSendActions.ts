@@ -390,11 +390,38 @@ function withFastResponseMetadata(
 
   const nextMetadata = { ...(requestMetadata || {}) };
   const harness = asRecord(nextMetadata.harness) || {};
+  const { browser_assist: _browserAssist, browserAssist: _browserAssistCamel, ...leanHarness } =
+    harness;
   nextMetadata.harness = {
-    ...harness,
+    ...leanHarness,
     fast_response_routing: fastResponseMetadata,
   };
   return nextMetadata;
+}
+
+function shouldSkipBrowserAssistPrimeForPlainFirstTurn(params: {
+  activeTheme: string;
+  browserRequirementMatch: GeneralWorkbenchSendBoundaryState["browserRequirementMatch"];
+  hasBoundSkillLaunch: boolean;
+  imagesCount: number;
+  messagesCount: number;
+  sendOptions?: HandleSendOptions;
+  sourceText: string;
+}): boolean {
+  if (
+    params.activeTheme !== "general" ||
+    params.browserRequirementMatch ||
+    params.hasBoundSkillLaunch ||
+    params.messagesCount > 0 ||
+    params.imagesCount > 0 ||
+    params.sendOptions?.purpose ||
+    params.sendOptions?.skillRequest
+  ) {
+    return false;
+  }
+
+  const text = params.sourceText.trim();
+  return Boolean(text && !text.startsWith("/") && !text.startsWith("@"));
 }
 
 function buildFastResponseAssistantDraft(
@@ -5216,7 +5243,18 @@ export function useWorkspaceSendActions({
         sendOptions?.skipSessionStartHooks !== true &&
         Boolean(ensureSessionForCommandMetadata);
 
-      if (!hasBoundSkillLaunch) {
+      const shouldSkipBrowserAssistPrime =
+        shouldSkipBrowserAssistPrimeForPlainFirstTurn({
+          activeTheme,
+          browserRequirementMatch: sendBoundary.browserRequirementMatch,
+          hasBoundSkillLaunch,
+          imagesCount: images?.length ?? 0,
+          messagesCount,
+          sendOptions,
+          sourceText,
+        });
+
+      if (!hasBoundSkillLaunch && !shouldSkipBrowserAssistPrime) {
         primeBrowserAssistBeforeSend({
           activeTheme,
           sourceText,

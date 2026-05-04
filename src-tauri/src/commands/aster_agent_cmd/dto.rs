@@ -634,6 +634,8 @@ pub struct AgentRuntimeThreadReadModel {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_state: Option<lime_agent::SessionExecutionRuntimeCostState>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_state: Option<lime_agent::SessionExecutionRuntimePermissionState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub limit_event: Option<lime_agent::SessionExecutionRuntimeLimitEvent>,
 }
 
@@ -700,9 +702,15 @@ fn extract_runtime_summary(
     let routing = runtime.routing_decision.as_ref();
     let limit_state = runtime.limit_state.as_ref();
     let cost_state = runtime.cost_state.as_ref();
+    let permission_state = runtime.permission_state.as_ref();
     let limit_event = runtime.limit_event.as_ref();
 
-    if routing.is_none() && limit_state.is_none() && cost_state.is_none() && limit_event.is_none() {
+    if routing.is_none()
+        && limit_state.is_none()
+        && cost_state.is_none()
+        && permission_state.is_none()
+        && limit_event.is_none()
+    {
         return None;
     }
 
@@ -725,6 +733,9 @@ fn extract_runtime_summary(
         "singleCandidateOnly": limit_state.map(|value| value.single_candidate_only),
         "oemLocked": limit_state.map(|value| value.oem_locked),
         "quotaLow": Some(matches!(limit_event.map(|value| value.event_kind.as_str()), Some("quota_low"))),
+        "permissionStatus": permission_state.map(|value| value.status.clone()),
+        "permissionAskCount": permission_state.map(|value| value.ask_profile_keys.len() as u32),
+        "permissionBlockingCount": permission_state.map(|value| value.blocking_profile_keys.len() as u32),
     }))
 }
 
@@ -1369,6 +1380,10 @@ impl AgentRuntimeThreadReadModel {
             .execution_runtime
             .as_ref()
             .and_then(|runtime| runtime.cost_state.clone());
+        let permission_state = detail
+            .execution_runtime
+            .as_ref()
+            .and_then(|runtime| runtime.permission_state.clone());
         let limit_event = detail
             .execution_runtime
             .as_ref()
@@ -1504,6 +1519,7 @@ impl AgentRuntimeThreadReadModel {
             auxiliary_task_runtime,
             limit_state,
             cost_state,
+            permission_state,
             limit_event,
         }
     }
@@ -2902,6 +2918,22 @@ mod tests {
                 cached_input_tokens: None,
                 cache_creation_input_tokens: None,
             }),
+            permission_state: Some(lime_agent::SessionExecutionRuntimePermissionState {
+                status: "requires_confirmation".to_string(),
+                required_profile_keys: vec![
+                    "read_files".to_string(),
+                    "write_artifacts".to_string(),
+                    "ask_user_question".to_string(),
+                ],
+                ask_profile_keys: vec!["read_files".to_string(), "write_artifacts".to_string()],
+                blocking_profile_keys: Vec::new(),
+                decision_source: "execution_profile_registry".to_string(),
+                decision_scope: "declared_permission_profiles_only".to_string(),
+                confirmation_status: Some("not_requested".to_string()),
+                confirmation_request_id: None,
+                confirmation_source: Some("declared_profile_only".to_string()),
+                notes: vec!["测试运行时权限摘要".to_string()],
+            }),
             limit_event: Some(lime_agent::SessionExecutionRuntimeLimitEvent {
                 event_kind: "rate_limit_hit".to_string(),
                 message: "429 Too Many Requests".to_string(),
@@ -2926,6 +2958,57 @@ mod tests {
                 .and_then(|value| value.get("decisionReason"))
                 .and_then(serde_json::Value::as_str),
             Some("命中 service_models.translation")
+        );
+        assert_eq!(
+            thread_read
+                .runtime_summary
+                .as_ref()
+                .and_then(|value| value.get("permissionStatus"))
+                .and_then(serde_json::Value::as_str),
+            Some("requires_confirmation")
+        );
+        assert_eq!(
+            thread_read
+                .runtime_summary
+                .as_ref()
+                .and_then(|value| value.get("permissionAskCount"))
+                .and_then(serde_json::Value::as_u64),
+            Some(2)
+        );
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .map(|value| value.status.as_str()),
+            Some("requires_confirmation")
+        );
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .map(|value| value.ask_profile_keys.as_slice()),
+            Some(&["read_files".to_string(), "write_artifacts".to_string()][..])
+        );
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .map(|value| value.blocking_profile_keys.is_empty()),
+            Some(true)
+        );
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .and_then(|value| value.confirmation_status.as_deref()),
+            Some("not_requested")
+        );
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .and_then(|value| value.confirmation_source.as_deref()),
+            Some("declared_profile_only")
         );
         assert_eq!(
             thread_read
@@ -3077,6 +3160,7 @@ mod tests {
                 notes: vec!["当前回合受 OEM 路由约束。".to_string()],
             }),
             cost_state: None,
+            permission_state: None,
             limit_event: Some(lime_agent::SessionExecutionRuntimeLimitEvent {
                 event_kind: "quota_low".to_string(),
                 message: "OEM 云端额度偏低".to_string(),

@@ -130,6 +130,40 @@ const GeneralWorkbenchEntryPromptButton = styled.button<{
   }
 `;
 
+const KNOWLEDGE_BUILDER_SKILL_NAME = "knowledge_builder";
+
+function normalizeKnowledgeDraftName(value: string): string {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64) || "project-material"
+  );
+}
+
+function buildKnowledgeOrganizePrompt(sourceText: string): string {
+  const trimmed = sourceText.trim();
+  const lines = [
+    "请把这些内容整理成当前项目可复用的项目资料。",
+    "",
+    "整理目标：",
+    "1. 提炼已确认事实、适用场景、表达风格和不能编造的边界。",
+    "2. 标出缺失信息、冲突内容和需要人工确认的风险提醒。",
+    "3. 生成一份可供我检查确认的项目资料草稿。",
+  ];
+
+  if (trimmed) {
+    lines.push("", "待整理资料：", trimmed);
+  } else {
+    lines.push("", "我接下来会补充资料，请先告诉我需要提供哪些内容。");
+  }
+
+  return lines.join("\n");
+}
+
 function renderGeneralWorkbenchEntryPromptAccessory({
   prompt,
   onRestart,
@@ -771,6 +805,56 @@ export function useWorkspaceInputbarSceneRuntime({
   const handleSelectKnowledgePack = useCallback((packName: string) => {
     setSelectedKnowledgePackName(packName);
   }, []);
+  const handleStartKnowledgeOrganize = useCallback(() => {
+    const workingDir = projectRootPath?.trim();
+    if (!workingDir) {
+      setInput("请先选择一个项目，然后我会把资料整理成当前项目可复用的项目资料。");
+      return;
+    }
+
+    const trimmedInput = input.trim();
+    const packName = normalizeKnowledgeDraftName(
+      selectedKnowledgePack?.metadata.name ||
+        selectedKnowledgePack?.metadata.description ||
+        currentSessionTitle ||
+        "project-material",
+    );
+    const prompt = buildKnowledgeOrganizePrompt(trimmedInput);
+    const requestMetadata = {
+      knowledge_builder: {
+        skill_name: KNOWLEDGE_BUILDER_SKILL_NAME,
+        pack_name: packName,
+        working_dir: workingDir,
+        source: "inputbar",
+      },
+    };
+
+    if (!trimmedInput) {
+      setInput(prompt);
+      return;
+    }
+
+    void handleSend(
+      undefined,
+      false,
+      false,
+      prompt,
+      executionStrategy || "react",
+      undefined,
+      {
+        requestMetadata,
+        displayContent: prompt,
+      },
+    );
+  }, [
+    currentSessionTitle,
+    executionStrategy,
+    handleSend,
+    input,
+    projectRootPath,
+    selectedKnowledgePack,
+    setInput,
+  ]);
   const runtimeToolAvailability = useMemo(
     () => deriveRuntimeToolAvailability(toolInventory),
     [toolInventory],
@@ -850,6 +934,7 @@ export function useWorkspaceInputbarSceneRuntime({
         knowledgePackOptions: inputbarKnowledgePackOptions,
         onToggleKnowledgePack: setKnowledgePackEnabled,
         onSelectKnowledgePack: handleSelectKnowledgePack,
+        onStartKnowledgeOrganize: handleStartKnowledgeOrganize,
         providerType,
         setProviderType,
         model,

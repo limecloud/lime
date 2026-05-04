@@ -203,6 +203,7 @@ interface InputbarComposerSectionProps {
   knowledgePackOptions?: InputbarKnowledgePackOption[];
   onToggleKnowledgePack?: (enabled: boolean) => void;
   onSelectKnowledgePack?: (packName: string) => void;
+  onStartKnowledgeOrganize?: () => void;
   onSelectTeam?: (team: TeamDefinition | null) => void;
   teamWorkspaceSettings?: WorkspaceSettings | null;
   onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
@@ -265,6 +266,7 @@ export const InputbarComposerSection: React.FC<
   knowledgePackOptions = [],
   onToggleKnowledgePack,
   onSelectKnowledgePack,
+  onStartKnowledgeOrganize,
   onSelectTeam,
   teamWorkspaceSettings,
   onPersistCustomTeams,
@@ -383,7 +385,7 @@ export const InputbarComposerSection: React.FC<
   const currentKnowledgePackLabel =
     knowledgePackSelection?.label ||
     knowledgePackSelection?.packName ||
-    "知识包";
+    "项目资料";
   const handleKnowledgePackToggle = () => {
     if (!knowledgePackSelection) {
       return;
@@ -404,39 +406,133 @@ export const InputbarComposerSection: React.FC<
     executionStrategy === "code_orchestrated" ||
     accessMode === "read-only" ||
     accessMode === "full-access";
+  const knowledgePackControl = shouldShowKnowledgePackToggle &&
+    knowledgePackSelection ? (
+      <KnowledgePackControlWrap>
+        <MetaToggleButton
+          type="button"
+          $checked={knowledgePackSelection.enabled}
+          aria-label={
+            knowledgePackSelection.enabled ? "关闭项目资料" : "使用项目资料"
+          }
+          title={
+            knowledgePackSelection.enabled
+              ? `已使用项目资料：${currentKnowledgePackLabel}`
+              : `使用项目资料：${currentKnowledgePackLabel}`
+          }
+          data-testid="inputbar-knowledge-pack-toggle"
+          onClick={handleKnowledgePackToggle}
+        >
+          <MetaToggleCheck
+            $checked={knowledgePackSelection.enabled}
+            aria-hidden
+          />
+          <MetaToggleGlyph aria-hidden>
+            <BookOpen strokeWidth={1.8} />
+          </MetaToggleGlyph>
+          <MetaToggleLabel>
+            {knowledgePackSelection.enabled
+              ? currentKnowledgePackLabel
+              : "项目资料"}
+          </MetaToggleLabel>
+        </MetaToggleButton>
+        {hasKnowledgePackChoices ? (
+          <KnowledgePackMenuButton
+            type="button"
+            aria-label="选择项目资料"
+            aria-expanded={showKnowledgePackMenu}
+            title="选择项目资料"
+            data-testid="inputbar-knowledge-pack-menu-toggle"
+            onClick={() => setShowKnowledgePackMenu((previous) => !previous)}
+          >
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+          </KnowledgePackMenuButton>
+        ) : null}
+        {showKnowledgePackMenu ? (
+          <KnowledgePackMenu role="menu" data-testid="inputbar-knowledge-pack-menu">
+            {normalizedKnowledgePackOptions.map((option) => {
+              const isSelected =
+                option.packName === knowledgePackSelection.packName;
+              const label = option.label || option.packName;
+
+              return (
+                <KnowledgePackMenuItem
+                  key={option.packName}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={isSelected}
+                  data-testid={`inputbar-knowledge-pack-option-${option.packName}`}
+                  $active={isSelected}
+                  onClick={() => handleSelectKnowledgePack(option.packName)}
+                >
+                  <KnowledgePackMenuItemTitle>
+                    <span>{label}</span>
+                    {option.defaultForWorkspace ? (
+                      <KnowledgePackMenuBadge>默认</KnowledgePackMenuBadge>
+                    ) : null}
+                  </KnowledgePackMenuItemTitle>
+                  <KnowledgePackMenuItemMeta>
+                    {option.status || "未确认"}
+                  </KnowledgePackMenuItemMeta>
+                </KnowledgePackMenuItem>
+              );
+            })}
+          </KnowledgePackMenu>
+        ) : null}
+      </KnowledgePackControlWrap>
+    ) : onStartKnowledgeOrganize ? (
+      <MetaToggleButton
+        type="button"
+        $checked={false}
+        aria-label="整理成项目资料"
+        title="整理成项目资料"
+        data-testid="inputbar-knowledge-organize"
+        onClick={onStartKnowledgeOrganize}
+      >
+        <MetaToggleGlyph aria-hidden>
+          <BookOpen strokeWidth={1.8} />
+        </MetaToggleGlyph>
+        <MetaToggleLabel>整理成项目资料</MetaToggleLabel>
+      </MetaToggleButton>
+    ) : null;
   const shouldShowAdvancedToggle =
     showSkillSelector ||
     shouldShowTeamSelector ||
     Boolean(setExecutionStrategy) ||
     shouldShowModelControls ||
     Boolean(setAccessMode) ||
-    shouldShowKnowledgePackToggle ||
     Boolean(onToggleFileManager);
-  const leftExtra = shouldShowAdvancedToggle ? (
+  const shouldShowLeftExtra =
+    Boolean(knowledgePackControl) || shouldShowAdvancedToggle;
+  const leftExtra = shouldShowLeftExtra ? (
     <>
-      <MetaToggleButton
-        type="button"
-        $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
-        aria-label={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
-        aria-expanded={showAdvancedControls}
-        data-testid="inputbar-advanced-toggle"
-        title={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
-        onClick={() => setShowAdvancedControls((previous) => !previous)}
-      >
-        <MetaToggleCheck
+      {knowledgePackControl}
+
+      {shouldShowAdvancedToggle ? (
+        <MetaToggleButton
+          type="button"
           $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
-          aria-hidden
-        />
-        <MetaToggleGlyph aria-hidden>
-          <Settings2 strokeWidth={1.8} />
-        </MetaToggleGlyph>
-        <MetaToggleLabel>高级设置</MetaToggleLabel>
-        {showAdvancedControls ? (
-          <ChevronUp className="h-3.5 w-3.5" aria-hidden />
-        ) : (
-          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-        )}
-      </MetaToggleButton>
+          aria-label={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
+          aria-expanded={showAdvancedControls}
+          data-testid="inputbar-advanced-toggle"
+          title={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
+          onClick={() => setShowAdvancedControls((previous) => !previous)}
+        >
+          <MetaToggleCheck
+            $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
+            aria-hidden
+          />
+          <MetaToggleGlyph aria-hidden>
+            <Settings2 strokeWidth={1.8} />
+          </MetaToggleGlyph>
+          <MetaToggleLabel>高级设置</MetaToggleLabel>
+          {showAdvancedControls ? (
+            <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+          )}
+        </MetaToggleButton>
+      ) : null}
 
       {!showAdvancedControls && currentModelSummary ? (
         <Badge
@@ -477,86 +573,6 @@ export const InputbarComposerSection: React.FC<
         >
           <FolderOpen className="h-4 w-4" aria-hidden />
         </MetaIconButton>
-      ) : null}
-
-      {shouldShowKnowledgePackToggle && knowledgePackSelection ? (
-        <KnowledgePackControlWrap>
-          <MetaToggleButton
-            type="button"
-            $checked={knowledgePackSelection.enabled}
-            aria-label={
-              knowledgePackSelection.enabled
-                ? "关闭知识包上下文"
-                : "启用知识包上下文"
-            }
-            title={
-              knowledgePackSelection.enabled
-                ? `已使用知识包：${currentKnowledgePackLabel}`
-                : `使用知识包：${currentKnowledgePackLabel}`
-            }
-            data-testid="inputbar-knowledge-pack-toggle"
-            onClick={handleKnowledgePackToggle}
-          >
-            <MetaToggleCheck
-              $checked={knowledgePackSelection.enabled}
-              aria-hidden
-            />
-            <MetaToggleGlyph aria-hidden>
-              <BookOpen strokeWidth={1.8} />
-            </MetaToggleGlyph>
-            <MetaToggleLabel>
-              {knowledgePackSelection.enabled
-                ? currentKnowledgePackLabel
-                : "知识包"}
-            </MetaToggleLabel>
-          </MetaToggleButton>
-          {hasKnowledgePackChoices ? (
-            <KnowledgePackMenuButton
-              type="button"
-              aria-label="选择知识包"
-              aria-expanded={showKnowledgePackMenu}
-              title="选择知识包"
-              data-testid="inputbar-knowledge-pack-menu-toggle"
-              onClick={() => setShowKnowledgePackMenu((previous) => !previous)}
-            >
-              <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-            </KnowledgePackMenuButton>
-          ) : null}
-          {showKnowledgePackMenu ? (
-            <KnowledgePackMenu
-              role="menu"
-              data-testid="inputbar-knowledge-pack-menu"
-            >
-              {normalizedKnowledgePackOptions.map((option) => {
-                const isSelected =
-                  option.packName === knowledgePackSelection.packName;
-                const label = option.label || option.packName;
-
-                return (
-                  <KnowledgePackMenuItem
-                    key={option.packName}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={isSelected}
-                    data-testid={`inputbar-knowledge-pack-option-${option.packName}`}
-                    $active={isSelected}
-                    onClick={() => handleSelectKnowledgePack(option.packName)}
-                  >
-                    <KnowledgePackMenuItemTitle>
-                      <span>{label}</span>
-                      {option.defaultForWorkspace ? (
-                        <KnowledgePackMenuBadge>默认</KnowledgePackMenuBadge>
-                      ) : null}
-                    </KnowledgePackMenuItemTitle>
-                    <KnowledgePackMenuItemMeta>
-                      {option.status || "未标记状态"}
-                    </KnowledgePackMenuItemMeta>
-                  </KnowledgePackMenuItem>
-                );
-              })}
-            </KnowledgePackMenu>
-          ) : null}
-        </KnowledgePackControlWrap>
       ) : null}
 
       {showAdvancedControls ? (

@@ -113,6 +113,19 @@ export interface AsterSessionExecutionRuntimeCostState {
   cacheCreationInputTokens?: number | null;
 }
 
+export interface AsterSessionExecutionRuntimePermissionState {
+  status: "not_required" | "declared_only" | "requires_confirmation" | string;
+  requiredProfileKeys?: string[];
+  askProfileKeys?: string[];
+  blockingProfileKeys?: string[];
+  decisionSource: string;
+  decisionScope: string;
+  confirmationStatus?: "not_required" | "not_requested" | "requested" | "resolved" | string | null;
+  confirmationRequestId?: string | null;
+  confirmationSource?: string | null;
+  notes?: string[];
+}
+
 export interface AsterSessionExecutionRuntimeLimitEvent {
   eventKind: string;
   message: string;
@@ -162,5 +175,6 @@ export interface AsterSessionExecutionRuntime {
   routing_decision?: AsterSessionExecutionRuntimeRoutingDecision | null;
   limit_state?: AsterSessionExecutionRuntimeLimitState | null;
   cost_state?: AsterSessionExecutionRuntimeCostState | null;
+  permission_state?: AsterSessionExecutionRuntimePermissionState | null;
   limit_event?: AsterSessionExecutionRuntimeLimitEvent | null;
 }

@@ -2620,6 +2620,7 @@ async fn prepare_runtime_turn_ingress_context(
         &provider_resolution.routing_decision,
         &provider_resolution.limit_state,
         &provider_resolution.cost_state,
+        &provider_resolution.permission_state,
         provider_resolution.limit_event.as_ref(),
         provider_resolution.oem_policy.as_ref(),
         &provider_resolution.runtime_summary,
@@ -3522,6 +3523,7 @@ fn merge_runtime_request_resolution_metadata(
     routing_decision: &lime_agent::SessionExecutionRuntimeRoutingDecision,
     limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
     cost_state: &lime_agent::SessionExecutionRuntimeCostState,
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
     limit_event: Option<&lime_agent::SessionExecutionRuntimeLimitEvent>,
     oem_policy: Option<&lime_agent::SessionExecutionRuntimeOemPolicy>,
     runtime_summary: &lime_agent::SessionExecutionRuntimeSummary,
@@ -3543,6 +3545,7 @@ fn merge_runtime_request_resolution_metadata(
     insert_serialized_run_metadata(runtime_object, "routing_decision", routing_decision);
     insert_serialized_run_metadata(runtime_object, "limit_state", limit_state);
     insert_serialized_run_metadata(runtime_object, "cost_state", cost_state);
+    insert_serialized_run_metadata(runtime_object, "permission_state", permission_state);
     insert_serialized_run_metadata(runtime_object, "runtime_summary", runtime_summary);
     if let Some(limit_event) = limit_event {
         insert_serialized_run_metadata(runtime_object, "limit_event", limit_event);
@@ -3623,6 +3626,15 @@ fn collect_runtime_request_resolution_side_events(
         events.push(RuntimeAgentEvent::CostEstimated { cost_state });
     }
 
+    if let Some(permission_state) = extract_runtime_resolution_payload::<
+        lime_agent::SessionExecutionRuntimePermissionState,
+    >(request_metadata, "permission_state")
+    {
+        if let Some(status) = build_runtime_permission_review_status_from_state(&permission_state) {
+            events.push(RuntimeAgentEvent::RuntimeStatus { status });
+        }
+    }
+
     if let Some(limit_event) = extract_runtime_resolution_payload::<
         lime_agent::SessionExecutionRuntimeLimitEvent,
     >(request_metadata, "limit_event")
@@ -3631,6 +3643,78 @@ fn collect_runtime_request_resolution_side_events(
     }
 
     events
+}
+
+fn build_runtime_permission_review_status_from_state(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> Option<AgentRuntimeStatus> {
+    if permission_state.status != "requires_confirmation" {
+        return None;
+    }
+
+    let mut metadata = std::collections::HashMap::new();
+    metadata.insert(
+        "permission_status".to_string(),
+        serde_json::Value::String(permission_state.status.clone()),
+    );
+    metadata.insert(
+        "required_profile_keys".to_string(),
+        serde_json::to_value(&permission_state.required_profile_keys)
+            .unwrap_or_else(|_| serde_json::Value::Array(Vec::new())),
+    );
+    metadata.insert(
+        "ask_profile_keys".to_string(),
+        serde_json::to_value(&permission_state.ask_profile_keys)
+            .unwrap_or_else(|_| serde_json::Value::Array(Vec::new())),
+    );
+    metadata.insert(
+        "blocking_profile_keys".to_string(),
+        serde_json::to_value(&permission_state.blocking_profile_keys)
+            .unwrap_or_else(|_| serde_json::Value::Array(Vec::new())),
+    );
+    metadata.insert(
+        "decision_source".to_string(),
+        serde_json::Value::String(permission_state.decision_source.clone()),
+    );
+    metadata.insert(
+        "decision_scope".to_string(),
+        serde_json::Value::String(permission_state.decision_scope.clone()),
+    );
+    if let Some(confirmation_status) = permission_state.confirmation_status.as_ref() {
+        metadata.insert(
+            "confirmation_status".to_string(),
+            serde_json::Value::String(confirmation_status.clone()),
+        );
+    }
+    if let Some(confirmation_request_id) = permission_state.confirmation_request_id.as_ref() {
+        metadata.insert(
+            "confirmation_request_id".to_string(),
+            serde_json::Value::String(confirmation_request_id.clone()),
+        );
+    }
+    if let Some(confirmation_source) = permission_state.confirmation_source.as_ref() {
+        metadata.insert(
+            "confirmation_source".to_string(),
+            serde_json::Value::String(confirmation_source.clone()),
+        );
+    }
+    metadata.insert("declared_only".to_string(), serde_json::Value::Bool(true));
+
+    let ask_count = permission_state.ask_profile_keys.len();
+    let required_count = permission_state.required_profile_keys.len();
+    Some(AgentRuntimeStatus {
+        phase: "permission_review".to_string(),
+        title: "运行时权限需要确认".to_string(),
+        detail: format!(
+            "当前执行画像声明了 {required_count} 项权限，其中 {ask_count} 项需要确认；本事件只暴露声明态，不会替代真实授权。"
+        ),
+        checkpoints: vec![
+            "权限需求来自 modality execution profile".to_string(),
+            "当前不会因为声明态权限摘要阻断本轮执行".to_string(),
+            "真实确认与阻断仍由后续权限系统接管".to_string(),
+        ],
+        metadata: Some(metadata),
+    })
 }
 
 fn emit_runtime_request_resolution_events(
@@ -7662,6 +7746,10 @@ mod tests {
             lime_agent::SessionExecutionRuntimeCostState,
         >(Some(&metadata), "cost_state")
         .expect("cost state");
+        let permission_state = extract_runtime_resolution_payload::<
+            lime_agent::SessionExecutionRuntimePermissionState,
+        >(Some(&metadata), "permission_state")
+        .expect("permission state");
 
         assert_eq!(task_profile.kind, "history_compress");
         assert_eq!(task_profile.source, "context_compaction_auto");
@@ -7682,6 +7770,8 @@ mod tests {
         assert!(limit_state.single_candidate_only);
         assert!(limit_state.settings_locked);
         assert_eq!(cost_state.estimated_cost_class.as_deref(), Some("low"));
+        assert_eq!(permission_state.status, "not_required");
+        assert!(permission_state.required_profile_keys.is_empty());
     }
 
     #[test]
@@ -7935,6 +8025,100 @@ mod tests {
                 "limit_state_updated".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn collect_runtime_request_resolution_side_events_should_emit_permission_review_status() {
+        let metadata = json!({
+            "lime_runtime": {
+                "permission_state": {
+                    "status": "requires_confirmation",
+                    "requiredProfileKeys": ["read_files", "write_artifacts"],
+                    "askProfileKeys": ["read_files", "write_artifacts"],
+                    "blockingProfileKeys": [],
+                    "decisionSource": "modality_execution_profile",
+                    "decisionScope": "declared_profile",
+                    "confirmationStatus": "not_requested",
+                    "confirmationSource": "declared_profile_only"
+                }
+            }
+        });
+
+        let values = collect_runtime_request_resolution_side_events(Some(&metadata))
+            .into_iter()
+            .map(|event| serde_json::to_value(event).expect("应能序列化 runtime event"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(values.len(), 1);
+        assert_eq!(
+            values[0].get("type").and_then(Value::as_str),
+            Some("runtime_status")
+        );
+        let status = values[0]
+            .get("status")
+            .expect("runtime status event 应包含 status");
+        assert_eq!(
+            status.get("phase").and_then(Value::as_str),
+            Some("permission_review")
+        );
+        assert_eq!(
+            status
+                .pointer("/metadata/permission_status")
+                .and_then(Value::as_str),
+            Some("requires_confirmation")
+        );
+        assert_eq!(
+            status
+                .pointer("/metadata/confirmation_status")
+                .and_then(Value::as_str),
+            Some("not_requested")
+        );
+        assert_eq!(
+            status
+                .pointer("/metadata/confirmation_request_id")
+                .and_then(Value::as_str),
+            None
+        );
+        assert_eq!(
+            status
+                .pointer("/metadata/confirmation_source")
+                .and_then(Value::as_str),
+            Some("declared_profile_only")
+        );
+        assert_eq!(
+            status
+                .pointer("/metadata/declared_only")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            status
+                .pointer("/metadata/ask_profile_keys")
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn collect_runtime_request_resolution_side_events_should_not_emit_permission_review_for_not_required(
+    ) {
+        let metadata = json!({
+            "lime_runtime": {
+                "permission_state": {
+                    "status": "not_required",
+                    "requiredProfileKeys": [],
+                    "askProfileKeys": [],
+                    "blockingProfileKeys": [],
+                    "decisionSource": "modality_execution_profile",
+                    "decisionScope": "declared_profile"
+                }
+            }
+        });
+
+        let events = collect_runtime_request_resolution_side_events(Some(&metadata));
+
+        assert!(events.is_empty());
     }
 
     #[test]

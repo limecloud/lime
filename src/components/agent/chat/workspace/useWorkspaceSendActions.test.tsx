@@ -587,6 +587,8 @@ describe("useWorkspaceSendActions", () => {
       currentProviderType: "lime-hub",
       currentModel: "gpt-5.5",
       configuredProviders: [createConfiguredProvider()],
+      browserAssistProfileKey: "general_browser_assist",
+      browserAssistAutoLaunch: true,
     });
 
     try {
@@ -623,6 +625,12 @@ describe("useWorkspaceSendActions", () => {
           },
         },
       });
+      expect(
+        (sendOptions?.requestMetadata?.harness as Record<string, unknown>)
+          .browser_assist,
+      ).toBeUndefined();
+      expect(mockPreheatBrowserAssistInBackground).not.toHaveBeenCalled();
+      expect(mockEnsureBrowserAssistCanvas).not.toHaveBeenCalled();
     } finally {
       harness.unmount();
     }

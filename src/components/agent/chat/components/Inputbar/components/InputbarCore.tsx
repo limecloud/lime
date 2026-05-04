@@ -115,6 +115,8 @@ interface InputbarCoreProps {
   showDragHandle?: boolean;
   /** 视觉风格 */
   visualVariant?: "default" | "floating";
+  /** Enter 发送延后一帧，优先释放首页首帧渲染。 */
+  deferSendOnEnter?: boolean;
   activeTheme?: string;
   queuedTurns?: QueuedTurnSnapshot[];
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
@@ -156,6 +158,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   toolMode = "default",
   showDragHandle = true,
   visualVariant = "default",
+  deferSendOnEnter = false,
   activeTheme,
   queuedTurns = [],
   onPromoteQueuedTurn,
@@ -362,6 +365,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       textareaRef={resolvedTextareaRef}
       onEscape={() => onToolClick("fullscreen")}
       allowSendWhileLoading
+      deferSendOnEnter={deferSendOnEnter}
       rows={isTextareaExpanded ? 7 : isFloatingVariant ? 3 : 1}
       placeholder={
         shouldShowInputSuggestion

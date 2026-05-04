@@ -39,6 +39,7 @@ interface HarnessProps {
   isLoading?: boolean;
   disabled?: boolean;
   hasAdditionalContent?: boolean;
+  deferSendOnEnter?: boolean;
   onSend: () => void;
   onStop: () => void;
 }
@@ -48,6 +49,7 @@ const Harness: React.FC<HarnessProps> = ({
   isLoading = false,
   disabled = false,
   hasAdditionalContent = false,
+  deferSendOnEnter = false,
   onSend,
   onStop,
 }) => {
@@ -62,6 +64,7 @@ const Harness: React.FC<HarnessProps> = ({
       isLoading={isLoading}
       disabled={disabled}
       hasAdditionalContent={hasAdditionalContent}
+      deferSendOnEnter={deferSendOnEnter}
       placeholder="输入内容"
     >
       {({ textareaRef, textareaProps, onPrimaryAction, isPrimaryDisabled }) => (
@@ -98,6 +101,7 @@ const renderHarness = (props: Partial<HarnessProps> = {}): RenderResult => {
         isLoading={props.isLoading}
         disabled={props.disabled}
         hasAdditionalContent={props.hasAdditionalContent}
+        deferSendOnEnter={props.deferSendOnEnter}
         onSend={onSend}
         onStop={onStop}
       />,
@@ -139,6 +143,34 @@ describe("BaseComposer", () => {
       );
     });
 
+    expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("启用延迟发送时按 Enter 应在下一帧发送消息", () => {
+    const rafCallbacks: Array<(timestamp: number) => void> = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      (callback: (timestamp: number) => void) => {
+        rafCallbacks.push(callback);
+        return rafCallbacks.length;
+      },
+    );
+    const { container, onSend } = renderHarness({
+      initialText: "hello",
+      deferSendOnEnter: true,
+    });
+    const textarea = getTextarea(container);
+
+    act(() => {
+      textarea.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+    });
+
+    expect(onSend).not.toHaveBeenCalled();
+    act(() => {
+      rafCallbacks.splice(0).forEach((callback) => callback(0));
+    });
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 

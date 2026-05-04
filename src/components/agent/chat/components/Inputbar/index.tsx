@@ -105,6 +105,7 @@ interface InputbarProps extends SkillSelectionSourceProps {
   knowledgePackOptions?: InputbarKnowledgePackOption[];
   onToggleKnowledgePack?: (enabled: boolean) => void;
   onSelectKnowledgePack?: (packName: string) => void;
+  onStartKnowledgeOrganize?: () => void;
   queuedTurns?: QueuedTurnSnapshot[];
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   onRemoveQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
@@ -172,6 +173,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
   knowledgePackOptions = [],
   onToggleKnowledgePack,
   onSelectKnowledgePack,
+  onStartKnowledgeOrganize,
   queuedTurns = [],
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
@@ -328,6 +330,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         knowledgePackOptions={knowledgePackOptions}
         onToggleKnowledgePack={onToggleKnowledgePack}
         onSelectKnowledgePack={onSelectKnowledgePack}
+        onStartKnowledgeOrganize={onStartKnowledgeOrganize}
         onSelectTeam={onSelectTeam}
         teamWorkspaceSettings={teamWorkspaceSettings}
         onPersistCustomTeams={onPersistCustomTeams}

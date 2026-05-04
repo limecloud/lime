@@ -1484,7 +1484,7 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
         <button
           type="button"
           data-testid="mock-empty-send"
-          onClick={() => props?.onSend?.(props.input || "你好")}
+          onClick={() => props?.onSend?.("你好")}
         >
           发送
         </button>
@@ -2701,6 +2701,12 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     });
     await flushEffects();
 
+    expect(
+      await waitForElement(
+        mounted.container,
+        '[data-testid="mock-empty-type"]',
+      ),
+    ).not.toBeNull();
     clickButton(mounted.container, "mock-empty-type");
     await flushEffects(1);
     clickButton(mounted.container, "mock-empty-send");
@@ -2717,6 +2723,74 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     });
     expect(latestMessageListProps?.messages?.[1]).toMatchObject({
       role: "assistant",
+    });
+  });
+
+  it("空白新建任务发送派发完成但真实消息未接管前应继续保留轻量预览", async () => {
+    type MockEmptyStateProps = {
+      input?: string;
+      setInput?: (value: string) => void;
+      onSend?: (value: string) => void;
+    };
+    mockEmptyState.mockImplementation((props?: MockEmptyStateProps) => (
+      <div data-testid="empty-state" data-input={props?.input || ""}>
+        <button
+          type="button"
+          data-testid="mock-empty-type"
+          onClick={() => props?.setInput?.("你好")}
+        >
+          输入
+        </button>
+        <button
+          type="button"
+          data-testid="mock-empty-send"
+          onClick={() => props?.onSend?.(props.input || "你好")}
+        >
+          发送
+        </button>
+      </div>
+    ));
+    sharedSendMessageMock.mockResolvedValueOnce(undefined);
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        sessionId: null,
+        topics: [],
+      }),
+    );
+
+    const mounted = mountPage({
+      agentEntry: "new-task",
+      showChatPanel: false,
+      theme: "general",
+      projectId: "project-home",
+    });
+    await flushEffects();
+
+    expect(
+      await waitForElement(
+        mounted.container,
+        '[data-testid="mock-empty-type"]',
+      ),
+    ).not.toBeNull();
+    clickButton(mounted.container, "mock-empty-type");
+    await flushEffects(1);
+    clickButton(mounted.container, "mock-empty-send");
+    await flushEffects(12);
+    mounted.rerender();
+    await flushEffects(4);
+
+    expect(
+      mounted.container.querySelector('[data-testid="empty-state"]'),
+    ).toBeNull();
+    expect(
+      mounted.container.querySelector('[data-testid="message-list"]'),
+    ).not.toBeNull();
+    const latestMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | { messages?: Array<{ content?: string; role?: string }> }
+      | undefined;
+    expect(latestMessageListProps?.messages?.[0]).toMatchObject({
+      content: "你好",
+      role: "user",
     });
   });
 

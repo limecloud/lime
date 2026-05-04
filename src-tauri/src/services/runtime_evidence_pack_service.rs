@@ -1572,6 +1572,7 @@ fn build_thread_runtime_facts_json(thread_read: &AgentRuntimeThreadReadModel) ->
         "costState": thread_read.cost_state,
         "limitEvent": thread_read.limit_event,
         "runtimeSummary": thread_read.runtime_summary,
+        "permissionState": thread_read.permission_state,
         "oemPolicy": thread_read.oem_policy,
         "auxiliaryTaskRuntime": thread_read.auxiliary_task_runtime
     })
@@ -1643,6 +1644,20 @@ fn build_runtime_fact_signal_coverage(
                 "thread_read 已导出 runtime_summary。".to_string()
             } else {
                 "thread_read 缺少 runtime_summary。".to_string()
+            },
+        },
+        RuntimeEvidenceSignalCoverageEntry {
+            signal: "permissionState",
+            status: if thread_read.permission_state.is_some() {
+                "exported"
+            } else {
+                "missing"
+            },
+            source: "thread_read.permission_state",
+            detail: if thread_read.permission_state.is_some() {
+                "thread_read 已导出 permission_state。".to_string()
+            } else {
+                "thread_read 缺少 permission_state。".to_string()
             },
         },
         RuntimeEvidenceSignalCoverageEntry {
@@ -1788,6 +1803,7 @@ fn build_runtime_observability_summary_json(
             "failedTool": latest_failed_tool_json(diagnostics),
             "failedCommand": latest_failed_command_json(diagnostics)
         },
+        "runtimeFacts": build_thread_runtime_facts_json(thread_read),
         "requestTelemetry": build_request_telemetry_json(request_telemetry),
         "signalCoverage": signal_coverage.iter().map(|entry| json!({
             "signal": entry.signal,
@@ -4862,6 +4878,21 @@ mod tests {
                 notes: vec!["需要回退链".to_string()],
             }),
             estimated_cost_class: Some("low".to_string()),
+            permission_state: Some(lime_agent::SessionExecutionRuntimePermissionState {
+                status: "requires_confirmation".to_string(),
+                required_profile_keys: vec![
+                    "read_files".to_string(),
+                    "write_artifacts".to_string(),
+                ],
+                ask_profile_keys: vec!["read_files".to_string(), "write_artifacts".to_string()],
+                blocking_profile_keys: Vec::new(),
+                decision_source: "modality_execution_profile".to_string(),
+                decision_scope: "declared_profile".to_string(),
+                confirmation_status: Some("not_requested".to_string()),
+                confirmation_request_id: None,
+                confirmation_source: Some("declared_profile_only".to_string()),
+                notes: vec!["声明态权限摘要，未执行真实授权。".to_string()],
+            }),
             cost_state: Some(lime_agent::SessionExecutionRuntimeCostState {
                 status: "estimated".to_string(),
                 estimated_cost_class: Some("low".to_string()),
@@ -5447,6 +5478,9 @@ mod tests {
         assert!(runtime.contains("\"sessionId\": \"session-1\""));
         assert!(runtime.contains("\"pendingRequestCount\": 1"));
         assert!(runtime.contains("\"observabilitySummary\""));
+        assert!(runtime.contains("\"permissionState\""));
+        assert!(runtime.contains("\"status\": \"requires_confirmation\""));
+        assert!(runtime.contains("\"askProfileKeys\""));
         assert!(runtime.contains("\"fileCheckpointCount\": 1"));
         assert!(runtime.contains("\"fileCheckpoints\""));
         assert!(runtime.contains("\"checkpoint_id\": \"artifact-1\""));
@@ -5465,6 +5499,7 @@ mod tests {
         let artifacts = fs::read_to_string(artifacts_path).expect("artifacts");
         assert!(artifacts.contains("\"observabilitySummary\""));
         assert!(artifacts.contains("\"telemetry\""));
+        assert!(artifacts.contains("\"permissionState\""));
         assert!(artifacts.contains("\"fileCheckpointCount\": 1"));
         assert!(artifacts.contains("\"fileCheckpoints\""));
         assert!(artifacts.contains("\"checkpoint_id\": \"artifact-1\""));

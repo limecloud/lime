@@ -13,6 +13,7 @@ const LIME_RUNTIME_TASK_PROFILE_KEY: &str = "task_profile";
 const LIME_RUNTIME_ROUTING_DECISION_KEY: &str = "routing_decision";
 const LIME_RUNTIME_LIMIT_STATE_KEY: &str = "limit_state";
 const LIME_RUNTIME_COST_STATE_KEY: &str = "cost_state";
+const LIME_RUNTIME_PERMISSION_STATE_KEY: &str = "permission_state";
 const LIME_RUNTIME_LIMIT_EVENT_KEY: &str = "limit_event";
 const LIME_RUNTIME_OEM_POLICY_KEY: &str = "oem_policy";
 const LIME_RUNTIME_SUMMARY_KEY: &str = "runtime_summary";
@@ -413,6 +414,28 @@ pub struct SessionExecutionRuntimeCostState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionExecutionRuntimePermissionState {
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_profile_keys: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ask_profile_keys: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocking_profile_keys: Vec<String>,
+    pub decision_source: String,
+    pub decision_scope: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirmation_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirmation_request_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirmation_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionExecutionRuntimeLimitEvent {
     pub event_kind: String,
     pub message: String,
@@ -473,6 +496,12 @@ pub struct SessionExecutionRuntimeSummary {
     pub oem_locked: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quota_low: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_ask_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_blocking_count: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -519,6 +548,8 @@ pub struct SessionExecutionRuntime {
     pub limit_state: Option<SessionExecutionRuntimeLimitState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_state: Option<SessionExecutionRuntimeCostState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_state: Option<SessionExecutionRuntimePermissionState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit_event: Option<SessionExecutionRuntimeLimitEvent>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -983,6 +1014,46 @@ fn extract_cost_state_from_metadata(
     Some(cost_state)
 }
 
+fn extract_permission_state_from_metadata(
+    metadata: &std::collections::HashMap<String, Value>,
+) -> Option<SessionExecutionRuntimePermissionState> {
+    let mut permission_state: SessionExecutionRuntimePermissionState =
+        extract_lime_runtime_payload(metadata, LIME_RUNTIME_PERMISSION_STATE_KEY)?;
+    permission_state.status =
+        normalize_optional_text(Some(std::mem::take(&mut permission_state.status)))?;
+    permission_state.required_profile_keys = permission_state
+        .required_profile_keys
+        .into_iter()
+        .filter_map(|value| normalize_optional_text(Some(value)))
+        .collect();
+    permission_state.ask_profile_keys = permission_state
+        .ask_profile_keys
+        .into_iter()
+        .filter_map(|value| normalize_optional_text(Some(value)))
+        .collect();
+    permission_state.blocking_profile_keys = permission_state
+        .blocking_profile_keys
+        .into_iter()
+        .filter_map(|value| normalize_optional_text(Some(value)))
+        .collect();
+    permission_state.decision_source =
+        normalize_optional_text(Some(std::mem::take(&mut permission_state.decision_source)))?;
+    permission_state.decision_scope =
+        normalize_optional_text(Some(std::mem::take(&mut permission_state.decision_scope)))?;
+    permission_state.confirmation_status =
+        normalize_optional_text(permission_state.confirmation_status);
+    permission_state.confirmation_request_id =
+        normalize_optional_text(permission_state.confirmation_request_id);
+    permission_state.confirmation_source =
+        normalize_optional_text(permission_state.confirmation_source);
+    permission_state.notes = permission_state
+        .notes
+        .into_iter()
+        .filter_map(|value| normalize_optional_text(Some(value)))
+        .collect();
+    Some(permission_state)
+}
+
 fn extract_limit_event_from_metadata(
     metadata: &std::collections::HashMap<String, Value>,
 ) -> Option<SessionExecutionRuntimeLimitEvent> {
@@ -1023,6 +1094,7 @@ fn extract_runtime_summary_from_metadata(
     summary.limit_event_kind = normalize_optional_text(summary.limit_event_kind);
     summary.limit_event_message = normalize_optional_text(summary.limit_event_message);
     summary.capability_gap = normalize_optional_text(summary.capability_gap);
+    summary.permission_status = normalize_optional_text(summary.permission_status);
     summary.fallback_chain = summary
         .fallback_chain
         .into_iter()
@@ -1199,6 +1271,7 @@ pub fn build_session_execution_runtime(
         routing_decision: None,
         limit_state: None,
         cost_state: None,
+        permission_state: None,
         limit_event: None,
         oem_policy: None,
         runtime_summary: None,
@@ -1257,6 +1330,10 @@ pub fn build_session_execution_runtime(
                 .context_override
                 .as_ref()
                 .and_then(|value| extract_cost_state_from_metadata(&value.metadata));
+            runtime.permission_state = latest_turn
+                .context_override
+                .as_ref()
+                .and_then(|value| extract_permission_state_from_metadata(&value.metadata));
             runtime.oem_policy = latest_turn
                 .context_override
                 .as_ref()
@@ -1313,6 +1390,7 @@ pub fn build_session_execution_runtime(
         && runtime.routing_decision.is_none()
         && runtime.limit_state.is_none()
         && runtime.cost_state.is_none()
+        && runtime.permission_state.is_none()
         && runtime.limit_event.is_none()
     {
         return None;
@@ -2083,6 +2161,15 @@ mod tests {
                                     "oemLocked": false,
                                     "candidateCount": 1,
                                     "notes": ["命中设置中的翻译模型"]
+                                },
+                                "permission_state": {
+                                    "status": "requires_confirmation",
+                                    "requiredProfileKeys": ["read_files", "write_artifacts", "ask_user_question"],
+                                    "askProfileKeys": ["read_files", "write_artifacts"],
+                                    "blockingProfileKeys": [],
+                                    "decisionSource": "execution_profile_registry",
+                                    "decisionScope": "declared_permission_profiles_only",
+                                    "notes": ["只记录声明，不执行真实授权。"]
                                 }
                             }),
                         )]
@@ -2124,6 +2211,33 @@ mod tests {
                 .as_ref()
                 .map(|value| value.single_candidate_only),
             Some(true)
+        );
+        let permission_state = runtime
+            .permission_state
+            .as_ref()
+            .expect("permission state should be extracted");
+        assert_eq!(permission_state.status, "requires_confirmation");
+        assert_eq!(
+            permission_state.required_profile_keys,
+            vec![
+                "read_files".to_string(),
+                "write_artifacts".to_string(),
+                "ask_user_question".to_string()
+            ]
+        );
+        assert_eq!(
+            permission_state.ask_profile_keys,
+            vec!["read_files".to_string(), "write_artifacts".to_string()]
+        );
+        assert!(permission_state.blocking_profile_keys.is_empty());
+        assert_eq!(
+            permission_state.confirmation_status.as_deref(),
+            Some("not_requested")
+        );
+        assert!(permission_state.confirmation_request_id.is_none());
+        assert_eq!(
+            permission_state.confirmation_source.as_deref(),
+            Some("declared_profile_only")
         );
         assert_eq!(
             runtime
@@ -2328,6 +2442,7 @@ mod tests {
             }),
             limit_state: None,
             cost_state: None,
+            permission_state: None,
             limit_event: None,
             oem_policy: None,
             runtime_summary: None,

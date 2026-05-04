@@ -89,6 +89,8 @@ export interface ProjectSelectorProps {
   skipDefaultWorkspaceReadyCheck?: boolean;
   /** 是否延后完整项目列表加载到展开时 */
   deferProjectListLoad?: boolean;
+  /** 是否在未选择时自动回落到默认项目 */
+  autoSelectFallback?: boolean;
 }
 
 function isProjectSelectableForWorkspace(
@@ -181,6 +183,7 @@ export function ProjectSelector({
   chrome = "default",
   skipDefaultWorkspaceReadyCheck = false,
   deferProjectListLoad = false,
+  autoSelectFallback = true,
 }: ProjectSelectorProps) {
   const {
     projects,
@@ -237,12 +240,17 @@ export function ProjectSelector({
 
   const selectedProject = useMemo(() => {
     if (!deferProjectListLoad || hasLoadedProjectList) {
-      return resolveSelectedProject(availableProjects, value, defaultProject);
+      return resolveSelectedProject(
+        availableProjects,
+        value,
+        autoSelectFallback ? defaultProject : null,
+      );
     }
 
     return summaryProject;
   }, [
     availableProjects,
+    autoSelectFallback,
     defaultProject,
     deferProjectListLoad,
     hasLoadedProjectList,
@@ -318,9 +326,10 @@ export function ProjectSelector({
         )
           ? selectedProjectSummary
           : null;
-        const fallbackDefaultProjectRaw = !resolvedSelectedProject
-          ? await getDefaultProject()
-          : null;
+        const fallbackDefaultProjectRaw =
+          autoSelectFallback && !resolvedSelectedProject
+            ? await getDefaultProject()
+            : null;
         const fallbackDefaultProject = fallbackDefaultProjectRaw
           ? toProjectView(fallbackDefaultProjectRaw)
           : null;
@@ -338,7 +347,7 @@ export function ProjectSelector({
         }
 
         setSummaryProject(resolvedProject);
-        if (!value && resolvedProject?.id) {
+        if (autoSelectFallback && !value && resolvedProject?.id) {
           onChange(resolvedProject.id);
         }
       } catch (error) {
@@ -373,6 +382,7 @@ export function ProjectSelector({
   }, [
     deferProjectListLoad,
     onChange,
+    autoSelectFallback,
     projectSummaryLoadDelayMs,
     value,
     workspaceType,
@@ -384,6 +394,10 @@ export function ProjectSelector({
     }
 
     if (loading) {
+      return;
+    }
+
+    if (!autoSelectFallback) {
       return;
     }
 
@@ -424,6 +438,7 @@ export function ProjectSelector({
     };
   }, [
     availableProjects,
+    autoSelectFallback,
     defaultProject,
     deferProjectListLoad,
     getOrCreateDefault,

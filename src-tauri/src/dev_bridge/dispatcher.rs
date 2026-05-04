@@ -10,6 +10,7 @@ mod channels;
 mod companion;
 mod content;
 mod files;
+mod knowledge;
 mod logs;
 mod media_tasks;
 mod memory;
@@ -117,6 +118,10 @@ pub async fn handle_command(
     }
 
     if let Some(result) = media_tasks::try_handle(state, cmd, args.as_ref()).await? {
+        return Ok(result);
+    }
+
+    if let Some(result) = knowledge::try_handle(cmd, args.as_ref()).await? {
         return Ok(result);
     }
 

@@ -18,6 +18,7 @@ import type {
   AsterSessionExecutionRuntime,
   AsterSessionExecutionRuntimeAccessMode,
   AsterSessionExecutionRuntimeLimitState,
+  AsterSessionExecutionRuntimePermissionState,
   AsterSessionExecutionRuntimePreferences,
   AsterSessionExecutionRuntimeRecentTeamSelection,
 } from "../agentExecutionRuntime";
@@ -34,6 +35,7 @@ export type {
   AsterSessionExecutionRuntime,
   AsterSessionExecutionRuntimeAccessMode,
   AsterSessionExecutionRuntimeLimitState,
+  AsterSessionExecutionRuntimePermissionState,
   AsterSessionExecutionRuntimePreferences,
   AsterSessionExecutionRuntimeRecentTeamRole,
   AsterSessionExecutionRuntimeRecentTeamSelection,
@@ -331,6 +333,7 @@ export interface AgentRuntimeThreadReadModel {
   auxiliary_task_runtime?: Record<string, unknown>[] | null;
   limit_state?: AsterSessionExecutionRuntimeLimitState | null;
   cost_state?: AsterSessionExecutionRuntimeCostState | null;
+  permission_state?: AsterSessionExecutionRuntimePermissionState | null;
   limit_event?: AsterSessionExecutionRuntimeLimitEvent | null;
 }
 

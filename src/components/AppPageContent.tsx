@@ -77,10 +77,52 @@ const loadBrowserRuntimeWorkspace = () =>
   import("@/features/browser-runtime").then((module) => ({
     default: module.BrowserRuntimeWorkspace,
   }));
-const loadAgentChatPage = () =>
+const importAgentChatPage = () =>
   import("./agent/chat").then((module) => ({
     default: module.AgentChatPage,
   }));
+
+let agentChatPageModulePromise: ReturnType<typeof importAgentChatPage> | null =
+  null;
+
+const loadAgentChatPage = () => {
+  if (!agentChatPageModulePromise) {
+    agentChatPageModulePromise = importAgentChatPage().catch((error) => {
+      agentChatPageModulePromise = null;
+      throw error;
+    });
+  }
+
+  return agentChatPageModulePromise;
+};
+
+function shouldSkipAgentChatPagePreload(): boolean {
+  return Boolean(import.meta.env?.MODE === "test" || import.meta.env?.VITEST);
+}
+
+function scheduleAgentChatPagePreload(): void {
+  if (shouldSkipAgentChatPagePreload()) {
+    return;
+  }
+
+  const preload = () => {
+    void loadAgentChatPage().catch((error) => {
+      console.debug("[AppPageContent] Agent 页面预加载失败，等待按需重试", error);
+    });
+  };
+
+  if (typeof window === "undefined") {
+    preload();
+    return;
+  }
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(preload, { timeout: 1_500 });
+    return;
+  }
+
+  window.setTimeout(preload, 180);
+}
 
 const ResourcesPage = lazy(loadResourcesPage);
 const MemoryPage = lazy(loadMemoryPage);
@@ -90,6 +132,8 @@ const SkillsWorkspacePage = lazy(loadSkillsWorkspacePage);
 const KnowledgePage = lazy(loadKnowledgePage);
 const BrowserRuntimeWorkspace = lazy(loadBrowserRuntimeWorkspace);
 const AgentChatPage = lazy(loadAgentChatPage);
+
+scheduleAgentChatPagePreload();
 
 function serializeInitialInputCapabilityKey(params: AgentPageParams): string {
   const route = params.initialInputCapability?.capabilityRoute;

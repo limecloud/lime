@@ -4,7 +4,7 @@ import {
   Archive,
   BookOpen,
   Check,
-  CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
   Database,
   FileText,
@@ -19,20 +19,20 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
+import { ProjectSelector } from "@/components/projects/ProjectSelector";
 import {
   compileKnowledgePack,
   getKnowledgePack,
   importKnowledgeSource,
   listKnowledgePacks,
-  resolveKnowledgeContext,
   setDefaultKnowledgePack,
   updateKnowledgePackStatus,
-  type KnowledgeContextResolution,
   type KnowledgePackDetail,
   type KnowledgePackFileEntry,
   type KnowledgePackStatus,
   type KnowledgePackSummary,
 } from "@/lib/api/knowledge";
+import { getProject } from "@/lib/api/project";
 import type { KnowledgePageParams, Page, PageParams } from "@/types/page";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +42,7 @@ interface KnowledgePageProps {
 }
 
 type AsyncStatus = "idle" | "loading" | "ready" | "error";
-type KnowledgeView = "overview" | "import" | "detail" | "chat";
+type KnowledgeView = "overview" | "import" | "detail";
 type DetailTab =
   | "overview"
   | "content"
@@ -102,19 +102,18 @@ const VIEW_TABS: Array<{
   label: string;
   description: string;
 }> = [
-  { id: "overview", label: "总览", description: "默认包和待确认" },
-  { id: "import", label: "新建知识包", description: "导入与编译" },
-  { id: "detail", label: "详情", description: "内容和风险" },
-  { id: "chat", label: "聊天使用", description: "带知识包发送" },
+  { id: "overview", label: "全部资料", description: "管理和确认" },
+  { id: "import", label: "手动导入", description: "补充更多资料" },
+  { id: "detail", label: "资料详情", description: "内容和风险" },
 ];
 
 const DETAIL_TABS: Array<{ id: DetailTab; label: string }> = [
   { id: "overview", label: "概览" },
   { id: "content", label: "内容" },
-  { id: "sources", label: "来源" },
-  { id: "runtime", label: "运行时视图" },
+  { id: "sources", label: "原始资料" },
+  { id: "runtime", label: "引用摘要" },
   { id: "risks", label: "缺口与风险" },
-  { id: "runs", label: "编译记录" },
+  { id: "runs", label: "整理记录" },
 ];
 
 function readStoredWorkingDir(): string {
@@ -151,18 +150,6 @@ function formatCount(value: number, unit: string): string {
   return `${value.toLocaleString("zh-CN")} ${unit}`;
 }
 
-function formatUpdatedAt(value: number): string {
-  if (!value) {
-    return "未记录";
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(value));
-}
-
 function resolveStatusLabel(status: KnowledgePackStatus): string {
   return STATUS_LABELS[status] ?? status;
 }
@@ -181,8 +168,18 @@ function normalizePackNameInput(value: string): string {
     .slice(0, 64);
 }
 
-function buildInitialWorkingDir(pageParams?: KnowledgePageParams): string {
-  return pageParams?.workingDir?.trim() || readStoredWorkingDir();
+function formatPathPreview(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    return "未选择项目";
+  }
+
+  const segments = normalized.split(/[\\/]+/).filter(Boolean);
+  if (segments.length <= 2) {
+    return normalized;
+  }
+
+  return `.../${segments.slice(-2).join("/")}`;
 }
 
 function getPackTitle(
@@ -199,19 +196,25 @@ function getPackTypeLabel(value?: string | null): string {
 
 function buildPackMetrics(pack: KnowledgePackSummary | KnowledgePackDetail) {
   return [
-    { label: "来源", value: pack.sourceCount, caption: "sources/" },
-    { label: "Wiki", value: pack.wikiCount, caption: "wiki/" },
-    { label: "运行视图", value: pack.compiledCount, caption: "compiled/" },
-    { label: "编译记录", value: pack.runCount, caption: "runs/" },
+    { label: "原始资料", value: pack.sourceCount, caption: "已导入" },
+    { label: "整理内容", value: pack.wikiCount, caption: "已生成" },
+    { label: "引用摘要", value: pack.compiledCount, caption: "可用于生成" },
+    { label: "整理记录", value: pack.runCount, caption: "最近处理" },
   ];
 }
 
-function buildPackUsageLine(
-  pack: KnowledgePackSummary | KnowledgePackDetail,
-): string {
-  return `来源 ${pack.sourceCount} 个 · 运行时视图 ${pack.compiledCount} 个 · 最近更新 ${formatUpdatedAt(
-    pack.updatedAt,
-  )}`;
+function buildEntryDisplayLabel(title: string, entry: KnowledgePackFileEntry) {
+  const basename = entry.relativePath.split("/").filter(Boolean).pop();
+  if (title.includes("原始") || title.includes("来源")) {
+    return basename || "资料";
+  }
+  if (title.includes("整理记录")) {
+    return "整理记录";
+  }
+  if (title.includes("引用")) {
+    return "引用摘要";
+  }
+  return basename?.replace(/\.(md|txt|json)$/i, "") || "内容";
 }
 
 function buildKnowledgeBuilderPrompt(params: {
@@ -221,23 +224,22 @@ function buildKnowledgeBuilderPrompt(params: {
   description?: string;
 }) {
   const lines = [
-    `请使用 Skill(${KNOWLEDGE_BUILDER_SKILL_NAME}) 为这个知识包生成可审阅的项目知识草稿。`,
+    "请整理这个资料包，生成可审阅的项目资料草稿。",
     "",
-    `working_dir: ${params.workingDir}`,
-    `pack_name: ${params.packName}`,
+    `资料包：${params.packName}`,
   ];
 
   if (params.packType?.trim()) {
-    lines.push(`pack_type: ${params.packType.trim()}`);
+    lines.push(`类型：${params.packType.trim()}`);
   }
   if (params.description?.trim()) {
-    lines.push(`description: ${params.description.trim()}`);
+    lines.push(`说明：${params.description.trim()}`);
   }
 
   lines.push(
     "",
-    "请优先读取该知识包的 sources/、KNOWLEDGE.md 和已有 wiki/，生成 KNOWLEDGE.md、wiki/、compiled/brief.md 与 runs/compile-*.md 的草稿内容。",
-    "只基于来源资料提炼事实；缺失内容标为待补充，不要编造。",
+    "请只基于已导入资料提炼事实、适用场景、表达边界和待补充内容。",
+    "缺失内容请标为待补充，不要编造；完成后给出可供人工确认的摘要。",
   );
 
   return lines.join("\n");
@@ -247,8 +249,6 @@ function buildKnowledgeRequestMetadata(params: {
   workingDir: string;
   packName: string;
   pack?: KnowledgePackSummary | KnowledgePackDetail | null;
-  task?: string;
-  contextPreview?: KnowledgeContextResolution | null;
 }) {
   return {
     knowledge_pack: {
@@ -257,11 +257,6 @@ function buildKnowledgeRequestMetadata(params: {
       source: "knowledge_page",
       status: params.pack?.metadata.status,
       grounding: params.pack?.metadata.grounding ?? "recommended",
-      task: params.task?.trim() || undefined,
-      selected_views: params.contextPreview?.selectedViews.map(
-        (view) => view.relativePath,
-      ),
-      token_estimate: params.contextPreview?.tokenEstimate,
     },
   };
 }
@@ -308,11 +303,11 @@ function FileEntryList({
               className="px-4 py-3 transition hover:bg-slate-50"
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 truncate font-mono text-xs font-semibold text-slate-800">
-                  {entry.relativePath}
+                <div className="min-w-0 truncate text-xs font-semibold text-slate-800">
+                  {buildEntryDisplayLabel(title, entry)}
                 </div>
                 <div className="shrink-0 text-xs text-slate-400">
-                  {formatCount(entry.bytes, "B")}
+                  {formatCount(entry.bytes, "字节")}
                 </div>
               </div>
               {entry.preview ? (
@@ -328,124 +323,22 @@ function FileEntryList({
   );
 }
 
-function PackCard({
-  pack,
-  actionBusy,
-  variant = "default",
-  onOpen,
-  onSetDefault,
-  onUse,
-  onReview,
-  onRisk,
-}: {
-  pack: KnowledgePackSummary;
-  actionBusy: boolean;
-  variant?: "default" | "pending" | "compact";
-  onOpen: () => void;
-  onSetDefault: () => void;
-  onUse: () => void;
-  onReview?: () => void;
-  onRisk?: () => void;
-}) {
-  const isReady = pack.metadata.status === "ready";
-  return (
-    <article className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-950">
-              {getPackTitle(pack)}
-            </h3>
-            <StatusPill status={pack.metadata.status} />
-            {pack.defaultForWorkspace ? (
-              <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                默认
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            {pack.preview ||
-              pack.metadata.scope ||
-              "等待 Builder 提炼适用场景、事实和边界。"}
-          </p>
-          <p className="mt-2 text-xs text-slate-500">
-            {buildPackUsageLine(pack)}
-          </p>
-        </div>
-      </div>
-      {variant === "pending" ? (
-        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
-          需要人工确认后才可设为默认；若存在事实缺口或合规风险，请先查看风险。
-        </div>
-      ) : null}
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-        >
-          <BookOpen className="h-4 w-4" />
-          打开
-        </button>
-        {variant === "pending" ? (
-          <>
-            <button
-              type="button"
-              onClick={onReview}
-              className="inline-flex h-9 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
-            >
-              <ClipboardCheck className="h-4 w-4" />
-              继续确认
-            </button>
-            <button
-              type="button"
-              onClick={onRisk}
-              className="inline-flex h-9 items-center gap-2 rounded-2xl border border-amber-200 bg-white px-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-50"
-            >
-              <AlertTriangle className="h-4 w-4" />
-              查看风险
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={onSetDefault}
-              disabled={actionBusy || !isReady}
-              title={isReady ? undefined : "未确认知识包不能设为默认"}
-              className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              设为默认
-            </button>
-            <button
-              type="button"
-              onClick={onUse}
-              className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              <MessageSquareText className="h-4 w-4" />
-              用于生成
-            </button>
-          </>
-        )}
-      </div>
-    </article>
-  );
-}
-
 export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
+  const initialWorkingDir = pageParams?.workingDir?.trim() ?? "";
   const [workingDirInput, setWorkingDirInput] = useState(() =>
-    buildInitialWorkingDir(pageParams),
+    initialWorkingDir || readStoredWorkingDir(),
   );
-  const [workingDir, setWorkingDir] = useState(() =>
-    buildInitialWorkingDir(pageParams),
+  const [workingDir, setWorkingDir] = useState(() => initialWorkingDir);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null,
   );
+  const [selectedProjectName, setSelectedProjectName] = useState<string>("");
+  const [manualPathOpen, setManualPathOpen] = useState(false);
   const [activeView, setActiveView] = useState<KnowledgeView>("overview");
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
   const [catalogStatus, setCatalogStatus] = useState<AsyncStatus>(
     workingDir ? "loading" : "idle",
   );
-  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [packs, setPacks] = useState<KnowledgePackSummary[]>([]);
   const [selectedPackName, setSelectedPackName] = useState(
     () => pageParams?.selectedPackName?.trim() ?? "",
@@ -466,9 +359,6 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
     DEFAULT_SOURCE_FILE_NAME,
   );
   const [sourceText, setSourceText] = useState("");
-  const [contextTask, setContextTask] = useState("写一段东莞企业家沙龙开场白");
-  const [contextPreview, setContextPreview] =
-    useState<KnowledgeContextResolution | null>(null);
 
   const selectedSummary = useMemo(
     () =>
@@ -478,10 +368,6 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
     [packs, selectedPack, selectedPackName],
   );
 
-  const defaultPack = useMemo(
-    () => packs.find((pack) => pack.defaultForWorkspace) ?? null,
-    [packs],
-  );
   const pendingPacks = useMemo(
     () =>
       packs.filter(
@@ -491,24 +377,17 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
       ),
     [packs],
   );
-  const readyPacks = useMemo(
-    () => packs.filter((pack) => pack.metadata.status === "ready"),
-    [packs],
-  );
-
   const refreshCatalog = useCallback(
     async (nextWorkingDir = workingDir) => {
       const normalizedWorkingDir = nextWorkingDir.trim();
       if (!normalizedWorkingDir) {
         setCatalogStatus("idle");
-        setCatalogError(null);
         setPacks([]);
         setSelectedPack(null);
         return;
       }
 
       setCatalogStatus("loading");
-      setCatalogError(null);
       try {
         const response = await listKnowledgePacks({
           workingDir: normalizedWorkingDir,
@@ -532,7 +411,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
         });
       } catch (error) {
         setCatalogStatus("error");
-        setCatalogError(getErrorMessage(error, "读取知识包列表失败"));
+        setNotice(getErrorMessage(error, "读取资料列表失败"));
       }
     },
     [workingDir],
@@ -566,7 +445,6 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
 
     let cancelled = false;
     setDetailStatus("loading");
-    setContextPreview(null);
     void getKnowledgePack(workingDir, selectedPackName)
       .then((pack) => {
         if (cancelled) {
@@ -583,7 +461,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
           return;
         }
         setDetailStatus("error");
-        setNotice(getErrorMessage(error, "读取知识包详情失败"));
+        setNotice(getErrorMessage(error, "读取资料详情失败"));
       });
 
     return () => {
@@ -593,13 +471,42 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
 
   const handleApplyWorkingDir = useCallback(() => {
     const normalized = workingDirInput.trim();
+    setSelectedProjectId(null);
+    setSelectedProjectName("");
     setWorkingDir(normalized);
     persistWorkingDir(normalized);
     setSelectedPackName("");
     setSelectedPack(null);
-    setContextPreview(null);
     void refreshCatalog(normalized);
   }, [refreshCatalog, workingDirInput]);
+
+  const handleProjectChange = useCallback(
+    async (projectId: string) => {
+      setNotice(null);
+
+      try {
+        const project = await getProject(projectId);
+        const nextWorkingDir = project?.rootPath.trim() ?? "";
+
+        if (!nextWorkingDir) {
+          setNotice("这个项目还没有可用目录，请先在项目管理中修复目录。");
+          return;
+        }
+
+        setSelectedProjectId(projectId);
+        setSelectedProjectName(project?.name ?? "");
+        setWorkingDirInput(nextWorkingDir);
+        setWorkingDir(nextWorkingDir);
+        persistWorkingDir(nextWorkingDir);
+        setSelectedPackName("");
+        setSelectedPack(null);
+        await refreshCatalog(nextWorkingDir);
+      } catch (error) {
+        setNotice(getErrorMessage(error, "选择项目失败"));
+      }
+    },
+    [refreshCatalog],
+  );
 
   const openPack = useCallback(
     (packName: string, nextTab: DetailTab = "overview") => {
@@ -610,21 +517,16 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
     [],
   );
 
-  const usePackInChat = useCallback((packName: string) => {
-    setSelectedPackName(packName);
-    setActiveView("chat");
-  }, []);
-
   const runImportSource = useCallback(
     async (statusKey: string): Promise<KnowledgePackDetail | null> => {
       const normalizedWorkingDir = workingDir.trim();
       const normalizedPackName = normalizePackNameInput(packNameInput);
       if (!normalizedWorkingDir) {
-        setNotice("请先填写项目根目录");
+        setNotice("请先选择项目");
         return null;
       }
       if (!normalizedPackName) {
-        setNotice("知识包标识仅支持小写字母、数字和连字符");
+        setNotice("内部标识仅支持小写字母、数字和连字符");
         return null;
       }
       if (!sourceText.trim()) {
@@ -647,7 +549,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
         setSelectedPackName(response.pack.metadata.name);
         setPackNameInput(response.pack.metadata.name);
         setSourceText("");
-        setNotice("来源资料已导入知识包，进入待确认流程");
+        setNotice("资料已导入，进入待确认流程");
         await refreshCatalog(normalizedWorkingDir);
         return response.pack;
       } catch (error) {
@@ -686,13 +588,13 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
         setSelectedPackName(response.pack.metadata.name);
         setNotice(
           response.warnings.length > 0
-            ? `已编译，提示：${response.warnings.join("；")}`
-            : "知识包运行时视图已编译，等待人工确认",
+            ? `已整理，提示：${response.warnings.join("；")}`
+            : "引用摘要已生成，等待人工确认",
         );
         await refreshCatalog(workingDir);
         return response.pack;
       } catch (error) {
-        setNotice(getErrorMessage(error, "编译知识包失败"));
+        setNotice(getErrorMessage(error, "整理资料失败"));
         return null;
       } finally {
         setActionStatus(null);
@@ -703,7 +605,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
 
   const handleCompile = useCallback(async () => {
     if (!selectedPackName) {
-      setNotice("请先选择知识包");
+      setNotice("请先选择资料");
       return;
     }
     await compileByName(selectedPackName);
@@ -719,7 +621,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
       packName = imported.metadata.name;
     }
     if (!packName) {
-      setNotice("请先导入来源资料或选择知识包");
+      setNotice("请先导入资料或选择已有资料");
       return;
     }
     const compiled = await compileByName(packName);
@@ -745,10 +647,10 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
       setNotice(null);
       try {
         await setDefaultKnowledgePack(workingDir, packName);
-        setNotice("已设为当前项目默认知识包");
+        setNotice("已设为当前项目默认资料");
         await refreshCatalog(workingDir);
       } catch (error) {
-        setNotice(getErrorMessage(error, "设置默认知识包失败"));
+        setNotice(getErrorMessage(error, "设置默认资料失败"));
       } finally {
         setActionStatus(null);
       }
@@ -774,17 +676,17 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
         setSelectedPackName(response.pack.metadata.name);
         setNotice(
           status === "ready"
-            ? "知识包已人工确认，可以设为默认或用于生成"
+            ? "资料已人工确认，可以设为默认或用于生成"
             : response.clearedDefault
-              ? "知识包已归档，并已清理当前项目默认标记"
-              : "知识包已归档",
+              ? "资料已归档，并已清理当前项目默认标记"
+              : "资料已归档",
         );
         await refreshCatalog(workingDir);
         if (status === "archived") {
           setActiveView("overview");
         }
       } catch (error) {
-        setNotice(getErrorMessage(error, "更新知识包状态失败"));
+        setNotice(getErrorMessage(error, "更新资料状态失败"));
       } finally {
         setActionStatus(null);
       }
@@ -792,35 +694,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
     [refreshCatalog, selectedPackName, workingDir],
   );
 
-  const handleResolveContext = useCallback(async () => {
-    const packName = selectedPackName || selectedSummary?.metadata.name || "";
-    if (!workingDir || !packName) {
-      return;
-    }
-
-    setActionStatus("resolve");
-    setNotice(null);
-    try {
-      const resolved = await resolveKnowledgeContext({
-        workingDir,
-        name: packName,
-        task: contextTask.trim() || undefined,
-        maxChars: 12_000,
-      });
-      setContextPreview(resolved);
-      setNotice("已生成知识上下文预览");
-    } catch (error) {
-      setNotice(getErrorMessage(error, "解析知识上下文失败"));
-    } finally {
-      setActionStatus(null);
-    }
-  }, [contextTask, selectedPackName, selectedSummary, workingDir]);
-
   const handleOpenBuilder = useCallback(() => {
     const normalizedPackName =
       selectedPackName || normalizePackNameInput(packNameInput);
     if (!workingDir || !normalizedPackName) {
-      setNotice("请先填写项目根目录和知识包标识");
+      setNotice("请先选择项目和资料包标识");
       return;
     }
 
@@ -841,6 +719,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
 
     onNavigate?.("agent", {
       agentEntry: "claw",
+      projectId: selectedProjectId ?? undefined,
       initialUserPrompt: prompt,
       initialRequestMetadata: requestMetadata,
       initialAutoSendRequestMetadata: requestMetadata,
@@ -853,47 +732,50 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
     packType,
     selectedPack,
     selectedPackName,
+    selectedProjectId,
     workingDir,
   ]);
 
-  const handleSendWithKnowledge = useCallback(() => {
-    const packName = selectedPackName || selectedSummary?.metadata.name || "";
+  const handleSendWithKnowledge = useCallback((packNameOverride?: string) => {
+    const packName =
+      packNameOverride?.trim() ||
+      selectedPackName ||
+      selectedSummary?.metadata.name ||
+      "";
     if (!workingDir || !packName) {
-      setNotice("请先选择知识包");
+      setNotice("请先选择资料");
       return;
     }
+    const packForRequest =
+      packs.find((pack) => pack.metadata.name === packName) ??
+      (selectedSummary?.metadata.name === packName ? selectedSummary : null);
 
     const requestMetadata = buildKnowledgeRequestMetadata({
       workingDir,
       packName,
-      pack: selectedSummary,
-      task: contextTask,
-      contextPreview,
+      pack: packForRequest,
     });
 
     onNavigate?.("agent", {
       agentEntry: "claw",
-      initialUserPrompt: contextTask.trim() || "请基于当前知识包生成内容",
+      projectId: selectedProjectId ?? undefined,
+      initialUserPrompt: "请基于当前项目资料生成内容",
       initialRequestMetadata: requestMetadata,
       initialAutoSendRequestMetadata: requestMetadata,
       autoRunInitialPromptOnMount: true,
     });
   }, [
-    contextPreview,
-    contextTask,
     onNavigate,
+    packs,
     selectedPackName,
     selectedSummary,
+    selectedProjectId,
     workingDir,
   ]);
 
   const packMetrics = selectedSummary ? buildPackMetrics(selectedSummary) : [];
   const actionBusy = Boolean(actionStatus);
   const selectedPackReady = selectedSummary?.metadata.status === "ready";
-  const selectedPackTitle = selectedSummary
-    ? getPackTitle(selectedSummary)
-    : "未选择知识包";
-
   return (
     <main className="flex h-full min-h-0 flex-1 overflow-auto bg-[linear-gradient(180deg,#f8fafc_0%,#eef7f2_100%)]">
       <div className="mx-auto flex min-h-full w-full max-w-[1440px] flex-col gap-5 px-6 py-5">
@@ -901,13 +783,13 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
           <div className="min-w-0">
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
               <Database className="h-3.5 w-3.5" />
-              项目知识
+              资料管理
             </div>
             <h1 className="mt-3 text-2xl font-semibold text-slate-950">
-              知识库
+              项目资料管理
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              导入资料，编译成可审阅知识包，人工确认后再用于生成。
+              日常整理和使用资料请回到 Agent 输入框；这里用于检查、确认、设为默认和归档项目资料。
             </p>
           </div>
 
@@ -922,36 +804,102 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
             </button>
             <button
               type="button"
-              onClick={() => setActiveView("chat")}
+              onClick={() => handleSendWithKnowledge()}
               className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm shadow-slate-950/10 transition hover:bg-slate-800"
             >
               <MessageSquareText className="h-4 w-4" />
-              聊天使用
+              用于生成
             </button>
           </div>
         </header>
 
-        <section className="rounded-[24px] border border-slate-200 bg-white px-4 py-3 shadow-sm shadow-slate-950/5">
-          <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-              <FolderOpen className="h-4 w-4 text-emerald-600" />
-              项目根目录
+        <section className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-950/5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border border-emerald-200 bg-emerald-50 text-emerald-700">
+                <FolderOpen className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-semibold text-slate-950">
+                    当前项目资料库
+                  </h2>
+                  {selectedProjectName ? (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      {selectedProjectName}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  资料会保存到当前项目，之后生成内容时可直接引用。
+                </p>
+              </div>
             </div>
-            <input
-              value={workingDirInput}
-              onChange={(event) => setWorkingDirInput(event.target.value)}
-              placeholder="粘贴项目根目录路径，例如 /Users/me/project"
-              className="h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 font-mono text-sm text-slate-800 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-100"
-            />
+
+            <div className="flex flex-wrap items-center gap-2">
+              <ProjectSelector
+                value={selectedProjectId}
+                onChange={handleProjectChange}
+                placeholder="选择项目"
+                dropdownSide="bottom"
+                dropdownAlign="end"
+                enableManagement
+                density="compact"
+                skipDefaultWorkspaceReadyCheck
+                autoSelectFallback={false}
+              />
+              <button
+                type="button"
+                onClick={() => setActiveView("import")}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                <Upload className="h-4 w-4" />
+                导入资料
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50 px-3 py-3">
             <button
               type="button"
-              onClick={handleApplyWorkingDir}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              onClick={() => setManualPathOpen((open) => !open)}
+              className="flex w-full items-center justify-between gap-3 text-left"
             >
-              <RefreshCw className="h-4 w-4" />
-              刷新
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-slate-700">
+                  高级：手动指定项目目录
+                </span>
+                <span className="mt-1 block truncate text-xs text-slate-500">
+                  {formatPathPreview(workingDir)}
+                </span>
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 text-slate-400 transition",
+                  manualPathOpen && "rotate-180",
+                )}
+              />
             </button>
+            {manualPathOpen ? (
+              <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <input
+                  value={workingDirInput}
+                  onChange={(event) => setWorkingDirInput(event.target.value)}
+                  placeholder="仅排障时填写，例如 /Users/me/project"
+                  className="h-10 rounded-2xl border border-slate-200 bg-white px-3 font-mono text-sm text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyWorkingDir}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  使用此目录
+                </button>
+              </div>
+            ) : null}
           </div>
+
           {notice ? (
             <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-700">
               {notice}
@@ -986,149 +934,182 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
         </nav>
 
         {activeView === "overview" ? (
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="space-y-5">
-              <section className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+              {pendingPacks.length > 0 ? (
+                <section className="rounded-[24px] border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-base font-semibold text-amber-950">
+                        等你确认的资料
+                      </h2>
+                      <p className="mt-1 text-sm text-amber-800">
+                        这些资料还不会默认用于正式生成，请先检查缺口和风险提醒。
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-xs font-medium text-amber-700">
+                      {pendingPacks.length} 份
+                    </span>
+                  </div>
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    {pendingPacks.map((pack) => (
+                      <button
+                        key={pack.metadata.name}
+                        type="button"
+                        onClick={() => openPack(pack.metadata.name, "risks")}
+                        className="rounded-[18px] border border-amber-200 bg-white px-3 py-3 text-left transition hover:bg-amber-50"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 truncate text-sm font-semibold text-slate-900">
+                            {getPackTitle(pack)}
+                          </span>
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                        </div>
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-amber-800">
+                          {pack.preview || "请检查后确认。"}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-base font-semibold text-slate-950">
-                      当前项目默认知识包
+                      全部项目资料
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      只有已确认知识包可以默认用于生成。
+                      在 Agent 输入框整理资料后，到这里检查、确认、设为默认或归档。
                     </p>
                   </div>
                   {catalogStatus === "loading" ? (
                     <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
                   ) : null}
                 </div>
-                <div className="mt-4">
-                  {!workingDir ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm leading-6 text-slate-500">
-                      先填写项目根目录，知识包会写入该项目下的
-                      <span className="font-mono text-xs text-slate-700">
-                        {" ".concat(".lime/knowledge/packs")}
-                      </span>
-                      。
-                    </div>
-                  ) : catalogStatus === "error" ? (
-                    <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-700">
-                      {catalogError}
-                    </div>
-                  ) : defaultPack ? (
-                    <PackCard
-                      pack={defaultPack}
-                      actionBusy={actionBusy}
-                      onOpen={() => openPack(defaultPack.metadata.name)}
-                      onSetDefault={() =>
-                        handleSetDefaultForPack(defaultPack.metadata.name)
-                      }
-                      onUse={() => usePackInChat(defaultPack.metadata.name)}
-                    />
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm leading-6 text-slate-500">
-                      当前项目还没有默认知识包。请先导入资料、编译并人工确认。
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold text-slate-950">
-                      待确认
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      草稿、待确认、过期或争议知识包不会自动成为默认上下文。
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                    {pendingPacks.length} 个
-                  </span>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {pendingPacks.length > 0 ? (
-                    pendingPacks.map((pack) => (
-                      <PackCard
-                        key={pack.metadata.name}
-                        pack={pack}
-                        actionBusy={actionBusy}
-                        variant="pending"
-                        onOpen={() => openPack(pack.metadata.name)}
-                        onSetDefault={() =>
-                          handleSetDefaultForPack(pack.metadata.name)
-                        }
-                        onUse={() => usePackInChat(pack.metadata.name)}
-                        onReview={() => openPack(pack.metadata.name)}
-                        onRisk={() => openPack(pack.metadata.name, "risks")}
-                      />
-                    ))
-                  ) : (
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {packs.length === 0 && catalogStatus !== "loading" ? (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
-                      暂无待确认知识包。可以从“导入资料”创建新的知识包。
+                      还没有项目资料。回到 Agent 输入框，点击“整理成项目资料”开始。
                     </div>
+                  ) : (
+                    packs.map((pack) => {
+                      const isReady = pack.metadata.status === "ready";
+                      return (
+                        <article
+                          key={pack.metadata.name}
+                          className="rounded-[20px] border border-slate-200 bg-slate-50 p-4"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-sm font-semibold text-slate-950">
+                                  {getPackTitle(pack)}
+                                </h3>
+                                <StatusPill status={pack.metadata.status} />
+                                {pack.defaultForWorkspace ? (
+                                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                                    默认资料
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
+                                {pack.preview ||
+                                  "等待整理适用场景、事实和边界。"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openPack(pack.metadata.name)}
+                              className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                            >
+                              <BookOpen className="h-4 w-4" />
+                              打开
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleSetDefaultForPack(pack.metadata.name)
+                              }
+                              disabled={actionBusy || !isReady}
+                              title={isReady ? undefined : "未确认资料不能设为默认"}
+                              className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <ShieldCheck className="h-4 w-4" />
+                              设为默认
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleSendWithKnowledge(pack.metadata.name)
+                              }
+                              className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                            >
+                              <MessageSquareText className="h-4 w-4" />
+                              用于生成
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })
                   )}
                 </div>
               </section>
             </div>
 
-            <aside className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
+            <aside className="space-y-4">
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5">
+                <div className="flex items-center gap-2">
+                  <MessageSquareText className="h-4 w-4 text-emerald-600" />
                   <h2 className="text-sm font-semibold text-slate-950">
-                    知识包目录
+                    日常使用入口
                   </h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {catalogStatus === "ready"
-                      ? `${packs.length} 个知识包`
-                      : "读取 catalog"}
-                  </p>
                 </div>
-                <PackageCheck className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div className="mt-4 space-y-2">
-                {packs.length === 0 && catalogStatus !== "loading" ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
-                    当前项目还没有知识包。
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  资料整理、补充和生成使用都在 Agent 输入框完成；这里保留管理动作。
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.("agent")}
+                  className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <MessageSquareText className="h-4 w-4" />
+                  回到 Agent
+                </button>
+              </section>
+
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-950">
+                      管理概览
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {catalogStatus === "ready"
+                        ? `${packs.length} 份项目资料`
+                        : "读取中"}
+                    </p>
                   </div>
-                ) : (
-                  packs.map((pack) => {
-                    const active = pack.metadata.name === selectedPackName;
-                    return (
-                      <button
-                        key={pack.metadata.name}
-                        type="button"
-                        onClick={() => openPack(pack.metadata.name)}
-                        className={cn(
-                          "w-full rounded-[18px] border px-3 py-3 text-left transition",
-                          active
-                            ? "border-emerald-300 bg-emerald-50"
-                            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white",
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="min-w-0 truncate text-sm font-semibold text-slate-900">
-                            {getPackTitle(pack)}
-                          </span>
-                          {pack.defaultForWorkspace ? (
-                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                          ) : null}
-                        </div>
-                        <div className="mt-1 truncate font-mono text-xs text-slate-500">
-                          {pack.metadata.name}
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <StatusPill status={pack.metadata.status} />
-                          <span className="text-xs text-slate-400">
-                            {getPackTypeLabel(pack.metadata.type)}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
+                  <PackageCheck className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                    <div className="text-xs text-slate-500">待确认</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {pendingPacks.length}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                    <div className="text-xs text-slate-500">已确认</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {packs.filter((pack) => pack.metadata.status === "ready").length}
+                    </div>
+                  </div>
+                </div>
+              </section>
             </aside>
           </section>
         ) : null}
@@ -1138,11 +1119,10 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
               <div>
                 <h2 className="text-xl font-semibold text-slate-950">
-                  新建知识包
+                  手动导入资料
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  按 PRD 的五步链路执行：选择类型、添加来源、选择
-                  Builder、编译预览、人工确认。
+                  需要补充另一份资料时，可以在这里手动指定资料类型并导入。
                 </p>
               </div>
               <button
@@ -1157,7 +1137,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                开始编译
+                导入并整理
               </button>
             </div>
 
@@ -1166,13 +1146,12 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 {[
                   [
                     "1",
-                    "选择类型",
+                    "选择资料类型",
                     PACK_TYPES.map((type) => type.label).join(" · "),
                   ],
-                  ["2", "添加来源", "DOCX / MD / TXT，或粘贴文本"],
-                  ["3", "选择 Builder", KNOWLEDGE_BUILDER_SKILL_NAME],
-                  ["4", "编译预览", "wiki 草稿 / 运行时视图 / 待补充清单"],
-                  ["5", "人工确认", "确认后才可默认用于生成"],
+                  ["2", "粘贴资料", "访谈稿、产品资料、SOP 或 FAQ"],
+                  ["3", "自动整理", "提炼事实、场景和风险提醒"],
+                  ["4", "检查确认", "确认后才可默认用于生成"],
                 ].map(([index, title, description]) => (
                   <div key={index} className="flex gap-3 pb-4 last:pb-0">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-700">
@@ -1194,7 +1173,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 <div className="space-y-5">
                   <section className="rounded-[22px] border border-slate-200 bg-white p-4">
                     <h3 className="text-sm font-semibold text-slate-950">
-                      1 选择类型
+                      1 选择资料类型
                     </h3>
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       {PACK_TYPES.map((type) => {
@@ -1230,11 +1209,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
 
                   <section className="rounded-[22px] border border-slate-200 bg-white p-4">
                     <h3 className="text-sm font-semibold text-slate-950">
-                      2 添加来源
+                      2 添加资料
                     </h3>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <label className="grid gap-1.5 text-xs font-medium text-slate-600">
-                        知识包标识
+                        内部标识
                         <input
                           value={packNameInput}
                           onChange={(event) =>
@@ -1246,7 +1225,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                         />
                       </label>
                       <label className="grid gap-1.5 text-xs font-medium text-slate-600">
-                        文件名
+                        资料文件名
                         <input
                           value={sourceFileName}
                           onChange={(event) =>
@@ -1257,7 +1236,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       </label>
                     </div>
                     <label className="mt-3 grid gap-1.5 text-xs font-medium text-slate-600">
-                      知识包说明
+                      资料说明
                       <input
                         value={packDescription}
                         onChange={(event) =>
@@ -1267,7 +1246,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       />
                     </label>
                     <label className="mt-3 grid gap-1.5 text-xs font-medium text-slate-600">
-                      来源正文
+                      资料正文
                       <textarea
                         value={sourceText}
                         onChange={(event) => setSourceText(event.target.value)}
@@ -1286,7 +1265,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       ) : (
                         <FileText className="h-4 w-4" />
                       )}
-                      导入到知识包
+                      导入资料
                     </button>
                   </section>
                 </div>
@@ -1296,15 +1275,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                     <div className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-emerald-600" />
                       <h3 className="text-sm font-semibold text-slate-950">
-                        3 选择 Builder
+                        3 自动整理
                       </h3>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-600">
-                      使用正式 Skill：
-                      <span className="font-mono text-xs text-slate-900">
-                        {" ".concat(KNOWLEDGE_BUILDER_SKILL_NAME)}
-                      </span>
-                      。它负责生成 wiki 草稿、运行时视图和待补充清单。
+                      Lime 会把原始资料整理成可审阅摘要、适用场景、事实边界和待补充清单。
                     </p>
                     <button
                       type="button"
@@ -1312,7 +1287,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-700 bg-emerald-700 px-3 text-sm font-semibold text-white transition hover:bg-emerald-600"
                     >
                       <Sparkles className="h-4 w-4" />
-                      Builder 生成
+                      整理资料
                     </button>
                   </section>
 
@@ -1320,7 +1295,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                     <div className="flex items-center gap-2">
                       <ListChecks className="h-4 w-4 text-sky-600" />
                       <h3 className="text-sm font-semibold text-slate-950">
-                        4 编译预览
+                        4 检查确认
                       </h3>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1347,8 +1322,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       ))}
                     </div>
                     <p className="mt-3 text-xs leading-5 text-slate-500">
-                      编译只生成可审阅草稿；进入 ready
-                      前不会默认污染生成上下文。
+                      整理后先检查摘要、缺口和风险提醒；人工确认前不会默认用于正式生成。
                     </p>
                   </section>
 
@@ -1356,12 +1330,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                     <div className="flex items-center gap-2">
                       <ClipboardCheck className="h-4 w-4 text-amber-700" />
                       <h3 className="text-sm font-semibold text-amber-900">
-                        5 人工确认
+                        人工确认
                       </h3>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-amber-800">
-                      确认动作会写回 KNOWLEDGE.md frontmatter 的 status，并把
-                      trust 标记为 user-confirmed。
+                      请先检查内容缺口、风险提醒和引用摘要；确认后才会成为可默认使用的资料包。
                     </p>
                   </section>
                 </aside>
@@ -1379,17 +1352,17 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                     <BookOpen className="h-6 w-6" />
                   </div>
                   <h2 className="mt-4 text-base font-semibold text-slate-900">
-                    先从总览选择一个知识包
+                    先从全部资料中选择一份资料
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    详情页会展示内容、来源、运行时视图、风险和编译记录。
+                    详情页会展示内容、原始资料、引用摘要、风险提醒和整理记录。
                   </p>
                 </div>
               </div>
             ) : detailStatus === "loading" ? (
               <div className="flex min-h-[420px] items-center justify-center text-sm text-slate-500">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                正在读取知识包详情...
+                正在读取资料详情...
               </div>
             ) : selectedPack ? (
               <div>
@@ -1399,19 +1372,20 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusPill status={selectedPack.metadata.status} />
                         <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
-                          {selectedPack.metadata.trust ?? "unreviewed"}
+                          {selectedPack.metadata.status === "ready"
+                            ? "已人工确认"
+                            : "待人工确认"}
                         </span>
                         {selectedPack.defaultForWorkspace ? (
                           <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                            默认知识包
+                            默认资料
                           </span>
                         ) : null}
                       </div>
                       <h2 className="mt-3 text-xl font-semibold text-slate-950">
                         {getPackTitle(selectedPack)}
                       </h2>
-                      <p className="mt-2 font-mono text-xs text-slate-500">
-                        {selectedPack.metadata.name} ·{" "}
+                      <p className="mt-2 text-xs text-slate-500">
                         {getPackTypeLabel(selectedPack.metadata.type)}
                       </p>
                     </div>
@@ -1419,11 +1393,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       <button
                         type="button"
                         disabled
-                        title="文件编辑器入口尚未接入；当前避免做假编辑按钮"
+                        title="资料说明编辑入口尚未接入"
                         className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-400"
                       >
                         <Pencil className="h-4 w-4" />
-                        编辑 KNOWLEDGE.md
+                        编辑资料说明
                       </button>
                       <button
                         type="button"
@@ -1436,7 +1410,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                         ) : (
                           <RefreshCw className="h-4 w-4" />
                         )}
-                        重新编译
+                        重新整理
                       </button>
                       <button
                         type="button"
@@ -1527,12 +1501,12 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                           适用场景
                         </h3>
                         <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                          {selectedPack.guide || "等待 Builder 生成适用场景。"}
+                          {selectedPack.guide || "等待整理适用场景。"}
                         </p>
                       </section>
                       <section className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
                         <h3 className="text-sm font-semibold text-slate-950">
-                          当前运行时视图
+                          当前引用摘要
                         </h3>
                         <div className="mt-3 space-y-2">
                           {selectedPack.compiled.length > 0 ? (
@@ -1541,17 +1515,17 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                                 key={entry.relativePath}
                                 className="rounded-2xl border border-slate-200 bg-white px-3 py-3"
                               >
-                                <div className="font-mono text-xs font-semibold text-slate-800">
-                                  {entry.relativePath}
+                                <div className="text-xs font-semibold text-slate-800">
+                                  引用摘要
                                 </div>
                                 <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                                  {entry.preview || "运行时视图"}
+                                  {entry.preview || "引用摘要"}
                                 </p>
                               </div>
                             ))
                           ) : (
                             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-500">
-                              重新编译后会生成 compiled/brief.md。
+                              重新整理后会生成可用于生成的引用摘要。
                             </div>
                           )}
                         </div>
@@ -1562,29 +1536,29 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                   {detailTab === "content" ? (
                     <div className="grid gap-4 lg:grid-cols-2">
                       <FileEntryList
-                        title="KNOWLEDGE.md 指南"
+                        title="资料说明"
                         entries={[
                           {
-                            relativePath: "KNOWLEDGE.md",
+                            relativePath: "资料说明",
                             absolutePath: selectedPack.knowledgePath,
                             bytes: selectedPack.guide.length,
                             updatedAt: selectedPack.updatedAt,
                             preview: selectedPack.guide,
                           },
                         ]}
-                        emptyLabel="缺少 KNOWLEDGE.md。"
+                        emptyLabel="缺少资料说明。"
                       />
                       <FileEntryList
-                        title="Wiki 草稿"
+                        title="整理内容"
                         entries={selectedPack.wiki}
-                        emptyLabel="Builder 生成后会补充结构化 wiki。"
+                        emptyLabel="整理后会补充结构化内容。"
                       />
                     </div>
                   ) : null}
 
                   {detailTab === "sources" ? (
                     <FileEntryList
-                      title="来源资料"
+                      title="原始资料"
                       entries={selectedPack.sources}
                       emptyLabel="还没有导入来源资料。"
                     />
@@ -1592,9 +1566,9 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
 
                   {detailTab === "runtime" ? (
                     <FileEntryList
-                      title="运行时视图"
+                      title="引用摘要"
                       entries={selectedPack.compiled}
-                      emptyLabel="编译后会生成 compiled/brief.md。"
+                      emptyLabel="整理后会生成引用摘要。"
                     />
                   ) : null}
 
@@ -1615,12 +1589,12 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                           <li>
                             {selectedPack.sourceCount > 0
                               ? "已记录来源锚点，输出时仍需避免编造未提供事实。"
-                              : "缺少来源资料，不能作为可靠知识包用于生成。"}
+                              : "缺少原始资料，不能作为可靠资料用于生成。"}
                           </li>
                           <li>
                             {selectedPack.compiledCount > 0
-                              ? "已有运行时视图，可先查看引用再发送。"
-                              : "缺少运行时视图，请先重新编译。"}
+                              ? "已有引用摘要，可回到 Agent 输入框用于生成。"
+                              : "缺少引用摘要，请先重新整理。"}
                           </li>
                         </ul>
                       </section>
@@ -1629,8 +1603,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                           安全边界
                         </h3>
                         <p className="mt-3 text-sm leading-6 text-slate-600">
-                          Runtime 只通过 knowledge_resolve_context 注入 fenced
-                          context。来源中的“忽略系统规则”等指令式文本只能作为数据，不能覆盖系统规则。
+                          来源资料只会作为参考内容使用。资料里出现的指令式文本不会覆盖 Lime 的系统规则。
                         </p>
                       </section>
                     </div>
@@ -1638,125 +1611,21 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
 
                   {detailTab === "runs" ? (
                     <FileEntryList
-                      title="编译记录"
+                      title="整理记录"
                       entries={selectedPack.runs}
-                      emptyLabel="编译和自动化运行记录会在这里出现。"
+                      emptyLabel="整理和质量检查记录会在这里出现。"
                     />
                   ) : null}
                 </div>
               </div>
             ) : (
               <div className="m-5 rounded-[20px] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-                未能读取知识包详情，请刷新目录后重试。
+                未能读取资料详情，请刷新后重试。
               </div>
             )}
           </section>
         ) : null}
 
-        {activeView === "chat" ? (
-          <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-950/5">
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
-              <div className="rounded-[22px] border border-slate-200 bg-white p-4">
-                <label className="grid gap-2 text-sm font-semibold text-slate-900">
-                  聊天任务
-                  <textarea
-                    value={contextTask}
-                    onChange={(event) => setContextTask(event.target.value)}
-                    className="min-h-[120px] resize-y rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-base leading-7 text-slate-900 outline-none transition focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                  />
-                </label>
-
-                <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-950">
-                        知识包：{selectedPackTitle}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        使用方式：推荐上下文 · 约{" "}
-                        {contextPreview?.tokenEstimate ?? 8000} tokens
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setActiveView("overview")}
-                        className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        更换
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleResolveContext}
-                        disabled={
-                          actionBusy || (!selectedPackName && !selectedSummary)
-                        }
-                        className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                      >
-                        {actionStatus === "resolve" ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ListChecks className="h-4 w-4" />
-                        )}
-                        查看引用
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800">
-                    提示：
-                    {selectedPackReady
-                      ? "已确认知识包可直接发送；缺失事实仍会标记为待确认。"
-                      : "当前知识包未确认，建议先人工确认后再用于正式生成。"}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSendWithKnowledge}
-                  disabled={!selectedPackName && !selectedSummary}
-                  className="mt-4 inline-flex h-11 items-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <MessageSquareText className="h-4 w-4" />
-                  发送
-                </button>
-              </div>
-
-              <aside className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-sky-600" />
-                  <h3 className="text-sm font-semibold text-slate-950">
-                    引用预览
-                  </h3>
-                </div>
-                {contextPreview ? (
-                  <div className="mt-4 space-y-3">
-                    <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                      <span className="rounded-full border border-slate-200 bg-white px-2 py-1">
-                        {contextPreview.tokenEstimate} tokens
-                      </span>
-                      <span className="rounded-full border border-slate-200 bg-white px-2 py-1">
-                        {contextPreview.selectedViews.length} 个视图
-                      </span>
-                    </div>
-                    {contextPreview.warnings.length > 0 ? (
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
-                        {contextPreview.warnings.join("；")}
-                      </div>
-                    ) : null}
-                    <pre className="max-h-[360px] overflow-auto rounded-2xl border border-slate-200 bg-slate-950 p-3 text-xs leading-5 text-slate-100">
-                      {contextPreview.fencedContext}
-                    </pre>
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm leading-6 text-slate-500">
-                    点击“查看引用”后会展示 knowledge_resolve_context
-                    返回的数据围栏。
-                  </div>
-                )}
-              </aside>
-            </div>
-          </section>
-        ) : null}
       </div>
     </main>
   );

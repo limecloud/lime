@@ -43,6 +43,7 @@ pub(super) struct RuntimeRequestProviderResolution {
     pub routing_decision: lime_agent::SessionExecutionRuntimeRoutingDecision,
     pub limit_state: lime_agent::SessionExecutionRuntimeLimitState,
     pub cost_state: lime_agent::SessionExecutionRuntimeCostState,
+    pub permission_state: lime_agent::SessionExecutionRuntimePermissionState,
     pub limit_event: Option<lime_agent::SessionExecutionRuntimeLimitEvent>,
     pub oem_policy: Option<lime_agent::SessionExecutionRuntimeOemPolicy>,
     pub runtime_summary: lime_agent::SessionExecutionRuntimeSummary,
@@ -1740,6 +1741,7 @@ fn build_runtime_summary(
     routing_decision: &lime_agent::SessionExecutionRuntimeRoutingDecision,
     limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
     cost_state: &lime_agent::SessionExecutionRuntimeCostState,
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
     limit_event: Option<&lime_agent::SessionExecutionRuntimeLimitEvent>,
 ) -> lime_agent::SessionExecutionRuntimeSummary {
     lime_agent::SessionExecutionRuntimeSummary {
@@ -1766,6 +1768,9 @@ fn build_runtime_summary(
             limit_event.map(|event| event.event_kind.as_str()),
             Some("quota_low")
         )),
+        permission_status: Some(permission_state.status.clone()),
+        permission_ask_count: Some(permission_state.ask_profile_keys.len() as u32),
+        permission_blocking_count: Some(permission_state.blocking_profile_keys.len() as u32),
     }
 }
 
@@ -2420,6 +2425,78 @@ fn build_cost_state(
     }
 }
 
+fn runtime_permission_profile_requires_confirmation(profile_key: &str) -> bool {
+    matches!(
+        profile_key,
+        "browser_control"
+            | "media_upload"
+            | "service_api_call"
+            | "read_files"
+            | "write_artifacts"
+            | "web_search"
+    )
+}
+
+fn normalize_runtime_permission_profile_keys(values: &[String]) -> Vec<String> {
+    let mut normalized = Vec::new();
+    for value in values {
+        let Some(value) = normalize_optional_text(Some(value.clone())) else {
+            continue;
+        };
+        if !normalized.iter().any(|existing| existing == &value) {
+            normalized.push(value);
+        }
+    }
+    normalized
+}
+
+fn build_permission_state(
+    task_profile: &lime_agent::SessionExecutionRuntimeTaskProfile,
+) -> lime_agent::SessionExecutionRuntimePermissionState {
+    let required_profile_keys =
+        normalize_runtime_permission_profile_keys(&task_profile.permission_profile_keys);
+    let ask_profile_keys = required_profile_keys
+        .iter()
+        .filter(|profile_key| runtime_permission_profile_requires_confirmation(profile_key))
+        .cloned()
+        .collect::<Vec<_>>();
+    let status = if required_profile_keys.is_empty() {
+        "not_required"
+    } else if ask_profile_keys.is_empty() {
+        "declared_only"
+    } else {
+        "requires_confirmation"
+    };
+    let mut notes = Vec::new();
+    if required_profile_keys.is_empty() {
+        notes.push("当前 task profile 未声明 permissionProfileKeys。".to_string());
+    } else {
+        notes.push(
+            "permissionProfileKeys 已进入运行时判定摘要；本阶段只记录声明，不执行真实授权或阻断。"
+                .to_string(),
+        );
+    }
+    if required_profile_keys
+        .iter()
+        .any(|profile_key| profile_key == "ask_user_question")
+    {
+        notes.push("ask_user_question 表示运行时可向用户补问，不视为风险权限。".to_string());
+    }
+
+    lime_agent::SessionExecutionRuntimePermissionState {
+        status: status.to_string(),
+        required_profile_keys,
+        ask_profile_keys,
+        blocking_profile_keys: Vec::new(),
+        decision_source: "execution_profile_registry".to_string(),
+        decision_scope: "declared_permission_profiles_only".to_string(),
+        confirmation_status: Some("not_requested".to_string()),
+        confirmation_request_id: None,
+        confirmation_source: Some("declared_profile_only".to_string()),
+        notes,
+    }
+}
+
 fn build_routing_decision(
     task_profile: &lime_agent::SessionExecutionRuntimeTaskProfile,
     decision_source: &str,
@@ -2527,10 +2604,12 @@ fn build_no_candidate_resolution(
         None,
     );
     let cost_state = build_cost_state(None, None, "unavailable");
+    let permission_state = build_permission_state(&task_profile);
     let runtime_summary = build_runtime_summary(
         &routing_decision,
         &limit_state,
         &cost_state,
+        &permission_state,
         limit_event.as_ref(),
     );
 
@@ -2540,6 +2619,7 @@ fn build_no_candidate_resolution(
         routing_decision,
         limit_state,
         cost_state,
+        permission_state,
         limit_event,
         oem_policy,
         runtime_summary,
@@ -2961,6 +3041,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
     request: &AsterChatRequest,
 ) -> Result<RuntimeRequestProviderResolution, String> {
     let task_profile = build_runtime_task_profile(request);
+    let permission_state = build_permission_state(&task_profile);
     let request_oem_routing = resolve_request_oem_routing_context(request.metadata.as_ref());
     let oem_locked = request_oem_routing_is_locked(request_oem_routing.as_ref());
     let oem_limit_event = build_request_oem_limit_event(request_oem_routing.as_ref());
@@ -3015,6 +3096,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             &routing_decision,
             &limit_state,
             &cost_state,
+            &permission_state,
             oem_limit_event.as_ref(),
         );
 
@@ -3034,6 +3116,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             },
             limit_state,
             cost_state,
+            permission_state: permission_state.clone(),
             limit_event: oem_limit_event,
             oem_policy: oem_policy.clone(),
             runtime_summary,
@@ -3139,6 +3222,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             &routing_decision,
             &limit_state,
             &cost_state,
+            &permission_state,
             oem_limit_event.as_ref(),
         );
 
@@ -3148,6 +3232,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
             routing_decision,
             limit_state,
             cost_state,
+            permission_state: permission_state.clone(),
             limit_event: oem_limit_event,
             oem_policy: oem_policy.clone(),
             runtime_summary,
@@ -3204,6 +3289,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     &routing_decision,
                     &limit_state,
                     &cost_state,
+                    &permission_state,
                     oem_limit_event.as_ref(),
                 );
 
@@ -3213,6 +3299,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     routing_decision,
                     limit_state,
                     cost_state,
+                    permission_state: permission_state.clone(),
                     limit_event: oem_limit_event,
                     oem_policy: oem_policy.clone(),
                     runtime_summary,
@@ -3296,6 +3383,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     &routing_decision,
                     &limit_state,
                     &cost_state,
+                    &permission_state,
                     oem_limit_event.as_ref(),
                 );
 
@@ -3305,6 +3393,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     routing_decision,
                     limit_state,
                     cost_state,
+                    permission_state: permission_state.clone(),
                     limit_event: oem_limit_event,
                     oem_policy: oem_policy.clone(),
                     runtime_summary,
@@ -3421,6 +3510,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
         &routing_decision,
         &limit_state,
         &cost_state,
+        &permission_state,
         oem_limit_event.as_ref(),
     );
 
@@ -3430,6 +3520,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
         routing_decision,
         limit_state,
         cost_state,
+        permission_state,
         limit_event: oem_limit_event,
         oem_policy,
         runtime_summary,
@@ -4477,6 +4568,62 @@ mod tests {
             .traits
             .iter()
             .any(|value| value == "executor_adapter"));
+    }
+
+    #[test]
+    fn runtime_permission_state_summarizes_declared_profile_keys_without_blocking() {
+        let task_profile = lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "browser_control".to_string(),
+            source: "browser_assist".to_string(),
+            traits: vec!["modality_runtime_contract".to_string()],
+            modality_contract_key: Some("browser_control".to_string()),
+            routing_slot: Some("browser_reasoning_model".to_string()),
+            execution_profile_key: Some("browser_control_profile".to_string()),
+            executor_adapter_key: Some("browser:browser_assist".to_string()),
+            executor_kind: Some("browser".to_string()),
+            executor_binding_key: Some("browser_assist".to_string()),
+            permission_profile_keys: vec![
+                "browser_control".to_string(),
+                "web_search".to_string(),
+                "ask_user_question".to_string(),
+                "browser_control".to_string(),
+            ],
+            user_lock_policy: Some("honor_explicit_model_lock_with_capability_check".to_string()),
+            service_model_slot: None,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: None,
+        };
+
+        let permission_state = build_permission_state(&task_profile);
+
+        assert_eq!(permission_state.status, "requires_confirmation");
+        assert_eq!(
+            permission_state.required_profile_keys,
+            vec![
+                "browser_control".to_string(),
+                "web_search".to_string(),
+                "ask_user_question".to_string()
+            ]
+        );
+        assert_eq!(
+            permission_state.ask_profile_keys,
+            vec!["browser_control".to_string(), "web_search".to_string()]
+        );
+        assert!(permission_state.blocking_profile_keys.is_empty());
+        assert_eq!(
+            permission_state.decision_scope,
+            "declared_permission_profiles_only"
+        );
+        assert_eq!(
+            permission_state.confirmation_status.as_deref(),
+            Some("not_requested")
+        );
+        assert!(permission_state.confirmation_request_id.is_none());
+        assert_eq!(
+            permission_state.confirmation_source.as_deref(),
+            Some("declared_profile_only")
+        );
     }
 
     #[test]

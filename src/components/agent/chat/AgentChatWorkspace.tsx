@@ -3827,6 +3827,8 @@ export function AgentChatWorkspace({
   >(null);
   const [taskCenterDraftSendRequest, setTaskCenterDraftSendRequest] =
     useState<TaskCenterDraftSendRequest | null>(null);
+  const [homePendingPreviewRequest, setHomePendingPreviewRequest] =
+    useState<TaskCenterDraftSendRequest | null>(null);
   const taskCenterDraftTabsRef = useRef<TaskCenterDraftTab[]>([]);
   const activeTaskCenterDraftTabIdRef = useRef<string | null>(null);
   const taskCenterDraftMaterializePromisesRef = useRef<
@@ -3897,8 +3899,9 @@ export function AgentChatWorkspace({
       );
       setTaskCenterDraftTabs((current) => (current.length > 0 ? [] : current));
       setActiveTaskCenterDraftTabId(null);
-      setTaskCenterDraftSendRequest(null);
       if (agentEntry !== "new-task") {
+        setTaskCenterDraftSendRequest(null);
+        setHomePendingPreviewRequest(null);
         setTaskCenterLocalSessionOverride(null);
       }
       return;
@@ -4391,38 +4394,39 @@ export function AgentChatWorkspace({
     isTaskCenterDraftTabActive && !isTaskCenterDraftSendInFlight;
   const homePendingPreviewMessages = useMemo(
     () =>
-      taskCenterDraftSendRequest &&
+      homePendingPreviewRequest &&
       !shouldSuppressTaskCenterDraftContent &&
       displayMessages.length === 0
         ? buildHomePendingPreviewMessages(
-            taskCenterDraftSendRequest,
+            homePendingPreviewRequest,
             executionStrategy,
           )
         : [],
     [
       displayMessages.length,
       executionStrategy,
+      homePendingPreviewRequest,
       shouldSuppressTaskCenterDraftContent,
-      taskCenterDraftSendRequest,
     ],
   );
+  const isHomePendingPreviewActive = homePendingPreviewMessages.length > 0;
 
   // 布局层按实际展示内容判断，避免 bootstrap 预览等临时消息仍被视为空白态。
   const hasDisplayMessages =
     !shouldSuppressTaskCenterDraftContent &&
-    (displayMessages.length > 0 || homePendingPreviewMessages.length > 0);
+    (displayMessages.length > 0 || isHomePendingPreviewActive);
   useEffect(() => {
     if (
-      !taskCenterDraftSendRequest ||
+      !homePendingPreviewRequest ||
       homePendingPreviewMessages.length === 0 ||
       homePendingPreviewPaintedRequestIdsRef.current.has(
-        taskCenterDraftSendRequest.id,
+        homePendingPreviewRequest.id,
       )
     ) {
       return;
     }
 
-    const request = taskCenterDraftSendRequest;
+    const request = homePendingPreviewRequest;
     homePendingPreviewPaintedRequestIdsRef.current.add(request.id);
     return scheduleAfterNextPaint(() => {
       recordAgentUiPerformanceMetric("homeInput.pendingPreviewPaint", {
@@ -4434,8 +4438,8 @@ export function AgentChatWorkspace({
       });
     });
   }, [
+    homePendingPreviewRequest,
     homePendingPreviewMessages.length,
-    taskCenterDraftSendRequest,
     taskCenterWorkspaceId,
   ]);
   const hasMessages = hasDisplayMessages;
@@ -4446,6 +4450,7 @@ export function AgentChatWorkspace({
         isThemeWorkbench ||
         (!shouldUseCompactGeneralWorkbench && isBootstrapDispatchPending) ||
         isSessionHydrating ||
+        isHomePendingPreviewActive ||
         isSending ||
         queuedTurns.length > 0));
   const shouldRestoreImageTasksFromWorkspace = !(
@@ -4652,6 +4657,7 @@ export function AgentChatWorkspace({
       setTaskCenterDetachedTopicId(null);
       setActiveTaskCenterDraftTabId(draftTab.id);
       setTaskCenterDraftSendRequest(null);
+      setHomePendingPreviewRequest(null);
       setTaskCenterDraftTabs((current) =>
         [draftTab, ...current.filter((item) => item.id !== draftTab.id)].slice(
           0,
@@ -4985,6 +4991,7 @@ export function AgentChatWorkspace({
         setTaskCenterDetachedTopicId(null);
         setActiveTaskCenterDraftTabId(draftTabId);
         setTaskCenterDraftSendRequest(null);
+        setHomePendingPreviewRequest(null);
         resetTopicLocalState();
         setInput("");
         setSelectedText("");
@@ -5205,6 +5212,7 @@ export function AgentChatWorkspace({
       isPreparingSend ||
       isSending ||
       Boolean(taskCenterDraftSendRequest) ||
+      isHomePendingPreviewActive ||
       queuedTurns.length > 0);
   const shouldRenderTaskCenterEmbeddedHome = Boolean(
     agentEntry === "claw" &&
@@ -7669,7 +7677,7 @@ export function AgentChatWorkspace({
           source: "empty-state",
           workspaceId: taskCenterWorkspaceId,
         });
-        setTaskCenterDraftSendRequest({
+        const request: TaskCenterDraftSendRequest = {
           id: requestId,
           draftTabId: requestSessionKey,
           text,
@@ -7681,7 +7689,9 @@ export function AgentChatWorkspace({
           submittedAt,
           materializeDraft: false,
           source: "empty-state",
-        });
+        };
+        setTaskCenterDraftSendRequest(request);
+        setHomePendingPreviewRequest(request);
         recordAgentUiPerformanceMetric("homeInput.pendingShellApplied", {
           durationMs: Date.now() - submittedAt,
           requestId,
@@ -7724,6 +7734,20 @@ export function AgentChatWorkspace({
       turns.length,
     ],
   );
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      return;
+    }
+
+    setTaskCenterDraftSendRequest((current) => {
+      if (!current || current.materializeDraft) {
+        return current;
+      }
+      return null;
+    });
+    setHomePendingPreviewRequest(null);
+  }, [messages.length]);
 
   useEffect(() => {
     if (!taskCenterDraftSendRequest) {
@@ -7792,15 +7816,15 @@ export function AgentChatWorkspace({
               source: request.source,
               workspaceId: taskCenterWorkspaceId,
             });
+            setHomePendingPreviewRequest((current) =>
+              current?.id === request.id ? null : current,
+            );
           },
         )
         .finally(() => {
           if (request.materializeDraft) {
             return;
           }
-          setTaskCenterDraftSendRequest((current) =>
-            current?.id === request.id ? null : current,
-          );
         });
     });
 

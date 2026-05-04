@@ -250,6 +250,61 @@ describe("agentProtocol", () => {
 
     expect(
       parseAgentEvent({
+        type: "runtime_status",
+        status: {
+          phase: "permission_review",
+          title: "运行时权限需要确认",
+          detail: "当前执行画像声明了 2 项权限。",
+          metadata: {
+            permission_status: "requires_confirmation",
+            required_profile_keys: ["read_files", "write_artifacts"],
+            ask_profile_keys: ["read_files", "write_artifacts"],
+            blocking_profile_keys: [],
+            decision_source: "modality_execution_profile",
+            decision_scope: "declared_profile",
+            confirmation_status: "not_requested",
+            confirmation_source: "declared_profile_only",
+            declared_only: true,
+          },
+        },
+      }),
+    ).toEqual({
+      type: "runtime_status",
+      status: {
+        phase: "permission_review",
+        title: "运行时权限需要确认",
+        detail: "当前执行画像声明了 2 项权限。",
+        checkpoints: undefined,
+        metadata: {
+          team_phase: undefined,
+          team_parallel_budget: undefined,
+          team_active_count: undefined,
+          team_queued_count: undefined,
+          concurrency_phase: undefined,
+          concurrency_scope: undefined,
+          concurrency_active_count: undefined,
+          concurrency_queued_count: undefined,
+          concurrency_budget: undefined,
+          provider_concurrency_group: undefined,
+          provider_parallel_budget: undefined,
+          queue_reason: undefined,
+          retryable_overload: undefined,
+          permission_status: "requires_confirmation",
+          required_profile_keys: ["read_files", "write_artifacts"],
+          ask_profile_keys: ["read_files", "write_artifacts"],
+          blocking_profile_keys: [],
+          decision_source: "modality_execution_profile",
+          decision_scope: "declared_profile",
+          confirmation_status: "not_requested",
+          confirmation_request_id: undefined,
+          confirmation_source: "declared_profile_only",
+          declared_only: true,
+        },
+      },
+    });
+
+    expect(
+      parseAgentEvent({
         type: "item_updated",
         item: {
           id: "turn-summary-1",

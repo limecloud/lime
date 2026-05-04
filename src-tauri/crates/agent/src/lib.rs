@@ -107,10 +107,11 @@ pub use session_execution_runtime::{
     persist_session_recent_preferences, persist_session_recent_team_selection,
     SessionExecutionRuntime, SessionExecutionRuntimeAccessMode, SessionExecutionRuntimeCostState,
     SessionExecutionRuntimeLimitEvent, SessionExecutionRuntimeLimitState,
-    SessionExecutionRuntimeOemPolicy, SessionExecutionRuntimePreferences,
-    SessionExecutionRuntimeRecentTeamRole, SessionExecutionRuntimeRecentTeamSelection,
-    SessionExecutionRuntimeRoutingDecision, SessionExecutionRuntimeSource,
-    SessionExecutionRuntimeSummary, SessionExecutionRuntimeTaskProfile,
+    SessionExecutionRuntimeOemPolicy, SessionExecutionRuntimePermissionState,
+    SessionExecutionRuntimePreferences, SessionExecutionRuntimeRecentTeamRole,
+    SessionExecutionRuntimeRecentTeamSelection, SessionExecutionRuntimeRoutingDecision,
+    SessionExecutionRuntimeSource, SessionExecutionRuntimeSummary,
+    SessionExecutionRuntimeTaskProfile,
 };
 pub use session_query::{
     collect_subagent_cascade_session_ids, list_child_subagent_sessions,

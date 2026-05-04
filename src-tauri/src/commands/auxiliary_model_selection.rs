@@ -257,6 +257,18 @@ pub fn build_auxiliary_runtime_metadata(
         cached_input_tokens: None,
         cache_creation_input_tokens: None,
     };
+    let permission_state = lime_agent::SessionExecutionRuntimePermissionState {
+        status: "not_required".to_string(),
+        required_profile_keys: Vec::new(),
+        ask_profile_keys: Vec::new(),
+        blocking_profile_keys: Vec::new(),
+        decision_source: "execution_profile_registry".to_string(),
+        decision_scope: "declared_permission_profiles_only".to_string(),
+        confirmation_status: Some("not_required".to_string()),
+        confirmation_request_id: None,
+        confirmation_source: Some("declared_profile_only".to_string()),
+        notes: vec!["内部辅助任务未声明 permissionProfileKeys。".to_string()],
+    };
 
     let mut root = Map::new();
     let mut runtime_object = Map::new();
@@ -264,6 +276,7 @@ pub fn build_auxiliary_runtime_metadata(
     insert_serialized_runtime_metadata(&mut runtime_object, "routing_decision", &routing_decision);
     insert_serialized_runtime_metadata(&mut runtime_object, "limit_state", &limit_state);
     insert_serialized_runtime_metadata(&mut runtime_object, "cost_state", &cost_state);
+    insert_serialized_runtime_metadata(&mut runtime_object, "permission_state", &permission_state);
     root.insert(
         LIME_RUNTIME_METADATA_KEY.to_string(),
         Value::Object(runtime_object),

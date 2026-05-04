@@ -619,6 +619,7 @@ fn build_replay_runtime_facts(thread_read: &AgentRuntimeThreadReadModel) -> Valu
         "costState": thread_read.cost_state,
         "limitEvent": thread_read.limit_event,
         "runtimeSummary": thread_read.runtime_summary,
+        "permissionState": thread_read.permission_state,
         "oemPolicy": thread_read.oem_policy,
         "auxiliaryTaskRuntime": thread_read.auxiliary_task_runtime
     })
@@ -817,6 +818,24 @@ fn build_blocking_checks(
             "当前仍有 {} 条排队 turn，需确认 replay 评估是否把它们误判成已完成。",
             thread_read.queued_turns.len()
         ));
+    }
+
+    if let Some(permission_state) = thread_read.permission_state.as_ref() {
+        if permission_state.status == "requires_confirmation" {
+            checks.push(format!(
+                "运行时权限声明仍需确认：{}；除非 replay 已接入真实授权或用户确认证据，否则不能宣称这些权限已获批。",
+                format_text_list(&permission_state.ask_profile_keys, "未记录 askProfileKeys")
+            ));
+        }
+        if !permission_state.blocking_profile_keys.is_empty() {
+            checks.push(format!(
+                "运行时权限声明包含阻断项：{}；除非 replay 改写权限策略或移除对应执行需求，否则不能判 PASS。",
+                format_text_list(
+                    &permission_state.blocking_profile_keys,
+                    "未记录 blockingProfileKeys"
+                )
+            ));
+        }
     }
 
     if modality_contract_has_routing_block(modality_runtime_contracts) {
@@ -2654,6 +2673,21 @@ mod tests {
                 notes: vec!["需要回退链".to_string()],
             }),
             estimated_cost_class: Some("low".to_string()),
+            permission_state: Some(lime_agent::SessionExecutionRuntimePermissionState {
+                status: "requires_confirmation".to_string(),
+                required_profile_keys: vec![
+                    "read_files".to_string(),
+                    "write_artifacts".to_string(),
+                ],
+                ask_profile_keys: vec!["read_files".to_string(), "write_artifacts".to_string()],
+                blocking_profile_keys: Vec::new(),
+                decision_source: "modality_execution_profile".to_string(),
+                decision_scope: "declared_profile".to_string(),
+                confirmation_status: Some("not_requested".to_string()),
+                confirmation_request_id: None,
+                confirmation_source: Some("declared_profile_only".to_string()),
+                notes: vec!["声明态权限摘要，未执行真实授权。".to_string()],
+            }),
             cost_state: Some(lime_agent::SessionExecutionRuntimeCostState {
                 status: "estimated".to_string(),
                 estimated_cost_class: Some("low".to_string()),
@@ -2898,11 +2932,15 @@ mod tests {
         assert!(input.contains("\"pending_request\""));
         assert!(input.contains("\"observability\""));
         assert!(input.contains("\"requestTelemetry\""));
+        assert!(input.contains("\"permissionState\""));
+        assert!(input.contains("\"requires_confirmation\""));
         assert!(!input.contains("\"artifactValidator\""));
 
         let expected = fs::read_to_string(expected_path).expect("expected");
         assert!(expected.contains("不要要求与原始会话完全相同的工具调用顺序"));
         assert!(expected.contains("等待用户确认 replay 样本优先级"));
+        assert!(expected.contains("运行时权限声明仍需确认"));
+        assert!(expected.contains("read_files"));
 
         let grader = fs::read_to_string(grader_path).expect("grader");
         assert!(grader.contains("只评结果，不评路径"));

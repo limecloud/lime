@@ -452,7 +452,8 @@ pub fn update_knowledge_pack_status(
     .map_err(|error| format!("无法更新知识包状态 {}: {error}", knowledge_path.display()))?;
 
     let mut cleared_default = false;
-    if next_status == "archived" && read_default_pack_name(&working_dir).as_deref() == Some(&pack_name)
+    if next_status == "archived"
+        && read_default_pack_name(&working_dir).as_deref() == Some(&pack_name)
     {
         let marker_path = default_marker_path(&working_dir);
         match fs::remove_file(&marker_path) {
@@ -608,15 +609,19 @@ fn normalize_pack_name(value: &str) -> Result<String, String> {
 
 fn normalize_pack_status(value: &str) -> Result<String, String> {
     let trimmed = value.trim().to_ascii_lowercase();
-    let allowed = ["draft", "ready", "needs-review", "stale", "disputed", "archived"];
+    let allowed = [
+        "draft",
+        "ready",
+        "needs-review",
+        "stale",
+        "disputed",
+        "archived",
+    ];
     if allowed.contains(&trimmed.as_str()) {
         return Ok(trimmed);
     }
 
-    Err(format!(
-        "知识包 status 仅支持 {}",
-        allowed.join(" / ")
-    ))
+    Err(format!("知识包 status 仅支持 {}", allowed.join(" / ")))
 }
 
 fn ensure_pack_directories(pack_root: &Path) -> Result<(), String> {

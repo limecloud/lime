@@ -400,6 +400,15 @@ mod tests {
             KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("allowed-tools: list_directory, read_file")
         );
         assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("compiled/brief.md"));
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("lime_version: 1.1.0"));
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("wiki/product.md"));
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("wiki/workflows.md"));
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("wiki/experiments.md"));
+        assert!(
+            KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("runs/quality-report-{yyyyMMdd-HHmmss}.md")
+        );
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("source_coverage"));
+        assert!(KNOWLEDGE_BUILDER_SKILL_CONTENT.contains("runtime_readiness"));
     }
 
     #[test]

@@ -1,9 +1,9 @@
 # Agent Knowledge 实现执行计划
 
-> 状态：Phase 1 current 主链已接通，正式 Builder Skill 已进入默认 Skills 安装链  
+> 状态：Phase 1 current 主链已接通，项目资料能力已回流到现有 Agent 输入框；最新 GUI 最小冒烟待补跑
 > 创建时间：2026-05-01  
 > 路线图来源：`docs/roadmap/knowledge/prd.md`  
-> 当前目标：完成 Markdown-first 知识包的导入、编译、GUI 管理、显式选择与运行时 fenced context 注入。
+> 当前目标：完成 Markdown-first 项目资料的导入、整理、GUI 管理、Agent 输入框显式使用与运行时受保护上下文注入。
 
 ## 主目标
 
@@ -86,6 +86,50 @@ src-tauri/crates/knowledge
 - 已补输入区回归，覆盖菜单切换具体知识包、自动启用知识包上下文和发送 metadata 使用选中包。
 - 已通过 `npm test -- "src/components/agent/chat/components/Inputbar/index.test.tsx"` 与 `npm run typecheck`。
 - 本轮重跑 `npm run verify:gui-smoke` 时，脚本检测到 sqlite 构建缓存缺失并切到独立 target，同时复用已有 headless 链路；等待超过 20 分钟仍未暴露 DevBridge，本轮新启动的 verify 父进程已中断，该次 smoke 不计为通过。上一轮完整 GUI smoke 通过记录仍保留，但多包选择菜单这刀还需要在环境恢复后补跑一次 GUI smoke。
+- 已升级 `knowledge_builder` 到 `lime_version: 1.1.0`，补齐 personal-ip、brand-product、organization-know-how、growth-strategy 与 custom 的类型化 wiki / runtime brief 模板。
+- 已要求 Builder 输出 `runs/quality-report-{yyyyMMdd-HHmmss}.md`，包含 pass / warn / fail 结论、检查表、待确认事实、冲突风险和下一步，避免把无法确认的信息推断成事实。
+
+### 2026-05-04
+
+- 已补跑 `knowledge_builder` 1.1.0 内容契约检查，确认类型化模板、`compiled/brief.md` 固定结构和 `runs/quality-report-*` 质量报告关键字段存在。
+- 已通过 `cargo fmt --manifest-path "src-tauri/Cargo.toml" --package lime --check`，确认默认 Skill 注册相关 Rust 改动格式正确。
+- 已通过 `CARGO_TARGET_DIR="/tmp/lime-knowledge-resource-target" cargo test --manifest-path "src-tauri/Cargo.toml" -p lime should_embed_social_image_tool_contract_in_default_skill --no-default-features`，避开共享 `src-tauri/target` 占用并确认 `knowledge_builder` 内容随默认 Skill 资源内嵌。
+- 已通过 `npm test -- "src/features/knowledge/KnowledgePage.test.tsx"` 与 `npm test -- "src/components/AppPageContent.test.tsx"`，确认知识库页面与应用页挂载回归仍稳定。
+- 已通过 `npm run typecheck`，确认前端类型边界未被知识库页面、预加载和输入区 metadata 改动破坏。
+- 已通过 `CARGO_HOME="/tmp/lime-gui-smoke-cargo-home" npm run verify:gui-smoke`，复用现有 headless Tauri 环境，覆盖 DevBridge、workspace-ready、browser-runtime、site adapters、Agent service skill entry 与 runtime tool surface/page smoke。
+- 已按普通使用者视角收敛知识库页面文案：用户可见 UI 与“整理资料”自动发送提示不再展示内部目录、Builder/Skill 名称、运行时围栏、token、frontmatter/trust/status 实现细节，改为“导入资料 / 自动整理 / 预览摘要 / 人工确认 / 引用摘要 / 整理记录”。
+- 已同步 `src/features/knowledge/KnowledgePage.test.tsx`，新增负向断言锁定 `.lime/knowledge`、`knowledge_builder`、`compiled/brief.md`、`frontmatter`、`KNOWLEDGE.md`、raw fenced context 与 token 不出现在普通用户页面正文里；内部 metadata 契约测试继续保留。
+- 已同步 `scripts/knowledge-gui-smoke.mjs` 的用户可见断言，把“Builder 入口 / 编译预览”替换为“资料整理入口 / 预览摘要”。
+- 已通过 `npm test -- "src/features/knowledge/KnowledgePage.test.tsx"`。
+- 已通过 `npm run typecheck`。
+- 已运行 `npm run bridge:health -- --timeout-ms 20000`，当前 DevBridge 未监听 `127.0.0.1:3030`，因此本轮知识库 GUI smoke 未执行且不计为通过。
+- 已根据产品化反馈重做知识页主路径：默认入口从“知识包管理台”改为“项目资料助手”，首屏直接支持粘贴资料、选择资料类型、开始整理、查看完成进度、检查确认与用于生成；默认包、待确认和全部资料改为次级信息。
+- 已把手动导入页降级为补充入口，避免继续作为普通用户首屏主路径。
+- 已同步 `src/features/knowledge/KnowledgePage.test.tsx`，覆盖资料助手首屏、粘贴资料后整理、检查确认、用于生成与内部 metadata 契约。
+- 已同步 `scripts/knowledge-gui-smoke.mjs`，知识库 GUI smoke 断言改为资料助手、全部资料、等你确认的资料和当前资料。
+- 已通过 `npm test -- "src/features/knowledge/KnowledgePage.test.tsx"`。
+- 已通过 `npm run typecheck`。
+- 已运行 `npm run bridge:health -- --timeout-ms 20000`，当前 DevBridge 仍未监听 `127.0.0.1:3030`，因此本轮产品化重做后的 GUI smoke 未执行且不计为通过。
+
+### 2026-05-05
+
+- 已根据用户反馈继续收敛产品主路径：普通用户整理和使用项目资料的入口回到现有 Agent 输入框，不再要求先进入独立知识页。
+- 已将 `src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx` 的资料控件改为输入框主路径常显；已有资料时显示“项目资料”选择与启用，无资料时显示“整理成项目资料”。
+- 已将 `src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx` 接入“整理成项目资料”动作：有输入内容时复用现有 Agent `handleSend` 发送整理请求并携带 `knowledge_builder` metadata；无输入内容时只预填用户可编辑提示；未选择项目时提示先选择项目。
+- 已下线知识页内独立聊天面板：`src/features/knowledge/KnowledgePage.tsx` 不再保留 `chat` 视图、页面内任务输入框、页面内发送按钮、引用原文预览和 token 展示。
+- 已将知识页定位降级为“项目资料管理”：保留全部资料、资料详情、手动导入、确认、设默认、归档、重新整理等管理动作。
+- 已将知识页“用于生成”改为直接回到现有 Agent，并携带 `knowledge_pack` metadata；资料使用不再绕到独立页面内聊天流。
+- 已补齐 `src-tauri/src/dev_bridge/dispatcher/knowledge.rs`，并在 `src-tauri/src/dev_bridge/dispatcher.rs` 注册已有 `knowledge_*` 命令的 DevBridge 分发，解决 GUI smoke 中 `knowledge_import_source` 无分发的问题。
+- 已同步 `scripts/knowledge-gui-smoke.mjs`，把断言从“资料助手 / 页面内聊天”改为“项目资料管理 / 回到 Agent / 手动导入”。
+- 已同步 `src/features/knowledge/KnowledgePage.test.tsx` 与 `src/components/agent/chat/components/Inputbar/index.test.tsx`，锁定普通用户页面不展示开发者细节，并覆盖输入框整理入口、资料 metadata 发送和知识页回到 Agent。
+- 已通过 `npm test -- "src/features/knowledge/KnowledgePage.test.tsx"`。
+- 已通过 `npm test -- "src/components/agent/chat/components/Inputbar/index.test.tsx"`。
+- 已通过 `npm run typecheck`。
+- 已通过 `cargo fmt --manifest-path "src-tauri/Cargo.toml" --package lime --check`。
+- 已通过 `npm run test:contracts`。
+- 已执行禁名扫描，用户要求禁止出现的具体名称无命中。
+- 已执行普通用户路径泄露扫描，新增主路径未再暴露“聊天任务 / 当前资料 / 查看引用 / 资料助手 / Builder 生成”等旧页面语义。
+- 已重跑 `CARGO_HOME="/tmp/lime-gui-smoke-cargo-home" npm run verify:gui-smoke`，本轮进入独立 target 冷构建，已完成依赖下载并编译到主 `lime` crate 收尾阶段，但约 34 分钟仍未进入 GUI smoke 断言；该次临时进程组已中止，最新 GUI smoke 不计为通过。当前未观察到业务断言失败，剩余风险是 GUI 主路径尚未在稳定 headless 环境完成最终冒烟。
 
 ## 待完成清单
 
@@ -105,6 +149,14 @@ src-tauri/crates/knowledge
 - [x] 在聊天输入区补轻量知识包选择器，让用户不必先进入知识库页面再“去生成”。
 - [x] 产品化 Builder Skill，让来源资料能通过正式 Skill 生成更完整的 `wiki/` 与 `compiled/` 草稿。
 - [x] 为聊天输入区知识包开关增加多包选择菜单，继续复用 `knowledge_pack` metadata 与 runtime fenced context。
+- [x] 为 `knowledge_builder` 增加类型化模板和质量检查输出，覆盖个人 IP、品牌产品、组织 Know-how、增长策略四类。
+- [x] 对知识库页面做普通用户语言降噪，隐藏内部协议、目录、Builder/Skill、token 与 fenced context 等开发者细节。
+- [x] 重做知识页产品主路径：默认展示资料助手，而不是知识包管理台。
+- [x] 将项目资料主入口回流到现有 Agent 输入框。
+- [x] 下线知识页内独立聊天面板。
+- [x] 将知识页定位收敛为项目资料管理页。
+- [x] 补齐 knowledge DevBridge dispatcher。
+- [ ] 在稳定 headless 环境补跑 `npm run verify:gui-smoke` 或至少补跑 `smoke:knowledge-gui`。
 
 ## 验证记录
 
@@ -134,10 +186,35 @@ npm test -- "src/components/agent/chat/components/Inputbar/index.test.tsx"
 npm run typecheck
 CARGO_HOME="/tmp/lime-gui-smoke-cargo-home" npm run verify:gui-smoke
 # 2026-05-02 重跑未完成：独立 target 重建 + 既有 headless 链路长时间未暴露 DevBridge，未计为通过。
+cargo fmt --manifest-path "src-tauri/Cargo.toml" --package lime --check
+# 内容契约脚本输出：knowledge_builder content contract ok
+CARGO_TARGET_DIR="/tmp/lime-knowledge-resource-target" cargo test --manifest-path "src-tauri/Cargo.toml" -p lime should_embed_social_image_tool_contract_in_default_skill --no-default-features
+npm test -- "src/features/knowledge/KnowledgePage.test.tsx"
+npm test -- "src/components/AppPageContent.test.tsx"
+npm run typecheck
+CARGO_HOME="/tmp/lime-gui-smoke-cargo-home" npm run verify:gui-smoke
+npm test -- "src/features/knowledge/KnowledgePage.test.tsx"
+npm run typecheck
+npm run bridge:health -- --timeout-ms 20000
+# 2026-05-04 知识库降噪后 GUI smoke 未执行：DevBridge 未监听 127.0.0.1:3030，health check 超时。
+npm test -- "src/features/knowledge/KnowledgePage.test.tsx"
+npm run typecheck
+npm run bridge:health -- --timeout-ms 20000
+# 2026-05-05 资料助手主路径重做后 GUI smoke 未执行：DevBridge 未监听 127.0.0.1:3030，health check 超时。
+npm test -- "src/features/knowledge/KnowledgePage.test.tsx"
+npm test -- "src/components/agent/chat/components/Inputbar/index.test.tsx"
+npm run typecheck
+cargo fmt --manifest-path "src-tauri/Cargo.toml" --package lime --check
+npm run test:contracts
+# 禁名扫描：用户要求禁止出现的具体名称无命中。
+# 普通用户路径泄露扫描：新增主路径未再暴露“聊天任务 / 当前资料 / 查看引用 / 资料助手 / Builder 生成”等旧页面语义。
+CARGO_HOME="/tmp/lime-gui-smoke-cargo-home" npm run verify:gui-smoke
+# 2026-05-05 Agent 输入框回流后 GUI smoke 未完成：独立 target 冷构建约 34 分钟仍未进入 smoke 断言，临时进程组已中止，该次不计为通过。
 ```
 
 ## 后续切片
 
-1. 为 `knowledge_builder` 增加类型化模板和质量检查输出，覆盖个人 IP、品牌产品、组织 Know-how、增长策略四类。
-2. 为 GUI 主路径补专门的知识库交互 smoke：启动 Lime，确认知识库页面入口、默认包开关、多包选择、“去生成”和“Builder 生成”跳转可用。
-3. 为运行时 Knowledge Context Resolver 增加更细的章节选择和 token 成本提示。
+1. 在稳定 headless 环境补跑 GUI 主路径冒烟：启动 Lime，确认 Agent 输入框“整理成项目资料”、项目资料选择、“用于生成”回到 Agent、手动导入和全部资料列表可用。
+2. 继续收口普通用户语言：管理页只展示资料名称、状态、风险提醒、引用摘要和确认动作；内部文件名、Skill 名称、目录结构只保留在开发文档和测试 mock 中。
+3. 为运行时 Knowledge Context Resolver 增加更细的章节选择和成本控制，但只在开发者诊断或高级设置中展示，不进入普通用户默认路径。
+4. 为 `knowledge_builder` 增加示例输入 / 输出快照测试，锁定不同 `pack_type` 的生成结构。

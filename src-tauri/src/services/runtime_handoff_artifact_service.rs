@@ -1205,6 +1205,7 @@ mod tests {
                 notes: vec!["需要回退链".to_string()],
             }),
             estimated_cost_class: Some("low".to_string()),
+            permission_state: None,
             cost_state: Some(lime_agent::SessionExecutionRuntimeCostState {
                 status: "estimated".to_string(),
                 estimated_cost_class: Some("low".to_string()),

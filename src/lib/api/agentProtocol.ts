@@ -425,10 +425,20 @@ export interface AgentRuntimeStatusMetadata {
   provider_parallel_budget?: number;
   queue_reason?: string;
   retryable_overload?: boolean;
+  permission_status?: string;
+  required_profile_keys?: string[];
+  ask_profile_keys?: string[];
+  blocking_profile_keys?: string[];
+  decision_source?: string;
+  decision_scope?: string;
+  confirmation_status?: string;
+  confirmation_request_id?: string;
+  confirmation_source?: string;
+  declared_only?: boolean;
 }
 
 export interface AgentRuntimeStatusPayload {
-  phase: "preparing" | "routing" | "context" | "failed";
+  phase: "preparing" | "routing" | "context" | "permission_review" | "failed";
   title: string;
   detail: string;
   checkpoints?: string[];
@@ -890,6 +900,7 @@ export function parseAgentEvent(data: unknown): AgentEvent | null {
             phase === "preparing" ||
             phase === "routing" ||
             phase === "context" ||
+            phase === "permission_review" ||
             phase === "failed"
               ? phase
               : "routing",
@@ -954,6 +965,47 @@ export function parseAgentEvent(data: unknown): AgentEvent | null {
                 retryable_overload:
                   typeof metadata.retryable_overload === "boolean"
                     ? metadata.retryable_overload
+                    : undefined,
+                permission_status:
+                  typeof metadata.permission_status === "string"
+                    ? metadata.permission_status
+                    : undefined,
+                required_profile_keys: Array.isArray(
+                  metadata.required_profile_keys,
+                )
+                  ? (metadata.required_profile_keys as string[])
+                  : undefined,
+                ask_profile_keys: Array.isArray(metadata.ask_profile_keys)
+                  ? (metadata.ask_profile_keys as string[])
+                  : undefined,
+                blocking_profile_keys: Array.isArray(
+                  metadata.blocking_profile_keys,
+                )
+                  ? (metadata.blocking_profile_keys as string[])
+                  : undefined,
+                decision_source:
+                  typeof metadata.decision_source === "string"
+                    ? metadata.decision_source
+                    : undefined,
+                decision_scope:
+                  typeof metadata.decision_scope === "string"
+                    ? metadata.decision_scope
+                    : undefined,
+                confirmation_status:
+                  typeof metadata.confirmation_status === "string"
+                    ? metadata.confirmation_status
+                    : undefined,
+                confirmation_request_id:
+                  typeof metadata.confirmation_request_id === "string"
+                    ? metadata.confirmation_request_id
+                    : undefined,
+                confirmation_source:
+                  typeof metadata.confirmation_source === "string"
+                    ? metadata.confirmation_source
+                    : undefined,
+                declared_only:
+                  typeof metadata.declared_only === "boolean"
+                    ? metadata.declared_only
                     : undefined,
               }
             : undefined,

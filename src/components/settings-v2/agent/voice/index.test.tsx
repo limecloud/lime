@@ -1,5 +1,6 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   persistVoiceModelSettingsFocusRequest,
@@ -231,6 +232,10 @@ let emitVoiceModelProgress:
     }) => void)
   | null = null;
 const scrollIntoViewMock = vi.fn();
+const originalScrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
+  Element.prototype,
+  "scrollIntoView",
+);
 
 function renderComponent(): HTMLDivElement {
   const container = document.createElement("div");
@@ -315,6 +320,7 @@ beforeEach(() => {
   emitVoiceModelProgress = null;
   Object.defineProperty(Element.prototype, "scrollIntoView", {
     configurable: true,
+    writable: true,
     value: scrollIntoViewMock,
   });
   vi.stubGlobal(
@@ -455,6 +461,15 @@ afterEach(() => {
     target.container.remove();
   }
   window.sessionStorage.removeItem(VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY);
+  if (originalScrollIntoViewDescriptor) {
+    Object.defineProperty(
+      Element.prototype,
+      "scrollIntoView",
+      originalScrollIntoViewDescriptor,
+    );
+  } else {
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+  }
   vi.unstubAllGlobals();
 });
 
@@ -531,9 +546,11 @@ describe("VoiceSettings", () => {
       `#${VOICE_MODEL_SETTINGS_SECTION_ID}`,
     );
     expect(voiceModelSection).toBeInstanceOf(HTMLElement);
-    expect(scrollIntoViewMock).toHaveBeenCalledWith({
-      block: "start",
-      behavior: "smooth",
+    await waitFor(() => {
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        block: "start",
+        behavior: "smooth",
+      });
     });
     expect(
       window.sessionStorage.getItem(VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY),

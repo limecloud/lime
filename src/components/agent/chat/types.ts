@@ -356,7 +356,13 @@ export interface WriteArtifactContext {
 }
 
 export interface AgentRuntimeStatus {
-  phase: "preparing" | "routing" | "context" | "failed" | "cancelled";
+  phase:
+    | "preparing"
+    | "routing"
+    | "context"
+    | "permission_review"
+    | "failed"
+    | "cancelled";
   title: string;
   detail: string;
   checkpoints?: string[];
@@ -374,6 +380,13 @@ export interface AgentRuntimeStatus {
     provider_parallel_budget?: number;
     queue_reason?: string;
     retryable_overload?: boolean;
+    permission_status?: string;
+    required_profile_keys?: string[];
+    ask_profile_keys?: string[];
+    blocking_profile_keys?: string[];
+    decision_source?: string;
+    decision_scope?: string;
+    declared_only?: boolean;
   };
 }
 

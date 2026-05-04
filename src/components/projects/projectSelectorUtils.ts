@@ -75,5 +75,9 @@ export function resolveSelectedProject(
     }
   }
 
+  if (!selectedProjectId) {
+    return null;
+  }
+
   return projects[0] || null;
 }

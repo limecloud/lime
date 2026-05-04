@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { FrameRequestCallback } from "react";
 import type { Message } from "../types";
 import {
   clearAgentUiPerformanceMetrics,
@@ -8,6 +7,8 @@ import {
 import { buildWaitingAgentRuntimeStatus } from "../utils/agentRuntimeStatus";
 import { mergeAgentUiPerformanceTraceMetadata } from "./agentStreamPerformanceMetrics";
 import { prepareAgentStreamSubmitDraft } from "./agentStreamSubmitDraft";
+
+type FrameRequestCallback = Parameters<typeof requestAnimationFrame>[0];
 
 function createStateSetter<T>(getValue: () => T, setValue: (value: T) => void) {
   return (next: T | ((prev: T) => T)) => {
@@ -157,10 +158,12 @@ describe("agentStreamSubmitDraft", () => {
     let isSending = false;
     const requestAnimationFrameSpy = vi
       .spyOn(window, "requestAnimationFrame")
-      .mockImplementation((callback: FrameRequestCallback) => {
-        callback(0);
-        return 1;
-      });
+      .mockImplementation(
+        (callback: FrameRequestCallback) => {
+          callback(0);
+          return 1;
+        },
+      );
 
     prepareAgentStreamSubmitDraft({
       content: "只回答一个字：好",

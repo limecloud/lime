@@ -686,6 +686,7 @@ export function EmptyStateComposerPanel({
         activeTheme={activeTheme}
         showDragHandle={false}
         visualVariant="floating"
+        deferSendOnEnter
         topExtra={topExtra}
         leftExtra={leftExtra}
         pathReferences={pathReferences}
