@@ -2355,3 +2355,50 @@ GUI / E2E 状态：
 
 1. 继续 Phase 2：抽 `sessionPostFinalizePersistenceController`，把 workspace 保存、topic workspace upsert、provider preference apply 从 `finalizeResolvedTopicDetail` 主体继续移出。
 2. 恢复 GUI 环境后按 `conversation-projection-acceptance.md` 采集旧会话 A/B 打开、切换与首字指标，决定是否进入 MessageList idle / worker 化。
+
+### 2026-05-05：P3 第十三刀，Session post-finalize persistence controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionPostFinalizePersistenceController.ts`：
+  - `resolveSessionDetailTopicWorkspaceId`
+  - `resolvePersistedSessionWorkspaceId`
+  - `buildSessionPostFinalizePersistencePlan`
+- `useAgentSession.ts` 中 `finalizeResolvedTopicDetail` 的 post-finalize 后处理决策改为委托 controller：
+  - `mapSessionDetailToTopic` 使用的 topic workspace 来源。
+  - `agent_session_workspace` 映射持久化 workspace 来源。
+  - runtime workspace 回写 topic 字段的条件和值。
+  - provider preference apply 的目标 preference。
+- 新增 `sessionPostFinalizePersistenceController.test.ts`，覆盖 topic workspace 优先级、持久化 workspace 来源和完整 post-finalize plan。
+
+主线收益：
+
+- Phase 2 继续瘦 `finalizeResolvedTopicDetail`：会话详情 apply 后的 workspace / provider 后处理不再散落在 hook 主体里。
+- workspace 相关恢复规则进一步可单测，降低旧会话恢复慢问题排查时“到底是 runtime workspace、topic snapshot 还是 shadow cache 生效”的定位成本。
+- provider preference apply 的决策进入同一个 post-finalize plan，为后续继续拆 `finalizeResolvedTopicDetail` 或把 post-apply side effects 降优先级打基础。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionPostFinalizePersistenceController.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionFinalizeController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "模型|权限|执行策略|metadata|stale 快照|预取|workspace|跨工作区" --hookTimeout 180000 --testTimeout 120000
+npx eslint "src/components/agent/chat/hooks/sessionPostFinalizePersistenceController.ts" "src/components/agent/chat/hooks/sessionPostFinalizePersistenceController.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.ts" "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.ts" "src/components/agent/chat/hooks/sessionFinalizeController.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Post-finalize / scheduler / finalize / metadata / snapshot / retry / fetch / hydration controller：通过，`36` 个测试通过。
+- `useAsterAgentChat` 模型、权限、metadata、stale 快照、预取、workspace 定向：通过，`29` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionSwitchErrorController`，把 session not found、preserve current snapshot、toast/error metric 等错误恢复判断从 `useAgentSession` 中移出。
+2. 或抽 `sessionHistoryPaginationController`，把完整历史分页窗口计算、stale guard 与 merge 计划从主 hook 中移出。

@@ -43,7 +43,7 @@
 
 #### 5. 会话恢复、消息投影与性能稳定性
 
-- 新增会话详情拉取、hydration、retry、metadata sync、finalize 和切换快照控制器，把 `useAgentSession` 中的会话恢复逻辑拆成可测边界，降低切换历史会话时的竞态风险。
+- 新增会话详情拉取、hydration、retry、metadata sync、finalize、post-finalize persistence 和切换快照控制器，把 `useAgentSession` 中的会话恢复逻辑拆成可测边界，降低切换历史会话时的竞态风险。
 - 新增 conversation projection store、历史消息 hydration、消息渲染窗口、timeline render 和 thread timeline window 投影，减少长历史消息列表渲染和恢复路径漂移。
 - 旧会话切换失败时增加可重试/可跳过分类， transient 失败不再直接破坏当前快照；不可恢复错误仍按原错误路径处理。
 - MessageList 和 Agent UI 性能指标补齐旧历史内容扫描、markdown 延迟渲染、线程 item 扫描和首帧 paint 的采集与回归。

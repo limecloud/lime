@@ -250,4 +250,5 @@ AgentChatWorkspace
 - Phase 2 已继续抽出 `sessionMetadataSyncController`，统一 finalize 后 accessMode / provider / executionStrategy fallback patch、switch success metric source 与批量/分散 metadata sync。
 - Phase 2 已继续抽出 `sessionFinalizeController`，统一 finalize 阶段 workspace restore guard、runtime/topic/shadow workspace 汇总、shadow execution strategy fallback 与最终 execution strategy override。
 - Phase 2 已继续抽出 `sessionMetadataSyncScheduler`，统一 finalize 后 metadata patch 的 invoke capability guard、旧调度取消、idle 调度、stale guard、成功回写与失败回调。
-- 下一刀建议继续 Phase 2：抽 `sessionPostFinalizePersistenceController`，把保存 workspace、同步 topic 字段、provider preference apply 继续从 `finalizeResolvedTopicDetail` 主体中移出；只有 E2E 指标显示 `messageListTimelineBuildMs` 仍高时才进入 worker 化。
+- Phase 2 已继续抽出 `sessionPostFinalizePersistenceController`，统一 finalize 后 topic workspace、workspace 映射持久化、runtime workspace topic 回写与 provider preference apply 的决策。
+- 下一刀建议继续 Phase 2：抽 `sessionSwitchErrorController` 或 `sessionHistoryPaginationController`，把错误恢复与完整历史分页状态继续从 `useAgentSession` 主体中移出；只有 E2E 指标显示 `messageListTimelineBuildMs` 仍高时才进入 worker 化。
